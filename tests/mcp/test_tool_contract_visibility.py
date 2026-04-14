@@ -100,32 +100,100 @@ def _assert_recoverable_enum_string_schema(
     assert pattern_branch["pattern"].endswith(")$")
 
 
-def _assert_string_list_schema(schema_fragment: dict[str, object], *, label: str) -> None:
+def _assert_scalar_or_array_string_list_schema(
+    schema_fragment: dict[str, object],
+    *,
+    label: str,
+    min_items: int | None = None,
+) -> None:
+    assert "anyOf" in schema_fragment, f"{label} must publish scalar-or-array compatibility"
+    dict_branches = [branch for branch in schema_fragment["anyOf"] if isinstance(branch, dict)]
+    assert len(dict_branches) == 2, f"{label} must publish exactly one scalar branch and one array branch"
+    assert {branch.get("type") for branch in dict_branches} == {"string", "array"}
+
+    string_branch = _schema_anyof_string(schema_fragment)
+    assert string_branch["minLength"] == 1
+    assert string_branch["pattern"] == r"^\S(?:[\s\S]*\S)?$"
+
     array_branch = _schema_anyof_array(schema_fragment)
-    if "anyOf" in schema_fragment:
-        string_branch = _schema_anyof_string(schema_fragment)
-        assert string_branch["minLength"] == 1
-        assert string_branch["pattern"] == r"^\S(?:[\s\S]*\S)?$"
     assert array_branch["items"]["type"] == "string"
     assert array_branch["items"]["minLength"] == 1
     assert array_branch["items"]["pattern"] == r"^\S(?:[\s\S]*\S)?$"
     assert array_branch["uniqueItems"] is True
+    if min_items is None:
+        assert "minItems" not in array_branch
+    else:
+        assert array_branch["minItems"] == min_items
 
 
-def _assert_enum_string_list_schema(
+def _assert_array_only_string_list_schema(
+    schema_fragment: dict[str, object],
+    *,
+    label: str,
+    min_items: int | None = None,
+) -> None:
+    assert schema_fragment["type"] == "array", f"{label} must stay array-only"
+    assert "anyOf" not in schema_fragment, f"{label} must not allow scalar string salvage"
+    assert schema_fragment["items"]["type"] == "string"
+    assert schema_fragment["items"]["minLength"] == 1
+    assert schema_fragment["items"]["pattern"] == r"\S"
+    assert schema_fragment["uniqueItems"] is True
+    if min_items is None:
+        assert "minItems" not in schema_fragment
+    else:
+        assert schema_fragment["minItems"] == min_items
+
+
+def _assert_array_or_null_string_list_schema(
+    schema_fragment: dict[str, object],
+    *,
+    label: str,
+    min_items: int | None = None,
+    require_unique_items: bool = True,
+) -> None:
+    assert "anyOf" in schema_fragment, f"{label} must stay array-or-null"
+    dict_branches = [branch for branch in schema_fragment["anyOf"] if isinstance(branch, dict)]
+    assert len(dict_branches) == 2, f"{label} must publish exactly one array branch and one null branch"
+    assert {branch.get("type") for branch in dict_branches} == {"array", "null"}
+
+    array_branch = _schema_anyof_array(schema_fragment)
+    assert array_branch["items"]["type"] == "string"
+    assert array_branch["items"]["minLength"] == 1
+    assert array_branch["items"]["pattern"] == r"\S"
+    if require_unique_items:
+        assert array_branch["uniqueItems"] is True
+    else:
+        assert "uniqueItems" not in array_branch
+    if min_items is None:
+        assert "minItems" not in array_branch
+    else:
+        assert array_branch["minItems"] == min_items
+
+
+def _assert_scalar_or_array_enum_string_list_schema(
     schema_fragment: dict[str, object],
     *,
     label: str,
     enum_values: list[str],
+    min_items: int | None = None,
 ) -> None:
+    assert "anyOf" in schema_fragment, f"{label} must publish scalar-or-array compatibility"
     array_branch = _schema_anyof_array(schema_fragment)
-    if "anyOf" in schema_fragment:
-        scalar_branch = next(
-            branch for branch in schema_fragment["anyOf"] if isinstance(branch, dict) and branch.get("type") != "array"
-        )
-        _assert_recoverable_enum_string_schema(scalar_branch, label=f"{label} scalar branch", enum_values=enum_values)
+    scalar_branches = [
+        branch for branch in schema_fragment["anyOf"] if isinstance(branch, dict) and branch.get("type") != "array"
+    ]
+    assert len(scalar_branches) == 1, f"{label} must publish exactly one scalar branch and one array branch"
+    _assert_recoverable_enum_string_schema(
+        scalar_branches[0],
+        label=f"{label} scalar branch",
+        enum_values=enum_values,
+    )
     _assert_recoverable_enum_string_schema(array_branch["items"], label=f"{label} items", enum_values=enum_values)
     assert array_branch["uniqueItems"] is True
+    if min_items is None:
+        assert "minItems" not in array_branch
+    else:
+        assert array_branch["minItems"] == min_items
 
 
 def _assert_closed_object(schema_fragment: dict[str, object], *, label: str) -> None:
@@ -135,10 +203,15 @@ def _assert_closed_object(schema_fragment: dict[str, object], *, label: str) -> 
 def _assert_strict_required_schema_fragment(schema_fragment: dict[str, object], *, label: str) -> None:
     any_of = schema_fragment.get("anyOf")
     if isinstance(any_of, list):
-        assert not any(
-            isinstance(branch, dict) and branch.get("type") == "null"
-            for branch in any_of
-        ), f"{label} must not allow null when schema-required"
+        dict_branches = [branch for branch in any_of if isinstance(branch, dict)]
+        assert not any(branch.get("type") == "null" for branch in dict_branches), (
+            f"{label} must not allow null when schema-required"
+        )
+        array_branches = [branch for branch in dict_branches if branch.get("type") == "array"]
+        if array_branches:
+            assert len(array_branches) == len(dict_branches), (
+                f"{label} must not allow scalar-or-array salvage when schema-required"
+            )
         for branch in any_of:
             if not isinstance(branch, dict):
                 continue
@@ -391,7 +464,10 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     assert scope["properties"]["question"]["minLength"] == 1
     assert scope["properties"]["question"]["pattern"] == r"\S"
     for field_name in ("in_scope", "out_of_scope", "unresolved_questions"):
-        _assert_string_list_schema(scope["properties"][field_name], label=f"contract.scope.{field_name}")
+        _assert_scalar_or_array_string_list_schema(
+            scope["properties"][field_name],
+            label=f"contract.scope.{field_name}",
+        )
 
     context_intake = _schema_object(contract_schema, contract_schema["properties"]["context_intake"])
     _assert_closed_object(context_intake, label="contract.context_intake")
@@ -404,9 +480,10 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         "context_gaps",
         "crucial_inputs",
     ):
-        _assert_string_list_schema(
+        _assert_scalar_or_array_string_list_schema(
             context_intake["properties"][field_name],
             label=f"contract.context_intake.{field_name}",
+            min_items=1,
         )
 
     approach_policy = _schema_object(contract_schema, contract_schema["properties"]["approach_policy"])
@@ -419,7 +496,7 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         "forbidden_fit_families",
         "stop_and_rethink_conditions",
     ):
-        _assert_string_list_schema(
+        _assert_scalar_or_array_string_list_schema(
             approach_policy["properties"][field_name],
             label=f"contract.approach_policy.{field_name}",
         )
@@ -448,14 +525,29 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     assert "when the statement is theorem-like" in claims["description"]
     assert "when proof-specific fields are already populated" in claims["description"]
     assert "when `observables` references a `proof_obligation` target" in claims["description"]
-    for field_name in ("observables", "deliverables", "acceptance_tests", "references", "quantifiers", "proof_deliverables"):
-        _assert_string_list_schema(claims["properties"][field_name], label=f"contract.claims[].{field_name}")
+    for field_name in ("observables", "references", "quantifiers", "proof_deliverables"):
+        _assert_scalar_or_array_string_list_schema(
+            claims["properties"][field_name],
+            label=f"contract.claims[].{field_name}",
+        )
+    for field_name in ("deliverables", "acceptance_tests"):
+        _assert_scalar_or_array_string_list_schema(
+            claims["properties"][field_name],
+            label=f"contract.claims[].{field_name}",
+            min_items=1,
+        )
     parameters = claims["properties"]["parameters"]["items"]
     _assert_closed_object(parameters, label="contract.claims[].parameters[]")
-    _assert_string_list_schema(parameters["properties"]["aliases"], label="contract.claims[].parameters[].aliases")
+    _assert_scalar_or_array_string_list_schema(
+        parameters["properties"]["aliases"],
+        label="contract.claims[].parameters[].aliases",
+    )
     hypotheses = claims["properties"]["hypotheses"]["items"]
     _assert_closed_object(hypotheses, label="contract.claims[].hypotheses[]")
-    _assert_string_list_schema(hypotheses["properties"]["symbols"], label="contract.claims[].hypotheses[].symbols")
+    _assert_scalar_or_array_string_list_schema(
+        hypotheses["properties"]["symbols"],
+        label="contract.claims[].hypotheses[].symbols",
+    )
     conclusion_clauses = claims["properties"]["conclusion_clauses"]["items"]
     _assert_closed_object(conclusion_clauses, label="contract.claims[].conclusion_clauses[]")
     proof_claim_condition = claims["allOf"][0]
@@ -476,6 +568,11 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         "hypotheses",
         "conclusion_clauses",
     ]
+    _assert_scalar_or_array_string_list_schema(
+        proof_claim_condition["then"]["properties"]["proof_deliverables"],
+        label="contract.claims[].proof condition proof_deliverables",
+        min_items=1,
+    )
     assert proof_claim_condition["then"]["properties"]["parameters"]["minItems"] == 1
     assert proof_claim_condition["then"]["properties"]["hypotheses"]["minItems"] == 1
     assert proof_claim_condition["then"]["properties"]["conclusion_clauses"]["minItems"] == 1
@@ -522,7 +619,7 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
             "other",
         ],
     )
-    _assert_string_list_schema(
+    _assert_scalar_or_array_string_list_schema(
         deliverables["properties"]["must_contain"],
         label="contract.deliverables[].must_contain",
     )
@@ -560,7 +657,7 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         label="contract.acceptance_tests[].automation",
         enum_values=["automated", "hybrid", "human"],
     )
-    _assert_string_list_schema(
+    _assert_scalar_or_array_string_list_schema(
         acceptance_tests["properties"]["evidence_required"],
         label="contract.acceptance_tests[].evidence_required",
     )
@@ -579,11 +676,11 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         enum_values=["definition", "benchmark", "method", "must_consider", "background", "other"],
     )
     for field_name in ("aliases", "applies_to", "carry_forward_to"):
-        _assert_string_list_schema(
+        _assert_scalar_or_array_string_list_schema(
             references["properties"][field_name],
             label=f"contract.references[].{field_name}",
         )
-    _assert_enum_string_list_schema(
+    _assert_scalar_or_array_enum_string_list_schema(
         references["properties"]["required_actions"],
         label="contract.references[].required_actions",
         enum_values=["read", "use", "compare", "cite", "avoid"],
@@ -607,7 +704,10 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
             "other",
         ],
     )
-    _assert_string_list_schema(links["properties"]["verified_by"], label="contract.links[].verified_by")
+    _assert_scalar_or_array_string_list_schema(
+        links["properties"]["verified_by"],
+        label="contract.links[].verified_by",
+    )
 
     forbidden_proxies = contract_schema["properties"]["forbidden_proxies"]["items"]
     _assert_closed_object(forbidden_proxies, label="contract.forbidden_proxies[]")
@@ -621,9 +721,10 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
         "competing_explanations",
         "disconfirming_observations",
     ):
-        _assert_string_list_schema(
+        _assert_scalar_or_array_string_list_schema(
             uncertainty_markers["properties"][field_name],
             label=f"contract.uncertainty_markers.{field_name}",
+            min_items=1 if field_name in {"weakest_anchors", "disconfirming_observations"} else None,
         )
 
 
@@ -761,12 +862,11 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         binding["properties"]
     )
     for field_name, field_schema in binding["properties"].items():
-        assert field_schema["type"] == "array", field_name
-        assert field_schema["minItems"] == 1, field_name
-        assert field_schema["items"]["type"] == "string", field_name
-        assert field_schema["items"]["minLength"] == 1, field_name
-        assert field_schema["items"]["pattern"] == r"\S", field_name
-        assert field_schema["uniqueItems"] is True, field_name
+        _assert_array_only_string_list_schema(
+            field_schema,
+            label=f"binding.{field_name}",
+            min_items=1,
+        )
 
     direct_proxy_binding = _binding_condition_for_check(run_request, "contract.direct_proxy_consistency")
     assert {"claim_ids", "deliverable_ids", "acceptance_test_ids", "forbidden_proxy_ids"} == set(
@@ -798,10 +898,16 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         "conclusion_clause_ids",
         "claim_statement",
     } <= set(metadata["properties"])
-    assert metadata["properties"]["allowed_families"]["type"] == "array"
-    assert metadata["properties"]["allowed_families"]["items"]["type"] == "string"
-    assert metadata["properties"]["allowed_families"]["items"]["minLength"] == 1
-    assert metadata["properties"]["allowed_families"]["items"]["pattern"] == r"\S"
+    for field_name in ("allowed_families", "forbidden_families"):
+        _assert_array_only_string_list_schema(
+            metadata["properties"][field_name],
+            label=f"metadata.{field_name}",
+        )
+    for field_name in ("theorem_parameter_symbols", "hypothesis_ids", "quantifiers", "conclusion_clause_ids"):
+        _assert_array_or_null_string_list_schema(
+            metadata["properties"][field_name],
+            label=f"metadata.{field_name}",
+        )
 
     observed = _schema_anyof_object(run_request["properties"]["observed"])
     assert {
@@ -831,14 +937,10 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         "uncovered_quantifiers",
         "uncovered_conclusion_clause_ids",
     ):
-        field_schema = observed["properties"][field_name]
-        array_branch = next(
-            branch for branch in field_schema["anyOf"] if isinstance(branch, dict) and branch.get("type") == "array"
+        _assert_array_or_null_string_list_schema(
+            observed["properties"][field_name],
+            label=f"observed.{field_name}",
         )
-        assert array_branch["items"]["type"] == "string"
-        assert array_branch["items"]["minLength"] == 1
-        assert array_branch["items"]["pattern"] == r"\S"
-        assert any(branch.get("type") == "null" for branch in field_schema["anyOf"] if isinstance(branch, dict))
 
     artifact_content = _schema_anyof_string(run_request["properties"]["artifact_content"])
     assert artifact_content["minLength"] == 1
@@ -973,10 +1075,11 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "`references[].must_surface=true` anchor" in contract_schema["description"]
     assert "non-empty `forbidden_proxies`" in contract_schema["description"]
     active_checks = suggest_schema["properties"]["active_checks"]
-    assert active_checks["anyOf"][0]["type"] == "array"
-    assert active_checks["anyOf"][0]["items"]["type"] == "string"
-    assert active_checks["anyOf"][0]["items"]["minLength"] == 1
-    assert active_checks["anyOf"][0]["items"]["pattern"] == r"\S"
+    _assert_array_or_null_string_list_schema(
+        active_checks,
+        label="suggest_contract_checks.active_checks",
+        require_unique_items=False,
+    )
 
     for field_name in ("source_reference_id", "regime_label", "expected_behavior", "declared_family", "claim_statement"):
         field_schema = _schema_anyof_string(metadata["properties"][field_name])

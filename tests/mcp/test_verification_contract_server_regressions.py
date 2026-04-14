@@ -81,6 +81,16 @@ def _schema_error_messages(schema: dict[str, object], payload: dict[str, object]
     return [error.message for error in Draft202012Validator(schema).iter_errors(payload)]
 
 
+def _benchmark_contract_check_request(contract: dict[str, object]) -> dict[str, object]:
+    return {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+
 def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> None:
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA
 
@@ -1210,67 +1220,175 @@ def test_contract_tools_reject_blank_observable_regime_and_units(field_name: str
 
 
 @pytest.mark.parametrize(
-    ("path", "value"),
+    ("mutator", "expected_finding"),
     [
-        ("claims.0.references", "ref-benchmark"),
-        ("deliverables.0.must_contain", "benchmark curve"),
-        ("acceptance_tests.0.evidence_required", "ref-benchmark"),
-        ("references.0.aliases", "benchmark-paper"),
-        ("references.0.required_actions", "read"),
+        pytest.param(
+            lambda contract: contract["claims"][0].__setitem__("observables", "obs-benchmark"),
+            "claims.0.observables must be a list, not str",
+            id="claims-observables",
+        ),
+        pytest.param(
+            lambda contract: contract["claims"][0].__setitem__("deliverables", "deliv-figure"),
+            "claims.0.deliverables must be a list, not str",
+            id="claims-deliverables",
+        ),
+        pytest.param(
+            lambda contract: contract["claims"][0].__setitem__("acceptance_tests", "test-benchmark"),
+            "claims.0.acceptance_tests must be a list, not str",
+            id="claims-acceptance-tests",
+        ),
+        pytest.param(
+            lambda contract: contract["claims"][0].__setitem__("references", "ref-benchmark"),
+            "claims.0.references must be a list, not str",
+            id="claims-references",
+        ),
+        pytest.param(
+            lambda contract: contract["deliverables"][0].__setitem__("must_contain", "benchmark curve"),
+            "deliverables.0.must_contain must be a list, not str",
+            id="deliverables-must-contain",
+        ),
+        pytest.param(
+            lambda contract: contract["acceptance_tests"][0].__setitem__("evidence_required", "ref-benchmark"),
+            "acceptance_tests.0.evidence_required must be a list, not str",
+            id="acceptance-tests-evidence-required",
+        ),
+        pytest.param(
+            lambda contract: contract["references"][0].__setitem__("aliases", "benchmark-paper"),
+            "references.0.aliases must be a list, not str",
+            id="references-aliases",
+        ),
+        pytest.param(
+            lambda contract: contract["references"][0].__setitem__("applies_to", "claim-benchmark"),
+            "references.0.applies_to must be a list, not str",
+            id="references-applies-to",
+        ),
+        pytest.param(
+            lambda contract: contract["references"][0].__setitem__("carry_forward_to", "phase-summary"),
+            "references.0.carry_forward_to must be a list, not str",
+            id="references-carry-forward-to",
+        ),
+        pytest.param(
+            lambda contract: contract["references"][0].__setitem__("required_actions", "read"),
+            "references.0.required_actions must be a list, not str",
+            id="references-required-actions",
+        ),
+        pytest.param(
+            lambda contract: contract["links"][0].__setitem__("verified_by", "test-benchmark"),
+            "links.0.verified_by must be a list, not str",
+            id="links-verified-by",
+        ),
     ],
 )
 def test_contract_tools_accept_recoverable_scalar_to_list_contract_drift(
-    path: str,
-    value: object,
+    mutator,
+    expected_finding: str,
 ) -> None:
-    contract = _load_project_contract_fixture()
-
-    if path == "claims.0.references":
-        contract["claims"][0]["references"] = value
-    elif path == "deliverables.0.must_contain":
-        contract["deliverables"][0]["must_contain"] = value
-    elif path == "acceptance_tests.0.evidence_required":
-        contract["acceptance_tests"][0]["evidence_required"] = value
-    elif path == "references.0.aliases":
-        contract["references"][0]["aliases"] = value
-    elif path == "references.0.required_actions":
-        contract["references"][0]["required_actions"] = value
-    else:  # pragma: no cover - defensive guard for future test edits
-        raise AssertionError(f"Unhandled path: {path}")
-
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
-    request = {
-        "check_key": "contract.benchmark_reproduction",
-        "contract": contract,
-        "binding": {"claim_ids": ["claim-benchmark"]},
-        "metadata": {"source_reference_id": "ref-benchmark"},
-        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
-    }
+    contract = _load_project_contract_fixture()
+    mutator(contract)
+    request = _benchmark_contract_check_request(contract)
+    run_schema_messages = _schema_error_messages(_run_contract_check_input_schema(), {"request": request})
+    suggest_schema_messages = _schema_error_messages(_suggest_contract_checks_input_schema(), {"contract": contract})
 
     run_result = run_contract_check(request)
     suggest_result = suggest_contract_checks(contract)
 
+    assert run_schema_messages == []
+    assert suggest_schema_messages == []
     assert run_result["status"] == "pass"
+    assert run_result["contract_salvaged"] is True
+    assert run_result["contract_salvage_findings"] == [expected_finding]
     assert suggest_result["suggested_count"] > 0
-    assert "error" not in run_result
-    assert "error" not in suggest_result
+    assert suggest_result["contract_salvaged"] is True
+    assert suggest_result["contract_salvage_findings"] == [expected_finding]
 
 
 @pytest.mark.parametrize(
     ("mutator", "expected_finding"),
     [
-        (
+        pytest.param(
             lambda contract: contract["scope"].__setitem__("in_scope", "benchmarking"),
             "scope.in_scope must be a list, not str",
+            id="scope-in-scope",
         ),
-        (
+        pytest.param(
+            lambda contract: contract["scope"].__setitem__("out_of_scope", "toy models"),
+            "scope.out_of_scope must be a list, not str",
+            id="scope-out-of-scope",
+        ),
+        pytest.param(
+            lambda contract: contract["scope"].__setitem__("unresolved_questions", "Can the benchmark error shrink?"),
+            "scope.unresolved_questions must be a list, not str",
+            id="scope-unresolved-questions",
+        ),
+        pytest.param(
             lambda contract: contract["context_intake"].__setitem__("must_read_refs", "ref-benchmark"),
             "context_intake.must_read_refs must be a list, not str",
+            id="context-intake-must-read-refs",
         ),
-        (
+        pytest.param(
+            lambda contract: contract["context_intake"].__setitem__(
+                "must_include_prior_outputs", "GPD/phases/01-setup/01-01-SUMMARY.md"
+            ),
+            "context_intake.must_include_prior_outputs must be a list, not str",
+            id="context-intake-must-include-prior-outputs",
+        ),
+        pytest.param(
+            lambda contract: contract["context_intake"].__setitem__("user_asserted_anchors", "benchmark-threshold"),
+            "context_intake.user_asserted_anchors must be a list, not str",
+            id="context-intake-user-asserted-anchors",
+        ),
+        pytest.param(
+            lambda contract: contract["context_intake"].__setitem__("known_good_baselines", "baseline-v1"),
+            "context_intake.known_good_baselines must be a list, not str",
+            id="context-intake-known-good-baselines",
+        ),
+        pytest.param(
+            lambda contract: contract["context_intake"].__setitem__("context_gaps", "Need a tighter uncertainty model"),
+            "context_intake.context_gaps must be a list, not str",
+            id="context-intake-context-gaps",
+        ),
+        pytest.param(
+            lambda contract: contract["context_intake"].__setitem__("crucial_inputs", "benchmark posterior samples"),
+            "context_intake.crucial_inputs must be a list, not str",
+            id="context-intake-crucial-inputs",
+        ),
+        pytest.param(
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__("formulations", "eikonal"),
+            "approach_policy.formulations must be a list, not str",
+            id="approach-policy-formulations",
+        ),
+        pytest.param(
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__(
+                "allowed_estimator_families", "bootstrap"
+            ),
+            "approach_policy.allowed_estimator_families must be a list, not str",
+            id="approach-policy-allowed-estimator-families",
+        ),
+        pytest.param(
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__(
+                "forbidden_estimator_families", "jackknife"
+            ),
+            "approach_policy.forbidden_estimator_families must be a list, not str",
+            id="approach-policy-forbidden-estimator-families",
+        ),
+        pytest.param(
             lambda contract: contract.setdefault("approach_policy", {}).__setitem__("allowed_fit_families", "power_law"),
             "approach_policy.allowed_fit_families must be a list, not str",
+            id="approach-policy-allowed-fit-families",
+        ),
+        pytest.param(
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__("forbidden_fit_families", "spline"),
+            "approach_policy.forbidden_fit_families must be a list, not str",
+            id="approach-policy-forbidden-fit-families",
+        ),
+        pytest.param(
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__(
+                "stop_and_rethink_conditions", "residuals diverge"
+            ),
+            "approach_policy.stop_and_rethink_conditions must be a list, not str",
+            id="approach-policy-stop-and-rethink-conditions",
         ),
     ],
 )
@@ -1282,24 +1400,21 @@ def test_contract_tools_accept_recoverable_mapping_scalar_to_list_contract_drift
 
     contract = _load_project_contract_fixture()
     mutator(contract)
-
-    request = {
-        "check_key": "contract.benchmark_reproduction",
-        "contract": contract,
-        "binding": {"claim_ids": ["claim-benchmark"]},
-        "metadata": {"source_reference_id": "ref-benchmark"},
-        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
-    }
+    request = _benchmark_contract_check_request(contract)
+    run_schema_messages = _schema_error_messages(_run_contract_check_input_schema(), {"request": request})
+    suggest_schema_messages = _schema_error_messages(_suggest_contract_checks_input_schema(), {"contract": contract})
 
     run_result = run_contract_check(request)
     suggest_result = suggest_contract_checks(contract)
 
+    assert run_schema_messages == []
+    assert suggest_schema_messages == []
     assert run_result["status"] == "pass"
     assert run_result["contract_salvaged"] is True
-    assert expected_finding in run_result["contract_salvage_findings"]
+    assert run_result["contract_salvage_findings"] == [expected_finding]
     assert suggest_result["suggested_count"] > 0
     assert suggest_result["contract_salvaged"] is True
-    assert expected_finding in suggest_result["contract_salvage_findings"]
+    assert suggest_result["contract_salvage_findings"] == [expected_finding]
 
 
 def test_contract_tools_surface_recoverable_enum_case_drift() -> None:
@@ -2222,7 +2337,7 @@ def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_recoverable_
     schema_messages = _schema_error_messages(_run_contract_check_input_schema(), request)
     result = _call_verification_tool("run_contract_check", request)
 
-    assert schema_messages != []
+    assert schema_messages == []
     assert result["status"] == "pass"
     assert result["contract_salvaged"] is True
     assert "context_intake.must_read_refs must be a list, not str" in result["contract_salvage_findings"]
@@ -2232,6 +2347,7 @@ def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_recoverable_
 
 def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_proof_field_salvage() -> None:
     contract = _proof_contract()
+    contract["claims"][0]["proof_deliverables"] = "deliv-proof"
     contract["claims"][0]["parameters"][0]["aliases"] = "r0"
     contract["claims"][0]["hypotheses"][0]["symbols"] = "r_0"
     contract["acceptance_tests"][0]["kind"] = "Proof_Parameter_Coverage"
@@ -2241,9 +2357,10 @@ def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_
     schema_messages = _schema_error_messages(_suggest_contract_checks_input_schema(), payload)
     result = _call_verification_tool("suggest_contract_checks", payload)
 
-    assert schema_messages != []
+    assert schema_messages == []
     assert result["suggested_count"] > 0
     assert result["contract_salvaged"] is True
+    assert "claims.0.proof_deliverables must be a list, not str" in result["contract_salvage_findings"]
     assert "claims.0.parameters.0.aliases must be a list, not str" in result["contract_salvage_findings"]
     assert "claims.0.hypotheses.0.symbols must be a list, not str" in result["contract_salvage_findings"]
     assert "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage" in result[

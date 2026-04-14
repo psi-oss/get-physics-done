@@ -638,6 +638,53 @@ def _contract_enum_string_or_string_list_schema(
     }
 
 
+_RECOVERABLE_CONTRACT_NESTED_COLLECTION_LIST_FIELDS = frozenset(
+    {
+        ("claims", "parameters", "aliases"),
+        ("claims", "hypotheses", "symbols"),
+    }
+)
+
+
+def _recoverable_contract_mapping_list_field_schema(
+    section_name: str,
+    field_name: str,
+    *,
+    min_items: int | None = None,
+) -> dict[str, object]:
+    if field_name not in PROJECT_CONTRACT_MAPPING_LIST_FIELDS.get(section_name, ()):
+        raise ValueError(f"{section_name}.{field_name} is not a recoverable contract mapping-list field")
+    return _contract_string_or_string_list_schema(min_items=min_items)
+
+
+def _recoverable_contract_collection_list_field_schema(
+    collection_name: str,
+    field_name: str,
+    *,
+    min_items: int | None = None,
+    enum_values: Iterable[str] | None = None,
+) -> dict[str, object]:
+    if field_name not in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.get(collection_name, ()):
+        raise ValueError(f"{collection_name}.{field_name} is not a recoverable contract collection-list field")
+    if enum_values is not None:
+        return _contract_enum_string_or_string_list_schema(enum_values, min_items=min_items)
+    return _contract_string_or_string_list_schema(min_items=min_items)
+
+
+def _recoverable_contract_nested_collection_list_field_schema(
+    collection_name: str,
+    nested_collection_name: str,
+    field_name: str,
+    *,
+    min_items: int | None = None,
+) -> dict[str, object]:
+    if (collection_name, nested_collection_name, field_name) not in _RECOVERABLE_CONTRACT_NESTED_COLLECTION_LIST_FIELDS:
+        raise ValueError(
+            f"{collection_name}.{nested_collection_name}.{field_name} is not a recoverable nested contract list field"
+        )
+    return _contract_string_or_string_list_schema(min_items=min_items)
+
+
 def _binding_input_schema_for_targets(targets: Iterable[str]) -> dict[str, object]:
     properties: dict[str, object] = {}
     for target in targets:
@@ -739,9 +786,10 @@ _CONTRACT_OBSERVED_INPUT_SCHEMA: dict[str, object] = _object_schema(
 _CONTRACT_SCOPE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "question": _non_empty_string_schema(),
-        "in_scope": _contract_string_list_schema(),
-        "out_of_scope": _contract_string_list_schema(),
-        "unresolved_questions": _contract_string_list_schema(),
+        **{
+            field_name: _recoverable_contract_mapping_list_field_schema("scope", field_name)
+            for field_name in PROJECT_CONTRACT_MAPPING_LIST_FIELDS["scope"]
+        },
     },
     required=("question",),
     additional_properties=False,
@@ -753,7 +801,7 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
-        field_name: _contract_string_list_schema(min_items=1)
+        field_name: _recoverable_contract_mapping_list_field_schema("context_intake", field_name, min_items=1)
         for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
     },
     additional_properties=False,
@@ -768,7 +816,10 @@ _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["description"] = (
     "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work."
 )
 _CONTRACT_APPROACH_POLICY_INPUT_SCHEMA: dict[str, object] = _object_schema(
-    {field_name: _contract_string_list_schema() for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES},
+    {
+        field_name: _recoverable_contract_mapping_list_field_schema("approach_policy", field_name)
+        for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES
+    },
     additional_properties=False,
 )
 _CONTRACT_OBSERVABLE_INPUT_SCHEMA: dict[str, object] = _object_schema(
@@ -787,7 +838,7 @@ _CONTRACT_PROOF_PARAMETER_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "symbol": _non_empty_string_schema(),
         "domain_or_type": _string_schema(),
-        "aliases": _contract_string_list_schema(),
+        "aliases": _recoverable_contract_nested_collection_list_field_schema("claims", "parameters", "aliases"),
         "required_in_proof": {"type": "boolean"},
         "notes": _non_empty_string_or_null_schema(),
     },
@@ -798,7 +849,7 @@ _CONTRACT_PROOF_HYPOTHESIS_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "id": _non_empty_string_schema(),
         "text": _non_empty_string_schema(),
-        "symbols": _contract_string_list_schema(),
+        "symbols": _recoverable_contract_nested_collection_list_field_schema("claims", "hypotheses", "symbols"),
         "category": _contract_enum_string_schema(PROOF_HYPOTHESIS_CATEGORY_VALUES),
         "required_in_proof": {"type": "boolean"},
     },
@@ -818,15 +869,19 @@ _CONTRACT_CLAIM_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "id": _non_empty_string_schema(),
         "statement": _non_empty_string_schema(),
         "claim_kind": _contract_enum_string_schema(CONTRACT_CLAIM_KIND_VALUES),
-        "observables": _contract_string_list_schema(),
-        "deliverables": _contract_string_list_schema(min_items=1),
-        "acceptance_tests": _contract_string_list_schema(min_items=1),
-        "references": _contract_string_list_schema(),
+        "observables": _recoverable_contract_collection_list_field_schema("claims", "observables"),
+        "deliverables": _recoverable_contract_collection_list_field_schema("claims", "deliverables", min_items=1),
+        "acceptance_tests": _recoverable_contract_collection_list_field_schema(
+            "claims",
+            "acceptance_tests",
+            min_items=1,
+        ),
+        "references": _recoverable_contract_collection_list_field_schema("claims", "references"),
         "parameters": {"type": "array", "items": dict(_CONTRACT_PROOF_PARAMETER_INPUT_SCHEMA)},
         "hypotheses": {"type": "array", "items": dict(_CONTRACT_PROOF_HYPOTHESIS_INPUT_SCHEMA)},
-        "quantifiers": _contract_string_list_schema(),
+        "quantifiers": _recoverable_contract_collection_list_field_schema("claims", "quantifiers"),
         "conclusion_clauses": {"type": "array", "items": dict(_CONTRACT_PROOF_CONCLUSION_INPUT_SCHEMA)},
-        "proof_deliverables": _contract_string_list_schema(),
+        "proof_deliverables": _recoverable_contract_collection_list_field_schema("claims", "proof_deliverables"),
     },
     required=("id", "statement", "deliverables", "acceptance_tests"),
     additional_properties=False,
@@ -850,7 +905,11 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
         "then": {
             "required": ["proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
-                "proof_deliverables": _contract_string_list_schema(min_items=1),
+                "proof_deliverables": _recoverable_contract_collection_list_field_schema(
+                    "claims",
+                    "proof_deliverables",
+                    min_items=1,
+                ),
                 "parameters": {
                     "type": "array",
                     "minItems": 1,
@@ -883,7 +942,11 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
         "then": {
             "required": ["proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
-                "proof_deliverables": _contract_string_list_schema(min_items=1),
+                "proof_deliverables": _recoverable_contract_collection_list_field_schema(
+                    "claims",
+                    "proof_deliverables",
+                    min_items=1,
+                ),
                 "parameters": {
                     "type": "array",
                     "minItems": 1,
@@ -915,7 +978,11 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
             "required": ["claim_kind", "proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
                 "claim_kind": _contract_enum_string_schema(THEOREM_CLAIM_KIND_VALUES),
-                "proof_deliverables": _contract_string_list_schema(min_items=1),
+                "proof_deliverables": _recoverable_contract_collection_list_field_schema(
+                    "claims",
+                    "proof_deliverables",
+                    min_items=1,
+                ),
                 "parameters": {
                     "type": "array",
                     "minItems": 1,
@@ -941,7 +1008,7 @@ _CONTRACT_DELIVERABLE_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "kind": _contract_enum_string_schema(CONTRACT_DELIVERABLE_KIND_VALUES),
         "path": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "description": _non_empty_string_schema(),
-        "must_contain": _contract_string_list_schema(),
+        "must_contain": _recoverable_contract_collection_list_field_schema("deliverables", "must_contain"),
     },
     required=("id", "description"),
     additional_properties=False,
@@ -953,7 +1020,10 @@ _CONTRACT_ACCEPTANCE_TEST_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "kind": _contract_enum_string_schema(CONTRACT_ACCEPTANCE_TEST_KIND_VALUES),
         "procedure": _non_empty_string_schema(),
         "pass_condition": _non_empty_string_schema(),
-        "evidence_required": _contract_string_list_schema(),
+        "evidence_required": _recoverable_contract_collection_list_field_schema(
+            "acceptance_tests",
+            "evidence_required",
+        ),
         "automation": _contract_enum_string_schema(CONTRACT_ACCEPTANCE_AUTOMATION_VALUES),
     },
     required=("id", "subject", "procedure", "pass_condition"),
@@ -964,13 +1034,17 @@ _CONTRACT_REFERENCE_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "id": _non_empty_string_schema(),
         "kind": _contract_enum_string_schema(CONTRACT_REFERENCE_KIND_VALUES),
         "locator": _non_empty_string_schema(),
-        "aliases": _contract_string_list_schema(),
+        "aliases": _recoverable_contract_collection_list_field_schema("references", "aliases"),
         "role": _contract_enum_string_schema(CONTRACT_REFERENCE_ROLE_VALUES),
         "why_it_matters": _non_empty_string_schema(),
-        "applies_to": _contract_string_list_schema(),
-        "carry_forward_to": _contract_string_list_schema(),
+        "applies_to": _recoverable_contract_collection_list_field_schema("references", "applies_to"),
+        "carry_forward_to": _recoverable_contract_collection_list_field_schema("references", "carry_forward_to"),
         "must_surface": {"type": "boolean"},
-        "required_actions": _contract_enum_string_list_schema(CONTRACT_REFERENCE_ACTION_VALUES),
+        "required_actions": _recoverable_contract_collection_list_field_schema(
+            "references",
+            "required_actions",
+            enum_values=CONTRACT_REFERENCE_ACTION_VALUES,
+        ),
     },
     required=("id", "locator", "why_it_matters"),
     additional_properties=False,
@@ -996,14 +1070,16 @@ _CONTRACT_LINK_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "source": _non_empty_string_schema(),
         "target": _non_empty_string_schema(),
         "relation": _contract_enum_string_schema(CONTRACT_LINK_RELATION_VALUES),
-        "verified_by": _contract_string_list_schema(),
+        "verified_by": _recoverable_contract_collection_list_field_schema("links", "verified_by"),
     },
     required=("id", "source", "target"),
     additional_properties=False,
 )
 _CONTRACT_UNCERTAINTY_MARKERS_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
-        field_name: _contract_string_or_string_list_schema(
+        field_name: _recoverable_contract_mapping_list_field_schema(
+            "uncertainty_markers",
+            field_name,
             min_items=1 if field_name in {"weakest_anchors", "disconfirming_observations"} else None
         )
         for field_name in CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES

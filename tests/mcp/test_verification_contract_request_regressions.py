@@ -64,6 +64,111 @@ def _schema_anyof_object(schema_fragment: dict[str, object]) -> dict[str, object
     raise AssertionError(f"No object branch found in {schema_fragment!r}")
 
 
+def _schema_anyof_array(schema_fragment: dict[str, object]) -> dict[str, object]:
+    if schema_fragment.get("type") == "array":
+        return schema_fragment
+    for branch in schema_fragment.get("anyOf", []):
+        if isinstance(branch, dict) and branch.get("type") == "array":
+            return branch
+    raise AssertionError(f"No array branch found in {schema_fragment!r}")
+
+
+def _schema_anyof_string(schema_fragment: dict[str, object]) -> dict[str, object]:
+    if schema_fragment.get("type") == "string":
+        return schema_fragment
+    for branch in schema_fragment.get("anyOf", []):
+        if isinstance(branch, dict) and branch.get("type") == "string":
+            return branch
+    raise AssertionError(f"No string branch found in {schema_fragment!r}")
+
+
+def _schema_fragment(schema: object, field_path: tuple[str | int, ...]) -> dict[str, object]:
+    current = schema
+    for segment in field_path:
+        if isinstance(segment, int):
+            if not isinstance(current, list):
+                raise AssertionError(f"Schema path {field_path!r} resolved to non-list {current!r}")
+            current = current[segment]
+            continue
+        if not isinstance(current, dict):
+            raise AssertionError(f"Schema path {field_path!r} resolved to non-object {current!r}")
+        current = current[segment]
+    if not isinstance(current, dict):
+        raise AssertionError(f"Schema path {field_path!r} resolved to non-object {current!r}")
+    return current
+
+
+def _published_contract_payload_schema(tool_name: str) -> dict[str, object]:
+    from gpd.mcp.servers.verification_server import mcp
+
+    tool_schema = _tool_input_schema(mcp, tool_name)
+    if tool_name == "run_contract_check":
+        request_schema = _schema_object(tool_schema, tool_schema["properties"]["request"])
+        return _schema_anyof_object(request_schema["properties"]["contract"])
+    if tool_name == "suggest_contract_checks":
+        return _schema_anyof_object(tool_schema["properties"]["contract"])
+    raise AssertionError(f"Unsupported tool name: {tool_name}")
+
+
+def _assert_contract_scalar_or_array_string_list_schema(
+    schema_fragment: dict[str, object],
+    *,
+    min_items: int | None = None,
+) -> None:
+    string_branch = _schema_anyof_string(schema_fragment)
+    array_branch = _schema_anyof_array(schema_fragment)
+
+    assert string_branch["minLength"] == 1
+    assert string_branch["pattern"] == r"^\S(?:[\s\S]*\S)?$"
+    assert array_branch["items"]["type"] == "string"
+    assert array_branch["items"]["minLength"] == 1
+    assert array_branch["items"]["pattern"] == r"^\S(?:[\s\S]*\S)?$"
+    assert array_branch["uniqueItems"] is True
+    if min_items is not None:
+        assert array_branch["minItems"] == min_items
+
+
+def _assert_contract_recoverable_enum_string_schema(
+    schema_fragment: dict[str, object],
+    *,
+    enum_values: tuple[str, ...],
+) -> None:
+    if schema_fragment.get("type") == "string":
+        assert schema_fragment["enum"] == list(enum_values)
+        return
+
+    exact_branch = next(
+        branch
+        for branch in schema_fragment.get("anyOf", [])
+        if isinstance(branch, dict) and branch.get("type") == "string" and "enum" in branch
+    )
+    pattern_branch = next(
+        branch
+        for branch in schema_fragment.get("anyOf", [])
+        if isinstance(branch, dict) and branch.get("type") == "string" and "pattern" in branch
+    )
+    assert exact_branch["enum"] == list(enum_values)
+    assert pattern_branch["pattern"].startswith("^(?:")
+    assert pattern_branch["pattern"].endswith(")$")
+
+
+def _assert_contract_scalar_or_array_enum_list_schema(
+    schema_fragment: dict[str, object],
+    *,
+    enum_values: tuple[str, ...],
+) -> None:
+    array_branch = _schema_anyof_array(schema_fragment)
+    scalar_branch = next(
+        branch
+        for branch in schema_fragment.get("anyOf", [])
+        if isinstance(branch, dict) and branch.get("type") != "array"
+    )
+
+    _assert_contract_recoverable_enum_string_schema(scalar_branch, enum_values=enum_values)
+    _assert_contract_recoverable_enum_string_schema(array_branch["items"], enum_values=enum_values)
+    assert array_branch["uniqueItems"] is True
+
+
 def _request_requirement_for_check(
     run_request_schema: dict[str, object], check_identifier: str
 ) -> dict[str, object] | None:
@@ -138,6 +243,7 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     for field_name in binding_schema["properties"]:
         field_schema = binding_schema["properties"][field_name]
         assert field_schema["type"] == "array"
+        assert "anyOf" not in field_schema
         assert field_schema["minItems"] == 1
         assert field_schema["items"]["type"] == "string"
         assert field_schema["items"]["minLength"] == 1
@@ -163,6 +269,8 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     metadata_schema = _schema_anyof_object(metadata_branch["properties"]["metadata"])
     contract_schema = _schema_anyof_object(contract_branch["properties"]["contract"])
     assert metadata_schema["required"] == ["source_reference_id"]
+    assert metadata_schema["properties"]["source_reference_id"]["type"] == "string"
+    assert "anyOf" not in metadata_schema["properties"]["source_reference_id"]
     assert metadata_schema["properties"]["source_reference_id"]["minLength"] == 1
     assert metadata_schema["properties"]["source_reference_id"]["pattern"] == r"\S"
     assert "null" not in json.dumps(metadata_schema["properties"]["source_reference_id"])
@@ -174,10 +282,14 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     proof_hypothesis_metadata = _schema_anyof_object(proof_hypothesis_requirement["properties"]["metadata"])
     proof_hypothesis_observed = _schema_anyof_object(proof_hypothesis_requirement["properties"]["observed"])
     assert proof_hypothesis_metadata["required"] == ["hypothesis_ids"]
+    assert proof_hypothesis_metadata["properties"]["hypothesis_ids"]["type"] == "array"
+    assert "anyOf" not in proof_hypothesis_metadata["properties"]["hypothesis_ids"]
     assert proof_hypothesis_metadata["properties"]["hypothesis_ids"]["minItems"] == 1
     assert proof_hypothesis_metadata["properties"]["hypothesis_ids"]["items"]["type"] == "string"
     assert proof_hypothesis_metadata["properties"]["hypothesis_ids"]["items"]["minLength"] == 1
     assert proof_hypothesis_observed["required"] == ["covered_hypothesis_ids"]
+    assert proof_hypothesis_observed["properties"]["covered_hypothesis_ids"]["type"] == "array"
+    assert "anyOf" not in proof_hypothesis_observed["properties"]["covered_hypothesis_ids"]
     assert proof_hypothesis_observed["properties"]["covered_hypothesis_ids"]["minItems"] == 1
     assert proof_hypothesis_observed["properties"]["covered_hypothesis_ids"]["items"]["type"] == "string"
     assert proof_hypothesis_observed["properties"]["covered_hypothesis_ids"]["items"]["minLength"] == 1
@@ -188,10 +300,14 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     proof_parameter_metadata = _schema_anyof_object(proof_parameter_requirement["properties"]["metadata"])
     proof_parameter_observed = _schema_anyof_object(proof_parameter_requirement["properties"]["observed"])
     assert proof_parameter_metadata["required"] == ["theorem_parameter_symbols"]
+    assert proof_parameter_metadata["properties"]["theorem_parameter_symbols"]["type"] == "array"
+    assert "anyOf" not in proof_parameter_metadata["properties"]["theorem_parameter_symbols"]
     assert proof_parameter_metadata["properties"]["theorem_parameter_symbols"]["minItems"] == 1
     assert proof_parameter_metadata["properties"]["theorem_parameter_symbols"]["items"]["type"] == "string"
     assert proof_parameter_metadata["properties"]["theorem_parameter_symbols"]["items"]["minLength"] == 1
     assert proof_parameter_observed["required"] == ["covered_parameter_symbols"]
+    assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["type"] == "array"
+    assert "anyOf" not in proof_parameter_observed["properties"]["covered_parameter_symbols"]
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["minItems"] == 1
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["items"]["type"] == "string"
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["items"]["minLength"] == 1
@@ -205,13 +321,19 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     alignment_metadata_branch = _schema_anyof_object(alignment_requirement["anyOf"][1]["properties"]["metadata"])
     alignment_observed_branch = _schema_anyof_object(alignment_requirement["anyOf"][1]["properties"]["observed"])
     assert alignment_metadata["required"] == ["claim_statement"]
+    assert alignment_metadata["properties"]["claim_statement"]["type"] == "string"
+    assert "anyOf" not in alignment_metadata["properties"]["claim_statement"]
     assert alignment_metadata["properties"]["claim_statement"]["minLength"] == 1
     assert alignment_metadata["properties"]["claim_statement"]["pattern"] == r"\S"
     assert alignment_metadata_branch["required"] == ["conclusion_clause_ids"]
+    assert alignment_metadata_branch["properties"]["conclusion_clause_ids"]["type"] == "array"
+    assert "anyOf" not in alignment_metadata_branch["properties"]["conclusion_clause_ids"]
     assert alignment_metadata_branch["properties"]["conclusion_clause_ids"]["minItems"] == 1
     assert alignment_metadata_branch["properties"]["conclusion_clause_ids"]["items"]["type"] == "string"
     assert alignment_metadata_branch["properties"]["conclusion_clause_ids"]["items"]["minLength"] == 1
     assert alignment_observed_branch["required"] == ["uncovered_conclusion_clause_ids"]
+    assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["type"] == "array"
+    assert "anyOf" not in alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["minItems"] == 1
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["items"]["type"] == "string"
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["items"]["minLength"] == 1
@@ -420,24 +542,89 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     assert _call_verification_tool("suggest_contract_checks", {"contract": contract}) == expected
 
 
-def test_contract_payload_schema_does_not_advertise_scalar_list_drift() -> None:
-    from gpd.mcp.servers.verification_server import _CONTRACT_PAYLOAD_INPUT_SCHEMA
-
-    def assert_array_only(schema: dict[str, object], field_path: tuple[str, ...]) -> None:
-        current: object = schema
-        for field_name in field_path:
-            assert isinstance(current, dict)
-            current = current[field_name]
-        assert isinstance(current, dict)
-        assert current["type"] == "array"
-        assert "anyOf" not in current
-
-    assert_array_only(_CONTRACT_PAYLOAD_INPUT_SCHEMA, ("properties", "claims", "items", "properties", "references"))
-    assert_array_only(
-        _CONTRACT_PAYLOAD_INPUT_SCHEMA,
-        ("properties", "references", "items", "properties", "required_actions"),
+@pytest.mark.parametrize("tool_name", ["run_contract_check", "suggest_contract_checks"])
+def test_contract_payload_schema_relaxes_only_recoverable_embedded_contract_list_fields(
+    tool_name: str,
+) -> None:
+    from gpd.contracts import (
+        CONTRACT_REFERENCE_ACTION_VALUES,
+        PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
+        PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
+        PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS,
     )
-    assert_array_only(_CONTRACT_PAYLOAD_INPUT_SCHEMA, ("properties", "context_intake", "properties", "must_read_refs"))
+
+    contract_schema = _published_contract_payload_schema(tool_name)
+
+    for field_name in PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS:
+        top_level_schema = _schema_fragment(contract_schema, ("properties", field_name))
+        assert top_level_schema["type"] == "array"
+        assert "anyOf" not in top_level_schema
+
+    required_contract_min_items = {
+        ("claims", "deliverables"): 1,
+        ("claims", "acceptance_tests"): 1,
+        ("uncertainty_markers", "weakest_anchors"): 1,
+        ("uncertainty_markers", "disconfirming_observations"): 1,
+    }
+    for field_name in PROJECT_CONTRACT_MAPPING_LIST_FIELDS["context_intake"]:
+        required_contract_min_items[("context_intake", field_name)] = 1
+
+    for section_name, field_names in PROJECT_CONTRACT_MAPPING_LIST_FIELDS.items():
+        for field_name in field_names:
+            field_schema = _schema_fragment(
+                contract_schema,
+                ("properties", section_name, "properties", field_name),
+            )
+            _assert_contract_scalar_or_array_string_list_schema(
+                field_schema,
+                min_items=required_contract_min_items.get((section_name, field_name)),
+            )
+
+    for collection_name, field_names in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.items():
+        for field_name in field_names:
+            field_schema = _schema_fragment(
+                contract_schema,
+                ("properties", collection_name, "items", "properties", field_name),
+            )
+            if collection_name == "references" and field_name == "required_actions":
+                _assert_contract_scalar_or_array_enum_list_schema(
+                    field_schema,
+                    enum_values=CONTRACT_REFERENCE_ACTION_VALUES,
+                )
+                continue
+            _assert_contract_scalar_or_array_string_list_schema(
+                field_schema,
+                min_items=required_contract_min_items.get((collection_name, field_name)),
+            )
+
+    _assert_contract_scalar_or_array_string_list_schema(
+        _schema_fragment(
+            contract_schema,
+            ("properties", "claims", "items", "properties", "parameters", "items", "properties", "aliases"),
+        )
+    )
+    _assert_contract_scalar_or_array_string_list_schema(
+        _schema_fragment(
+            contract_schema,
+            ("properties", "claims", "items", "properties", "hypotheses", "items", "properties", "symbols"),
+        )
+    )
+
+
+def test_suggest_contract_checks_published_schema_keeps_active_checks_strict() -> None:
+    from gpd.mcp.servers.verification_server import mcp
+
+    suggest_schema = _tool_input_schema(mcp, "suggest_contract_checks")
+    active_checks_schema = suggest_schema["properties"]["active_checks"]
+    active_checks_array = _schema_anyof_array(active_checks_schema)
+
+    assert not any(
+        isinstance(branch, dict) and branch.get("type") == "string"
+        for branch in active_checks_schema.get("anyOf", [])
+    )
+    assert active_checks_array["items"]["type"] == "string"
+    assert active_checks_array["items"]["minLength"] == 1
+    assert active_checks_array["items"]["pattern"] == r"\S"
 
 
 def test_contract_check_request_templates_use_string_artifact_placeholders() -> None:
