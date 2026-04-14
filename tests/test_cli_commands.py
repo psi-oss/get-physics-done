@@ -1473,6 +1473,58 @@ class TestReadOnlyCommandRouting:
             assert payload["passed"] is True
             assert seen["quick"] is False
 
+    def test_query_search_passes_full_mixed_filter_set(self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+        project_root = gpd_project.resolve()
+        seen: dict[str, object] = {}
+
+        monkeypatch.setattr("gpd.cli._project_scoped_cwd", lambda cwd=None: project_root)
+
+        def _fake_query(cwd: Path, **kwargs: object):
+            seen["cwd"] = cwd
+            seen["kwargs"] = kwargs
+            return {"cwd": str(cwd), **kwargs}
+
+        monkeypatch.setattr("gpd.core.query.query", _fake_query)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested),
+                "query",
+                "search",
+                "--provides",
+                "alpha",
+                "--equation",
+                "E = mc^2",
+                "--text",
+                "mass gap",
+                "--phase-range",
+                "1-2",
+                "--scope",
+                "phase",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["cwd"] == str(project_root)
+        assert seen["cwd"] == project_root
+        assert seen["kwargs"] == {
+            "provides": "alpha",
+            "requires": None,
+            "affects": None,
+            "equation": "E = mc^2",
+            "text": "mass gap",
+            "phase_range": "1-2",
+            "scope": "phase",
+        }
+
 
 class TestReadOnlyStateBackedLists:
     @pytest.mark.parametrize(

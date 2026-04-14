@@ -417,6 +417,111 @@ class TestQuery:
 
         assert any(m.phase in ("4", "04") and m.field == "provides" for m in result.matches)
 
+    def test_query_mixed_frontmatter_and_text_respects_phase_scope(self, tmp_path: Path) -> None:
+        phase_dir = tmp_path / "GPD" / "phases" / "01-mixed"
+        phase_dir.mkdir(parents=True)
+        (phase_dir / "01-01-SUMMARY.md").write_text(
+            dedent("""\
+            ---
+            provides:
+              - target-result
+            ---
+            # Phase 01 Summary
+
+            Summary body intentionally does not include the note marker.
+        """),
+            encoding="utf-8",
+        )
+        (phase_dir / "NOTES.md").write_text(
+            dedent("""\
+            # Notes
+
+            This note contains the secret-marker in non-summary markdown.
+        """),
+            encoding="utf-8",
+        )
+
+        result = query(tmp_path, provides="target-result", text="secret-marker", scope="phase")
+
+        assert any(m.field == "provides" and m.phase in ("1", "01") for m in result.matches)
+        assert any(m.field == "text" and m.phase in ("1", "01") for m in result.matches)
+
+    def test_query_mixed_frontmatter_and_equation_respects_all_scope(self, tmp_path: Path) -> None:
+        phase_dir = tmp_path / "GPD" / "phases" / "01-mixed"
+        phase_dir.mkdir(parents=True)
+        (phase_dir / "01-01-SUMMARY.md").write_text(
+            dedent("""\
+            ---
+            provides:
+              - target-result
+            ---
+            # Phase 01 Summary
+
+            Summary body intentionally does not include the global equation.
+        """),
+            encoding="utf-8",
+        )
+        notes_dir = tmp_path / "GPD" / "notes"
+        notes_dir.mkdir(parents=True)
+        (notes_dir / "global.md").write_text(
+            dedent("""\
+            # Global Notes
+
+            We record the auxiliary relation E_extra = k + q outside the phase directory.
+        """),
+            encoding="utf-8",
+        )
+
+        result = query(tmp_path, provides="target-result", equation="E_extra = k + q", scope="all")
+
+        assert any(m.field == "provides" and m.phase in ("1", "01") for m in result.matches)
+        assert any(m.field == "equation" and m.phase == "" for m in result.matches)
+
+    def test_query_phase_range_excludes_unphased_registry_results(self, tmp_path: Path) -> None:
+        planning_dir = tmp_path / "GPD"
+        planning_dir.mkdir()
+        (planning_dir / "state.json").write_text(
+            dedent("""\
+            {
+              "intermediate_results": [
+                {
+                  "id": "R-unphased",
+                  "equation": "E_target = 1",
+                  "description": "phase missing",
+                  "depends_on": [],
+                  "verified": false,
+                  "verification_records": []
+                },
+                {
+                  "id": "R-out-of-range",
+                  "phase": "9",
+                  "equation": "E_target = 1",
+                  "description": "outside range",
+                  "depends_on": [],
+                  "verified": false,
+                  "verification_records": []
+                },
+                {
+                  "id": "R-in-range",
+                  "phase": "2",
+                  "equation": "E_target = 1",
+                  "description": "inside range",
+                  "depends_on": [],
+                  "verified": false,
+                  "verification_records": []
+                }
+              ]
+            }
+            """),
+            encoding="utf-8",
+        )
+
+        result = query(tmp_path, equation="E_target = 1", phase_range="1-2")
+
+        assert result.total == 1
+        assert result.matches[0].field == "result_registry"
+        assert result.matches[0].value == "R-in-range"
+
 
 # ─── query_deps ──────────────────────────────────────────────────────────────────
 

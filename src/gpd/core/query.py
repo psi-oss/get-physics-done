@@ -341,6 +341,23 @@ def _registry_context(*values: object) -> str | None:
     return " | ".join(parts) if parts else None
 
 
+def _phase_in_range(phase: str | None, parsed_range: tuple[str, str] | None) -> bool:
+    """Return whether ``phase`` is within ``parsed_range``.
+
+    Unphased entries are excluded whenever the caller requested an explicit
+    bounded phase range.
+    """
+
+    if parsed_range is None:
+        return True
+    if not phase:
+        return False
+    phase_norm = phase_unpad(phase)
+    min_norm = phase_unpad(parsed_range[0])
+    max_norm = phase_unpad(parsed_range[1])
+    return compare_phase_numbers(phase_norm, min_norm) >= 0 and compare_phase_numbers(phase_norm, max_norm) <= 0
+
+
 def _registry_result_matches(
     result: object,
     *,
@@ -395,12 +412,8 @@ def _append_registry_search_matches(
 
     for result in result_list(state):
         phase = getattr(result, "phase", None) or ""
-        if parsed_range and phase:
-            phase_norm = phase_unpad(phase)
-            min_norm = phase_unpad(parsed_range[0])
-            max_norm = phase_unpad(parsed_range[1])
-            if compare_phase_numbers(phase_norm, min_norm) < 0 or compare_phase_numbers(phase_norm, max_norm) > 0:
-                continue
+        if not _phase_in_range(phase, parsed_range):
+            continue
         if not _registry_result_matches(
             result,
             provides=provides,
@@ -621,119 +634,122 @@ def query(
     # provides/requires/affects are SUMMARY-specific frontmatter fields.
     # equation and text search body content, so they respect --scope.
     has_frontmatter_filter = any([provides, requires, affects])
+    needs_content_search = bool(equation or text or not has_frontmatter_filter)
 
-    if has_frontmatter_filter:
-        entries = collect_summaries(cwd)
-    elif scope == "summary":
-        entries = collect_summaries(cwd)
+    summary_entries: list[SummaryEntry] = []
+    if has_frontmatter_filter or scope in {"summary", "phase"}:
+        summary_entries = collect_summaries(cwd)
+
+    if scope == "summary":
+        content_entries = summary_entries
     elif scope == "phase":
-        entries = collect_summaries(cwd) + collect_phase_markdown(cwd)
+        content_entries = summary_entries + collect_phase_markdown(cwd)
     elif scope == "all":
-        entries = collect_all_markdown(cwd)
+        content_entries = collect_all_markdown(cwd)
     else:
-        entries = collect_summaries(cwd)
+        content_entries = summary_entries
 
     matches: list[QueryMatch] = []
     parsed_range = parse_phase_range(phase_range)
 
-    for entry in entries:
-        phase = entry.phase
-        plan = entry.plan
-        fm = entry.frontmatter
-        body = entry.body
+    if has_frontmatter_filter:
+        for entry in summary_entries:
+            phase = entry.phase
+            plan = entry.plan
+            fm = entry.frontmatter
+            body = entry.body
 
-        # Phase range filter (use phase_unpad for consistent comparison)
-        if parsed_range:
-            phase_norm = phase_unpad(phase)
-            min_norm = phase_unpad(parsed_range[0])
-            max_norm = phase_unpad(parsed_range[1])
-            if compare_phase_numbers(phase_norm, min_norm) < 0 or compare_phase_numbers(phase_norm, max_norm) > 0:
+            if not _phase_in_range(phase, parsed_range):
                 continue
 
-        fm_provides = resolve_field(fm, "provides")
-        fm_requires = resolve_field(fm, "requires")
-        fm_affects = resolve_field(fm, "affects")
+            fm_provides = resolve_field(fm, "provides")
+            fm_requires = resolve_field(fm, "requires")
+            fm_affects = resolve_field(fm, "affects")
 
-        # Search provides
-        if provides:
-            for p in fm_provides:
-                display = p if isinstance(p, str) else _serialize_search_value(p)
-                search_vals = _search_values_from_item(p, "name", "provides")
-                if _any_match(provides, search_vals):
+            if provides:
+                for p in fm_provides:
+                    display = p if isinstance(p, str) else _serialize_search_value(p)
+                    search_vals = _search_values_from_item(p, "name", "provides")
+                    if _any_match(provides, search_vals):
+                        matches.append(
+                            QueryMatch(
+                                phase=phase,
+                                plan=plan,
+                                field="provides",
+                                value=display,
+                                context=extract_context(body, provides),
+                            )
+                        )
+                        break
+
+            if requires:
+                for r in fm_requires:
+                    display = r if isinstance(r, str) else _serialize_search_value(r)
+                    search_vals = _search_values_from_item(r, "provides", "phase")
+                    if _any_match(requires, search_vals):
+                        matches.append(
+                            QueryMatch(
+                                phase=phase,
+                                plan=plan,
+                                field="requires",
+                                value=display,
+                                context=extract_context(body, requires),
+                            )
+                        )
+                        break
+
+            if affects:
+                for a in fm_affects:
+                    display = a if isinstance(a, str) else _serialize_search_value(a)
+                    search_vals = _search_values_from_item(a, "name", "affects")
+                    if _any_match(affects, search_vals):
+                        matches.append(
+                            QueryMatch(
+                                phase=phase,
+                                plan=plan,
+                                field="affects",
+                                value=display,
+                                context=extract_context(body, affects),
+                            )
+                        )
+                        break
+
+    if needs_content_search:
+        for entry in content_entries:
+            phase = entry.phase
+            plan = entry.plan
+            fm = entry.frontmatter
+            body = entry.body
+
+            if not _phase_in_range(phase, parsed_range):
+                continue
+
+            if equation:
+                equation_hits: list[str] = []
+                if _search_fm_values(fm, equation):
+                    equation_hits.append("frontmatter")
+                if term_matches(equation, body):
+                    equation_hits.append("body")
+                if equation_hits:
                     matches.append(
                         QueryMatch(
                             phase=phase,
                             plan=plan,
-                            field="provides",
-                            value=display,
-                            context=extract_context(body, provides),
+                            field="equation",
+                            value=equation,
+                            context=extract_context(body, equation),
                         )
                     )
-                    break
 
-        # Search requires
-        if requires:
-            for r in fm_requires:
-                display = r if isinstance(r, str) else _serialize_search_value(r)
-                search_vals = _search_values_from_item(r, "provides", "phase")
-                if _any_match(requires, search_vals):
+            if text:
+                full_content = _serialize_search_value(fm) + "\n" + body
+                if term_matches(text, full_content):
                     matches.append(
-                        QueryMatch(
-                            phase=phase,
-                            plan=plan,
-                            field="requires",
-                            value=display,
-                            context=extract_context(body, requires),
-                        )
+                        QueryMatch(phase=phase, plan=plan, field="text", value=text, context=extract_context(body, text))
                     )
-                    break
 
-        # Search affects
-        if affects:
-            for a in fm_affects:
-                display = a if isinstance(a, str) else _serialize_search_value(a)
-                search_vals = _search_values_from_item(a, "name", "affects")
-                if _any_match(affects, search_vals):
-                    matches.append(
-                        QueryMatch(
-                            phase=phase,
-                            plan=plan,
-                            field="affects",
-                            value=display,
-                            context=extract_context(body, affects),
-                        )
-                    )
-                    break
-
-        # Search for equation in body text and frontmatter
-        if equation:
-            equation_hits: list[str] = []
-            if _search_fm_values(fm, equation):
-                equation_hits.append("frontmatter")
-            if term_matches(equation, body):
-                equation_hits.append("body")
-            if equation_hits:
-                matches.append(
-                    QueryMatch(
-                        phase=phase,
-                        plan=plan,
-                        field="equation",
-                        value=equation,
-                        context=extract_context(body, equation),
-                    )
-                )
-
-        # Free text search across everything
-        if text:
-            full_content = _serialize_search_value(fm) + "\n" + body
-            if term_matches(text, full_content):
-                matches.append(
-                    QueryMatch(phase=phase, plan=plan, field="text", value=text, context=extract_context(body, text))
-                )
-
-        # If no specific filter, include all summaries
-        if not provides and not requires and not affects and not equation and not text:
-            matches.append(QueryMatch(phase=phase, plan=plan, field="all", value=None, context=body[:200].strip()))
+            if not provides and not requires and not affects and not equation and not text:
+                matches.append(QueryMatch(phase=phase, plan=plan, field="all", value=None, context=body[:200].strip()))
 
     if not affects:
         _append_registry_search_matches(
