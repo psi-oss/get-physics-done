@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
 from gpd.adapters.copilot_cli import (
     CopilotCliAdapter,
     convert_to_copilot_frontmatter,
@@ -15,6 +14,7 @@ from gpd.adapters.copilot_cli import (
     copy_agents_as_agent_files,
     copy_flattened_commands,
 )
+from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
 
 
 @pytest.fixture()
@@ -379,6 +379,6 @@ class TestUninstall:
         adapter.install(gpd_root, target)
         (target / "command" / "gpd-user-keep.md").write_text("keep", encoding="utf-8")
 
-        uninstall_result = adapter.uninstall(target)
+        adapter.uninstall(target)
 
         assert (target / "command" / "gpd-user-keep.md").exists()

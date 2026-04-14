@@ -33,7 +33,7 @@ This graph therefore includes:
 - `src/gpd/specs/workflows/*.md`: `67`
 - `src/gpd/specs/templates/**/*.md`: `76`
 - `src/gpd/specs/references/**/*.md`: `168`
-- `src/gpd/adapters/*.py`: `9`
+- `src/gpd/adapters/*.py`: `10`
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
