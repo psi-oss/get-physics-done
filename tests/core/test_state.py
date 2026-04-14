@@ -379,11 +379,9 @@ def test_normalize_state_schema_drops_project_contract_that_fails_draft_scoping_
 
 def test_peek_state_json_respects_project_root_for_project_contract_grounding(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-    outside_prior_output = tmp_path.parent / "outside-prior-output.md"
-    outside_prior_output.write_text("outside\n", encoding="utf-8")
     contract["context_intake"] = {
         "must_read_refs": [],
-        "must_include_prior_outputs": [str(outside_prior_output)],
+        "must_include_prior_outputs": ["./outside-prior-output.md"],
         "user_asserted_anchors": [],
         "known_good_baselines": [],
         "context_gaps": ["TBD"],
@@ -394,6 +392,10 @@ def test_peek_state_json_respects_project_root_for_project_contract_grounding(tm
     rooted_validation = state_module.validate_project_contract(contract, project_root=tmp_path)
     assert rooted_validation.valid is False
     assert "context_intake must not be empty" in rooted_validation.errors
+    assert (
+        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: "
+        "./outside-prior-output.md" in rooted_validation.warnings
+    )
 
     state = default_state_dict()
     state["project_contract"] = contract

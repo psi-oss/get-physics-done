@@ -11,6 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from gpd.core.path_validation import is_cross_platform_absolute_path
 from gpd.core.utils import normalize_ascii_slug
 
 __all__ = [
@@ -82,7 +83,7 @@ def _normalize_knowledge_id(value: object) -> str:
 def _normalize_project_relative_path(value: object, field_name: str) -> str:
     normalized = _normalize_required_text(value)
     path = Path(normalized)
-    if path.is_absolute() or any(part == ".." for part in path.parts):
+    if is_cross_platform_absolute_path(normalized) or any(part == ".." for part in path.parts):
         raise ValueError(f"{field_name} must be a project-relative path")
     return normalized
 

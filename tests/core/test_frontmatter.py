@@ -233,6 +233,13 @@ def _project_local_plan_contract_frontmatter() -> str:
     )
 
 
+def _write_project_artifact(project_root: Path, artifact_path: str) -> Path:
+    artifact = project_root / artifact_path
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text("artifact fixture\n", encoding="utf-8")
+    return artifact
+
+
 def _proof_claim_statement() -> str:
     return "For all x > 0 and r_0 >= 0, F(x, r_0) >= 0."
 
@@ -1725,6 +1732,141 @@ class TestValidateFrontmatter:
         assert result.valid is True
         assert result.errors == []
 
+    @pytest.mark.parametrize(
+        ("path_text", "artifact_path"),
+        [
+            pytest.param("C:/tmp/prior-output.md", "C:/tmp/prior-output.md", id="windows-forward-slash"),
+            pytest.param(r"C:\tmp\prior-output.md", r"C:\tmp\prior-output.md", id="windows-backslash"),
+            pytest.param(r"\\server\share\prior-output.md", r"\\server\share\prior-output.md", id="windows-unc"),
+        ],
+    )
+    def test_plan_rejects_cross_platform_absolute_prior_outputs(
+        self,
+        tmp_path: Path,
+        path_text: str,
+        artifact_path: str,
+    ) -> None:
+        _write_project_artifact(tmp_path, artifact_path)
+        plan_path = tmp_path / "GPD" / "phases" / "01-test" / "01-01-PLAN.md"
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        content = _valid_plan_contract_frontmatter().replace(
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            f"    must_include_prior_outputs: ['{path_text}']\n",
+            1,
+        )
+
+        result = validate_frontmatter(content, "plan", source_path=plan_path)
+
+        assert result.valid is False
+        assert any(
+            "context_intake.must_include_prior_outputs" in error
+            and ("project-local artifact" in error or "project-relative path" in error)
+            for error in result.errors
+        )
+
+    @pytest.mark.parametrize(
+        ("path_text", "artifact_path"),
+        [
+            pytest.param("C:/tmp/baseline.md", "C:/tmp/baseline.md", id="windows-forward-slash"),
+            pytest.param(r"C:\tmp\baseline.md", r"C:\tmp\baseline.md", id="windows-backslash"),
+            pytest.param(r"\\server\share\baseline.md", r"\\server\share\baseline.md", id="windows-unc"),
+        ],
+    )
+    def test_plan_rejects_cross_platform_absolute_known_good_baselines(
+        self,
+        tmp_path: Path,
+        path_text: str,
+        artifact_path: str,
+    ) -> None:
+        _write_project_artifact(tmp_path, artifact_path)
+        plan_path = tmp_path / "GPD" / "phases" / "01-test" / "01-01-PLAN.md"
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        content = _valid_plan_contract_frontmatter().replace(
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "    must_include_prior_outputs: []\n"
+            f"    known_good_baselines: ['{path_text}']\n",
+            1,
+        )
+
+        result = validate_frontmatter(content, "plan", source_path=plan_path)
+
+        assert result.valid is False
+        assert any(
+            "context_intake.known_good_baselines" in error
+            and ("project-local artifact" in error or "project-relative path" in error)
+            for error in result.errors
+        )
+
+    @pytest.mark.parametrize(
+        ("path_text", "artifact_path"),
+        [
+            pytest.param("C:/tmp/reference-anchor.json", "C:/tmp/reference-anchor.json", id="windows-forward-slash"),
+            pytest.param(
+                r"C:\tmp\reference-anchor.json",
+                r"C:\tmp\reference-anchor.json",
+                id="windows-backslash",
+            ),
+            pytest.param(
+                r"\\server\share\reference-anchor.json",
+                r"\\server\share\reference-anchor.json",
+                id="windows-unc",
+            ),
+        ],
+    )
+    def test_plan_rejects_cross_platform_absolute_must_surface_reference_locator(
+        self,
+        tmp_path: Path,
+        path_text: str,
+        artifact_path: str,
+    ) -> None:
+        _write_project_artifact(tmp_path, artifact_path)
+        plan_path = tmp_path / "GPD" / "phases" / "01-test" / "01-01-PLAN.md"
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        content = (
+            _valid_plan_contract_frontmatter()
+            .replace("      kind: paper\n", "      kind: prior_artifact\n", 1)
+            .replace("      locator: Author et al., Journal, 2024\n", f"      locator: '{path_text}'\n", 1)
+        )
+
+        result = validate_frontmatter(content, "plan", source_path=plan_path)
+
+        assert result.valid is False
+        assert any(
+            "locator" in error and ("project-local artifact" in error or "project-relative path" in error)
+            for error in result.errors
+        )
+
+    @pytest.mark.parametrize(
+        "path_text",
+        [
+            pytest.param("C:/tmp/main-figure.png", id="windows-forward-slash"),
+            pytest.param(r"C:\tmp\main-figure.png", id="windows-backslash"),
+            pytest.param(r"\\server\share\main-figure.png", id="windows-unc"),
+        ],
+    )
+    def test_plan_rejects_cross_platform_absolute_deliverable_paths(
+        self,
+        tmp_path: Path,
+        path_text: str,
+    ) -> None:
+        plan_path = tmp_path / "GPD" / "phases" / "01-test" / "01-01-PLAN.md"
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        content = _valid_plan_contract_frontmatter().replace(
+            "      path: figures/main.png\n",
+            f"      path: '{path_text}'\n",
+            1,
+        )
+
+        result = validate_frontmatter(content, "plan", source_path=plan_path)
+
+        assert result.valid is False
+        assert any(
+            "path" in error
+            and ("deliverable" in error or "deliverables" in error)
+            and "project-relative path" in error
+            for error in result.errors
+        )
+
     def test_plan_contract_parsing_normalizes_blank_nested_proof_lists(self, tmp_path: Path) -> None:
         _phase_dir, plan_path = _write_proof_contract_phase(tmp_path)
         content = plan_path.read_text(encoding="utf-8").replace(
@@ -2069,6 +2211,11 @@ class TestValidateFrontmatter:
                 r"C:\outside-proof.tex",
                 "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
             ),
+            (
+                "audit_artifact_path",
+                r"\\server\share\outside-proof.tex",
+                "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+            ),
         ],
     )
     def test_verification_rejects_windows_absolute_proof_audit_artifact_paths(
@@ -2095,8 +2242,18 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any(expected_error in error for error in result.errors)
 
-    @pytest.mark.parametrize("path_text", ["C:/outside-proof.tex", r"C:\outside-proof.tex"])
-    def test_resolve_contract_artifact_path_rejects_windows_absolute_paths(
+    @pytest.mark.parametrize(
+        "path_text",
+        [
+            pytest.param("C:/outside-proof.tex", id="windows-forward-slash"),
+            pytest.param(r"C:\outside-proof.tex", id="windows-backslash"),
+            pytest.param(r"\\server\share\outside-proof.tex", id="windows-unc"),
+            pytest.param(" C:/outside-proof.tex", id="windows-forward-slash-leading-space"),
+            pytest.param(r" C:\outside-proof.tex", id="windows-backslash-leading-space"),
+            pytest.param(r" \\server\share\outside-proof.tex", id="windows-unc-leading-space"),
+        ],
+    )
+    def test_resolve_contract_artifact_path_rejects_cross_platform_absolute_paths(
         self,
         tmp_path: Path,
         path_text: str,

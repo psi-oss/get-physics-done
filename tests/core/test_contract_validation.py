@@ -63,6 +63,36 @@ def _remove_incidental_grounding(contract: dict[str, object]) -> None:
         target["evidence_required"] = [item for item in target.get("evidence_required", []) if item != "ref-benchmark"]
 
 
+def _set_cross_platform_absolute_contract_path(
+    contract: dict[str, object],
+    *,
+    field_name: str,
+    value: str,
+) -> None:
+    if field_name == "must_include_prior_outputs":
+        contract["context_intake"]["must_include_prior_outputs"] = [value]
+        return
+    if field_name == "known_good_baselines":
+        contract["context_intake"]["known_good_baselines"] = [value]
+        return
+    if field_name == "must_surface_prior_artifact_locator":
+        contract["references"][0]["kind"] = "prior_artifact"
+        contract["references"][0]["locator"] = value
+        contract["references"][0]["must_surface"] = True
+        return
+    if field_name == "deliverable_path":
+        contract["deliverables"][0]["path"] = value
+        return
+    raise ValueError(f"Unsupported contract path field {field_name!r}")
+
+
+def _has_cross_platform_absolute_path_error(errors: list[str], *, error_field: str) -> bool:
+    return any(
+        error_field in error and any(keyword in error for keyword in ("absolute", "relative", "project-local"))
+        for error in errors
+    )
+
+
 def test_validate_project_contract_accepts_stage0_fixture() -> None:
     contract = _load_contract_fixture()
 
@@ -834,6 +864,33 @@ def test_parse_project_contract_data_strict_rejects_duplicate_list_members() -> 
 
     assert result.contract is None
     assert "context_intake.must_read_refs.1 is a duplicate" in result.errors
+
+
+@pytest.mark.parametrize(
+    ("field_name", "error_field", "value"),
+    [
+        ("must_include_prior_outputs", "context_intake.must_include_prior_outputs", "C:/tmp/prior-output.md"),
+        ("must_include_prior_outputs", "context_intake.must_include_prior_outputs", r"\\server\share\prior-output.md"),
+        ("known_good_baselines", "context_intake.known_good_baselines", "C:/tmp/baseline.md"),
+        ("known_good_baselines", "context_intake.known_good_baselines", r"\\server\share\baseline.md"),
+        ("must_surface_prior_artifact_locator", "references.0.locator", "C:/tmp/report.json"),
+        ("must_surface_prior_artifact_locator", "references.0.locator", r"\\server\share\report.json"),
+        ("deliverable_path", "deliverables.0.path", "C:/tmp/benchmark-report.md"),
+        ("deliverable_path", "deliverables.0.path", r"\\server\share\benchmark-report.md"),
+    ],
+)
+def test_parse_project_contract_data_strict_rejects_cross_platform_absolute_project_artifact_paths(
+    field_name: str,
+    error_field: str,
+    value: str,
+) -> None:
+    contract = _load_contract_fixture()
+    _set_cross_platform_absolute_contract_path(contract, field_name=field_name, value=value)
+
+    result: ProjectContractParseResult = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert _has_cross_platform_absolute_path_error(result.errors, error_field=error_field)
 
 
 def test_parse_project_contract_data_strict_rejects_literal_case_drift() -> None:

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors
 from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
 
@@ -26,6 +28,36 @@ def _strip_reference_dependencies(contract: dict[str, object]) -> None:
             for evidence_id in acceptance_test["evidence_required"]
             if not str(evidence_id).startswith("ref-")
         ]
+
+
+def _set_cross_platform_absolute_contract_path(
+    contract: dict[str, object],
+    *,
+    field_name: str,
+    value: str,
+) -> None:
+    if field_name == "must_include_prior_outputs":
+        contract["context_intake"]["must_include_prior_outputs"] = [value]
+        return
+    if field_name == "known_good_baselines":
+        contract["context_intake"]["known_good_baselines"] = [value]
+        return
+    if field_name == "must_surface_prior_artifact_locator":
+        contract["references"][0]["kind"] = "prior_artifact"
+        contract["references"][0]["locator"] = value
+        contract["references"][0]["must_surface"] = True
+        return
+    if field_name == "deliverable_path":
+        contract["deliverables"][0]["path"] = value
+        return
+    raise ValueError(f"Unsupported contract path field {field_name!r}")
+
+
+def _has_cross_platform_absolute_path_error(errors: list[str], *, error_field: str) -> bool:
+    return any(
+        error_field in error and any(keyword in error for keyword in ("absolute", "relative", "project-local"))
+        for error in errors
+    )
 
 
 def test_fast_contract_validation_salvage_normalizes_literal_case_drift() -> None:
@@ -196,3 +228,30 @@ def test_fast_contract_validation_accepts_existing_project_local_prior_output_wi
 
     assert validation.valid is True
     assert not any("must_include_prior_outputs" in warning for warning in validation.warnings)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "error_field", "value"),
+    [
+        ("must_include_prior_outputs", "context_intake.must_include_prior_outputs", "C:/tmp/prior-output.md"),
+        ("must_include_prior_outputs", "context_intake.must_include_prior_outputs", r"\\server\share\prior-output.md"),
+        ("known_good_baselines", "context_intake.known_good_baselines", "C:/tmp/baseline.md"),
+        ("known_good_baselines", "context_intake.known_good_baselines", r"\\server\share\baseline.md"),
+        ("must_surface_prior_artifact_locator", "references.0.locator", "C:/tmp/report.json"),
+        ("must_surface_prior_artifact_locator", "references.0.locator", r"\\server\share\report.json"),
+        ("deliverable_path", "deliverables.0.path", "C:/tmp/benchmark-report.md"),
+        ("deliverable_path", "deliverables.0.path", r"\\server\share\benchmark-report.md"),
+    ],
+)
+def test_fast_contract_validation_rejects_cross_platform_absolute_project_artifact_paths(
+    field_name: str,
+    error_field: str,
+    value: str,
+) -> None:
+    contract = _load_contract_fixture()
+    _set_cross_platform_absolute_contract_path(contract, field_name=field_name, value=value)
+
+    validation = validate_project_contract(contract, mode="approved")
+
+    assert validation.valid is False
+    assert _has_cross_platform_absolute_path_error(validation.errors, error_field=error_field)

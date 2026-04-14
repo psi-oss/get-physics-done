@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from gpd.core import knowledge_docs as knowledge_docs_module
 from gpd.core.frontmatter import extract_frontmatter, validate_frontmatter
@@ -459,6 +460,22 @@ def test_validate_frontmatter_rejects_stable_with_invalid_review_sha256_fields(
             r"C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md",
             id="windows-backslash",
         ),
+        pytest.param(
+            r"\\server\share\K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="windows-unc",
+        ),
+        pytest.param(
+            "' C:/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md'",
+            id="windows-forward-slash-leading-space",
+        ),
+        pytest.param(
+            r"' C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md'",
+            id="windows-backslash-leading-space",
+        ),
+        pytest.param(
+            "' \\\\server\\share\\K-renormalization-group-fixed-points-R1-REVIEW.md'",
+            id="windows-unc-leading-space",
+        ),
     ],
 )
 def test_validate_frontmatter_rejects_stable_review_with_absolute_artifact_path(
@@ -492,6 +509,22 @@ def test_validate_frontmatter_rejects_stable_review_with_absolute_artifact_path(
             r"C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md",
             id="windows-backslash",
         ),
+        pytest.param(
+            r"\\server\share\K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="windows-unc",
+        ),
+        pytest.param(
+            "' C:/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md'",
+            id="windows-forward-slash-leading-space",
+        ),
+        pytest.param(
+            r"' C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md'",
+            id="windows-backslash-leading-space",
+        ),
+        pytest.param(
+            "' \\\\server\\share\\K-renormalization-group-fixed-points-R1-REVIEW.md'",
+            id="windows-unc-leading-space",
+        ),
     ],
 )
 def test_validate_frontmatter_rejects_legacy_stable_review_with_absolute_audit_artifact_path(
@@ -522,6 +555,22 @@ def test_validate_frontmatter_rejects_legacy_stable_review_with_absolute_audit_a
             r"C:\tmp\source-evidence.md",
             id="windows-backslash",
         ),
+        pytest.param(
+            r"\\server\share\source-evidence.md",
+            id="windows-unc",
+        ),
+        pytest.param(
+            "' C:/tmp/source-evidence.md'",
+            id="windows-forward-slash-leading-space",
+        ),
+        pytest.param(
+            r"' C:\tmp\source-evidence.md'",
+            id="windows-backslash-leading-space",
+        ),
+        pytest.param(
+            "' \\\\server\\share\\source-evidence.md'",
+            id="windows-unc-leading-space",
+        ),
     ],
 )
 def test_validate_frontmatter_rejects_source_artifacts_with_absolute_windows_paths(
@@ -547,6 +596,66 @@ sources:
 
     assert result.valid is False
     assert any("knowledge.sources[0].source_artifacts[0]" in error for error in result.errors)
+
+
+@pytest.mark.parametrize(
+    "approval_artifact_path",
+    [
+        pytest.param("C:/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md", id="windows-forward-slash"),
+        pytest.param(r"C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md", id="windows-backslash"),
+        pytest.param(r"\\server\share\K-renormalization-group-fixed-points-R1-REVIEW.md", id="windows-unc"),
+        pytest.param(" C:/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md", id="windows-forward-slash-leading-space"),
+        pytest.param(r" C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md", id="windows-backslash-leading-space"),
+        pytest.param(r" \\server\share\K-renormalization-group-fixed-points-R1-REVIEW.md", id="windows-unc-leading-space"),
+    ],
+)
+def test_parse_knowledge_doc_data_strict_rejects_absolute_review_artifact_paths(
+    approval_artifact_path: str,
+) -> None:
+    content = _knowledge_markdown(
+        status="stable",
+        review=_review_block(
+            reviewed_content_sha256=_stable_reviewed_content_sha256(),
+        ),
+    )
+    meta, _ = extract_frontmatter(content)
+    assert isinstance(meta, dict)
+    assert isinstance(meta.get("review"), dict)
+    meta["review"]["approval_artifact_path"] = approval_artifact_path
+
+    with pytest.raises(ValidationError, match="approval_artifact_path must be a project-relative path"):
+        knowledge_docs_module.parse_knowledge_doc_data_strict(
+            meta,
+            source_path=Path("K-renormalization-group-fixed-points.md"),
+        )
+
+
+@pytest.mark.parametrize(
+    "source_artifact_path",
+    [
+        pytest.param("C:/tmp/source-evidence.md", id="windows-forward-slash"),
+        pytest.param(r"C:\tmp\source-evidence.md", id="windows-backslash"),
+        pytest.param(r"\\server\share\source-evidence.md", id="windows-unc"),
+        pytest.param(" C:/tmp/source-evidence.md", id="windows-forward-slash-leading-space"),
+        pytest.param(r" C:\tmp\source-evidence.md", id="windows-backslash-leading-space"),
+        pytest.param(r" \\server\share\source-evidence.md", id="windows-unc-leading-space"),
+    ],
+)
+def test_parse_knowledge_doc_data_strict_rejects_absolute_source_artifact_paths(
+    source_artifact_path: str,
+) -> None:
+    content = _knowledge_markdown()
+    meta, _ = extract_frontmatter(content)
+    assert isinstance(meta, dict)
+    assert isinstance(meta.get("sources"), list)
+    assert isinstance(meta["sources"][0], dict)
+    meta["sources"][0]["source_artifacts"] = [source_artifact_path]
+
+    with pytest.raises(ValidationError, match="source_artifacts entry must be a project-relative path"):
+        knowledge_docs_module.parse_knowledge_doc_data_strict(
+            meta,
+            source_path=Path("K-renormalization-group-fixed-points.md"),
+        )
 
 
 def test_validate_frontmatter_rejects_approved_in_review_with_stale_false(tmp_path: Path) -> None:

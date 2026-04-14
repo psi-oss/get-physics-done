@@ -15,7 +15,7 @@ import subprocess
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,6 +47,7 @@ from gpd.core.constants import (
 from gpd.core.contract_validation import _format_schema_error
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function
+from gpd.core.path_validation import is_cross_platform_absolute_path
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.strict_yaml import load_strict_yaml
 from gpd.core.tool_preflight import PlanToolPreflightError, parse_plan_tool_requirements
@@ -629,24 +630,9 @@ def _sha256_text(value: str) -> str:
 
 
 def _is_absolute_path(path_text: str) -> bool:
-    """Cross-platform absolute-path check for string paths.
+    """Compatibility wrapper for shared cross-platform absolute-path checks."""
 
-    ``Path(x).is_absolute()`` uses the *native* platform flavour, so on POSIX
-    hosts it will not recognise Windows absolute paths such as ``C:\\foo`` or
-    ``C:/foo``. This helper checks Unix-rooted paths directly, then applies
-    Windows path semantics explicitly before falling back to the native
-    platform flavour.
-
-    * ``/foo``  -> True on every OS  (Unix absolute)
-    * ``C:\\foo`` or ``C:/foo`` -> True on every OS
-    * ``\\\\server\\share\\dir`` -> True on every OS
-    * ``relative/path`` -> False everywhere
-    """
-    if path_text.startswith("/"):
-        return True
-    if PureWindowsPath(path_text).is_absolute():
-        return True
-    return Path(path_text).is_absolute()
+    return is_cross_platform_absolute_path(path_text)
 
 
 _KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")

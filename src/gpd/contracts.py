@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
+from gpd.core.path_validation import is_cross_platform_absolute_path
 from gpd.core.utils import dedupe_preserve_order
 
 __all__ = [
@@ -464,11 +465,29 @@ def _looks_like_project_artifact_path(value: str) -> bool:
     )
 
 
+def _has_parent_path_traversal(value: str) -> bool:
+    """Return whether *value* includes ``..`` under POSIX or Windows separators."""
+
+    candidate = value.strip()
+    if not candidate:
+        return False
+    return ".." in Path(candidate).parts or ".." in PureWindowsPath(candidate).parts
+
+
+def _is_windows_style_absolute_path(value: str) -> bool:
+    """Return whether *value* is absolute only under Windows path semantics."""
+
+    candidate = value.strip()
+    return bool(candidate) and not candidate.startswith("/") and is_cross_platform_absolute_path(candidate)
+
+
 def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
     """Return whether *value* names a concrete project-local artifact path."""
 
     candidate = value.strip()
     if not candidate or "://" in candidate:
+        return False
+    if is_cross_platform_absolute_path(candidate):
         return False
     if not any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS):
         return False
@@ -491,8 +510,10 @@ def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -
 def _is_unresolved_project_artifact_path(value: str) -> bool:
     """Return whether *value* names an artifact path that needs a project root."""
 
-    candidate_path = Path(value.strip()).expanduser()
-    return candidate_path.is_absolute() or ".." in candidate_path.parts
+    candidate = value.strip()
+    if not candidate:
+        return False
+    return is_cross_platform_absolute_path(candidate) or _has_parent_path_traversal(candidate)
 
 
 def _is_citation_like_locator(value: str) -> bool:
@@ -1869,6 +1890,16 @@ class ContractContextIntake(BaseModel):
     def _normalize_intake_lists(cls, value: object) -> object:
         return _normalize_string_list(value)
 
+    @field_validator("must_include_prior_outputs", "user_asserted_anchors", "known_good_baselines")
+    @classmethod
+    def _reject_windows_absolute_artifact_paths(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        for item in value:
+            if isinstance(item, str) and _is_windows_style_absolute_path(item):
+                raise ValueError("must use project-relative paths, not Windows/UNC absolute paths")
+        return value
+
 
 class ContractApproachPolicy(BaseModel):
     """Representation, estimator, and rethink guardrails that must survive downstream."""
@@ -1990,7 +2021,14 @@ class ContractDeliverable(BaseModel):
     @field_validator("path", mode="before")
     @classmethod
     def _normalize_optional_path(cls, value: object) -> object:
-        return _normalize_optional_str(value)
+        normalized = _normalize_optional_str(value)
+        if not isinstance(normalized, str):
+            return normalized
+        if is_cross_platform_absolute_path(normalized):
+            raise ValueError("must be a project-relative path")
+        if _has_parent_path_traversal(normalized):
+            raise ValueError("must not contain parent traversal")
+        return normalized
 
     @field_validator("must_contain", mode="before")
     @classmethod
@@ -2073,6 +2111,13 @@ class ContractReference(BaseModel):
     @classmethod
     def _normalize_required_fields(cls, value: object) -> object:
         return _normalize_required_str(value)
+
+    @field_validator("locator")
+    @classmethod
+    def _reject_windows_absolute_locator(cls, value: str) -> str:
+        if _is_windows_style_absolute_path(value):
+            raise ValueError("must use a project-relative path, not a Windows/UNC absolute path")
+        return value
 
     @field_validator("kind", "role", mode="before")
     @classmethod

@@ -334,6 +334,7 @@ def _unsafe_plan_contract_ref_value(*, plan_path: Path, ref_kind: str) -> str:
         "absolute": f"{plan_path.resolve().as_posix()}#/contract",
         "windows_absolute_forward": "C:/tmp/01-01-PLAN.md#/contract",
         "windows_absolute_backward": r"C:\tmp\01-01-PLAN.md#/contract",
+        "windows_absolute_unc": r"\\server\share\01-01-PLAN.md#/contract",
         "external": "https://example.com/01-01-PLAN.md#/contract",
         "relative": "01-01-PLAN.md#/contract",
         "traversal": "../01-01-PLAN.md#/contract",
@@ -553,6 +554,99 @@ def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_non_r
         in error
         for error in result.errors
     )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "path_text", "expected_error"),
+    [
+        (
+            "proof_artifact_path",
+            "C:/outside-proof.tex",
+            "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+        ),
+        (
+            "proof_artifact_path",
+            r"C:\outside-proof.tex",
+            "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+        ),
+        (
+            "proof_artifact_path",
+            r"\\server\share\outside-proof.tex",
+            "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+        ),
+        (
+            "proof_artifact_path",
+            "' C:/outside-proof.tex'",
+            "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+        ),
+        (
+            "proof_artifact_path",
+            r"' C:\outside-proof.tex'",
+            "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+        ),
+        (
+            "proof_artifact_path",
+            "' \\\\server\\share\\outside-proof.tex'",
+            "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+        ),
+        (
+            "audit_artifact_path",
+            "C:/outside-proof.tex",
+            "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+        ),
+        (
+            "audit_artifact_path",
+            r"C:\outside-proof.tex",
+            "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+        ),
+        (
+            "audit_artifact_path",
+            r"\\server\share\outside-proof.tex",
+            "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+        ),
+        (
+            "audit_artifact_path",
+            "' C:/outside-proof.tex'",
+            "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+        ),
+        (
+            "audit_artifact_path",
+            r"' C:\outside-proof.tex'",
+            "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+        ),
+        (
+            "audit_artifact_path",
+            "' \\\\server\\share\\outside-proof.tex'",
+            "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+        ),
+    ],
+)
+def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_windows_absolute_proof_audit_paths(
+    tmp_path: Path,
+    field_name: str,
+    path_text: str,
+    expected_error: str,
+) -> None:
+    phase_dir, _ = _write_proof_contract_phase(tmp_path)
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        _proof_verification_content(
+            proof_audit_block=_proof_audit_block(
+                phase_dir,
+                **{field_name: path_text},
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert any(expected_error in error for error in result.errors)
 
 
 def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_stale_statement_hash(
@@ -797,6 +891,7 @@ def test_validate_frontmatter_summary_with_source_path_accepts_canonical_plan_co
         ("absolute", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("windows_absolute_forward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("windows_absolute_backward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("windows_absolute_unc", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("external", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("relative", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("traversal", "plan_contract_ref: must not traverse parent directories"),
@@ -1215,6 +1310,7 @@ def test_validate_frontmatter_verification_with_source_path_accepts_canonical_pl
         ("absolute", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("windows_absolute_forward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("windows_absolute_backward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("windows_absolute_unc", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("external", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("relative", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("traversal", "plan_contract_ref: must not traverse parent directories"),
