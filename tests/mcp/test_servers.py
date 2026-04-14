@@ -577,6 +577,29 @@ class TestConventionsServer:
         assert result["set_count"] >= 2
         assert "metric_signature" in result["set_fields"]
 
+    def test_convention_lock_status_treats_placeholder_values_as_unset(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_lock_status
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        state = {
+            "convention_lock": {
+                "metric_signature": "(+,-,-,-)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        result = convention_lock_status(str(tmp_path))
+
+        assert result["set_count"] == 2
+        assert result["set_fields"] == ["metric_signature", "coordinate_system"]
+        assert {"fourier_convention", "natural_units", "gauge_choice"} <= set(result["unset_fields"])
+        assert result["completeness_percent"] == 11.1
+
     def test_convention_lock_status_does_not_migrate_root_planning_files_on_read(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 

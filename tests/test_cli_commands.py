@@ -652,6 +652,57 @@ class TestConventionCommands:
         state = json.loads((gpd_project / "GPD" / "state.json").read_text())
         assert state["convention_lock"]["fourier_convention"] == "physics"
 
+    def test_check_raw_treats_placeholder_values_as_missing(self, gpd_project: Path) -> None:
+        planning = gpd_project / "GPD"
+        state_path = planning / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["convention_lock"].update(
+            {
+                "metric_signature": "(-,+,+,+)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        )
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = runner.invoke(app, ["--raw", "convention", "check"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["set_count"] == 2
+        assert payload["complete"] is False
+        missing_keys = {entry["key"] for entry in payload["missing"]}
+        assert {"fourier_convention", "natural_units", "gauge_choice"} <= missing_keys
+
+    def test_list_raw_treats_placeholder_values_as_unset(self, gpd_project: Path) -> None:
+        planning = gpd_project / "GPD"
+        state_path = planning / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["convention_lock"]["custom_conventions"] = {}
+        state["convention_lock"].update(
+            {
+                "metric_signature": "(-,+,+,+)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        )
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = runner.invoke(app, ["--raw", "convention", "list"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["set_count"] == 2
+        assert payload["conventions"]["metric_signature"]["is_set"] is True
+        assert payload["conventions"]["coordinate_system"]["is_set"] is True
+        assert payload["conventions"]["fourier_convention"]["is_set"] is False
+        assert payload["conventions"]["natural_units"]["is_set"] is False
+        assert payload["conventions"]["gauge_choice"]["is_set"] is False
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # State commands

@@ -202,6 +202,29 @@ class TestConventionsServerIntegration:
         assert result["completeness_percent"] > 0
         assert result["total_standard_fields"] > 0
 
+    def test_convention_lock_status_real_project_treats_placeholders_as_unset(self, gpd_project: Path):
+        from gpd.mcp.servers.conventions_server import convention_lock_status
+
+        planning = gpd_project / "GPD"
+        state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        state["convention_lock"].update(
+            {
+                "metric_signature": "(+,-,-,-)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        )
+        (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = convention_lock_status(str(gpd_project))
+
+        assert result["set_count"] == 2
+        assert result["set_fields"] == ["metric_signature", "coordinate_system"]
+        assert {"fourier_convention", "natural_units", "gauge_choice"} <= set(result["unset_fields"])
+        assert result["completeness_percent"] == 11.1
+
 
 # ===========================================================================
 # 2. State Server

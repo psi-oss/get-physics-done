@@ -50,6 +50,24 @@
         "unset_count": 18,
         "canonical_total": 18
       }
+    },
+    {
+      "name": "placeholder_values_are_unset",
+      "input": {
+        "lock": {
+          "metric_signature": "mostly-plus",
+          "fourier_convention": "not set",
+          "natural_units": "[not set]",
+          "gauge_choice": "—",
+          "coordinate_system": "Cartesian"
+        }
+      },
+      "expected": {
+        "total": 18,
+        "set_count": 2,
+        "unset_count": 16,
+        "canonical_total": 18
+      }
     }
   ]
 }

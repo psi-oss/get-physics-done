@@ -24,6 +24,7 @@ from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import app
 from gpd.core.constants import AGENT_ID_FILENAME, ENV_DATA_DIR
+from gpd.core.conventions import KNOWN_CONVENTIONS
 from gpd.core.costs import UsageRecord, _profile_tier_mix, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
@@ -2040,6 +2041,29 @@ class TestSuggest:
         assert parsed["context"]["paused_at"] == "Paused after task 2"
         assert parsed["context"]["active_blockers"] == 0
         assert parsed["context"]["missing_conventions"] == []
+
+    def test_suggest_raw_surfaces_placeholder_conventions_as_missing(self, gpd_project: Path) -> None:
+        planning = gpd_project / "GPD"
+        state_path = planning / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["convention_lock"].update(
+            {
+                "metric_signature": "(-,+,+,+)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        )
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = _invoke("--raw", "suggest")
+        parsed = json.loads(result.output)
+        expected_missing = [key for key in KNOWN_CONVENTIONS if key not in {"metric_signature", "coordinate_system"}]
+
+        assert parsed["context"]["missing_conventions"] == expected_missing
+        set_conventions = next(s for s in parsed["suggestions"] if s["action"] == "set-conventions")
+        assert "16 convention fields missing" in set_conventions["reason"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════

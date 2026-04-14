@@ -189,6 +189,16 @@ class TestConventionCheckParity:
         assert result.complete == expected["complete"]
         assert result.set_count == expected["set_count"]
 
+    def test_placeholder_values(self, fixture):
+        case = next(c for c in fixture["cases"] if c["name"] == "placeholder_values_treated_as_unset")
+        lock = _make_lock(dict(case["input"]["lock"]))
+        result = convention_check(lock)
+        expected = case["expected"]
+        assert result.complete == expected["complete"]
+        assert result.set_count == expected["set_count"]
+        assert result.missing_count == expected["missing_count"]
+        assert result.custom_count == expected["custom_count"]
+
 
 # --- Convention diff parity ---
 
@@ -272,6 +282,16 @@ class TestConventionListParity:
         expected = case["expected"]
         assert result.total == expected["total"]
         assert result.set_count == expected["set_count"]
+
+    def test_placeholder_values_are_unset(self, fixture):
+        case = next(c for c in fixture["cases"] if c["name"] == "placeholder_values_are_unset")
+        lock = _make_lock(dict(case["input"]["lock"]))
+        result = convention_list(lock)
+        expected = case["expected"]
+        assert result.total == expected["total"]
+        assert result.set_count == expected["set_count"]
+        assert result.unset_count == expected["unset_count"]
+        assert result.canonical_total == expected["canonical_total"]
 
 
 # --- Divergence 6 (FIXED): ID generation format ---

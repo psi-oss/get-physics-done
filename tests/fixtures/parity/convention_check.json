@@ -44,6 +44,25 @@
         "missing_count": 18,
         "total": 18
       }
+    },
+    {
+      "name": "placeholder_values_treated_as_unset",
+      "input": {
+        "lock": {
+          "metric_signature": "mostly-plus",
+          "fourier_convention": "not set",
+          "natural_units": "[not set]",
+          "gauge_choice": "—",
+          "coordinate_system": "Cartesian"
+        }
+      },
+      "expected": {
+        "complete": false,
+        "set_count": 2,
+        "missing_count": 16,
+        "total": 18,
+        "custom_count": 0
+      }
     }
   ]
 }
