@@ -185,6 +185,49 @@ def test_load_state_json_uses_read_only_peek_without_locking(monkeypatch, tmp_pa
     assert seen["kwargs"]["acquire_lock"] is False
 
 
+def test_load_state_json_keeps_explicit_absolute_child_root_when_parent_has_more_markers(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    child_root = child.resolve(strict=False)
+
+    for project, phase in ((parent, "01"), (child, "02")):
+        planning = project / "GPD"
+        planning.mkdir(parents=True)
+        state = default_state_dict()
+        state["position"]["current_phase"] = phase
+        (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (planning / "phases").mkdir()
+
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    seen: dict[str, object] = {}
+
+    def _project_contract_runtime_payload_for_state(project_root: Path, **_kwargs):
+        seen["project_root"] = project_root
+        return (
+            {"status": "loaded"},
+            {"valid": True},
+            {"authoritative": True},
+        )
+
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server._project_contract_runtime_payload_for_state",
+        _project_contract_runtime_payload_for_state,
+    )
+
+    result = load_state_json(child_root)
+
+    assert result is not None
+    assert seen["project_root"] == child_root
+    assert result["position"]["current_phase"] == "02"
+
+
 def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("gpd.mcp.servers.state_server.load_state_json", lambda *_args, **_kwargs: None)
 

@@ -16,12 +16,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from gpd.core.constants import (
-    REQUIRED_PLANNING_DIRS,
-    REQUIRED_PLANNING_FILES,
-    STATE_JSON_BACKUP_FILENAME,
-    ProjectLayout,
-)
+from gpd.core.constants import ProjectLayout
 
 __all__ = [
     "ProjectRootResolution",
@@ -88,41 +83,45 @@ def normalize_workspace_hint(value: Path | str | None) -> Path | None:
         return expanded
 
 
+def _layout_has_verified_identity(layout: ProjectLayout) -> bool:
+    """Return whether one ``GPD/`` layout has a strong local project identity.
+
+    Weak markers such as docs or recovery backups do not outrank a nearer
+    ``GPD/`` stub. They only participate through the nearest fallback stub when
+    no verified root exists anywhere in the walk-up.
+    """
+
+    has_state_identity = layout.state_json.exists() or layout.state_md.exists()
+    has_project_docs = layout.project_md.exists() or layout.roadmap.exists()
+    has_phases = layout.phases_dir.is_dir()
+
+    # Canonical state files are strong on their own. A phases tree also counts
+    # as strong when it is paired with an explicit project marker, but a lone
+    # phases/ directory remains partial so it cannot outrank a real ancestor.
+    return has_state_identity or (has_phases and has_project_docs)
+
+
 def _walk_project_root(candidate: Path | None) -> tuple[Path | None, int]:
-    """Walk *candidate* and its ancestors until the best ``GPD/`` layout is found."""
+    """Walk *candidate* and its ancestors until the best project root is found."""
 
     if candidate is None:
         return None, 0
 
-    best_verified: tuple[int, int, Path] | None = None
-    best_bare: tuple[int, Path] | None = None
+    nearest_stub: tuple[int, Path] | None = None
 
     for steps, path in enumerate((candidate, *candidate.parents)):
         layout = ProjectLayout(path)
         if not layout.gpd.is_dir():
             continue
 
-        marker_count = sum(
-            1
-            for name in REQUIRED_PLANNING_FILES
-            if (layout.gpd / name).exists()
-        )
-        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if (layout.gpd / name).is_dir())
-        if (layout.gpd / STATE_JSON_BACKUP_FILENAME).exists():
-            marker_count += 1
+        if nearest_stub is None:
+            nearest_stub = (steps, path)
 
-        if marker_count > 0:
-            if best_verified is None or (marker_count, -steps) > (best_verified[0], -best_verified[1]):
-                best_verified = (marker_count, steps, path)
-            continue
+        if _layout_has_verified_identity(layout):
+            return path, steps
 
-        if best_bare is None or steps < best_bare[0]:
-            best_bare = (steps, path)
-
-    if best_verified is not None:
-        return best_verified[2], best_verified[1]
-    if best_bare is not None:
-        return best_bare[1], best_bare[0]
+    if nearest_stub is not None:
+        return nearest_stub[1], nearest_stub[0]
     return None, 0
 
 

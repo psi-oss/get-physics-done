@@ -269,6 +269,16 @@ def gpd_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _make_minimal_project_root(project: Path) -> None:
+    planning = project / "GPD"
+    planning.mkdir(parents=True, exist_ok=True)
+    (planning / "state.json").write_text("{}", encoding="utf-8")
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning / "phases").mkdir(exist_ok=True)
+
+
 @pytest.fixture(autouse=True)
 def _chdir(gpd_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """All tests run from the project directory."""
@@ -643,6 +653,40 @@ class TestStateCommands:
         # May exit 1 if issues found, but must not crash
         result = runner.invoke(app, ["state", "validate"], catch_exceptions=False)
         assert result.exit_code in (0, 1)
+
+    def test_load_prefers_nested_child_project_over_richer_parent(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        parent = tmp_path / "parent"
+        child = parent / "child"
+        nested = child / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        _make_minimal_project_root(parent)
+        _make_minimal_project_root(child)
+        # Recovery-only markers in the parent must not outrank the nearer child.
+        (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+        monkeypatch.chdir(nested)
+        child_root = child.resolve()
+        seen: dict[str, object] = {}
+
+        def _state_load(cwd: Path) -> dict[str, str]:
+            seen["cwd"] = cwd
+            return {"cwd": str(cwd)}
+
+        monkeypatch.setattr("gpd.core.state.state_load", _state_load)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "state", "load"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"cwd": str(child_root)}
+        assert seen["cwd"] == child_root
 
     def test_set_project_contract(self, gpd_project: Path) -> None:
         contract_path = gpd_project / "contract.json"
@@ -1238,6 +1282,75 @@ class TestRoadmapCommands:
         assert json.loads(get_phase_result.output) == {"cwd": str(project_root), "phase_num": "01"}
         assert seen["get_phase"] == (project_root, "01")
 
+    def test_roadmap_analyze_prefers_nested_child_project_over_richer_parent(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        parent = tmp_path / "parent"
+        child = parent / "child"
+        nested = child / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        _make_minimal_project_root(parent)
+        _make_minimal_project_root(child)
+        (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+        monkeypatch.chdir(nested)
+        child_root = child.resolve()
+        seen: dict[str, object] = {}
+
+        def _roadmap_analyze(cwd: Path) -> dict[str, str]:
+            seen["analyze"] = cwd
+            return {"cwd": str(cwd)}
+
+        monkeypatch.setattr("gpd.core.phases.roadmap_analyze", _roadmap_analyze)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "roadmap", "analyze"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"cwd": str(child_root)}
+        assert seen["analyze"] == child_root
+
+    def test_progress_prefers_nested_child_project_over_richer_parent(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        parent = tmp_path / "parent"
+        child = parent / "child"
+        nested = child / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        _make_minimal_project_root(parent)
+        _make_minimal_project_root(child)
+        # Recovery-only markers in the parent must not outrank the nearer child.
+        (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+        monkeypatch.chdir(nested)
+        child_root = child.resolve()
+        seen: dict[str, object] = {}
+
+        def _progress_render(cwd: Path, fmt: str) -> dict[str, str]:
+            seen["cwd"] = cwd
+            seen["fmt"] = fmt
+            return {"cwd": str(cwd), "fmt": fmt}
+
+        monkeypatch.setattr("gpd.core.phases.progress_render", _progress_render)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "progress"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"cwd": str(child_root), "fmt": "json"}
+        assert seen["cwd"] == child_root
+        assert seen["fmt"] == "json"
+
 
 class TestReadOnlyCommandRouting:
     @pytest.mark.parametrize(
@@ -1409,6 +1522,58 @@ class TestReadOnlyStateBackedLists:
         assert payload["cwd"] == str(project_root)
         assert payload["kind"] == kind
         assert seen["peek_cwd"] == project_root
+        assert seen["acquire_lock"] is False
+        assert seen["recover_intent"] is False
+        assert seen["surface_blocked_project_contract"] is True
+
+    def test_state_backed_read_only_lists_prefer_nested_child_project_over_richer_parent(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        parent = tmp_path / "parent"
+        child = parent / "child"
+        nested = child / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        _make_minimal_project_root(parent)
+        _make_minimal_project_root(child)
+        (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+        monkeypatch.chdir(nested)
+        child_root = child.resolve()
+        seen: dict[str, object] = {}
+
+        def _fake_peek_state_json(
+            cwd: Path,
+            *,
+            integrity_mode: str = "standard",
+            recover_intent: bool = True,
+            surface_blocked_project_contract: bool = False,
+            acquire_lock: bool = True,
+        ):
+            seen["peek_cwd"] = cwd
+            seen["acquire_lock"] = acquire_lock
+            seen["recover_intent"] = recover_intent
+            seen["surface_blocked_project_contract"] = surface_blocked_project_contract
+            return ({"loaded_cwd": str(cwd)}, [], "state.json")
+
+        def _fake_result_list(state: dict, *args: object, **kwargs: object):
+            seen["state"] = state
+            return {"cwd": state["loaded_cwd"]}
+
+        monkeypatch.setattr("gpd.core.state.peek_state_json", _fake_peek_state_json)
+        monkeypatch.setattr("gpd.core.results.result_list", _fake_result_list)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "result", "list"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == {"cwd": str(child_root)}
+        assert seen["peek_cwd"] == child_root
+        assert seen["state"] == {"loaded_cwd": str(child_root)}
         assert seen["acquire_lock"] is False
         assert seen["recover_intent"] is False
         assert seen["surface_blocked_project_contract"] is True

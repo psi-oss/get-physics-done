@@ -145,6 +145,105 @@ def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_empty_gpd_s
     assert resolution.walk_up_steps == 2
 
 
+def test_resolve_project_roots_prefers_nearest_verified_nested_child_over_richer_parent(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    workspace = child / "workspace" / "notes"
+    _make_project_root(parent)
+    _make_project_root(child)
+    workspace.mkdir(parents=True)
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == child.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 2
+    assert resolve_project_root(workspace, require_layout=True) == child.resolve(strict=False)
+
+
+def test_resolve_project_roots_prefers_verified_explicit_nested_child_over_richer_parent(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    project_hint = child / "src" / "notes"
+    other_workspace = tmp_path / "workspace"
+    _make_project_root(parent)
+    _make_project_root(child)
+    project_hint.mkdir(parents=True)
+    other_workspace.mkdir()
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    resolution = resolve_project_roots(other_workspace, project_dir=project_hint)
+
+    assert resolution is not None
+    assert resolution.workspace_root == other_workspace.resolve(strict=False)
+    assert resolution.project_hint == project_hint.resolve(strict=False)
+    assert resolution.project_root == child.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.PROJECT_DIR
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 2
+    assert resolve_project_root(other_workspace, project_dir=project_hint, require_layout=True) == child.resolve(
+        strict=False
+    )
+
+
+def test_resolve_project_roots_ignores_state_json_backup_when_ordering_verified_nested_candidates(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    workspace = child / "workspace" / "notes"
+    _make_project_root(parent)
+    _make_project_root(child)
+    workspace.mkdir(parents=True)
+
+    without_backup = resolve_project_roots(workspace)
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+    with_backup = resolve_project_roots(workspace)
+
+    assert without_backup is not None
+    assert with_backup is not None
+    assert without_backup.project_root == child.resolve(strict=False)
+    assert with_backup.project_root == child.resolve(strict=False)
+    assert without_backup.basis == RootResolutionBasis.WORKSPACE
+    assert with_backup.basis == RootResolutionBasis.WORKSPACE
+    assert without_backup.confidence == RootResolutionConfidence.HIGH
+    assert with_backup.confidence == RootResolutionConfidence.HIGH
+    assert without_backup.walk_up_steps == 2
+    assert with_backup.walk_up_steps == 2
+    assert resolve_project_root(workspace, require_layout=True) == child.resolve(strict=False)
+
+
+def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_docs_only_layout(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    workspace = child / "notes"
+    _make_project_root(parent)
+    (child / "GPD").mkdir(parents=True)
+    (child / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (child / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    workspace.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == parent.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 2
+
+
 def test_resolve_project_roots_falls_back_to_nearest_bare_gpd_when_no_stronger_ancestor_exists(
     tmp_path: Path,
 ) -> None:

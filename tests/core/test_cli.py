@@ -127,6 +127,33 @@ class _ExecutionSnapshot(SimpleNamespace):
         return None
 
 
+def _make_nested_verified_child_project(tmp_path: Path) -> tuple[Path, Path, Path]:
+    parent_root = tmp_path / "parent"
+    child_root = parent_root / "child"
+    nested_cwd = child_root / "workspace" / "nested"
+    parent_layout = ProjectLayout(parent_root)
+    child_layout = ProjectLayout(child_root)
+
+    parent_layout.phases_dir.mkdir(parents=True, exist_ok=True)
+    child_layout.phases_dir.mkdir(parents=True, exist_ok=True)
+
+    parent_state = default_state_dict()
+    save_state_json(parent_root, parent_state)
+    save_state_markdown(parent_root, generate_state_markdown(parent_state))
+    parent_layout.project_md.write_text("# Parent project\n", encoding="utf-8")
+    parent_layout.roadmap.write_text("# Parent roadmap\n", encoding="utf-8")
+    parent_layout.state_json_backup.write_text(
+        json.dumps(parent_state, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    child_state = default_state_dict()
+    save_state_markdown(child_root, generate_state_markdown(child_state))
+
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    return parent_root, child_root, nested_cwd
+
+
 # ─── version & help ─────────────────────────────────────────────────────────
 
 
@@ -2697,6 +2724,23 @@ def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_pa
     mock_load.assert_called_once_with(project_root.resolve())
 
 
+@patch("gpd.core.state.state_load")
+def test_state_load_prefers_nested_verified_child_root_over_richer_verified_parent(
+    mock_load,
+    tmp_path: Path,
+) -> None:
+    _, child_root, nested_cwd = _make_nested_verified_child_project(tmp_path)
+
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"position": {"current_phase": "42"}}
+    mock_load.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "state", "load"])
+
+    assert result.exit_code == 0
+    mock_load.assert_called_once_with(child_root.resolve())
+
+
 @patch("gpd.core.state.state_get")
 def test_state_get_section(mock_get):
     mock_result = MagicMock()
@@ -2811,6 +2855,42 @@ def test_state_set_project_contract_uses_ancestor_project_root_from_nested_cwd(
     assert validate_kwargs["mode"] == "approved"
     mock_set_project_contract.assert_called_once()
     assert mock_set_project_contract.call_args.args[0] == project_root.resolve()
+
+
+@patch("gpd.core.state.state_set_project_contract")
+@patch("gpd.core.contract_validation.validate_project_contract")
+def test_state_set_project_contract_prefers_nested_verified_child_root_over_richer_verified_parent(
+    mock_validate_contract,
+    mock_set_project_contract,
+    tmp_path: Path,
+) -> None:
+    _, child_root, nested_cwd = _make_nested_verified_child_project(tmp_path)
+    contract_path = nested_cwd / "contract.json"
+    contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
+
+    validation_result = MagicMock()
+    validation_result.valid = True
+    validation_result.model_dump.return_value = {"valid": True}
+    mock_validate_contract.return_value = validation_result
+
+    write_result = MagicMock()
+    write_result.updated = True
+    write_result.unchanged = False
+    write_result.model_dump.return_value = {"updated": True}
+    mock_set_project_contract.return_value = write_result
+
+    result = runner.invoke(
+        app,
+        ["--cwd", str(nested_cwd), "state", "set-project-contract", contract_path.name],
+    )
+
+    assert result.exit_code == 0
+    mock_validate_contract.assert_called_once()
+    _, validate_kwargs = mock_validate_contract.call_args
+    assert validate_kwargs["project_root"] == child_root.resolve()
+    assert validate_kwargs["mode"] == "approved"
+    mock_set_project_contract.assert_called_once()
+    assert mock_set_project_contract.call_args.args[0] == child_root.resolve()
 
 
 @patch("gpd.core.state.state_record_session")

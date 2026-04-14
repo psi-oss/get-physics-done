@@ -131,6 +131,26 @@ def test_resolve_project_reentry_walks_up_to_ancestor_project_root(tmp_path: Pat
     assert resolution.candidates[0].project_root == project.resolve(strict=False).as_posix()
 
 
+def test_resolve_project_reentry_prefers_nested_child_project_over_richer_parent(tmp_path: Path) -> None:
+    parent = _make_gpd_workspace(tmp_path / "parent", project=True, roadmap=True, state=True)
+    child = _make_gpd_workspace(parent / "child", project=True, roadmap=True, state=True)
+    nested = child / "src" / "notes"
+    nested.mkdir(parents=True)
+    (parent / "GPD" / "state.json.bak").write_text(json.dumps(default_state_dict(), indent=2) + "\n", encoding="utf-8")
+
+    resolution = resolve_project_reentry(nested, recent_rows=[])
+
+    assert resolution.mode == "current-workspace"
+    assert resolution.source == "current_workspace"
+    assert resolution.has_current_workspace_candidate is True
+    assert resolution.has_recoverable_current_workspace is True
+    assert resolution.project_root == child.resolve(strict=False).as_posix()
+    assert resolution.recoverable_candidates_count == 1
+    assert len(resolution.candidates) == 1
+    assert resolution.candidates[0].reason == "workspace resolved to ancestor project root"
+    assert resolution.candidates[0].project_root == child.resolve(strict=False).as_posix()
+
+
 def test_resolve_project_reentry_surfaces_partial_recoverable_workspace(tmp_path: Path) -> None:
     workspace = _make_gpd_workspace(tmp_path / "workspace", roadmap=True, state=True)
 

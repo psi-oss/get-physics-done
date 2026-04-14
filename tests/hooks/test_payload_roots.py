@@ -31,6 +31,16 @@ def _policy(
     )
 
 
+def _make_full_project_root(project) -> None:
+    gpd_dir = project / "GPD"
+    gpd_dir.mkdir(parents=True)
+    (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
+    (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (gpd_dir / "phases").mkdir()
+
+
 def test_normalize_workspace_text_resolves_explicit_path(tmp_path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -290,6 +300,25 @@ def test_project_root_from_payload_prefers_explicit_project_dir_input(tmp_path) 
     assert result == str(project.resolve(strict=False))
 
 
+def test_project_root_from_payload_prefers_explicit_project_dir_inside_nested_child_over_richer_parent(tmp_path) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    project_dir = child / "src" / "notes"
+    workspace = project_dir / "drafts"
+    _make_full_project_root(parent)
+    _make_full_project_root(child)
+    workspace.mkdir(parents=True)
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    result = project_root_from_payload(
+        {"workspace": {"cwd": str(workspace), "project_dir": str(project_dir)}},
+        str(workspace),
+        policy_getter=lambda _cwd: _policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
+    )
+
+    assert result == str(child.resolve(strict=False))
+
+
 def test_project_root_from_payload_falls_back_to_workspace_when_resolution_fails(tmp_path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -373,6 +402,46 @@ def test_resolve_payload_roots_trusts_explicit_project_dir_when_it_is_the_select
     assert roots.project_dir_present is True
     assert roots.project_dir_trusted is True
 
+
+def test_resolve_payload_roots_trusts_nested_child_project_dir_over_richer_parent(tmp_path) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    workspace = child / "src" / "notes"
+    workspace.mkdir(parents=True)
+    _make_full_project_root(parent)
+    _make_full_project_root(child)
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    roots = resolve_payload_roots(
+        {"workspace": {"cwd": str(workspace), "project_dir": str(child)}},
+        policy_getter=lambda _cwd: _policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
+    )
+
+    assert roots.workspace_dir == str(workspace.resolve(strict=False))
+    assert roots.project_root == str(child.resolve(strict=False))
+    assert roots.project_dir_present is True
+    assert roots.project_dir_trusted is True
+
+
+def test_resolve_payload_roots_trusts_explicit_project_dir_inside_nested_child_over_richer_parent(tmp_path) -> None:
+    parent = tmp_path / "parent"
+    child = parent / "child"
+    project_dir = child / "src" / "notes"
+    workspace = project_dir / "drafts"
+    _make_full_project_root(parent)
+    _make_full_project_root(child)
+    workspace.mkdir(parents=True)
+    (parent / "GPD" / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    roots = resolve_payload_roots(
+        {"workspace": {"cwd": str(workspace), "project_dir": str(project_dir)}},
+        policy_getter=lambda _cwd: _policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
+    )
+
+    assert roots.workspace_dir == str(workspace.resolve(strict=False))
+    assert roots.project_root == str(child.resolve(strict=False))
+    assert roots.project_dir_present is True
+    assert roots.project_dir_trusted is True
 
 def test_resolve_payload_roots_does_not_trust_unverified_explicit_project_dir_even_when_selected(tmp_path) -> None:
     project = tmp_path / "project"
