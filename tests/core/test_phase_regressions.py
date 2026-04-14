@@ -311,21 +311,30 @@ def test_phase_add_matches_existing_padding(tmp_path: Path) -> None:
     assert "### Phase 02: New Phase" in roadmap
 
 
-def test_phase_add_matches_emdash_separator(tmp_path: Path) -> None:
-    """phase_add should match em-dash separator of existing phases."""
-    from gpd.core.phases import phase_add
+def test_phase_add_matches_emdash_separator_and_round_trips_state_totals(tmp_path: Path) -> None:
+    """phase_add should preserve em-dash headings and keep roadmap/state totals coherent."""
+    from gpd.core.phases import phase_add, roadmap_analyze
 
     _setup_project(tmp_path)
     _create_roadmap(
         tmp_path,
         "### Phase 01 \u2014 Existing\n**Goal:** exist\n",
     )
+    _create_state_md(tmp_path, "**Total Phases:** 1\n")
 
     phase_add(tmp_path, "New Phase")
 
     roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "### Phase 02 \u2014 New Phase" in roadmap
     assert "Phase 02:" not in roadmap
+
+    analysis = roadmap_analyze(tmp_path)
+    assert analysis.phase_count == 2
+    assert [phase.number for phase in analysis.phases] == ["01", "02"]
+    assert [phase.name for phase in analysis.phases] == ["Existing", "New Phase"]
+
+    state_md = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    assert "**Total Phases:** 2" in state_md
 
 
 def test_phase_add_depends_on_uses_padded_form(tmp_path: Path) -> None:
@@ -395,3 +404,35 @@ def test_phase_insert_depends_on_uses_normalized_form(tmp_path: Path) -> None:
     # pre-existing inconsistency in phase_normalize's design, not a bug in
     # phase_insert.  Changing phase_normalize is out of scope for BUG-018.
     assert "**Depends on:** Phase 01" in roadmap
+
+
+def test_phase_insert_matches_emdash_separator_and_round_trips_state_totals(tmp_path: Path) -> None:
+    """phase_insert should preserve em-dash headings and keep roadmap/state totals coherent."""
+    from gpd.core.phases import phase_insert, roadmap_analyze
+
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 01 — Existing
+        **Goal:** exist
+
+        ### Phase 02 — Followup
+        **Goal:** follow
+        """,
+    )
+    _create_state_md(tmp_path, "**Total Phases:** 2\n")
+
+    phase_insert(tmp_path, "01", "Urgent Fix")
+
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 01.1 — Urgent Fix (INSERTED)" in roadmap
+    assert "Phase 01.1:" not in roadmap
+
+    analysis = roadmap_analyze(tmp_path)
+    assert analysis.phase_count == 3
+    assert [phase.number for phase in analysis.phases] == ["01", "01.1", "02"]
+    assert [phase.name for phase in analysis.phases] == ["Existing", "Urgent Fix", "Followup"]
+
+    state_md = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    assert "**Total Phases:** 3" in state_md

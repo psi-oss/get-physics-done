@@ -288,6 +288,37 @@ def test_roadmap_analyze_no_roadmap(tmp_path: Path) -> None:
     assert result.phase_count == 0
 
 
+def test_roadmap_analyze_accepts_em_dash_phase_headings(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Initial Setup
+
+        ### Phase 01 — Setup
+        **Goal:** Get started
+        **Plans:** 1 plans
+
+        ### Phase 02 — Implementation
+        **Goal:** Build the thing
+        **Plans:** 0 plans
+        """,
+    )
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "01-01-SUMMARY.md").write_text("summary", encoding="utf-8")
+    _create_phase_dir(tmp_path, "02-implementation")
+
+    result = roadmap_analyze(tmp_path)
+
+    assert result.phase_count == 2
+    assert [phase.number for phase in result.phases] == ["01", "02"]
+    assert [phase.name for phase in result.phases] == ["Setup", "Implementation"]
+    assert result.completed_phases == 1
+    assert result.next_phase == "02"
+
+
 # ─── roadmap_get_phase ──────────────────────────────────────────────────────────
 
 
@@ -326,6 +357,50 @@ def test_roadmap_get_phase_accepts_padded_query(tmp_path: Path) -> None:
     assert result.phase_number == "3"
     assert result.phase_name == "Analysis Phase"
     assert result.goal == "Analyze the phase"
+
+
+def test_roadmap_get_phase_accepts_em_dash_heading(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1 — Setup Phase
+        **Goal:** Initialize the project
+        Some details here.
+
+        ### Phase 2 — Next Phase
+        **Goal:** Do more
+        """,
+    )
+
+    result = roadmap_get_phase(tmp_path, "1")
+
+    assert result.found is True
+    assert result.phase_name == "Setup Phase"
+    assert result.goal == "Initialize the project"
+
+
+def test_roadmap_get_phase_stops_at_mixed_separator_boundary(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup Phase
+        **Goal:** Initialize the project
+        Some details here.
+
+        ### Phase 2 — Next Phase
+        **Goal:** Do more
+        """,
+    )
+
+    result = roadmap_get_phase(tmp_path, "1")
+
+    assert result.found is True
+    assert result.phase_name == "Setup Phase"
+    assert result.section is not None
+    assert "### Phase 2 — Next Phase" not in result.section
+    assert "**Goal:** Do more" not in result.section
 
 
 def test_roadmap_get_phase_not_found(tmp_path: Path) -> None:
@@ -400,6 +475,39 @@ def test_phase_add_updates_total_phases_when_roadmap_contains_decimal_phases(tmp
     state_json = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
     assert "**Total Phases:** 4" in state
     assert state_json["position"]["total_phases"] == 4
+
+
+def test_phase_add_round_trips_em_dash_headings_and_total_phases(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Test
+
+        ### Phase 01 — Existing Phase
+        **Goal:** exist
+
+        ---
+        Progress tracking table
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="Existing Phase", total_phases=1)
+
+    result = phase_add(tmp_path, "New Feature")
+
+    assert result.phase_number == 2
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 02 — New Feature" in roadmap
+
+    analysis = roadmap_analyze(tmp_path)
+    assert analysis.phase_count == 2
+    assert [phase.number for phase in analysis.phases] == ["01", "02"]
+    assert any(phase.name == "New Feature" for phase in analysis.phases)
+
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    state_json = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
+    assert "**Total Phases:** 2" in state
+    assert state_json["position"]["total_phases"] == 2
 
 
 def test_phase_add_rebuilds_state_markdown_when_only_state_json_exists(tmp_path: Path) -> None:
@@ -825,6 +933,38 @@ def test_phase_insert(tmp_path: Path) -> None:
     assert (tmp_path / result.directory).is_dir()
 
 
+def test_phase_insert_round_trips_em_dash_headings_and_total_phases(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 01 — Setup
+        **Goal:** setup
+
+        ### Phase 02 — Build
+        **Goal:** build
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="Setup", total_phases=2)
+
+    result = phase_insert(tmp_path, "01", "Hotfix")
+
+    assert result.phase_number == "01.1"
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 01.1 — Hotfix (INSERTED)" in roadmap
+
+    analysis = roadmap_analyze(tmp_path)
+    assert analysis.phase_count == 3
+    assert [phase.number for phase in analysis.phases] == ["01", "01.1", "02"]
+    assert any(phase.name == "Hotfix" for phase in analysis.phases)
+
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    state_json = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
+    assert "**Total Phases:** 3" in state
+    assert state_json["position"]["total_phases"] == 3
+    assert (tmp_path / result.directory).is_dir()
+
+
 def test_phase_insert_invalid_phase(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: X\n")
@@ -1019,6 +1159,48 @@ def test_phase_remove_integer_removes_descendant_subtree_and_clears_removed_curr
     assert "**Total Plans in Phase:** 1" in state
 
 
+def test_phase_remove_integer_removes_emdash_subtree_and_preserves_heading_separator(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1 — Setup
+        **Goal:** setup
+
+        ### Phase 2 — Main
+        **Goal:** main
+
+        ### Phase 2.1 — Hotfix
+        **Goal:** hotfix
+
+        ### Phase 2.1.1 — Detail
+        **Goal:** detail
+
+        ### Phase 3 — Validation
+        **Goal:** validate
+        **Artifact:** 03-01-PLAN.md
+        """,
+    )
+    _create_phase_dir(tmp_path, "01-setup")
+    _create_phase_dir(tmp_path, "02-main")
+    _create_phase_dir(tmp_path, "02.1-hotfix")
+    _create_phase_dir(tmp_path, "02.1.1-detail")
+    validation_dir = _create_phase_dir(tmp_path, "03-validation")
+    (validation_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
+
+    phase_remove(tmp_path, "2")
+
+    remaining = sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir())
+    assert remaining == ["01-setup", "02-validation"]
+
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 2 — Validation" in roadmap
+    assert "### Phase 2 — Main" not in roadmap
+    assert "### Phase 2.1 — Hotfix" not in roadmap
+    assert "### Phase 2.1.1 — Detail" not in roadmap
+    assert "### Phase 2: Validation" not in roadmap
+
+
 def test_phase_remove_decimal_removes_descendants_and_renumbers_later_subtree_references(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(
@@ -1084,6 +1266,34 @@ def test_phase_remove_decimal_removes_descendants_and_renumbers_later_subtree_re
     assert "03.1.1-01-PLAN.md" in roadmap
     assert "Phase 3.2" not in roadmap
     assert "Phase 3.2.1" not in roadmap
+
+
+def test_phase_remove_integer_renumbers_mixed_separator_headings_without_normalizing_format(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** setup
+
+        ### Phase 2 — Main
+        **Goal:** main
+
+        ### Phase 3: Validation
+        **Goal:** validate
+        """,
+    )
+    _create_phase_dir(tmp_path, "01-setup")
+    _create_phase_dir(tmp_path, "02-main")
+    _create_phase_dir(tmp_path, "03-validation")
+
+    phase_remove(tmp_path, "1")
+
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 1 — Main" in roadmap
+    assert "### Phase 2: Validation" in roadmap
+    assert "### Phase 1: Main" not in roadmap
+    assert "### Phase 2 — Validation" not in roadmap
 
 
 def test_phase_remove_decimal_descendant_current_phase_falls_back_to_previous_phase(tmp_path: Path) -> None:
@@ -1204,6 +1414,38 @@ def test_phase_complete_uses_roadmap_for_unscaffolded_next_phase(tmp_path: Path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
     (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
     (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
+
+    result = phase_complete(tmp_path, "1")
+
+    assert result.next_phase == "02"
+    assert result.next_phase_name == "Build"
+    assert result.is_last_phase is False
+
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    assert "**Current Phase:** 02" in state
+    assert "**Current Phase Name:** Build" in state
+    assert "**Status:** Ready to plan" in state
+
+
+def test_phase_complete_uses_em_dash_roadmap_for_unscaffolded_next_phase(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 01 — Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 02 — Build
+        **Goal:** build
+        **Plans:** 0 plans
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="Setup", total_phases=2, status="in_progress")
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "01-01-SUMMARY.md").write_text("done", encoding="utf-8")
 
     result = phase_complete(tmp_path, "1")
 

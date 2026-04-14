@@ -1108,6 +1108,36 @@ class TestCheckRoadmapConsistency:
         result = check_roadmap_consistency(tmp_path)
         assert result.status == CheckStatus.OK
 
+    def test_roadmap_with_matching_em_dash_phases(self, tmp_path: Path):
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "ROADMAP.md").write_text("## Phase 1 — Intro\n## Phase 2 — Method\n", encoding="utf-8")
+        phases = planning / "phases"
+        (phases / "1-intro").mkdir(parents=True)
+        (phases / "2-method").mkdir(parents=True)
+
+        result = check_roadmap_consistency(tmp_path)
+
+        assert result.status == CheckStatus.OK
+        assert result.details == {"roadmap_phases": 2, "disk_phases": 2}
+        assert result.warnings == []
+
+    def test_roadmap_with_mixed_phase_heading_separators(self, tmp_path: Path):
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "ROADMAP.md").write_text(
+            "## Milestone v1.0: Demo\n### Phase 1: Intro\n### Phase 2 — Method\n",
+            encoding="utf-8",
+        )
+        phases = planning / "phases"
+        (phases / "1-intro").mkdir(parents=True)
+        (phases / "2-method").mkdir(parents=True)
+
+        result = check_roadmap_consistency(tmp_path)
+
+        assert result.status == CheckStatus.OK
+        assert result.details["roadmap_phases"] == 2
+
 
 class TestCheckPlanFrontmatter:
     def test_no_phases_dir(self, tmp_path: Path):

@@ -360,6 +360,56 @@ class TestRoadmapAddAnalyze:
         assert analysis2.phase_count == 2
         assert any(p.name == "Analysis Step" for p in analysis2.phases)
 
+    def test_add_phase_then_analyze_em_dash_round_trip(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_roadmap(
+            tmp_path,
+            """\
+            # Roadmap v1.0
+
+            ## Milestone v1.0: Core
+
+            ### Phase 01 — Foundation
+
+            **Goal:** Set up basics
+
+            ---
+            Progress tracking
+            """,
+        )
+        _write_state(
+            tmp_path,
+            """\
+            # Research State
+
+            ## Current Position
+
+            **Current Phase:** 01
+            **Current Phase Name:** Foundation
+            **Total Phases:** 1
+            **Current Plan:** 1
+            **Total Plans in Phase:** 1
+            **Status:** in_progress
+            **Last Activity:** 2026-02-23
+            **Last Activity Description:** Started
+            """,
+        )
+        _create_phase(tmp_path, "01-foundation")
+
+        analysis1 = roadmap_analyze(tmp_path)
+        assert analysis1.phase_count == 1
+
+        added = phase_add(tmp_path, "Analysis Step")
+        assert added.phase_number == 2
+
+        roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+        assert "### Phase 02 — Analysis Step" in roadmap
+
+        analysis2 = roadmap_analyze(tmp_path)
+        assert analysis2.phase_count == 2
+        assert [phase.number for phase in analysis2.phases] == ["01", "02"]
+        assert any(phase.name == "Analysis Step" for phase in analysis2.phases)
+
     def test_insert_then_analyze(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_roadmap(
@@ -380,6 +430,103 @@ class TestRoadmapAddAnalyze:
 
         analysis = roadmap_analyze(tmp_path)
         assert any(p.number in ("1.1", "01.1") for p in analysis.phases)
+
+    def test_insert_then_analyze_em_dash_round_trip(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_roadmap(
+            tmp_path,
+            """\
+            ### Phase 01 — Setup
+
+            **Goal:** Setup
+
+            ### Phase 02 — Final
+
+            **Goal:** Wrap up
+            """,
+        )
+        _write_state(
+            tmp_path,
+            """\
+            # Research State
+
+            ## Current Position
+
+            **Current Phase:** 01
+            **Current Phase Name:** Setup
+            **Total Phases:** 2
+            **Current Plan:** 1
+            **Total Plans in Phase:** 1
+            **Status:** in_progress
+            **Last Activity:** 2026-02-23
+            **Last Activity Description:** Started
+            """,
+        )
+
+        inserted = phase_insert(tmp_path, "01", "Urgent Fix")
+        assert inserted.phase_number == "01.1"
+
+        roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+        assert "### Phase 01.1 — Urgent Fix (INSERTED)" in roadmap
+
+        analysis = roadmap_analyze(tmp_path)
+        assert analysis.phase_count == 3
+        assert [phase.number for phase in analysis.phases] == ["01", "01.1", "02"]
+
+    def test_complete_then_advance_on_em_dash_roadmap_round_trip(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_roadmap(
+            tmp_path,
+            """\
+            # Research Roadmap v1.0
+
+            ## Phase Overview
+
+            - [ ] Phase 01: Setup
+            - [ ] Phase 02: Derivation
+
+            ### Phase 01 — Setup
+
+            **Goal:** Set up the theoretical framework
+            **Plans:** 1 plans
+
+            ### Phase 02 — Derivation
+
+            **Goal:** Derive the Hamiltonian
+            **Plans:** 0 plans
+            """,
+        )
+        _write_state(
+            tmp_path,
+            """\
+            # Research State
+
+            ## Current Position
+
+            **Current Phase:** 01
+            **Current Phase Name:** Setup
+            **Total Phases:** 2
+            **Current Plan:** 1
+            **Total Plans in Phase:** 1
+            **Status:** in_progress
+            **Last Activity:** 2026-02-23
+            **Last Activity Description:** Started
+            """,
+        )
+        phase1 = _create_phase(tmp_path, "01-setup")
+        (phase1 / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+        (phase1 / "01-01-SUMMARY.md").write_text("summary", encoding="utf-8")
+
+        result = phase_complete(tmp_path, "1")
+
+        assert result.completed_phase == "1"
+        assert result.next_phase == "02"
+        assert result.next_phase_name == "Derivation"
+        assert result.is_last_phase is False
+
+        state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+        assert "**Current Phase:** 02" in state
+        assert "**Current Phase Name:** Derivation" in state
 
 
 # ─── Multi-Level Decimal Phase Handling ──────────────────────────────────────

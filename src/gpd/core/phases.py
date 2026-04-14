@@ -911,26 +911,25 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
         normalized_query = phase_normalize(str(phase_num))
         # Match by normalized phase identity so roadmap headers like "Phase 1"
         # and directory/context values like "01" resolve the same section.
-        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*):\s*([^\n]+)", re.IGNORECASE)
-
         header_match: re.Match[str] | None = None
+        header_index: int | None = None
         matched_phase_number: str | None = None
         phase_name: str | None = None
-        for match in phase_pattern.finditer(content):
-            candidate_phase_number = match.group(1).strip()
+        section_end = len(content)
+        for match, candidate_section_end in _iter_roadmap_phase_sections(content):
+            candidate_phase_number = match.group("phase_number").strip()
             if phase_normalize(candidate_phase_number) != normalized_query:
                 continue
             header_match = match
+            header_index = match.start()
             matched_phase_number = candidate_phase_number
-            phase_name = match.group(2).strip()
+            phase_name = match.group("phase_name").strip()
+            section_end = candidate_section_end
             break
 
-        if not header_match:
+        if header_match is None or header_index is None:
             return RoadmapPhaseResult(found=False, phase_number=phase_num)
 
-        header_index = header_match.start()
-        next_header = phase_pattern.search(content, header_match.end())
-        section_end = next_header.start() if next_header else len(content)
         section = content[header_index:section_end].strip()
 
         goal_match = re.search(r"\*\*Goal:\*\*\s*([^\n]+)", section, re.IGNORECASE)
@@ -1235,19 +1234,16 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
         if phases_dir.is_dir():
             phase_dir_names = [d.name for d in phases_dir.iterdir() if d.is_dir()]
 
-        # Extract all phase headings
-        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*)\s*:\s*([^\n]+)", re.IGNORECASE)
         phases: list[RoadmapPhase] = []
 
-        for match in phase_pattern.finditer(content):
-            phase_num = match.group(1)
-            phase_name = re.sub(r"\(INSERTED\)", "", match.group(2), flags=re.IGNORECASE).strip()
+        # Extract all phase headings with shared section boundaries so readers
+        # stay in sync across mixed ':' and em-dash heading styles.
+        for match, section_end in _iter_roadmap_phase_sections(content):
+            phase_num = match.group("phase_number")
+            phase_name = re.sub(r"\(INSERTED\)", "", match.group("phase_name"), flags=re.IGNORECASE).strip()
 
             # Extract section text
             section_start = match.start()
-            rest = content[section_start:]
-            next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest, re.IGNORECASE)
-            section_end = section_start + next_header.start() if next_header else len(content)
             section = content[section_start:section_end]
 
             goal_match = re.search(r"\*\*Goal:\*\*\s*([^\n]+)", section, re.IGNORECASE)
@@ -1548,9 +1544,21 @@ def _remap_phase_after_removal(current_phase: str | None, removed_phase: str, re
 # ─── Phase heading format detection ──────────────────────────────────────────
 
 _PHASE_HEADING_RE = re.compile(
-    r"(#{2,4})\s*Phase\s+(\d+)(?:\.\d+)?\s*(?:(\s+\u2014\s+)|(:\s*))",
-    re.IGNORECASE,
+    r"^[ \t]*(?P<heading_level>#{2,4})\s*Phase\s+(?P<phase_number>\d+(?:\.\d+)*)"
+    r"(?:(?P<emdash_separator>\s+\u2014\s+)|(?P<colon_separator>\s*:\s*))"
+    r"(?P<phase_name>[^\n]*)$",
+    re.IGNORECASE | re.MULTILINE,
 )
+
+
+def _iter_roadmap_phase_sections(content: str) -> list[tuple[re.Match[str], int]]:
+    """Return roadmap heading matches paired with the end offset of each section."""
+    matches = list(_PHASE_HEADING_RE.finditer(content))
+    sections: list[tuple[re.Match[str], int]] = []
+    for index, match in enumerate(matches):
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        sections.append((match, next_start))
+    return sections
 
 
 def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
@@ -1572,22 +1580,19 @@ def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
     # Prefer the first integer-only phase (no decimal) for heading level
     heading_level: str | None = None
     for m in matches:
-        # Check this is an integer phase (no dot after the captured digits)
-        after_digits = content[m.end(2):]
-        if not after_digits.startswith("."):
-            heading_level = m.group(1)
+        if "." not in m.group("phase_number"):
+            heading_level = m.group("heading_level")
             break
     if heading_level is None:
         # All phases are decimal; use the first match
-        heading_level = matches[0].group(1)
+        heading_level = matches[0].group("heading_level")
 
     # Detect padding: check if any integer phase number has a leading zero
     pad_width = 0
     for m in matches:
-        raw_num = m.group(2)
-        after_digits = content[m.end(2):]
-        if after_digits.startswith("."):
-            continue  # skip decimal phases for padding detection
+        raw_num = m.group("phase_number")
+        if "." in raw_num:
+            continue
         if len(raw_num) > 1 and raw_num[0] == "0":
             pad_width = len(raw_num)
             break
@@ -1595,11 +1600,11 @@ def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
     # Detect separator: colon vs em-dash
     separator = ": "  # default
     for m in matches:
-        if m.group(3):  # em-dash group matched
-            separator = m.group(3)
+        if m.group("emdash_separator"):
+            separator = m.group("emdash_separator")
             break
-        if m.group(4):  # colon group matched
-            separator = m.group(4)
+        if m.group("colon_separator"):
+            separator = m.group("colon_separator")
             break
 
     return heading_level, pad_width, separator
@@ -1639,12 +1644,8 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             content = roadmap_path.read_text(encoding="utf-8")
 
             max_phase = 0
-            for m in re.finditer(
-                r"#{2,4}\s*Phase\s+(\d+)(?:\.\d+)?(?::|(?:\s+\u2014\s+))",
-                content,
-                re.IGNORECASE,
-            ):
-                num = int(m.group(1))
+            for m in _PHASE_HEADING_RE.finditer(content):
+                num = int(m.group("phase_number").split(".", 1)[0])
                 if num > max_phase:
                     max_phase = num
 
@@ -1732,9 +1733,9 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
 
             escaped = re.escape(after_phase)
             if not re.search(
-                rf"#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))",
+                rf"^[ \t]*#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))",
                 content,
-                re.IGNORECASE,
+                re.IGNORECASE | re.MULTILINE,
             ):
                 raise PhaseValidationError(f"Phase {after_phase} not found in ROADMAP.md")
 
@@ -1767,8 +1768,8 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             )
 
             header_pattern = re.compile(
-                rf"(#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))[^\n]*\n)",
-                re.IGNORECASE,
+                rf"([ \t]*#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))[^\n]*\n)",
+                re.IGNORECASE | re.MULTILINE,
             )
             header_match = header_pattern.search(content)
             if not header_match:
@@ -1815,6 +1816,24 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
 
 
 # ─── Phase Remove ──────────────────────────────────────────────────────────────
+
+
+_ROADMAP_PHASE_REMOVE_HEADING_RE = re.compile(
+    r"(?im)^(?P<prefix>[ \t]*#{2,4}\s*Phase\s+)"
+    r"(?P<number>\d+(?:\.\d+)*)"
+    r"(?P<separator>\s*(?:\u2014|:)\s*)"
+    r"(?P<title>[^\n]*)$"
+)
+
+
+def _iter_roadmap_phase_remove_sections(content: str) -> list[tuple[re.Match[str], int]]:
+    """Return phase heading matches paired with the end offset of each section."""
+    matches = list(_ROADMAP_PHASE_REMOVE_HEADING_RE.finditer(content))
+    sections: list[tuple[re.Match[str], int]] = []
+    for index, match in enumerate(matches):
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        sections.append((match, next_start))
+    return sections
 
 
 def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseRemoveResult:
@@ -1870,23 +1889,39 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
             # Step 1: Update ROADMAP.md
             roadmap_content = roadmap_before
+            roadmap_sections = _iter_roadmap_phase_remove_sections(roadmap_content)
             removed_phase_numbers = [
-                phase.number for phase in roadmap_analyze(cwd).phases if _phase_in_subtree(phase.number, normalized)
+                match.group("number")
+                for match, _section_end in roadmap_sections
+                if _phase_in_subtree(match.group("number"), normalized)
             ]
             if not removed_phase_numbers:
                 removed_phase_numbers = [phase_unpad(target_phase)]
 
-            for phase_num in sorted(removed_phase_numbers, key=lambda value: (len(value.split(".")), value), reverse=True):
+            removed_phase_numbers = sorted(
+                set(removed_phase_numbers), key=lambda value: (len(value.split(".")), value), reverse=True
+            )
+
+            if roadmap_sections and removed_phase_numbers:
+                removed_ranges = [
+                    (match.start(), section_end)
+                    for match, section_end in roadmap_sections
+                    if _phase_in_subtree(match.group("number"), normalized)
+                ]
+                if removed_ranges:
+                    kept_segments: list[str] = []
+                    cursor = 0
+                    for section_start, section_end in removed_ranges:
+                        kept_segments.append(roadmap_content[cursor:section_start])
+                        cursor = section_end
+                    kept_segments.append(roadmap_content[cursor:])
+                    roadmap_content = "".join(kept_segments)
+
+            for phase_num in removed_phase_numbers:
                 target_escaped = re.escape(phase_num)
 
-                section_pattern = re.compile(
-                    rf"\n?#{{2,4}}\s*Phase\s+{target_escaped}\s*:[\s\S]*?(?=\n#{{2,4}}\s+Phase\s+\d|$)",
-                    re.IGNORECASE,
-                )
-                roadmap_content = section_pattern.sub("", roadmap_content)
-
                 checkbox_pattern = re.compile(
-                    rf"\n?-\s*\[[ x]\]\s*.*Phase\s+{target_escaped}[:\s][^\n]*",
+                    rf"\n?-\s*\[[ x]\]\s*.*Phase\s+{target_escaped}(?:(?:\s*:\s*)|(?:\s+\u2014\s+)|\s)[^\n]*",
                     re.IGNORECASE,
                 )
                 roadmap_content = checkbox_pattern.sub("", roadmap_content)
@@ -1898,10 +1933,12 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                 roadmap_content = table_pattern.sub("", roadmap_content)
 
             roadmap_content = re.sub(
-                r"(#{2,4}\s*Phase\s+)(\d+(?:\.\d+)*)(\s*:)",
-                lambda m: f"{m.group(1)}{_shift_phase_reference_after_removal(m.group(2), normalized)}{m.group(3)}",
+                _ROADMAP_PHASE_REMOVE_HEADING_RE,
+                lambda m: (
+                    f"{m.group('prefix')}{_shift_phase_reference_after_removal(m.group('number'), normalized)}"
+                    f"{m.group('separator')}{m.group('title')}"
+                ),
                 roadmap_content,
-                flags=re.IGNORECASE,
             )
             roadmap_content = re.sub(
                 r"(^\s*-\s*\[[ x]\]\s*(?:\*\*)?Phase\s+)(\d+(?:\.\d+)*)([:\s])",

@@ -48,6 +48,7 @@ from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, val
 from gpd.core.knowledge_migration import discover_knowledge_migration
 from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.observability import gpd_span
+from gpd.core.phases import roadmap_analyze
 from gpd.core.public_surface_contract import (
     local_cli_doctor_global_command,
     local_cli_doctor_local_command,
@@ -470,10 +471,14 @@ def check_roadmap_consistency(cwd: Path) -> HealthCheck:
     if content is None:
         return HealthCheck(status=CheckStatus.FAIL, label="Roadmap Consistency", issues=["ROADMAP.md not found"])
 
-    # Extract phase numbers from ROADMAP
-    roadmap_phases: set[str] = set()
-    for m in re.finditer(r"(?<!#)#{2,4}(?!#)\s*Phase\s+(\d+(?:\.\d+)*)\s*:", content):
-        roadmap_phases.add(m.group(1))
+    # Prefer the shared roadmap parser, but keep a compatibility scan here
+    # until every roadmap consumer uses the same dual-separator heading grammar.
+    roadmap_phases: set[str] = {phase.number for phase in roadmap_analyze(cwd).phases}
+    compatibility_pattern = re.compile(
+        r"^[ \t]*#{2,4}\s*Phase\s+(\d+(?:\.\d+)*)\s*(?::\s*|\s+\u2014\s+)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    roadmap_phases.update(match.group(1) for match in compatibility_pattern.finditer(content))
 
     # Phases on disk
     disk_phases: set[str] = set()
