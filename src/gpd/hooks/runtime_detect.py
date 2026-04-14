@@ -26,6 +26,7 @@ from gpd.adapters.runtime_catalog import (
     normalize_runtime_name as _normalize_runtime_name,
 )
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, HOME_DATA_DIR_NAME, TODOS_DIR_NAME
+from gpd.core.small_utils import paths_equal as _paths_equal
 from gpd.hooks.install_metadata import install_scope_from_manifest, load_install_manifest_runtime_status
 
 RUNTIME_UNKNOWN = "unknown"
@@ -97,6 +98,19 @@ def _explicit_runtime_override() -> str | None:
     return normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
 
 
+def _runtime_has_explicit_config_override(runtime: str) -> bool:
+    """Return True when runtime config is explicitly redirected via env vars."""
+    try:
+        descriptor = get_runtime_descriptor(runtime)
+    except KeyError:
+        return False
+    global_config = descriptor.global_config
+    return any(
+        env_var and bool(os.environ.get(env_var))
+        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var)
+    )
+
+
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
     """Return runtimes in explicit priority order, optionally promoting one runtime to the front."""
     runtime_names = supported_runtime_names()
@@ -114,13 +128,32 @@ def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
     return resolve_global_config_dir(descriptor, home=home)
 
 
+def _find_local_runtime_dir(runtime: str, config_dir_name: str, *, cwd: Path) -> Path | None:
+    """Walk ancestors for a runtime config dir that validates against its manifest."""
+    for ancestor in (cwd, *cwd.parents):
+        for candidate in (
+            ancestor,
+            ancestor / config_dir_name,
+        ):
+            if not candidate.exists() or not candidate.is_dir():
+                continue
+            if _runtime_from_manifest_or_path(candidate) != runtime:
+                continue
+            return candidate
+    return None
+
+
 def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
     """Return the workspace-local config directory for a runtime."""
     try:
         descriptor = get_runtime_descriptor(runtime)
     except KeyError:
         raise KeyError(runtime) from None
-    return Path(cwd or Path.cwd()) / descriptor.config_dir_name
+    resolved_cwd = Path(cwd or Path.cwd())
+    verified_dir = _find_local_runtime_dir(runtime, descriptor.config_dir_name, cwd=resolved_cwd)
+    if verified_dir is not None:
+        return verified_dir
+    return resolved_cwd / descriptor.config_dir_name
 
 
 def _manifest_runtime_status(config_dir: Path) -> tuple[str, str | None]:
@@ -243,35 +276,16 @@ def resolve_effective_runtime(
             for env_var in descriptor.activation_env_vars:
                 if os.environ.get(env_var):
                     install_scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
-                    has_install = install_scope is not None
                     return EffectiveRuntimeResolution(
                         runtime=runtime,
                         source=SOURCE_ENV,
-                        has_gpd_install=has_install,
+                        has_gpd_install=install_scope is not None,
                         install_scope=install_scope,
                     )
 
-        for runtime in ordered_runtimes:
-            local_dir = _local_runtime_dir(runtime, resolved_cwd)
-            if _has_gpd_install(local_dir):
-                install_scope = install_scope_from_manifest(local_dir) or SCOPE_LOCAL
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=_source_for_install_scope(install_scope, fallback=SOURCE_LOCAL),
-                    has_gpd_install=True,
-                    install_scope=install_scope,
-                )
-
-            global_dir = _global_runtime_dir(runtime, home=resolved_home)
-            if _has_gpd_install(global_dir):
-                install_scope = install_scope_from_manifest(global_dir) or SCOPE_GLOBAL
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=_source_for_install_scope(install_scope, fallback=SOURCE_GLOBAL),
-                    has_gpd_install=True,
-                    install_scope=install_scope,
-                )
-
+        # Active runtime detection is intentionally signal-driven (env/override).
+        # Catalog priority controls runtime ordering, not "active runtime"
+        # inference when no activation signal is present.
         return EffectiveRuntimeResolution()
 
     active_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
@@ -284,6 +298,33 @@ def resolve_effective_runtime(
             )
             return EffectiveRuntimeResolution(
                 runtime=active_runtime,
+                source=_source_for_install_scope(install_target.install_scope, fallback=fallback_source),
+                has_gpd_install=True,
+                install_scope=install_target.install_scope,
+            )
+
+    for runtime in ordered_runtimes:
+        if not _runtime_has_explicit_config_override(runtime):
+            continue
+        install_target = _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
+        if install_target is None:
+            continue
+        fallback_source = SOURCE_LOCAL if install_target.config_dir == _local_runtime_dir(runtime, resolved_cwd) else SOURCE_GLOBAL
+        return EffectiveRuntimeResolution(
+            runtime=runtime,
+            source=_source_for_install_scope(install_target.install_scope, fallback=fallback_source),
+            has_gpd_install=True,
+            install_scope=install_target.install_scope,
+        )
+
+    if active_runtime == RUNTIME_UNKNOWN:
+        for runtime in ordered_runtimes:
+            install_target = _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
+            if install_target is None:
+                continue
+            fallback_source = SOURCE_LOCAL if install_target.config_dir == _local_runtime_dir(runtime, resolved_cwd) else SOURCE_GLOBAL
+            return EffectiveRuntimeResolution(
+                runtime=runtime,
                 source=_source_for_install_scope(install_target.install_scope, fallback=fallback_source),
                 has_gpd_install=True,
                 install_scope=install_target.install_scope,
@@ -332,10 +373,15 @@ def detect_runtime_for_gpd_use(*, cwd: Path | None = None, home: Path | None = N
 
     active_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
     runtime_names = supported_runtime_names()
-    for runtime in _prioritized_runtimes(active_runtime if active_runtime in runtime_names else None):
+    prioritized_runtimes = _prioritized_runtimes(
+        active_runtime if active_runtime in runtime_names else None
+    )
+    for runtime in prioritized_runtimes:
         if _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home) is not None:
             return runtime
-    return active_runtime
+    if active_runtime in runtime_names:
+        return active_runtime
+    return RUNTIME_UNKNOWN
 
 
 def detect_runtime_install_target(
@@ -368,6 +414,37 @@ def detect_install_scope(
     return None if install_target is None else install_target.install_scope
 
 
+def resolve_runtime_target_dir(
+    runtime: str | None,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> tuple[Path | None, str | None]:
+    """Return the concrete config directory and scope for *runtime*, if any."""
+    if runtime is None:
+        return None, None
+
+    resolved_cwd = cwd or Path.cwd()
+    resolved_runtime = normalize_runtime_name(runtime)
+    if resolved_runtime is None:
+        resolved_runtime = runtime
+    if resolved_runtime not in supported_runtime_names():
+        return None, None
+
+    install_target = _detect_runtime_install_target(resolved_runtime, cwd=resolved_cwd, home=home)
+    if install_target is not None:
+        return install_target.config_dir, install_target.install_scope
+
+    install_scope = detect_install_scope(resolved_runtime, cwd=resolved_cwd, home=home)
+    if install_scope == SCOPE_GLOBAL:
+        adapter = adapters_module.get_adapter(resolved_runtime)
+        return adapter.resolve_target_dir(True, resolved_cwd), SCOPE_GLOBAL
+    if install_scope == SCOPE_LOCAL:
+        adapter = adapters_module.get_adapter(resolved_runtime)
+        return adapter.resolve_target_dir(False, resolved_cwd), SCOPE_LOCAL
+    return None, None
+
+
 def _ordered_runtime_dirs_for_lookup(
     runtime: str,
     *,
@@ -386,7 +463,7 @@ def _ordered_runtime_dirs_for_lookup(
         ordered_dirs.append((install_target.config_dir, install_target.install_scope))
 
     for runtime_dir, scope in ((local_dir, SCOPE_LOCAL), (global_dir, SCOPE_GLOBAL)):
-        if any(existing_dir == runtime_dir for existing_dir, _existing_scope in ordered_dirs):
+        if any(_paths_equal(existing_dir, runtime_dir) for existing_dir, _existing_scope in ordered_dirs):
             continue
         ordered_dirs.append((runtime_dir, scope))
     return ordered_dirs
@@ -394,37 +471,45 @@ def _ordered_runtime_dirs_for_lookup(
 
 def _unique_paths(paths: list[Path]) -> list[Path]:
     """Return paths in order with duplicates removed."""
-    seen: set[Path] = set()
     unique: list[Path] = []
     for path in paths:
-        if path in seen:
+        if any(_paths_equal(path, existing) for existing in unique):
             continue
-        seen.add(path)
         unique.append(path)
     return unique
 
 
 def _unique_update_cache_candidates(candidates: list[UpdateCacheCandidate]) -> list[UpdateCacheCandidate]:
     """Return update-cache candidates in order with duplicate paths removed."""
-    seen: set[Path] = set()
     unique: list[UpdateCacheCandidate] = []
     for candidate in candidates:
-        if candidate.path in seen:
-            continue
-        seen.add(candidate.path)
-        unique.append(candidate)
+        for index, existing in enumerate(unique):
+            if not _paths_equal(candidate.path, existing.path):
+                continue
+            runtime = existing.runtime if existing.runtime is not None else candidate.runtime
+            scope = existing.scope if existing.scope is not None else candidate.scope
+            if runtime != existing.runtime or scope != existing.scope:
+                unique[index] = UpdateCacheCandidate(existing.path, runtime=runtime, scope=scope)
+            break
+        else:
+            unique.append(candidate)
     return unique
 
 
 def _unique_todo_candidates(candidates: list[TodoCandidate]) -> list[TodoCandidate]:
     """Return todo candidates in order with duplicate paths removed."""
-    seen: set[Path] = set()
     unique: list[TodoCandidate] = []
     for candidate in candidates:
-        if candidate.path in seen:
-            continue
-        seen.add(candidate.path)
-        unique.append(candidate)
+        for index, existing in enumerate(unique):
+            if not _paths_equal(candidate.path, existing.path):
+                continue
+            runtime = existing.runtime if existing.runtime is not None else candidate.runtime
+            scope = existing.scope if existing.scope is not None else candidate.scope
+            if runtime != existing.runtime or scope != existing.scope:
+                unique[index] = TodoCandidate(existing.path, runtime=runtime, scope=scope)
+            break
+        else:
+            unique.append(candidate)
     return unique
 
 
@@ -749,5 +834,6 @@ __all__ = [
     "should_consider_todo_candidate",
     "should_consider_update_cache_candidate",
     "resolve_effective_runtime",
+    "resolve_runtime_target_dir",
     "update_command_for_runtime",
 ]

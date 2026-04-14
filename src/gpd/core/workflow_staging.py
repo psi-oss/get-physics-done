@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path, PurePosixPath
+
+import yaml
 
 from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES, canonical
 from gpd.specs import SPECS_DIR
 
 WORKFLOW_STAGE_MANIFEST_DIR = SPECS_DIR / "workflows"
 WORKFLOW_STAGE_MANIFEST_SUFFIX = "-stage-manifest.json"
+COMMANDS_DIR = SPECS_DIR.parent / "commands"
 NEW_PROJECT_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"new-project{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 NEW_MILESTONE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"new-milestone{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 EXECUTE_PHASE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"execute-phase{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
@@ -327,7 +331,7 @@ PLAN_PHASE_CONTRACT_GATE_FIELDS = frozenset(
         "project_contract_validation",
     }
 )
-PLAN_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
+_REFERENCE_RUNTIME_FIELDS = frozenset(
     {
         "contract_intake",
         "effective_reference_intake",
@@ -345,6 +349,7 @@ PLAN_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
         "derived_manuscript_proof_review_status",
     }
 )
+PLAN_PHASE_REFERENCE_RUNTIME_FIELDS = _REFERENCE_RUNTIME_FIELDS
 PLAN_PHASE_STRUCTURED_STATE_FIELDS = frozenset(
     {
         "state_load_source",
@@ -419,24 +424,7 @@ QUICK_CONTRACT_GATE_FIELDS = frozenset(
         "project_contract_validation",
     }
 )
-QUICK_REFERENCE_RUNTIME_FIELDS = frozenset(
-    {
-        "contract_intake",
-        "effective_reference_intake",
-        "selected_protocol_bundle_ids",
-        "protocol_bundle_count",
-        "protocol_bundle_context",
-        "protocol_bundle_verifier_extensions",
-        "active_reference_context",
-        "reference_artifact_files",
-        "reference_artifacts_content",
-        "literature_review_files",
-        "literature_review_count",
-        "research_map_reference_files",
-        "research_map_reference_count",
-        "derived_manuscript_proof_review_status",
-    }
-)
+QUICK_REFERENCE_RUNTIME_FIELDS = _REFERENCE_RUNTIME_FIELDS
 QUICK_INIT_FIELDS = frozenset(
     {
         *QUICK_BASE_INIT_FIELDS,
@@ -910,6 +898,7 @@ _ALLOWED_STAGE_KEYS = frozenset(
 )
 _ALLOWED_CONDITIONAL_KEYS = frozenset({"when", "authorities"})
 _AUTHORITY_ROOTS = ("workflows/", "references/", "templates/")
+_STAGE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -1068,6 +1057,13 @@ def _normalize_workflow_id(raw: object) -> str:
     return workflow_id
 
 
+def _normalize_stage_id(raw: object, *, label: str) -> str:
+    stage_id = _require_string(raw, label=label)
+    if not _STAGE_ID_RE.fullmatch(stage_id):
+        raise ValueError(f"{label} must be a slug matching {_STAGE_ID_RE.pattern}")
+    return stage_id
+
+
 def resolve_workflow_stage_manifest_path(workflow_id: str) -> Path:
     workflow_slug = _normalize_workflow_id(workflow_id)
     return WORKFLOW_STAGE_MANIFEST_DIR / f"{workflow_slug}{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
@@ -1119,9 +1115,12 @@ def _normalize_tool_set(values: Iterable[str] | None) -> frozenset[str]:
     return frozenset(normalized)
 
 
-def _normalize_init_field_set(values: Iterable[str] | None, *, workflow_id: str) -> frozenset[str] | None:
+def _normalize_init_field_set(values: Iterable[str] | None, *, workflow_id: str | None) -> frozenset[str] | None:
     if values is None:
-        return _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW.get(workflow_id)
+        if workflow_id is None:
+            return None
+        normalized_workflow_id = _normalize_workflow_id(workflow_id)
+        return _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW.get(normalized_workflow_id)
     normalized: set[str] = set()
     for value in values:
         if not isinstance(value, str):
@@ -1186,11 +1185,12 @@ def _validate_stage(
     if unknown_keys:
         raise ValueError(f"stages[{index}] contains unexpected key(s): {', '.join(unknown_keys)}")
 
-    missing_keys = sorted(key for key in _ALLOWED_STAGE_KEYS if key not in raw)
+    required_stage_keys = _ALLOWED_STAGE_KEYS - {"checkpoints"}
+    missing_keys = sorted(key for key in required_stage_keys if key not in raw)
     if missing_keys:
         raise ValueError(f"stages[{index}] is missing required key(s): {', '.join(missing_keys)}")
 
-    stage_id = _require_string(raw["id"], label=f"stages[{index}].id")
+    stage_id = _normalize_stage_id(raw["id"], label=f"stages[{index}].id")
     order = _require_int(raw["order"], label=f"stages[{index}].order")
     purpose = _require_string(raw["purpose"], label=f"stages[{index}].purpose")
     mode_paths = tuple(
@@ -1241,10 +1241,15 @@ def _validate_stage(
         label=f"stages[{index}].produced_state",
         allow_empty=True,
     )
-    next_stages = _require_string_tuple(
-        raw["next_stages"],
-        label=f"stages[{index}].next_stages",
-        allow_empty=True,
+    next_stages = tuple(
+        _normalize_stage_id(next_stage, label=f"stages[{index}].next_stages[{next_stage_index}]")
+        for next_stage_index, next_stage in enumerate(
+            _require_string_tuple(
+                raw["next_stages"],
+                label=f"stages[{index}].next_stages",
+                allow_empty=True,
+            )
+        )
     )
     checkpoints = _require_string_tuple(
         raw.get("checkpoints", []),
@@ -1265,9 +1270,20 @@ def _validate_stage(
 
     unconditional_eager = set(mode_paths)
     unconditional_eager.update(loaded_authorities)
+    conditional_eager = {
+        authority
+        for conditional in conditional_authorities
+        for authority in conditional.authorities
+    }
     overlap = sorted(unconditional_eager.intersection(must_not_eager_load))
     if overlap:
         raise ValueError(f"stages[{index}] overlap with must_not_eager_load: {', '.join(overlap)}")
+    conditional_without_deferral = sorted(conditional_eager.difference(must_not_eager_load))
+    if conditional_without_deferral:
+        raise ValueError(
+            f"stages[{index}].conditional_authorities must also be listed in must_not_eager_load: "
+            f"{', '.join(conditional_without_deferral)}"
+        )
 
     return WorkflowStage(
         id=stage_id,
@@ -1292,6 +1308,7 @@ def validate_workflow_stage_manifest_payload(
     expected_workflow_id: str | None = None,
     allowed_tools: Iterable[str] | None = None,
     known_init_fields: Iterable[str] | None = None,
+    require_complete_next_stages: bool = False,
 ) -> WorkflowStageManifest:
     if not isinstance(raw, dict):
         raise ValueError("workflow stage manifest must be a JSON object")
@@ -1316,7 +1333,7 @@ def validate_workflow_stage_manifest_payload(
     if not isinstance(stages_raw, list) or not stages_raw:
         raise ValueError("stages must be a non-empty list")
 
-    normalized_allowed_tools = _normalize_tool_set(allowed_tools)
+    normalized_allowed_tools = _normalize_tool_set(_resolved_allowed_tools(allowed_tools, workflow_id=workflow_id))
     normalized_known_init_fields = _normalize_init_field_set(known_init_fields, workflow_id=workflow_id)
     stages = tuple(
         _validate_stage(
@@ -1340,6 +1357,14 @@ def validate_workflow_stage_manifest_payload(
         raise ValueError("stage order values must start at 1 and increase by 1")
 
     stage_id_set = set(stage_ids)
+    unknown_next = {
+        next_stage
+        for stage in stages
+        for next_stage in stage.next_stages
+        if next_stage not in stage_id_set
+    }
+    if require_complete_next_stages and unknown_next:
+        raise ValueError(f"next_stages contains unknown stage id(s): {', '.join(sorted(unknown_next))}")
     order_by_id = {stage.id: stage.order for stage in stages}
     for stage in stages:
         backward_next = sorted(
@@ -1353,11 +1378,64 @@ def validate_workflow_stage_manifest_payload(
     return WorkflowStageManifest(schema_version=schema_version, workflow_id=workflow_id, stages=stages)
 
 
-def _cache_key_tools(values: Iterable[str] | None) -> tuple[str, ...]:
+def _cache_key_tools(values: Iterable[str] | None) -> tuple[str, ...] | None:
+    if values is None:
+        return None
     return tuple(sorted(_normalize_tool_set(values)))
 
 
-def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str) -> tuple[str, ...] | None:
+def _extract_frontmatter(text: str) -> str | None:
+    """Return the raw frontmatter block from a markdown document."""
+
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", text, re.DOTALL)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+@cache
+def _command_allowed_tools_for_workflow(workflow_id: str | None) -> tuple[str, ...] | None:
+    """Return canonical allowed-tools for the owning command, when available."""
+
+    if workflow_id is None:
+        return None
+    command_path = COMMANDS_DIR / f"{_normalize_workflow_id(workflow_id)}.md"
+    if not command_path.is_file():
+        return None
+    try:
+        text = command_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Failed to read command frontmatter {command_path}: {exc}") from exc
+    frontmatter = _extract_frontmatter(text)
+    if frontmatter is None:
+        return None
+    try:
+        payload = yaml.safe_load(frontmatter) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Malformed command frontmatter in {command_path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Command frontmatter in {command_path} must be a mapping")
+    raw_allowed_tools = payload.get("allowed-tools")
+    if raw_allowed_tools is None:
+        return None
+    return _cache_key_tools(raw_allowed_tools)
+
+
+def _resolved_allowed_tools(
+    allowed_tools: Iterable[str] | None,
+    *,
+    workflow_id: str | None,
+) -> tuple[str, ...] | None:
+    explicit_allowed_tools = _cache_key_tools(allowed_tools) if allowed_tools is not None else None
+    if explicit_allowed_tools is not None:
+        return explicit_allowed_tools
+    command_allowed_tools = _command_allowed_tools_for_workflow(workflow_id)
+    if command_allowed_tools is not None:
+        return command_allowed_tools
+    return None
+
+
+def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str | None) -> tuple[str, ...] | None:
     normalized = _normalize_init_field_set(values, workflow_id=workflow_id)
     return tuple(sorted(normalized)) if normalized is not None else None
 
@@ -1366,8 +1444,9 @@ def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str) ->
 def _load_workflow_stage_manifest_cached(
     manifest_path: str,
     expected_workflow_id: str | None,
-    allowed_tools_key: tuple[str, ...],
+    allowed_tools_key: tuple[str, ...] | None,
     known_init_fields_key: tuple[str, ...] | None,
+    require_complete_next_stages: bool,
 ) -> WorkflowStageManifest:
     path = Path(manifest_path)
     try:
@@ -1379,6 +1458,7 @@ def _load_workflow_stage_manifest_cached(
         expected_workflow_id=expected_workflow_id,
         allowed_tools=allowed_tools_key,
         known_init_fields=known_init_fields_key,
+        require_complete_next_stages=require_complete_next_stages,
     )
 
 
@@ -1393,8 +1473,9 @@ def load_workflow_stage_manifest(
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,
-        _cache_key_tools(allowed_tools),
+        _resolved_allowed_tools(allowed_tools, workflow_id=workflow_id),
         _cache_key_init_fields(known_init_fields, workflow_id=workflow_id),
+        True,
     )
 
 
@@ -1408,18 +1489,20 @@ def load_workflow_stage_manifest_from_path(
     workflow_id = _normalize_workflow_id(expected_workflow_id) if expected_workflow_id is not None else None
     normalized_init_fields = _cache_key_init_fields(
         known_init_fields if known_init_fields is not None else known_init_fields_for_workflow(workflow_id),
-        workflow_id=workflow_id or "new-project",
+        workflow_id=workflow_id,
     )
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,
-        _cache_key_tools(allowed_tools),
+        _resolved_allowed_tools(allowed_tools, workflow_id=workflow_id),
         normalized_init_fields,
+        False,
     )
 
 
 def invalidate_workflow_stage_manifest_cache() -> None:
     _load_workflow_stage_manifest_cached.cache_clear()
+    _command_allowed_tools_for_workflow.cache_clear()
 
 
 NewProjectConditionalAuthority = WorkflowStageConditionalAuthority
@@ -1436,7 +1519,11 @@ def load_new_project_stage_contract_from_path(manifest_path: Path) -> WorkflowSt
 
 
 def validate_new_project_stage_contract_payload(raw: object) -> WorkflowStageManifest:
-    return validate_workflow_stage_manifest_payload(raw, expected_workflow_id="new-project")
+    return validate_workflow_stage_manifest_payload(
+        raw,
+        expected_workflow_id="new-project",
+        require_complete_next_stages=True,
+    )
 
 
 def load_new_milestone_stage_contract() -> WorkflowStageManifest:

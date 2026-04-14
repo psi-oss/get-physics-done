@@ -18,15 +18,17 @@ from pydantic import WithJsonSchema
 
 from gpd.core.commands import cmd_apply_return_updates
 from gpd.core.config import load_config
+from gpd.core.context import _build_new_project_contract_runtime_context
 from gpd.core.errors import GPDError
 from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.phases import progress_render
 from gpd.core.root_resolution import resolve_project_root
+from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.state import (
-    _project_contract_runtime_payload_for_state,
     peek_state_json,
     state_advance_plan,
+    state_project_contract_runtime_payload,
     state_validate,
 )
 from gpd.core.utils import is_phase_complete, matching_phase_artifact_count
@@ -45,8 +47,38 @@ mcp = FastMCP("gpd-state")
 
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
+_MISSING_STATE_FALLBACK_MESSAGE = (
+    "No project state found. Initialize a GPD project state by running your runtime's `init new-project` workflow."
+)
 
-def load_state_json(cwd: Path) -> dict | None:
+
+def _state_init_command(cwd: Path) -> str | None:
+    return format_active_runtime_command("new-project", cwd=cwd, fallback=None)
+
+
+def _format_missing_state_error_message(cwd: Path) -> str:
+    command = _state_init_command(cwd)
+    if command:
+        return f"No project state found. Run `{command}` to initialize a GPD project state."
+    return _MISSING_STATE_FALLBACK_MESSAGE
+
+
+def _project_contract_runtime_payload_for_state(
+    project_root: Path,
+    *,
+    state_obj: dict[str, object],
+    state_source: str | None,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    """Compatibility shim for legacy state-server tests and callers."""
+
+    return state_project_contract_runtime_payload(
+        project_root,
+        state_obj=state_obj,
+        state_source=state_source,
+    )
+
+
+def load_visible_mcp_state(cwd: Path) -> dict[str, object] | None:
     """Return visible project state for MCP consumers.
 
     Keep a module-local loader so tool behavior and test patch points stay
@@ -74,10 +106,21 @@ def load_state_json(cwd: Path) -> dict | None:
     merged_state["project_contract_load_info"] = project_contract_load_info
     merged_state["project_contract_validation"] = project_contract_validation
     merged_state["project_contract_gate"] = project_contract_gate
+    if project_contract_gate.get("visible"):
+        contract_context = _build_new_project_contract_runtime_context(project_root)
+        contract_payload = contract_context.get("project_contract")
+        if contract_payload is not None:
+            merged_state["project_contract"] = contract_payload
     return merged_state
 
 
-def apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str | Path) -> dict:
+def load_state_json(cwd: Path) -> dict[str, object] | None:
+    """Compatibility alias for the legacy state-server read helper."""
+
+    return load_visible_mcp_state(cwd)
+
+
+def _apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str) -> dict[str, object]:
     """Apply a validated child-return envelope through the canonical state adapter.
 
     This keeps the canonical apply-return path available from the state server
@@ -89,7 +132,14 @@ def apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str | 
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.apply_return_updates"):
         try:
-            resolved = cwd / Path(file_path)
+            relative_path = Path(file_path)
+            if relative_path.is_absolute():
+                return stable_mcp_error("file_path must be relative to project_dir")
+            resolved = (cwd / relative_path).resolve()
+            try:
+                resolved.relative_to(cwd.resolve())
+            except ValueError:
+                return stable_mcp_error("file_path must stay within project_dir")
             return stable_mcp_response(cmd_apply_return_updates(cwd, resolved).model_dump())
         except (GPDError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)
@@ -111,11 +161,9 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.get", phase=""):
         try:
-            state_obj = load_state_json(cwd)
+            state_obj = load_visible_mcp_state(cwd)
             if state_obj is None:
-                return stable_mcp_error(
-                    "No project state found. Run 'gpd init new-project' to initialize a GPD project state."
-                )
+                return stable_mcp_error(_format_missing_state_error_message(cwd))
             return stable_mcp_response(state_obj)
         except (GPDError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)

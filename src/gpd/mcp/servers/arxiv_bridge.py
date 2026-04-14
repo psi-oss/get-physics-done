@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from importlib import util as importlib_util
 from pathlib import Path
 
 import mcp.types as types
@@ -16,6 +16,7 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
+from gpd.adapters.install_utils import hook_python_interpreter
 from gpd.core.arxiv_source_download import (
     ARXIV_DEFAULT_STORAGE_PATH,
     download_arxiv_source_archive,
@@ -31,6 +32,14 @@ UPSTREAM_CORE_TOOL_NAMES = (
 )
 DOWNLOAD_SOURCE_TOOL_NAME = "download_source"
 ADVERTISED_TOOL_NAMES = (*UPSTREAM_CORE_TOOL_NAMES, DOWNLOAD_SOURCE_TOOL_NAME)
+
+
+def _ensure_arxiv_dependency() -> None:
+    if importlib_util.find_spec(UPSTREAM_ARXIV_MODULE) is None:
+        raise ModuleNotFoundError(
+            "Missing optional dependency `arxiv-mcp-server`. Install it via "
+            '`pip install "get-physics-done[arxiv]"` to enable the arXiv bridge.'
+        )
 
 _DOWNLOAD_SOURCE_SCHEMA: dict[str, object] = {
     "type": "object",
@@ -93,7 +102,7 @@ class ArxivBridge:
     @asynccontextmanager
     async def open(self):
         server = StdioServerParameters(
-            command=sys.executable,
+            command=hook_python_interpreter(),
             args=["-m", UPSTREAM_ARXIV_MODULE, "--storage-path", str(self.config.storage_path)],
         )
         async with stdio_client(server) as streams:
@@ -110,11 +119,25 @@ class ArxivBridge:
         filtered = [tool for tool in upstream.tools if tool.name in UPSTREAM_CORE_TOOL_NAMES]
         if cursor in (None, ""):
             filtered.append(_DOWNLOAD_SOURCE_TOOL)
-        return types.ListToolsResult(tools=filtered, nextCursor=None)
+        return types.ListToolsResult(tools=filtered, nextCursor=upstream.nextCursor)
 
     async def call_tool(self, name: str, arguments: dict[str, object] | None) -> types.CallToolResult:
         if name == DOWNLOAD_SOURCE_TOOL_NAME:
             return await self._call_download_source(arguments or {})
+        if name not in UPSTREAM_CORE_TOOL_NAMES:
+            available = ", ".join(ADVERTISED_TOOL_NAMES)
+            return types.CallToolResult(
+                isError=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=(
+                            f"Tool '{name}' is not available through the GPD arXiv bridge. "
+                            f"Supported tools: {available}."
+                        ),
+                    )
+                ],
+            )
         return await self.session.call_tool(name, arguments or {})
 
     async def list_prompts(self, cursor: str | None = None) -> types.ListPromptsResult:
@@ -157,6 +180,8 @@ class ArxivBridge:
 
 def build_server(config: ArxivBridgeConfig) -> tuple[Server, ArxivBridge]:
     """Build the local stdio MCP server."""
+
+    _ensure_arxiv_dependency()
 
     bridge = ArxivBridge(config)
 

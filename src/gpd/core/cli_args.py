@@ -12,6 +12,14 @@ __all__ = [
 ]
 
 _ROOT_GLOBAL_FLAG_TOKENS = frozenset({"--raw", "--version", "-v"})
+_TRAILING_ROOT_GLOBAL_FLAG_TOKENS = _ROOT_GLOBAL_FLAG_TOKENS
+_TRAILING_ROOT_GLOBAL_COMMAND_PREFIXES = frozenset({("progress", "bar")})
+
+
+def _can_scan_trailing_root_globals(remaining_args: list[str]) -> bool:
+    if not remaining_args:
+        return True
+    return any(tuple(remaining_args[: len(prefix)]) == prefix for prefix in _TRAILING_ROOT_GLOBAL_COMMAND_PREFIXES)
 
 
 def validate_root_global_cli_passthrough(argv: list[str]) -> None:
@@ -62,12 +70,14 @@ def split_root_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]
             index += 1
             continue
 
-        if arg in _ROOT_GLOBAL_FLAG_TOKENS:
+        if arg in _ROOT_GLOBAL_FLAG_TOKENS and (
+            not remaining_args or arg in _TRAILING_ROOT_GLOBAL_FLAG_TOKENS and _can_scan_trailing_root_globals(remaining_args)
+        ):
             global_args.append(arg)
             index += 1
             continue
 
-        if arg == "--cwd":
+        if arg == "--cwd" and _can_scan_trailing_root_globals(remaining_args):
             global_args.append(arg)
             if index + 1 < len(argv):
                 global_args.append(str(argv[index + 1]))
@@ -76,7 +86,7 @@ def split_root_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]
                 index += 1
             continue
 
-        if arg.startswith("--cwd="):
+        if arg.startswith("--cwd=") and _can_scan_trailing_root_globals(remaining_args):
             global_args.append(arg)
             index += 1
             continue
@@ -96,13 +106,18 @@ def normalize_root_global_cli_options(argv: list[str]) -> list[str]:
 def resolve_root_global_cli_cwd_from_argv(argv: list[str]) -> Path:
     """Resolve the effective CLI cwd from raw argv before Typer parses it."""
     raw_cwd = "."
-    global_args, _ = split_root_global_cli_options(argv)
-    for index, arg in enumerate(global_args):
-        if arg == "--cwd" and index + 1 < len(global_args):
-            raw_cwd = global_args[index + 1]
+    global_args, remaining_args = split_root_global_cli_options(argv)
+    scan_args = [*global_args, *remaining_args] if not global_args else global_args
+    index = 0
+    while index < len(scan_args):
+        arg = str(scan_args[index])
+        if arg == "--cwd" and index + 1 < len(scan_args):
+            raw_cwd = str(scan_args[index + 1])
+            index += 2
             continue
         if arg.startswith("--cwd="):
             raw_cwd = arg.split("=", 1)[1]
+        index += 1
 
     candidate = Path(raw_cwd).expanduser()
     if candidate.is_absolute():

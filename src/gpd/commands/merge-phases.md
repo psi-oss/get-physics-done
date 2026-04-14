@@ -39,7 +39,7 @@ Target phase: second argument (e.g., "2")
 </context>
 
 <process>
-Execute the merge-phases workflow from @{GPD_INSTALL_DIR}/workflows/merge-phases.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 This wrapper runs the merge workflow directly. Any stopping points come from the workflow's own validation gates.
 

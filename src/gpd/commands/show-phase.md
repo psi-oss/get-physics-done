@@ -1,6 +1,6 @@
 ---
 name: gpd:show-phase
-description: Inspect a single phase's artifacts, status, and results
+description: Inspect a single phase's artifacts, status, and results via the `gpd --raw init phase-op` helper
 argument-hint: "<phase-number>"
 context_mode: project-required
 requires:
@@ -14,7 +14,7 @@ allowed-tools:
 
 
 <objective>
-Inspect a single research phase in detail: its artifacts, completion status, key results, convention changes, and verification state. Produces a structured report for quick situational awareness.
+Inspect a single research phase in detail by running `gpd --raw init phase-op <phase-number>`: gather artifacts, completion status, key results, convention changes, and verification state, then produce a structured report for quick situational awareness.
 
 Use this when you want a deep look at one specific phase rather than overall project progress.
 </objective>
@@ -32,7 +32,8 @@ Phase: $ARGUMENTS (required)
 </context>
 
 <process>
-Execute the show-phase workflow from @{GPD_INSTALL_DIR}/workflows/show-phase.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Preserve all report sections and formatting.
 
 ## Step 1: Init Context

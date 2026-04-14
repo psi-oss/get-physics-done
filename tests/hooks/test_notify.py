@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import json
 import threading
-import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -21,6 +20,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.costs import usage_ledger_path
+from gpd.hooks.install_context import SelfOwnedInstallContext
 from gpd.hooks.notify import _check_and_notify_update, _emit_execution_notification, _hook_payload_policy, main
 from gpd.hooks.runtime_detect import update_command_for_runtime
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
@@ -51,7 +51,7 @@ class _ExecutionSnapshot(SimpleNamespace):
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
-    home_cache = home / "GPD" / "cache"
+    home_cache = home / HOME_DATA_DIR_NAME / "cache"
     home_cache.mkdir(parents=True)
     (home_cache / "gpd-update-check.json").write_text(
         json.dumps({"update_available": False, "checked": 10}),
@@ -86,6 +86,49 @@ def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_pat
     assert "Update available: v1.2.3" in output
     assert "v1.3.0" in output
     expected = _repair_command("codex", install_scope="local", target_dir=tmp_path / ".codex", explicit_target=False)
+    assert f"Run: {expected}" in output
+
+
+def test_notify_accepts_legacy_manifest_without_explicit_target_when_default_dir(tmp_path: Path) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True)
+    cache_file = config_dir / "cache" / "gpd-update-check.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "1.2.3",
+                "latest": "1.3.0",
+                "checked": 20,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "install_scope": "local",
+                "runtime": "codex",
+                "install_target_dir": str(config_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+    self_install = SelfOwnedInstallContext(config_dir=config_dir, runtime="codex", install_scope="local")
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch("gpd.hooks.install_context.should_prefer_self_owned_install", return_value=True),
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(tmp_path))
+
+    output = stderr.getvalue()
+    expected = _repair_command("codex", install_scope="local", target_dir=config_dir, explicit_target=False)
     assert f"Run: {expected}" in output
 
 
@@ -177,11 +220,13 @@ def test_trigger_update_check_uses_sibling_check_update_script(tmp_path: Path) -
 
     with (
         patch("gpd.hooks.notify.__file__", str(hook_path)),
+        patch("gpd.hooks.notify.hook_python_interpreter", return_value="/opt/gpd/bin/python"),
         patch("gpd.hooks.notify.subprocess.Popen") as mock_popen,
     ):
         notify_module._trigger_update_check(str(tmp_path))
 
     args = mock_popen.call_args[0][0]
+    assert args[0] == "/opt/gpd/bin/python"
     assert args[1] == str(hook_path.with_name("check_update.py"))
 
 
@@ -493,9 +538,9 @@ def test_record_usage_telemetry_prefers_resolved_active_runtime_when_supplied(tm
 
 
 def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
-    gpd_cache = tmp_path / "GPD" / "cache"
-    gpd_cache.mkdir(parents=True)
-    (gpd_cache / "gpd-update-check.json").write_text(
+    home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+    home_cache.mkdir(parents=True)
+    (home_cache / "gpd-update-check.json").write_text(
         json.dumps(
             {
                 "update_available": True,
@@ -1527,9 +1572,13 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
         def __init__(self) -> None:
             self._chunks: list[str] = []
             self._lock = threading.Lock()
+            self.write_started = threading.Event()
+            self.release_write = threading.Event()
 
         def write(self, message: str) -> int:
-            time.sleep(0.05)
+            if message:
+                self.write_started.set()
+                self.release_write.wait(timeout=1)
             with self._lock:
                 self._chunks.append(message)
             return len(message)
@@ -1561,6 +1610,8 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
         threads = [threading.Thread(target=_emit), threading.Thread(target=_emit)]
         for thread in threads:
             thread.start()
+        assert stderr.write_started.wait(timeout=1)
+        stderr.release_write.set()
         for thread in threads:
             thread.join()
 

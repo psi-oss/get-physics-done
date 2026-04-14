@@ -248,11 +248,12 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
         runtime_name,
         install_scope="global",
         target_dir=config_dir,
-        explicit_target=False,
+        explicit_target=True,
     )
     assert repair_command == expected
     assert "--global" in repair_command
-    assert "--target-dir" not in repair_command
+    assert "--target-dir" in repair_command
+    assert str(config_dir) in repair_command
 
 
 @pytest.mark.parametrize(

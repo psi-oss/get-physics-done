@@ -108,10 +108,10 @@ from gpd.core.resume_surface import (
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.runtime_command_surfaces import (
     format_active_runtime_command,
+    installed_runtime_for_surface,
     resolve_active_runtime_descriptor,
 )
 from gpd.core.surface_phrases import (
-    cost_inspect_action,
     recovery_action_lines,
     recovery_ladder_note,
     recovery_recent_action,
@@ -303,34 +303,16 @@ def _resolve_cli_cwd_from_argv(argv: list[str]) -> Path:
 
 def _maybe_reexec_from_checkout(argv: list[str] | None = None) -> None:
     """Re-exec through the nearest checkout when launched from an installed package."""
-    from gpd.version import checkout_root, current_python_executable, resolve_checkout_python
-
-    if os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC) == "1":
-        return
+    from gpd.version import reexec_from_checkout_if_needed
 
     effective_argv = list(sys.argv[1:] if argv is None else argv)
-    root = checkout_root(_resolve_cli_cwd_from_argv(effective_argv))
-    if root is None:
-        return
-
-    checkout_gpd = (root / "src" / "gpd").resolve(strict=False)
-    active_gpd = Path(__file__).resolve().parent
-    if active_gpd == checkout_gpd:
-        return
-
-    env = os.environ.copy()
-    checkout_src = str((root / "src").resolve(strict=False))
-    existing_pythonpath = [entry for entry in env.get("PYTHONPATH", "").split(os.pathsep) if entry]
-    if checkout_src not in existing_pythonpath:
-        env["PYTHONPATH"] = (
-            os.pathsep.join([checkout_src, *existing_pythonpath]) if existing_pythonpath else checkout_src
-        )
-    env[ENV_GPD_DISABLE_CHECKOUT_REEXEC] = "1"
-    active_python = current_python_executable()
-    checkout_python = resolve_checkout_python(root, fallback=active_python) or active_python
-    if checkout_python is None:
-        return
-    os.execve(checkout_python, [checkout_python, "-m", "gpd.cli", *effective_argv], env)
+    reexec_from_checkout_if_needed(
+        cwd=_resolve_cli_cwd_from_argv(effective_argv),
+        active_gpd=Path(__file__).resolve().parent,
+        module="gpd.cli",
+        argv=effective_argv,
+        disable_env_name=ENV_GPD_DISABLE_CHECKOUT_REEXEC,
+    )
 
 
 def _format_display_path(target: str | Path | None) -> str:
@@ -464,6 +446,16 @@ def _format_runtime_list(runtime_names: list[str]) -> str:
     if len(display_names) == 2:
         return f"{display_names[0]} and {display_names[1]}"
     return f"{', '.join(display_names[:-1])}, and {display_names[-1]}"
+
+
+def _local_cli_command_hint(public_command_name: str) -> str:
+    """Return the canonical local CLI invocation for *public_command_name*."""
+    slug = public_command_name
+    prefix = "gpd:"
+    if slug.startswith(prefix):
+        slug = slug[len(prefix) :]
+    slug = slug.strip()
+    return "`gpd`" if not slug else f"`gpd {slug}`"
 
 
 def _supported_runtime_names() -> list[str]:
@@ -839,7 +831,7 @@ def main(
     """GPD — Get Physics Done."""
     global _raw, _cwd  # noqa: PLW0603
     _raw = raw
-    _cwd = Path(cwd)
+    _cwd = Path(cwd).expanduser().resolve(strict=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -878,10 +870,20 @@ def state_patch(
     if len(patches) % 2 != 0:
         _error("state patch requires key-value pairs (even number of arguments)")
     patch_dict: dict[str, str] = {}
+    normalized_patch_keys: dict[str, tuple[str, str]] = {}
     for i in range(0, len(patches), 2):
         key = patches[i].lstrip("-")
         if not key:
             _error(f"Invalid empty key after stripping dashes: {patches[i]!r}")
+        key_norm = key.replace("_", " ")
+        normalized_key = key_norm.casefold()
+        if normalized_key in normalized_patch_keys:
+            previous_key, previous_norm = normalized_patch_keys[normalized_key]
+            _error(
+                f'Duplicate normalized patch key "{key_norm}" (from "{key}") '
+                f'conflicts with "{previous_key}" ({previous_norm})'
+            )
+        normalized_patch_keys[normalized_key] = (key, key_norm)
         patch_dict[key] = patches[i + 1]
     _output(state_patch(_state_mutation_cwd(), patch_dict))
 
@@ -1087,6 +1089,16 @@ def state_record_session(
     last_result_id: str | None = typer.Option(
         None, "--last-result-id", help="Latest canonical result ID to carry forward"
     ),
+    clear_resume_file: bool = typer.Option(
+        False,
+        "--clear-resume-file",
+        help="Clear the stored resume file instead of setting a new one",
+    ),
+    clear_last_result_id: bool = typer.Option(
+        False,
+        "--clear-last-result-id",
+        help="Clear the stored last result ID instead of setting a new one",
+    ),
 ) -> None:
     """Record a session boundary for context tracking."""
     from gpd.core.state import state_record_session
@@ -1096,6 +1108,8 @@ def state_record_session(
         stopped_at=stopped_at,
         resume_file=resume_file,
         last_result_id=last_result_id,
+        clear_resume_file=clear_resume_file,
+        clear_last_result_id=clear_last_result_id,
     )
     payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
     _output(payload)
@@ -1316,19 +1330,14 @@ def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, st
     """Return runtime-specific resume/suggest commands when they can be resolved."""
     try:
         from gpd.adapters import get_adapter
-        from gpd.hooks.runtime_detect import (
-            RUNTIME_UNKNOWN,
-            detect_runtime_for_gpd_use,
-            detect_runtime_install_target,
-        )
 
-        runtime_name = detect_runtime_for_gpd_use(cwd=cwd or _get_cwd())
-        if (
-            not isinstance(runtime_name, str)
-            or not runtime_name.strip()
-            or runtime_name == RUNTIME_UNKNOWN
-            or detect_runtime_install_target(runtime_name, cwd=cwd or _get_cwd()) is None
-        ):
+        runtime_cwd = cwd or _get_cwd()
+        runtime_name = installed_runtime_for_surface(runtime_cwd)
+        if runtime_name is None:
+            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
+
+            runtime_name = detect_runtime_for_gpd_use(cwd=runtime_cwd)
+        if runtime_name in (None, RUNTIME_UNKNOWN):
             return None, None
         adapter = get_adapter(runtime_name)
         resume_work_command = str(adapter.format_command("resume-work")).strip()
@@ -2488,10 +2497,10 @@ def _load_convention_state_snapshot(cwd: Path) -> dict[str, object] | None:
     """Load the state snapshot used by convention CLI surfaces."""
     from gpd.core.constants import ProjectLayout
     from gpd.core.errors import ConventionError
-    from gpd.core.state import _load_state_json_with_integrity_issues
+    from gpd.core.state import load_state_json_with_integrity_issues
 
     layout = ProjectLayout(cwd)
-    raw_state, _issues, source = _load_state_json_with_integrity_issues(
+    raw_state, _issues, source = load_state_json_with_integrity_issues(
         cwd,
         persist_recovery=False,
         recover_intent=False,
@@ -2597,10 +2606,10 @@ def _split_depends_on_option(depends_on: list[str] | str | None) -> list[str] | 
 
 def _load_mutation_state_snapshot(cwd: Path) -> dict[str, object]:
     """Load one mutable state snapshot through the recovery-aware mutation path."""
-    from gpd.core.state import _load_state_snapshot_for_mutation, _recover_intent_locked
+    from gpd.core.state import load_state_snapshot_for_mutation, recover_intent_locked
 
-    _recover_intent_locked(cwd)
-    state = _load_state_snapshot_for_mutation(cwd, recover_intent=False)
+    recover_intent_locked(cwd)
+    state = load_state_snapshot_for_mutation(cwd, recover_intent=False)
     return state if isinstance(state, dict) else {}
 
 
@@ -3154,9 +3163,9 @@ def verify_summary(
     check_count: int = typer.Option(2, "--check-count", help="Max file references to spot-check for existence"),
 ) -> None:
     """Verify a SUMMARY.md file."""
-    from gpd.core.frontmatter import verify_summary
+    from gpd.core.frontmatter import verify_summary as verify_summary_frontmatter
 
-    result = verify_summary(_get_cwd(), Path(path), check_file_count=check_count)
+    result = verify_summary_frontmatter(_get_cwd(), Path(path), check_file_count=check_count)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)
@@ -3193,9 +3202,9 @@ def verify_references(
     path: str = typer.Argument(..., help="Path to file"),
 ) -> None:
     """Verify all internal references resolve."""
-    from gpd.core.frontmatter import verify_references
+    from gpd.core.frontmatter import verify_references as verify_references_frontmatter
 
-    result = verify_references(_get_cwd(), Path(path))
+    result = verify_references_frontmatter(_get_cwd(), Path(path))
     _output(result)
     if not result.valid:
         raise typer.Exit(code=1)
@@ -3206,9 +3215,9 @@ def verify_commits(
     hashes: list[str] = typer.Argument(..., help="Commit hashes to verify"),
 ) -> None:
     """Verify that commit hashes exist in git history."""
-    from gpd.core.frontmatter import verify_commits
+    from gpd.core.frontmatter import verify_commits as verify_commits_frontmatter
 
-    result = verify_commits(_get_cwd(), hashes)
+    result = verify_commits_frontmatter(_get_cwd(), hashes)
     _output(result)
     if not result.all_valid:
         raise typer.Exit(code=1)
@@ -3219,9 +3228,9 @@ def verify_artifacts(
     plan_path: str = typer.Argument(..., help="Path to plan file"),
 ) -> None:
     """Verify all artifacts referenced in a plan exist."""
-    from gpd.core.frontmatter import verify_artifacts
+    from gpd.core.frontmatter import verify_artifacts as verify_artifacts_frontmatter
 
-    result = verify_artifacts(_get_cwd(), Path(plan_path))
+    result = verify_artifacts_frontmatter(_get_cwd(), Path(plan_path))
     _output(result)
     if not result.all_passed:
         raise typer.Exit(code=1)
@@ -3312,7 +3321,10 @@ def _run_frontmatter_validation(file: str, schema: str) -> None:
 
     file_path, fm_content = _load_text_document(file)
     result = validate_frontmatter(fm_content, schema, source_path=file_path)
-    _output(result)
+    if not result.valid and result.schema_reference:
+        _output(_model_dump_with_schema_reference(result, schema_reference=result.schema_reference))
+    else:
+        _output(result)
     if not result.valid:
         raise typer.Exit(code=1)
 
@@ -3381,7 +3393,12 @@ def doctor(
         else "local"
     )
     if target_dir is None and not global_install and not local_install:
-        resolved_target = _get_adapter_or_error(normalized_runtime, action="doctor").resolve_target_dir(False, _get_cwd())
+        from gpd.hooks.runtime_detect import resolve_runtime_target_dir
+
+        detected_target, detected_scope = resolve_runtime_target_dir(normalized_runtime, cwd=_get_cwd())
+        if detected_target is not None and detected_scope is not None:
+            resolved_target = detected_target
+            install_scope = detected_scope
     _output(
         run_doctor(
             specs_dir=SPECS_DIR,
@@ -4010,15 +4027,8 @@ def _cost_summary_project_root(summary: object) -> str | None:
     return None
 
 
-def _cost_next_action(advisory: dict[str, object]) -> str | None:
-    state = str(advisory.get("state", "") or "").strip()
-    if state in {"at_or_over_budget", "near_budget", "mixed"}:
-        return cost_inspect_action()
-    return None
-
-
 def _cost_advisory(summary: object) -> dict[str, object] | None:
-    from gpd.core.costs import resolve_cost_advisory
+    from gpd.core.costs import cost_advisory_next_action, resolve_cost_advisory
 
     structured_advisory = resolve_cost_advisory(summary)
     if structured_advisory is None:
@@ -4027,7 +4037,7 @@ def _cost_advisory(summary: object) -> dict[str, object] | None:
     advisory = structured_advisory.model_dump(mode="json")
     if not isinstance(advisory, dict):
         return None
-    next_action = _cost_next_action(advisory)
+    next_action = cost_advisory_next_action(advisory)
     if next_action is not None:
         advisory["next_action"] = next_action
     return advisory
@@ -5106,12 +5116,17 @@ def _resolve_permissions_runtime_name(
     return detected
 
 
-def _resolve_permissions_autonomy(autonomy: str | None, *, strict: bool = True) -> str:
+def _resolve_permissions_autonomy(
+    autonomy: str | None,
+    *,
+    strict: bool = True,
+    cwd: Path | None = None,
+) -> str:
     """Resolve the autonomy value used for runtime-permission sync."""
     from gpd.core.config import AutonomyMode, load_config
 
     if autonomy is None:
-        return load_config(_get_cwd()).autonomy.value
+        return load_config(cwd or _get_cwd()).autonomy.value
 
     normalized = autonomy.strip().lower()
     valid_values = {mode.value for mode in AutonomyMode}
@@ -5168,7 +5183,7 @@ def _resolve_permissions_target_dir(
 ) -> Path:
     """Resolve the installed config directory targeted by a permissions command."""
     from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import detect_install_scope, detect_runtime_install_target
+    from gpd.hooks.runtime_detect import detect_install_scope, resolve_runtime_target_dir
 
     adapter = get_adapter(runtime_name)
     assessment = None
@@ -5180,9 +5195,9 @@ def _resolve_permissions_target_dir(
             _error(str(exc))
         assessment = _permissions_install_target_assessment(runtime_name, resolved)
     else:
-        install_target = detect_runtime_install_target(runtime_name, cwd=_get_cwd())
-        if install_target is not None:
-            resolved = install_target.config_dir
+        detected_target, _ = resolve_runtime_target_dir(runtime_name, cwd=_get_cwd())
+        if detected_target is not None:
+            resolved = detected_target
             assessment = _permissions_install_target_assessment(runtime_name, resolved)
         else:
             install_scope = detect_install_scope(runtime_name, cwd=_get_cwd())
@@ -5292,6 +5307,7 @@ def _runtime_permissions_payload(
     apply_sync: bool,
     strict: bool,
     prefer_installed_runtime: bool = False,
+    cwd: Path | None = None,
 ) -> dict[str, object]:
     """Return runtime-permissions status or sync payload for the selected runtime."""
     from gpd.adapters import get_adapter
@@ -5331,6 +5347,19 @@ def _runtime_permissions_payload(
         )
 
     try:
+        autonomy_value = _resolve_permissions_autonomy(autonomy, strict=strict, cwd=cwd)
+    except _PermissionsResolutionError as exc:
+        return _annotate_permissions_payload(
+            {
+                "runtime": runtime_name,
+                "target": None,
+                "sync_applied": False,
+                "changed": False,
+                "message": str(exc),
+            }
+        )
+
+    try:
         resolved_target_dir = _resolve_permissions_target_dir(
             runtime_name,
             target_dir=target_dir,
@@ -5350,7 +5379,6 @@ def _runtime_permissions_payload(
 
     adapter = get_adapter(runtime_name)
 
-    autonomy_value = _resolve_permissions_autonomy(autonomy, strict=strict)
     payload = (
         adapter.sync_runtime_permissions(resolved_target_dir, autonomy=autonomy_value)
         if apply_sync
@@ -5382,6 +5410,7 @@ def _permissions_status_payload(
         apply_sync=False,
         strict=True,
         prefer_installed_runtime=True,
+        cwd=_project_scoped_cwd(),
     )
     return normalize_permissions_readiness_payload(
         payload,
@@ -5426,6 +5455,7 @@ def permissions_sync(
             apply_sync=True,
             strict=True,
             prefer_installed_runtime=True,
+            cwd=_project_scoped_cwd(),
         )
     )
 
@@ -5438,7 +5468,8 @@ def config_get(
     try:
         from gpd.core.config import effective_config_value, load_config
 
-        config = load_config(_get_cwd())
+        project_root = _project_scoped_cwd()
+        config = load_config(project_root)
         found, value = effective_config_value(config, key)
     except ConfigError as exc:
         _error(str(exc))
@@ -5458,7 +5489,8 @@ def config_set(
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write, file_lock
 
-    config_path = ProjectLayout(_get_cwd()).config_json
+    project_root = _project_scoped_cwd()
+    config_path = ProjectLayout(project_root).config_json
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with file_lock(config_path):
         try:
@@ -5481,12 +5513,12 @@ def config_set(
             _error(str(exc))
         atomic_write(config_path, json.dumps(updated_config, indent=2) + "\n")
 
-    config = load_config(_get_cwd())
+    config = load_config(project_root)
     _found, effective_value = effective_config_value(config, key)
     result: dict[str, object] = {"key": key, "canonical_key": canonical_key, "value": effective_value, "updated": True}
     if canonical_key == "autonomy":
         result["guided_path"] = (
-            f"Use `{_active_runtime_settings_command(cwd=_get_cwd())}` inside the runtime for guided autonomy changes."
+            f"Use `{_active_runtime_settings_command(cwd=project_root)}` inside the runtime for guided autonomy changes."
         )
         result["runtime_permissions"] = _runtime_permissions_payload(
             runtime=None,
@@ -5494,6 +5526,8 @@ def config_set(
             target_dir=None,
             apply_sync=True,
             strict=False,
+            prefer_installed_runtime=True,
+            cwd=project_root,
         )
     _output(result)
 
@@ -5505,37 +5539,14 @@ def config_ensure_section() -> None:
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write
 
-    config_path = ProjectLayout(_get_cwd()).config_json
+    project_root = _project_scoped_cwd()
+    config_path = ProjectLayout(project_root).config_json
     if config_path.exists():
         _output({"created": False, "path": str(config_path)})
         return
     config_path.parent.mkdir(parents=True, exist_ok=True)
     defaults = GPDProjectConfig()
-    config_dict = {
-        "autonomy": defaults.autonomy.value,
-        "execution": {
-            "review_cadence": defaults.review_cadence.value,
-            "max_unattended_minutes_per_plan": defaults.max_unattended_minutes_per_plan,
-            "max_unattended_minutes_per_wave": defaults.max_unattended_minutes_per_wave,
-            "checkpoint_after_n_tasks": defaults.checkpoint_after_n_tasks,
-            "checkpoint_after_first_load_bearing_result": defaults.checkpoint_after_first_load_bearing_result,
-            "checkpoint_before_downstream_dependent_tasks": defaults.checkpoint_before_downstream_dependent_tasks,
-        },
-        "research_mode": defaults.research_mode.value,
-        "commit_docs": defaults.commit_docs,
-        "parallelization": defaults.parallelization,
-        "model_profile": defaults.model_profile.value,
-        "workflow": {
-            "research": defaults.research,
-            "plan_checker": defaults.plan_checker,
-            "verifier": defaults.verifier,
-        },
-        "git": {
-            "branching_strategy": defaults.branching_strategy.value,
-            "phase_branch_template": defaults.phase_branch_template,
-            "milestone_branch_template": defaults.milestone_branch_template,
-        },
-    }
+    config_dict = defaults.to_storage_dict()
     atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
     _output({"created": True, "path": str(config_path)})
 
@@ -6097,17 +6108,12 @@ def _resolve_bibliography_path(
 
 
 def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
-    """Return a single literature-review citation-source sidecar if it is unambiguous."""
+    """Return the single literature-review citation-source sidecar under `GPD/literature`."""
     literature_dir = project_root / "GPD" / "literature"
-    legacy_research_dir = project_root / "GPD" / "research"
-    if literature_dir.is_dir():
-        search_dir = literature_dir
-    elif legacy_research_dir.is_dir():
-        search_dir = legacy_research_dir
-    else:
+    if not literature_dir.is_dir():
         return None, None
 
-    matches = sorted(path for path in search_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
+    matches = sorted(path for path in literature_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
     if not matches:
         return None, None
     if len(matches) == 1:
@@ -6117,7 +6123,7 @@ def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Pa
     remaining = len(matches) - 3
     suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
     warning = (
-        f"Multiple {'literature-review' if search_dir == literature_dir else 'legacy research'} citation-source sidecars found; "
+        "Multiple literature-review citation-source sidecars found; "
         "pass --citation-sources explicitly: "
         f"{preview}{suffix}"
     )
@@ -6204,21 +6210,6 @@ def _default_paper_output_dir(config_file: Path) -> Path:
     """Resolve the default durable output directory for a paper build."""
     return config_file.resolve(strict=False).parent
 
-
-def _reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
-    """Reject removed paper-config locations under internal planning storage."""
-    resolved_config = config_file.resolve(strict=False)
-    project_root = (project_root or _project_scoped_cwd()).resolve(strict=False)
-    for legacy_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
-        try:
-            resolved_config.relative_to(legacy_config_root)
-        except ValueError:
-            continue
-        planning_dir_name = legacy_config_root.parent.name
-        raise GPDError(
-            f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
-            "Move the config to `paper/`, `manuscript/`, or `draft/`."
-        )
 
 
 def _split_command_arguments(arguments: str | None) -> list[str]:
@@ -6705,10 +6696,11 @@ def _build_command_context_preflight(
             project_reentry_capable=False,
         )
         public_command_name = canonical_command_name
+    local_cli_only = getattr(command, "local_cli_only", False)
     context_cwd = _status_command_cwd(cwd) if _command_supports_project_reentry(command) else _project_scoped_cwd(cwd)
     layout = ProjectLayout(context_cwd)
     project_exists = layout.project_md.exists()
-    dispatch_note = _runtime_surface_dispatch_note(cwd=cwd)
+    dispatch_note = "" if local_cli_only else _runtime_surface_dispatch_note(cwd=cwd)
     init_command = _active_runtime_new_project_command(cwd=cwd)
 
     checks: list[CommandContextCheck] = []
@@ -6717,6 +6709,24 @@ def _build_command_context_preflight(
         checks.append(CommandContextCheck(name=name, passed=passed, detail=detail, blocking=blocking))
 
     add_check("context_mode", True, f"context_mode={command.context_mode}", blocking=False)
+
+    if local_cli_only:
+        add_check("local_cli_only", False, "local CLI-only command")
+        guidance = (
+            "This command runs exclusively on the local CLI surface. "
+            f"Run {_local_cli_command_hint(public_command_name)} here instead of dispatching it through a runtime."
+        )
+        return CommandContextPreflightResult(
+            command=public_command_name,
+            context_mode=command.context_mode,
+            passed=False,
+            project_exists=project_exists,
+            explicit_inputs=[],
+            guidance=guidance,
+            checks=checks,
+            public_runtime_command_prefix="",
+            dispatch_note="",
+        )
 
     if command.context_mode == "global":
         add_check("project_context", True, "command runs without project context", blocking=False)
@@ -7766,7 +7776,9 @@ def validate_paper_quality(
 ) -> None:
     """Score a machine-readable paper-quality manifest and fail on blockers."""
     from gpd.core.paper_quality import PaperQualityInput, score_paper_quality
-    from gpd.core.paper_quality_artifacts import build_paper_quality_input
+    from gpd.core.paper_quality_artifacts import (
+        build_paper_quality_input,
+    )
 
     if from_project:
         project_root = Path(from_project)
@@ -7810,9 +7822,8 @@ def validate_project_contract_cmd(
 
     payload = _load_json_document(input_path)
     if input_path == "-":
-        workspace_cwd = _state_command_cwd()
-        stdin_inside_project = (workspace_cwd / "GPD").is_dir()
-        anchored_project_root = workspace_cwd if stdin_inside_project else None
+        anchored_project_root = resolve_project_root(_get_cwd(), require_layout=True)
+        stdin_inside_project = anchored_project_root is not None
         prefer_filesystem_anchor = False
     else:
         anchored_project_root = _enclosing_project_root_for_json_input(input_path)
@@ -8251,6 +8262,7 @@ def paper_build(
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
 
+    from gpd.core.paper_quality_artifacts import reject_legacy_paper_config_location
     from gpd.core.storage_paths import DurableOutputKind, ProjectStorageLayout
     from gpd.mcp.paper.compiler import build_paper
     from gpd.mcp.paper.models import derive_output_filename
@@ -8262,7 +8274,7 @@ def paper_build(
         if config_path
         else _resolve_default_paper_config_path(project_root=project_root)
     )
-    _reject_legacy_paper_config_location(config_file, project_root=project_root)
+    reject_legacy_paper_config_location(config_file, project_root=project_root)
     raw_config = _load_json_document(str(config_file))
     if not isinstance(raw_config, dict):
         raise GPDError(f"Paper config must be a JSON object: {_format_display_path(config_file)}")
@@ -8421,7 +8433,7 @@ def resolve_model_cmd(
     runtime model parameter and let the platform use its default model.
     """
     from gpd.core.config import resolve_model, validate_agent_name
-    from gpd.core.context import _resolve_model as resolve_context_model
+    from gpd.core.context import resolve_context_model
 
     supported_runtimes = _supported_runtime_names()
     if runtime is not None:
@@ -8701,6 +8713,8 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
     from rich.prompt import Prompt
 
     runtimes = _list_runtimes_or_error(action=f"{action} runtime selection")
+    if not runtimes:
+        _error(f"No supported runtimes are available for {action}.")
     adapters = {runtime: _get_adapter_or_error(runtime, action=f"{action} runtime selection") for runtime in runtimes}
     label_width = max(len(adapter.display_name) for adapter in adapters.values())
     all_label = "All runtimes"
@@ -8804,6 +8818,7 @@ def _install_single_runtime(
     *,
     is_global: bool,
     target_dir_override: str | None = None,
+    resolved_target_override: Path | None = None,
 ) -> dict[str, object]:
     """Install GPD for a single runtime. Returns install result dict."""
     from gpd.version import resolve_install_gpd_root
@@ -8811,7 +8826,9 @@ def _install_single_runtime(
     adapter = _get_adapter_or_error(runtime_name, action="install")
     gpd_root = resolve_install_gpd_root(_get_cwd())
 
-    if target_dir_override:
+    if resolved_target_override is not None:
+        dest = resolved_target_override
+    elif target_dir_override:
         dest = _resolve_cli_target_dir(target_dir_override)
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
@@ -8883,9 +8900,8 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             soft_wrap=True,
         )
         if len(next_step_entries) == 1:
-            single_runtime_name, _ = results[0]
             (
-                _runtime_name,
+                single_runtime_name,
                 display_name,
                 launch_command,
                 help_command,
@@ -8894,15 +8910,10 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 new_project_command,
                 map_research_command,
             ) = next_step_entries[0]
-            resume_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command(
-                "resume-work"
-            )
-            suggest_next_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command(
-                "suggest-next"
-            )
-            pause_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command(
-                "pause-work"
-            )
+            runtime_adapter = _get_adapter_or_error(single_runtime_name, action="install summary")
+            resume_work_command = runtime_adapter.format_command("resume-work")
+            suggest_next_command = runtime_adapter.format_command("suggest-next")
+            pause_work_command = runtime_adapter.format_command("pause-work")
             console.print(
                 f"1. Open [bold]{display_name}[/] from your system terminal "
                 f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]).",
@@ -9016,28 +9027,26 @@ def _target_dir_matches_global(runtime_name: str, target_dir: str, *, action: st
     if not callable(resolve_target_dir):
         return False
     try:
-        canonical_global_target = resolve_target_dir(True, _get_cwd())
+        canonical_global_value = resolve_target_dir(True, _get_cwd())
+        canonical_global_path = Path(canonical_global_value)
     except (AttributeError, TypeError, ValueError):
         return False
-    return resolved_target == canonical_global_target.expanduser().resolve(strict=False)
+    canonical_global_target = canonical_global_path.expanduser().resolve(strict=False)
 
+    if resolved_target == canonical_global_target:
+        return True
 
-def _resolve_detected_runtime_target(runtime_name: str) -> tuple[Path | None, str | None]:
-    """Return the concrete installed runtime target when one can be detected."""
-    from gpd.hooks.runtime_detect import detect_install_scope, detect_runtime_install_target
+    if os.path.normcase(str(resolved_target)) == os.path.normcase(str(canonical_global_target)):
+        return True
 
-    install_target = detect_runtime_install_target(runtime_name, cwd=_get_cwd())
-    if install_target is not None:
-        return install_target.config_dir, install_target.install_scope
+    if canonical_global_target.exists() and resolved_target.exists():
+        try:
+            return canonical_global_target.samefile(resolved_target)
+        except OSError:
+            pass
 
-    install_scope = detect_install_scope(runtime_name, cwd=_get_cwd())
-    if install_scope == "global":
-        adapter = _get_adapter_or_error(runtime_name, action="inspect runtime readiness")
-        return adapter.resolve_target_dir(True, _get_cwd()), "global"
-    if install_scope == "local":
-        adapter = _get_adapter_or_error(runtime_name, action="inspect runtime readiness")
-        return adapter.resolve_target_dir(False, _get_cwd()), "local"
-    return None, None
+    return False
+
 
 
 def _install_summary_local_cli_bridge_line() -> str:
@@ -9147,7 +9156,9 @@ def _build_unattended_readiness(
         else "local"
     )
     if target_dir is None and not global_install and not local_install:
-        detected_target, detected_scope = _resolve_detected_runtime_target(normalized_runtime)
+        from gpd.hooks.runtime_detect import resolve_runtime_target_dir
+
+        detected_target, detected_scope = resolve_runtime_target_dir(normalized_runtime, cwd=_get_cwd())
         if detected_target is not None and detected_scope is not None:
             resolved_target = detected_target
             install_scope = detected_scope
@@ -9363,7 +9374,12 @@ def install(
             adapter = _get_adapter_or_error(rt, action="install")
             task = progress.add_task(f"Installing {adapter.display_name}...", total=None)
             try:
-                result = _install_single_runtime(rt, is_global=is_global, target_dir_override=target_dir)
+                result = _install_single_runtime(
+                    rt,
+                    is_global=is_global,
+                    target_dir_override=target_dir,
+                    resolved_target_override=resolved_target_override,
+                )
                 adapter.finalize_install(result, force_statusline=force_statusline)
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
@@ -9384,8 +9400,6 @@ def install(
     if failures:
         raise typer.Exit(code=1)
 
-
-install.__doc__ = _install_command_doc()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

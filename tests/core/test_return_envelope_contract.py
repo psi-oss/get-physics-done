@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
-from gpd.core.return_contract import validate_gpd_return_markdown
+from pathlib import Path
+
+from gpd.core.return_contract import extract_gpd_return_block, validate_gpd_return_markdown
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+AGENT_INFRASTRUCTURE = REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md"
 
 
 def _wrap_return_block(yaml_body: str) -> str:
     return f"```yaml\ngpd_return:\n{yaml_body}```\n"
+
+
+def test_agent_infrastructure_surfaces_concise_return_envelope_contract() -> None:
+    text = AGENT_INFRASTRUCTURE.read_text(encoding="utf-8")
+
+    assert "status: completed | checkpoint | blocked | failed" in text
+    assert "Allowed `status` values are exactly `completed`, `checkpoint`, `blocked`, or `failed`." in text
+    assert "The base fields are `status`, `files_written`, `issues`, and `next_actions`" in text
+    assert "Optional top-level fields are limited to the canonical parser fields" in text
 
 
 def test_accepts_nested_state_and_continuation_payloads() -> None:
@@ -40,6 +54,28 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
     assert result.fields["state_updates"]["update_progress"] is True
     assert result.fields["continuation_update"]["handoff"]["recorded_by"] == "execute-plan"
     assert result.fields["continuation_update"]["bounded_segment"]["segment_id"] == "seg-01"
+
+
+def test_extracts_top_level_gpd_return_after_comments_and_document_marker() -> None:
+    content = """
+```yaml
+# parser should ignore this comment
+---
+gpd_return:
+  status: checkpoint
+  files_written: []
+  issues: []
+  next_actions: []
+```
+"""
+
+    block = extract_gpd_return_block(content)
+    result = validate_gpd_return_markdown(content)
+
+    assert block is not None
+    assert "gpd_return:" in block
+    assert result.passed is True
+    assert result.fields["status"] == "checkpoint"
 
 
 def test_accepts_typed_checker_plan_lists() -> None:
@@ -157,3 +193,76 @@ def test_accepts_synthesizer_style_completed_return_with_summary_only_file_list(
     assert result.fields["files_written"] == ["GPD/literature/SUMMARY.md"]
     assert result.fields["issues"] == []
     assert result.fields["next_actions"] == []
+
+
+def test_canonicalizes_case_drifted_status_to_lowercase() -> None:
+    content = _wrap_return_block(
+        "  status: Completed\n"
+        "  files_written: []\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is True
+    assert result.fields["status"] == "completed"
+
+
+def test_accepts_agent_specific_detail_under_extensions_mapping() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  files_written: [GPD/CONVENTIONS.md]\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+        "  extensions:\n"
+        "    conventions_file: GPD/CONVENTIONS.md\n"
+        "    plans_created: 2\n"
+        "    conventions:\n"
+        "      metric: (+,-,-,-)\n"
+        "    approximations:\n"
+        "      - name: weak coupling\n"
+        "        order: leading\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is True
+    assert result.fields["extensions"]["conventions_file"] == "GPD/CONVENTIONS.md"
+    assert result.fields["extensions"]["plans_created"] == 2
+    assert result.fields["extensions"]["conventions"]["metric"] == "(+,-,-,-)"
+
+
+def test_nested_forbidden_key_error_includes_repair_hint() -> None:
+    content = """
+```yaml
+gpd_return:
+  status: completed
+  files_written: []
+  issues: []
+  next_actions: []
+  continuation_update:
+    prompt_path: prompts/next.md
+    stray_key: remove-me
+```
+"""
+
+    result = validate_gpd_return_markdown(content)
+
+    assert not result.passed
+    assert any("move this key under an allowed gpd_return field or remove it" in error for error in result.errors)
+
+
+def test_rejects_unknown_top_level_return_keys() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  files_written: []\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+        "  phases_created: 3\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("phases_created" in error and "Extra inputs are not permitted" in error for error in result.errors)

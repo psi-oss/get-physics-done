@@ -10,6 +10,7 @@ import gpd.core.costs as costs
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.costs import (
     build_cost_summary,
+    cost_advisory_next_action,
     list_usage_records,
     pricing_snapshot_path,
     record_usage_from_runtime_payload,
@@ -767,6 +768,15 @@ def test_build_cost_summary_surfaces_structured_estimated_usd_advisory_without_b
     assert "pricing snapshot" in advisory.message
 
 
+def test_cost_advisory_next_action_only_surfaces_for_attention_states() -> None:
+    expected = "Run `gpd cost` for the local usage/cost summary and any USD budget warnings."
+
+    assert cost_advisory_next_action({"state": "near_budget"}) == expected
+    assert cost_advisory_next_action({"state": "mixed"}) == expected
+    assert cost_advisory_next_action({"state": "estimated"}) is None
+    assert cost_advisory_next_action({"state": "unavailable"}) is None
+
+
 def test_build_cost_summary_surfaces_advisory_budget_thresholds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -983,3 +993,30 @@ def test_build_cost_summary_surfaces_best_effort_runtime_capabilities_without_re
     assert summary.current_session is None
     assert summary.recent_sessions == []
     assert summary.budget_thresholds == []
+
+
+def test_build_cost_summary_normalizes_runtime_before_override_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: None)
+    descriptor = next(
+        descriptor
+        for descriptor in iter_runtime_descriptors()
+        if descriptor.display_name != descriptor.runtime_name
+    )
+
+    class _Config:
+        model_profile = "review"
+        model_overrides = {descriptor.runtime_name: {"tier-1": "pinned-tier-1"}}
+
+    monkeypatch.setattr("gpd.core.config.load_config", lambda _cwd: _Config())
+    monkeypatch.setattr(
+        "gpd.hooks.runtime_detect.detect_runtime_for_gpd_use",
+        lambda cwd=None: descriptor.display_name,
+    )
+
+    summary = build_cost_summary(project, data_root=tmp_path / "data", last_sessions=5)
+
+    assert summary.active_runtime == descriptor.display_name
+    assert summary.runtime_model_selection == "explicit overrides pinned for tier-1"

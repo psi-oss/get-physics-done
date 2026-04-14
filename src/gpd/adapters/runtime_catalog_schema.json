@@ -1,7 +1,24 @@
 {
   "schema_version": 1,
+  "top_level_keys": [
+    "schema_version",
+    "top_level_keys",
+    "entry_required_keys",
+    "entry_optional_keys",
+    "global_config_keys",
+    "global_config_required_keys",
+    "capability_keys",
+    "capability_required_keys",
+    "capability_enums",
+    "hook_payload_keys",
+    "hook_payload_required_keys",
+    "managed_install_surfaces",
+    "install_help_example_scopes",
+    "launch_wrapper_permission_surface_kinds"
+  ],
   "entry_required_keys": [
     "runtime_name",
+    "adapter_module",
     "display_name",
     "priority",
     "config_dir_name",
@@ -13,7 +30,8 @@
     "selection_aliases",
     "global_config",
     "capabilities",
-    "hook_payload"
+    "hook_payload",
+    "managed_install_surface"
   ],
   "entry_optional_keys": [
     "manifest_file_prefixes",
@@ -21,7 +39,13 @@
     "agent_prompt_uses_dollar_templates",
     "installer_help_example_scope",
     "validated_command_surface",
-    "public_command_surface_prefix"
+    "public_command_surface_prefix",
+    "external_skill_relative_dirs",
+    "external_skill_env_vars",
+    "external_skill_subdir_prefixes",
+    "external_skill_markers",
+    "external_skill_config_markers",
+    "mcp_startup_timeout_sec"
   ],
   "global_config_keys": {
     "env_or_home": [
@@ -37,7 +61,44 @@
       "home_subpath"
     ]
   },
+  "global_config_required_keys": {
+    "env_or_home": [
+      "strategy",
+      "env_var",
+      "home_subpath"
+    ],
+    "xdg_app": [
+      "strategy",
+      "env_dir_var",
+      "env_file_var",
+      "xdg_subdir",
+      "home_subpath"
+    ]
+  },
   "capability_keys": [
+    "permissions_surface",
+    "permission_surface_kind",
+    "prompt_free_mode_value",
+    "supports_runtime_permission_sync",
+    "supports_prompt_free_mode",
+    "prompt_free_requires_relaunch",
+    "statusline_surface",
+    "statusline_config_surface",
+    "notify_surface",
+    "notify_config_surface",
+    "telemetry_source",
+    "telemetry_completeness",
+    "supports_usage_tokens",
+    "supports_cost_usd",
+    "supports_context_meter",
+    "child_artifact_persistence_reliability",
+    "supports_structured_child_results",
+    "continuation_surface",
+    "checkpoint_stop_semantics",
+    "supports_runtime_session_payload_attribution",
+    "supports_agent_payload_attribution"
+  ],
+  "capability_required_keys": [
     "permissions_surface",
     "permission_surface_kind",
     "prompt_free_mode_value",
@@ -116,6 +177,31 @@
     "agent_scope_keys",
     "context_window_size_keys",
     "context_remaining_keys"
+  ],
+  "hook_payload_required_keys": [
+    "notify_event_types",
+    "workspace_keys",
+    "project_dir_keys",
+    "runtime_session_id_keys",
+    "model_keys",
+    "provider_keys",
+    "usage_keys",
+    "input_tokens_keys",
+    "output_tokens_keys",
+    "total_tokens_keys",
+    "cached_input_tokens_keys",
+    "cache_write_input_tokens_keys",
+    "cost_usd_keys",
+    "agent_id_keys",
+    "agent_name_keys",
+    "agent_scope_keys",
+    "context_window_size_keys",
+    "context_remaining_keys"
+  ],
+  "managed_install_surfaces": [
+    "external_commands",
+    "flat_commands",
+    "nested_commands"
   ],
   "install_help_example_scopes": [
     "global",

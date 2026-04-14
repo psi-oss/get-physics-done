@@ -270,8 +270,8 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:compact-state` - Archive old `STATE.md` entries
 - `gpd:sync-state` - Repair diverged `STATE.md` and `state.json`
 - `gpd:undo` - Roll back the last GPD operation with a safety checkpoint
-- `gpd:update` - Update GPD to the latest version
-- `gpd:reapply-patches` - Reapply local modifications after updating
+- `gpd:update` - Update GPD to latest version and show recent release notes
+- `gpd:reapply-patches` - Reapply local modifications after a GPD update
 
 ## Detailed Command Reference
 
@@ -841,7 +841,7 @@ Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 **`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
 Create or update a knowledge document draft from a topic, paper, source file, or explicit knowledge path.
 
-- Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Accepts an explicit knowledge-doc path, a source file path, a modern or classic arXiv ID, or a topic string
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
 - Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
@@ -851,7 +851,7 @@ Create or update a knowledge document draft from a topic, paper, source file, or
 
 - Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
 - Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
-- Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
+- Example classic arXiv ID: `gpd:digest-knowledge hep-th/9901001`
 - Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
 - Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`
 
@@ -1103,10 +1103,10 @@ Rollback last GPD operation with safety checkpoint.
 Usage: `gpd:undo`
 
 **`gpd:update`**
-Update GPD to latest version with changelog display.
+Update GPD to latest version and show recent release notes.
 
 - Runs the public bootstrap update command for the active runtime
-- Shows changelog of what changed since your version
+- Shows recent release notes for what changed since your version
 - Preserves local modifications via patch backups (use `gpd:reapply-patches` after if needed)
 
 Usage: `gpd:update`
@@ -1114,8 +1114,8 @@ Usage: `gpd:update`
 **`gpd:reapply-patches`**
 Reapply local modifications after a GPD update.
 
-- Detects and replays customizations you made to GPD files
-- Use after `gpd:update` if you have local workflow or template modifications
+- Detects and reapplies local modifications you made to managed GPD files
+- Use after `gpd:update` if you have local modifications to managed GPD files
 
 Usage: `gpd:reapply-patches`
 

@@ -29,6 +29,9 @@ def test_planner_role_owns_schema_visibility_and_workflows_use_the_short_role_pr
     for marker in required_markers:
         assert marker in planner_role
 
+    assert "@{GPD_INSTALL_DIR}/templates/phase-prompt.md" in planner_role
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_role
+
     bootstrap = planner_role.partition("</role>")[0]
 
     assert "Keep this agent prompt lean." in planner_role
@@ -47,3 +50,57 @@ def test_planner_role_owns_schema_visibility_and_workflows_use_the_short_role_pr
     assert long_instruction not in plan_phase
     assert long_instruction not in verify_work
     assert long_instruction not in quick
+
+PLANNER_TEMPLATE = REPO_ROOT / "src" / "gpd" / "specs" / "templates" / "planner-subagent-prompt.md"
+EXECUTOR_COMPLETION = REPO_ROOT / "src" / "gpd" / "specs" / "references" / "execution" / "executor-completion.md"
+
+
+def test_planner_template_embeds_plan_contract_schema_critical_excerpt() -> None:
+    planner_template = _read(PLANNER_TEMPLATE)
+    plan_phase = _read(PLAN_PHASE)
+
+    marker = "PLAN contract schema-critical excerpt"
+    assert marker in planner_template
+    assert "path reference alone" in planner_template
+    for token in (
+        "schema_version: 1",
+        "scope.question",
+        "scope.in_scope",
+        "claims",
+        "deliverables",
+        "acceptance_tests",
+        "forbidden_proxies",
+        "uncertainty_markers",
+        "Proof-bearing claims",
+    ):
+        assert token in planner_template
+
+    assert marker in plan_phase
+    assert plan_phase.index(marker) > plan_phase.index("Planner prompt:")
+    schema_authority = "**Schema authority:**"
+    assert schema_authority in planner_template
+    assert planner_template.index(schema_authority) < planner_template.index(marker)
+
+
+def test_executor_completion_embeds_summary_contract_schema_critical_excerpt() -> None:
+    executor_completion = _read(EXECUTOR_COMPLETION)
+
+    marker = "Verification contract schema-critical excerpt"
+    assert marker in executor_completion
+    assert executor_completion.index(marker) > executor_completion.index("contract-results-schema.md")
+    for token in (
+        "plan_contract_ref",
+        "#/contract",
+        "contract_results",
+        "claims",
+        "deliverables",
+        "acceptance_tests",
+        "references",
+        "forbidden_proxies",
+        "uncertainty_markers",
+        "completed_actions",
+        "missing_actions",
+        "comparison_verdicts",
+        "subject_role",
+    ):
+        assert token in executor_completion

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from gpd.core.constants import PLANNING_DIR_NAME
+from gpd.core.constants import ProjectLayout
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
@@ -177,11 +177,6 @@ def _is_phase_verification_target(file_path: str) -> bool:
         return False
     name = path.name.lower()
     return name == "verification.md" or name.endswith("-verification.md")
-
-
-def _supports_assert_convention_validation(file_path: str) -> bool:
-    """Return whether a text artifact can carry ASSERT_CONVENTION directives."""
-    return Path(file_path).suffix.lower() in {".md", ".markdown", ".tex", ".py"}
 
 
 def _requires_assert_convention_check(file_path: str) -> bool:
@@ -566,7 +561,9 @@ def cmd_commit(
     if files:
         files_to_stage = list(files)
     else:
-        files_to_stage = [f"{PLANNING_DIR_NAME}/"]
+        layout = ProjectLayout(cwd)
+        gpd_relative = layout.gpd.relative_to(cwd)
+        files_to_stage = [f"{gpd_relative}/"]
 
     try:
         from gpd.core.config import load_config

@@ -28,6 +28,9 @@ from gpd.core.constants import (
 from gpd.core.observability import get_current_session_id
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
+from gpd.core.segment_constants import COMPLETED_SEGMENT_STATES
+from gpd.core.small_utils import first_nonempty_stripped_string, utc_now_iso
+from gpd.core.surface_phrases import cost_inspect_action
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 __all__ = [
@@ -39,6 +42,7 @@ __all__ = [
     "PricingSnapshot",
     "UsageRecord",
     "build_cost_summary",
+    "cost_advisory_next_action",
     "cost_data_root",
     "list_usage_records",
     "load_pricing_snapshot",
@@ -50,7 +54,6 @@ __all__ = [
 
 _RECENT_SESSION_DEFAULT = 5
 _DEDUP_WINDOW_SECONDS = 10.0
-_COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
 
 
 def _active_runtime_tier_models_command(*, cwd: Path | None = None) -> str:
@@ -230,7 +233,7 @@ class CostAdvisorySummary(BaseModel):
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return utc_now_iso()
 
 
 def _normalize_optional_text(value: object) -> str | None:
@@ -245,12 +248,7 @@ def _mapping(value: object) -> dict[str, object]:
 
 
 def _first_string(value: object, *keys: str) -> str | None:
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate.strip():
-            return candidate.strip()
-    return None
+    return first_nonempty_stripped_string(_mapping(value), *keys)
 
 
 def _first_string_from_containers(containers: tuple[object, ...], *keys: str) -> str | None:
@@ -458,7 +456,7 @@ def _project_state_usage_attribution(project_root: Path | None, *, session_id: s
         return _UsageAttribution()
     if (
         isinstance(snapshot.segment_status, str)
-        and snapshot.segment_status.strip().lower() in _COMPLETED_SEGMENT_STATES
+        and snapshot.segment_status.strip().lower() in COMPLETED_SEGMENT_STATES
     ):
         return _UsageAttribution()
 
@@ -1024,6 +1022,15 @@ def _budget_threshold_summary(
     )
 
 
+def cost_advisory_next_action(advisory: dict[str, object]) -> str | None:
+    """Return the canonical follow-up action for a structured cost advisory."""
+
+    state = str(advisory.get("state", "") or "").strip()
+    if state in {"at_or_over_budget", "near_budget", "mixed"}:
+        return cost_inspect_action()
+    return None
+
+
 def resolve_cost_advisory(cost_summary: object | None) -> CostAdvisorySummary | None:
     """Return the highest-priority structured cost advisory for a summary."""
 
@@ -1117,7 +1124,7 @@ def build_cost_summary(
     profile_tier_mix: dict[str, int] = {}
     config = None
     try:
-        from gpd.core.config import load_config
+        from gpd.core.config import load_config, resolve_model_overrides_for_runtime
         from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
 
         config = load_config(resolved_project_root)
@@ -1127,7 +1134,7 @@ def build_cost_summary(
         if detected_runtime != RUNTIME_UNKNOWN:
             active_runtime = detected_runtime
             active_runtime_capabilities = _runtime_capability_payload(detected_runtime)
-            overrides = sorted(((config.model_overrides or {}).get(detected_runtime) or {}).keys())
+            overrides = sorted(resolve_model_overrides_for_runtime(config, detected_runtime).keys())
             if overrides:
                 runtime_model_selection = f"explicit overrides pinned for {', '.join(overrides)}"
             else:

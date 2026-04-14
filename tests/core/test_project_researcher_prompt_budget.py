@@ -26,9 +26,13 @@ def test_gpd_project_researcher_prompt_stays_within_expected_budget_and_keeps_on
     assert "return typed `gpd_return.status: checkpoint` and stop" in source
     assert "The orchestrator presents the checkpoint and spawns a fresh continuation after the response." in source
     assert "Do not wait inside the same spawned run." in source
-    assert "STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status" in source
-    assert "Structured return provided to orchestrator" in source
-    assert "single-session scope is predictable" in source
+    assert "STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status" in expanded
+    assert "Structured return provided to orchestrator" in expanded
+    assert "single-session scope is predictable" in expanded
+
+    trailing_tail = source.partition("</success_criteria>")[2]
+    assert "STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status" not in trailing_tail
+    assert "single-session scope is predictable" not in trailing_tail
 
     for phrase in (
         "wait for user confirmation",

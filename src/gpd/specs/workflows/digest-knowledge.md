@@ -20,6 +20,10 @@ A knowledge document is only useful if its identity is deterministic, its target
 If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target. Route that request to `gpd:review-knowledge` instead.
 </core_principle>
 
+<hard_schema_visibility_guard>
+Before authoring or revising knowledge documents, load `@{GPD_INSTALL_DIR}/templates/knowledge-schema.md` and keep its canonical capsule visible. Treat that schema as the only authority for required frontmatter, sources, coverage, reviews, and lifecycle rules; do not restate or fork its rule dump in this workflow body.
+</hard_schema_visibility_guard>
+
 <process>
 
 <step name="load_context" priority="first">
@@ -70,9 +74,9 @@ Classification rules:
 
 - `knowledge_path` means an explicit path under `GPD/knowledge/` pointing to a `.md` file
 - `source_path` means an explicit file path outside the knowledge tree that exists and can be read as source material
-- `arxiv_id` means a modern or legacy arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
+- `arxiv_id` means a modern or classic arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
   - modern example: `2401.12345` or `2401.12345v2`
-  - legacy example: `hep-th/9901001`
+  - classic arXiv ID example: `hep-th/9901001`
 - `topic` means a free-form subject string that is not already an explicit file or arXiv target
 
 If the same input could plausibly be classified in more than one way, stop and ask for clarification instead of guessing.

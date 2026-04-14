@@ -11,8 +11,10 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
+from gpd.core.constants import ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
+from gpd.core.path_labels import project_relative_path_label
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
 from gpd.core.referee_policy import validate_stage_review_artifact_alignment
 from gpd.core.reproducibility import compute_sha256
@@ -121,11 +123,11 @@ class ProofReviewStatus:
             "state": self.state,
             "can_rely_on_prior_review": self.can_rely_on_prior_review,
             "detail": self.detail,
-            "manifest_path": _relative_path(project_root, self.manifest_path),
-            "anchor_artifact": _relative_path(project_root, self.anchor_artifact),
-            "watched_files": [_relative_path(project_root, path) for path in self.watched_files],
+            "manifest_path": project_relative_path_label(project_root, self.manifest_path),
+            "anchor_artifact": project_relative_path_label(project_root, self.anchor_artifact),
+            "watched_files": [project_relative_path_label(project_root, path) for path in self.watched_files],
             "watched_file_count": len(self.watched_files),
-            "changed_files": [_relative_path(project_root, path) for path in self.changed_files],
+            "changed_files": [project_relative_path_label(project_root, path) for path in self.changed_files],
             "changed_file_count": len(self.changed_files),
             "manifest_bootstrapped": self.manifest_bootstrapped,
         }
@@ -169,7 +171,7 @@ def manuscript_has_theorem_bearing_claim_inventory(
     if entrypoint is None:
         return False
 
-    review_dir = project_root / "GPD" / "review"
+    review_dir = ProjectLayout(project_root).review_dir
     if not review_dir.exists():
         return False
 
@@ -323,7 +325,7 @@ def resolve_manuscript_proof_review_status(
             state="invalid_required_artifact",
             can_rely_on_prior_review=False,
             detail=(
-                f"{_relative_path(project_root, review_anchor.stage_artifact)} is not a valid proof-review anchor: "
+                f"{project_relative_path_label(project_root, review_anchor.stage_artifact)} is not a valid proof-review anchor: "
                 + "; ".join(review_anchor.validation_errors[:3])
             ),
             manifest_path=manifest_path,
@@ -346,7 +348,7 @@ def resolve_manuscript_proof_review_status(
         _resolve_review_artifacts(project_root, review_anchor.proof_artifact_paths),
     )
     if review_anchor.proof_bearing:
-        proof_redteam_path = project_root / "GPD" / "review" / f"PROOF-REDTEAM{review_anchor.round_suffix}.md"
+        proof_redteam_path = ProjectLayout(project_root).review_dir / f"PROOF-REDTEAM{review_anchor.round_suffix}.md"
         watched_files = _with_extra_watched_files(watched_files, proof_redteam_path)
         if not proof_redteam_path.exists():
             return ProofReviewStatus(
@@ -355,7 +357,7 @@ def resolve_manuscript_proof_review_status(
                 can_rely_on_prior_review=False,
                 detail=(
                     "proof-bearing manuscript review requires "
-                    f"{_relative_path(project_root, proof_redteam_path)} to exist with `status: passed`"
+                    f"{project_relative_path_label(project_root, proof_redteam_path)} to exist with `status: passed`"
                 ),
                 manifest_path=manifest_path,
                 anchor_artifact=proof_redteam_path,
@@ -364,7 +366,7 @@ def resolve_manuscript_proof_review_status(
         proof_redteam_status, proof_redteam_error = _read_proof_redteam_status(
             proof_redteam_path,
             project_root=project_root,
-            expected_manuscript_path=_relative_path(project_root, entrypoint),
+            expected_manuscript_path=project_relative_path_label(project_root, entrypoint),
             expected_manuscript_sha256=actual_manuscript_sha256,
             expected_round=review_anchor.round_number,
             expected_claim_ids=review_anchor.theorem_claim_ids,
@@ -375,7 +377,7 @@ def resolve_manuscript_proof_review_status(
                 scope="manuscript",
                 state="invalid_required_artifact",
                 can_rely_on_prior_review=False,
-                detail=f"{_relative_path(project_root, proof_redteam_path)} is invalid: {proof_redteam_error}",
+                detail=f"{project_relative_path_label(project_root, proof_redteam_path)} is invalid: {proof_redteam_error}",
                 manifest_path=manifest_path,
                 anchor_artifact=proof_redteam_path,
                 watched_files=watched_files,
@@ -386,7 +388,7 @@ def resolve_manuscript_proof_review_status(
                 state="open_required_artifact",
                 can_rely_on_prior_review=False,
                 detail=(
-                    f"{_relative_path(project_root, proof_redteam_path)} reports status `{proof_redteam_status}`; "
+                    f"{project_relative_path_label(project_root, proof_redteam_path)} reports status `{proof_redteam_status}`; "
                     "proof-bearing manuscript review requires `status: passed`"
                 ),
                 manifest_path=manifest_path,
@@ -414,7 +416,7 @@ def _resolve_status(
     watched_files: tuple[Path, ...],
     persist_manifest: bool,
 ) -> ProofReviewStatus:
-    current_hashes = {_relative_path(project_root, path): compute_sha256(path) for path in watched_files}
+    current_hashes = {project_relative_path_label(project_root, path): compute_sha256(path) for path in watched_files}
 
     if manifest_path.exists():
         try:
@@ -458,7 +460,7 @@ def _resolve_status(
             state="fresh",
             can_rely_on_prior_review=True,
             detail=(
-                f"{_relative_path(project_root, manifest_path)} matches {len(watched_files)} proof-affecting file(s)"
+                f"{project_relative_path_label(project_root, manifest_path)} matches {len(watched_files)} proof-affecting file(s)"
             ),
             manifest_path=manifest_path,
             anchor_artifact=anchor_artifact,
@@ -473,8 +475,8 @@ def _resolve_status(
             state="stale",
             can_rely_on_prior_review=False,
             detail=(
-                f"{len(changed_files)} proof-affecting file(s) changed after {_relative_path(project_root, anchor_artifact)}: "
-                + ", ".join(_relative_path(project_root, path) for path in changed_files[:3])
+                f"{len(changed_files)} proof-affecting file(s) changed after {project_relative_path_label(project_root, anchor_artifact)}: "
+                + ", ".join(project_relative_path_label(project_root, path) for path in changed_files[:3])
             ),
             manifest_path=manifest_path,
             anchor_artifact=anchor_artifact,
@@ -493,11 +495,11 @@ def _resolve_status(
         manifest_bootstrapped = True
 
     detail = (
-        f"{_relative_path(project_root, manifest_path)} bootstrapped from {_relative_path(project_root, anchor_artifact)}"
+        f"{project_relative_path_label(project_root, manifest_path)} bootstrapped from {project_relative_path_label(project_root, anchor_artifact)}"
         if manifest_bootstrapped
         else (
             f"no proof-review manifest yet, but {len(watched_files)} proof-affecting file(s) are not newer than "
-            f"{_relative_path(project_root, anchor_artifact)}"
+            f"{project_relative_path_label(project_root, anchor_artifact)}"
         )
     )
     return ProofReviewStatus(
@@ -609,13 +611,13 @@ def _with_extra_watched_files(*groups: tuple[Path, ...] | Path) -> tuple[Path, .
 
 
 def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoint: Path) -> _MathReviewAnchor | None:
-    review_dir = project_root / "GPD" / "review"
+    review_dir = ProjectLayout(project_root).review_dir
     if not review_dir.exists():
         return None
 
     matches: list[tuple[int, int, _MathReviewAnchor]] = []
     resolved_manuscript = resolve_review_manuscript_path(project_root, manuscript_entrypoint.as_posix())
-    expected_manuscript_path = _relative_path(project_root, manuscript_entrypoint)
+    expected_manuscript_path = project_relative_path_label(project_root, manuscript_entrypoint)
     for path in sorted(review_dir.glob("STAGE-math*.json")):
         round_details = _math_review_round_details(path)
         if round_details is None:
@@ -973,12 +975,3 @@ def _section_has_substantive_content(body: str, heading: str) -> bool:
         if line.startswith("-"):
             return True
     return pipe_lines >= 2
-
-
-def _relative_path(project_root: Path, path: Path | None) -> str | None:
-    if path is None:
-        return None
-    try:
-        return path.relative_to(project_root).as_posix()
-    except ValueError:
-        return path.as_posix()

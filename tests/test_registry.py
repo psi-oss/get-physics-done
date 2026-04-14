@@ -19,9 +19,11 @@ from gpd.registry import (
     AgentDef,
     CommandDef,
     SkillDef,
+    _canonical_skill_name_for_command,
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
+    _parse_spawn_contract_block,
     _parse_tools,
     _RegistryCache,
     load_agents_from_dir,
@@ -48,6 +50,22 @@ def _write_review_contract_command(tmp_path: Path, file_name: str, review_contra
         "  schema_version: 1\n"
         f"{review_contract_body}"
         "---\n"
+        "Body.",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_spawn_contract_command(tmp_path: Path, file_name: str, spawn_contract_body: str) -> Path:
+    """Write a minimal command file with a configurable spawn-contract body."""
+    path = tmp_path / file_name
+    path.write_text(
+        "---\n"
+        "name: gpd:test-spawn-contract\n"
+        "---\n"
+        "<spawn_contract>\n"
+        f"{spawn_contract_body}"
+        "</spawn_contract>\n"
         "Body.",
         encoding="utf-8",
     )
@@ -1329,6 +1347,124 @@ class TestEncodingEdgeCases:
         with pytest.raises(UnicodeDecodeError):
             _parse_command_file(f, source="commands")
 
+
+class TestSpawnContractParsing:
+    """Tests for spawn-contract parsing and validation."""
+
+    def test_parse_spawn_contract_block_rejects_invalid_write_scope_mode(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: shared_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"write_scope\.mode.*shared_write"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_invalid_shared_state_policy(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: shared\n"
+        )
+
+        with pytest.raises(ValueError, match=r"shared_state_policy.*shared"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_empty_allowed_paths(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"write_scope\.allowed_paths must be a non-empty list"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_blank_allowed_path_members(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    -   \n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"write_scope\.allowed_paths must contain non-empty strings"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_empty_expected_artifacts(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"expected_artifacts must be a non-empty list"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_blank_expected_artifact_members(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "  -   \n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"expected_artifacts must contain non-empty strings"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_return_only_with_direct_write_scope(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: direct\n"
+            "  allowed_paths:\n"
+            "    - GPD/STATE.md\n"
+            "expected_artifacts:\n"
+            "  - GPD/STATE.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"shared_state_policy 'return_only' requires write_scope\.mode 'scoped_write'"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_command_file_invalid_spawn_contract_reports_file_context(self, tmp_path: Path) -> None:
+        f = _write_spawn_contract_command(
+            tmp_path,
+            "bad-spawn-contract.md",
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid spawn-contract in .*bad-spawn-contract\.md.*write_scope\.allowed_paths must be a non-empty list",
+        ):
+            _parse_command_file(f, source="commands")
+
     def test_agent_file_utf8_with_bom(self, tmp_path: Path) -> None:
         f = tmp_path / "bom-agent.md"
         f.write_bytes(b"\xef\xbb\xbf---\nname: bom-test\n---\nBody.")
@@ -1378,7 +1514,7 @@ class TestDiscovery:
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
 
-        with pytest.raises(ValueError, match="does not match file stem"):
+        with pytest.raises(ValueError, match="does not match slug"):
             registry._discover_commands()
 
     def test_command_name_without_gpd_prefix_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1409,6 +1545,31 @@ class TestDiscovery:
 
         with pytest.raises(ValueError, match="does not match file stem"):
             registry._discover_agents()
+
+    def test_nested_command_discovered_with_slug(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        nested = commands_dir / "sub"
+        nested.mkdir(parents=True)
+        (nested / "deep.md").write_text(
+            "---\nname: gpd:sub-deep\n---\nDeep body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        found = registry._discover_commands()
+        assert "sub-deep" in found
+        assert found["sub-deep"].name == "gpd:sub-deep"
+
+    def test_nested_command_slug_collision_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        nested = commands_dir / "foo"
+        nested.mkdir(parents=True)
+        (commands_dir / "foo-bar.md").write_text("---\nname: gpd:foo-bar\n---\nTop.", encoding="utf-8")
+        (nested / "bar.md").write_text("---\nname: gpd:foo-bar\n---\nNested.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        with pytest.raises(ValueError, match="Duplicate command slug 'foo-bar'"):
+            registry._discover_commands()
 
     def test_debug_command_and_debugger_agent_remain_registry_discoverable(self) -> None:
         registry.invalidate_cache()
@@ -1482,6 +1643,23 @@ class TestDiscovery:
         assert reviewer_skill.category == "research"
         assert {"gpd-literature-review", "gpd-literature-reviewer"}.issubset(registry.list_skills())
 
+
+def test_canonical_skill_namespace_replaces_colon_with_dash() -> None:
+    """Registry skills use the gpd-* namespace derived from command names."""
+    command = CommandDef(
+        name="gpd:sample-command",
+        description="Sample description",
+        argument_hint="",
+        requires={},
+        allowed_tools=[],
+        content="Body.",
+        path="commands/sample.md",
+        source="commands",
+    )
+
+    assert _canonical_skill_name_for_command(command) == "gpd-sample-command"
+
+
 class TestSkillDiscovery:
     """Tests for canonical skills derived from primary commands and agents."""
 
@@ -1542,6 +1720,9 @@ class TestRegistryPromptIncludeInlining:
             eager = f"@{{GPD_INSTALL_DIR}}/{path}"
             assert lightweight in skill.content
             assert eager not in skill.content
+
+    def _assert_no_synthetic_include_placeholders(self, command: CommandDef) -> None:
+        assert "__gpd_registry_include__" not in command.content
 
     def test_registry_projection_strips_generic_html_comments(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
@@ -1667,6 +1848,29 @@ class TestRegistryPromptIncludeInlining:
         assert "templates/paper/referee-decision-schema.md" in command.staged_loading.stage(
             "publication_review"
         ).loaded_authorities
+
+    def test_reapply_patches_registry_surface_preserves_public_patch_placeholders(self) -> None:
+        command = registry.get_command("gpd:reapply-patches")
+
+        self._assert_no_synthetic_include_placeholders(command)
+        assert 'PATCHES_DIR="{GPD_PATCHES_DIR}"' in command.content
+        assert 'GLOBAL_PATCHES_DIR="{GPD_GLOBAL_PATCHES_DIR}"' in command.content
+
+    def test_update_registry_surface_preserves_public_config_placeholders(self) -> None:
+        command = registry.get_command("gpd:update")
+
+        self._assert_no_synthetic_include_placeholders(command)
+        assert 'GPD_CONFIG_DIR="{GPD_CONFIG_DIR}"' in command.content
+        assert 'GPD_GLOBAL_CONFIG_DIR="{GPD_GLOBAL_CONFIG_DIR}"' in command.content
+        assert '"{GPD_CONFIG_DIR}/cache/gpd-update-check.json"' in command.content
+        assert '"{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json"' in command.content
+
+    @pytest.mark.parametrize("command_name", ["gpd:respond-to-referees", "gpd:write-paper"])
+    def test_publication_registry_surfaces_preserve_public_reference_placeholders(self, command_name: str) -> None:
+        command = registry.get_command(command_name)
+
+        self._assert_no_synthetic_include_placeholders(command)
+        assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" in command.content
 
     def test_publication_review_skills_keep_the_needed_contract_references_visible(self) -> None:
         from gpd.mcp.servers.skills_server import get_skill
@@ -2094,6 +2298,8 @@ class TestPublicAPI:
             "direct",
         }
         assert {contract["write_scope"]["mode"] for contract in command.spawn_contracts} == {"scoped_write"}
+        assert all(contract["write_scope"]["allowed_paths"] for contract in command.spawn_contracts)
+        assert all("paths" not in contract["write_scope"] for contract in command.spawn_contracts)
 
     def test_get_command_new_milestone_surfaces_roadmapper_handoff(self) -> None:
         registry.invalidate_cache()
@@ -2210,7 +2416,7 @@ class TestPublicAPI:
                                 "purpose": "phase lookup and routing",
                                 "mode_paths": ["workflows/plan-phase.md"],
                                 "required_init_fields": [],
-                                "loaded_authorities": ["workflows/plan-phase.md"],
+                                "loaded_authorities": ["workflows/plan-phase.md", "templates/project-contract-schema.md"],
                                 "conditional_authorities": [],
                                 "must_not_eager_load": ["references/ui/ui-brand.md"],
                                 "allowed_tools": ["file_read"],
@@ -2227,6 +2433,7 @@ class TestPublicAPI:
                                 "required_init_fields": ["researcher_model"],
                                 "loaded_authorities": [
                                     "workflows/plan-phase.md",
+                                    "templates/project-contract-schema.md",
                                     "templates/planner-subagent-prompt.md",
                                 ],
                                 "conditional_authorities": [],
@@ -2261,8 +2468,12 @@ class TestPublicAPI:
             assert cmd.staged_loading is not None
             assert cmd.staged_loading.workflow_id == "plan-phase"
             assert cmd.staged_loading.stage_ids() == ("phase_bootstrap", "planner_authoring")
-            assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/plan-phase.md",)
+            assert cmd.staged_loading.stages[0].loaded_authorities == (
+                "workflows/plan-phase.md",
+                "templates/project-contract-schema.md",
+            )
             assert "templates/planner-subagent-prompt.md" in cmd.staged_loading.stages[1].loaded_authorities
+            assert "templates/project-contract-schema.md" in cmd.staged_loading.stages[1].loaded_authorities
 
     def test_get_command_verify_work_surfaces_staged_loading_manifest(
         self,
@@ -2291,9 +2502,13 @@ class TestPublicAPI:
             "interactive_validation",
             "gap_repair",
         )
-        assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/verify-work.md",)
+        assert cmd.staged_loading.stages[0].loaded_authorities == (
+            "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
+        )
         assert cmd.staged_loading.stages[2].loaded_authorities == (
             "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
             "references/verification/meta/verification-independence.md",
         )
         assert cmd.staged_loading.stages[2].next_stages == ("interactive_validation",)
@@ -2314,6 +2529,7 @@ class TestPublicAPI:
         )
         assert cmd.staged_loading.stages[3].loaded_authorities == (
             "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
             "templates/research-verification.md",
             "templates/verification-report.md",
             "templates/contract-results-schema.md",
@@ -2328,6 +2544,7 @@ class TestPublicAPI:
         )
         assert cmd.staged_loading.stages[4].loaded_authorities == (
             "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
             "templates/research-verification.md",
             "templates/verification-report.md",
             "templates/contract-results-schema.md",

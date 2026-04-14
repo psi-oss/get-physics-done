@@ -29,7 +29,7 @@ def test_state_server_success_response_uses_strict_stable_envelope(fake_project_
         "project_contract_gate": {"authoritative": False},
     }
 
-    with patch("gpd.mcp.servers.state_server.load_state_json", return_value=mock_state):
+    with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", return_value=mock_state):
         result = get_state(fake_project_dir)
 
     _assert_stable_envelope(result, mock_state)
@@ -38,7 +38,7 @@ def test_state_server_success_response_uses_strict_stable_envelope(fake_project_
 def test_state_server_error_response_uses_strict_stable_envelope(fake_project_dir) -> None:
     from gpd.mcp.servers.state_server import get_state
 
-    with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
+    with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", side_effect=GPDError("boom")):
         result = get_state(fake_project_dir)
 
     _assert_stable_envelope(result, {"error": "boom"})

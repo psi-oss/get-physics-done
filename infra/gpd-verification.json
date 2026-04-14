@@ -1,12 +1,15 @@
 {
-  "name": "gpd-verification",
-  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware request surfaces are closed and schema-driven. The full contract payload rules live on the `contract` input schema. Proof-oriented checks still require an authoritative contract payload. Missing grounding, evidence, or proof artifacts stay explicit and must not be invented. Use `suggest_contract_checks(...)` to surface the exact per-check request metadata before calling `run_contract_check(...)`.",
-  "transport": "stdio",
-  "command": "gpd-mcp-verification",
-  "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  "alternatives": {
+    "python_module": {
+      "args": [
+        "-m",
+        "gpd.mcp.servers.verification_server"
+      ],
+      "command": "${GPD_PYTHON}",
+      "notes": "Replace `${GPD_PYTHON}` with a Python >=3.11 interpreter that has GPD installed."
+    }
   },
+  "args": [],
   "capabilities": [
     "run_check",
     "run_contract_check",
@@ -18,25 +21,21 @@
     "symmetry_check",
     "get_verification_coverage"
   ],
-  "registry_prefix": "gpd_verification",
-  "prerequisites": [
-    "Install GPD before enabling built-in MCP servers."
-  ],
+  "command": "gpd-mcp-verification",
+  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware requests follow the `contract` schema. Always run `suggest_contract_checks(...)` to gather the per-check request metadata before calling `run_contract_check(...)`, and never invent grounding or proof artifacts.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
+  "env": {},
   "health_check": {
-    "tool": "get_checklist",
+    "expect": "contains Ward identities",
     "input": {
       "domain": "qft"
     },
-    "expect": "contains Ward identities"
+    "tool": "get_checklist"
   },
-  "alternatives": {
-    "python_module": {
-      "command": "${GPD_PYTHON}",
-      "args": [
-        "-m",
-        "gpd.mcp.servers.verification_server"
-      ],
-      "notes": "Replace `${GPD_PYTHON}` with a Python >=3.11 interpreter that has GPD installed."
-    }
-  }
+  "name": "gpd-verification",
+  "prerequisites": [
+    "Install GPD before enabling built-in MCP servers."
+  ],
+  "registry_prefix": "gpd_verification",
+  "transport": "stdio"
 }

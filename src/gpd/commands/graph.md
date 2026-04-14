@@ -30,7 +30,7 @@ Use this for:
 </context>
 
 <process>
-Execute the graph workflow from @{GPD_INSTALL_DIR}/workflows/graph.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 ## Step 1: Read All SUMMARY.md Frontmatter
 

@@ -496,7 +496,7 @@ def test_ingest_reference_artifacts_ignores_legacy_review_summary_aliases(tmp_pa
 def test_context_surfaces_derived_reference_registry_without_project_contract(tmp_path: Path) -> None:
     try:
         from gpd.core.context import init_verify_work
-    except SyntaxError as exc:  # pragma: no cover - blocked by unrelated knowledge_index syntax error
+    except SyntaxError as exc:  # pragma: no cover - blocked by unrelated knowledge runtime syntax error
         pytest.skip(f"knowledge runtime context is blocked by an unrelated syntax error: {exc}")
 
     _bootstrap_project(tmp_path)
@@ -666,7 +666,7 @@ def test_ingest_reference_artifacts_keeps_shared_alias_references_distinct(tmp_p
 def test_context_discovers_additional_research_map_reference_artifacts(tmp_path: Path) -> None:
     try:
         from gpd.core.context import init_verify_work
-    except SyntaxError as exc:  # pragma: no cover - blocked by unrelated knowledge_index syntax error
+    except SyntaxError as exc:  # pragma: no cover - blocked by unrelated knowledge runtime syntax error
         pytest.skip(f"knowledge runtime context is blocked by an unrelated syntax error: {exc}")
 
     _bootstrap_project(tmp_path)
@@ -806,6 +806,10 @@ def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_l
     )
 
     assert result.citation_source_files == ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
+    assert result.citation_source_warnings == []
     assert [source.reference_id for source in result.citation_sources] == ["ref-legacy"]
+    assert [source.source_artifacts for source in result.citation_sources] == [
+        ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
+    ]
     assert [ref.id for ref in result.references] == ["ref-legacy"]
     assert result.references[0].source_artifacts == ["GPD/research/LEGACY-REVIEW.md"]

@@ -8,6 +8,10 @@ Key questions: Are all claims supported? All calculations verified? All comparis
 Read all files referenced by the invoking prompt's execution_context before starting.
 </required_reading>
 
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
+
 <process>
 
 ## 0. Initialize Milestone Context
@@ -84,10 +88,10 @@ Use the canonical phase helpers instead of raw phase-path globbing:
 
 ```bash
 gpd phase list
-gpd show-phase <phase-number>
+gpd --raw init phase-op <phase-number>
 ```
 
-For each phase in the milestone, use `gpd show-phase <phase-number>` to surface the canonical `*-VERIFICATION.md` artifact and its verification status, then read the artifact itself only when you need blocker-level detail. Do not `find_files` `GPD/phases/*/*-VERIFICATION.md` by hand.
+For each phase in the milestone, use `gpd --raw init phase-op <phase-number>` to surface the canonical `*-VERIFICATION.md` artifact and its verification status, then read the artifact itself only when you need blocker-level detail. Do not `find_files` `GPD/phases/*/*-VERIFICATION.md` by hand.
 
 From each `*-VERIFICATION.md`, extract:
 
@@ -103,6 +107,8 @@ If a phase is missing `*-VERIFICATION.md`, flag it as "unverified phase" -- this
 
 With phase context collected:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
@@ -209,7 +215,6 @@ Resolve referee model:
 ```bash
 REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

@@ -15,6 +15,7 @@ import argparse
 import json
 import re
 import sys
+import tomllib
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +23,16 @@ from pathlib import Path
 
 class ReleaseError(RuntimeError):
     """Raised when release inputs or tracked release surfaces are invalid."""
+
+
+REQUIRED_NPM_PACK_FILES = frozenset(
+    {
+        "src/gpd/adapters/runtime_catalog.json",
+        "src/gpd/adapters/runtime_catalog_schema.json",
+        "src/gpd/core/public_surface_contract.json",
+        "src/gpd/core/public_surface_contract_schema.json",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -81,6 +92,111 @@ def parse_current_version(pyproject_text: str) -> str:
     if not match:
         raise ReleaseError("Could not parse version from pyproject.toml.")
     return match.group(1)
+
+
+def parse_package_versions(package_json_text: str) -> tuple[str, str]:
+    try:
+        package_json = json.loads(package_json_text)
+    except json.JSONDecodeError as exc:
+        raise ReleaseError("Could not parse package.json metadata.") from exc
+
+    if not isinstance(package_json, dict):
+        raise ReleaseError("package.json root must be an object.")
+
+    version = package_json.get("version")
+    python_version = package_json.get("gpdPythonVersion")
+    if not isinstance(version, str) or not version:
+        raise ReleaseError('package.json must define a string "version".')
+    if not isinstance(python_version, str) or not python_version:
+        raise ReleaseError('package.json must define a string "gpdPythonVersion".')
+
+    return version, python_version
+
+
+def validate_release_metadata_sources(pyproject_text: str, package_json_text: str) -> str:
+    pyproject_version = parse_current_version(pyproject_text)
+    package_version, python_version = parse_package_versions(package_json_text)
+    if package_version != pyproject_version or python_version != pyproject_version:
+        raise ReleaseError(
+            "Version source-of-truth mismatch: "
+            f'pyproject.toml={pyproject_version!r}, package.json["version"]={package_version!r}, '
+            f'package.json["gpdPythonVersion"]={python_version!r}.'
+        )
+    return pyproject_version
+
+
+def validate_package_data_rules(pyproject_text: str, package_json_text: str) -> None:
+    try:
+        pyproject = tomllib.loads(pyproject_text)
+    except tomllib.TOMLDecodeError as exc:
+        raise ReleaseError("Could not parse pyproject.toml metadata.") from exc
+
+    try:
+        package_json = json.loads(package_json_text)
+    except json.JSONDecodeError as exc:
+        raise ReleaseError("Could not parse package.json metadata.") from exc
+    files = package_json.get("files")
+    if not isinstance(files, list) or any(not isinstance(entry, str) or not entry for entry in files):
+        raise ReleaseError('package.json "files" must be a list of non-empty strings.')
+    if len(files) != len(set(files)):
+        raise ReleaseError('package.json "files" entries must be unique.')
+    if "bin/" in files:
+        raise ReleaseError('package.json "files" must list the bootstrap entrypoint explicitly as "bin/install.js", not "bin/".')
+    if "bin/install.js" not in files:
+        raise ReleaseError('package.json "files" must include "bin/install.js".')
+
+    try:
+        wheel_target = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
+        artifacts = wheel_target["artifacts"]
+        force_include = wheel_target["force-include"]
+    except KeyError as exc:
+        raise ReleaseError("Missing wheel package-data configuration in pyproject.toml.") from exc
+
+    if not isinstance(artifacts, list) or any(not isinstance(pattern, str) or not pattern for pattern in artifacts):
+        raise ReleaseError('pyproject.toml wheel "artifacts" must be a list of non-empty strings.')
+    if len(artifacts) != len(set(artifacts)):
+        raise ReleaseError('pyproject.toml wheel "artifacts" entries must be unique.')
+
+    if not isinstance(force_include, dict) or any(
+        not isinstance(source, str) or not source or not isinstance(dest, str) or not dest
+        for source, dest in force_include.items()
+    ):
+        raise ReleaseError('pyproject.toml wheel "force-include" must map non-empty strings to non-empty strings.')
+    destinations = list(force_include.values())
+    if len(destinations) != len(set(destinations)):
+        raise ReleaseError('pyproject.toml wheel "force-include" destinations must be unique.')
+
+    invalid_destinations = [dest for dest in destinations if dest.startswith("/") or ".." in Path(dest).parts]
+    if invalid_destinations:
+        joined = ", ".join(sorted(invalid_destinations))
+        raise ReleaseError(
+            'pyproject.toml wheel "force-include" destinations must be relative paths; '
+            f"found: {joined}."
+        )
+
+
+def validate_npm_pack_manifest(entries: list[dict[str, object]]) -> None:
+    if not entries:
+        raise ReleaseError("npm pack output did not describe any package entries.")
+
+    file_paths: set[str] = set()
+    for entry in entries:
+        files = entry.get("files")
+        if not isinstance(files, list):
+            raise ReleaseError("npm pack entry is missing a files list.")
+        for candidate in files:
+            path_value = candidate.get("path")
+            if isinstance(path_value, str) and path_value:
+                file_paths.add(path_value)
+
+    missing = REQUIRED_NPM_PACK_FILES - file_paths
+    if missing:
+        joined = ", ".join(sorted(missing))
+        raise ReleaseError(f"npm pack is missing required resources: {joined}.")
+
+
+def preflight_release_sync(repo_root: Path) -> None:
+    validate_package_data_rules(_read_text(repo_root / "pyproject.toml"), _read_text(repo_root / "package.json"))
 
 
 def bump_version(version: str, bump: str) -> str:
@@ -233,7 +349,8 @@ def prepare_release(repo_root: Path, bump: str) -> ReleaseMetadata:
     citation_text = _read_text(citation_path)
     readme_text = _read_text(readme_path)
 
-    previous_version = parse_current_version(pyproject_text)
+    previous_version = validate_release_metadata_sources(pyproject_text, package_json_text)
+    validate_package_data_rules(pyproject_text, package_json_text)
     new_version = bump_version(previous_version, bump)
 
     updated_pyproject = update_pyproject_text(pyproject_text, new_version)
@@ -306,6 +423,21 @@ def _build_parser() -> argparse.ArgumentParser:
     show_version_parser = subparsers.add_parser("show-version", help="Print the current release version.")
     show_version_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
 
+    preflight_parser = subparsers.add_parser("preflight-sync", help="Validate release packaging metadata before publishing.")
+    preflight_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
+
+    pack_parser = subparsers.add_parser(
+        "verify-npm-pack",
+        help="Validate npm pack --dry-run --json output.",
+    )
+    pack_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
+    pack_parser.add_argument(
+        "--input",
+        type=Path,
+        default=Path("tmp/npm-pack-dry-run.json"),
+        help="Path to the JSON output from npm pack --dry-run --json.",
+    )
+
     release_notes_parser = subparsers.add_parser("release-notes", help="Print release notes for a version.")
     release_notes_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
     release_notes_parser.add_argument("--version", required=True, help="Version heading to extract.")
@@ -332,8 +464,22 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "show-version":
-            sys.stdout.write(parse_current_version(_read_text(repo_root / "pyproject.toml")))
+            pyproject_text = _read_text(repo_root / "pyproject.toml")
+            package_json_text = _read_text(repo_root / "package.json")
+            validate_package_data_rules(pyproject_text, package_json_text)
+            sys.stdout.write(validate_release_metadata_sources(pyproject_text, package_json_text))
             sys.stdout.write("\n")
+            return 0
+
+        if args.command == "preflight-sync":
+            preflight_release_sync(repo_root)
+            sys.stdout.write("Release packaging metadata is in sync.\n")
+            return 0
+
+        if args.command == "verify-npm-pack":
+            entries = json.loads(_read_text(repo_root / args.input))
+            validate_npm_pack_manifest(entries)
+            sys.stdout.write("npm pack manifest includes required runtime resources.\n")
             return 0
 
         if args.command == "release-notes":

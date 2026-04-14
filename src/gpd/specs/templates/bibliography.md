@@ -9,9 +9,9 @@ total_references: 0
 Template for `GPD/BIBLIOGRAPHY.md` -- optional reference and anchor ledger for projects that want a
 human-readable registry alongside the live BibTeX files and the structured project contract.
 
-**Status:** Not wired into the current GPD bibliography flow. The live bibliographer/paper pipeline
-uses `references/references.bib`, `references/references-verified.log`, and
-`references/references-pending.md`.
+**Status:** Optional project-facing ledger. The live bibliographer/paper pipeline writes project-local
+`GPD/references/references.bib`, `GPD/references/references-verified.log`, and
+`GPD/references/references-pending.md`.
 
 **Purpose:** Use this only if you explicitly want a parallel markdown registry of citations,
 benchmarks, prior artifacts, and anchor status across the project. It is not the canonical source

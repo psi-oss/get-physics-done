@@ -15,8 +15,17 @@ from gpd.core.manuscript_artifacts import (
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_resolution,
 )
+from gpd.core.path_labels import project_relative_path_label
 from gpd.core.proof_review import ProofReviewStatus, resolve_manuscript_proof_review_status
 from gpd.core.publication_review_paths import (
+    AUTHOR_RESPONSE_FILENAME_RE,
+    AUTHOR_RESPONSE_GLOB,
+    REFEREE_DECISION_FILENAME_RE,
+    REFEREE_DECISION_GLOB,
+    REFEREE_RESPONSE_FILENAME_RE,
+    REFEREE_RESPONSE_GLOB,
+    REVIEW_LEDGER_FILENAME_RE,
+    REVIEW_LEDGER_GLOB,
     manuscript_matches_review_artifact_path,
     review_artifact_round,
     review_round_suffix,
@@ -36,27 +45,12 @@ __all__ = [
     "resolve_publication_runtime_snapshot",
 ]
 
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
-_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 _PUBLICATION_BLOCKER_PATTERNS = (
     re.compile(r"\bpublication\b"),
     re.compile(r"\b(arxiv|submission|manuscript)\b"),
     re.compile(r"\b(peer review|peer-review|review round|referee)\b"),
     re.compile(r"\b(journal|venue)\b"),
 )
-
-
-def _relative_path(project_root: Path, path: Path | None) -> str | None:
-    if path is None:
-        return None
-    try:
-        return path.relative_to(project_root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
 def _looks_like_publication_blocker(text: str) -> bool:
     lowered = text.casefold().strip()
     return any(pattern.search(lowered) for pattern in _PUBLICATION_BLOCKER_PATTERNS)
@@ -116,11 +110,11 @@ class PublicationReviewArtifacts:
         return {
             "round_number": self.round_number,
             "round_suffix": self.round_suffix,
-            "review_ledger": _relative_path(project_root, self.review_ledger),
-            "referee_decision": _relative_path(project_root, self.referee_decision),
-            "referee_report_md": _relative_path(project_root, self.referee_report_md),
-            "referee_report_tex": _relative_path(project_root, self.referee_report_tex),
-            "proof_redteam": _relative_path(project_root, self.proof_redteam),
+            "review_ledger": project_relative_path_label(project_root, self.review_ledger),
+            "referee_decision": project_relative_path_label(project_root, self.referee_decision),
+            "referee_report_md": project_relative_path_label(project_root, self.referee_report_md),
+            "referee_report_tex": project_relative_path_label(project_root, self.referee_report_tex),
+            "proof_redteam": project_relative_path_label(project_root, self.proof_redteam),
             "state": self.state,
             "detail": self.detail,
             "complete": self.complete,
@@ -148,8 +142,8 @@ class PublicationResponseArtifacts:
         return {
             "round_number": self.round_number,
             "round_suffix": self.round_suffix,
-            "author_response": _relative_path(project_root, self.author_response),
-            "referee_response": _relative_path(project_root, self.referee_response),
+            "author_response": project_relative_path_label(project_root, self.author_response),
+            "referee_response": project_relative_path_label(project_root, self.referee_response),
             "state": self.state,
             "detail": self.detail,
             "complete": self.complete,
@@ -184,12 +178,12 @@ class PublicationRuntimeSnapshot:
         payload: dict[str, object] = {
             "manuscript_resolution_status": resolution.status,
             "manuscript_resolution_detail": resolution.detail,
-            "manuscript_root": _relative_path(project_root, artifacts.manuscript_root),
-            "manuscript_entrypoint": _relative_path(project_root, artifacts.manuscript_entrypoint),
-            "artifact_manifest_path": _relative_path(project_root, artifacts.artifact_manifest),
+            "manuscript_root": project_relative_path_label(project_root, artifacts.manuscript_root),
+            "manuscript_entrypoint": project_relative_path_label(project_root, artifacts.manuscript_entrypoint),
+            "artifact_manifest_path": project_relative_path_label(project_root, artifacts.artifact_manifest),
             "bibliography_audit_path": reference_status.bibliography_audit_path
-            or _relative_path(project_root, artifacts.bibliography_audit),
-            "reproducibility_manifest_path": _relative_path(project_root, artifacts.reproducibility_manifest),
+            or project_relative_path_label(project_root, artifacts.bibliography_audit),
+            "reproducibility_manifest_path": project_relative_path_label(project_root, artifacts.reproducibility_manifest),
             "manuscript_reference_status_warnings": list(reference_status.reference_status_warnings),
             "derived_manuscript_reference_status": derived_reference_status,
             "derived_manuscript_reference_status_count": len(derived_reference_status),
@@ -204,11 +198,15 @@ class PublicationRuntimeSnapshot:
                 {
                     "latest_review_round": review_artifacts.round_number,
                     "latest_review_round_suffix": review_artifacts.round_suffix,
-                    "latest_review_ledger": _relative_path(project_root, review_artifacts.review_ledger),
-                    "latest_referee_decision": _relative_path(project_root, review_artifacts.referee_decision),
-                    "latest_referee_report_md": _relative_path(project_root, review_artifacts.referee_report_md),
-                    "latest_referee_report_tex": _relative_path(project_root, review_artifacts.referee_report_tex),
-                    "latest_proof_redteam": _relative_path(project_root, review_artifacts.proof_redteam),
+                    "latest_review_ledger": project_relative_path_label(project_root, review_artifacts.review_ledger),
+                    "latest_referee_decision": project_relative_path_label(project_root, review_artifacts.referee_decision),
+                    "latest_referee_report_md": project_relative_path_label(
+                        project_root, review_artifacts.referee_report_md
+                    ),
+                    "latest_referee_report_tex": project_relative_path_label(
+                        project_root, review_artifacts.referee_report_tex
+                    ),
+                    "latest_proof_redteam": project_relative_path_label(project_root, review_artifacts.proof_redteam),
                     "latest_review_artifacts": review_artifacts.to_context_dict(project_root),
                 }
             )
@@ -231,8 +229,10 @@ class PublicationRuntimeSnapshot:
                 {
                     "latest_response_round": response_artifacts.round_number,
                     "latest_response_round_suffix": response_artifacts.round_suffix,
-                    "latest_author_response": _relative_path(project_root, response_artifacts.author_response),
-                    "latest_referee_response": _relative_path(project_root, response_artifacts.referee_response),
+                    "latest_author_response": project_relative_path_label(project_root, response_artifacts.author_response),
+                    "latest_referee_response": project_relative_path_label(
+                        project_root, response_artifacts.referee_response
+                    ),
                     "latest_response_artifacts": response_artifacts.to_context_dict(project_root),
                 }
             )
@@ -327,13 +327,13 @@ def resolve_latest_publication_review_artifacts(
 
     ledger_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
-        glob_pattern="REVIEW-LEDGER*.json",
+        filename_pattern=REVIEW_LEDGER_FILENAME_RE,
+        glob_pattern=REVIEW_LEDGER_GLOB,
     )
     decision_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_REFEREE_DECISION_FILENAME_RE,
-        glob_pattern="REFEREE-DECISION*.json",
+        filename_pattern=REFEREE_DECISION_FILENAME_RE,
+        glob_pattern=REFEREE_DECISION_GLOB,
     )
     round_number = _latest_round_number(ledger_by_round, decision_by_round)
     if round_number is None:
@@ -388,13 +388,13 @@ def resolve_latest_publication_response_artifacts(project_root: Path) -> Publica
 
     author_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
-        glob_pattern="AUTHOR-RESPONSE*.md",
+        filename_pattern=AUTHOR_RESPONSE_FILENAME_RE,
+        glob_pattern=AUTHOR_RESPONSE_GLOB,
     )
     referee_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
-        glob_pattern="REFEREE_RESPONSE*.md",
+        filename_pattern=REFEREE_RESPONSE_FILENAME_RE,
+        glob_pattern=REFEREE_RESPONSE_GLOB,
     )
     round_number = _latest_round_number(author_by_round, referee_by_round)
     if round_number is None:

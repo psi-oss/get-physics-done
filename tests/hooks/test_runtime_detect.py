@@ -10,6 +10,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +19,7 @@ import gpd.hooks.runtime_detect as runtime_detect_module
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.adapters.runtime_catalog import normalize_runtime_name as catalog_normalize_runtime_name
+from gpd.core.constants import TODOS_DIR_NAME
 from gpd.hooks.install_metadata import installed_runtime
 from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
@@ -29,6 +31,7 @@ from gpd.hooks.runtime_detect import (
     TodoCandidate,
     UpdateCacheCandidate,
     _has_gpd_install,
+    _ordered_runtime_dirs_for_lookup,
     _runtime_from_manifest_or_path,
     all_runtime_dirs,
     detect_active_runtime,
@@ -44,6 +47,7 @@ from gpd.hooks.runtime_detect import (
     get_update_cache_files,
     normalize_runtime_name,
     resolve_effective_runtime,
+    resolve_runtime_target_dir,
     should_consider_todo_candidate,
     should_consider_update_cache_candidate,
     supported_runtime_names,
@@ -54,6 +58,7 @@ from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _RUNTIME_BY_NAME = {descriptor.runtime_name: descriptor for descriptor in _RUNTIME_DESCRIPTORS}
+_RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
 _SHARED_INSTALL = get_shared_install_metadata()
 RUNTIME_CLAUDE = _RUNTIME_BY_NAME["claude-code"].runtime_name
 RUNTIME_CODEX = _RUNTIME_BY_NAME["codex"].runtime_name
@@ -94,6 +99,14 @@ def _write_install_manifest(config_dir: Path, *, install_scope: str) -> None:
         json.dumps(manifest),
         encoding="utf-8",
     )
+
+
+def _runtime_config_dir(root: Path, runtime: str) -> Path:
+    """Return the workspace-local config dir for *runtime*, creating it if needed."""
+    adapter = get_adapter(runtime)
+    config_dir = root / Path(adapter.local_config_dir_name)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
 
 # ─── detect_active_runtime ─────────────────────────────────────────────────
 
@@ -249,7 +262,7 @@ class TestResolveEffectiveRuntime:
         assert result.runtime == RUNTIME_CODEX
         assert result.source == SOURCE_ENV
 
-    def test_reports_local_source_and_install_scope(self, tmp_path: Path) -> None:
+    def test_installed_runtime_without_activation_signal_stays_unknown(self, tmp_path: Path) -> None:
         _mark_gpd_install(tmp_path / ".gemini")
 
         env = _clean_runtime_env()
@@ -260,10 +273,10 @@ class TestResolveEffectiveRuntime:
         ):
             result = resolve_effective_runtime()
 
-        assert result.runtime == RUNTIME_GEMINI
-        assert result.source == SOURCE_LOCAL
-        assert result.has_gpd_install is True
-        assert result.install_scope == SCOPE_LOCAL
+        assert result.runtime == RUNTIME_UNKNOWN
+        assert result.source == SOURCE_UNKNOWN
+        assert result.has_gpd_install is False
+        assert result.install_scope is None
 
     def test_reports_global_source_without_install(self, tmp_path: Path) -> None:
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -377,6 +390,33 @@ class TestResolveEffectiveRuntime:
         assert result.install_scope == SCOPE_LOCAL
 
 
+def test_resolve_runtime_target_dir_prefers_local_install(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    home = tmp_path / "home"
+    local_dir = workspace / ".codex"
+    _mark_gpd_install(local_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+    global_dir = get_adapter(RUNTIME_CODEX).resolve_global_config_dir(home=home)
+    _mark_gpd_install(global_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+    result = resolve_runtime_target_dir(RUNTIME_CODEX, cwd=workspace, home=home)
+
+    assert result == (local_dir, SCOPE_LOCAL)
+
+
+def test_resolve_runtime_target_dir_falls_back_to_global_install(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    home = tmp_path / "home"
+    adapter = get_adapter(RUNTIME_CODEX)
+    global_dir = adapter.resolve_global_config_dir(home=home)
+    _mark_gpd_install(global_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+    result = resolve_runtime_target_dir(RUNTIME_CODEX, cwd=workspace, home=home)
+
+    assert result == (global_dir, SCOPE_GLOBAL)
+
+
 class TestNormalizeRuntimeName:
     """Tests for the shared runtime-name normalizer."""
 
@@ -410,6 +450,25 @@ def test_supported_runtime_names_reflect_live_runtime_inventory(monkeypatch: pyt
     assert runtime_detect_module._prioritized_runtimes("beta") == ["beta", "alpha", "gamma"]
 
 
+def test_detect_active_runtime_uses_catalog_descriptor_env_vars(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    descriptors = {
+        "alpha-runtime": SimpleNamespace(activation_env_vars=("GPD_TEST_ALPHA_ACTIVE",)),
+        "beta-runtime": SimpleNamespace(activation_env_vars=("GPD_TEST_BETA_ACTIVE",)),
+    }
+
+    monkeypatch.setattr(runtime_detect_module, "list_runtime_names", lambda: list(descriptors))
+    monkeypatch.setattr(runtime_detect_module, "get_runtime_descriptor", descriptors.__getitem__)
+    monkeypatch.setattr(runtime_detect_module, "detect_install_scope", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime_detect_module, "_detect_runtime_install_target", lambda *args, **kwargs: None)
+    monkeypatch.delenv("GPD_ACTIVE_RUNTIME", raising=False)
+    monkeypatch.setenv("GPD_TEST_BETA_ACTIVE", "1")
+
+    result = resolve_effective_runtime(cwd=tmp_path, home=tmp_path)
+
+    assert result.runtime == "beta-runtime"
+    assert result.source == SOURCE_ENV
+
+
 def test_get_adapter_loads_only_one_runtime_module(monkeypatch: pytest.MonkeyPatch) -> None:
     import gpd.adapters as adapters_module
 
@@ -439,10 +498,8 @@ class TestDetectActiveRuntimeWithInstall:
     """Tests for the install-aware runtime detection helper used by hooks."""
 
     def test_plain_runtime_dirs_without_gpd_install_do_not_count(self, tmp_path: Path) -> None:
-        (tmp_path / ".claude").mkdir()
-        (tmp_path / ".codex").mkdir()
-        (tmp_path / ".gemini").mkdir()
-        (tmp_path / ".config" / "opencode").mkdir(parents=True)
+        for runtime in _RUNTIME_NAMES:
+            _runtime_config_dir(tmp_path, runtime)
 
         env = _clean_runtime_env()
         with (
@@ -452,10 +509,27 @@ class TestDetectActiveRuntimeWithInstall:
         ):
             assert detect_active_runtime_with_gpd_install() == RUNTIME_UNKNOWN
 
-    def test_installed_runtime_is_detected(self, tmp_path: Path) -> None:
-        _mark_gpd_install(tmp_path / ".codex")
+    @pytest.mark.parametrize("runtime_name", _RUNTIME_NAMES)
+    def test_installed_runtime_without_activation_signal_detects_runtime(
+        self, tmp_path: Path, runtime_name: str
+    ) -> None:
+        runtime_dir = _runtime_config_dir(tmp_path, runtime_name)
+        _mark_gpd_install(runtime_dir, runtime=runtime_name)
 
         env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_active_runtime_with_gpd_install() == runtime_name
+
+    def test_active_runtime_with_install_is_detected(self, tmp_path: Path) -> None:
+        runtime_dir = _runtime_config_dir(tmp_path, RUNTIME_CODEX)
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX)
+
+        env = _clean_runtime_env()
+        env["CODEX_SESSION"] = "1"
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -466,7 +540,8 @@ class TestDetectActiveRuntimeWithInstall:
     def test_active_runtime_without_install_returns_unknown_in_install_aware_resolution(
         self, tmp_path: Path
     ) -> None:
-        _mark_gpd_install(tmp_path / ".codex")
+        runtime_dir = _runtime_config_dir(tmp_path, RUNTIME_CODEX)
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX)
 
         env = _clean_runtime_env()
         env["CLAUDE_CODE_SESSION"] = "1"
@@ -715,6 +790,46 @@ class TestDetectActiveRuntimeWithInstall:
         with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
             adapter._validate_target_runtime(target_dir, action="install")
 
+def test_detect_runtime_install_target_walks_ancestor_local_dirs(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    nested = workspace / "research" / "notes"
+    nested.mkdir(parents=True)
+    runtime_dir = workspace / ".codex"
+    _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+    home = tmp_path / "home"
+
+    env = _clean_runtime_env()
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+    ):
+        result = detect_runtime_install_target(RUNTIME_CODEX, cwd=nested, home=home)
+
+    assert result is not None
+    assert result.config_dir == runtime_dir
+    assert result.install_scope == SCOPE_LOCAL
+
+
+def test_detect_runtime_install_target_identifies_custom_cwd(tmp_path: Path) -> None:
+    custom_dir = tmp_path / "custom-codex"
+    _mark_gpd_install(custom_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    env = _clean_runtime_env()
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=custom_dir),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+    ):
+        result = detect_runtime_install_target(RUNTIME_CODEX, cwd=custom_dir, home=home)
+
+    assert result is not None
+    assert result.config_dir == custom_dir
+    assert result.install_scope == SCOPE_LOCAL
+
 
 class TestDetectRuntimeForGpdUse:
     """Tests for the install-aware runtime selection used by GPD-owned surfaces."""
@@ -786,6 +901,16 @@ class TestDetectRuntimeForGpdUse:
                 assert runtime_detect_module.detect_runtime_for_gpd_use(cwd=workspace, home=home) == RUNTIME_CLAUDE
         finally:
             importlib.reload(runtime_detect_module)
+
+    def test_unknown_runtime_without_install_stays_unknown(self) -> None:
+        with (
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value=RUNTIME_UNKNOWN),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_UNKNOWN),
+            patch("gpd.hooks.runtime_detect.supported_runtime_names", return_value=(RUNTIME_CODEX, RUNTIME_GEMINI)),
+            patch("gpd.hooks.runtime_detect._detect_runtime_install_target", return_value=None),
+        ):
+            assert detect_runtime_for_gpd_use() == RUNTIME_UNKNOWN
+
 
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 
@@ -905,6 +1030,31 @@ class TestHelperDirs:
         assert dirs[0] == tmp_path / ".codex" / "todos"
         assert dirs[1] == home / ".codex" / "todos"
 
+    def test_todo_candidates_walk_ancestor_local_dirs(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        nested = workspace / "research" / "notes"
+        nested.mkdir(parents=True)
+        runtime_dir = workspace / ".codex"
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX)
+        home = tmp_path / "home"
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            candidates = get_todo_candidates(cwd=nested, home=home)
+
+        codex_paths = [
+            candidate.path
+            for candidate in candidates
+            if candidate.runtime == RUNTIME_CODEX and candidate.scope == SCOPE_LOCAL
+        ]
+        assert runtime_dir / TODOS_DIR_NAME in codex_paths
+        assert codex_paths
+
     def test_todo_candidates_prioritize_explicit_target_install(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -921,6 +1071,22 @@ class TestHelperDirs:
         assert candidates[0].path == custom_dir / "todos"
         assert candidates[0].runtime == RUNTIME_CODEX
         assert candidates[0].scope == SCOPE_LOCAL
+
+
+def test_ordered_runtime_dirs_for_lookup_dedupes_resolved_equivalent_paths(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".codex").mkdir()
+    equivalent_cwd = str(home / ".." / "home")
+
+    ordered_dirs = _ordered_runtime_dirs_for_lookup(
+        RUNTIME_CODEX,
+        cwd=equivalent_cwd,
+        home=home,
+    )
+
+    assert len(ordered_dirs) == 1
+    assert ordered_dirs[0][0].resolve(strict=False) == (home / ".codex").resolve(strict=False)
 
 
 class TestDetectInstallScope:
@@ -1099,6 +1265,19 @@ class TestUpdateCacheFiles:
 class TestUpdateCacheCandidates:
     """Tests for update-cache candidate filtering."""
 
+    def test_deduped_update_cache_candidates_keep_runtime_metadata(self, tmp_path: Path) -> None:
+        cache_path = tmp_path / "cache" / "gpd-update-check.json"
+        candidate_without_runtime = UpdateCacheCandidate(cache_path)
+        candidate_with_runtime = UpdateCacheCandidate(cache_path, runtime=RUNTIME_CODEX, scope=SCOPE_LOCAL)
+
+        deduped = runtime_detect_module._unique_update_cache_candidates(
+            [candidate_without_runtime, candidate_with_runtime]
+        )
+
+        assert deduped[0].path == candidate_with_runtime.path
+        assert deduped[0].runtime == candidate_with_runtime.runtime
+        assert deduped[0].scope == candidate_with_runtime.scope
+
     def test_candidate_from_wrong_scope_is_rejected_when_runtime_install_scope_is_known(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -1255,6 +1434,17 @@ class TestUpdateCacheCandidates:
 
 
 class TestTodoCandidates:
+    def test_deduped_todo_candidates_keep_runtime_metadata(self, tmp_path: Path) -> None:
+        todo_path = tmp_path / "todos"
+        candidate_without_runtime = TodoCandidate(todo_path)
+        candidate_with_runtime = TodoCandidate(todo_path, runtime=RUNTIME_CODEX, scope=SCOPE_GLOBAL)
+
+        deduped = runtime_detect_module._unique_todo_candidates([candidate_without_runtime, candidate_with_runtime])
+
+        assert deduped[0].path == candidate_with_runtime.path
+        assert deduped[0].runtime == candidate_with_runtime.runtime
+        assert deduped[0].scope == candidate_with_runtime.scope
+
     def test_candidate_from_wrong_scope_is_rejected_when_runtime_install_scope_is_known(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()

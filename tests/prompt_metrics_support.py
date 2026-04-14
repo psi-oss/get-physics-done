@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.include_expansion import expand_at_includes
 
 __all__ = [
     "PromptSurfaceMetrics",

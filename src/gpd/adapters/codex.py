@@ -28,6 +28,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
     COMMANDS_DIR_NAME,
@@ -52,13 +53,25 @@ from gpd.adapters.install_utils import (
     verify_installed,
     write_manifest,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor
+from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
+    get_runtime_descriptor_for_adapter_module,
+)
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor as _get_runtime_descriptor,
+)
+from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS, SHELL_FENCE_LANGUAGES
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
 from gpd.registry import AgentDef, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
+
+
+def get_runtime_descriptor(runtime: str) -> RuntimeDescriptor:
+    """Compatibility wrapper for descriptor monkeypatching in Codex config tests."""
+    return _get_runtime_descriptor(runtime)
 
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "read_file",
@@ -78,7 +91,7 @@ _TOOL_NAME_MAP: dict[str, str] = {
     "tool_search": "tool_search",
 }
 _TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
-_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
+_AUTO_DISCOVERED_TOOLS = AUTO_DISCOVERED_TOOL_DEFAULTS
 _GPD_NOTIFY_COMMENT = "# GPD update notification"
 _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
 _GPD_NOTIFY_WRAPPER_MARKER = "gpd-codex-notify-wrapper-v1"
@@ -123,9 +136,45 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
     return parsed, None
 
 
+def _codex_runtime_descriptor() -> RuntimeDescriptor:
+    """Return the runtime descriptor owned by this adapter."""
+    descriptor = get_runtime_descriptor_for_adapter_module(__name__)
+    return get_runtime_descriptor(descriptor.runtime_name)
+
+_CODEX_MCP_STARTUP_TIMEOUT_DEFAULT_SEC = 30
+_CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR = "CODEX_MCP_STARTUP_TIMEOUT_SEC"
+
+
+def _codex_mcp_startup_timeout_sec() -> int:
+    descriptor_timeout = _codex_runtime_descriptor().mcp_startup_timeout_sec
+    fallback = descriptor_timeout if descriptor_timeout is not None else _CODEX_MCP_STARTUP_TIMEOUT_DEFAULT_SEC
+    env_value = os.environ.get(_CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR)
+    if env_value is None:
+        return fallback
+    try:
+        parsed = int(env_value)
+    except ValueError:
+        logger.warning(
+            "Ignoring invalid %s=%r; using %s seconds",
+            _CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR,
+            env_value,
+            fallback,
+        )
+        return fallback
+    if parsed <= 0:
+        logger.warning(
+            "Ignoring %s=%s because it must be a positive integer; using %s seconds",
+            _CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR,
+            parsed,
+            fallback,
+        )
+        return fallback
+    return parsed
+
+
 def _codex_config_dir_name() -> str:
     """Return the descriptor-backed Codex config dir name."""
-    return get_runtime_descriptor("codex").config_dir_name
+    return _codex_runtime_descriptor().config_dir_name
 
 
 _TOOL_REFERENCE_MAP = reference_translation_map(
@@ -133,8 +182,6 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
     alias_map=_TOOL_ALIAS_MAP,
     auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
 )
-_CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
@@ -169,7 +216,7 @@ def get_codex_global_dir() -> Path:
 
     Priority: CODEX_CONFIG_DIR > ~/.codex
     """
-    return Path(get_global_dir("codex"))
+    return Path(get_global_dir(_codex_runtime_descriptor().runtime_name))
 
 
 def get_codex_skills_dir() -> Path:
@@ -299,11 +346,13 @@ def _load_manifest_tracked_codex_skill_dirs(target_dir: Path) -> tuple[str, ...]
     if not isinstance(files, dict):
         return ()
 
+    prefixes = _codex_runtime_descriptor().manifest_file_prefixes or ("skills/",)
+
     names: list[str] = []
     for relpath in files:
-        if not isinstance(relpath, str):
+        if not isinstance(relpath, str) or not relpath.endswith("/SKILL.md"):
             continue
-        if not relpath.startswith("skills/") or not relpath.endswith("/SKILL.md"):
+        if not any(relpath.startswith(prefix) for prefix in prefixes):
             continue
         parts = relpath.split("/")
         if len(parts) != 3:
@@ -529,6 +578,8 @@ def _toml_value(value: object) -> str:
 
 def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
     """Prepend Codex-specific shell guidance to installed command skills."""
+    if "<codex_runtime_notes>" in content:
+        return content
     note = _CODEX_COMMAND_RUNTIME_NOTE.format(launcher=launcher)
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
@@ -548,7 +599,7 @@ def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
                 in_shell_fence = False
             else:
                 fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
+                in_shell_fence = fence_language in SHELL_FENCE_LANGUAGES
             rewritten.append(line)
             continue
 
@@ -647,8 +698,8 @@ def _rewrite_codex_shell_line(line: str, launcher: str) -> str:
             not in_single
             and not in_double
             and line.startswith("gpd", index)
-            and _is_gpd_command_start(line, index)
-            and _is_gpd_token_end(line, index + 3)
+            and is_gpd_command_start(line, index)
+            and is_gpd_token_end(line, index + 3)
         ):
             if should_preserve_public_local_cli_command(line[index:]):
                 pieces.append("gpd")
@@ -662,31 +713,6 @@ def _rewrite_codex_shell_line(line: str, launcher: str) -> str:
         index += 1
 
     return "".join(pieces)
-
-
-def _is_gpd_command_start(line: str, index: int) -> bool:
-    """Return whether ``gpd`` starts a shell command token at *index*."""
-    probe = index - 1
-    while probe >= 0 and line[probe] in " \t":
-        probe -= 1
-
-    if probe < 0:
-        return True
-
-    if line[probe] in "|;(!":
-        return True
-
-    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
-        return True
-
-    return False
-
-
-def _is_gpd_token_end(line: str, end_index: int) -> bool:
-    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
-    if end_index >= len(line):
-        return True
-    return line[end_index].isspace() or line[end_index] in {'"', "'", "`", ";", "|", "&", ")", "<", ">"}
 
 
 # ─── Adapter Class ───────────────────────────────────────────────────────────
@@ -707,10 +733,6 @@ class CodexAdapter(RuntimeAdapter):
     auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
     strip_sub_tags_in_shared_markdown = True
 
-    @property
-    def runtime_name(self) -> str:
-        return "codex"
-
     def project_markdown_surface(
         self,
         content: str,
@@ -730,9 +752,6 @@ class CodexAdapter(RuntimeAdapter):
         if command_name is None:
             raise ValueError("command_name is required for projected command surfaces")
         return _convert_to_codex_skill(content, f"gpd-{command_name}")
-
-    def translate_shared_command_references(self, content: str) -> str:
-        return content.replace("/gpd:", self.public_command_surface_prefix)
 
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """Codex uses the runtime default commit attribution behavior."""
@@ -791,6 +810,7 @@ class CodexAdapter(RuntimeAdapter):
             gpd_root / "specs",
             self._current_install_scope_flag(),
             launcher=launcher,
+            runtime_name=self.runtime_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
         self._generated_skill_dirs = tuple(sorted(generated_skill_dirs))
@@ -844,6 +864,7 @@ class CodexAdapter(RuntimeAdapter):
                 gpd_specs_root,
                 self._current_install_scope_flag(),
                 launcher=launcher,
+                runtime_name=self.runtime_name,
             )
             _write_codex_agent_role_files(agents_dest, runtime_agents)
             if verify_installed(agents_dest):
@@ -1359,6 +1380,7 @@ def _copy_commands_as_skills(
     install_scope: str | None = None,
     *,
     launcher: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> set[str]:
     """Copy commands as Codex skill directories.
@@ -1399,6 +1421,7 @@ def _copy_commands_as_skills(
             gpd_src_root,
             install_scope,
             launcher=launcher,
+            runtime_name=runtime_name,
             explicit_target=explicit_target,
         )
 
@@ -1442,9 +1465,14 @@ def _planned_codex_skill_dirs(src_dir: Path, prefix: str) -> set[str]:
         if entry.is_dir():
             planned.update(_planned_codex_skill_dirs(entry, f"{prefix}-{entry.name}"))
             continue
-        if entry.suffix == ".md":
+        if entry.suffix == ".md" and not _markdown_has_local_cli_only_frontmatter(entry):
             planned.add(f"{prefix}-{entry.stem}")
     return planned
+
+
+def _markdown_has_local_cli_only_frontmatter(path: Path) -> bool:
+    _preamble, frontmatter, _separator, _body = split_markdown_frontmatter(path.read_text(encoding="utf-8"))
+    return any(line.strip() == "local_cli_only: true" for line in frontmatter.splitlines())
 
 
 def _render_commands_as_skills(
@@ -1457,6 +1485,7 @@ def _render_commands_as_skills(
     install_scope: str | None = None,
     *,
     launcher: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> set[str]:
     """Render command markdown into a skills directory without mutating the live tree."""
@@ -1473,10 +1502,13 @@ def _render_commands_as_skills(
                     gpd_src_root,
                     install_scope,
                     launcher=launcher,
+                    runtime_name=runtime_name,
                     explicit_target=explicit_target,
                 )
             )
         elif entry.suffix == ".md":
+            if _markdown_has_local_cli_only_frontmatter(entry):
+                continue
             base_name = entry.stem
             skill_name = f"{prefix}-{base_name}"
             skill_dir = skills_dir / skill_name
@@ -1485,7 +1517,7 @@ def _render_commands_as_skills(
 
             content = compile_markdown_for_runtime(
                 entry.read_text(encoding="utf-8"),
-                runtime="codex",
+                runtime=runtime_name,
                 path_prefix=path_prefix,
                 install_scope=install_scope,
                 src_root=gpd_src_root,
@@ -1510,6 +1542,7 @@ def _copy_agents_as_agent_files(
     install_scope: str | None = None,
     *,
     launcher: str,
+    runtime_name: str,
 ) -> None:
     """Copy agents as runtime agent markdown files for Codex.
 
@@ -1528,7 +1561,7 @@ def _copy_agents_as_agent_files(
 
         content = compile_markdown_for_runtime(
             entry.read_text(encoding="utf-8"),
-            runtime="codex",
+            runtime=runtime_name,
             path_prefix=path_prefix,
             install_scope=install_scope,
             src_root=source_root,
@@ -1605,7 +1638,7 @@ def _build_codex_mcp_server_section_lines(
 ) -> list[str]:
     base_section_name = f"mcp_servers.{name}"
     managed_entry = dict(entry)
-    managed_entry.setdefault("startup_timeout_sec", _CODEX_MCP_STARTUP_TIMEOUT_SEC)
+    managed_entry.setdefault("startup_timeout_sec", _codex_mcp_startup_timeout_sec())
 
     lines = [f"\n[{base_section_name}]"]
     cmd = str(managed_entry.get("command", ""))
@@ -1850,6 +1883,13 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
     for name, entry in sorted(servers.items()):
         _, existing_base_body, _ = _split_toml_section(existing_content, f"mcp_servers.{name}")
         _, existing_env_body, _ = _split_toml_section(existing_content, f"mcp_servers.{name}.env")
+        if name == _managed_integrations.WOLFRAM_MANAGED_SERVER_KEY:
+            entry = dict(entry)
+            env_mapping = entry.setdefault("env", {})
+            if isinstance(env_mapping, dict):
+                env_mapping[_managed_integrations.WOLFRAM_MCP_API_KEY_ENV_VAR] = (
+                    _managed_integrations.WOLFRAM_MANAGED_INTEGRATION.resolve_api_key()
+                )
         lines.extend(
             _build_codex_mcp_server_section_lines(
                 name,
@@ -1914,11 +1954,10 @@ def _managed_optional_mcp_server_keys() -> frozenset[str]:
 
 def _remove_gpd_mcp_toml_sections(content: str, *, extra_keys: set[str] | None = None) -> str:
     """Remove GPD MCP server sections from TOML content."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
     # Remove the header comment and all [mcp_serversGPD-*] sections.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
-    managed_keys = set(GPD_MCP_SERVER_KEYS)
+    managed_keys = set(_managed_integrations.gpd_managed_mcp_server_keys())
     if extra_keys:
         managed_keys.update(extra_keys)
     for key in managed_keys:
@@ -2274,14 +2313,18 @@ def _configure_config_toml(
         toml_content = config_toml.read_text(encoding="utf-8")
 
     notify_hook = HOOK_SCRIPTS["notify"]
-
-    if is_global or explicit_target:
+    managed_notify = _notify_assignment_is_gpd_managed(
+        _parse_notify_assignment(next((line for line in toml_content.splitlines() if line.strip().startswith("notify")), "")),
+        target_dir=target_dir,
+    )
+    if explicit_target or is_global or managed_notify:
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
     else:
         desired_path = f"{_codex_config_dir_name()}/hooks/{notify_hook}"
     configured = _install_gpd_notify_config(
         toml_content,
         desired_path=desired_path,
+        target_dir=target_dir,
     )
     config_toml.write_text(
         _install_gpd_multi_agent_config(configured),
@@ -2364,6 +2407,7 @@ def _install_gpd_notify_config(
     toml_content: str,
     *,
     desired_path: str,
+    target_dir: Path | None = None,
 ) -> str:
     desired_line = _build_notify_line(desired_path)
     cleaned_lines: list[str] = []
@@ -2388,7 +2432,7 @@ def _install_gpd_notify_config(
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             parsed = _parse_notify_assignment(line)
-            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed):
+            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir):
                 pending_managed_block = False
                 continue
             if parsed is not None:

@@ -22,7 +22,6 @@ from gpd.adapters.install_utils import (
     read_settings,
     remove_empty_json_object_file,
     remove_stale_agents,
-    should_preserve_public_local_cli_command,
     translate_frontmatter_tool_names,
     verify_installed,
     write_settings,
@@ -30,11 +29,12 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
+from gpd.adapters.install_utils import (
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
+)
 from gpd.mcp import managed_integrations as _managed_integrations
 
 logger = logging.getLogger(__name__)
-
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
 def _claude_settings_shape_is_valid(settings: dict[str, object]) -> bool:
@@ -99,10 +99,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
     tool_name_map = _TOOL_NAME_MAP
 
-    @property
-    def runtime_name(self) -> str:
-        return "claude-code"
-
     # --- Template method hooks ---
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
@@ -112,12 +108,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
         def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
-            translated = super(ClaudeCodeAdapter, self).translate_shared_markdown(
+            return self.translate_shared_markdown_with_bridge(
                 content,
                 prefix,
+                bridge_command,
                 install_scope=install_scope,
             )
-            return _rewrite_gpd_cli_invocations(translated, bridge_command)
 
         copy_with_path_replacement(
             commands_src,
@@ -161,12 +157,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
         def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
-            translated = super(ClaudeCodeAdapter, self).translate_shared_markdown(
+            return self.translate_shared_markdown_with_bridge(
                 content,
                 prefix,
+                bridge_command,
                 install_scope=install_scope,
             )
-            return _rewrite_gpd_cli_invocations(translated, bridge_command)
 
         from gpd.adapters.install_utils import install_gpd_content
 
@@ -256,8 +252,13 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                     f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
                 )
 
-            existing_mcp = mcp_config.get("mcpServers", {})
-            mcp_config["mcpServers"] = merge_managed_mcp_servers(existing_mcp, mcp_servers)
+            existing_mcp_raw = mcp_config.get("mcpServers", {})
+            existing_mcp = existing_mcp_raw if isinstance(existing_mcp_raw, dict) else {}
+            mcp_config["mcpServers"] = merge_managed_mcp_servers(
+                existing_mcp,
+                mcp_servers,
+                user_owned_mapping_keys={"env": frozenset({"LOG_LEVEL"})},
+            )
 
             mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
             mcp_count = len(mcp_servers)
@@ -544,7 +545,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                     mcp_config = None
                 if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
                     removed_keys = [
-                        key for key in list(mcp_config["mcpServers"]) if key in _managed_mcp_server_keys()
+                        key for key in list(mcp_config["mcpServers"]) if key in _managed_integrations.gpd_managed_mcp_server_keys()
                     ]
                     if removed_keys:
                         for key in removed_keys:
@@ -584,7 +585,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         if not isinstance(mcp_servers, dict):
             return result
 
-        removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
+        removed_keys = [key for key in list(mcp_servers) if key in _managed_integrations.gpd_managed_mcp_server_keys()]
         if not removed_keys:
             for path in (
                 target_dir / "commands",
@@ -667,105 +668,6 @@ def _copy_agents_native(
     remove_stale_agents(agents_dest, new_agent_names)
 
 
-def _rewrite_gpd_cli_invocations(content: str, command: str) -> str:
-    """Rewrite shell-command ``gpd`` invocations to the shared CLI bridge.
-
-    Restrict rewrites to fenced shell code blocks and only when ``gpd`` appears
-    in a command position. This keeps model-visible prose and inline code spans
-    canonical while still pinning runnable shell steps to the runtime bridge.
-    """
-    rewritten: list[str] = []
-    in_shell_fence = False
-
-    for line in content.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
-            rewritten.append(line)
-            continue
-
-        if in_shell_fence:
-            rewritten.append(_rewrite_gpd_shell_line(line, command))
-            continue
-
-        rewritten.append(line)
-
-    return "".join(rewritten)
-
-
-def _rewrite_gpd_shell_line(line: str, command: str) -> str:
-    """Rewrite only command-position ``gpd`` tokens on a shell line."""
-    pieces: list[str] = []
-    index = 0
-    in_single = False
-    in_double = False
-
-    while index < len(line):
-        char = line[index]
-        previous = line[index - 1] if index > 0 else ""
-
-        if char == "'" and not in_double:
-            in_single = not in_single
-            pieces.append(char)
-            index += 1
-            continue
-
-        if char == '"' and not in_single and previous != "\\":
-            in_double = not in_double
-            pieces.append(char)
-            index += 1
-            continue
-
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and _is_gpd_command_start(line, index)
-            and _is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
-                index += 3
-                continue
-            pieces.append(command)
-            index += 3
-            continue
-
-        pieces.append(char)
-        index += 1
-
-    return "".join(pieces)
-
-
-def _is_gpd_command_start(line: str, index: int) -> bool:
-    """Return whether ``gpd`` starts a shell command token at *index*."""
-    probe = index - 1
-    while probe >= 0 and line[probe] in " \t":
-        probe -= 1
-
-    if probe < 0:
-        return True
-
-    if line[probe] in "|;(!":
-        return True
-
-    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
-        return True
-
-    return False
-
-
-def _is_gpd_token_end(line: str, end_index: int) -> bool:
-    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
-    if end_index >= len(line):
-        return True
-    return line[end_index].isspace() or line[end_index] in {'"', "'", "`", ";", "|", "&", ")", "<", ">"}
-
-
 def _mcp_config_path(target_dir: Path, *, is_global: bool) -> Path:
     """Return the Claude MCP config path associated with *target_dir*.
 
@@ -830,11 +732,6 @@ def _build_managed_optional_mcp_servers(
     return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
 
 
-def _managed_mcp_server_keys() -> frozenset[str]:
-    """Return MCP server keys owned by GPD or managed optional integrations."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(_managed_integrations.managed_optional_mcp_server_keys()))
 
 
 __all__ = ["ClaudeCodeAdapter"]

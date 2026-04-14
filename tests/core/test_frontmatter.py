@@ -659,7 +659,7 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="context_intake is required"):
             parse_contract_block(content)
 
-    def test_empty_context_intake_raises(self):
+    def test_empty_context_intake_is_rejected_even_with_grounded_references(self):
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
@@ -723,7 +723,10 @@ class TestParseContractBlock:
     def test_rejects_coercive_reference_must_surface_scalar(self):
         content = _valid_plan_contract_frontmatter().replace("must_surface: true", 'must_surface: "yes"', 1) + "Body.\n"
 
-        with pytest.raises(FrontmatterValidationError, match=r"references\.0\.must_surface must be a boolean"):
+        with pytest.raises(
+            FrontmatterValidationError,
+            match=r"references\.0\.must_surface: must be a boolean \(coerced from 'yes'\)",
+        ):
             parse_contract_block(content)
 
     def test_rejects_coercive_schema_version_scalar(self):
@@ -900,7 +903,10 @@ class TestValidateFrontmatter:
         result = validate_frontmatter(content, "plan")
 
         assert result.valid is False
-        assert "contract: references.0.must_surface must be a boolean" in result.errors
+        assert (
+            "contract: references.0.must_surface: must be a boolean (coerced from 'yes')"
+            in result.errors
+        )
 
     def test_plan_rejects_coercive_schema_version_scalar(self):
         content = _valid_plan_contract_frontmatter().replace("schema_version: 1\n", "schema_version: true\n", 1) + "Body.\n"
@@ -948,7 +954,7 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("context_intake is required" in error for error in result.errors)
 
-    def test_plan_rejects_empty_context_intake(self):
+    def test_plan_rejects_empty_context_intake_even_with_grounded_references(self):
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
@@ -1288,6 +1294,35 @@ class TestValidateFrontmatter:
 
         assert result.valid is False
         assert any(error.startswith("must_haves:") for error in result.errors)
+
+    def test_summary_frontmatter_failure_surfaces_template_reference(self) -> None:
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: full\n"
+            "provides: []\n"
+            "---\n\nBody."
+        )
+
+        result = validate_frontmatter(content, "summary")
+
+        assert result.valid is False
+        assert result.schema_reference == "templates/summary.md"
+
+    def test_verification_frontmatter_failure_surfaces_template_reference(self) -> None:
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "verified: 2025-01-01T00:00:00Z\n"
+            "status: passed\n"
+            "---\n\nBody."
+        )
+
+        result = validate_frontmatter(content, "verification")
+
+        assert result.valid is False
+        assert result.schema_reference == "templates/verification-report.md"
 
     def test_summary_coerces_integer_provides_entries(self):
         """Integer provides entries are coerced to strings (FULL-019)."""
@@ -1680,7 +1715,7 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("must_surface=true" in error for error in result.errors)
 
-    def test_plan_rejects_placeholder_only_context_intake(self, tmp_path: Path) -> None:
+    def test_plan_rejects_placeholder_only_context_intake_even_with_grounded_references(self, tmp_path: Path) -> None:
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"

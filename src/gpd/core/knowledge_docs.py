@@ -9,8 +9,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from gpd.core.constants import (
+    KNOWLEDGE_DIR_NAME,
+    KNOWLEDGE_REVIEWS_DIR_NAME,
+    PLANNING_DIR_NAME,
+)
+from gpd.core.knowledge_constants import (
+    KNOWLEDGE_REVIEW_DECISION_APPROVED,
+    KNOWLEDGE_REVIEW_DECISION_VALUES,
+    KNOWLEDGE_STATUS_DRAFT,
+    KNOWLEDGE_STATUS_IN_REVIEW,
+    KNOWLEDGE_STATUS_STABLE,
+    KNOWLEDGE_STATUS_VALUES,
+)
 from gpd.core.path_validation import is_cross_platform_absolute_path
 from gpd.core.utils import normalize_ascii_slug
 
@@ -24,11 +38,10 @@ __all__ = [
     "parse_knowledge_doc_data_strict",
 ]
 
-_KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
 _KNOWLEDGE_SOURCE_KIND_VALUES = ("paper", "dataset", "prior_artifact", "spec", "website", "other")
-_KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
 _KNOWLEDGE_REVIEWER_KIND_VALUES = ("human", "agent", "workflow")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_KNOWLEDGE_REVIEW_ARTIFACT_PREFIX = Path(PLANNING_DIR_NAME) / KNOWLEDGE_DIR_NAME / KNOWLEDGE_REVIEWS_DIR_NAME
 
 
 def _normalize_required_text(value: object) -> str:
@@ -176,12 +189,18 @@ class KnowledgeReviewRecord(BaseModel):
     @field_validator("decision", mode="before")
     @classmethod
     def _normalize_decision(cls, value: object) -> object:
-        return _normalize_choice(value, _KNOWLEDGE_REVIEW_DECISION_VALUES)
+        return _normalize_choice(value, KNOWLEDGE_REVIEW_DECISION_VALUES)
 
     @field_validator("approval_artifact_path", mode="before")
     @classmethod
     def _normalize_approval_artifact_path(cls, value: object) -> object:
-        return _normalize_project_relative_path(value, "approval_artifact_path")
+        normalized = _normalize_project_relative_path(value, "approval_artifact_path")
+        artifact_path = Path(normalized)
+        prefix_parts = _KNOWLEDGE_REVIEW_ARTIFACT_PREFIX.parts
+        if artifact_path.parts[: len(prefix_parts)] != prefix_parts:
+            prefix_str = _KNOWLEDGE_REVIEW_ARTIFACT_PREFIX.as_posix()
+            raise ValueError(f"approval_artifact_path must live under {prefix_str}/")
+        return normalized
 
     @field_validator("approval_artifact_sha256", "reviewed_content_sha256", mode="before")
     @classmethod
@@ -241,7 +260,7 @@ class KnowledgeDocData(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def _normalize_status(cls, value: object) -> object:
-        return _normalize_choice(value, _KNOWLEDGE_STATUS_VALUES)
+        return _normalize_choice(value, KNOWLEDGE_STATUS_VALUES)
 
     @field_validator("superseded_by", mode="before")
     @classmethod
@@ -255,20 +274,20 @@ class KnowledgeDocData(BaseModel):
         if not self.sources:
             raise ValueError("sources must contain at least one source record")
 
-        if self.status == "draft":
+        if self.status == KNOWLEDGE_STATUS_DRAFT:
             if self.review is not None:
                 raise ValueError("review is forbidden when status is draft")
             if self.superseded_by is not None:
                 raise ValueError("superseded_by is forbidden when status is draft")
-        elif self.status == "in_review":
+        elif self.status == KNOWLEDGE_STATUS_IN_REVIEW:
             if self.superseded_by is not None:
                 raise ValueError("superseded_by is forbidden when status is in_review")
-            if self.review is not None and self.review.decision == "approved" and not self.review.stale:
+            if self.review is not None and self.review.decision == KNOWLEDGE_REVIEW_DECISION_APPROVED and not self.review.stale:
                 raise ValueError("review.stale must be true when status is in_review and review.decision is approved")
-        elif self.status == "stable":
+        elif self.status == KNOWLEDGE_STATUS_STABLE:
             if self.review is None:
                 raise ValueError("review is required when status is stable")
-            if self.review.decision != "approved":
+            if self.review.decision != KNOWLEDGE_REVIEW_DECISION_APPROVED:
                 raise ValueError("review.decision must be approved when status is stable")
             if self.review.stale:
                 raise ValueError("review.stale must be false when status is stable")
@@ -285,33 +304,87 @@ class KnowledgeDocData(BaseModel):
         return self
 
 
-def knowledge_reviewed_content_projection(
-    knowledge_doc: KnowledgeDocData,
+def _extract_frontmatter(content: str) -> tuple[dict[str, object], str]:
+    if not content.startswith("---\n"):
+        raise ValueError("Missing frontmatter block")
+    end = content.find("\n---\n", 4)
+    if end == -1:
+        raise ValueError("Unclosed frontmatter block")
+    raw_meta = yaml.safe_load(content[4:end]) or {}
+    if not isinstance(raw_meta, dict):
+        raise ValueError("Frontmatter must be a mapping")
+    return raw_meta, content[end + 5 :]
+
+
+def _normalize_review_projection_inputs(
+    knowledge_doc_or_content: object,
     *,
     body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
+) -> tuple[KnowledgeDocData, str]:
+    effective_body = body_text or (body if body is not None else "")
+    if meta is not None:
+        if not isinstance(meta, dict):
+            raise TypeError("meta must be a mapping")
+        return _parse_review_projection_data(meta), effective_body
+    if isinstance(knowledge_doc_or_content, KnowledgeDocData):
+        return knowledge_doc_or_content, effective_body
+    if isinstance(knowledge_doc_or_content, str):
+        extracted_meta, extracted_body = _extract_frontmatter(knowledge_doc_or_content)
+        return _parse_review_projection_data(extracted_meta), effective_body or extracted_body
+    if isinstance(knowledge_doc_or_content, dict):
+        return _parse_review_projection_data(knowledge_doc_or_content), effective_body
+    if hasattr(knowledge_doc_or_content, "model_dump"):
+        return _parse_review_projection_data(knowledge_doc_or_content.model_dump(mode="python")), effective_body
+    raise TypeError("expected a knowledge document, content string, or metadata mapping")
+
+
+def _parse_review_projection_data(knowledge_data: dict[str, object]) -> KnowledgeDocData:
+    projection_data = dict(knowledge_data)
+    if projection_data.get("status") == KNOWLEDGE_STATUS_STABLE and projection_data.get("review") is None:
+        projection_data["status"] = KNOWLEDGE_STATUS_IN_REVIEW
+    return parse_knowledge_doc_data_strict(projection_data)
+
+
+def knowledge_reviewed_content_projection(
+    knowledge_doc: object,
+    *,
+    body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
 ) -> dict[str, object]:
     """Return the canonical trusted-content projection used for review freshness."""
 
+    parsed_doc, normalized_input_body = _normalize_review_projection_inputs(
+        knowledge_doc,
+        body_text=body_text,
+        meta=meta,
+        body=body,
+    )
+    body_text = normalized_input_body
     normalized_body = body_text.replace("\r\n", "\n").replace("\r", "\n")
     return {
-        "knowledge_schema_version": knowledge_doc.knowledge_schema_version,
-        "knowledge_id": knowledge_doc.knowledge_id,
-        "title": knowledge_doc.title,
-        "topic": knowledge_doc.topic,
-        "sources": [source.model_dump(mode="python") for source in knowledge_doc.sources],
-        "coverage_summary": knowledge_doc.coverage_summary.model_dump(mode="python"),
+        "knowledge_schema_version": parsed_doc.knowledge_schema_version,
+        "knowledge_id": parsed_doc.knowledge_id,
+        "title": parsed_doc.title,
+        "topic": parsed_doc.topic,
+        "sources": [source.model_dump(mode="python") for source in parsed_doc.sources],
+        "coverage_summary": parsed_doc.coverage_summary.model_dump(mode="python"),
         "body_text": normalized_body,
     }
 
 
 def compute_knowledge_reviewed_content_sha256(
-    knowledge_doc: KnowledgeDocData,
+    knowledge_doc: object,
     *,
     body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
 ) -> str:
     """Compute the canonical hash for the reviewed knowledge-document content."""
 
-    projection = knowledge_reviewed_content_projection(knowledge_doc, body_text=body_text)
+    projection = knowledge_reviewed_content_projection(knowledge_doc, body_text=body_text, meta=meta, body=body)
     payload = json.dumps(projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

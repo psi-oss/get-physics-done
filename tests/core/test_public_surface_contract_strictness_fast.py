@@ -59,3 +59,39 @@ def test_fast_public_surface_contract_rejects_bridge_command_drift(tmp_path: Pat
     finally:
         public_surface_contract.load_public_surface_contract.cache_clear()
         public_surface_contract.load_public_surface_contract_schema.cache_clear()
+
+
+def test_fast_public_surface_contract_reports_missing_package_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "public_surface_contract_schema.json").write_text(json.dumps(_load_schema_payload()), encoding="utf-8")
+    monkeypatch.setattr(public_surface_contract, "files", lambda _package: tmp_path)
+    public_surface_contract.load_public_surface_contract.cache_clear()
+    public_surface_contract.load_public_surface_contract_schema.cache_clear()
+
+    try:
+        with pytest.raises(
+            public_surface_contract.PublicSurfaceContractResourceError,
+            match=r"GPD package data missing/corrupt: public_surface_contract\.json",
+        ):
+            public_surface_contract.load_public_surface_contract()
+    finally:
+        public_surface_contract.load_public_surface_contract.cache_clear()
+        public_surface_contract.load_public_surface_contract_schema.cache_clear()
+
+
+def test_fast_public_surface_contract_reports_corrupt_schema_package_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "public_surface_contract_schema.json").write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(public_surface_contract, "files", lambda _package: tmp_path)
+    public_surface_contract.load_public_surface_contract.cache_clear()
+    public_surface_contract.load_public_surface_contract_schema.cache_clear()
+
+    try:
+        with pytest.raises(
+            public_surface_contract.PublicSurfaceContractResourceError,
+            match=r"GPD package data missing/corrupt: public_surface_contract_schema\.json",
+        ):
+            public_surface_contract.load_public_surface_contract_schema()
+    finally:
+        public_surface_contract.load_public_surface_contract.cache_clear()
+        public_surface_contract.load_public_surface_contract_schema.cache_clear()

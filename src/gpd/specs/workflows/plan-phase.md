@@ -2,6 +2,10 @@
 Create executable phase prompts (PLAN.md files) for a research phase with integrated literature review and verification. Default flow: Research (if needed) -> Plan -> Verify -> Done. Orchestrates gpd-phase-researcher, gpd-planner, and gpd-plan-checker agents with a revision loop (max 3 iterations).
 </purpose>
 
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
+
 <process>
 
 ## 1. Initialize
@@ -16,7 +20,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
+Parse JSON for the fields defined in `phase_bootstrap.required_init_fields` within the adjacent `plan-phase-stage-manifest.json`. This manifest is the canonical bootstrap field set (model selectors, research flags, contract gate data, counts, contract payloads, and platform metadata); keep `bind_plan_phase_init` synchronized with any manifest edits instead of repeating the field list elsewhere.
 
 **Mode-aware behavior:**
 - `autonomy=supervised`: Present the written draft plans for user review before treating them as approved or moving on to execution. Do not weaken the contract gate just because the draft is human-reviewed.
@@ -279,11 +283,10 @@ The planner template owns the detailed tangent decision model. The workflow only
 
 ## 4.7 Refresh Research Handoff Context
 
-Load the staged handoff slice needed to assemble the researcher prompt. Do not use the lighter routing slice here:
+Load the staged handoff slice (`planner_authoring`) needed to assemble the researcher prompt. The lighter routing preload is `gpd --raw init plan-phase "$PHASE" --stage research_routing`; use that only for the step-5 research/no-research routing decision, not for authoring:
 
 ```bash
 INIT=$(gpd --raw init plan-phase "$PHASE" --stage planner_authoring)
-# Legacy routing slice: gpd --raw init plan-phase "$PHASE" --stage research_routing
 if [ $? -ne 0 ]; then
   echo "ERROR: staged plan-phase init failed: $INIT"
   exit 1
@@ -628,6 +631,8 @@ Planner prompt:
 
 Use `templates/planner-subagent-prompt.md` here as the stage-local planner template and render its `## Standard Planning Template` section.
 
+Before spawning the planner, ensure the rendered prompt contains the model-visible PLAN contract schema-critical excerpt from that template, not merely a path reference to `templates/plan-contract-schema.md`.
+
 ```markdown
 Render the template's `## Standard Planning Template` into `filled_prompt` with these bindings:
 
@@ -957,7 +962,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 ---
 
-## >> Next Up
+## > Next Up
 
 **Execute Phase {X}** -- run all {N} plans
 

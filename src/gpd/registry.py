@@ -16,8 +16,13 @@ from pathlib import Path
 
 import yaml
 
-from gpd.adapters.install_utils import expand_at_includes
+from gpd.adapters.tool_names import canonical
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
+from gpd.core.frontmatter import (
+    FRONTMATTER_DELIMITER_RE,
+    LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE,
+)
+from gpd.core.include_expansion import expand_at_includes
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
 from gpd.core.model_visible_text import (
     AGENT_ARTIFACT_WRITE_AUTHORITIES,
@@ -37,6 +42,7 @@ from gpd.core.review_contract_prompt import (
     render_review_contract_prompt,
 )
 from gpd.core.strict_yaml import load_strict_yaml
+from gpd.core.utils import normalize_ascii_slug
 from gpd.core.workflow_staging import (
     WorkflowStageManifest,
     invalidate_workflow_stage_manifest_cache,
@@ -55,8 +61,6 @@ _MODEL_VISIBLE_INCLUDE_PATH_PREFIX = "{GPD_INSTALL_DIR}/__gpd_registry_include__
 
 # ─── Frontmatter parsing helpers ────────────────────────────────────────────
 
-_LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---\r?\n)")
-_FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
 _MODEL_VISIBLE_INCLUDE_START_RE = re.compile(r"^[ \t]*<!-- \[included:.*?\] -->[ \t]*$")
 _MODEL_VISIBLE_INCLUDE_END_RE = re.compile(r"^[ \t]*<!-- \[end included\] -->[ \t]*$")
 _MODEL_VISIBLE_FENCE_RE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})")
@@ -80,6 +84,7 @@ _COMMAND_FRONTMATTER_KEYS = frozenset(
         # plan-phase carries this metadata in canonical frontmatter even though
         # registry consumers currently do not project it.
         "agent",
+        "local_cli_only",
     }
 )
 _AGENT_FRONTMATTER_KEYS = frozenset(
@@ -96,6 +101,24 @@ _AGENT_FRONTMATTER_KEYS = frozenset(
         "color",
     }
 )
+
+
+def _preserve_model_visible_placeholders(
+    content: str,
+    path_prefix: str,
+    runtime: str | None,
+    install_scope: str | None = None,
+) -> str:
+    """Keep canonical public placeholders intact in registry-rendered content."""
+
+    del path_prefix, runtime, install_scope
+    return content
+
+
+def _runtime_config_dir_names() -> frozenset[str]:
+    from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
+    return frozenset(descriptor.config_dir_name for descriptor in iter_runtime_descriptors())
 
 
 def _validate_command_frontmatter_keys(meta: dict[object, object], *, command_name: str) -> None:
@@ -117,7 +140,13 @@ def _validate_agent_frontmatter_keys(meta: dict[object, object], *, agent_name: 
 def _inline_model_visible_includes(content: str) -> str:
     """Inline shared include directives while preserving canonical placeholder tokens."""
 
-    expanded = expand_at_includes(content, _PKG_ROOT, _MODEL_VISIBLE_INCLUDE_PATH_PREFIX)
+    expanded = expand_at_includes(
+        content,
+        _PKG_ROOT,
+        _MODEL_VISIBLE_INCLUDE_PATH_PREFIX,
+        runtime_config_dir_names=_runtime_config_dir_names(),
+        placeholder_replacer=_preserve_model_visible_placeholders,
+    )
     cleaned_lines: list[str] = []
     in_included_block = False
     active_fence_char: str | None = None
@@ -219,6 +248,7 @@ class CommandDef:
     project_reentry_capable: bool = False
     review_contract: ReviewCommandContract | None = None
     agent: str | None = None
+    local_cli_only: bool = False
     staged_loading: WorkflowStageManifest | None = None
     spawn_contracts: tuple[dict[str, object], ...] = ()
 
@@ -270,8 +300,8 @@ class SkillDef:
 def _frontmatter_parts(text: str) -> tuple[str | None, str]:
     """Return raw frontmatter YAML and body from markdown text when present."""
 
-    text = text.lstrip('﻿')
-    frontmatter_candidate = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
+    text = text.lstrip("﻿")
+    frontmatter_candidate = LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
     frontmatter_parts = _split_frontmatter_block(frontmatter_candidate)
     if frontmatter_parts is None:
         return None, text
@@ -317,7 +347,7 @@ def _split_frontmatter_block(text: str) -> tuple[str, str] | None:
 
 def _is_frontmatter_delimiter(line: str) -> bool:
     """Return whether *line* is a frontmatter delimiter line."""
-    return _FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
+    return FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
 
 
 def _format_frontmatter_field_subject(field_name: str, owner_name: str | None = None) -> str:
@@ -333,9 +363,7 @@ def _raw_scalar_frontmatter_value(frontmatter: str | None, *, field_name: str) -
     if not frontmatter:
         return None
 
-    pattern = re.compile(
-        rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$"
-    )
+    pattern = re.compile(rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$")
     match = pattern.search(frontmatter)
     if match is None:
         return None
@@ -445,7 +473,7 @@ def _parse_requires(raw: object, *, command_name: str) -> dict[str, object]:
 
 
 def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
-    """Normalize command allowed-tools frontmatter without coercing invalid entries."""
+    """Normalize and dedupe command allowed-tools frontmatter."""
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -456,7 +484,7 @@ def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
     for item in raw:
         if not isinstance(item, str):
             raise ValueError(f"allowed-tools for {command_name} must contain only strings")
-        value = item.strip()
+        value = canonical(item.strip())
         if not value:
             raise ValueError(f"allowed-tools for {command_name} must not contain blank entries")
         if value not in seen:
@@ -576,9 +604,7 @@ def _parse_project_reentry_capable(raw: object, *, command_name: str, context_mo
         default=False,
     )
     if value and context_mode != "project-required":
-        raise ValueError(
-            f"project_reentry_capable for {command_name} requires context_mode 'project-required'"
-    )
+        raise ValueError(f"project_reentry_capable for {command_name} requires context_mode 'project-required'")
     return value
 
 
@@ -624,6 +650,14 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
         valid = ", ".join(VALID_CONTEXT_MODES)
         raise ValueError(f"Invalid context_mode {mode!r} for {command_name}; expected one of: {valid}")
     return mode
+
+
+def _parse_local_cli_only(raw: object, *, command_name: str) -> bool:
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    raise ValueError(f"local_cli_only for {command_name} must be a boolean")
 
 
 def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
@@ -872,7 +906,7 @@ def render_command_requires_section(
     )
     return render_model_visible_yaml_section(
         heading="Command Requirements",
-        note=command_visibility_note(),
+        note=command_visibility_note(canonical_agent_names()),
         payload=normalized_payload,
     )
 
@@ -1062,8 +1096,8 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
                 if nested == "allowed_paths:":
                     index += 1
                     allowed_paths: list[str] = []
-                    while index < len(lines) and lines[index].startswith("    - "):
-                        allowed_paths.append(lines[index].split("- ", 1)[1].strip())
+                    while index < len(lines) and re.match(r"^ {4}-(?: |$)", lines[index]):
+                        allowed_paths.append(lines[index].split("-", 1)[1].strip())
                         index += 1
                     write_scope["allowed_paths"] = allowed_paths
                     continue
@@ -1073,8 +1107,8 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
         if line == "expected_artifacts:":
             index += 1
             expected_artifacts: list[str] = []
-            while index < len(lines) and lines[index].startswith("  - "):
-                expected_artifacts.append(lines[index].split("- ", 1)[1].strip())
+            while index < len(lines) and re.match(r"^ {2}-(?: |$)", lines[index]):
+                expected_artifacts.append(lines[index].split("-", 1)[1].strip())
                 index += 1
             contract["expected_artifacts"] = expected_artifacts
             continue
@@ -1090,24 +1124,71 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
         raise ValueError(f"spawn-contract for {owner_name}: missing expected_artifacts")
     if "shared_state_policy" not in contract:
         raise ValueError(f"spawn-contract for {owner_name}: missing shared_state_policy")
+
+    write_scope = contract["write_scope"]
+    mode = write_scope.get("mode")
+    if mode not in {"scoped_write", "direct"}:
+        raise ValueError(
+            f"spawn-contract for {owner_name}: write_scope.mode must be one of "
+            f"'scoped_write' or 'direct'; got {mode!r}"
+        )
+
+    allowed_paths = write_scope.get("allowed_paths")
+    if not isinstance(allowed_paths, list) or not allowed_paths:
+        raise ValueError(f"spawn-contract for {owner_name}: write_scope.allowed_paths must be a non-empty list")
+    if any(not isinstance(path, str) or not path.strip() for path in allowed_paths):
+        raise ValueError(
+            f"spawn-contract for {owner_name}: write_scope.allowed_paths must contain non-empty strings"
+        )
+
+    expected_artifacts = contract["expected_artifacts"]
+    if not isinstance(expected_artifacts, list) or not expected_artifacts:
+        raise ValueError(f"spawn-contract for {owner_name}: expected_artifacts must be a non-empty list")
+    if any(not isinstance(path, str) or not path.strip() for path in expected_artifacts):
+        raise ValueError(f"spawn-contract for {owner_name}: expected_artifacts must contain non-empty strings")
+
+    shared_state_policy = contract["shared_state_policy"]
+    if shared_state_policy not in {"return_only", "direct"}:
+        raise ValueError(
+            f"spawn-contract for {owner_name}: shared_state_policy must be one of "
+            f"'return_only' or 'direct'; got {shared_state_policy!r}"
+        )
+    if shared_state_policy == "return_only" and mode != "scoped_write":
+        raise ValueError(
+            f"spawn-contract for {owner_name}: shared_state_policy 'return_only' requires "
+            f"write_scope.mode 'scoped_write'; got {mode!r}"
+        )
+
     return contract
 
 
-def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> WorkflowStageManifest | None:
+def _load_command_staged_loading(
+    path: Path,
+    *,
+    workflow_id: str,
+    allowed_tools: list[str],
+) -> WorkflowStageManifest | None:
     """Load staged-loading metadata for a command from its workflow sidecar."""
 
-    manifest_path = resolve_workflow_stage_manifest_path(path.stem)
+    manifest_path = resolve_workflow_stage_manifest_path(workflow_id)
     if not manifest_path.is_file():
         return None
-    canonical_manifest_path = (SPECS_DIR / "workflows" / f"{path.stem}-stage-manifest.json").resolve(strict=False)
-    canonical_command_path = (_PKG_ROOT / "commands" / path.name).resolve(strict=False)
-    if path.resolve(strict=False) != canonical_command_path and manifest_path.resolve(strict=False) == canonical_manifest_path:
+    canonical_manifest_path = (SPECS_DIR / "workflows" / f"{workflow_id}-stage-manifest.json").resolve(strict=False)
+    try:
+        relative_path = path.relative_to(COMMANDS_DIR)
+    except ValueError:
+        relative_path = Path(path.name)
+    canonical_command_path = (_PKG_ROOT / "commands" / relative_path).resolve(strict=False)
+    if (
+        path.resolve(strict=False) != canonical_command_path
+        and manifest_path.resolve(strict=False) == canonical_manifest_path
+    ):
         return None
     return load_workflow_stage_manifest_from_path(
         manifest_path,
-        expected_workflow_id=path.stem,
+        expected_workflow_id=workflow_id,
         allowed_tools=allowed_tools,
-        known_init_fields=known_init_fields_for_workflow(path.stem),
+        known_init_fields=known_init_fields_for_workflow(workflow_id),
     )
 
 
@@ -1195,7 +1276,7 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
     )
 
 
-def _parse_command_file(path: Path, source: str) -> CommandDef:
+def _parse_command_file(path: Path, source: str, *, slug: str | None = None) -> CommandDef:
     """Parse a single command .md file into a CommandDef."""
     text = path.read_text(encoding="utf-8")
     raw_frontmatter, _unused_body = _frontmatter_parts(text)
@@ -1204,11 +1285,13 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
+    command_slug = slug or _command_slug_from_path(path)
+
     command_name = _parse_frontmatter_string_field(
         meta.get("name"),
         field_name="name",
-        owner_name=path.stem,
-        default=path.stem,
+        owner_name=command_slug,
+        default=command_slug,
         required=True,
     )
     _validate_raw_command_frontmatter(raw_frontmatter, command_name=command_name)
@@ -1232,7 +1315,11 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         command_name=command_name,
         context_mode=context_mode,
     )
-    staged_loading = _load_command_staged_loading(path, allowed_tools=allowed_tools)
+    local_cli_only = _parse_local_cli_only(
+        meta.get("local_cli_only"),
+        command_name=command_name,
+    )
+    staged_loading = _load_command_staged_loading(path, workflow_id=command_slug, allowed_tools=allowed_tools)
     content = _command_model_content(
         body,
         review_contract,
@@ -1242,7 +1329,10 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         allowed_tools=allowed_tools,
         requires=requires,
     )
-    spawn_contracts = _parse_spawn_contracts(content, owner_name=command_name)
+    try:
+        spawn_contracts = _parse_spawn_contracts(content, owner_name=command_name)
+    except ValueError as exc:
+        raise ValueError(f"Invalid spawn-contract in {path}: {exc}") from exc
 
     return CommandDef(
         name=command_name,
@@ -1267,17 +1357,24 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         content=content,
         path=str(path),
         source=source,
+        local_cli_only=local_cli_only,
     )
 
 
-def _validate_command_name(path: Path, command: CommandDef) -> None:
+def _validate_command_name(path: Path, command: CommandDef, *, slug: str) -> None:
     """Reject command metadata that drifts from its registry filename."""
-    expected_name = f"gpd:{path.stem}"
-    if command.name != expected_name:
-        raise ValueError(
-            f"Command frontmatter name {command.name!r} does not match file stem {path.stem!r}; "
-            f"expected {expected_name!r}"
-        )
+    expected_name = f"gpd:{slug}"
+    if command.name == expected_name:
+        return
+
+    try:
+        relative_path = path.relative_to(COMMANDS_DIR)
+    except ValueError:
+        relative_path = path.name
+    raise ValueError(
+        f"Command frontmatter name {command.name!r} does not match slug {slug!r} derived from {relative_path!s}; "
+        f"expected {expected_name!r}"
+    )
 
 
 def _validate_agent_name(path: Path, agent: AgentDef) -> None:
@@ -1286,8 +1383,7 @@ def _validate_agent_name(path: Path, agent: AgentDef) -> None:
     expected_name = path.stem
     if agent.name != expected_name:
         raise ValueError(
-            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; "
-            f"expected {expected_name!r}"
+            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; expected {expected_name!r}"
         )
 
 
@@ -1352,11 +1448,21 @@ def _discover_agents() -> dict[str, AgentDef]:
 def _discover_commands() -> dict[str, CommandDef]:
     """Discover all command definitions from the primary commands/ directory."""
     result: dict[str, CommandDef] = {}
+    seen_slugs: dict[str, Path] = {}
     if COMMANDS_DIR.is_dir():
-        for path in sorted(COMMANDS_DIR.glob("*.md")):
-            cmd = _parse_command_file(path, source="commands")
-            _validate_command_name(path, cmd)
-            result[path.stem] = cmd
+        for path in sorted(COMMANDS_DIR.rglob("*.md")):
+            if not path.is_file():
+                continue
+            slug = _command_slug_from_path(path)
+            existing = seen_slugs.get(slug)
+
+            if existing is not None:
+                raise ValueError(f"Duplicate command slug {slug!r} from {path} and {existing}")
+            seen_slugs[slug] = path
+
+            cmd = _parse_command_file(path, source="commands", slug=slug)
+            _validate_command_name(path, cmd, slug=slug)
+            result[slug] = cmd
 
     return result
 
@@ -1501,6 +1607,27 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
         )
 
     return result
+
+
+def _command_slug_from_path(path: Path) -> str:
+    """Return a sanitized slug derived from the command file path."""
+
+    try:
+        relative = path.relative_to(COMMANDS_DIR)
+    except ValueError:
+        relative = Path(path.stem)
+
+    slug_parts: list[str] = []
+    for part in relative.with_suffix("").parts:
+        normalized = normalize_ascii_slug(part)
+        if not normalized:
+            raise ValueError(f"Command path {path!r} contains invalid slug segment {part!r}")
+        slug_parts.append(normalized)
+
+    slug = "-".join(slug_parts)
+    if not slug:
+        raise ValueError(f"Command path {path!r} yields an empty slug")
+    return slug
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────

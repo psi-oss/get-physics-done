@@ -29,6 +29,22 @@ def test_resolve_planner_artifact_freshness_accepts_exact_match_and_normalizes_r
     assert result.unexpected_reported_paths == ()
 
 
+def test_resolve_planner_artifact_freshness_ignores_blank_reported_paths(tmp_path: Path) -> None:
+    artifact = tmp_path / "GPD" / "phases" / "01-foundations" / "01-PLAN.md"
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text("# Plan\n", encoding="utf-8")
+
+    result = resolve_planner_artifact_freshness(
+        tmp_path,
+        ["GPD/phases/01-foundations/01-PLAN.md"],
+        ["  ", "GPD/phases/01-foundations/01-PLAN.md"],
+    )
+
+    assert result.passed is True
+    assert result.state == "fresh"
+    assert result.reported_paths == (artifact.resolve(strict=False),)
+
+
 def test_resolve_planner_artifact_freshness_fails_closed_when_artifact_is_missing_from_return(
     tmp_path: Path,
 ) -> None:

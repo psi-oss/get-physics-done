@@ -7,17 +7,18 @@ Shows: GPD | model | path | current task | research position | context usage.
 
 import json
 import math
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import gpd.hooks.install_context as hook_layout
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
-from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
+from gpd.core.constants import ProjectLayout
 from gpd.core.root_resolution import normalize_workspace_hint
 from gpd.core.state import peek_state_json
+from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
+from gpd.hooks.payload_roots import first_mapping_string as _first_string
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
 from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
 from gpd.hooks.runtime_detect import SCOPE_LOCAL, detect_runtime_install_target
@@ -54,33 +55,17 @@ def _context_bar(remaining_pct: float) -> str:
     return f" \x1b[5;31m\U0001f480 {bar} {used}%\x1b[0m"
 
 
-def _debug(msg: str) -> None:
-    if os.environ.get(ENV_GPD_DEBUG):
-        sys.stderr.write(f"[gpd-debug] {msg}\n")
-
-
-def _mapping(value: object) -> dict[str, object]:
-    """Return *value* when it is a dict, otherwise an empty mapping."""
-    return value if isinstance(value, dict) else {}
-
-
-def _first_string(value: object, *keys: str) -> str:
-    """Return the first non-empty string for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
-
-
 def _first_value(value: object, *keys: str) -> object | None:
     """Return the first present value for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
+    mapping = value if isinstance(value, dict) else {}
     for key in keys:
         if key in mapping:
             return mapping.get(key)
     return None
+
+
+def _mapping(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
 
 
 def _merged_policy_keys(value: object, attribute: str, *, fallback: tuple[str, ...]) -> tuple[str, ...]:
@@ -135,10 +120,8 @@ def _hook_payload_policy(workspace_dir: str | None = None):
 
 
 def _root_resolution_policy(cwd: str | None = None):
-    """Use merged aliases until a payload workspace is known, then narrow by runtime."""
-    if cwd is None:
-        return get_hook_payload_policy()
-    return _hook_payload_policy(cwd)
+    """Use merged aliases for root extraction; runtime lookup narrows later."""
+    return get_hook_payload_policy()
 
 
 def _payload_runtime(cwd: str | None = None) -> str | None:
@@ -628,8 +611,9 @@ def main() -> None:
             runtime_resolver=_payload_runtime,
         )
         runtime_lookup_dir = runtime_lookup.lookup_dir
+        display_workspace_dir = workspace_dir
 
-        hook_payload = _hook_payload_policy(runtime_lookup_dir)
+        hook_payload = _hook_payload_policy(workspace_dir)
         project_state_dir = _project_state_dir(
             data,
             workspace_dir=workspace_dir,
@@ -659,8 +643,12 @@ def main() -> None:
         model_label = _read_model_label(data, hook_payload)
         workspace_label = _read_workspace_label(
             data,
-            workspace_dir,
-            project_root=project_root,
+            display_workspace_dir,
+            project_root=(
+                None
+                if project_root and Path(project_root).resolve(strict=False) == Path(display_workspace_dir).resolve(strict=False)
+                else project_root
+            ),
             hook_payload=hook_payload,
         )
 

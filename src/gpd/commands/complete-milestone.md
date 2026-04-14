@@ -43,88 +43,44 @@ Output: Milestone archived (roadmap + requirements), PROJECT.md evolved, git tag
 
 This wrapper runs the archive workflow directly. Any stopping points come from the workflow's own readiness and confirmation gates.
 
-**Follow complete-milestone.md workflow:**
+0. **Check for audit**
+   - Confirm `GPD/v{version}-MILESTONE-AUDIT.md` exists and reports `passed`.
+   - If missing, run `gpd:audit-milestone`; if it reports `gaps_found`, suggest `gpd:plan-milestone-gaps` before continuing.
+   - Only proceed once the audit has no open gaps.
 
-0. **Check for audit:**
+1. **Verify readiness**
+   - Ensure every phase in the milestone has a `SUMMARY.md`.
+   - Summarize the milestone scope (phase counts, research types) and get user confirmation.
 
-   - Look for `GPD/v{version}-MILESTONE-AUDIT.md`
-   - If missing or stale: recommend `gpd:audit-milestone` first
-   - If audit status is `gaps_found`: recommend `gpd:plan-milestone-gaps` first
-   - If audit status is `passed`: proceed to step 1
+2. **Gather stats**
+   - Count phases, plans, and tasks; capture git range, file changes, and LOC; extract the timeline from `git log`.
+   - Present that summary and confirm with the user.
 
-   ```markdown
-   ## Pre-flight Check
+3. **Extract accomplishments**
+   - Read each phase `SUMMARY.md` in the milestone range.
+   - Highlight 4–6 key outcomes (analytical, numerical, novel insights) and get approval before archiving.
 
-   {If no v{version}-MILESTONE-AUDIT.md:}
-   No milestone audit found. Run `gpd:audit-milestone` first to verify
-   research question coverage, derivation completeness, and cross-phase consistency.
+4. **Archive milestone**
+   - Create `GPD/milestones/v{version}-ROADMAP.md` with the extracted phase details.
+   - Collapse `GPD/ROADMAP.md` to a single-line summary that links to the archive.
 
-   {If audit has gaps:}
-   Milestone audit found gaps (e.g., unchecked limits, missing error bars,
-   unsupported claims). Run `gpd:plan-milestone-gaps` to create phases that
-   close the gaps, or proceed anyway to defer to the next milestone.
+5. **Archive requirements**
+   - Generate `GPD/milestones/v{version}-REQUIREMENTS.md`, mark the checkboxes complete, and record the disposition (validated, adjusted, deferred, ruled out).
+   - Delete the old `GPD/REQUIREMENTS.md` only after the archive exists so the next milestone starts clean.
+   - Scan `INSIGHTS.md` for confirmed patterns, run `gpd pattern search` for duplicates, and suggest `gpd pattern add` candidates when justified.
 
-   {If audit passed:}
-   Milestone audit passed. Proceeding with completion.
-   ```
+6. **Update PROJECT.md**
+   - Add a "Current State" section describing the established results.
+   - Add "Next Milestone Goals" for the immediate follow-up work.
+   - Archive the prior content in `<details>` bubbles when the milestone is v1.1 or later.
 
-1. **Verify readiness:**
+7. **Commit and tag**
+   - Stage `MILESTONES.md`, `PROJECT.md`, `ROADMAP.md`, `STATE.md`, and the archive files.
+   - Commit `chore: archive v{version} research milestone` and tag `v{version}` with a summary message.
+   - Ask the user whether to push the tag.
 
-   - Check all phases in milestone have completed plans (SUMMARY.md exists)
-   - Present milestone scope and stats (e.g., "3 analytical phases, 2 numerical phases, 1 literature review")
-   - Wait for confirmation
-
-2. **Gather stats:**
-
-   - Count phases, plans, tasks
-   - Calculate git range, file changes, LOC
-   - Extract timeline from git log
-   - Present summary, confirm
-
-3. **Extract accomplishments:**
-
-   - Read all phase SUMMARY.md files in milestone range
-   - Extract 4-6 key research accomplishments (e.g., "Derived closed-form expression for spectral gap", "Validated N-scaling numerically up to N=256", "Identified novel crossover regime at intermediate coupling")
-   - Present for approval
-
-4. **Archive milestone:**
-
-   - Create `GPD/milestones/v{version}-ROADMAP.md`
-   - Extract full phase details from ROADMAP.md
-   - Fill milestone-archive.md template
-   - Update ROADMAP.md to one-line summary with link
-
-5. **Archive requirements:**
-
-   - Create `GPD/milestones/v{version}-REQUIREMENTS.md`
-   - Mark all requirements for this milestone as complete (checkboxes checked)
-   - Note requirement outcomes (validated, adjusted, deferred, ruled out by physics)
-   - Delete `GPD/REQUIREMENTS.md` (fresh one created for next milestone)
-
-5b. **Promote patterns:**
-
-   - Check INSIGHTS.md for confirmed patterns (2+ phases, clear detection/prevention)
-   - Run `gpd pattern search` to check for duplicates
-   - Suggest `gpd pattern add` for promotion candidates
-   - Skip silently if no INSIGHTS.md or no candidates
-
-6. **Update PROJECT.md:**
-
-   - Add "Current State" section describing what has been established so far
-   - Add "Next Milestone Goals" section (e.g., "extend to finite temperature", "incorporate disorder", "draft manuscript")
-   - Archive previous content in `<details>` (if v1.1+)
-
-7. **Commit and tag:**
-
-   Note: MILESTONES.md is CREATED by `gpd milestone complete` during this workflow. It does not need to exist beforehand.
-
-   - Stage: MILESTONES.md, PROJECT.md, ROADMAP.md, STATE.md, archive files
-   - Commit: `chore: archive v{version} research milestone`
-   - Tag: `git tag -a v{version} -m "[milestone summary]"`
-   - Ask about pushing tag
-
-8. **Offer next steps:**
-   - `gpd:new-milestone` — start next research milestone (questioning -> literature review -> requirements -> roadmap)
+8. **Offer next steps**
+   - Recommend `gpd:new-milestone` to start the next research cycle.
 
 </process>
 

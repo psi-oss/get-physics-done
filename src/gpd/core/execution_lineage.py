@@ -24,6 +24,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
 
 __all__ = [
@@ -190,12 +191,6 @@ class ExecutionLineageHead(BaseModel):
         return self.execution is None and self.bounded_segment is None and self.last_applied_event_id is None
 
 
-def _now_iso() -> str:
-    from datetime import UTC, datetime
-
-    return datetime.now(UTC).isoformat()
-
-
 def _normalize_optional_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -355,7 +350,7 @@ def project_execution_lineage_head(
         reducer_version=_normalize_optional_text(reducer_version) or EXECUTION_LINEAGE_REDUCER_VERSION,
         last_applied_seq=last_applied_seq,
         last_applied_event_id=_normalize_optional_text(last_applied_event_id),
-        recorded_at=_normalize_optional_text(recorded_at) or _now_iso(),
+        recorded_at=_normalize_optional_text(recorded_at) or utc_now_iso(),
         execution=_as_mapping(execution),
         bounded_segment=_coerce_bounded_segment(bounded_segment),
     )
@@ -469,7 +464,7 @@ def build_execution_lineage_entry(
         schema_version=EXECUTION_LINEAGE_SCHEMA_VERSION,
         seq=seq or 0,
         event_id=_normalize_optional_text(event_id) or uuid4().hex,
-        recorded_at=_normalize_optional_text(recorded_at) or _now_iso(),
+        recorded_at=_normalize_optional_text(recorded_at) or utc_now_iso(),
         kind=_normalize_optional_text(kind) or "unknown",
         reducer_version=_normalize_optional_text(reducer_version) or EXECUTION_LINEAGE_REDUCER_VERSION,
         session_id=_normalize_optional_text(session_id),

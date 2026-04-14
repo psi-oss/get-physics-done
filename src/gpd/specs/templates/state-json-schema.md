@@ -1,13 +1,17 @@
 ---
 template_version: 1
-purpose: Canonical schema for GPD/state.json — the machine-readable research state sidecar
+purpose: Rendered schema reference for GPD/state.json — ResearchState/Pydantic is the canonical machine-readable state authority
 ---
 
 # state.json Schema
 
-Canonical schema for `GPD/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
+Rendered schema reference for `GPD/state.json`. The canonical machine-readable state authority is the `ResearchState` Pydantic model in `gpd.core.state`; this document describes that source for prompt and operator visibility.
 
-Source of truth: `default_state_dict()` in `gpd.core.state`.
+STATE.md is a rendered, human-editable import surface only. It may be parsed back into JSON by explicit sync/recovery workflows, but it is not the canonical state authority and must not override populated Pydantic-backed fields.
+
+Source of truth: `ResearchState` and related Pydantic models in `gpd.core.state`, with defaults supplied by `default_state_dict()`.
+
+Project-contract grounding rules live in @{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md.
 
 ---
 
@@ -35,7 +39,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 
 ### Authoritative vs Derived
 
-Fields marked **Authoritative** exist only in state.json (not representable in STATE.md markdown). When `sync_state_json()` merges markdown into JSON, it preserves these fields. If state.json is lost, these fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
+Fields marked **Authoritative** are Pydantic-backed state fields whose canonical value lives in `ResearchState` / `GPD/state.json`; many are not representable in STATE.md markdown. When `sync_state_json()` imports edits from STATE.md into JSON, it must preserve populated canonical fields. If state.json is lost, JSON-only fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
 
 ---
 
@@ -59,152 +63,14 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 
 ### `project_contract`
 
-```json
-{
-  "schema_version": 1,
-  "scope": {
-    "question": "What benchmark must the project recover?",
-    "in_scope": ["Recover the published benchmark curve within tolerance"],
-    "out_of_scope": ["adjacent question C"],
-    "unresolved_questions": ["Which reference should serve as the decisive benchmark anchor?"]
-  },
-  "context_intake": {
-    "must_read_refs": ["Ref-01"],
-    "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
-    "user_asserted_anchors": ["GPD/phases/00-baseline/00-01-SUMMARY.md#benchmark-curve"],
-    "known_good_baselines": ["GPD/phases/00-baseline/00-01-SUMMARY.md#accepted-baseline"],
-    "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
-    "crucial_inputs": ["Figure 2 from prior work"]
-  },
-  "approach_policy": {
-    "formulations": ["continuum representation with direct observable X"],
-    "allowed_estimator_families": ["direct estimator"],
-    "forbidden_estimator_families": ["proxy-only estimator"],
-    "allowed_fit_families": ["benchmark-motivated ansatz"],
-    "forbidden_fit_families": ["pure convenience fit"],
-    "stop_and_rethink_conditions": ["First result only validates a proxy while the decisive anchor remains unchecked"]
-  },
-  "observables": [
-    {
-      "id": "obs-main",
-      "name": "Benchmark observable X",
-      "kind": "curve",
-      "definition": "Primary comparison curve for the published benchmark"
-    }
-  ],
-  "claims": [
-    {
-      "id": "claim-main",
-      "statement": "Recover the published benchmark curve within the stated tolerance",
-      "claim_kind": "theorem",
-      "observables": ["obs-main"],
-      "deliverables": ["deliv-main", "deliv-proof-main"],
-      "acceptance_tests": ["test-main", "test-proof-main"],
-      "references": ["Ref-01"],
-      "parameters": [
-        {
-          "symbol": "k",
-          "domain_or_type": "benchmark sample index",
-          "aliases": ["sample-k"],
-          "required_in_proof": true
-        }
-      ],
-      "hypotheses": [
-        {
-          "id": "hyp-main",
-          "text": "Published normalization and tolerance convention are interpreted exactly as stated in Ref-01",
-          "symbols": ["k"],
-          "category": "assumption",
-          "required_in_proof": true
-        }
-      ],
-      "quantifiers": ["for every benchmark sample k in the approved comparison set"],
-      "conclusion_clauses": [
-        {
-          "id": "concl-main",
-          "text": "Relative error stays within the stated 1% tolerance at every approved benchmark sample"
-        }
-      ],
-      "proof_deliverables": ["deliv-proof-main"]
-    }
-  ],
-  "deliverables": [
-    {
-      "id": "deliv-main",
-      "kind": "figure",
-      "path": "paper/figures/benchmark-curve.pdf",
-      "description": "Figure comparing the reproduced curve against the benchmark",
-      "must_contain": ["benchmark overlay"]
-    },
-    {
-      "id": "deliv-proof-main",
-      "kind": "derivation",
-      "path": "derivations/benchmark-proof.md",
-      "description": "Auditable proof sketch tying the tolerance claim to the benchmark construction",
-      "must_contain": ["named hypotheses", "parameter coverage", "conclusion mapping"]
-    }
-  ],
-  "acceptance_tests": [
-    {
-      "id": "test-main",
-      "subject": "claim-main",
-      "kind": "benchmark",
-      "procedure": "Compare the reproduced curve against Ref-01 within tolerance",
-      "pass_condition": "Relative error <= 1%",
-      "evidence_required": ["deliv-main", "Ref-01"],
-      "automation": "hybrid"
-    },
-    {
-      "id": "test-proof-main",
-      "subject": "claim-main",
-      "kind": "claim_to_proof_alignment",
-      "procedure": "Check that every named hypothesis, parameter, and conclusion clause in the theorem claim is covered by the proof artifact",
-      "pass_condition": "Every theorem field is covered explicitly or auditable as intentionally omitted",
-      "evidence_required": ["deliv-proof-main"],
-      "automation": "human"
-    }
-  ],
-  "references": [
-    {
-      "id": "Ref-01",
-      "kind": "paper",
-      "locator": "Author et al., Journal, 2024",
-      "aliases": ["benchmark-paper"],
-      "role": "benchmark",
-      "why_it_matters": "Primary published comparison target",
-      "applies_to": ["claim-main"],
-      "carry_forward_to": ["planning", "execution", "verification", "writing"],
-      "must_surface": true,
-      "required_actions": ["read", "compare", "cite", "avoid"]
-    }
-  ],
-  "forbidden_proxies": [
-    {
-      "id": "fp-main",
-      "subject": "claim-main",
-      "proxy": "Qualitative trend match without the decisive benchmark comparison",
-      "reason": "Would look like progress while skipping the contract-critical anchor"
-    }
-  ],
-  "links": [
-    {
-      "id": "link-main",
-      "source": "claim-main",
-      "target": "deliv-main",
-      "relation": "supports",
-      "verified_by": ["test-main"]
-    }
-  ],
-  "uncertainty_markers": {
-    "weakest_anchors": ["Benchmark tolerance interpretation"],
-    "unvalidated_assumptions": [],
-    "competing_explanations": [],
-    "disconfirming_observations": ["Benchmark agreement disappears after a notation-normalization fix"]
-  }
-}
-```
+`project_contract` stores the approved machine-readable scoping and anchor contract, or `null` before approval. Its canonical model-visible schema is `templates/project-contract-schema.md`; load that template before authoring, approving, validating, or repairing the payload. This state schema intentionally does not restate the contract body, closed vocabularies, or linkage rules.
 
-Stored as the canonical machine-readable contract once Stage 1 wiring is complete. Stage 0 freezes the field and model shape so later workflows can write to it safely.
+Closed-vocabulary fields in the contract schema are case-sensitive and must use the exact canonical values from `templates/project-contract-schema.md`; do not rely on validator salvage for enum case drift.
+Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
+
+Grounding and scope policy are also owned by `templates/project-contract-schema.md`; in particular, keep
+`uncertainty_markers.disconfirming_observations` and weakest-anchor fields visible there rather than restating the
+contract body here.
 
 Preferred validation + persistence path for prompt-authored contracts:
 
@@ -213,79 +79,9 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - -
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 ```
 
-The stdin path is canonical because it keeps the exact approved JSON payload in-memory across validation and persistence. Do not tell the model to round-trip through a temporary file unless a human explicitly chose that workflow.
+Keep the exact approved JSON in memory across validation and persistence. Do not round-trip through a temporary file unless a human explicitly requests a durable saved copy.
 
-#### Project Contract Object Rules
-
-The `project_contract` value itself must be a JSON object. Do not replace it with prose, a list, or a string.
-
-`schema_version` must be the integer `1`. Unsupported schema versions are invalid.
-
-Project contracts must include at least one observable, claim, or deliverable.
-
-`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
-
-Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.
-
-`scope.in_scope` must name at least one project boundary or objective.
-
-`context_intake` must not be empty. At least one of `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, or `crucial_inputs` must carry a non-empty item, and the grounding fields must be concrete enough to re-find later.
-`context_intake`, `approach_policy`, and `uncertainty_markers` are JSON objects when present; do not collapse them to strings or lists.
-Closed-vocabulary enum fields use the exact lowercase literals shown here. Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
-
-#### Closed Schema And List Shape
-
-The `project_contract` schema is closed. Do not invent extra keys at the top level or inside nested objects. Only the fields defined here are valid.
-
-List-shaped fields must stay lists, even when they contain one item. Do not collapse `scope.in_scope`, `scope.out_of_scope`, `scope.unresolved_questions`, `context_intake.*`, or any nested `[]` field to a scalar string.
-
-Blank list entries are invalid. Duplicate list entries are also invalid after trimming whitespace, even if the duplicates only differ by surrounding spaces.
-
-The following fields always store arrays of objects, never arrays of plain strings:
-
-- `observables[]` — `{ "id", "name", "kind", "definition", "regime?", "units?" }`
-- `claims[]` — `{ "id", "statement", "claim_kind", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]", "parameters[]", "hypotheses[]", "quantifiers[]", "conclusion_clauses[]", "proof_deliverables[]" }`
-- `deliverables[]` — `{ "id", "kind", "path?", "description", "must_contain[]" }`
-- `acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`
-- `references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface": true|false, "required_actions[]" }`
-- `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
-- `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
-
-Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
-
-When that applies, require:
-
-- `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
-- Closed semantic enum fields use these exact lowercase literals:
-  - `claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`
-  - `observables[].kind: scalar | curve | map | classification | proof_obligation | other`
-  - `deliverables[].kind: figure | table | dataset | data | derivation | code | note | report | other`
-  - `acceptance_tests[].kind: existence | schema | benchmark | consistency | cross_method | limiting_case | symmetry | dimensional_analysis | convergence | oracle | proxy | reproducibility | proof_hypothesis_coverage | proof_parameter_coverage | proof_quantifier_domain | claim_to_proof_alignment | lemma_dependency_closure | counterexample_search | human_review | other`
-  - `acceptance_tests[].automation: automated | hybrid | human`
-  - `references[].kind: paper | dataset | prior_artifact | spec | user_anchor | other`
-  - `references[].role: definition | benchmark | method | must_consider | background | other`
-  - `required_actions[]: read | use | compare | cite | avoid`
-  - `links[].relation: supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`
-- `claims[].proof_deliverables[]` must be non-empty and contain only `deliverables[].id` values.
-- `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
-- `claims[].acceptance_tests[]` must include at least one proof-specific test kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).
-- `claims[].quantifiers[]` is optional but, when present, must stay a list (not a scalar string).
-
-### Shared Grounding And Linkage Rules
-
-If a project contract has any `references[]` and does not already carry concrete prior-output, user-anchor, or baseline grounding, at least one reference must set `must_surface: true`.
-
-`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root. If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root.
-
-Placeholder or `TBD` text does not count as concrete grounding. Explicit missing-anchor notes preserve uncertainty, but they do not satisfy approved-mode grounding on their own.
-
-Keep these exact grounding reminders visible in the raw schema surface as well:
-
-- Need grounding before the decisive anchor is chosen.
-- Decisive target not yet chosen before planning can proceed.
-- If other grounding already exists, a missing `must_surface: true` reference is still a warning that should be repaired, not a silent ignore.
-
-@{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md
+@{GPD_INSTALL_DIR}/templates/project-contract-schema.md
 
 ### `position`
 
@@ -501,9 +297,20 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `gpd:pause-work`
 
-`session` stores the markdown-compatible session timestamp, advisory machine identity, stop location, and handoff resume file as a compatibility mirror of canonical continuation. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd --raw resume` is the machine-readable local recovery surface. It treats `continuation` as primary and only consults nested compatibility projections when canonical bounded-segment or handoff data is missing or incomplete. It also compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
+`session` is the STATE.md-renderable compatibility mirror for canonical continuation.
 
-`session` remains the markdown-compatible continuity mirror that STATE.md can render directly. The durable JSON-only `continuation` object below is authoritative for machine-readable recovery. Model-authored continuity updates should target `continuation.handoff` and `continuation.machine`; `session` is backend-derived compatibility metadata, not a model-authored authority surface. State normalization re-derives `session` from canonical continuation. When older projects only have legacy `session` data, GPD may hydrate missing canonical handoff or machine fields from that legacy payload during explicit legacy migration or recovery paths so the project can move forward without losing continuity. Ordinary persistence does not let stale `session` data overwrite populated canonical continuation. `gpd --raw resume` treats this canonical object first and only falls back to the derived execution head compatibility mirror when the canonical continuation is missing or incomplete, including legacy projects without persisted bounded-segment state. Raw compatibility cues remain backend-only intake signals rather than primary resume fields, and `gpd --raw resume` strips them after canonicalization.
+| Rule | Requirement |
+|------|-------------|
+| Authority | `continuation` is primary; model-authored updates target `continuation.handoff` and `continuation.machine`. |
+| Derivation | Normalization re-derives `session` from canonical continuation for STATE.md and existing readers. |
+| Legacy intake | Older `session` payloads may hydrate only missing canonical handoff or machine fields during explicit legacy migration or recovery. |
+| Stale data | Ordinary persistence must not let stale `session` values overwrite populated canonical continuation or let STATE.md Session Continuity edits supersede it. |
+| Resume files | Keep repository-local `resume_file` values project-relative; `gpd state record-session` normalizes project-local absolute paths before persistence. |
+| CLI semantics | Omitting `--resume-file` preserves the current handoff pointer; explicit placeholders such as `—`, `None`, or `null` clear it. |
+| Resume surfaces | `gpd resume` is the public read-only recovery surface; `gpd --raw resume` is the machine-readable local recovery surface. |
+| Raw fallback | `gpd --raw resume` consults nested compatibility projections only when canonical bounded-segment or handoff data is missing or incomplete, including legacy projects without persisted bounded-segment state. |
+| Raw output | Raw compatibility cues are backend-only intake signals and are stripped after canonicalization, not emitted as primary resume fields. |
+| Machine change | Resume compares `hostname`/`platform` with the current machine and may emit a non-blocking `machine_change_notice` recommending installer rerun when runtime-local config may be stale. |
 
 ### `ContinuationObject`
 
@@ -526,10 +333,12 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `save_state_markdown()`, `save_state_json()`
 
-`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. STATE.md and the legacy `session` object are projections of this authority, with one compatibility exception:
+`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section.
 
-- `continuation -> session`: normal state persistence backfills `session` from canonical continuation so STATE.md generation and existing readers stay aligned.
-- `session -> continuation`: allowed only to fill missing canonical handoff or machine fields during explicit legacy migration or recovery. A populated canonical continuation field must not be overwritten by stale `session` data during ordinary normalization, and manual edits to the rendered STATE.md Session Continuity block do not supersede canonical continuation when that authority already exists.
+| Direction | Allowed behavior |
+|-----------|------------------|
+| `continuation -> session` | Normal state persistence backfills `session` from canonical continuation so STATE.md generation and existing readers stay aligned. |
+| `session -> continuation` | Allowed only to fill missing canonical handoff or machine fields during explicit legacy migration or recovery. Populated canonical fields must not be overwritten by stale `session` data or manual STATE.md Session Continuity edits. |
 
 `continuation.handoff` is the canonical handoff block:
 
@@ -539,7 +348,14 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 | `stopped_at` | `string \| null` | Human-readable stop location |
 | `resume_file` | `string \| null` | Project-relative handoff artifact when available |
 
-`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. The live execution head is derived from execution lineage and may be mirrored into `GPD/observability/current-execution.json` for compatibility, but that mirror does not replace the persisted canonical state. When the canonical continuation is missing or incomplete, `gpd --raw resume` may project a bounded-segment candidate from that compatibility mirror for legacy recovery only. The mirror is advisory; it is not a second authority. Nested compatibility aliases stay subordinate to the canonical bounded-segment fields.
+`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`.
+
+| Source | Status |
+|--------|--------|
+| `continuation.bounded_segment` | Canonical bounded-segment resume source when present. |
+| `GPD/observability/current-execution.json` | Derived compatibility mirror from execution lineage; advisory only and never a second authority. |
+| Raw resume fallback | May project a bounded-segment candidate from the compatibility mirror only when canonical continuation is missing or incomplete, for legacy recovery. |
+| Nested aliases | Stay subordinate to canonical bounded-segment fields. |
 
 `continuation.machine` is the canonical recorded machine state:
 
@@ -603,3 +419,40 @@ For position/decisions/blockers: STATE.md is the primary edit surface; state.jso
 | **gpd-notation-coordinator** | `convention_lock` | `convention set` |
 | **gpd-paper-writer** | `convention_lock`, `intermediate_results`, `decisions` | (reads only) |
 | **Orchestrators** | `position`, `continuation`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |
+
+`schema_version` must be the integer `1`.
+
+stdin contract persistence
+
+model normalization rules
+
+Project contracts must include at least one observable, claim, or deliverable.
+
+`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
+
+`scope.in_scope` must name at least one project boundary or objective.
+
+grounding fields must be concrete enough to re-find later
+
+
+a missing `must_surface: true` reference is still a warning
+
+If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty.
+
+If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty.
+
+"required_actions": ["read", "compare", "cite", "avoid"]
+
+`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`.
+
+Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+
+`scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors`
+
+Which reference should serve as the decisive benchmark anchor?
+
+Blank-after-trim values are invalid
+
+Need grounding before the decisive anchor is chosen.
+
+Decisive target not yet chosen before planning can proceed.

@@ -12,7 +12,7 @@ Usage:
 
 import copy
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Annotated
 
@@ -23,16 +23,13 @@ from pydantic import ValidationError as PydanticValidationError
 from gpd.contracts import (
     CONTRACT_ACCEPTANCE_AUTOMATION_VALUES,
     CONTRACT_ACCEPTANCE_TEST_KIND_VALUES,
-    CONTRACT_APPROACH_POLICY_FIELD_NAMES,
     CONTRACT_CLAIM_KIND_VALUES,
-    CONTRACT_CONTEXT_INTAKE_FIELD_NAMES,
     CONTRACT_DELIVERABLE_KIND_VALUES,
     CONTRACT_LINK_RELATION_VALUES,
     CONTRACT_OBSERVABLE_KIND_VALUES,
     CONTRACT_REFERENCE_ACTION_VALUES,
     CONTRACT_REFERENCE_KIND_VALUES,
     CONTRACT_REFERENCE_ROLE_VALUES,
-    CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES,
     PROJECT_CONTRACT_COLLECTION_LIST_FIELDS,
     PROJECT_CONTRACT_MAPPING_LIST_FIELDS,
     PROOF_ACCEPTANCE_TEST_KINDS,
@@ -50,6 +47,7 @@ from gpd.contracts import (
     statement_looks_theorem_like,
 )
 from gpd.core.contract_validation import (
+    _validate_direct_project_contract_schema_version,
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
@@ -73,6 +71,8 @@ from gpd.mcp.servers import (
 from gpd.mcp.verification_contract_policy import (
     VERIFICATION_BINDING_FIELD_NAMES,
     VERIFICATION_BINDING_TARGETS,
+    VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT,
+    VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
     verification_contract_policy_text,
     verification_contract_surface_summary_text,
 )
@@ -100,6 +100,17 @@ _CONTRACT_ERROR_FIELD_ORDER = {
     "uncertainty_markers": 11,
 }
 
+
+def _request_template_placeholder(descriptor: str) -> str:
+    normalized = descriptor.strip().lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+    normalized = "-".join(part for part in normalized.split("-") if part)
+    return f"<replace-with-{normalized}>"
+
+
+def _request_template_number_placeholder(descriptor: str) -> str:
+    return _request_template_placeholder(descriptor)
+
+
 _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
     "contract.limit_recovery": {
         "required_request_fields": [
@@ -119,19 +130,13 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "regime_label": None,
-                "expected_behavior": None,
+                "regime_label": _request_template_placeholder("regime-label"),
+                "expected_behavior": _request_template_placeholder("expected-behavior"),
             },
-            "observed": {
-                "limit_passed": None,
-                "observed_limit": None,
-            },
-            "artifact_content": "",
         },
     },
     "contract.benchmark_reproduction": {
         "required_request_fields": [
-            "metadata.source_reference_id",
             "observed.metric_value",
             "observed.threshold_value",
         ],
@@ -147,13 +152,12 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "source_reference_id": None,
+                "source_reference_id": _request_template_placeholder("source-reference-id"),
             },
             "observed": {
-                "metric_value": None,
-                "threshold_value": None,
+                "metric_value": _request_template_number_placeholder("metric-value"),
+                "threshold_value": _request_template_number_placeholder("threshold-value"),
             },
-            "artifact_content": "",
         },
     },
     "contract.direct_proxy_consistency": {
@@ -169,13 +173,6 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {},
-            "observed": {
-                "proxy_only": None,
-                "direct_available": None,
-                "proxy_available": None,
-                "consistency_passed": None,
-            },
-            "artifact_content": "",
         },
     },
     "contract.fit_family_mismatch": {
@@ -191,15 +188,14 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "declared_family": None,
+                "declared_family": _request_template_placeholder("declared-family"),
                 "allowed_families": [],
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": None,
-                "competing_family_checked": None,
+                "selected_family": _request_template_placeholder("selected-family"),
+                "competing_family_checked": False,
             },
-            "artifact_content": "",
         },
     },
     "contract.estimator_family_mismatch": {
@@ -224,16 +220,15 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "declared_family": None,
+                "declared_family": "<replace-with-declared-estimator-family>",
                 "allowed_families": [],
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": None,
-                "bias_checked": None,
-                "calibration_checked": None,
+                "selected_family": "<replace-with-selected-estimator-family>",
+                "bias_checked": False,
+                "calibration_checked": False,
             },
-            "artifact_content": "",
         },
     },
     "contract.proof_hypothesis_coverage": {
@@ -249,16 +244,14 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         ],
         "optional_request_fields": ["binding.*", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "hypothesis_ids": None,
+                "hypothesis_ids": ["<replace-with-hypothesis-id>"],
             },
             "observed": {
-                "covered_hypothesis_ids": None,
-                "missing_hypothesis_ids": None,
+                "covered_hypothesis_ids": ["<replace-with-covered-hypothesis-id>"],
+                "missing_hypothesis_ids": [],
             },
-            "artifact_content": "",
         },
     },
     "contract.proof_parameter_coverage": {
@@ -274,16 +267,14 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         ],
         "optional_request_fields": ["binding.*", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "theorem_parameter_symbols": None,
+                "theorem_parameter_symbols": ["<replace-with-theorem-parameter-symbol>"],
             },
             "observed": {
-                "covered_parameter_symbols": None,
-                "missing_parameter_symbols": None,
+                "covered_parameter_symbols": ["<replace-with-covered-parameter-symbol>"],
+                "missing_parameter_symbols": [],
             },
-            "artifact_content": "",
         },
     },
     "contract.proof_quantifier_domain": {
@@ -299,17 +290,15 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         ],
         "optional_request_fields": ["binding.*", "metadata.quantifiers", "observed.uncovered_quantifiers", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "quantifiers": None,
+                "quantifiers": [_request_template_placeholder("quantifier")],
             },
             "observed": {
-                "uncovered_quantifiers": None,
-                "quantifier_status": None,
-                "scope_status": None,
+                "uncovered_quantifiers": [],
+                "quantifier_status": "unclear",
+                "scope_status": "unclear",
             },
-            "artifact_content": "",
         },
     },
     "contract.claim_to_proof_alignment": {
@@ -330,17 +319,13 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "artifact_content",
         ],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "claim_statement": None,
-                "conclusion_clause_ids": None,
+                "claim_statement": "<replace-with-claim-statement>",
             },
             "observed": {
-                "uncovered_conclusion_clause_ids": None,
-                "scope_status": None,
+                "scope_status": "unclear",
             },
-            "artifact_content": "",
         },
     },
     "contract.counterexample_search": {
@@ -348,18 +333,69 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "schema_required_request_fields": ["contract", "observed.counterexample_status"],
         "optional_request_fields": ["binding.*", "metadata.claim_statement", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "claim_statement": None,
+                "claim_statement": "<replace-with-claim-statement>",
             },
             "observed": {
-                "counterexample_status": None,
+                "counterexample_status": "not_attempted",
             },
-            "artifact_content": "",
         },
     },
 }
+
+_CONTRACT_AWARE_CHECK_KEYS: frozenset[str] = frozenset(
+    entry["check_key"]
+    for entry in list_verification_checks()
+    if entry.get("contract_aware")
+)
+_MISSING_CONTRACT_HINTS = sorted(_CONTRACT_AWARE_CHECK_KEYS - _CONTRACT_CHECK_REQUEST_HINTS.keys())
+if _MISSING_CONTRACT_HINTS:
+    raise RuntimeError(
+        "Missing contract request hints for contract-aware verification checks: "
+        + ", ".join(_MISSING_CONTRACT_HINTS)
+    )
+_INVALID_CONTRACT_HINTS = sorted(
+    key
+    for key, hint in _CONTRACT_CHECK_REQUEST_HINTS.items()
+    if not isinstance(hint.get("request_template"), dict)
+)
+if _INVALID_CONTRACT_HINTS:
+    raise RuntimeError(
+        "Every contract-aware verification hint must include a request_template dict: "
+        + ", ".join(_INVALID_CONTRACT_HINTS)
+    )
+
+
+def _strip_null_request_template_values(value: object) -> object:
+    if isinstance(value, dict):
+        cleaned: dict[str, object] = {}
+        for key, item in value.items():
+            cleaned_value = _strip_null_request_template_values(item)
+            if cleaned_value is not None:
+                cleaned[key] = cleaned_value
+        return cleaned
+    if isinstance(value, list):
+        cleaned_list: list[object] = []
+        for item in value:
+            cleaned_value = _strip_null_request_template_values(item)
+            if cleaned_value is not None:
+                cleaned_list.append(cleaned_value)
+        return cleaned_list
+    return value
+
+
+def _drop_request_template_field(template: dict[str, object], dotted_path: str) -> None:
+    """Remove a derived template value that would otherwise assert evidence."""
+
+    parts = dotted_path.split(".")
+    current: object = template
+    for part in parts[:-1]:
+        if not isinstance(current, dict):
+            return
+        current = current.get(part)
+    if isinstance(current, dict):
+        current.pop(parts[-1], None)
 
 
 class _ContractRequestBase(BaseModel):
@@ -387,42 +423,153 @@ ContractBindingRequest = create_model(
 ContractBindingRequest.__doc__ = "Closed binding request surface derived from the canonical verification binding fields."
 
 
+_CONTRACT_METADATA_FIELD_DESCRIPTIONS: dict[str, str] = {
+    "regime_label": "Label for the contracted regime or limit behavior under test.",
+    "expected_behavior": "Short summary of the expected behavior for comparison with observations.",
+    "source_reference_id": "Reference id anchoring the benchmark or grounding example.",
+    "declared_family": "Declared estimator or fit family associated with the contract.",
+    "allowed_families": "List of non-empty estimator/fitter family names that remain allowed.",
+    "forbidden_families": "List of non-empty estimator/fitter family names that are disallowed.",
+    "theorem_parameter_symbols": "Symbols describing theorem parameters that need coverage.",
+    "hypothesis_ids": "Hypothesis ids that support the claim.",
+    "quantifiers": "Quantifiers (if any) tied to the contract claim.",
+    "conclusion_clause_ids": "Conclusion clause ids that must stay aligned with the claim.",
+    "claim_statement": "Natural-language claim statement describing the contracted assertion.",
+}
+
+
+def _status_field_description(label: str, choices: Iterable[str]) -> str:
+    formatted = ", ".join(f"`{choice}`" for choice in choices)
+    return f"{label} status with canonical values {formatted}."
+
+
+_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS: dict[str, str] = {
+    "limit_passed": "Boolean summarizing whether the limit comparison passed.",
+    "observed_limit": "Identifier or label describing the observed limit regime.",
+    "metric_value": "Numeric metric value produced by the check.",
+    "threshold_value": "Numeric threshold used when judging the metric.",
+    "proxy_only": "True when only proxy measurements were available.",
+    "direct_available": "True when direct data was available.",
+    "proxy_available": "True when proxy data was available.",
+    "consistency_passed": "Boolean stating whether reported data remained consistent.",
+    "selected_family": "Estimator or fit family selected during the check.",
+    "competing_family_checked": "Boolean noting if competing families were checked.",
+    "bias_checked": "Boolean noting if bias evaluations were performed.",
+    "calibration_checked": "Boolean noting if calibration checks were performed.",
+    "covered_hypothesis_ids": "Hypothesis ids that the check covered.",
+    "missing_hypothesis_ids": "Hypothesis ids that remain without coverage.",
+    "covered_parameter_symbols": "Parameter symbols confirmed by the observed check.",
+    "missing_parameter_symbols": "Parameter symbols still missing coverage.",
+    "uncovered_quantifiers": "Quantifiers that remain uncovered.",
+    "uncovered_conclusion_clause_ids": "Conclusion clause ids lacking coverage.",
+}
+_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS.update(
+    {
+        "quantifier_status": _status_field_description("Quantifier audit", PROOF_AUDIT_QUANTIFIER_STATUS_VALUES),
+        "scope_status": _status_field_description("Scope audit", PROOF_AUDIT_SCOPE_STATUS_VALUES),
+        "counterexample_status": _status_field_description(
+            "Counterexample audit", PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES
+        ),
+    }
+)
+
+
 class ContractMetadataRequest(_ContractRequestBase):
-    regime_label: str | None = None
-    expected_behavior: str | None = None
-    source_reference_id: str | None = None
-    declared_family: str | None = None
-    allowed_families: list[str] | None = None
-    forbidden_families: list[str] | None = None
-    theorem_parameter_symbols: list[str] | None = None
-    hypothesis_ids: list[str] | None = None
-    quantifiers: list[str] | None = None
-    conclusion_clause_ids: list[str] | None = None
-    claim_statement: str | None = None
+    regime_label: str | None = Field(default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["regime_label"])
+    expected_behavior: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["expected_behavior"]
+    )
+    source_reference_id: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["source_reference_id"]
+    )
+    declared_family: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["declared_family"]
+    )
+    allowed_families: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["allowed_families"]
+    )
+    forbidden_families: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["forbidden_families"]
+    )
+    theorem_parameter_symbols: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["theorem_parameter_symbols"]
+    )
+    hypothesis_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["hypothesis_ids"]
+    )
+    quantifiers: list[str] | None = Field(default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["quantifiers"])
+    conclusion_clause_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["conclusion_clause_ids"]
+    )
+    claim_statement: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["claim_statement"]
+    )
 
 
 class ContractObservedRequest(_ContractRequestBase):
-    limit_passed: bool | None = None
-    observed_limit: str | None = None
-    metric_value: int | float | None = None
-    threshold_value: int | float | None = None
-    proxy_only: bool | None = None
-    direct_available: bool | None = None
-    proxy_available: bool | None = None
-    consistency_passed: bool | None = None
-    selected_family: str | None = None
-    competing_family_checked: bool | None = None
-    bias_checked: bool | None = None
-    calibration_checked: bool | None = None
-    covered_hypothesis_ids: list[str] | None = None
-    missing_hypothesis_ids: list[str] | None = None
-    covered_parameter_symbols: list[str] | None = None
-    missing_parameter_symbols: list[str] | None = None
-    uncovered_quantifiers: list[str] | None = None
-    uncovered_conclusion_clause_ids: list[str] | None = None
-    quantifier_status: str | None = None
-    scope_status: str | None = None
-    counterexample_status: str | None = None
+    limit_passed: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["limit_passed"]
+    )
+    observed_limit: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["observed_limit"]
+    )
+    metric_value: int | float | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["metric_value"]
+    )
+    threshold_value: int | float | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["threshold_value"]
+    )
+    proxy_only: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["proxy_only"]
+    )
+    direct_available: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["direct_available"]
+    )
+    proxy_available: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["proxy_available"]
+    )
+    consistency_passed: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["consistency_passed"]
+    )
+    selected_family: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["selected_family"]
+    )
+    competing_family_checked: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["competing_family_checked"]
+    )
+    bias_checked: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["bias_checked"]
+    )
+    calibration_checked: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["calibration_checked"]
+    )
+    covered_hypothesis_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["covered_hypothesis_ids"]
+    )
+    missing_hypothesis_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["missing_hypothesis_ids"]
+    )
+    covered_parameter_symbols: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["covered_parameter_symbols"]
+    )
+    missing_parameter_symbols: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["missing_parameter_symbols"]
+    )
+    uncovered_quantifiers: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["uncovered_quantifiers"]
+    )
+    uncovered_conclusion_clause_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["uncovered_conclusion_clause_ids"]
+    )
+    quantifier_status: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["quantifier_status"]
+    )
+    scope_status: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["scope_status"]
+    )
+    counterexample_status: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["counterexample_status"]
+    )
 
 
 class RunContractCheckRequest(_ContractRequestBase):
@@ -435,7 +582,7 @@ class RunContractCheckRequest(_ContractRequestBase):
     )
     contract: dict[str, object] | ResearchContract | None = Field(
         default=None,
-        description="Optional project or phase contract payload; salvage remains runtime-managed.",
+        description="Optional project or phase contract payload in the canonical schema shape.",
     )
     binding: ContractBindingRequest | None = None
     metadata: ContractMetadataRequest | None = None
@@ -592,12 +739,15 @@ def _contract_string_list_schema(*, min_items: int | None = None) -> dict[str, o
 
 
 def _contract_string_or_string_list_schema(*, min_items: int | None = None) -> dict[str, object]:
-    return {
+    schema = {
         "anyOf": [
             _contract_string_schema(),
             _contract_string_list_schema(min_items=min_items),
         ]
     }
+    if min_items is not None:
+        schema["minItems"] = min_items
+    return schema
 
 
 def _contract_enum_string_schema(values: Iterable[str]) -> dict[str, object]:
@@ -630,12 +780,15 @@ def _contract_enum_string_or_string_list_schema(
     *,
     min_items: int | None = None,
 ) -> dict[str, object]:
-    return {
+    schema = {
         "anyOf": [
             _contract_enum_string_schema(values),
             _contract_enum_string_list_schema(values, min_items=min_items),
         ]
     }
+    if min_items is not None:
+        schema["minItems"] = min_items
+    return schema
 
 
 _RECOVERABLE_CONTRACT_NESTED_COLLECTION_LIST_FIELDS = frozenset(
@@ -644,6 +797,9 @@ _RECOVERABLE_CONTRACT_NESTED_COLLECTION_LIST_FIELDS = frozenset(
         ("claims", "hypotheses", "symbols"),
     }
 )
+_CONTRACT_CONTEXT_INTAKE_FIELDS = PROJECT_CONTRACT_MAPPING_LIST_FIELDS["context_intake"]
+_CONTRACT_APPROACH_POLICY_FIELDS = PROJECT_CONTRACT_MAPPING_LIST_FIELDS["approach_policy"]
+_CONTRACT_UNCERTAINTY_MARKER_FIELDS = PROJECT_CONTRACT_MAPPING_LIST_FIELDS["uncertainty_markers"]
 
 
 def _recoverable_contract_mapping_list_field_schema(
@@ -747,8 +903,8 @@ _CONTRACT_METADATA_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "expected_behavior": _non_empty_string_or_null_schema(),
         "source_reference_id": _non_empty_string_or_null_schema(),
         "declared_family": _non_empty_string_or_null_schema(),
-        "allowed_families": _string_list_schema(),
-        "forbidden_families": _string_list_schema(),
+        "allowed_families": _string_list_or_null_schema(),
+        "forbidden_families": _string_list_or_null_schema(),
         "theorem_parameter_symbols": _string_list_or_null_schema(),
         "hypothesis_ids": _string_list_or_null_schema(),
         "quantifiers": _string_list_or_null_schema(),
@@ -791,7 +947,7 @@ _CONTRACT_SCOPE_INPUT_SCHEMA: dict[str, object] = _object_schema(
             for field_name in PROJECT_CONTRACT_MAPPING_LIST_FIELDS["scope"]
         },
     },
-    required=("question",),
+    required=("question", "in_scope"),
     additional_properties=False,
 )
 _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
@@ -802,23 +958,25 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         field_name: _recoverable_contract_mapping_list_field_schema("context_intake", field_name, min_items=1)
-        for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
+        for field_name in _CONTRACT_CONTEXT_INTAKE_FIELDS
     },
     additional_properties=False,
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["minProperties"] = 1
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["anyOf"] = [
     {"required": [field_name]}
-    for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
+    for field_name in _CONTRACT_CONTEXT_INTAKE_FIELDS
 ]
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["description"] = (
-    "`context_intake` is required and must stay non-empty. Use it to surface anchors, prior outputs, baselines, "
-    "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work."
+    "Provide concrete `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, or "
+    "`known_good_baselines` so `_has_contract_grounding_context` can detect durable anchors. "
+    "When those anchors cannot cite real artifacts or references, mark at least one `references[]` entry "
+    "with `must_surface: true` before the model emits the contract."
 )
 _CONTRACT_APPROACH_POLICY_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         field_name: _recoverable_contract_mapping_list_field_schema("approach_policy", field_name)
-        for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES
+        for field_name in _CONTRACT_APPROACH_POLICY_FIELDS
     },
     additional_properties=False,
 )
@@ -968,10 +1126,28 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
     {
         "if": {
             "anyOf": [
-                {"required": ["proof_deliverables"]},
-                {"required": ["parameters"]},
-                {"required": ["hypotheses"]},
-                {"required": ["conclusion_clauses"]},
+                {
+                    "required": ["proof_deliverables"],
+                    "properties": {
+                        "proof_deliverables": _recoverable_contract_collection_list_field_schema(
+                            "claims",
+                            "proof_deliverables",
+                            min_items=1,
+                        )
+                    }
+                },
+                {
+                    "required": ["parameters"],
+                    "properties": {"parameters": {"type": "array", "minItems": 1}},
+                },
+                {
+                    "required": ["hypotheses"],
+                    "properties": {"hypotheses": {"type": "array", "minItems": 1}},
+                },
+                {
+                    "required": ["conclusion_clauses"],
+                    "properties": {"conclusion_clauses": {"type": "array", "minItems": 1}},
+                },
             ]
         },
         "then": {
@@ -1050,6 +1226,7 @@ _CONTRACT_REFERENCE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     additional_properties=False,
 )
 _CONTRACT_REFERENCE_INPUT_SCHEMA["description"] = (
+    "A literature, dataset, or artifact anchor the workflow must respect. "
     "Closed reference-anchor object. `must_surface` must stay boolean; when it is `true`, "
     "`applies_to` and `required_actions` must both be non-empty lists. "
     "`carry_forward_to` names workflow scope labels, never contract ids."
@@ -1082,14 +1259,15 @@ _CONTRACT_UNCERTAINTY_MARKERS_INPUT_SCHEMA: dict[str, object] = _object_schema(
             field_name,
             min_items=1 if field_name in {"weakest_anchors", "disconfirming_observations"} else None
         )
-        for field_name in CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES
+        for field_name in _CONTRACT_UNCERTAINTY_MARKER_FIELDS
     },
     required=("weakest_anchors", "disconfirming_observations"),
     additional_properties=False,
 )
 _CONTRACT_UNCERTAINTY_MARKERS_INPUT_SCHEMA["description"] = (
     "Keep unresolved risk explicit. `weakest_anchors` and `disconfirming_observations` are required and must stay "
-    "non-empty so later validation does not treat uncertainty as silently resolved."
+    "non-empty so `collect_plan_contract_integrity_errors` and `_collect_strict_contract_results_errors` "
+    "can surface the assumptions the model still must resolve."
 )
 _CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
@@ -1299,10 +1477,19 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] = (
     "`observed`, and `artifact_content` are optional sections, but each check still enforces "
     "its own `schema_required_request_fields` and `schema_required_request_anyof_fields`. "
     "When `binding` is present, use only the canonical plural `*_ids` arrays surfaced in "
-    "`supported_binding_fields`. Use `suggest_contract_checks(contract, active_checks=...)` "
-    "first to inspect `required_request_fields`, `schema_required_request_fields`, "
+    "`supported_binding_fields`. Call `suggest_contract_checks(contract=project_contract, "
+    "active_checks=active_checks)` before `run_contract_check` to inspect "
+    "`required_request_fields`, `schema_required_request_fields`, "
     "`schema_required_request_anyof_fields`, `optional_request_fields`, "
-    "`supported_binding_fields`, and a safe `request_template`."
+    "`supported_binding_fields`, and a starter `request_template`; fill every schema-required field "
+    "and one any-of branch before execution."
+)
+_RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += (
+    " "
+    + VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT
+    + " Hard request constraint fields surfaced by hints: "
+    + VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT
+    + "."
 )
 all_of_conditions: list[dict[str, object]] = []
 if _RUN_CONTRACT_CHECK_BINDING_CONDITIONS:
@@ -1349,6 +1536,7 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         for group in hint.get("schema_required_request_anyof_fields", [])
         if isinstance(group, (list, tuple))
     ]
+    schema_required_request_anyof_fields = [group for group in schema_required_request_anyof_fields if group]
     optional_request_fields = [
         *supported_binding_fields,
         *[
@@ -1366,12 +1554,58 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         "request_template": request_template,
     }
 
+    def _field_requires_contract(field_name: object) -> bool:
+        return isinstance(field_name, str) and (field_name == "contract" or field_name.startswith("contract."))
+
+    def _contract_section_required() -> bool:
+        if any(_field_requires_contract(field) for field in enriched_hint["required_request_fields"]):
+            return True
+        if any(_field_requires_contract(field) for field in enriched_hint["schema_required_request_fields"]):
+            return True
+        for group in enriched_hint["schema_required_request_anyof_fields"]:
+            if any(_field_requires_contract(field) for field in group):
+                return True
+        return False
+
+    contract_section_required = _contract_section_required()
+    if contract is not None:
+        contract_payload, _ = _payload_mapping(contract, field_name="contract")
+        if contract_payload is not None:
+            request_template["contract"] = contract_payload
+    elif contract_section_required:
+        request_template.setdefault("contract", _request_template_placeholder("contract"))
+
     def _demote_required_field(field_name: str) -> None:
         enriched_hint["required_request_fields"] = [
             field for field in enriched_hint["required_request_fields"] if field != field_name
         ]
+        enriched_hint["schema_required_request_fields"] = [
+            field for field in enriched_hint["schema_required_request_fields"] if field != field_name
+        ]
         if field_name not in enriched_hint["optional_request_fields"]:
             enriched_hint["optional_request_fields"].append(field_name)
+
+    def _apply_family_policy_metadata(
+        allowed_families: Iterable[str] | None,
+        forbidden_families: Iterable[str] | None,
+    ) -> None:
+        allowed_family_values = list(allowed_families or [])
+        forbidden_family_values = list(forbidden_families or [])
+        if allowed_family_values:
+            metadata["allowed_families"] = allowed_family_values
+        if forbidden_family_values:
+            metadata["forbidden_families"] = forbidden_family_values
+        if len(allowed_family_values) == 1:
+            metadata["declared_family"] = allowed_family_values[0]
+            _demote_required_field("metadata.declared_family")
+        elif (
+            check_key == "contract.fit_family_mismatch"
+            and allowed_family_values
+            and _contains_unreplaced_request_template_sentinel(metadata.get("declared_family"))
+        ):
+            metadata["declared_family"] = allowed_family_values[0]
+        elif _contains_unreplaced_request_template_sentinel(metadata.get("declared_family")):
+            metadata.pop("declared_family", None)
 
     if contract is None:
         return enriched_hint
@@ -1390,17 +1624,19 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             keywords=("benchmark", "baseline", "reference"),
             evidence_ids=benchmark_reference_ids,
         )
-        if len(_unique_strings(benchmark_reference_ids)) == 1 and len(benchmark_tests) == 1:
-            benchmark_reference_id = benchmark_reference_ids[0]
+        unique_benchmark_reference_ids = _unique_strings(benchmark_reference_ids)
+        if unique_benchmark_reference_ids:
+            benchmark_reference_id = unique_benchmark_reference_ids[0]
             metadata["source_reference_id"] = benchmark_reference_id
-            binding.setdefault("reference_ids", [benchmark_reference_id])
-            benchmark_test = _apply_single_acceptance_test_binding(binding, contract, benchmark_tests)
-            if benchmark_test is not None:
-                _set_single_binding_value(
-                    binding,
-                    "reference_ids",
-                    [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
-                )
+            if len(unique_benchmark_reference_ids) == 1 and len(benchmark_tests) == 1:
+                binding.setdefault("reference_ids", [benchmark_reference_id])
+                benchmark_test = _apply_single_acceptance_test_binding(binding, contract, benchmark_tests)
+                if benchmark_test is not None:
+                    _set_single_binding_value(
+                        binding,
+                        "reference_ids",
+                        [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
+                    )
             _demote_required_field("metadata.source_reference_id")
 
     elif check_key == "contract.limit_recovery":
@@ -1412,28 +1648,31 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         regime_candidates = _unique_strings(
             observable.regime for observable in contract.observables if observable.regime
         )
-        if len(regime_candidates) == 1 and len(limit_tests) == 1:
+        if regime_candidates:
             regime_label = regime_candidates[0]
             metadata["regime_label"] = regime_label
-            _set_single_binding_value(
-                binding,
-                "observable_ids",
-                [observable.id for observable in contract.observables if observable.regime == regime_label],
-            )
-            _set_single_binding_value(binding, "claim_ids", _claim_ids_for_regime(contract, regime_label))
-            limit_test = _apply_single_acceptance_test_binding(
-                binding,
-                contract,
-                limit_tests,
-                include_observable_binding=True,
-            )
-            if limit_test is None:
-                binding_ids = {target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS}
-                limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
-            if limit_test is not None and limit_test.pass_condition:
-                metadata["expected_behavior"] = limit_test.pass_condition
+            if len(regime_candidates) == 1 and len(limit_tests) == 1:
+                _set_single_binding_value(
+                    binding,
+                    "observable_ids",
+                    [observable.id for observable in contract.observables if observable.regime == regime_label],
+                )
+                _set_single_binding_value(binding, "claim_ids", _claim_ids_for_regime(contract, regime_label))
+                limit_test = _apply_single_acceptance_test_binding(
+                    binding,
+                    contract,
+                    limit_tests,
+                    include_observable_binding=True,
+                )
+                if limit_test is None:
+                    binding_ids = {target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS}
+                    limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
+                if limit_test is not None and limit_test.pass_condition:
+                    metadata["expected_behavior"] = limit_test.pass_condition
+            elif limit_tests:
+                metadata["expected_behavior"] = "approaches the contracted limit behavior"
             _demote_required_field("metadata.regime_label")
-            if limit_test is not None and limit_test.pass_condition:
+            if len(regime_candidates) == 1 and len(limit_tests) == 1 and limit_test is not None and limit_test.pass_condition:
                 _demote_required_field("metadata.expected_behavior")
 
     elif check_key == "contract.direct_proxy_consistency":
@@ -1465,15 +1704,10 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             enriched_hint["required_request_fields"] = ["binding.forbidden_proxy_ids"]
 
     elif check_key == "contract.fit_family_mismatch":
-        allowed_families = list(contract.approach_policy.allowed_fit_families)
-        forbidden_families = list(contract.approach_policy.forbidden_fit_families)
-        if allowed_families:
-            metadata["allowed_families"] = allowed_families
-        if forbidden_families:
-            metadata["forbidden_families"] = forbidden_families
-        if len(allowed_families) == 1:
-            metadata["declared_family"] = allowed_families[0]
-            _demote_required_field("metadata.declared_family")
+        _apply_family_policy_metadata(
+            contract.approach_policy.allowed_fit_families,
+            contract.approach_policy.forbidden_fit_families,
+        )
         fit_tests = _matching_acceptance_tests(
             contract,
             keywords=("fit", "residual", "extrapolat", "ansatz"),
@@ -1486,15 +1720,10 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         )
 
     elif check_key == "contract.estimator_family_mismatch":
-        allowed_families = list(contract.approach_policy.allowed_estimator_families)
-        forbidden_families = list(contract.approach_policy.forbidden_estimator_families)
-        if allowed_families:
-            metadata["allowed_families"] = allowed_families
-        if forbidden_families:
-            metadata["forbidden_families"] = forbidden_families
-        if len(allowed_families) == 1:
-            metadata["declared_family"] = allowed_families[0]
-            _demote_required_field("metadata.declared_family")
+        _apply_family_policy_metadata(
+            contract.approach_policy.allowed_estimator_families,
+            contract.approach_policy.forbidden_estimator_families,
+        )
         estimator_tests = _matching_acceptance_tests(
             contract,
             keywords=("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance"),
@@ -1557,11 +1786,11 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
     if check_key in _PROOF_CHECK_KEYS:
         if "contract" not in enriched_hint["required_request_fields"]:
             enriched_hint["required_request_fields"].insert(0, "contract")
-        enriched_hint["request_template"]["contract"] = None
         enriched_hint["optional_request_fields"] = [
             field for field in enriched_hint["optional_request_fields"] if field not in enriched_hint["required_request_fields"]
         ]
 
+    enriched_hint["request_template"] = _strip_null_request_template_values(request_template)
     return enriched_hint
 
 
@@ -1769,10 +1998,10 @@ def _normalize_contract_metadata(metadata: dict[str, object]) -> tuple[dict[str,
         "forbidden_families",
     ):
         if key in normalized:
-            error = _validate_string_list_field(normalized[key], field_name=f"metadata.{key}")
+            normalized_value, error = _validate_optional_string_list(normalized[key], field_name=f"metadata.{key}")
             if error is not None:
                 return {}, error
-            normalized[key] = _normalize_string_list(normalized[key])
+            normalized[key] = normalized_value
     for key in (
         "theorem_parameter_symbols",
         "hypothesis_ids",
@@ -1802,7 +2031,7 @@ def _run_contract_check_description() -> str:
         "contract payload. ``project_dir`` is optional, but when the contract uses project-local anchors "
         "or prior-output paths it should be the absolute project root so those references are validated "
         "against the correct filesystem context. "
-        f"{verification_contract_surface_summary_text()}"
+        f"{verification_contract_surface_summary_text()} {verification_contract_policy_text()}"
     )
 
 
@@ -1813,11 +2042,13 @@ def _suggest_contract_checks_description() -> str:
         "``project_dir`` is optional, but supply the absolute project root whenever the contract uses "
         "project-local anchors or prior-output paths so grounding-sensitive checks see the same root "
         "the model is reasoning about. "
-        f"{verification_contract_surface_summary_text()} "
+        f"{verification_contract_surface_summary_text()} {verification_contract_policy_text()} "
         "Use the canonical plan-contract schema for plan-style payloads; this tool returns the exact "
-        "request-shape metadata, including ``schema_required_request_fields``, "
-        "``schema_required_request_anyof_fields``, ``supported_binding_fields``, and a ``request_template`` safe "
-        "to pass to ``run_contract_check(request=...)``. "
+        "request-shape metadata, including ``required_request_fields``, "
+        "``schema_required_request_fields``, ``schema_required_request_anyof_fields``, "
+        "``optional_request_fields``, ``supported_binding_fields``, and a starter ``request_template``. "
+        "Fill every schema-required field and one any-of branch before passing it to "
+        "``run_contract_check(request=...)``. "
         "``active_checks`` is optional and must be ``list[str]`` with non-empty entries when provided. "
         "Supply already-enabled check ids or check keys so each suggestion can mark ``already_active`` "
         "precisely. Proof-check templates still surface an explicit ``contract`` placeholder because "
@@ -1924,15 +2155,60 @@ def _error_result(message: object) -> dict[str, object]:
     return stable_mcp_error(message)
 
 
-def _validate_run_contract_check_request_keys(request: dict[str, object]) -> str | None:
+def _contract_check_error_result(
+    message: object,
+    check_key: str | None,
+    *,
+    source_error: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Return a stable error envelope with request repair hints when possible."""
+
+    response = _error_result(message)
+    if isinstance(source_error, Mapping):
+        for key, value in source_error.items():
+            if key in {"error", "schema_version"}:
+                continue
+            response[key] = copy.deepcopy(value)
+    if isinstance(message, str) and message.startswith("Invalid contract payload"):
+        return response
+    if check_key and get_verification_check(check_key) is not None:
+        response.update(_contract_check_request_hint(check_key))
+    return response
+
+
+def _is_self_repairable_payload_shape_error(message: object) -> bool:
+    if not isinstance(message, str):
+        return False
+    return message.endswith(" must be an object") or " must be a non-empty string" in message or " must be a non-empty list" in message
+
+
+def _run_contract_check_request_shape_guidance(check_key: str | None = None) -> dict[str, object]:
+    """Return model-facing request shape metadata for repairable request errors."""
+
+    guidance: dict[str, object] = {
+        "allowed_top_level_request_fields": list(RunContractCheckRequest.model_fields),
+        "request_shape": VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
+    }
+    if check_key and get_verification_check(check_key) is not None:
+        guidance.update(_contract_check_request_hint(check_key))
+    return guidance
+
+
+def _validate_run_contract_check_request_keys(request: dict[str, object]) -> dict[str, object] | None:
     """Reject unknown keys in the run_contract_check request sections."""
+
+    check_key = request.get("check_key") if isinstance(request.get("check_key"), str) else None
+    guidance = _run_contract_check_request_shape_guidance(check_key)
 
     request_fields = tuple(RunContractCheckRequest.model_fields)
     unknown_request_keys = sorted(str(key) for key in request if key not in request_fields)
     if unknown_request_keys:
         supported = ", ".join(request_fields)
         joined = ", ".join(unknown_request_keys)
-        return f"request contains unsupported keys: {joined}; supported keys are {supported}"
+        return {
+            "error": f"request contains unsupported keys: {joined}; supported keys are {supported}",
+            **guidance,
+        }
 
     for section_name, model in (
         ("metadata", ContractMetadataRequest),
@@ -1946,9 +2222,45 @@ def _validate_run_contract_check_request_keys(request: dict[str, object]) -> str
         if unknown_section_keys:
             supported = ", ".join(section_fields)
             joined = ", ".join(unknown_section_keys)
-            return f"{section_name} contains unsupported keys: {joined}; supported keys are {supported}"
+            return {
+                "error": f"{section_name} contains unsupported keys: {joined}; supported keys are {supported}",
+                **guidance,
+            }
 
     return None
+
+
+def _contains_unreplaced_request_template_sentinel(value: object) -> bool:
+    """Return whether a request still contains a visible request-template sentinel."""
+
+    if isinstance(value, str):
+        return value.startswith("<replace-with-") and value.endswith(">")
+    if isinstance(value, list):
+        return any(_contains_unreplaced_request_template_sentinel(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_unreplaced_request_template_sentinel(item) for item in value.values())
+    return False
+
+
+def _request_template_seed_sections(request: dict[str, object]) -> dict[str, object]:
+    """Return request sections copied from request templates, excluding contract payloads."""
+
+    return {
+        key: copy.deepcopy(value)
+        for key, value in request.items()
+        if key in {"binding", "metadata", "observed", "artifact_content", "contract"}
+    }
+
+
+def _request_key_error_result(error_payload: dict[str, object]) -> dict[str, object]:
+    """Return a stable error envelope while preserving request-repair metadata."""
+
+    response = _error_result(error_payload.get("error", "invalid run_contract_check request"))
+    for key, value in error_payload.items():
+        if key in {"error", "schema_version"}:
+            continue
+        response[key] = copy.deepcopy(value)
+    return response
 
 
 def _payload_mapping(value: object, *, field_name: str) -> tuple[dict[str, object] | None, dict[str, object] | None]:
@@ -2138,8 +2450,8 @@ def run_check(
     For contract-aware checks, the response also surfaces
     ``required_request_fields``, ``schema_required_request_fields``,
     ``schema_required_request_anyof_fields``, ``optional_request_fields``,
-    ``supported_binding_fields``, and a ``request_template`` so callers can
-    build a valid ``run_contract_check`` request before executing it.
+    ``supported_binding_fields``, and a starter ``request_template``. Fill
+    every schema-required field and one any-of branch before executing it.
 
     Args:
         check_id: Check identifier or canonical check key
@@ -3361,6 +3673,8 @@ def _contract_value_at_path(contract_raw: dict[str, object], path: str) -> objec
 
 
 def _normalize_contract_parse_error(error: str, *, contract_raw: dict[str, object]) -> str:
+    if error is None:
+        return error
     if error == "schema_version: Input should be 1":
         return "schema_version must be 1"
 
@@ -3406,8 +3720,25 @@ def _contract_error_sort_key(error: str) -> tuple[object, ...]:
 
 
 def _contract_payload_error(errors: list[str]) -> dict[str, object]:
+    salvage_detail_errors = {
+        error.removesuffix(" (draft/salvage warning; strict authoritative validation still rejects unknown keys)")
+        for error in errors
+        if error.endswith(" (draft/salvage warning; strict authoritative validation still rejects unknown keys)")
+    }
     details = sorted(
-        dict.fromkeys(errors),
+        dict.fromkeys(
+            error
+            for error in errors
+            if error not in salvage_detail_errors
+            and not (
+                error.endswith(": Input should be a valid list")
+                and f"{error.split(':', 1)[0]} must be a list, not str" in errors
+            )
+            and not (
+                error.endswith(": Value error, must be a boolean")
+                and f"{error.split(':', 1)[0]}: must be a boolean (coerced from 'yes')" in errors
+            )
+        ),
         key=_contract_error_sort_key,
     )
     if not details:
@@ -3420,11 +3751,6 @@ def _contract_payload_error(errors: list[str]) -> dict[str, object]:
 
 def _is_authoritative_contract_parse_error(error: str) -> bool:
     return is_authoritative_project_contract_schema_finding(error)
-
-
-def _is_defaultable_singleton_contract_error(error: str) -> bool:
-    del error
-    return False
 
 
 def _recoverable_collection_list_shape_error(error: str, *, contract_raw: dict[str, object]) -> bool:
@@ -3504,7 +3830,6 @@ def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, 
             _recoverable_collection_list_shape_error(error, contract_raw=contract_raw),
             _recoverable_mapping_list_shape_error(error, contract_raw=contract_raw),
             _is_case_drift_contract_parse_error(error),
-            _is_defaultable_singleton_contract_error(error),
         )
     )
 
@@ -3535,6 +3860,16 @@ def _parse_contract_payload(
     *,
     project_root: Path | None = None,
 ) -> tuple[ResearchContract | None, list[str], dict | None]:
+    if "schema_version" not in contract_raw:
+        schema_version_error = "schema_version is required"
+    else:
+        schema_version_error = _normalize_contract_parse_error(
+            _validate_direct_project_contract_schema_version(contract_raw.get("schema_version")),
+            contract_raw=contract_raw,
+        )
+    if schema_version_error is not None:
+        return None, [], _contract_payload_error([schema_version_error])
+
     strict_result = parse_project_contract_data_strict(contract_raw)
     salvage_result = parse_project_contract_data_salvage(contract_raw)
     normalized_strict_errors = [
@@ -3560,13 +3895,43 @@ def _parse_contract_payload(
         if _is_authoritative_contract_parse_error(error)
     ]
     if authoritative_errors:
-        return None, [], _contract_payload_error(authoritative_errors)
+        authoritative_with_recoverable = [*authoritative_errors, *normalized_salvage_recoverable_errors]
+        normalized_salvage_blocking_errors = [
+            _normalize_contract_parse_error(error, contract_raw=contract_raw)
+            for error in salvage_result.blocking_errors
+        ]
+        if normalized_salvage_blocking_errors:
+            return None, [], _contract_payload_error([*authoritative_with_recoverable, *normalized_salvage_blocking_errors])
+        salvage_integrity_errors = [
+            error
+            for error in normalized_salvage_recoverable_errors
+            if error not in authoritative_errors
+            and not _is_authoritative_contract_parse_error(error)
+            and not _is_recoverable_contract_parse_error(error, contract_raw=contract_raw)
+        ]
+        if salvage_integrity_errors:
+            return None, [], _contract_payload_error([*authoritative_with_recoverable, *salvage_integrity_errors])
+        if salvage_result.contract is not None:
+            integrity_error = _validate_contract_integrity(
+                salvage_result.contract,
+                contract_raw=contract_raw,
+                project_root=project_root,
+            )
+            if integrity_error is not None and "contract_error_details" in integrity_error:
+                return None, [], _contract_payload_error([*authoritative_with_recoverable, *integrity_error["contract_error_details"]])
+        return None, [], _contract_payload_error(authoritative_with_recoverable)
     if strict_result.contract is None:
         blocking = [
             error
             for error in [*normalized_strict_errors, *normalized_salvage_recoverable_errors]
             if error not in nonblocking_errors
         ]
+        if salvage_result.blocking_errors:
+            salvage_errors = [
+                _normalize_contract_parse_error(error, contract_raw=contract_raw)
+                for error in salvage_result.blocking_errors
+            ]
+            return None, [], _contract_payload_error([*normalized_salvage_recoverable_errors, *salvage_errors])
         if blocking:
             return None, [], _contract_payload_error(blocking)
         contract = salvage_result.contract
@@ -3575,7 +3940,7 @@ def _parse_contract_payload(
                 _normalize_contract_parse_error(error, contract_raw=contract_raw)
                 for error in salvage_result.blocking_errors
             ]
-            combined_errors = salvage_errors or normalized_strict_errors
+            combined_errors = [*normalized_salvage_recoverable_errors, *salvage_errors] or normalized_strict_errors
             return None, [], _contract_payload_error(combined_errors)
     else:
         contract = strict_result.contract
@@ -3594,6 +3959,9 @@ def _parse_contract_payload(
         project_root=project_root,
     )
     if integrity_error is not None:
+        if recoverable_errors and "contract_error_details" in integrity_error:
+            combined_errors = [*recoverable_errors, *integrity_error["contract_error_details"]]
+            return None, [], _contract_payload_error(combined_errors)
         return None, [], integrity_error
     return contract, recoverable_errors, None
 
@@ -3602,6 +3970,31 @@ def _contract_salvage_requires_repair(contract_salvage_errors: list[str]) -> boo
     """Return whether salvage findings still require repair before proof checks can run."""
 
     return any(is_repair_relevant_project_contract_schema_finding(error) for error in contract_salvage_errors)
+
+
+_PROOF_SALVAGE_FIELDS = frozenset(
+    (
+        "parameters",
+        "hypotheses",
+        "quantifiers",
+        "conclusion_clauses",
+        "proof_deliverables",
+    )
+)
+
+
+def _proof_salvage_warning(contract_salvage_errors: list[str]) -> str | None:
+    if not contract_salvage_errors:
+        return None
+    for error in contract_salvage_errors:
+        if not error.startswith("claims."):
+            continue
+        if any(f".{field}" in error for field in _PROOF_SALVAGE_FIELDS):
+            return (
+                "Proof metadata salvage occurred; double-check that claim parameters, hypotheses, quantifiers, "
+                "and conclusion clauses still match the intended theorem before rerunning proof checks."
+            )
+    return None
 
 
 def _validate_benchmark_reference_binding(
@@ -3734,6 +4127,14 @@ def _with_contract_policy_defaults(
                         enriched[field_name] = copy.deepcopy(value)
 
     return enriched
+
+
+def _contract_defaulted_metadata_fields(supplied_metadata: dict[str, object], metadata: dict[str, object]) -> list[str]:
+    return [
+        field_name
+        for field_name in metadata
+        if field_name not in supplied_metadata or supplied_metadata.get(field_name) in (None, [], "")
+    ]
 
 
 def _contains_any_keyword(values: Iterable[str], keywords: Iterable[str]) -> bool:
@@ -3909,7 +4310,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 return error
             request_key_error = _validate_run_contract_check_request_keys(request)
             if request_key_error is not None:
-                return _error_result(request_key_error)
+                return _request_key_error_result(request_key_error)
             check_key_value, error = _validate_check_identifier(request.get("check_key"), field_name="check_key")
             if error is not None:
                 return error
@@ -3925,16 +4326,16 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
 
             contract_raw, error = _optional_mapping_field(request, "contract")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "contract must be an object"), check_meta.check_key)
             binding_raw, error = _optional_mapping_field(request, "binding")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "binding must be an object"), check_meta.check_key)
             metadata_raw, error = _optional_mapping_field(request, "metadata")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "metadata must be an object"), check_meta.check_key)
             observed_raw, error = _optional_mapping_field(request, "observed")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "observed must be an object"), check_meta.check_key)
 
             contract = None
             contract_salvage_errors: list[str] = []
@@ -3944,7 +4345,11 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     project_root=project_root,
                 )
                 if error is not None:
-                    return error
+                    return _contract_check_error_result(
+                        error.get("error", error),
+                        check_meta.check_key,
+                        source_error=error if isinstance(error, Mapping) else None,
+                    )
 
             binding = binding_raw or {}
             binding, binding_error = _validate_binding_payload(binding, allowed_targets=check_meta.binding_targets)
@@ -3957,12 +4362,23 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 return _error_result(metadata_error)
             supplied_metadata = dict(metadata)
             observed = observed_raw or {}
+            if _contains_unreplaced_request_template_sentinel({"observed": observed}):
+                for field_name in list(observed):
+                    if _contains_unreplaced_request_template_sentinel(observed.get(field_name)):
+                        observed[field_name] = None
+            if _contains_unreplaced_request_template_sentinel(_request_template_seed_sections(request)):
+                return _contract_check_error_result(
+                    "request contains unreplaced request_template sentinel values; replace every <replace-with-...> value before execution",
+                    check_meta.check_key,
+                )
             artifact_content_raw = request.get("artifact_content")
             artifact_content, artifact_content_error = _validate_optional_string(
                 artifact_content_raw,
                 field_name="artifact_content",
             )
             if artifact_content_error is not None:
+                if _is_self_repairable_payload_shape_error(artifact_content_error):
+                    return _contract_check_error_result(artifact_content_error, check_meta.check_key)
                 return _error_result(artifact_content_error)
             artifact_content = artifact_content or ""
             binding_contract_error = _validate_bound_contract_ids(
@@ -3988,6 +4404,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 binding_supplied=binding_supplied,
                 metadata=metadata,
             )
+            defaulted_metadata_fields = _contract_defaulted_metadata_fields(supplied_metadata, metadata)
             proof_claim_id: str | None = None
             if contract is not None and check_meta.check_key in _PROOF_CHECK_KEYS:
                 proof_claim_candidates, proof_claim_issue = _proof_claim_candidates(
@@ -4013,17 +4430,24 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
 
             missing_inputs: list[str] = []
             automated_issues: list[str] = []
+            contract_warnings: list[str] = []
             metrics: dict[str, object] = {}
             status = "insufficient_evidence"
             evidence_directness = "metadata_only"
             if contract_salvage_errors:
-                automated_issues.append(
-                    "Contract payload was salvaged before verification: "
-                    + _summarize_contract_salvage_errors(contract_salvage_errors)
-                )
+                summary = _summarize_contract_salvage_errors(contract_salvage_errors)
+                warning_message = "Contract payload was salvaged before verification: " + summary
+                automated_issues.append(warning_message)
+                contract_warnings.append(warning_message)
+                proof_warning = _proof_salvage_warning(contract_salvage_errors)
+                if proof_warning:
+                    automated_issues.append(proof_warning)
+                    contract_warnings.append(proof_warning)
             automated_issues.extend(binding_issues)
 
             if check_meta.check_key == "contract.limit_recovery":
+                decisive_limit_metadata_fields = {"regime_label", "expected_behavior"}
+                decisive_limit_metadata_defaulted = decisive_limit_metadata_fields.issubset(defaulted_metadata_fields)
                 regime_label = metadata.get("regime_label")
                 regime_label, regime_issue = _validate_limit_regime_binding(
                     contract=contract,
@@ -4057,8 +4481,15 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 metrics["regime_label"] = regime_label
                 metrics["observed_limit"] = observed_limit
                 if limit_passed is True and not missing_inputs:
-                    status = "pass"
-                    evidence_directness = "direct"
+                    if decisive_limit_metadata_defaulted and not binding:
+                        automated_issues.append(
+                            "Limit recovery metadata was derived from contract defaults; supply metadata.regime_label "
+                            "and metadata.expected_behavior for a decisive verdict"
+                        )
+                        status = "insufficient_evidence"
+                    else:
+                        status = "pass"
+                        evidence_directness = "direct"
                 elif limit_passed is False and not missing_inputs:
                     automated_issues.append("Observed limit behavior does not match the contracted asymptotic expectation")
                     status = "fail"
@@ -4182,8 +4613,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 )
                 if error_message is not None:
                     return _error_result(error_message)
-                allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
-                forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
+                allowed = {str(item) for item in (metadata.get("allowed_families") or []) if isinstance(item, str)}
+                forbidden = {str(item) for item in (metadata.get("forbidden_families") or []) if isinstance(item, str)}
                 competing_checked, error = _validate_boolean(
                     observed.get("competing_family_checked"),
                     field_name="observed.competing_family_checked",
@@ -4227,8 +4658,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 )
                 if error_message is not None:
                     return _error_result(error_message)
-                allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
-                forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
+                allowed = {str(item) for item in (metadata.get("allowed_families") or []) if isinstance(item, str)}
+                forbidden = {str(item) for item in (metadata.get("forbidden_families") or []) if isinstance(item, str)}
                 bias_checked, error = _validate_boolean(observed.get("bias_checked"), field_name="observed.bias_checked")
                 if error is not None:
                     return error
@@ -4420,10 +4851,15 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 )
                 if error_message is not None:
                     return _error_result(error_message)
+                declared_quantifiers = _normalized_unique_strings(quantifiers or [])
+                if not declared_quantifiers and proof_claim_id is not None and contract is not None:
+                    claim = _proof_claim_for_id(contract, proof_claim_id)
+                    if claim is not None:
+                        declared_quantifiers = _normalized_unique_strings(claim.quantifiers)
                 metrics.update(
                     {
                         "proof_claim_id": proof_claim_id,
-                        "declared_quantifiers": sorted(quantifiers or []),
+                        "declared_quantifiers": sorted(declared_quantifiers),
                         "uncovered_quantifiers": sorted(uncovered_quantifiers or []),
                         "quantifier_status": quantifier_status,
                         "scope_status": scope_status,
@@ -4578,8 +5014,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     metadata=metadata,
                 )
 
-            return stable_mcp_response(
-                {
+            response_payload: dict[str, object] = {
                 "check_id": check_meta.check_id,
                 "check_key": check_meta.check_key,
                 "check_name": check_meta.name,
@@ -4591,14 +5026,17 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 "evidence_directness": evidence_directness,
                 "binding": binding,
                 "missing_inputs": missing_inputs,
+                "request_guidance": _contract_check_request_hint(check_meta.check_key, contract=contract),
                 "automated_issues": automated_issues,
                 "metrics": metrics,
                 "contract_impacts": contract_impacts,
                 "contract_salvaged": bool(contract_salvage_errors),
                 "contract_salvage_findings": list(contract_salvage_errors),
                 "guidance": check_meta.oracle_hint,
-                }
-            )
+            }
+            if contract_warnings:
+                response_payload["contract_warnings"] = contract_warnings
+            return stable_mcp_response(response_payload)
         except Exception as exc:  # pragma: no cover - defensive envelope
             return _error_result(exc)
 
@@ -4721,10 +5159,14 @@ def suggest_contract_checks(
                 "contract_salvage_findings": list(contract_salvage_errors),
             }
             if contract_salvage_errors:
-                response["contract_warnings"] = [
+                warnings = [
                     "Contract payload was salvaged before check suggestion: "
                     + _summarize_contract_salvage_errors(contract_salvage_errors)
                 ]
+                proof_warning = _proof_salvage_warning(contract_salvage_errors)
+                if proof_warning:
+                    warnings.append(proof_warning)
+                response["contract_warnings"] = warnings
             return stable_mcp_response(response)
         except Exception as exc:  # pragma: no cover - defensive envelope
             if isinstance(exc, PydanticValidationError):

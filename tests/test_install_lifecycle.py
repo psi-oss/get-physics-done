@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter
-from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import MANIFEST_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 
@@ -45,6 +45,14 @@ _EXTERNAL_SKILLS_RUNTIME = next(
 )
 
 
+def _managed_external_command_dir_names(adapter, target: Path, manifest: dict[str, object]) -> tuple[str, ...]:
+    del adapter, target
+    for value in manifest.values():
+        if isinstance(value, list) and value and all(isinstance(item, str) and item.startswith("gpd-") for item in value):
+            return tuple(sorted(value))
+    raise AssertionError("adapter manifest did not expose managed external command directories")
+
+
 def test_markdown_command_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
     adapter = get_adapter(_MARKDOWN_COMMAND_RUNTIME.runtime_name)
     target = tmp_path / _MARKDOWN_COMMAND_RUNTIME.config_dir_name
@@ -62,16 +70,8 @@ def test_markdown_command_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root:
     assert "context_mode: projectless" in slides_content
     assert "/get-physics-done/workflows/slides.md" in slides_content
 
-    bridge_command = build_runtime_cli_bridge_command(
-        adapter.runtime_name,
-        target_dir=target,
-        config_dir_name=adapter.config_dir_name,
-        is_global=True,
-        explicit_target=False,
-    )
     suggest_next = (commands_dir / "suggest-next.md").read_text(encoding="utf-8")
-    assert bridge_command in suggest_next
-    assert "Uses `gpd --raw suggest`" in suggest_next
+    assert "Run `gpd --raw suggest`" in suggest_next
 
     manifest = _assert_manifest_present(target)
     assert manifest["runtime"] == adapter.runtime_name
@@ -100,6 +100,8 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     assert (skills_dir / "gpd-start" / "SKILL.md").exists()
     assert (skills_dir / "gpd-tour" / "SKILL.md").exists()
     assert (skills_dir / "gpd-slides" / "SKILL.md").exists()
+    assert not (skills_dir / "gpd-health").exists()
+    assert not (skills_dir / "gpd-suggest-next").exists()
 
     help_skill = (skills_dir / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
     assert "context_mode:" in help_skill
@@ -110,18 +112,11 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     assert "notify" in config_toml
     assert "multi_agent = true" in config_toml
     manifest = _assert_manifest_present(target)
-    assert manifest["codex_generated_skill_dirs"]
-    assert all(name.startswith("gpd-") for name in manifest["codex_generated_skill_dirs"])
-
-    suggest_next = (skills_dir / "gpd-suggest-next" / "SKILL.md").read_text(encoding="utf-8")
-    bridge_command = build_runtime_cli_bridge_command(
-        adapter.runtime_name,
-        target_dir=target,
-        config_dir_name=adapter.config_dir_name,
-        is_global=True,
-        explicit_target=False,
-    )
-    assert bridge_command in suggest_next
+    managed_external_command_dir_names = _managed_external_command_dir_names(adapter, target, manifest)
+    assert managed_external_command_dir_names
+    assert all(name.startswith("gpd-") for name in managed_external_command_dir_names)
+    assert "gpd-health" not in managed_external_command_dir_names
+    assert "gpd-suggest-next" not in managed_external_command_dir_names
 
     preserved_skill = skills_dir / "gpd-user-keep"
     preserved_skill.mkdir()
@@ -130,6 +125,6 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     uninstall_result = adapter.uninstall(target, skills_dir=skills_dir)
     assert uninstall_result["skills"] > 0
     assert (preserved_skill / "SKILL.md").exists()
-    assert not any((skills_dir / name).exists() for name in manifest["codex_generated_skill_dirs"])
+    assert not any((skills_dir / name).exists() for name in managed_external_command_dir_names)
     assert not (target / "get-physics-done").exists()
     assert not (target / MANIFEST_NAME).exists()

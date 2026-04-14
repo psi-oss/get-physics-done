@@ -11,6 +11,30 @@ def _read_template(name: str) -> str:
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 
+def _gpd_return_block(source: str) -> str:
+    return source.split("gpd_return:\n", 1)[1].split("```", 1)[0]
+
+
+def _top_level_keys(block: str) -> list[str]:
+    return [
+        line.strip().split(":", 1)[0]
+        for line in block.splitlines()
+        if line.startswith("  ") and not line.startswith("    ") and ":" in line and not line.lstrip().startswith("#")
+    ]
+
+
+def _extension_keys(block: str) -> list[str]:
+    extension_keys: list[str] = []
+    in_extensions = False
+    for line in block.splitlines():
+        if line.startswith("  ") and not line.startswith("    "):
+            in_extensions = line.strip() == "extensions:"
+            continue
+        if in_extensions and line.startswith("    ") and ":" in line and not line.lstrip().startswith("#"):
+            extension_keys.append(line.strip().split(":", 1)[0])
+    return extension_keys
+
+
 def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_constraints() -> None:
     plan_schema = _read_template("plan-contract-schema.md")
 
@@ -41,7 +65,18 @@ def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_cons
         in plan_schema
     )
     assert "When concrete grounding already exists, a missing `must_surface: true` reference is a warning, not a blocker." in plan_schema
+    assert "`must_surface: true` references need concrete `applies_to[]` coverage of declared claim or deliverable IDs." in plan_schema
+    assert "Project-local `locator` paths must resolve when `project_root` is available." in plan_schema
     assert "For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required." in plan_schema
+
+    phase_prompt = _read_template("phase-prompt.md")
+    assert "Contract visibility rules: keep at least one observable, claim, or deliverable" in phase_prompt
+    assert (
+        "if `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`"
+        in phase_prompt
+    )
+    assert "every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage" in phase_prompt
+    assert "project-local paths must resolve when `project_root` is available" in phase_prompt
 
 
 def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> None:
@@ -61,7 +96,6 @@ def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> Non
         "effective_reference_intake",
         "active_reference_context",
         "approach_policy",
-        "scope.in_scope",
         "contract.context_intake",
         "claim_kind",
     ):
@@ -122,6 +156,9 @@ def test_planner_and_checker_examples_surface_concrete_contract_anchors() -> Non
 
 def test_plan_checker_prompt_surfaces_direct_schema_visibility_and_read_only_authority() -> None:
     checker_prompt = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
+    envelope = _gpd_return_block(checker_prompt)
+    top_level_keys = _top_level_keys(envelope)
+    extension_keys = _extension_keys(envelope)
 
     assert checker_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") >= 2
     assert "{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in checker_prompt
@@ -135,33 +172,51 @@ def test_plan_checker_prompt_surfaces_direct_schema_visibility_and_read_only_aut
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-unit-and-notation-conventions" in checker_prompt
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention" in checker_prompt
     assert "GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md" in checker_prompt
+    assert top_level_keys[:4] == ["status", "files_written", "issues", "next_actions"]
+    assert {"approved_plans", "blocked_plans"}.issubset(set(top_level_keys) | set(extension_keys))
+    assert ("approved_plans" in top_level_keys) == ("blocked_plans" in top_level_keys)
+    assert ("approved_plans" in extension_keys) == ("blocked_plans" in extension_keys)
 
 
 def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> None:
     phase_prompt = _read_template("phase-prompt.md")
 
-    assert phase_prompt.count("Quick contract rules:") == 1
+    assert phase_prompt.count("Quick contract rules:") == 0
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert phase_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     for token in (
         "tool_requirements",
         "researcher_setup",
         "type: execute",
         "gap_closure: true",
-        "scope.in_scope",
         "claim_kind",
-        "observables[].kind",
-        "deliverables[].kind",
-        "acceptance_tests[].kind",
-        "references[].kind",
-        "references[].role",
-        "links[].relation",
         "must_surface",
-        "required_actions[]",
-        "applies_to[]",
-        "carry_forward_to[]",
         "uncertainty_markers",
     ):
         assert token in phase_prompt
+
+
+def test_phase_prompt_includes_canonical_context_bundle() -> None:
+    phase_prompt = _read_template("phase-prompt.md")
+
+    assert "@{GPD_INSTALL_DIR}/templates/canonical-context-bundle.md" in phase_prompt
+
+
+def test_planner_and_checker_prompts_use_shared_reference_index() -> None:
+    planner_prompt = _read_template("planner-subagent-prompt.md")
+    checker_prompt = (REPO_ROOT / "src/gpd/agents/gpd-plan-checker.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/templates/planner-reference-index.md" in planner_prompt
+    assert "@{GPD_INSTALL_DIR}/templates/planner-reference-index.md" in checker_prompt
+
+
+def test_planner_and_checker_prompts_share_reference_guidance() -> None:
+    planner_prompt = _read_template("planner-subagent-prompt.md")
+    checker_prompt = (REPO_ROOT / "src/gpd/agents/gpd-plan-checker.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/templates/reference-guidance.md" in planner_prompt
+    assert "@{GPD_INSTALL_DIR}/templates/reference-guidance.md" in checker_prompt
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in planner_prompt
 
 
 def test_contract_schema_docs_make_lowercase_closed_vocab_rule_model_visible() -> None:
@@ -240,7 +295,7 @@ def test_planner_gap_closure_example_keeps_execute_type_and_required_contract_bl
     assert "Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`" in planner_prompt
     assert "| `gap_closure`      | No       | `true` only for verification repair plans |" in planner_prompt
     assert "gap_closure: true # Flag for tracking" in planner_prompt
-    assert "schema_version: 1" in planner_prompt
+    assert "schema_version: 1" not in planner_prompt
     assert "contract:" in planner_prompt
     assert "question: \"[Which failed verification or gap does this plan repair?]\"" in planner_prompt
     assert "in_scope: [\"Repair the failed verification for the published benchmark comparison\"]" in planner_prompt

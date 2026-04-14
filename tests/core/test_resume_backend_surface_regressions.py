@@ -23,3 +23,16 @@ def test_model_visible_resume_surfaces_use_public_raw_resume_command() -> None:
         text = _read(relative_path)
         assert "gpd --raw resume" in text, relative_path
         assert "gpd init resume" not in text, relative_path
+
+
+def test_resume_work_prompt_avoids_runtime_specific_tool_instructions() -> None:
+    text = _read("src/gpd/specs/workflows/resume-work.md")
+
+    forbidden_fragments = (
+        "Task tool with resume parameter",
+        "task tool (resume parameter with agent ID)",
+    )
+    for fragment in forbidden_fragments:
+        assert fragment not in text
+
+    assert "runtime adapter's resume mechanism" in text

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.include_expansion import expand_at_includes
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 
 
 def _read(name: str) -> str:
@@ -18,6 +20,14 @@ def _read(name: str) -> str:
 
 def _expand(name: str) -> str:
     return expand_at_includes(_read(name), REPO_ROOT / "src/gpd", "/runtime/")
+
+
+def _workflow_backed_commands() -> list[str]:
+    return sorted(
+        command_path.stem
+        for command_path in COMMANDS_DIR.glob("*.md")
+        if (WORKFLOWS_DIR / command_path.name).exists()
+    )
 
 
 def _between(text: str, start: str, end: str) -> str:
@@ -47,7 +57,8 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
     assert verify_work_raw.count("templates/planner-subagent-prompt.md") == 2
     assert "templates/planner-subagent-prompt.md" not in quick_raw
     assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/phase-prompt.md") == 1
-    assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
+    assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 2
+    assert "@{GPD_INSTALL_DIR}/templates/planner-reference-index.md" not in planner_agent_raw
     assert "These are the hard planner contract gates." in planner_agent_raw
 
     assert planner_template.count("## Standard Planning Template") == 1
@@ -68,6 +79,12 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
     assert "<physics_planning_requirements>" not in plan_phase_prompt
     assert "<downstream_consumer>" not in plan_phase_prompt
     assert "<quality_gate>" not in plan_phase_prompt
+
+
+def test_planner_prompt_contract_example_is_single() -> None:
+    planner_agent_raw = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+
+    assert planner_agent_raw.count("contract:\n  schema_version: 1") == 0
 
 
 def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None:
@@ -123,3 +140,47 @@ def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
 
     assert plan_phase.count("Required 4-way tangent decision model:") == 1
     assert plan_phase.count("Branch as alternative hypothesis") == 1
+
+
+def test_workflow_backed_command_wrappers_stay_thin() -> None:
+    for name in _workflow_backed_commands():
+        command = (COMMANDS_DIR / f"{name}.md").read_text(encoding="utf-8")
+        workflow = (WORKFLOWS_DIR / f"{name}.md").read_text(encoding="utf-8")
+
+        assert f"@{{GPD_INSTALL_DIR}}/workflows/{name}.md" in command
+        assert len(command) < len(workflow)
+        assert "```python" not in command
+        assert "| Method" not in command
+        assert "task(" not in command
+
+
+def test_workflow_owned_command_wrappers_keep_anti_duplication_policy() -> None:
+    for path in COMMANDS_DIR.glob("*.md"):
+        command = path.read_text(encoding="utf-8")
+        if "workflow owns detailed method guidance" not in command:
+            continue
+
+        assert command.count("@{GPD_INSTALL_DIR}/workflows/") >= 1
+        assert "Do not restate workflow-owned checklists" in command
+
+
+def test_write_paper_init_uses_paper_bootstrap_stage() -> None:
+    workflow = _read("write-paper.md")
+    manifest = json.loads(
+        (WORKFLOWS_DIR / "write-paper-stage-manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert any(stage["id"] == "paper_bootstrap" for stage in manifest["stages"])
+    assert workflow.count("gpd --raw init write-paper --stage paper_bootstrap --include config") == 1
+    assert "INIT=$(gpd --raw init phase-op --include config)" not in workflow
+
+
+def test_plan_phase_authoring_stage_declines_legacy_routing() -> None:
+    plan_phase = _read("plan-phase.md")
+    manifest = json.loads(
+        (WORKFLOWS_DIR / "plan-phase-stage-manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert any(stage["id"] == "planner_authoring" for stage in manifest["stages"])
+    assert 'gpd --raw init plan-phase "$PHASE" --stage planner_authoring' in plan_phase
+    assert "Legacy routing" not in plan_phase

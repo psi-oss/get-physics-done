@@ -6,6 +6,7 @@ import pytest
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER
 from gpd.core.proof_review import (
+    ProofReviewStatus,
     manuscript_has_theorem_bearing_language,
     manuscript_proof_review_manifest_path,
     phase_proof_review_manifest_path,
@@ -60,13 +61,41 @@ def test_manuscript_proof_review_bootstraps_manifest_and_turns_stale_after_edit(
 
 
 def test_manuscript_proof_review_requires_proof_redteam_artifact_for_proof_bearing_manuscript(tmp_path: Path) -> None:
-    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=False, proof_redteam_status=None).manuscript_path
+    manuscript_path = write_proof_review_package(
+        tmp_path,
+        theorem_bearing=True,
+        review_report=False,
+        proof_redteam_status=None,
+    ).manuscript_path
 
     status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
 
     assert status.state == "missing_required_artifact"
     assert status.can_rely_on_prior_review is False
     assert status.anchor_artifact == tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
+
+
+def test_proof_review_status_to_context_dict_uses_project_relative_labels_with_external_fallback(
+    tmp_path: Path,
+) -> None:
+    outside_path = tmp_path.parent / "external-proof.tex"
+    status = ProofReviewStatus(
+        scope="manuscript",
+        state="fresh",
+        can_rely_on_prior_review=True,
+        detail="ok",
+        manifest_path=tmp_path / "GPD" / "review" / "PROOF-REVIEW-MANIFEST.json",
+        anchor_artifact=tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md",
+        watched_files=(tmp_path / "paper" / "main.tex", outside_path),
+        changed_files=(outside_path,),
+    )
+
+    payload = status.to_context_dict(tmp_path)
+
+    assert payload["manifest_path"] == "GPD/review/PROOF-REVIEW-MANIFEST.json"
+    assert payload["anchor_artifact"] == "GPD/review/PROOF-REDTEAM.md"
+    assert payload["watched_files"] == ["paper/main.tex", outside_path.as_posix()]
+    assert payload["changed_files"] == [outside_path.as_posix()]
 
 
 def test_manuscript_theorem_language_scan_follows_nested_section_files(tmp_path: Path) -> None:

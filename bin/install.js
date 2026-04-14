@@ -33,6 +33,7 @@ const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPy
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = "GPD";
 const GITHUB_MAIN_BRANCH = "main";
+const MAIN_BRANCH_UPGRADE_ENV = "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
@@ -52,10 +53,36 @@ const brandLogo = "\x1b[38;2;243;240;232m";
 const brandTitle = "\x1b[38;2;247;244;237m";
 const brandMeta = "\x1b[38;2;158;152;140m";
 const brandAccent = "\x1b[38;2;216;199;163m";
+
+function _normalizePositiveInteger(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return null;
+}
+
+function resolveBrandCopyrightYear({ releaseYear, envYear, now } = {}) {
+  for (const candidate of [releaseYear, envYear, process.env.GPD_BRAND_YEAR, process.env.GPD_RELEASE_YEAR]) {
+    const normalized = _normalizePositiveInteger(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  const reference = now instanceof Date ? now : new Date(now ?? Date.now());
+  if (Number.isNaN(reference.getTime())) {
+    return new Date().getUTCFullYear();
+  }
+  return reference.getUTCFullYear();
+}
+
 const brandDisplayName = "Get Physics Done";
 const brandOwner = "Physical Superintelligence PBC";
 const brandOwnerShort = "PSI";
-const brandCopyrightYear = 2026;
+const brandCopyrightYear = resolveBrandCopyrightYear();
 const productPositioning = "Open-source agentic AI system for physics research";
 
 let bootstrapProbeOverridesCache = undefined;
@@ -179,6 +206,29 @@ const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
 const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliNamedCommandKeys];
 const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliBridgeCommands];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
+
+function selectionTokenVariants(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+  const variants = new Set([normalized]);
+  if (normalized.startsWith("--")) {
+    const withoutPrefix = normalized.slice(2);
+    variants.add(`--${withoutPrefix.replace(/_/g, "-")}`);
+    variants.add(`--${withoutPrefix.replace(/-/g, "_")}`);
+  }
+  if (normalized.includes("-")) {
+    variants.add(normalized.replace(/-/g, "_"));
+  }
+  if (normalized.includes("_")) {
+    variants.add(normalized.replace(/_/g, "-"));
+  }
+  return [...variants];
+}
 
 function formatQuotedDisjunction(values) {
   const normalized = [...values].sort();
@@ -308,6 +358,19 @@ function requirePresentKeys(payload, requiredKeys, label) {
   }
 }
 
+function requireMatchingKeySet(actualKeys, expectedKeys, label) {
+  const actualSet = new Set(actualKeys);
+  const expectedSet = new Set(expectedKeys);
+  if (
+    actualSet.size !== expectedSet.size ||
+    [...expectedSet].some((expectedKey) => !actualSet.has(expectedKey))
+  ) {
+    throw new Error(
+      `${label} must exactly match the code-supported contract fields`
+    );
+  }
+}
+
 function requireExactKeyOrder(actualKeys, expectedKeys, label) {
   if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
     throw new Error(`${label} must exactly match the code-supported public surface fields`);
@@ -323,7 +386,7 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
   }
 
   const topLevelKeys = requireStrictStringList(schema.top_level_keys, "public surface contract schema.top_level_keys");
-  requireExactKeyOrder(topLevelKeys, PUBLIC_SURFACE_CONTRACT_KEYS, "public surface contract schema.top_level_keys");
+  requireMatchingKeySet(topLevelKeys, PUBLIC_SURFACE_CONTRACT_KEYS, "public surface contract schema.top_level_keys");
 
   const sections = requireJsonObject(schema.sections, "public surface contract schema.sections");
   const supportedSectionNames = PUBLIC_SURFACE_CONTRACT_KEYS.filter((key) => key !== "schema_version");
@@ -339,7 +402,7 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
       section.keys,
       `public surface contract schema.sections.${sectionName}.keys`
     );
-    requireExactKeyOrder(
+    requireMatchingKeySet(
       sectionKeys,
       expectedKeys,
       `public surface contract schema.sections.${sectionName}.keys`
@@ -620,6 +683,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
 
   return {
     runtime_name: requireStrictString(payload.runtime_name, `${label}.runtime_name`),
+    adapter_module: requireStrictString(payload.adapter_module, `${label}.adapter_module`),
     display_name: requireStrictString(payload.display_name, `${label}.display_name`),
     priority: requireStrictInteger(payload.priority, `${label}.priority`),
     config_dir_name: requireStrictString(payload.config_dir_name, `${label}.config_dir_name`),
@@ -670,6 +734,31 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
       `${label}.public_command_surface_prefix`,
       requireStrictString(payload.command_prefix, `${label}.command_prefix`)
     ),
+    external_skill_relative_dirs: Object.prototype.hasOwnProperty.call(payload, "external_skill_relative_dirs")
+      ? requireStrictStringList(payload.external_skill_relative_dirs, `${label}.external_skill_relative_dirs`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_env_vars: Object.prototype.hasOwnProperty.call(payload, "external_skill_env_vars")
+      ? requireStrictStringList(payload.external_skill_env_vars, `${label}.external_skill_env_vars`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_subdir_prefixes: Object.prototype.hasOwnProperty.call(payload, "external_skill_subdir_prefixes")
+      ? requireStrictStringList(payload.external_skill_subdir_prefixes, `${label}.external_skill_subdir_prefixes`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_markers: Object.prototype.hasOwnProperty.call(payload, "external_skill_markers")
+      ? requireStrictStringList(payload.external_skill_markers, `${label}.external_skill_markers`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_config_markers: Object.prototype.hasOwnProperty.call(payload, "external_skill_config_markers")
+      ? requireStrictStringList(payload.external_skill_config_markers, `${label}.external_skill_config_markers`, {
+          allowEmpty: true,
+        })
+      : [],
   };
 }
 
@@ -700,6 +789,7 @@ function validateRuntimeCatalog(catalogPayload) {
   });
 
   const runtimeNames = new Map();
+  const priorities = new Map();
   const installFlags = new Map();
   const selectionFlags = new Map();
   const selectionTokens = new Map();
@@ -711,6 +801,14 @@ function validateRuntimeCatalog(catalogPayload) {
     }
     runtimeNames.set(entry.runtime_name, entry.runtime_name);
 
+    const existingPriorityRuntime = priorities.get(entry.priority);
+    if (existingPriorityRuntime && existingPriorityRuntime !== entry.runtime_name) {
+      throw new Error(
+        `runtime catalog contains duplicate priority ${JSON.stringify(entry.priority)} for ${JSON.stringify(existingPriorityRuntime)} and ${JSON.stringify(entry.runtime_name)}`
+      );
+    }
+    priorities.set(entry.priority, entry.runtime_name);
+
     const existingInstallFlagRuntime = installFlags.get(entry.install_flag);
     if (existingInstallFlagRuntime && existingInstallFlagRuntime !== entry.runtime_name) {
       throw new Error(
@@ -720,6 +818,11 @@ function validateRuntimeCatalog(catalogPayload) {
     installFlags.set(entry.install_flag, entry.runtime_name);
 
     for (const flag of entry.selection_flags) {
+      if (flag === entry.install_flag) {
+        throw new Error(
+          `runtime catalog entry ${JSON.stringify(entry.runtime_name)} selection_flags must not repeat install_flag ${JSON.stringify(flag)}`
+        );
+      }
       const existingRuntime = selectionFlags.get(flag);
       if (existingRuntime && existingRuntime !== entry.runtime_name) {
         throw new Error(
@@ -737,14 +840,15 @@ function validateRuntimeCatalog(catalogPayload) {
       entry.install_flag.replace(/^--/, ""),
     ]);
     for (const token of tokens) {
-      const normalizedToken = token.toLowerCase();
-      const existingRuntime = selectionTokens.get(normalizedToken);
-      if (existingRuntime && existingRuntime !== entry.runtime_name) {
-        throw new Error(
-          `runtime catalog contains duplicate runtime selection token ${JSON.stringify(token)} for ${JSON.stringify(existingRuntime)} and ${JSON.stringify(entry.runtime_name)}`
-        );
+      for (const normalizedToken of selectionTokenVariants(token)) {
+        const existingRuntime = selectionTokens.get(normalizedToken);
+        if (existingRuntime && existingRuntime !== entry.runtime_name) {
+          throw new Error(
+            `runtime catalog contains duplicate runtime selection token ${JSON.stringify(normalizedToken)} for ${JSON.stringify(existingRuntime)} and ${JSON.stringify(entry.runtime_name)}`
+          );
+        }
+        selectionTokens.set(normalizedToken, entry.runtime_name);
       }
-      selectionTokens.set(normalizedToken, entry.runtime_name);
     }
   }
 
@@ -1200,7 +1304,7 @@ function releaseInstallCandidates(version) {
     );
   }
 
-  // Release installs stay pinned to the matching tagged GitHub source.
+  // Release installs stay pinned to the matching release version: PyPI first, then matching tagged GitHub sources.
   if (repoGitUrl) {
     candidates.push(
       {
@@ -1538,12 +1642,26 @@ function ensureManagedEnvironment(basePython) {
   const existingManaged = pythonVersionInfo(managedPython);
 
   let shouldCreate = !existingManaged;
+  const managedPythonIsNewer = Boolean(
+    existingManaged
+    && (
+      existingManaged.major > basePython.major
+      || (existingManaged.major === basePython.major && existingManaged.minor > basePython.minor)
+    )
+  );
+  const managedPythonIsOlder = Boolean(
+    existingManaged
+    && (
+      existingManaged.major < basePython.major
+      || (existingManaged.major === basePython.major && existingManaged.minor < basePython.minor)
+    )
+  );
   if (
     existingManaged
     && (
       !isSupportedPython(existingManaged)
-      || existingManaged.major > basePython.major
-      || (existingManaged.major === basePython.major && existingManaged.minor > basePython.minor)
+      || managedPythonIsNewer
+      || managedPythonIsOlder
     )
   ) {
     log(
@@ -1595,6 +1713,10 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
   if (preferMain) {
+    if (process.env[MAIN_BRANCH_UPGRADE_ENV] !== "1") {
+      log(`Skipping GitHub ${GITHUB_MAIN_BRANCH} upgrade because ${MAIN_BRANCH_UPGRADE_ENV}=1 is not set.`);
+      return { ok: true, requestedVersion, installedFrom: null, skipped: "main-branch-upgrade-disabled" };
+    }
     const resolution = await resolveInstallCandidates(mainBranchInstallCandidates());
     const upgradeCandidates = resolution.candidates;
     if (upgradeCandidates.length > 0) {
@@ -2085,8 +2207,8 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/GPD/venv`);
-  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest GitHub main source`);
+  console.log(` ${cyan}--reinstall${reset}             Force-reinstall the matching release version in ~/GPD/venv (PyPI first, then matching GitHub tag if needed)`);
+  console.log(` ${cyan}--upgrade${reset}               Dev-only: when ${MAIN_BRANCH_UPGRADE_ENV}=1, force-reinstall from GitHub main in ~/GPD/venv; otherwise skip the managed-package upgrade`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));
@@ -2107,10 +2229,11 @@ function printHelp() {
   console.log(` ${dim}# Install for ${runtimeDisplayName(localHelpRuntime)} locally${reset}`);
   console.log(` ${installCommand} ${helpExampleFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Reinstall the matching managed GitHub source${reset}`);
+  console.log(` ${dim}# Force-reinstall the matching managed release version${reset}`);
   console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Dev-only upgrade from the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Skips the managed-package upgrade unless ${MAIN_BRANCH_UPGRADE_ENV}=1${reset}`);
   console.log(` ${installCommand} --upgrade ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
@@ -2139,6 +2262,9 @@ function printHelp() {
   console.log(" Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, and use `tour` if you want a read-only overview of the broader command surface before choosing.");
   console.log(
     " Then use your runtime's `new-project` command for new work or `map-research` for existing work. When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or `gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`."
+  );
+  console.log(
+    ` To keep a released install current later, use your runtime update command or rerun the matching released install command. Reserve --upgrade for the developer-only GitHub main path when ${MAIN_BRANCH_UPGRADE_ENV}=1; otherwise the managed-package upgrade is skipped.`
   );
   console.log(` ${SHARED_PUBLIC_SURFACE_TEXT.settingsCommandSentence}`);
   console.log(
@@ -2509,4 +2635,5 @@ module.exports = {
   validateRuntimeCatalog,
   validateSharedPublicSurfaceSchemaShape,
   validateSharedPublicSurfaceContract,
+  resolveBrandCopyrightYear,
 };

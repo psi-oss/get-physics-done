@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
-from gpd.core.knowledge_index import (
+from gpd.core.knowledge_runtime import (
+    discover_knowledge_docs,
     iter_knowledge_supersession_chain,
-    load_knowledge_doc_inventory,
     resolve_knowledge_doc,
     search_knowledge_docs,
 )
@@ -75,7 +75,7 @@ def test_load_knowledge_doc_inventory_surfaces_status_counts_and_fresh_approval(
     _write_knowledge_doc(tmp_path, knowledge_id="K-reviewing", status="in_review")
     _write_knowledge_doc(tmp_path, knowledge_id="K-draft", status="draft")
 
-    inventory = load_knowledge_doc_inventory(tmp_path)
+    inventory = discover_knowledge_docs(tmp_path)
 
     assert [record.knowledge_id for record in inventory.records] == ["K-active", "K-draft", "K-reviewing"]
     assert inventory.status_counts()["stable"] == 1

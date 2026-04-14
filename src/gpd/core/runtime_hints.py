@@ -9,13 +9,12 @@ one normalized payload instead of stitching together multiple summaries.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.context import init_resume
-from gpd.core.costs import build_cost_summary, resolve_cost_advisory
+from gpd.core.costs import build_cost_summary, cost_advisory_next_action, resolve_cost_advisory
 from gpd.core.observability import derive_execution_visibility, get_current_session_id
 from gpd.core.project_reentry import (
     project_reentry_candidate_summary,
@@ -39,10 +38,10 @@ from gpd.core.resume_surface import (
     resume_payload_has_local_recovery_target,
 )
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
-from gpd.core.runtime_command_surfaces import format_active_runtime_command
+from gpd.core.runtime_command_surfaces import format_active_runtime_command, installed_runtime_for_surface
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.surface_phrases import (
     command_follow_up_action,
-    cost_inspect_action,
     recovery_action_lines,
     tangent_branch_later_action,
     tangent_chooser_action,
@@ -78,10 +77,6 @@ class RuntimeHintPayload(BaseModel):
     cost: dict[str, object] = Field(default_factory=dict)
     workflow_presets: dict[str, object] = Field(default_factory=dict)
     next_actions: list[str] = Field(default_factory=list)
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def _path_text(value: Path | None) -> str | None:
@@ -251,24 +246,7 @@ def _runtime_command(action: str, *, cwd: Path, runtime_name: str | None = None)
 
 
 def _installed_runtime_for_surface(cwd: Path) -> str | None:
-    try:
-        from gpd.hooks.runtime_detect import (
-            RUNTIME_UNKNOWN,
-            detect_runtime_for_gpd_use,
-            detect_runtime_install_target,
-        )
-
-        runtime_name = detect_runtime_for_gpd_use(cwd=cwd)
-        if (
-            not isinstance(runtime_name, str)
-            or not runtime_name.strip()
-            or runtime_name == RUNTIME_UNKNOWN
-            or detect_runtime_install_target(runtime_name, cwd=cwd) is None
-        ):
-            return None
-        return runtime_name
-    except Exception:
-        return None
+    return installed_runtime_for_surface(cwd)
 
 
 def _current_session_id_for_surface(project_root: Path) -> str | None:
@@ -473,19 +451,12 @@ def _workflow_next_actions(*, base_ready: bool) -> list[str]:
     return []
 
 
-def _cost_next_action(advisory: dict[str, object]) -> str | None:
-    state = str(advisory.get("state", "") or "").strip()
-    if state in {"at_or_over_budget", "near_budget", "mixed"}:
-        return cost_inspect_action()
-    return None
-
-
 def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
     structured_advisory = resolve_cost_advisory(cost_summary)
     advisory = _model_dump(structured_advisory)
     if advisory is None:
         return None
-    next_action = _cost_next_action(advisory)
+    next_action = cost_advisory_next_action(advisory)
     if next_action is not None:
         advisory["next_action"] = next_action
     return advisory
@@ -627,7 +598,7 @@ def build_runtime_hint_payload(
     )
 
     source_meta = {
-        "generated_at": _now_iso(),
+        "generated_at": utc_now_iso(),
         "workspace_root": workspace_hint.as_posix(),
         "project_root": project_root.as_posix(),
         "data_root": _path_text(data_root.expanduser().resolve(strict=False) if data_root is not None else None),

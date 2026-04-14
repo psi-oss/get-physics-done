@@ -42,12 +42,8 @@ allowed-tools:
   - mcp__gpd_verification__run_contract_check
 ---
 
-<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
-
 <objective>
-Run the staged verification workflow for an executed phase.
-
-Output: `GPD/phases/XX-name/XX-VERIFICATION.md`. This workflow is only valid once the phase has reached the `phase_executed` state.
+Run the staged verification workflow for an executed phase and produce `GPD/phases/XX-name/XX-VERIFICATION.md`. This workflow is only valid once the phase reaches the `phase_executed` state.
 </objective>
 
 <execution_context>
@@ -64,8 +60,9 @@ Phase: $ARGUMENTS (optional)
 </context>
 
 <process>
-**CRITICAL: First, read the full workflow file using the file_read tool:**
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 Follow the included workflow file exactly.
-
 The workflow file owns the detailed check taxonomy; this wrapper only bootstraps the canonical verification surfaces and delegates the physics checks.
-  </process>
+Call `mcp__gpd_verification__suggest_contract_checks(...)` to gather each per-check request template before invoking `mcp__gpd_verification__run_contract_check(...)`.
+Use this hard call shape for contract checks: `mcp__gpd_verification__run_contract_check(request={"check_key":"contract.<name>","contract":{...},"binding":{...},"metadata":{...},"observed":{...},"artifact_content":"..."})`. Omit optional sections only when the suggested per-check schema allows it, fill one `schema_required_request_anyof_fields` branch, and replace every `<replace-with-...>` template sentinel before execution.
+</process>

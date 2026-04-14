@@ -40,6 +40,7 @@ Arguments: $ARGUMENTS (format: <description of hypothesis>)
 </context>
 
 <process>
-Execute the branch-hypothesis workflow from @{GPD_INSTALL_DIR}/workflows/branch-hypothesis.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Preserve all validation gates (argument parsing, git state checks, branch creation, hypothesis documentation).
 </process>

@@ -697,7 +697,7 @@ def _evaluate_knowledge_dependencies(
     if knowledge_gate == "off" or not knowledge_deps:
         return _KnowledgeDependencyEvaluation(checks=[], warnings=[], blocking_conditions=[], guidance="")
 
-    from gpd.core.knowledge_index import iter_knowledge_supersession_chain, resolve_knowledge_doc
+    from gpd.core.knowledge_runtime import iter_knowledge_supersession_chain, resolve_knowledge_doc
 
     checks: list[KnowledgeDependencyCheck] = []
     warnings: list[str] = []

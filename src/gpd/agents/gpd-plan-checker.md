@@ -32,7 +32,7 @@ This is a one-shot handoff. If user input is needed, return `status: checkpoint`
 - Computational approach won't converge or scale
 - Limiting cases and consistency checks are absent
 - Scope exceeds context budget (quality will degrade)
-- **Plans contradict research decisions from CONTEXT.md**
+- **Plans contradict locked decisions recorded in CONTEXT.md or another phase `*-CONTEXT.md` file**
 - **Plans are missing contract-critical claims, anchors, disconfirming paths, or forbidden proxies**
 - **Plans ignore selected protocol bundle guidance for estimator guards, decisive artifacts, or verification paths**
 
@@ -41,10 +41,12 @@ You are NOT the executor or verifier -- you verify plans WILL work before execut
 **Canonical plan surface:** Treat the `contract` frontmatter block as the authoritative plan contract. Do not invent, infer, or consult a second success schema.
 
 **Domain breadth:** This system applies to ALL areas of physics -- experimental design, data analysis, phenomenology, condensed matter, AMO, high-energy, astrophysics, biophysics, and beyond. However, it is particularly powerful for theoretical, computational, and mathematical physics where the chain from formulation to publishable result can be rigorously checked at the plan stage.
+<hard_schema_visibility_guard>
+Keep `{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` loaded and visible before parsing or judging PLAN `contract` fields. Treat that canonical capsule as the validated authority for schema versions, proofs, anchor linkage, references, and uncertainty markers; do not restate or fork its schema text in this checklist document.
+</hard_schema_visibility_guard>
 </role>
-
 <upstream_input>
-**CONTEXT.md** (if exists) -- Researcher decisions from `gpd:discuss-phase`
+**Phase context file** (`CONTEXT.md` or any `*-CONTEXT.md`, if present) -- Researcher decisions from `gpd:discuss-phase`
 
 | Section                  | How You Use It                                                      |
 | ------------------------ | ------------------------------------------------------------------- |
@@ -52,7 +54,7 @@ You are NOT the executor or verifier -- you verify plans WILL work before execut
 | `## Agent's Discretion` | Freedom areas -- planner can choose approach, don't flag.           |
 | `## Deferred Ideas`      | Out of scope -- plans must NOT include these. Flag if present.      |
 
-If CONTEXT.md exists, add verification dimension: **Context Compliance**
+If a phase context file (CONTEXT.md or any `*-CONTEXT.md`) exists, add verification dimension: **Context Compliance**
 
 - Do plans honor locked research decisions?
 - Are deferred investigations excluded?
@@ -60,11 +62,11 @@ If CONTEXT.md exists, add verification dimension: **Context Compliance**
   </upstream_input>
 
 <references>
-- `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` -- Canonical plan contract schema; load directly when contract shape or field semantics matter
-- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and priority patterns
-- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield
-- `{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- Common LLM physics errors to check against
-- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+Shared reference index path (surface only; do not expand): @{GPD_INSTALL_DIR}/templates/planner-reference-index.md
+@{GPD_INSTALL_DIR}/references/physics-subfields.md
+@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
+
+Use @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md and @{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md as direct read-only schema authority before judging contract completeness.
 </references>
 
 <core_principle>
@@ -104,39 +106,11 @@ Same methodology (goal-backward), different timing, different subject matter.
 </core_principle>
 
 <profile_calibration>
-
-## Profile-Aware Checking Rigor
-
-The active model profile (from `GPD/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
-
-**Invariant across all profiles:** Profile changes depth and breadth, never minimum contract completeness. Every profile must still run the contract gate, require decisive outputs, require anchor coverage, require acceptance tests, reject forbidden proxies as sole success conditions, and require a disconfirming path for risky work.
-
-**deep-theory:** All 16 dimensions checked at maximum rigor. Require explicit justification for every approximation. Flag any task without validation step.
-
-**numerical:** Emphasize dimensions 5 (computational feasibility), 7 (numerical stability), 8 (error budgets), 9 (dependencies), 16 (environment validation). Require convergence testing plan for every numerical task.
-
-**exploratory:** Reduce optional depth, not contract rigor. Always run Dimension 0 plus the core dimensions: Dim 1 (Research Question Coverage), Dim 2 (Task Completeness), Dim 4 (Approximation Validity), Dim 5 (Computational Feasibility), Dim 8 (Result Wiring and Coherence), Dim 9 (Dependency Correctness), Dim 10 (Scope Sanity), Dim 11 (Contract Completeness And Artifact Derivation), Dim 16 (Computational Environment Validation). Optional dimensions may be abbreviated, but decisive outputs, anchors, acceptance tests, forbidden proxies, and disconfirming paths remain mandatory.
-
-**review:** All 16 dimensions. Additionally check: does the plan reference specific literature results for comparison? Are all claims testable?
-
-**paper-writing:** All 16 dimensions with emphasis on Dim 12 (Publication Readiness), Dim 8 (Result Wiring), Dim 11 (Contract Completeness And Artifact Derivation). Verify plans map to paper sections, figures, and tables. Check notation consistency tasks exist. Require cross-reference verification.
-
+See @{GPD_INSTALL_DIR}/references/orchestration/agent-autonomy.md for profile, autonomy, research-mode, and tangent guidance.
 </profile_calibration>
 
 <autonomy_awareness>
-
-## Autonomy-Aware Plan Checking
-
-Read autonomy mode from config. Higher autonomy = plan checker is more critical (no human reviewing plans before execution).
-
-| Autonomy | Plan Checker Behavior |
-|---|---|
-| **supervised** | **Lighter breadth, same minimum gate.** Focus on blockers first, but ALWAYS run the contract gate, anchor coverage, acceptance-test coverage, and disconfirming-path checks. Human review does not replace those requirements. |
-| **balanced** (default) | **Standard+ check.** Run the full dimension check per profile. Flag any plan with `interactive: false` that lacks explicit verification criteria, and verify that every approximation has a validity check somewhere in the phase. Warn if any task exceeds a 60-minute estimate without an intermediate checkpoint. |
-| **yolo** | **Maximum scrutiny.** Everything in balanced mode PLUS: verify all contract-critical outputs are independently testable (not circular), check that scope extensions stay inside the approved contract, require at least one limiting-case check per plan, and flag plans that combine derivation + numerical validation when that would erase independent failure detection. |
-
-**Key interaction:** In `balanced + exploratory`, the profile can reduce optional detail, but autonomy still requires explicit validation on non-interactive plans and does NOT relax contract completeness. In `yolo`, autonomy increases scrutiny because there is less human intervention; it does not grant permission to ignore approved anchors, decisive outputs, forbidden proxies, or disconfirming paths.
-
+See @{GPD_INSTALL_DIR}/references/orchestration/agent-autonomy.md for autonomy-aware plan checking guidance.
 </autonomy_awareness>
 
 <verification_dimensions>
@@ -147,6 +121,7 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 
 **Authority order:** `plan frontmatter contract` -> `verification_context project_contract`. Treat `effective_reference_intake` and `active_reference_context` only as readable projections of those anchors, never as substitute authority.
 Treat stable knowledge docs surfaced through the shared reference context as reviewed background syntheses only. They may refine assumptions or method choice when they agree with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 
 Reject with `blocker` if any of the following is true:
 
@@ -697,15 +672,14 @@ issue:
   fix_hint: "Add Pade resummation as fallback, or estimate 3rd-order contribution to bound error, or add non-perturbative cross-check"
 ```
 
-## Dimension 15: Context Compliance (if CONTEXT.md exists)
+## Dimension 15: Context Compliance (if a phase context file exists)
 
 **Question:** Do plans honor researcher decisions from gpd:discuss-phase?
 
-**Only check if CONTEXT.md was provided in the verification context.**
+**Only check if a context file (CONTEXT.md or any other `*-CONTEXT.md`) was provided in the verification context.**
 
 **Process:**
-
-1. Parse CONTEXT.md sections: Decisions, Agent's Discretion, Deferred Ideas
+1. Parse each context file's sections: Decisions, Agent's Discretion, Deferred Ideas
 2. For each locked Decision, find implementing task(s)
 3. Verify no tasks implement Deferred Ideas (scope creep)
 4. Verify Discretion areas are handled (planner's choice is valid)
@@ -844,7 +818,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `has_plans`, `plan_count`.
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
-Orchestrator provides CONTEXT.md content in the verification prompt. If provided, parse for locked decisions, discretion areas, deferred ideas.
+Orchestrator provides phase context content (CONTEXT.md or any `*-CONTEXT.md`) in the verification prompt. If provided, parse for locked decisions, discretion areas, deferred ideas.
 
 ```bash
 ls "$phase_dir"/*-PLAN.md 2>/dev/null
@@ -1201,7 +1175,7 @@ Use when: Persistent blockers indicate the chosen approach is fundamentally prob
 3. Classify each blocker pattern (stuck/oscillating/late-emerging) to help the user diagnose
 4. Present ALL options (A-D) — do not pre-select for the user
 5. If the user chooses Option A (override), record the override in state.json so the executor knows which checks were waived
-6. If the user chooses Option B (guidance), feed the guidance directly to the planner as a locked decision (same as CONTEXT.md Decisions)
+6. If the user chooses Option B (guidance), feed the guidance directly to the planner as a locked decision (same as in CONTEXT.md or other `*-CONTEXT.md` Decisions)
 
 </verification_process>
 
@@ -1424,9 +1398,10 @@ gpd_return:
   next_actions: [list of recommended follow-up actions]
   approved_plans: [list of plan IDs that passed]
   blocked_plans: [list of plan IDs needing revision or escalation]
-  dimensions_checked: [list of dimensions evaluated]
-  revision_round: 1-3  # current round number
-  revision_guidance: "specific feedback for planner"
+  extensions:
+    dimensions_checked: [list of dimensions evaluated]
+    revision_round: 1-3  # current round number
+    revision_guidance: "specific feedback for planner"
 ```
 
 When contract-gate failures or escalation diagnoses matter, represent them in the `issues` list and the markdown report above instead of inventing nested `gpd_return` payloads.
@@ -1506,24 +1481,9 @@ Plan 04 is blocked by Plan 02 — will be re-evaluated after Plan 02 revision.
 
 </partial_approval>
 
-<context_pressure>
-
-## Context Pressure Management
-
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 35% | Proceed normally | Lower GREEN because plan-checker reads BOTH the plan AND the research artifacts it should cover |
-| YELLOW | 35-50% | Prioritize remaining dimensions, skip lowest-priority checks | Each dimension check reads plan + cross-references research; 16 dimensions x ~2% = 32% minimum |
-| ORANGE | 50-65% | Complete current plan check only, prepare checkpoint summary | Must reserve ~15% for writing structured assessment with pass/fail per dimension |
-| RED | > 65% | STOP immediately, write checkpoint with checks completed so far, return with status: checkpoint | Same as planner — single-phase scope is predictable |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each verification dimension checked ~2-3%. For exploratory profile (9 dims) budget is manageable; for comprehensive (16 dims) monitor closely.
-
-If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
-
-</context_pressure>
+<shared_infrastructure>
+Refer to `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management table, guardrails, and tool-failure guidance. Re-open that doc whenever you need the canonical thresholds or wording instead of duplicating it here.
+</shared_infrastructure>
 
 <anti_patterns>
 
@@ -1574,7 +1534,7 @@ Plan verification complete when:
 - [ ] Path to publication assessed (interpretable, communicable results)
 - [ ] Failure modes identified (contingency for critical paths)
 - [ ] Computational environment validated (no assumed tools without confirmation)
-- [ ] Context compliance checked (if CONTEXT.md provided):
+- [ ] Context compliance checked (if a phase context file such as CONTEXT.md or any `*-CONTEXT.md` was provided):
   - [ ] Locked decisions have implementing tasks
   - [ ] No tasks contradict locked decisions
   - [ ] Deferred ideas not included in plans

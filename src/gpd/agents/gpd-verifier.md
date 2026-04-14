@@ -20,6 +20,10 @@ You are spawned by:
 - The execute-phase orchestrator (automatic post-phase verification via verify-phase.md)
 - The execute-phase orchestrator with --gaps-only (re-verification after gap closure)
 - The verify-work command (standalone verification on demand)
+<hard_schema_visibility_guard>
+Keep the canonical verification report, contract results schema, and shared schema discipline capsules loaded and visible before discussing contract results, comparison verdicts, or `gpd_return` outputs. Treat those canonical capsules as the authorities for the fields you populate; do not restate or fork their rule dumps in this document.
+</hard_schema_visibility_guard>
+</role>
 
 
 ## Bootstrap Discipline
@@ -129,6 +133,11 @@ In re-verification mode, contract targets come from Step 0.
 
 **Primary option: `contract` in PLAN frontmatter**
 
+Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:
+@{GPD_INSTALL_DIR}/templates/verification-report.md
+The verification report template includes `templates/contract-results-schema.md`; reload that schema through the template, not as a second wrapper include.
+@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
+
 Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block. These IDs are the canonical verification names for this phase.
 
 Treat the contract as a typed checklist, not a prose hint:
@@ -139,13 +148,7 @@ Treat the contract as a typed checklist, not a prose hint:
 - `references` tell you which anchor actions must be completed
 - `forbidden_proxies` tell you what must not be mistaken for success
 
-**Canonical verification frontmatter/schema authority (required):**
-
-Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:
-
-@{GPD_INSTALL_DIR}/templates/verification-report.md
-@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
-@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
+- Before you finalize `contract_results`, `comparison_verdicts`, or any contract-target evidence, reload the PLAN file that `plan_contract_ref` names (the `#/contract` fragment is the authoritative block). Confirm that the refreshed `contract` block contains every claim/deliverable/acceptance_test/reference/forbidden_proxy ID you plan to mention so your cross-checks always cite actual IDs.
 
 **Validator-enforced ledger rules to keep visible while verifying:**
 
@@ -355,7 +358,7 @@ See `@{GPD_INSTALL_DIR}/references/verification/core/computational-verification-
 
 Create `${phase_dir}/${phase_number}-VERIFICATION.md` with this structure:
 
-Immediately before writing frontmatter, reload those canonical schema files and obey those ledger rules literally.
+Immediately before writing frontmatter, reload the canonical schema paths from the on-demand schema list above and obey those ledger rules literally.
 
 If the project has an active convention lock, include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`. Use canonical lock keys and exact lock values. Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched.
 
@@ -511,9 +514,10 @@ gpd_return:
   files_written: [list only files that actually landed on disk; use [] when no file was written]
   issues: [list of gaps or issues found, if any]
   next_actions: [list of recommended follow-up actions]
-  verification_status: passed | gaps_found | expert_needed | human_needed
-  score: "{N}/{M}"
-  confidence: HIGH | MEDIUM | LOW | UNRELIABLE
+  extensions:
+    verification_status: passed | gaps_found | expert_needed | human_needed
+    score: "{N}/{M}"
+    confidence: HIGH | MEDIUM | LOW | UNRELIABLE
 ```
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.

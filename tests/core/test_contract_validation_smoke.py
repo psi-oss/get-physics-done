@@ -49,8 +49,20 @@ def test_validate_project_contract_smoke_rejects_coercive_reference_must_surface
 
     result = validate_project_contract(contract)
 
+    assert result.valid is True
+    expected_warning = "references.0.must_surface: must be a boolean (coerced from 'yes')"
+    assert result.errors == []
+    assert expected_warning in result.warnings
+
+def test_validate_project_contract_smoke_approved_rejects_coercive_reference_must_surface_scalar() -> None:
+    contract = _load_contract_fixture()
+    contract["references"][0]["must_surface"] = "yes"
+
+    result = validate_project_contract(contract, mode="approved")
+
     assert result.valid is False
-    assert result.errors == ["references.0.must_surface must be a boolean"]
+    expected_error = "references.0.must_surface: must be a boolean (coerced from 'yes')"
+    assert result.errors == [expected_error]
     assert result.warnings == []
     assert not any("unknown reference" in issue for issue in result.errors + result.warnings)
     assert not any(
@@ -89,24 +101,15 @@ def test_validate_project_contract_smoke_rejects_rootless_project_local_must_sur
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-@pytest.mark.parametrize(
-    ("field_name", "expected_error"),
-    [
-        ("context_intake", "context_intake is required"),
-        ("uncertainty_markers", "uncertainty_markers is required"),
-    ],
-)
-def test_validate_project_contract_smoke_rejects_missing_required_sections(
-    field_name: str,
-    expected_error: str,
-) -> None:
+@pytest.mark.parametrize("field_name", ["context_intake", "uncertainty_markers"])
+def test_validate_project_contract_smoke_rejects_missing_required_sections(field_name: str) -> None:
     contract = _load_contract_fixture()
     contract.pop(field_name)
 
     result = validate_project_contract(contract)
 
     assert result.valid is False
-    assert expected_error in result.errors
+    assert any(error.startswith(field_name) for error in result.errors)
 
 
 @pytest.mark.parametrize(

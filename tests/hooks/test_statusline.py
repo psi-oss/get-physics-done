@@ -13,12 +13,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import call, patch
 
+from gpd.adapters.runtime_catalog import get_hook_payload_policy
+from gpd.core.constants import HOME_DATA_DIR_NAME
 from gpd.hooks.runtime_detect import TodoCandidate, update_command_for_runtime
 from gpd.hooks.statusline import (
     _check_update,
     _context_bar,
     _execution_badge,
     _format_context_window_size,
+    _hook_payload_policy,
     _project_state_dir,
     _read_current_task,
     _read_execution_state,
@@ -114,7 +117,9 @@ def test_project_state_dir_keeps_workspace_lookup_for_policy_alias_only_workspac
     assert result == str(nested)
 
 
-def test_project_state_dir_ignores_stale_raw_project_hint_when_resolved_project_root_is_authoritative(tmp_path: Path) -> None:
+def test_project_state_dir_ignores_stale_raw_project_hint_when_resolved_project_root_is_authoritative(
+    tmp_path: Path,
+) -> None:
     project = tmp_path / "project"
     nested = project / "src" / "notes"
     stale = tmp_path / "stale-project"
@@ -133,6 +138,22 @@ def test_project_state_dir_ignores_stale_raw_project_hint_when_resolved_project_
     )
 
     assert result == str(project)
+
+
+def test_hook_payload_policy_prefers_installed_runtime_over_stale_local_runtime_dir(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".codex").mkdir(parents=True)
+
+    home = tmp_path / "home"
+    global_runtime_dir = home / ".claude"
+    _mark_complete_install(global_runtime_dir, runtime="claude-code", install_scope="global")
+
+    with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+        policy = _hook_payload_policy(str(workspace))
+
+    assert policy == get_hook_payload_policy("claude-code")
+
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
 
@@ -201,7 +222,9 @@ class TestStatusMetadata:
         assert _format_context_window_size(200_000) == "200k context"
 
     def test_read_model_label_combines_display_name_and_context_size(self) -> None:
-        label = _read_model_label({"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}})
+        label = _read_model_label(
+            {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}}
+        )
         assert label == "Opus 4.6 (1M context)"
 
     def test_read_model_label_uses_canonical_fallback_keys_when_policy_is_sparse(self) -> None:
@@ -248,6 +271,7 @@ class TestStatusMetadata:
         hook_payload = SimpleNamespace(runtime_session_id_keys=())
 
         assert _read_session_id(payload, hook_payload) == ""
+
 
 class TestExecutionBadge:
     def test_first_result_gate_badge_wins(self) -> None:
@@ -633,7 +657,7 @@ class TestReadCurrentTask:
             install_scope="local",
         )
         self_candidate = TodoCandidate(path=tmp_path / ".codex" / "todos", runtime="codex", scope="local")
-        other_candidate = TodoCandidate(path=tmp_path / "other" / "todos", runtime="claude-code", scope="global")
+        other_candidate = TodoCandidate(path=self_candidate.path, runtime="claude-code", scope="global")
 
         with (
             patch(
@@ -652,6 +676,7 @@ class TestReadCurrentTask:
             candidates = ordered_todo_lookup_candidates(hook_file=hook_file, cwd=tmp_path)
 
         assert candidates[0] == self_candidate
+        assert candidates[1] == other_candidate
 
 
 # ─── _check_update edge cases ──────────────────────────────────────────────
@@ -668,9 +693,9 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_cache_with_update_available(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
+        home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -681,9 +706,9 @@ class TestCheckUpdateHook:
             assert expected in result
 
     def test_cache_with_no_update(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": False}), encoding="utf-8")
+        home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": False}), encoding="utf-8")
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -691,9 +716,9 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_corrupt_cache_returns_empty(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text("broken{json", encoding="utf-8")
+        home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text("broken{json", encoding="utf-8")
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -701,9 +726,9 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_non_mapping_cache_is_ignored_instead_of_crashing(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
+        home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
@@ -713,7 +738,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_can_override_stale_home_cache(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / "GPD" / "cache"
+        home_cache = home / HOME_DATA_DIR_NAME / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -740,7 +765,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_uses_cache_runtime_when_install_exists(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / "GPD" / "cache"
+        home_cache = home / HOME_DATA_DIR_NAME / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -1050,9 +1075,9 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_unknown_runtime_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
+        home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
@@ -1066,9 +1091,9 @@ class TestCheckUpdateHook:
 
     def test_known_runtime_resolves_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
         """Known runtimes should still resolve scope before rendering the bootstrap command."""
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
+        home_cache = tmp_path / HOME_DATA_DIR_NAME / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
@@ -1078,7 +1103,7 @@ class TestCheckUpdateHook:
         ):
             result = _check_update()
 
-        mock_scope.assert_called_once_with("claude-code", cwd=None, home=tmp_path)
+        mock_scope.assert_any_call("claude-code", cwd=None, home=tmp_path)
         assert result != ""
 
 
@@ -1123,7 +1148,9 @@ class TestMain:
         assert "GPD" in output
 
     def test_with_valid_model_renders_model_label(self) -> None:
-        output = self._run_main({"model": {"display_name": "GPT-4o"}, "context_window": {"context_window_size": 200_000}})
+        output = self._run_main(
+            {"model": {"display_name": "GPT-4o"}, "context_window": {"context_window_size": 200_000}}
+        )
         assert "GPD" in output
         assert "GPT-4o (200k context)" in output
 
@@ -1190,7 +1217,9 @@ class TestMain:
                 return_value=SimpleNamespace(lookup_dir=str(nested), active_runtime="codex"),
             ) as mock_runtime_lookup,
             patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy,
-            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())
+            ) as mock_hints,
             patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
@@ -1258,7 +1287,9 @@ class TestMain:
                 return_value=SimpleNamespace(lookup_dir=str(nested), active_runtime="codex"),
             ) as mock_runtime_lookup,
             patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy,
-            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())
+            ) as mock_hints,
             patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,

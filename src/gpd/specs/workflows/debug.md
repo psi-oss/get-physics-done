@@ -122,10 +122,9 @@ This runs in parallel - all issues investigated simultaneously.
 </step>
 
 <step name="spawn_agents">
-**Resolve debugger model and mode settings:**
+**Resolve mode settings:**
 
 ```bash
-DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
@@ -147,7 +146,7 @@ task(
   subagent_type="gpd-debugger",
   model="{debugger_model}",
   readonly=false,
-  description="Investigate: {truth_short}"
+  description="Investigate: {issue_summary}"
 )
 ```
 
@@ -155,16 +154,28 @@ task(
 
 **All agents spawn in single message** (parallel execution).
 
-Template placeholders:
+Template placeholders (match `{GPD_INSTALL_DIR}/templates/debug-subagent-prompt.md`):
 
-- `{truth}`: The expected physics outcome that failed
-- `{expected}`: From validation check
-- `{actual}`: Verbatim researcher description from reason field
-- `{errors}`: Any error messages or numerical values from validation (or "None reported")
-- `{reproduction}`: "Check {check_num} in validation"
-- `{timeline}`: "Discovered during research validation"
-- `{goal}`: `find_root_cause_only` (validation flow - plan-phase --gaps handles fixes)
-- `{slug}`: Generated from truth
+| Placeholder | Notes |
+| --- | --- |
+| `{issue_id}` | Issue slug used in filenames and the `issue` heading; usually derived from the failed expectation or gap ID. |
+| `{issue_summary}` | The failed expectation (`truth`) from verification. This is the narrative the subagent investigates and fills the `summary` field above. |
+| `{truth_short}` | Short label for UI strings such as the `description` field in the runtime `task()` call (it is safe for the CLI to reuse `{issue_id}` if no shorter text exists). |
+| `{expected}` | Validation check target value (same as the `expected` symptom). |
+| `{actual}` | Researcher-observed result or symptoms (same as the `actual` symptom). |
+| `{discrepancy}` | Brief characterization of what went wrong (factor of 2, wrong sign, unstable, etc.). |
+| `{errors}` | Any runtime errors, logs, or numerical anomalies reported with the failure. |
+| `{reproduction}` | Repro instructions such as `Check {check_num}` from the verification entry. |
+| `{timeline}` | Details about when or how the issue was discovered. |
+| `{domain}` | Physical domain, e.g., `condensed matter` or `nuclear`. |
+| `{formalism}` | Mathematical/physical formalism (e.g., `tight-binding`). |
+| `{key_equations}` | Canonical equations relevant to the debugging task. |
+| `{conventions}` | Active conventions (Fourier, metric, unit) the subagent should respect. |
+| `{approximations}` | Known approximations, limits, or numerical shortcuts that might be relevant. |
+| `{goal}` | Usually `find_root_cause_only` for verification debugging. |
+| `{slug}` | Identifier used for `GPD/debug/{slug}.md`; repeated here for workflows that only read the placeholder table. |
+
+The runtime also receives `{truth_short}` so the high-level `task(...)` description can stay concise.
 
 **Investigation strategies for physics problems:**
 

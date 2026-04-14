@@ -89,7 +89,7 @@ def test_ordered_update_cache_candidates_prefers_preferred_runtime_then_fallback
             preferred_runtime="codex",
         )
 
-    assert candidates == [preferred_candidate, fallback_candidate]
+    assert candidates == [preferred_candidate, fallback_candidate, unrelated_candidate]
 
 
 def test_ordered_update_cache_candidates_treats_explicit_unknown_runtime_as_no_active_runtime(
@@ -116,7 +116,7 @@ def test_ordered_update_cache_candidates_treats_explicit_unknown_runtime_as_no_a
             preferred_runtime="codex",
         )
 
-    assert candidates == [preferred_candidate, fallback_candidate]
+    assert candidates == [preferred_candidate, fallback_candidate, unrelated_candidate]
 
 
 def test_ordered_update_cache_candidates_falls_back_to_other_runtime_when_preferred_cache_is_absent(
@@ -186,6 +186,29 @@ def test_home_update_cache_path_comes_from_one_helper_for_lookup_and_write_paths
     assert candidates[-1].path == helper_path
     assert primary == helper_path
     assert mock_helper.call_count == 2
+
+
+def test_update_cache_helpers_prefer_home_cache_over_repo_dot_gpd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    repo_cache = workspace / ".gpd" / "cache"
+    repo_cache.mkdir(parents=True)
+    repo_cache_file = repo_cache / "gpd-update-check.json"
+    repo_cache_file.write_text("repo", encoding="utf-8")
+
+    home = tmp_path / "home"
+    home_cache = home / ".gpd" / "cache"
+    home_cache.mkdir(parents=True)
+    home_cache_file = home_cache / "gpd-update-check.json"
+    home_cache_file.write_text("home", encoding="utf-8")
+
+    candidates = runtime_detect_module.get_update_cache_candidates(cwd=workspace, home=home)
+    home_cache_path = runtime_detect_module.home_update_cache_file(home=home)
+
+    assert candidates[-1].path == home_cache_path
+    assert primary_update_cache_file([], home=home) == home_cache_path
+    assert home_cache_path == home_cache_file
+    assert all(candidate.path != repo_cache_file for candidate in candidates)
 
 
 def test_latest_update_cache_uses_shared_cache_constants_for_self_owned_install_and_workspace_precedence(
@@ -406,3 +429,160 @@ def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path
                 command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))
 
         assert command == expected
+
+
+def test_update_command_for_candidate_recovers_legacy_self_owned_local_install_with_workspace_context(
+    tmp_path: Path,
+) -> None:
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    config_dir = workspace / ".codex"
+    seed_complete_runtime_install(
+        config_dir,
+        runtime="codex",
+        install_scope="local",
+        explicit_target=False,
+    )
+    manifest_path = config_dir / _SHARED_INSTALL.manifest_name
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    self_install = SelfOwnedInstallContext(config_dir=config_dir, runtime="codex", install_scope="local")
+    candidate = SimpleNamespace(path=self_install.cache_file, runtime="codex", scope="local")
+
+    with patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(workspace))
+
+    assert command == _repair_command("codex", install_scope="local", target_dir=config_dir, explicit_target=False)
+
+
+def test_update_command_for_candidate_recovers_legacy_self_owned_global_install_with_home_context(
+    tmp_path: Path,
+) -> None:
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    adapter = get_adapter("codex")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    config_dir = adapter.resolve_global_config_dir(home=home)
+    seed_complete_runtime_install(
+        config_dir,
+        runtime="codex",
+        install_scope="global",
+        home=home,
+        explicit_target=False,
+    )
+    manifest_path = config_dir / _SHARED_INSTALL.manifest_name
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    self_install = SelfOwnedInstallContext(config_dir=config_dir, runtime="codex", install_scope="global")
+    candidate = SimpleNamespace(path=self_install.cache_file, runtime="codex", scope="global")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch(
+            "gpd.hooks.install_context.resolve_hook_lookup_context",
+            return_value=SimpleNamespace(
+                lookup_cwd=workspace,
+                resolved_home=home,
+                active_runtime=None,
+                preferred_runtime=None,
+            ),
+        ),
+    ):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(workspace))
+
+    assert command == _repair_command("codex", install_scope="global", target_dir=config_dir, explicit_target=False)
+
+
+def test_update_command_for_candidate_keeps_legacy_self_owned_global_install_fail_closed_without_home_context(
+    tmp_path: Path,
+) -> None:
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    adapter = get_adapter("codex")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    config_dir = adapter.resolve_global_config_dir(home=home)
+    seed_complete_runtime_install(
+        config_dir,
+        runtime="codex",
+        install_scope="global",
+        home=home,
+        explicit_target=False,
+    )
+    manifest_path = config_dir / _SHARED_INSTALL.manifest_name
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    self_install = SelfOwnedInstallContext(config_dir=config_dir, runtime="codex", install_scope="global")
+    candidate = SimpleNamespace(path=self_install.cache_file, runtime="codex", scope="global")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch(
+            "gpd.hooks.install_context.resolve_hook_lookup_context",
+            return_value=SimpleNamespace(
+                lookup_cwd=workspace,
+                resolved_home=None,
+                active_runtime=None,
+                preferred_runtime=None,
+            ),
+        ),
+    ):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(workspace))
+
+    assert command is None
+
+
+def test_update_command_for_candidate_passes_authoritative_lookup_context_to_installed_update_command(
+    tmp_path: Path,
+) -> None:
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    lookup_cwd = tmp_path / "resolved-workspace"
+    lookup_cwd.mkdir()
+    resolved_home = tmp_path / "resolved-home"
+    resolved_home.mkdir()
+    self_install = SelfOwnedInstallContext(
+        config_dir=tmp_path / "self-owned" / ".codex",
+        runtime="codex",
+        install_scope="local",
+    )
+    candidate = SimpleNamespace(path=self_install.cache_file, runtime="codex", scope="local")
+
+    with (
+        patch(
+            "gpd.hooks.install_context.resolve_hook_lookup_context",
+            return_value=SimpleNamespace(
+                lookup_cwd=lookup_cwd,
+                resolved_home=resolved_home,
+                active_runtime=None,
+                preferred_runtime=None,
+            ),
+        ),
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch("gpd.hooks.install_metadata.installed_update_command", return_value="gpd update --local") as mock_command,
+    ):
+        command = update_command_for_candidate(
+            candidate,
+            hook_file=__file__,
+            cwd=str(tmp_path / "alias-workspace"),
+        )
+
+    assert command == "gpd update --local"
+    mock_command.assert_called_once_with(
+        self_install.config_dir,
+        cwd=lookup_cwd,
+        home=resolved_home,
+    )

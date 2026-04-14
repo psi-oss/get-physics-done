@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from gpd.core import context as context_module
 from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -119,3 +122,48 @@ def test_publication_review_wrapper_guidance_points_to_the_new_shared_refs() -> 
     assert "publication-bootstrap-preflight.md" in source
     assert "publication-response-writer-handoff.md" in source
     assert "publication-artifact-gates.md" not in source
+
+
+def test_peer_review_staged_init_uses_full_peer_review_runtime_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        context_module,
+        "load_context_config_dict",
+        lambda cwd: {"commit_docs": False, "autonomy": "ask", "research_mode": "normal"},
+    )
+    monkeypatch.setattr(context_module, "_state_exists", lambda cwd: False)
+    monkeypatch.setattr(context_module, "_path_exists", lambda cwd, path: False)
+    monkeypatch.setattr(context_module, "_detect_platform", lambda cwd: "test")
+
+    def peer_review_context(cwd: Path) -> dict[str, object]:
+        calls.append("peer_review")
+        return {field: f"value:{field}" for field in context_module.PEER_REVIEW_INIT_FIELDS}
+
+    monkeypatch.setattr(context_module, "_build_peer_review_runtime_context", peer_review_context)
+    monkeypatch.setattr(
+        context_module,
+        "_build_reference_runtime_context",
+        lambda cwd: pytest.fail("staged peer review must use the canonical peer-review context builder"),
+    )
+    monkeypatch.setattr(
+        context_module,
+        "_build_publication_runtime_snapshot_context",
+        lambda cwd: pytest.fail("staged peer review must use the canonical peer-review context builder"),
+    )
+
+    payload = context_module.init_peer_review(tmp_path, stage="preflight")
+
+    assert calls == ["peer_review"]
+    assert set(payload) == set(_load_manifest("peer-review").stage("preflight").required_init_fields) | {"staged_loading"}
+
+
+def test_stage_manifest_checkpoints_are_optional() -> None:
+    payload = json.loads((WORKFLOWS_DIR / "peer-review-stage-manifest.json").read_text(encoding="utf-8"))
+    payload["stages"][0].pop("checkpoints")
+
+    manifest = validate_workflow_stage_manifest_payload(payload, expected_workflow_id="peer-review")
+
+    assert manifest.stages[0].checkpoints == ()

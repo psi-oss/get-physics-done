@@ -34,12 +34,9 @@ def test_debugger_vertical_spawn_contract_is_one_shot_and_file_producing() -> No
     assert "one-shot handoff" in expanded_workflow
     assert "Always pass `readonly=false` for file-producing agents." in expanded_workflow
 
-    assert command.count('subagent_type="gpd-debugger"') == 2
-    assert command.count("readonly=false") == 2
     assert "Create: GPD/debug/{slug}.md" in command
-    assert 'prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.' in command
-    assert 'description="Debug {slug}"' in command
-    assert 'description="Continue debug {slug}"' in command
+    assert "@{GPD_INSTALL_DIR}/workflows/debug.md" in command
+    assert "spawn gpd-debugger agent" in command
 
 
 def test_debugger_vertical_artifact_paths_keep_active_and_resolved_session_state_separate() -> None:

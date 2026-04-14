@@ -11,11 +11,12 @@ fail-closed:
 
 from __future__ import annotations
 
-import posixpath
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+
+from gpd.core.path_labels import normalize_posix_path_label
 
 __all__ = [
     "PlannerArtifactFreshnessResult",
@@ -144,10 +145,7 @@ def _resolve_path(cwd: Path, value: Path | str) -> Path | None:
 
 
 def _normalize_path_text(value: str) -> str:
-    normalized = value.strip().replace("\\", "/")
-    if not normalized:
-        return ""
-    return posixpath.normpath(normalized)
+    return normalize_posix_path_label(value)
 
 
 def _display_path(cwd: Path, path: Path) -> str:

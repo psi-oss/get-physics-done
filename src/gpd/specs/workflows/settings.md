@@ -40,9 +40,7 @@ Ensure config exists and load current state:
 
 ```bash
 gpd config ensure-section
-# Compatibility note for installer text checks:
-# INIT=$(gpd --raw init progress --include state,config)
-INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
+INIT=$(gpd --raw init progress --include state,config)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -119,14 +117,7 @@ For normal-terminal follow-up around these settings:
 
 Broader local reference surfaces stay outside this settings-specific follow-up list: use `gpd doctor` for install and runtime-local readiness, `gpd integrations status wolfram` for the shared optional Wolfram integration config that stays separate from a local Mathematica install, and `gpd validate plan-preflight <PLAN.md>` for plan readiness rather than a settings change.
 
-Before the detailed question list, offer a compact preset chooser when the user wants a starter bundle:
-
-- Core research (Recommended): preview the balanced default bundle over the existing knobs, then apply or customize
-- Theory: preview the derivation-heavy bundle over the existing knobs, then apply or customize
-- Numerics: preview the computation-heavy bundle over the existing knobs, then apply or customize
-- Publication / manuscript: preview the paper-writing bundle over the existing knobs, then apply or customize
-- Full research: preview the core-research-plus-publication-readiness bundle over the existing knobs, then apply or customize
-- Customize settings: skip the preset and proceed to the detailed questions below
+Before the detailed question list, offer a compact preset chooser referencing the `Current preset catalog` above when the user wants a starter bundle; preview the resolved knobs first, then ask whether to apply or customize.
 
 Use ask_user with current values pre-selected:
 
@@ -203,25 +194,25 @@ ask_user([
       { label: "No", description: "Skip plan verification" }
     ]
   },
-	{
-	    question: "Spawn Execution Verifier? (verifies phase completion)",
-	    header: "Verifier",
-	    multiSelect: false,
-	    options: [
-	      { label: "Yes", description: "Verify contract targets after execution" },
-	      { label: "No", description: "Skip only the generic post-execution verifier. Mandatory proof red-teaming for proof-bearing or `proof_obligation` work still runs." }
-	    ]
-	  },
+  {
+    question: "Spawn Execution Verifier? (verifies phase completion)",
+    header: "Verifier",
+    multiSelect: false,
+    options: [
+      { label: "Yes", description: "Verify contract targets after execution" },
+      { label: "No", description: "Skip only the generic post-execution verifier. Mandatory proof red-teaming for proof-bearing or `proof_obligation` work still runs." }
+    ]
+  },
   {
     question: "How aggressively should execution inject review gates?",
     header: "Cadence",
     multiSelect: false,
     options: [
-	      { label: "Adaptive (Recommended)", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue. Independent of profile choice. Mandatory proof red-teaming still runs when proof obligations exist." },
-	      { label: "Dense", description: "Frequent bounded review points for high-risk or high-touch work." },
-	      { label: "Sparse", description: "Fewest review stops, but required correctness gates still run. Sparse mode does not waive proof red-teaming for proof-bearing work." }
-	    ]
-	  },
+      { label: "Adaptive (Recommended)", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue. Independent of profile choice. Mandatory proof red-teaming still runs when proof obligations exist." },
+      { label: "Dense", description: "Frequent bounded review points for high-risk or high-touch work." },
+      { label: "Sparse", description: "Fewest review stops, but required correctness gates still run. Sparse mode does not waive proof red-teaming for proof-bearing work." }
+    ]
+  },
   {
     question: "Should planning artifacts be committed to git?",
     header: "Planning Commit Docs",

@@ -12,6 +12,7 @@ from gpd.adapters import get_adapter
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import copy_hook_scripts
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, list_runtime_names
+from gpd.core.public_surface_contract import local_cli_help_command
 
 RUNTIME_NAMES = list_runtime_names()
 _SHARED_INSTALL = get_shared_install_metadata()
@@ -373,3 +374,37 @@ class TestAdapterConformance:
     def test_runtime_name_matches_registry(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert adapter.runtime_name == runtime
+
+
+class TestSharedMarkdownTranslation:
+    """Verify runtime helper flags for shared markdown translation."""
+
+    def test_strip_sub_tags_in_shared_markdown(self) -> None:
+        adapter = get_adapter("opencode")
+        content = "Charge <sub>2+</sub>"
+        translated = adapter.translate_shared_markdown(content, path_prefix=".")
+        assert "*(2+)*" in translated
+        assert "<sub>2+</sub>" not in translated
+
+    def test_strip_sub_tags_disabled_when_opted_out(self) -> None:
+        adapter = get_adapter("claude-code")
+        content = "Charge <sub>2+</sub>"
+        translated = adapter.translate_shared_markdown(content, path_prefix=".")
+        assert "<sub>2+</sub>" in translated
+        assert "*(2+)*" not in translated
+
+    def test_translate_shared_markdown_with_bridge_rewrites_gpd_invocations(self) -> None:
+        adapter = get_adapter("claude-code")
+        bridge_command = "/gpd:bridge"
+        preserved_command = local_cli_help_command()
+        content = (
+            "```bash\n"
+            f"{preserved_command}\n"
+            "```\n\n"
+            "```bash\n"
+            "gpd custom-run\n"
+            "```\n"
+        )
+        translated = adapter.translate_shared_markdown_with_bridge(content, path_prefix=".", bridge_command=bridge_command)
+        assert preserved_command in translated
+        assert f"{bridge_command} custom-run" in translated

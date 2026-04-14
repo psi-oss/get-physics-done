@@ -28,7 +28,7 @@ You can also add entries manually to GPD/DECISIONS.md.
 Would you like to:
 
 1. Check project progress (gpd:progress)
-2. View current phase (gpd:show-phase)
+2. View current phase (`gpd --raw init phase-op <phase-number>`)
 ```
 
 Exit.

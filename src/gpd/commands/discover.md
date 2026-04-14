@@ -46,49 +46,10 @@ Phase or topic: $ARGUMENTS
 </context>
 
 <process>
-Execute the discover workflow from @{GPD_INSTALL_DIR}/workflows/discover.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
-## Step 0: Validate Context
-
-```bash
-CONTEXT=$(gpd --raw validate command-context discover "$ARGUMENTS")
-if [ $? -ne 0 ]; then
-  echo "$CONTEXT"
-  exit 1
-fi
-```
-
-If a phase number is supplied, use project phase context.
-If no project exists, require a standalone topic and proceed in standalone analysis mode.
-
-## Step 1: Parse Arguments
-
-Extract an optional phase number or standalone topic, plus the optional depth flag, from `$ARGUMENTS`.
-Default depth: `medium` (Level 2).
-
-## Step 2: Execute Discovery
-
-Follow the discover workflow for the determined depth level.
-
-## Step 3: Persistence Policy (if Level 2-3 produced RESEARCH.md)
-
-Do not commit `RESEARCH.md` separately.
-If discovery ran phase-scoped, leave the phase `RESEARCH.md` in the working tree for the later phase-completion commit.
-If discovery ran in standalone mode, report the findings directly and do not emit phase-only commit messages or file paths.
-
-## Step 4: Present Results and Next Steps
-
-Show discovery summary, confidence level, and offer next actions.
+Execute the workflow end-to-end and keep depth behavior and persistence rules unchanged.
+For standalone medium/deep discovery, produce `RESEARCH.md`. Do not commit `RESEARCH.md` separately.
+Do not emit phase-only commit messages or file paths in standalone mode.
+Do not duplicate workflow internals in this wrapper.
 </process>
-
-<success_criteria>
-
-- [ ] Phase validated against roadmap
-- [ ] Depth level determined (default medium)
-- [ ] Discovery executed at appropriate depth
-- [ ] Standard references consulted before general search
-- [ ] RESEARCH.md created (Level 2-3) with recommendation, or Level 1 returned verification-only confirmation
-- [ ] Confidence gate applied
-- [ ] No separate RESEARCH.md commit
-- [ ] Next steps offered (plan-phase, dig deeper, review)
-      </success_criteria>

@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import re
 from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal, get_args, get_origin
@@ -37,19 +39,23 @@ from gpd.contracts import (
     ContractScope,
     ContractUncertaintyMarkers,
     ResearchContract,
-    _has_concrete_grounding_entries,
-    _has_concrete_must_surface_reference,
-    _is_concrete_reference_locator,
-    _is_context_intake_locator_grounding,
-    _is_project_artifact_path,
     collect_contract_integrity_errors,
     collect_proof_bearing_claim_integrity_errors,
+    has_concrete_grounding_entries,
+    has_concrete_must_surface_reference,
+    is_concrete_reference_locator,
+    is_context_intake_locator_grounding,
     is_placeholder_only_guidance_text,
+    is_project_artifact_path,
     parse_project_contract_data_salvage,
+    parse_project_contract_data_strict,
 )
 from gpd.core.utils import dedupe_preserve_order
 
 __all__ = [
+    "CONTEXT_INTAKE_DEFAULT_WARNING",
+    "UNCERTAINTY_MARKERS_DEFAULT_WARNING",
+    "UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE",
     "ProjectContractValidationResult",
     "is_authoritative_project_contract_schema_finding",
     "is_repair_relevant_project_contract_schema_finding",
@@ -59,12 +65,98 @@ __all__ = [
 ]
 
 
+CONTEXT_INTAKE_DEFAULT_WARNING = (
+    "context_intake was missing and was defaulted to an empty context intake section"
+)
+UNCERTAINTY_MARKERS_DEFAULT_WARNING = (
+    "uncertainty_markers was missing and was defaulted to empty uncertainty markers"
+)
+UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE = (
+    "uncertainty_markers.{field} was missing and was defaulted to an empty list"
+)
+
+
+@dataclass(frozen=True)
+class _SchemaFindingMetadata:
+    loc: tuple[str | int, ...]
+    msg: str
+    error_type: str | None
+    ctx: dict[str, object]
+    input_value_type: str | None
+
+
+def _schema_finding_metadata_from_error(error: dict[str, object]) -> _SchemaFindingMetadata:
+    input_value = error.get("input")
+    return _SchemaFindingMetadata(
+        loc=tuple(error.get("loc", ())),
+        msg=str(error.get("msg", "")).strip(),
+        error_type=str(error.get("type")) if error.get("type") is not None else None,
+        ctx=dict(error.get("ctx", {})) if isinstance(error.get("ctx"), dict) else {},
+        input_value_type=type(input_value).__name__ if "input" in error else None,
+    )
+
+
+def _metadata_location_string(metadata: _SchemaFindingMetadata) -> str:
+    parts = [str(part) for part in metadata.loc if str(part)]
+    if parts and parts[0] == "project_contract":
+        parts = parts[1:]
+    return ".".join(parts) or "project_contract"
+
+
+def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectContractSchemaFindingCategory]:
+    categories: set[_ProjectContractSchemaFindingCategory] = set()
+    location = _metadata_location_string(metadata)
+    if _is_canonical_authoritative_scalar_location(location):
+        categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+    error_type = metadata.error_type or ""
+    if error_type in {"extra_forbidden", "value_error.extra"} or error_type.endswith(".extra"):
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
+    if error_type in {
+        "list_type",
+        "dict_type",
+        "model_type",
+        "type_error.list",
+        "value_error.list",
+        "type_error.dict",
+        "value_error.dict",
+    }:
+        categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    if error_type == "value_error" and str(metadata.ctx.get("error", "")).lower() in {
+        "must be a list",
+        "must be an object",
+        "must be a valid list member",
+    }:
+        categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    message = metadata.msg.lower()
+    if not categories:
+        if (
+            "must be a list" in message
+            or "must be a valid list member" in message
+            or "must be an object" in message
+            or "must not be blank" in message
+            or "is a duplicate" in message
+        ):
+            categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    if _matches_equivalent_recoverable_schema_finding(message=message):
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
+    if not _is_canonical_authoritative_scalar_location(location) and _matches_equivalent_recoverable_schema_finding(
+        message=metadata.msg
+    ):
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
+    canonical_value = metadata.ctx.get("canonical_value")
+    if isinstance(canonical_value, str) and canonical_value.strip():
+        categories.add(_ProjectContractSchemaFindingCategory.CASE_DRIFT)
+    return categories
+
+
 _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+: Extra inputs are not permitted$"),
     re.compile(r"^.+ was normalized from blank string to empty list$"),
     re.compile(r"^.+\.\d+ must be a valid list member$"),
     re.compile(r"^.+\.\d+: Input should .+$"),
     re.compile(r"^.+: Input should be a valid string$"),
+    re.compile(r"^context_intake was missing"),
+    re.compile(r"^uncertainty_markers(?:\.[^. ]+)? was missing"),
 )
 _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
     re.compile(r"^.+ must be a list, not .+$"),
@@ -75,13 +167,7 @@ _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
     re.compile(r"^.+\.\d+ is a duplicate$"),
 )
 _CASE_DRIFT_SCHEMA_WARNING_PATTERNS = (re.compile(r"^.+ must use exact canonical value: .+$"),)
-_AUTHORITATIVE_SCALAR_FINDING_PATTERNS = (
-    re.compile(r"^schema_version must be 1$"),
-    re.compile(r"^schema_version must be the integer 1$"),
-    re.compile(r"^schema_version: Input should be 1$"),
-    re.compile(r"^.+\.must_surface must be a boolean$"),
-    re.compile(r"^.+\.must_surface: Input should be a valid boolean.*$"),
-)
+_AUTHORITATIVE_SCALAR_FINDING_PATTERNS: tuple[re.Pattern[str], ...] = ()
 
 _SCHEMA_VERSION_REQUIRED_ERROR = "schema_version is required"
 
@@ -104,6 +190,9 @@ _SCHEMA_FINDING_CATEGORY_PATTERNS: tuple[
 )
 
 
+_SCHEMA_LOCATION_PATTERN = r"[A-Za-z_][A-Za-z0-9_]*(?:\.\d+|\.[A-Za-z_][A-Za-z0-9_]*)*"
+
+
 def _split_schema_finding_location_and_message(error: str) -> tuple[str | None, str]:
     """Return ``(location, message)`` when an error is in ``location: message`` form."""
 
@@ -113,21 +202,13 @@ def _split_schema_finding_location_and_message(error: str) -> tuple[str | None, 
     return None, error
 
 
-def _matches_equivalent_authoritative_schema_finding(*, location: str | None, message: str) -> bool:
-    """Return whether one finding is an equivalent authoritative scalar variant."""
-
-    normalized_message = message.strip().casefold()
-    if location == "schema_version":
-        return normalized_message.startswith("input should be 1")
-    if isinstance(location, str) and location.endswith(".must_surface"):
-        return normalized_message.startswith("input should be a valid boolean")
-    return False
-
-
 def _matches_equivalent_recoverable_schema_finding(*, message: str) -> bool:
     """Return whether one finding is an equivalent recoverable schema-warning variant."""
 
-    return message.strip().startswith("Extra inputs are not permitted")
+    normalized_message = message.strip()
+    if normalized_message.startswith("Extra inputs are not permitted") or normalized_message.startswith("Input should"):
+        return True
+    return any(pattern.match(normalized_message) for pattern in _RECOVERABLE_SCHEMA_WARNING_PATTERNS)
 
 
 def _schema_finding_location_depth(location: str | None) -> int:
@@ -145,6 +226,15 @@ def _schema_finding_location(error: str) -> str | None:
     if location is not None:
         return location
 
+    normalized_error = error.strip()
+    required_match = re.match(rf"^(?P<location>{_SCHEMA_LOCATION_PATTERN}) is required$", normalized_error)
+    if required_match is not None:
+        return required_match.group("location")
+
+    must_match = re.match(rf"^(?P<location>{_SCHEMA_LOCATION_PATTERN}) must .+$", normalized_error)
+    if must_match is not None:
+        return must_match.group("location")
+
     nested_location = re.match(
         r"^(?P<location>.+?) (?:must not be blank|is a duplicate|must be a valid list member|must be a list, not .+|must be an object, not .+)$",
         error.strip(),
@@ -160,7 +250,11 @@ def _is_nested_collection_item_location(location: str | None) -> bool:
     return _schema_finding_location_depth(location) >= 2
 
 
-def _project_contract_schema_finding_categories(error: str) -> frozenset[_ProjectContractSchemaFindingCategory]:
+def _project_contract_schema_finding_categories(
+    error: str,
+    *,
+    metadata: _SchemaFindingMetadata | None = None,
+) -> frozenset[_ProjectContractSchemaFindingCategory]:
     """Classify one schema finding into semantic categories."""
 
     normalized_error = error.strip()
@@ -168,17 +262,28 @@ def _project_contract_schema_finding_categories(error: str) -> frozenset[_Projec
         return frozenset()
 
     categories: set[_ProjectContractSchemaFindingCategory] = set()
-    for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
-        if any(pattern.fullmatch(normalized_error) for pattern in patterns):
-            categories.add(category)
-
     location, message = _split_schema_finding_location_and_message(normalized_error)
-    if _matches_equivalent_recoverable_schema_finding(message=message):
-        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
-    if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
-        categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+    if metadata is not None:
+        location = _metadata_location_string(metadata)
+        message = metadata.msg
+        categories.update(_categories_from_metadata(metadata))
+    else:
+        for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
+            if any(pattern.fullmatch(normalized_error) for pattern in patterns):
+                categories.add(category)
+        if location is None:
+            location = _schema_finding_location(normalized_error)
+        if (
+            location is not None
+            and _is_canonical_authoritative_scalar_location(location)
+            and ("Input should" in message or ("must" in message and "coerced from" not in message))
+        ):
+            categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+    if metadata is None:
+        if _matches_equivalent_recoverable_schema_finding(message=message):
+            categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
 
-    nested_location = _schema_finding_location(normalized_error)
+    nested_location = location or _schema_finding_location(normalized_error)
     if nested_location is not None and _is_nested_collection_item_location(nested_location):
         if categories & {
             _ProjectContractSchemaFindingCategory.RECOVERABLE,
@@ -192,6 +297,14 @@ def _project_contract_schema_finding_categories(error: str) -> frozenset[_Projec
 def _project_contract_schema_version_missing_error(contract_payload: object) -> str | None:
     if isinstance(contract_payload, dict) and "schema_version" not in contract_payload:
         return _SCHEMA_VERSION_REQUIRED_ERROR
+    return None
+
+
+def _validate_direct_project_contract_schema_version(value: object) -> str | None:
+    if type(value) is not int:
+        return "schema_version must be the integer 1"
+    if value != 1:
+        return "schema_version: Input should be 1"
     return None
 
 
@@ -228,7 +341,27 @@ def _format_schema_error(error: dict[str, object]) -> str:
     if message in {"Value error, must be a non-empty string", "Value error, value must not be blank"}:
         return f"{location} must be a non-empty string"
 
+    if message.startswith("Value error, must be a boolean (coerced from "):
+        return f"{location}: {message.removeprefix('Value error, ')}"
+
     return f"{location}: {message}"
+
+
+def _format_schema_finding(error: dict[str, object]) -> tuple[str, _SchemaFindingMetadata]:
+    """Return a formatted schema finding and one-call structured metadata."""
+
+    return _format_schema_error(error), _schema_finding_metadata_from_error(error)
+
+
+def _record_schema_finding(
+    error: dict[str, object],
+    *,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
+) -> str:
+    formatted, metadata = _format_schema_finding(error)
+    if metadata_by_error is not None:
+        metadata_by_error[formatted] = metadata
+    return formatted
 
 
 def _schema_error_location(error: dict[str, object], *, path_prefix: str = "") -> str:
@@ -237,6 +370,28 @@ def _schema_error_location(error: dict[str, object], *, path_prefix: str = "") -
     loc = tuple(error.get("loc", ()))
     parts = [path_prefix, *(str(part) for part in loc if str(part))]
     return ".".join(part for part in parts if part)
+
+
+_BOOLEAN_TEXT_CHOICES: dict[str, bool] = {
+    "1": True,
+    "true": True,
+    "yes": True,
+    "y": True,
+    "on": True,
+    "0": False,
+    "false": False,
+    "no": False,
+    "n": False,
+    "off": False,
+}
+
+
+def _coerce_common_bool_spelling(value: object) -> bool | None:
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized:
+            return _BOOLEAN_TEXT_CHOICES.get(normalized)
+    return None
 
 
 def _is_canonical_authoritative_scalar_location(location: str) -> bool:
@@ -251,6 +406,7 @@ def _sanitize_contract_scalars(
     path_prefix: str = "",
     errors: list[str] | None = None,
     canonical_authoritative_scalar_locations: set[str] | None = None,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> object:
     """Remove malformed coercive scalars so callers can reject them explicitly.
 
@@ -273,13 +429,9 @@ def _sanitize_contract_scalars(
             location = f"{path_prefix}.{key}" if path_prefix else key
 
             if location == "schema_version":
-                if type(raw_item) is not int:
-                    sink.append("schema_version must be the integer 1")
-                    if canonical_authoritative_scalar_locations is not None:
-                        canonical_authoritative_scalar_locations.add(location)
-                    continue
-                if raw_item != 1:
-                    sink.append("schema_version: Input should be 1")
+                schema_version_error = _validate_direct_project_contract_schema_version(raw_item)
+                if schema_version_error is not None:
+                    sink.append(schema_version_error)
                     if canonical_authoritative_scalar_locations is not None:
                         canonical_authoritative_scalar_locations.add(location)
                     continue
@@ -287,12 +439,29 @@ def _sanitize_contract_scalars(
                 continue
 
             if re.fullmatch(r"references\.\d+\.must_surface", location):
-                if type(raw_item) is not bool:
-                    sink.append(f"{location} must be a boolean")
-                    if canonical_authoritative_scalar_locations is not None:
-                        canonical_authoritative_scalar_locations.add(location)
+                if type(raw_item) is bool:
                     cleaned[raw_key] = raw_item
                     continue
+                coerced_bool = _coerce_common_bool_spelling(raw_item)
+                if coerced_bool is not None:
+                    location_parts = tuple(part for part in location.split(".") if part)
+                    formatted, metadata = _format_schema_finding(
+                        {
+                            "loc": location_parts,
+                            "msg": f"must be a boolean (coerced from {raw_item!r})",
+                            "type": "value_error.boolean_coercion",
+                            "input": raw_item,
+                            "ctx": {"coerced_value": coerced_bool},
+                        }
+                    )
+                    sink.append(formatted)
+                    if metadata_by_error is not None:
+                        metadata_by_error[formatted] = metadata
+                    cleaned[raw_key] = coerced_bool
+                    continue
+                sink.append(f"{location} must be a boolean")
+                if canonical_authoritative_scalar_locations is not None:
+                    canonical_authoritative_scalar_locations.add(location)
                 cleaned[raw_key] = raw_item
                 continue
 
@@ -301,6 +470,7 @@ def _sanitize_contract_scalars(
                 path_prefix=location,
                 errors=sink,
                 canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                metadata_by_error=metadata_by_error,
             )
         return cleaned
 
@@ -311,6 +481,7 @@ def _sanitize_contract_scalars(
                 path_prefix=f"{path_prefix}.{index}" if path_prefix else str(index),
                 errors=sink,
                 canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                metadata_by_error=metadata_by_error,
             )
             for index, item in enumerate(value)
         ]
@@ -334,7 +505,7 @@ def _strip_unknown_model_keys(
         if key in model.model_fields:
             continue
         location = f"{path_prefix}.{key}" if path_prefix else key
-        errors.append(f"{location}: Extra inputs are not permitted")
+        errors.append(f"{location}: Extra inputs are not permitted (draft/salvage warning; strict authoritative validation still rejects unknown keys)")
         cleaned.pop(key, None)
     return cleaned
 
@@ -367,6 +538,8 @@ def _salvage_model_mapping(
     default_value: dict[str, object] | None = None,
     required_fields: tuple[str, ...] = (),
     missing_is_default: bool = False,
+    missing_field_default_message: Callable[[str], str] | None = None,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[dict[str, object] | None, bool]:
     if value is None:
         if missing_is_default and default_value is not None:
@@ -382,9 +555,17 @@ def _salvage_model_mapping(
     cleaned = _strip_unknown_model_keys(value, path_prefix=path_prefix, model=model, errors=errors)
     missing_required_fields = [field_name for field_name in required_fields if field_name not in cleaned]
     if missing_required_fields:
-        for field_name in missing_required_fields:
-            errors.append(f"{path_prefix}.{field_name} is required")
-        return None, True
+        if missing_is_default and default_value is not None:
+            for field_name in missing_required_fields:
+                if field_name in default_value:
+                    cleaned[field_name] = copy.deepcopy(default_value[field_name])
+                    if missing_field_default_message is not None:
+                        errors.append(missing_field_default_message(field_name))
+            missing_required_fields = [field_name for field_name in required_fields if field_name not in cleaned]
+        if missing_required_fields:
+            for field_name in missing_required_fields:
+                errors.append(f"{path_prefix}.{field_name} is required")
+            return None, True
 
     while True:
         try:
@@ -409,12 +590,15 @@ def _salvage_model_mapping(
                     blocked = True
                     progress = True
                     continue
-                formatted = _format_schema_error(
+                formatted = _record_schema_finding(
                     {
                         "loc": (path_prefix, *loc),
                         "msg": error.get("msg"),
                         "input": error.get("input"),
-                    }
+                        "type": error.get("type"),
+                        "ctx": error.get("ctx"),
+                    },
+                    metadata_by_error=metadata_by_error,
                 )
                 field_value = cleaned.get(key)
                 item_model = _list_item_model(field)
@@ -426,6 +610,7 @@ def _salvage_model_mapping(
                         model=item_model,
                         errors=nested_errors,
                         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                        metadata_by_error=metadata_by_error,
                     )
                     if salvaged_item is not None and not item_blocked:
                         cleaned[key] = [salvaged_item]
@@ -452,12 +637,15 @@ def _salvage_model_mapping(
                         if len(item_loc) > 1 and str(item_loc[0]) == key and isinstance(item_loc[1], int):
                             item_index = int(item_loc[1])
                             item_indexes.add(item_index)
-                            formatted_item_error = _format_schema_error(
+                            formatted_item_error = _record_schema_finding(
                                 {
                                     "loc": (path_prefix, *item_loc),
                                     "msg": item_error.get("msg"),
                                     "input": item_error.get("input"),
-                                }
+                                    "type": item_error.get("type"),
+                                    "ctx": item_error.get("ctx"),
+                                },
+                                metadata_by_error=metadata_by_error,
                             )
                             if formatted_item_error not in item_errors_by_index[item_index]:
                                 item_errors_by_index[item_index].append(formatted_item_error)
@@ -473,6 +661,7 @@ def _salvage_model_mapping(
                                 model=item_model,
                                 errors=errors,
                                 canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                                metadata_by_error=metadata_by_error,
                             )
                             if item_blocking:
                                 blocked = True
@@ -512,6 +701,7 @@ def _salvage_contract_collection(
     item_model: type[BaseModel],
     errors: list[str],
     canonical_authoritative_scalar_locations: set[str] | None = None,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[list[dict[str, object]], bool]:
     path_prefix = field_name
     if not isinstance(value, list):
@@ -531,6 +721,7 @@ def _salvage_contract_collection(
             model=item_model,
             errors=errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+            metadata_by_error=metadata_by_error,
         )
         if item_blocked:
             blocked = True
@@ -661,9 +852,12 @@ def _collect_blank_list_normalization_findings(
     return findings
 
 
-def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContract | None, list[str]]:
+def salvage_project_contract(
+    contract: dict[str, object],
+) -> tuple[ResearchContract | None, list[str], dict[str, _SchemaFindingMetadata]]:
     errors: list[str] = []
     canonical_authoritative_scalar_locations: set[str] = set()
+    metadata_by_error: dict[str, _SchemaFindingMetadata] = {}
     errors.extend(_collect_literal_case_drift_errors(contract))
     raw_required_section_presence = {
         field_name: field_name in contract
@@ -673,9 +867,10 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         contract,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        metadata_by_error=metadata_by_error,
     )
     if not isinstance(scalar_sanitized, dict):
-        return None, errors
+        return None, errors, metadata_by_error
 
     working = _strip_unknown_model_keys(scalar_sanitized, path_prefix="", model=ResearchContract, errors=errors)
     normalized_contract = copy.deepcopy(working)
@@ -683,11 +878,20 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     errors.extend(_collect_blank_list_normalization_findings(working, normalized_contract))
 
     missing_required_section_errors: list[str] = []
-    for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers"):
+    for field_name in ("schema_version", "scope"):
         if field_name not in normalized_contract and not raw_required_section_presence[field_name]:
             missing_required_section_errors.append(_required_project_contract_section_error(field_name))
+    defaulted_section_warnings: list[str] = []
+    if "context_intake" not in normalized_contract and not raw_required_section_presence["context_intake"]:
+        normalized_contract["context_intake"] = ContractContextIntake().model_dump()
+        defaulted_section_warnings.append(CONTEXT_INTAKE_DEFAULT_WARNING)
+    default_uncertainty_markers = ContractUncertaintyMarkers().model_dump()
+    if "uncertainty_markers" not in normalized_contract and not raw_required_section_presence["uncertainty_markers"]:
+        normalized_contract["uncertainty_markers"] = copy.deepcopy(default_uncertainty_markers)
+        defaulted_section_warnings.append(UNCERTAINTY_MARKERS_DEFAULT_WARNING)
     if missing_required_section_errors:
-        return None, [*errors, *missing_required_section_errors]
+        return None, [*errors, *missing_required_section_errors], metadata_by_error
+    errors.extend(defaulted_section_warnings)
 
     collection_models: dict[str, type[BaseModel]] = {
         "observables": ContractObservable,
@@ -707,6 +911,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
             item_model=item_model,
             errors=errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+            metadata_by_error=metadata_by_error,
         )
         normalized_contract[field_name] = normalized_items
 
@@ -716,9 +921,10 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         model=ContractScope,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        metadata_by_error=metadata_by_error,
     )
     if scope_blocked or scope is None:
-        return None, errors
+        return None, errors, metadata_by_error
     normalized_contract["scope"] = scope
 
     context_intake, context_intake_blocked = _salvage_model_mapping(
@@ -727,9 +933,10 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         model=ContractContextIntake,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        metadata_by_error=metadata_by_error,
     )
     if context_intake_blocked or context_intake is None:
-        return None, errors
+        return None, errors, metadata_by_error
     normalized_contract["context_intake"] = context_intake
 
     if "approach_policy" in normalized_contract:
@@ -740,9 +947,10 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
             model=ContractApproachPolicy,
             errors=approach_policy_errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+            metadata_by_error=metadata_by_error,
         )
+        errors.extend(error for error in approach_policy_errors if error not in errors)
         if approach_policy_blocked or approach_policy is None:
-            errors.extend(error for error in approach_policy_errors if error not in errors)
             normalized_contract.pop("approach_policy", None)
         else:
             normalized_contract["approach_policy"] = approach_policy
@@ -753,47 +961,63 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         model=ContractUncertaintyMarkers,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        default_value=default_uncertainty_markers,
         required_fields=("weakest_anchors", "disconfirming_observations"),
+        missing_is_default=True,
+        missing_field_default_message=lambda field: UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE.format(field=field),
+        metadata_by_error=metadata_by_error,
     )
     if uncertainty_markers_blocked or uncertainty_markers is None:
-        return None, errors
+        return None, errors, metadata_by_error
     normalized_contract["uncertainty_markers"] = uncertainty_markers
 
     if "schema_version" in normalized_contract:
-        try:
-            normalized_contract["schema_version"] = ResearchContract.model_validate(
-                {"scope": scope, "schema_version": normalized_contract["schema_version"]}
-            ).schema_version
-        except PydanticValidationError:
-            errors.append("schema_version: Input should be 1")
+        schema_version_error = _validate_direct_project_contract_schema_version(normalized_contract["schema_version"])
+        if schema_version_error is not None:
+            if schema_version_error not in errors:
+                errors.append(schema_version_error)
             normalized_contract.pop("schema_version", None)
 
     try:
-        return ResearchContract.model_validate(normalized_contract), errors
+        return ResearchContract.model_validate(normalized_contract), errors, metadata_by_error
     except PydanticValidationError as exc:
         for error in exc.errors():
-            formatted = _format_schema_error(error)
+            formatted = _record_schema_finding(error, metadata_by_error=metadata_by_error)
             if formatted not in errors:
                 errors.append(formatted)
-        return None, errors
+        return None, errors, metadata_by_error
 
 
 def split_project_contract_schema_findings(
     errors: list[str],
     *,
     allow_case_drift_recovery: bool = True,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Partition salvage findings into recoverable case-drift warnings and blocking errors."""
 
     recoverable: list[str] = []
     blocking: list[str] = []
     for error in errors:
-        categories = _project_contract_schema_finding_categories(error)
+        metadata = None if metadata_by_error is None else metadata_by_error.get(error)
+        if metadata is not None and metadata.error_type == "value_error.boolean_coercion":
+            if allow_case_drift_recovery:
+                recoverable.append(error)
+            else:
+                blocking.append(error)
+            continue
+        categories = _project_contract_schema_finding_categories(
+            error,
+            metadata=metadata,
+        )
         if _ProjectContractSchemaFindingCategory.NESTED_COLLECTION_ITEM_TRUNCATION in categories:
             blocking.append(error)
             continue
         recoverable_finding = _ProjectContractSchemaFindingCategory.RECOVERABLE in categories
         case_drift_finding = _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories
+        if _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR in categories:
+            blocking.append(error)
+            continue
         if recoverable_finding or (allow_case_drift_recovery and case_drift_finding):
             recoverable.append(error)
             continue
@@ -801,10 +1025,14 @@ def split_project_contract_schema_findings(
     return recoverable, blocking
 
 
-def is_authoritative_project_contract_schema_finding(error: str) -> bool:
+def is_authoritative_project_contract_schema_finding(
+    error: str,
+    *,
+    metadata: _SchemaFindingMetadata | None = None,
+) -> bool:
     """Return whether one schema finding touches an authoritative scalar field."""
 
-    categories = _project_contract_schema_finding_categories(error)
+    categories = _project_contract_schema_finding_categories(error, metadata=metadata)
     return _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR in categories
 
 
@@ -812,7 +1040,10 @@ def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:
     """Return whether one recoverable schema finding still requires repair."""
 
     categories = _project_contract_schema_finding_categories(error)
-    if _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories:
+    if categories & {
+        _ProjectContractSchemaFindingCategory.CASE_DRIFT,
+        _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR,
+    }:
         return False
     return bool(
         {
@@ -823,10 +1054,20 @@ def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:
     )
 
 
-def _has_authoritative_scalar_schema_findings(errors: list[str]) -> bool:
+def _has_authoritative_scalar_schema_findings(
+    errors: list[str],
+    *,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
+) -> bool:
     """Return whether salvage findings touched authoritative scalar fields."""
 
-    return any(is_authoritative_project_contract_schema_finding(error) for error in errors)
+    return any(
+        is_authoritative_project_contract_schema_finding(
+            error,
+            metadata=None if metadata_by_error is None else metadata_by_error.get(error),
+        )
+        for error in errors
+    )
 
 
 def _collect_list_shape_drift_errors(contract: dict[str, object]) -> list[str]:
@@ -1014,7 +1255,7 @@ def _must_read_ref_counts_as_guidance(
     for reference in contract.references:
         if reference.id != reference_id:
             continue
-        return _is_concrete_reference_locator(
+        return is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1036,24 +1277,24 @@ def _has_approved_grounding_signal(
 
     return any(
         (
-            _has_concrete_must_surface_reference(
+            has_concrete_must_surface_reference(
                 contract,
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.user_asserted_anchors,
                 field_name="user_asserted_anchors",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.known_good_baselines,
                 field_name="known_good_baselines",
                 project_root=project_root,
@@ -1072,19 +1313,19 @@ def _has_non_reference_grounding_signal(
 
     return any(
         (
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.user_asserted_anchors,
                 field_name="user_asserted_anchors",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.known_good_baselines,
                 field_name="known_good_baselines",
                 project_root=project_root,
@@ -1101,7 +1342,7 @@ def _prior_output_counts_as_guidance(
 ) -> bool:
     """Return whether *value* is durable prior-output guidance."""
 
-    return _is_project_artifact_path(value, project_root=project_root)
+    return is_project_artifact_path(value, project_root=project_root)
 
 
 def _has_meaningful_guidance_text(values: list[str]) -> bool:
@@ -1127,18 +1368,18 @@ def _guidance_signal_flags(
             for value in contract.context_intake.must_include_prior_outputs
         ),
         "user_asserted_anchors": any(
-            _is_context_intake_locator_grounding(
+            is_context_intake_locator_grounding(
                 value, project_root=project_root, require_existing_project_artifacts=True
             )
             for value in contract.context_intake.user_asserted_anchors
         ),
         "known_good_baselines": any(
-            _is_context_intake_locator_grounding(
+            is_context_intake_locator_grounding(
                 value, project_root=project_root, require_existing_project_artifacts=True
             )
             for value in contract.context_intake.known_good_baselines
         ),
-        "context_gaps": _has_meaningful_guidance_text(contract.context_intake.context_gaps),
+        "context_gaps": False,
         "crucial_inputs": _has_meaningful_guidance_text(contract.context_intake.crucial_inputs),
     }
 
@@ -1169,13 +1410,13 @@ def _context_intake_guidance_warnings(
         ("known_good_baselines", contract.context_intake.known_good_baselines),
     ):
         for value in values:
-            if _is_context_intake_locator_grounding(
+            if is_context_intake_locator_grounding(
                 value,
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ):
                 continue
-            if _is_project_artifact_path(value, project_root=None):
+            if is_project_artifact_path(value, project_root=None):
                 if project_root is None:
                     warnings.append(
                         f"context_intake.{field_name} entry requires a resolved project_root "
@@ -1204,6 +1445,20 @@ def _context_intake_guidance_warnings(
     return warnings
 
 
+def _context_intake_grounding_errors(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+) -> list[str]:
+    if project_root is None:
+        return []
+    return [
+        f"context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: {value}"
+        for value in contract.context_intake.must_include_prior_outputs
+        if not _prior_output_counts_as_guidance(value, project_root=project_root)
+    ]
+
+
 def _must_surface_locator_warnings(
     contract: ResearchContract,
     *,
@@ -1215,7 +1470,7 @@ def _must_surface_locator_warnings(
     for reference in contract.references:
         if not reference.must_surface:
             continue
-        if _is_concrete_reference_locator(
+        if is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1238,7 +1493,7 @@ def _concrete_must_surface_targets(
     for reference in contract.references:
         if not reference.must_surface:
             continue
-        if not _is_concrete_reference_locator(
+        if not is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1268,7 +1523,7 @@ def _split_approved_mode_must_surface_locator_findings(
     for reference in contract.references:
         if not reference.must_surface:
             continue
-        if _is_concrete_reference_locator(
+        if is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1312,13 +1567,42 @@ def validate_project_contract(
     else:
         contract_payload = contract
 
-    salvage_result = parse_project_contract_data_salvage(contract_payload)
-    parsed = salvage_result.contract
-    schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors)
-    schema_errors = dedupe_preserve_order(salvage_result.blocking_errors)
+    if mode == "approved":
+        strict_result = parse_project_contract_data_strict(contract_payload)
+        salvage_result = parse_project_contract_data_salvage(contract_payload)
+        parsed = strict_result.contract
+        schema_errors = dedupe_preserve_order(
+            [*strict_result.blocking_errors, *strict_result.recoverable_errors, *salvage_result.errors]
+        )
+        salvage_error_set = set(salvage_result.errors)
+        schema_errors = [
+            error
+            for error in schema_errors
+            if not (
+                error.endswith(": Value error, must be a boolean")
+                and f"{error.rsplit(':', 1)[0]}: must be a boolean (coerced from 'yes')" in salvage_error_set
+            )
+        ]
+    else:
+        salvage_result = parse_project_contract_data_salvage(contract_payload)
+        parsed = salvage_result.contract
+        schema_errors = dedupe_preserve_order(
+            error
+            for error in salvage_result.blocking_errors
+            if error
+            not in {
+                UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE.format(field="weakest_anchors"),
+                UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE.format(field="disconfirming_observations"),
+            }
+        )
     schema_version_error = _project_contract_schema_version_missing_error(contract_payload)
     if schema_version_error is not None:
         schema_errors = dedupe_preserve_order([schema_version_error, *schema_errors])
+    schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors) if salvage_result else []
+    if mode == "approved" and schema_errors:
+        schema_error_set = set(schema_errors)
+        if parsed is not None or any(not warning.startswith("legacy_notes: Extra inputs are not permitted") for warning in schema_warnings):
+            schema_warnings = [warning for warning in schema_warnings if warning not in schema_error_set]
     if parsed is None:
         return ProjectContractValidationResult(
             valid=False,
@@ -1360,6 +1644,7 @@ def validate_project_contract(
 
     errors.extend(_light_contract_consistency_errors(parsed))
     errors.extend(collect_proof_bearing_claim_integrity_errors(parsed))
+    errors.extend(_context_intake_grounding_errors(parsed, project_root=project_root))
 
     warnings.extend(_context_intake_guidance_warnings(parsed, project_root=project_root))
     if mode == "approved":
@@ -1373,7 +1658,6 @@ def validate_project_contract(
         warnings.extend(_must_surface_locator_warnings(parsed, project_root=project_root))
 
     has_non_reference_grounding = _has_non_reference_grounding_signal(parsed, project_root=project_root)
-
     if parsed.references and not any(reference.must_surface for reference in parsed.references):
         finding = "references must include at least one must_surface=true anchor"
         if mode == "approved" and not has_non_reference_grounding:

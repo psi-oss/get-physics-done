@@ -33,9 +33,6 @@ __all__ = [
     "CONTRACT_REFERENCE_ROLE_VALUES",
     "CONTRACT_REFERENCE_ACTION_VALUES",
     "CONTRACT_LINK_RELATION_VALUES",
-    "CONTRACT_CONTEXT_INTAKE_FIELD_NAMES",
-    "CONTRACT_APPROACH_POLICY_FIELD_NAMES",
-    "CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES",
     "PROOF_ACCEPTANCE_TEST_KINDS",
     "PROOF_HYPOTHESIS_CATEGORY_VALUES",
     "PROOF_AUDIT_REVIEWER",
@@ -70,6 +67,11 @@ __all__ = [
     "ContractLink",
     "ContractUncertaintyMarkers",
     "ResearchContract",
+    "has_concrete_grounding_entries",
+    "has_concrete_must_surface_reference",
+    "is_concrete_reference_locator",
+    "is_context_intake_locator_grounding",
+    "is_project_artifact_path",
     "collect_plan_contract_integrity_errors",
     "collect_proof_bearing_claim_integrity_errors",
     "contract_has_explicit_context_intake",
@@ -171,28 +173,6 @@ CONTRACT_LINK_RELATION_VALUES: tuple[str, ...] = (
     "uses_hypothesis",
     "depends_on_lemma",
     "other",
-)
-CONTRACT_CONTEXT_INTAKE_FIELD_NAMES: tuple[str, ...] = (
-    "must_read_refs",
-    "must_include_prior_outputs",
-    "user_asserted_anchors",
-    "known_good_baselines",
-    "context_gaps",
-    "crucial_inputs",
-)
-CONTRACT_APPROACH_POLICY_FIELD_NAMES: tuple[str, ...] = (
-    "formulations",
-    "allowed_estimator_families",
-    "forbidden_estimator_families",
-    "allowed_fit_families",
-    "forbidden_fit_families",
-    "stop_and_rethink_conditions",
-)
-CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES: tuple[str, ...] = (
-    "weakest_anchors",
-    "unvalidated_assumptions",
-    "competing_explanations",
-    "disconfirming_observations",
 )
 PROOF_HYPOTHESIS_CATEGORY_VALUES: tuple[str, ...] = (
     "assumption",
@@ -449,20 +429,28 @@ _PLACEHOLDER_ONLY_GUIDANCE_PATTERNS: tuple[re.Pattern[str], ...] = (
 _PROJECT_ARTIFACT_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"[\\/]+"),
     re.compile(r"^(?:\.{1,2}|~)(?:[\\/]|$)"),
-    re.compile(r"\.[A-Za-z0-9]{1,8}$"),
 )
+
+
+def _project_artifact_path_text(value: str) -> str:
+    """Return the path portion of a candidate project-artifact locator."""
+
+    candidate = value.strip()
+    if not candidate:
+        return ""
+    parsed = urlparse(candidate)
+    if "://" in candidate or parsed.scheme:
+        return ""
+    return parsed.path.strip()
 
 
 def _looks_like_project_artifact_path(value: str) -> bool:
     """Return whether *value* looks like a concrete project-local artifact path."""
 
-    candidate = value.strip()
+    candidate = _project_artifact_path_text(value)
     if not candidate:
         return False
-    return bool(
-        re.search(r"[\\/]+", candidate)
-        or re.search(r"^(?:\.{1,2}|~)(?:[\\/]|$)", candidate)
-    )
+    return any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS)
 
 
 def _has_parent_path_traversal(value: str) -> bool:
@@ -484,18 +472,18 @@ def _is_windows_style_absolute_path(value: str) -> bool:
 def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
     """Return whether *value* names a concrete project-local artifact path."""
 
-    candidate = value.strip()
-    if not candidate or "://" in candidate:
+    candidate = _project_artifact_path_text(value)
+    if not candidate:
         return False
     if is_cross_platform_absolute_path(candidate):
         return False
-    if not any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS):
+    if not _looks_like_project_artifact_path(candidate):
         return False
 
     if project_root is None:
         if any(pattern.search(candidate.casefold()) for pattern in _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS):
             return False
-        return _looks_like_project_artifact_path(candidate)
+        return True
 
     root = project_root.expanduser().resolve(strict=False)
     path = Path(candidate).expanduser()
@@ -507,11 +495,19 @@ def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -
     return resolved.is_file()
 
 
+def is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
+    """Return whether *value* names a concrete project-local artifact path."""
+
+    return _is_project_artifact_path(value, project_root=project_root)
+
+
 def _is_unresolved_project_artifact_path(value: str) -> bool:
     """Return whether *value* names an artifact path that needs a project root."""
 
-    candidate = value.strip()
+    candidate = _project_artifact_path_text(value)
     if not candidate:
+        return False
+    if not _looks_like_project_artifact_path(candidate):
         return False
     return is_cross_platform_absolute_path(candidate) or _has_parent_path_traversal(candidate)
 
@@ -636,6 +632,17 @@ def _is_concrete_reference_locator(
     return False
 
 
+def is_concrete_reference_locator(
+    value: str,
+    *,
+    reference_kind: str,
+    project_root: Path | None = None,
+) -> bool:
+    """Return whether *value* concretely grounds the requested reference kind."""
+
+    return _is_concrete_reference_locator(value, reference_kind=reference_kind, project_root=project_root)
+
+
 def _is_context_intake_locator_grounding(
     value: str,
     *,
@@ -644,11 +651,65 @@ def _is_context_intake_locator_grounding(
 ) -> bool:
     """Return whether a context-intake anchor/baseline is concrete enough to count."""
 
-    if require_existing_project_artifacts and _is_project_artifact_path(value, project_root=None):
+    if require_existing_project_artifacts and _looks_like_project_artifact_path(value):
         if project_root is None:
             return False
         return _is_project_artifact_path(value, project_root=project_root)
     return _is_concrete_text_grounding(value, project_root=project_root)
+
+
+def _is_rootless_user_anchor_grounding(value: str) -> bool:
+    """Return whether a rootless user anchor is concrete enough to preserve."""
+
+    return (
+        _looks_like_project_artifact_path(value)
+        and not value.strip().startswith("./")
+        and not _is_unresolved_project_artifact_path(value)
+    )
+
+
+def _is_user_asserted_anchor_grounding(
+    value: str,
+    *,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether a user-supplied anchor can ground a contract."""
+
+    if require_existing_project_artifacts and _looks_like_project_artifact_path(value):
+        if project_root is None:
+            return False
+        return _is_project_artifact_path(value, project_root=project_root)
+    return _is_concrete_text_grounding(value, project_root=project_root)
+
+
+def is_context_intake_locator_grounding(
+    value: str,
+    *,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether a context-intake anchor/baseline is concrete enough to count."""
+
+    return _is_context_intake_locator_grounding(
+        value,
+        project_root=project_root,
+        require_existing_project_artifacts=require_existing_project_artifacts,
+    )
+
+
+def _has_explicit_context_intake_locator_guidance(
+    value: str,
+    *,
+    project_root: Path | None = None,
+) -> bool:
+    """Return whether an anchor/baseline explicitly preserves user guidance."""
+
+    return _looks_like_project_artifact_path(value) or _is_context_intake_locator_grounding(
+        value,
+        project_root=project_root,
+        require_existing_project_artifacts=True,
+    )
 
 
 def _has_concrete_grounding_entries(
@@ -669,7 +730,16 @@ def _has_concrete_grounding_entries(
                 for value in values
             )
         return any(_is_project_artifact_path(value, project_root=project_root) for value in values)
-    if field_name in {"user_asserted_anchors", "known_good_baselines"}:
+    if field_name == "user_asserted_anchors":
+        return any(
+            _is_user_asserted_anchor_grounding(
+                value,
+                project_root=project_root,
+                require_existing_project_artifacts=require_existing_project_artifacts,
+            )
+            for value in values
+        )
+    if field_name == "known_good_baselines":
         return any(
             _is_context_intake_locator_grounding(
                 value,
@@ -679,6 +749,23 @@ def _has_concrete_grounding_entries(
             for value in values
         )
     raise ValueError(f"Unsupported grounding field {field_name!r}")
+
+
+def has_concrete_grounding_entries(
+    values: list[str],
+    *,
+    field_name: str,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether any grounding entry is concrete for the requested field."""
+
+    return _has_concrete_grounding_entries(
+        values,
+        field_name=field_name,
+        project_root=project_root,
+        require_existing_project_artifacts=require_existing_project_artifacts,
+    )
 
 
 def _has_concrete_must_surface_reference(
@@ -705,6 +792,21 @@ def _has_concrete_must_surface_reference(
         if project_root is not None and _is_project_artifact_path(reference.locator, project_root=project_root):
             return True
     return False
+
+
+def has_concrete_must_surface_reference(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether the contract includes a concrete must_surface reference."""
+
+    return _has_concrete_must_surface_reference(
+        contract,
+        project_root=project_root,
+        require_existing_project_artifacts=require_existing_project_artifacts,
+    )
 
 
 PROJECT_CONTRACT_MAPPING_LIST_FIELDS: dict[str, tuple[str, ...]] = {
@@ -781,8 +883,14 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
         if not isinstance(mapping, dict):
             return
         for field_name in field_names:
-            if field_name in mapping:
-                _check_string_list(mapping[field_name], path=f"{path_prefix}.{field_name}")
+            if field_name not in mapping:
+                continue
+            raw_value = mapping[field_name]
+            location = f"{path_prefix}.{field_name}"
+            if isinstance(raw_value, str):
+                errors.append(f"{location} must not be blank" if _blank_string(raw_value) else f"{location} must be a list, not str")
+                continue
+            _check_string_list(raw_value, path=location)
 
     def _check_collection_item_lists(collection_name: str, field_names: tuple[str, ...]) -> None:
         raw_collection = data.get(collection_name)
@@ -823,6 +931,15 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
         _check_mapping_lists(data.get(section_name), path_prefix=section_name, field_names=field_names)
     for collection_name, field_names in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.items():
         _check_collection_item_lists(collection_name, field_names)
+
+    top_level_collections = data.get("claims")
+    if isinstance(top_level_collections, list):
+        for claim_index, claim in enumerate(top_level_collections):
+            if not isinstance(claim, dict):
+                continue
+            for field_name in ("parameters", "hypotheses", "conclusion_clauses"):
+                if field_name in claim and not isinstance(claim[field_name], list):
+                    errors.append(f"claims.{claim_index}.{field_name} must be a list, not {type(claim[field_name]).__name__}")
 
     return errors
 
@@ -1679,7 +1796,11 @@ def parse_contract_results_data_strict(value: object) -> ContractResults:
 
     if not isinstance(value, dict):
         raise ValueError("contract_results must be an object")
-    return ContractResults.model_validate(normalize_contract_results_input(value))
+    strict_input = normalize_contract_results_input(value)
+    errors = _collect_strict_contract_results_errors(strict_input)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return ContractResults.model_validate(strict_input)
 
 
 def parse_contract_results_data_artifact(value: object) -> ContractResults:
@@ -2543,18 +2664,16 @@ def contract_has_explicit_context_intake(
         for value in contract.context_intake.must_include_prior_outputs
     )
     has_anchor_guidance = any(
-        _is_context_intake_locator_grounding(
+        _has_explicit_context_intake_locator_guidance(
             value,
             project_root=project_root,
-            require_existing_project_artifacts=True,
         )
         for value in contract.context_intake.user_asserted_anchors
     )
     has_baseline_guidance = any(
-        _is_context_intake_locator_grounding(
+        _has_explicit_context_intake_locator_guidance(
             value,
             project_root=project_root,
-            require_existing_project_artifacts=True,
         )
         for value in contract.context_intake.known_good_baselines
     )
@@ -2657,6 +2776,8 @@ def collect_plan_contract_integrity_errors(
         require_existing_project_artifacts=True,
     )
 
+    if not scoping_contract and not (contract.observables or contract.claims or contract.deliverables):
+        issues.append("missing decisive observables/claims/deliverables")
     if not contract.claims and not scoping_contract:
         issues.append("missing claims")
     if not contract.deliverables and not scoping_contract:
@@ -2812,49 +2933,51 @@ def _parse_project_contract_data(
     if not isinstance(data, dict):
         return _project_contract_parse_result(blocking_errors=["project contract must be a JSON object"])
 
-    from gpd.core.contract_validation import _collect_list_shape_drift_errors, salvage_project_contract
-
-    contract, schema_findings = salvage_project_contract(data)
-    list_shape_drift_errors = _collect_list_shape_drift_errors(data)
     if strict:
         from gpd.core.contract_validation import (
+            _collect_list_shape_drift_errors,
             _collect_literal_case_drift_errors,
             _project_contract_schema_version_missing_error,
-            split_project_contract_schema_findings,
         )
 
-        schema_warnings, schema_errors = split_project_contract_schema_findings(
-            schema_findings,
-            allow_case_drift_recovery=False,
-        )
         blocking_errors = [
             *_collect_literal_case_drift_errors(data),
-            *schema_errors,
-            *schema_warnings,
-            *list_shape_drift_errors,
+            *_collect_list_shape_drift_errors(data),
             *_collect_project_contract_list_member_errors(data),
             *_collect_strict_nested_proof_list_scalar_drift_errors(data),
         ]
         schema_version_error = _project_contract_schema_version_missing_error(data)
         if schema_version_error is not None:
             blocking_errors = [schema_version_error, *blocking_errors]
-        if contract is None:
-            if not blocking_errors and schema_findings:
-                blocking_errors = list(schema_findings)
-            if not blocking_errors:
-                blocking_errors = ["project contract could not be normalized"]
+        if "context_intake" not in data:
+            blocking_errors.append("context_intake is required")
+        if "uncertainty_markers" not in data:
+            blocking_errors.append("uncertainty_markers is required")
+        try:
+            contract = ResearchContract.model_validate(data)
+        except PydanticValidationError as exc:
+            blocking_errors.extend(_format_pydantic_validation_errors(exc))
             return _project_contract_parse_result(blocking_errors=blocking_errors)
-        integrity_errors = collect_contract_integrity_errors(contract)
-        blocking_errors.extend(integrity_errors)
+
         if blocking_errors:
             return _project_contract_parse_result(blocking_errors=blocking_errors)
+
+        integrity_errors = collect_contract_integrity_errors(contract)
+        if integrity_errors:
+            return _project_contract_parse_result(blocking_errors=integrity_errors)
         return _project_contract_parse_result(contract=contract)
+
+    from gpd.core.contract_validation import _collect_list_shape_drift_errors, salvage_project_contract
+
+    contract, schema_findings, schema_metadata = salvage_project_contract(data)
+    list_shape_drift_errors = _collect_list_shape_drift_errors(data)
 
     from gpd.core.contract_validation import split_project_contract_schema_findings
 
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,
         allow_case_drift_recovery=True,
+        metadata_by_error=schema_metadata,
     )
     recoverable_errors = [*schema_warnings, *list_shape_drift_errors, *_collect_project_contract_list_member_errors(data)]
     blocking_errors = [*schema_errors]
@@ -2907,7 +3030,6 @@ def parse_project_contract_data_salvage(data: object) -> ProjectContractParseRes
 def contract_from_data(
     data: object,
     *,
-    allow_recoverable_warnings: bool = False,
     require_draft_validity: bool = False,
     project_root: Path | None = None,
 ) -> ResearchContract | None:
@@ -2922,12 +3044,6 @@ def contract_from_data(
 
     if not isinstance(data, dict):
         return None
-    if allow_recoverable_warnings:
-        return contract_from_data_salvage(
-            data,
-            require_draft_validity=require_draft_validity,
-            project_root=project_root,
-        )
 
     strict_result = parse_project_contract_data_strict(data)
     if strict_result.contract is None or strict_result.errors:

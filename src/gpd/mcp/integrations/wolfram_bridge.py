@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 from collections.abc import Mapping
@@ -164,7 +165,14 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
     return server, bridge
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="GPD Wolfram MCP bridge")
+    parser.add_argument("--transport", choices=["stdio"], default="stdio")
+    return parser.parse_args()
+
+
 async def _run() -> None:
+    _parse_args()
     config = load_settings()
     server, _bridge = build_server(config)
     async with stdio_server() as (read_stream, write_stream):

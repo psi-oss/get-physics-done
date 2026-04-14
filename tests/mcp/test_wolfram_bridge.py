@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from contextlib import asynccontextmanager
 
 import pytest
@@ -257,9 +258,59 @@ def test_build_server_registers_expected_server_name() -> None:
     assert server.name == "gpd-wolfram"
 
 
+def test_parse_args_rejects_unsupported_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from gpd.mcp.integrations.wolfram_bridge import _parse_args
+
+    monkeypatch.setattr(sys, "argv", ["gpd-mcp-wolfram", "--transport", "sse"])
+
+    with pytest.raises(SystemExit):
+        _parse_args()
+
+
+def test_parse_args_help_surfaces_stdio_transport(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    import sys
+
+    from gpd.mcp.integrations.wolfram_bridge import _parse_args
+
+    monkeypatch.setattr(sys, "argv", ["gpd-mcp-wolfram", "--help"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _parse_args()
+
+    assert exc_info.value.code == 0
+    assert "--transport {stdio}" in capsys.readouterr().out
+
+
 def test_pyproject_exposes_the_wolfram_console_script() -> None:
     from pathlib import Path
 
     text = Path("pyproject.toml").read_text(encoding="utf-8")
 
     assert '"gpd-mcp-wolfram" = "gpd.mcp.integrations.wolfram_bridge:main"' in text
+
+
+def test_wolfram_entrypoint_help_runs() -> None:
+    import os
+    import sys
+    from pathlib import Path
+
+    project_root = Path(__file__).resolve().parents[2]
+    env = dict(os.environ)
+    src_path = project_root / "src"
+    pythonpath_parts = [str(src_path)]
+    if env.get("PYTHONPATH"):
+        pythonpath_parts.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "gpd.mcp.integrations.wolfram_bridge", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=project_root,
+        env=env,
+    )
+
+    assert result.returncode == 0

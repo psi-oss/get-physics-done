@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -35,6 +36,7 @@ from gpd.adapters.install_utils import (
     protect_runtime_agent_prompt,
     read_settings,
     replace_placeholders,
+    rewrite_gpd_cli_invocations,
     translate_frontmatter_tool_names,
     verify_installed,
     write_manifest,
@@ -42,6 +44,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.core.constants import HOME_DATA_DIR_NAME
+from gpd.core.public_surface_contract import local_cli_bridge_commands
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 _SHARED_INSTALL = get_shared_install_metadata()
@@ -51,6 +54,7 @@ _DOLLAR_TEMPLATE_RUNTIMES = tuple(
 _NON_DOLLAR_TEMPLATE_RUNTIMES = tuple(
     descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if not descriptor.agent_prompt_uses_dollar_templates
 )
+_GENERIC_RUNTIME = _RUNTIME_DESCRIPTORS[0].runtime_name
 
 
 def _bundled_hook_text(name: str) -> str:
@@ -280,6 +284,7 @@ class TestExpandAtIncludes:
         assert "<!-- [included: gpd-shared.md] -->" in result
 
     def test_installed_style_nested_get_physics_done_includes_resolve_against_specs_root(self, tmp_path: Path) -> None:
+        descriptor = _RUNTIME_DESCRIPTORS[0]
         gpd_dir = self._make_src(
             tmp_path,
             {
@@ -289,14 +294,28 @@ class TestExpandAtIncludes:
         )
 
         result = expand_at_includes(
-            f"@{tmp_path}/runtime/get-physics-done/workflows/verify.md",
+            f"@{tmp_path}/{descriptor.config_dir_name}/get-physics-done/workflows/verify.md",
             gpd_dir,
-            f"{tmp_path}/runtime/",
-            runtime="codex",
+            f"{tmp_path}/{descriptor.config_dir_name}/",
+            runtime=descriptor.runtime_name,
         )
 
         assert "Canonical schema body" in result
         assert "@ include not resolved:" not in result.lower()
+
+    def test_installed_style_absolute_parent_traversal_is_rejected(self, tmp_path: Path) -> None:
+        descriptor = _RUNTIME_DESCRIPTORS[0]
+        gpd_dir = self._make_src(tmp_path, {"templates/schema.md": "Canonical schema body\n"})
+
+        result = expand_at_includes(
+            f"@{tmp_path}/{descriptor.config_dir_name}/get-physics-done/../templates/schema.md",
+            gpd_dir,
+            f"{tmp_path}/{descriptor.config_dir_name}/",
+            runtime=descriptor.runtime_name,
+        )
+
+        assert "Canonical schema body" not in result
+        assert "@ include not resolved:" in result.lower()
 
 
 # =========================================================================
@@ -1328,6 +1347,32 @@ class TestCopyWithPathReplacement:
         assert (dest / "original.txt").exists()
         assert (dest / "original.txt").read_text() == "original"
 
+    def test_cross_device_rename_falls_back_to_copy(self, tmp_path: Path) -> None:
+        """Cross-device rename errors should copy from tmp instead of failing."""
+        src = self._make_src(tmp_path)
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        (dest / "original.txt").write_text("original", encoding="utf-8")
+
+        pid = os.getpid()
+        tmp_dir = tmp_path / f"dest.tmp.{pid}"
+        old_dir = tmp_path / f"dest.old.{pid}"
+        original_rename = Path.rename
+
+        def patched_rename(self_path, target):
+            if self_path == tmp_dir and target == dest:
+                raise OSError(errno.EXDEV, "cross-device rename")
+            return original_rename(self_path, target)
+
+        with patch.object(Path, "rename", patched_rename):
+            copy_with_path_replacement(src, dest, "/custom/", _GENERIC_RUNTIME)
+
+        assert (dest / "readme.md").exists()
+        assert "/custom/" in (dest / "readme.md").read_text(encoding="utf-8")
+        assert not (dest / "original.txt").exists()
+        assert not tmp_dir.exists()
+        assert not old_dir.exists()
+
 
 class TestInstallBackupSafety:
     def test_write_manifest_tracks_hooks(self, tmp_path: Path) -> None:
@@ -1402,3 +1447,21 @@ def test_verify_installed_rejects_unresolved_include_markers(tmp_path: Path) -> 
     (install_dir / "prompt.md").write_text("<!-- @ include not resolved: foo.md -->\n", encoding="utf-8")
 
     assert verify_installed(install_dir) is False
+
+
+def test_unlabeled_shell_fence_rewrites_gpd_invocation() -> None:
+    content = "```\n$ gpd install\n```\n"
+    rewritten = rewrite_gpd_cli_invocations(content, "bridge-cmd")
+
+    assert "bridge-cmd install" in rewritten
+
+
+def test_unlabeled_shell_fence_preserves_public_bridge_command() -> None:
+    bridge_command = "bridge-cmd"
+    preserved = local_cli_bridge_commands()[0]
+    content = f"```\n{preserved} --example\n```\n"
+
+    rewritten = rewrite_gpd_cli_invocations(content, bridge_command)
+
+    assert preserved in rewritten
+    assert bridge_command not in rewritten

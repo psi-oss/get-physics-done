@@ -18,6 +18,26 @@ def _gpd_return_block(path: Path) -> str:
     return source.split("gpd_return:\n", 1)[1].split("```", 1)[0]
 
 
+def _top_level_keys(block: str) -> list[str]:
+    return [
+        line.strip().split(":", 1)[0]
+        for line in block.splitlines()
+        if line.startswith("  ") and not line.startswith("    ") and ":" in line and not line.lstrip().startswith("#")
+    ]
+
+
+def _extension_keys(block: str) -> list[str]:
+    extension_keys: list[str] = []
+    in_extensions = False
+    for line in block.splitlines():
+        if line.startswith("  ") and not line.startswith("    "):
+            in_extensions = line.strip() == "extensions:"
+            continue
+        if in_extensions and line.startswith("    ") and ":" in line and not line.lstrip().startswith("#"):
+            extension_keys.append(line.strip().split(":", 1)[0])
+    return extension_keys
+
+
 def test_paper_writer_prompt_uses_typed_status_and_one_shot_checkpoint_language() -> None:
     source = _read(PAPER_WRITER)
 
@@ -53,16 +73,26 @@ def test_paper_writer_return_example_shows_required_base_fields_before_extension
         "next_actions: [list of recommended follow-up actions]"
     )
     assert envelope.index("next_actions: [list of recommended follow-up actions]") < envelope.index(
-        'section_name: "{section drafted}"'
+        '    section_name: "{section drafted}"'
     )
     assert "base fields (status, files_written, issues, next_actions)" not in source
+    assert _top_level_keys(envelope) == ["status", "files_written", "issues", "next_actions", "extensions"]
+    assert _extension_keys(envelope)[:5] == [
+        "section_name",
+        "equations_added",
+        "figures_added",
+        "citations_added",
+        "journal_calibration",
+    ]
+    assert "section_name" not in _top_level_keys(envelope)
 
 
 def test_bibliographer_prompt_uses_typed_status_and_base_field_first_return_example() -> None:
     source = _read(BIBLIOGRAPHER)
     envelope = _gpd_return_block(BIBLIOGRAPHER)
 
-    assert "This is a one-shot checkpoint handoff: do not wait for user input inside the current run." in source
+    assert "This is a one-shot checkpoint handoff" in source
+    assert "do not wait for user input inside the current run" in source
     assert "Use `gpd_return.status: checkpoint` as the control surface." in source
     assert "The `## CHECKPOINT REACHED` heading below is presentation only." in source
     assert (
@@ -90,3 +120,6 @@ def test_bibliographer_prompt_uses_typed_status_and_base_field_first_return_exam
     )
     assert envelope.index("next_actions: [list of recommended follow-up actions]") < envelope.index("entries_added: N")
     assert "base fields (status, files_written, issues, next_actions)" not in source
+    assert _top_level_keys(envelope) == ["status", "files_written", "issues", "next_actions", "extensions"]
+    assert _extension_keys(envelope) == ["entries_added"]
+    assert "entries_added" not in _top_level_keys(envelope)

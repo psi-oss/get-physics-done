@@ -15,6 +15,10 @@ enforced schema and should be treated as the only accepted structure for draft
 create/update work in this phase. Promotion to `stable` is handled by
 `gpd:review-knowledge`, not by this draft-authoring workflow.
 
+<hard_schema_visibility_guard>
+Before authoring or updating GPD/knowledge documents, load `@{GPD_INSTALL_DIR}/templates/knowledge-schema.md` and keep its canonical capsule visible; treat that schema as the sole authority for required fields, conditional rules, and lifecycle transitions, and do not restate its rule dump here.
+</hard_schema_visibility_guard>
+
 ## Frontmatter
 
 ```yaml
@@ -44,13 +48,7 @@ coverage_summary:
 
 Rules:
 
-- `knowledge_schema_version` must be `1`.
-- `knowledge_id` must be the filename stem exactly.
-- `status` must be one of `draft`, `in_review`, `stable`, or `superseded`.
-- `sources` must be a list of typed records, not free-form strings.
-- `coverage_summary` must remain structured and machine-readable.
-- `updated_at` should reflect the latest substantive edit to the document.
-- `stable` requires a fresh approved review record and must not be used by the draft authoring workflow.
+- Refer to `@{GPD_INSTALL_DIR}/templates/knowledge-schema.md` for the definitive rules that govern `knowledge_schema_version`, `knowledge_id`, `status`, sources, coverage summary, timestamps, and lifecycle transitions; this template avoids restating that rule dump.
 
 ## Title And Scope
 
@@ -97,16 +95,8 @@ not a claim that the old synthesis is still current.
 
 ## Deferred Behaviors
 
-The public authoring command and help coverage are part of the supported surface
-now. The following behaviors are intentionally out of scope for Phase 1 and
-later rollout hardening work, even if they may appear in future work:
-
-- migration/backfill for older or provisional docs
-- alias repair or filename/ID normalization for legacy docs
-- beginner onboarding exposure
-- `knowledge_deps` and `related_artifacts` frontmatter support
-- implicit discovery outside the canonical `knowledge` layout contract
-- automatic promotion of a draft to stable without review
+See `src/gpd/specs/templates/knowledge-guidance.md` for the current list of behaviors that remain
+out of scope for this template.
 
 ## Notes
 

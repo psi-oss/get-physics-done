@@ -90,6 +90,8 @@ Spawn gpd-planner with the quick-mode context:
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
@@ -172,7 +174,6 @@ fi
 **Step 5: Spawn executor**
 
 Spawn gpd-executor with plan reference:
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

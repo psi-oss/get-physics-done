@@ -60,10 +60,34 @@ def _load_fixture(name: str) -> dict:
 
 def _make_lock(data: dict) -> ConventionLock:
     """Create a ConventionLock from fixture data."""
+    data = data.copy()
     custom = data.pop("custom_conventions", {})
     lock = ConventionLock(**data)
     lock.custom_conventions.update(custom)
     return lock
+
+
+def test_make_lock_does_not_mutate_input_data() -> None:
+    data = {"metric_signature": "mostly_minus", "custom_conventions": {"custom:a": "b"}}
+
+    _make_lock(data)
+
+    assert data == {"metric_signature": "mostly_minus", "custom_conventions": {"custom:a": "b"}}
+
+
+def test_parity_fixture_inventory_is_explicit() -> None:
+    expected_fixture_names = {
+        "convention_check.json",
+        "convention_diff.json",
+        "convention_labels.json",
+        "convention_list.json",
+        "convention_set.json",
+        "intentional_enhancements.json",
+        "known_conventions.json",
+        "result_id_format.json",
+    }
+
+    assert {path.name for path in FIXTURES_DIR.glob("*.json")} == expected_fixture_names
 
 
 # --- Divergence 1 (FIXED): Convention label casing ---

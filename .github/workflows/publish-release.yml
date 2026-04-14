@@ -77,7 +77,7 @@ jobs:
       - name: Stamp actual publish date
         id: publish_date
         run: |
-          python scripts/release_workflow.py stamp-publish-date --repo . > /tmp/publish-date.json
+          uv run python scripts/release_workflow.py stamp-publish-date --repo . > /tmp/publish-date.json
           python3 - <<'PY'
           import json
           import os

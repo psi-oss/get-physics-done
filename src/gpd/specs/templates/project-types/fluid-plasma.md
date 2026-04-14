@@ -148,7 +148,7 @@ Plans:
 
 **Goal:** Produce publication-ready manuscript
 
-See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/figure-tracker.md`, `templates/paper/cover-letter.md` for detailed paper artifacts.
+See paper templates under `templates/paper/` for manuscript outline, figure tracker, and cover-letter artifacts.
 
 **Success Criteria:**
 

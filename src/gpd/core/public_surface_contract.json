@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "beginner_onboarding": {
-    "hub_url": "./docs/README.md",
+    "hub_url": "https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md",
     "preflight_requirements": [
       "One supported runtime is already installed and can open from your normal terminal.",
       "Node.js 20+ is available in that same terminal.",

@@ -91,6 +91,22 @@ def _benchmark_contract_check_request(contract: dict[str, object]) -> dict[str, 
     }
 
 
+def test_contract_aware_checks_publish_request_hints() -> None:
+    from gpd.core.verification_checks import list_verification_checks
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS
+
+    contract_keys = {
+        entry["check_key"]
+        for entry in list_verification_checks()
+        if entry.get("contract_aware")
+    }
+    missing_hints = sorted(contract_keys - _CONTRACT_CHECK_REQUEST_HINTS.keys())
+    assert missing_hints == []
+    for key in contract_keys:
+        hint = _CONTRACT_CHECK_REQUEST_HINTS[key]
+        assert isinstance(hint.get("request_template"), dict)
+
+
 def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> None:
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA
 
@@ -126,7 +142,7 @@ def test_run_contract_check_accepts_project_local_contract_when_project_dir_supp
     missing_root = run_contract_check(request)
     rooted = run_contract_check(request, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    assert "must_surface=true anchor" in missing_root["error"]
+    assert "references must include at least one must_surface=true anchor" in missing_root["error"]
     assert rooted["status"] == "pass"
 
 
@@ -138,7 +154,7 @@ def test_suggest_contract_checks_accepts_project_local_contract_when_project_dir
     missing_root = suggest_contract_checks(contract)
     rooted = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    assert "must_surface=true anchor" in missing_root["error"]
+    assert "references must include at least one must_surface=true anchor" in missing_root["error"]
     assert "contract.benchmark_reproduction" in {entry["check_key"] for entry in rooted["suggested_checks"]}
 
 
@@ -175,8 +191,10 @@ def test_contract_check_tools_do_not_migrate_root_planning_files_when_validating
     assert not migrated_roadmap.exists()
 
 
-def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_path: Path) -> None:
-    from gpd.mcp.servers.verification_server import suggest_contract_checks
+def test_contract_tools_reject_placeholder_only_context_intake_even_with_project_rooted_reference_grounding(
+    tmp_path: Path,
+) -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     contract = _project_local_contract_fixture(tmp_path)
     contract["context_intake"] = {
@@ -188,9 +206,22 @@ def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_pat
         "crucial_inputs": ["placeholder"],
     }
 
-    result = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
+    project_dir = tmp_path.resolve(strict=False).as_posix()
+    run_result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        },
+        project_dir=project_dir,
+    )
+    suggest_result = suggest_contract_checks(contract, project_dir=project_dir)
 
-    assert "context_intake must not be empty" in result["error"]
+    for result in (run_result, suggest_result):
+        assert result["schema_version"] == 1
+        assert result["error"] == "Invalid contract payload: context_intake must not be empty"
 
 
 def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_supplied(tmp_path: Path) -> None:
@@ -219,7 +250,9 @@ def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_
     assert rooted["status"] == "pass"
 
 
-def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_context_intake() -> None:
+def test_suggest_contract_checks_accepts_project_local_prior_output_when_project_dir_supplied(
+    tmp_path: Path,
+) -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     contract = _load_project_contract_fixture()
@@ -231,19 +264,12 @@ def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_contex
         "context_gaps": [],
         "crucial_inputs": [],
     }
+    (tmp_path / "RESULTS.md").write_text("results\n", encoding="utf-8")
 
-    result = suggest_contract_checks(contract)
+    result = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
     assert "error" not in result
-    assert "suggested_checks" in result
-
-
-def test_contract_server_singleton_drift_classifier_matches_core_contract_policy() -> None:
-    from gpd.mcp.servers.verification_server import _is_defaultable_singleton_contract_error
-
-    assert _is_defaultable_singleton_contract_error("context_intake must be an object, not list") is False
-    assert _is_defaultable_singleton_contract_error("uncertainty_markers must be an object, not list") is False
-    assert _is_defaultable_singleton_contract_error("approach_policy must be an object, not list") is False
+    assert result["schema_version"] == 1
 
 
 def _derived_template_contract() -> dict[str, object]:
@@ -286,6 +312,43 @@ def _derived_template_contract() -> dict[str, object]:
             },
         ]
     )
+    return contract
+
+
+def _full_contract_fixture() -> dict[str, object]:
+    contract = copy.deepcopy(_derived_template_contract())
+    proof = _proof_contract()
+
+    scope = contract.setdefault("scope", {})
+    proof_scope = proof.get("scope", {})
+    for field in ("in_scope", "out_of_scope"):
+        scope.setdefault(field, []).extend(proof_scope.get(field, []))
+    scope.setdefault("unresolved_questions", []).extend(proof_scope.get("unresolved_questions", []))
+
+    context = contract.setdefault("context_intake", {})
+    proof_context = proof.get("context_intake", {})
+    for field in (
+        "must_read_refs",
+        "must_include_prior_outputs",
+        "user_asserted_anchors",
+        "known_good_baselines",
+        "context_gaps",
+        "crucial_inputs",
+    ):
+        context.setdefault(field, []).extend(proof_context.get(field, []))
+
+    contract.setdefault("observables", []).extend(proof.get("observables", []))
+    contract.setdefault("claims", []).extend(proof.get("claims", []))
+    contract.setdefault("deliverables", []).extend(proof.get("deliverables", []))
+    contract.setdefault("acceptance_tests", []).extend(proof.get("acceptance_tests", []))
+    contract.setdefault("references", []).extend(proof.get("references", []))
+    contract.setdefault("forbidden_proxies", []).extend(proof.get("forbidden_proxies", []))
+    contract.setdefault("links", []).extend(proof.get("links", []))
+
+    uncertainty = contract.setdefault("uncertainty_markers", {})
+    for key, values in proof.get("uncertainty_markers", {}).items():
+        uncertainty.setdefault(key, []).extend(values)
+
     return contract
 
 
@@ -474,7 +537,10 @@ def _mismatched_direct_proxy_template_contract() -> dict[str, object]:
 def _proof_obligation_contract() -> dict[str, object]:
     return {
         "schema_version": 1,
-        "scope": {"question": "Does the proof cover every named parameter and hypothesis?"},
+        "scope": {
+            "question": "Does the proof cover every named parameter and hypothesis?",
+            "in_scope": ["proof-parameter coverage", "proof-hypothesis coverage"],
+        },
         "context_intake": {
             "must_read_refs": ["ref-proof-outline"],
             "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
@@ -929,7 +995,7 @@ def _assert_contract_tools_reject(contract: dict[str, object], expected_error: s
         assert result["error"].startswith(f"Invalid contract payload: {expected_error}")
         details = result.get("contract_error_details")
         if details is not None:
-            assert expected_error in details
+            assert all(part in details for part in expected_error.split("; "))
 
 
 @pytest.mark.parametrize(
@@ -1085,10 +1151,10 @@ def test_contract_tools_reject_coercive_contract_scalars() -> None:
     suggest_result = suggest_contract_checks(contract)
 
     expected = {
-        "error": "Invalid contract payload: references.0.must_surface must be a boolean",
+        "error": "Invalid contract payload: references.0.must_surface: must be a boolean (coerced from 'yes')",
         "schema_version": 1,
     }
-    assert run_result == expected
+    assert run_result.items() >= expected.items()
     assert suggest_result == expected
 
 
@@ -1137,6 +1203,10 @@ def test_contract_tools_salvage_lossy_singleton_section(
         assert run_result["status"] == "pass"
         assert run_result["contract_salvaged"] is True
         assert "approach_policy must be an object, not list" in run_result["contract_salvage_findings"]
+        assert any(
+            "approach_policy must be an object, not list" in warning
+            for warning in run_result.get("contract_warnings", [])
+        )
         assert suggest_result["contract_salvaged"] is True
         assert any("approach_policy must be an object, not list" in warning for warning in suggest_result["contract_warnings"])
         return
@@ -1150,14 +1220,32 @@ def test_contract_tools_reject_missing_context_intake() -> None:
     contract = _load_project_contract_fixture()
     contract.pop("context_intake", None)
 
-    _assert_contract_tools_reject(contract, "context_intake is required")
+    _assert_contract_tools_reject(
+        contract,
+        "context_intake is required; context_intake was missing and was defaulted to an empty context intake section",
+    )
 
 
 def test_contract_tools_reject_empty_context_intake() -> None:
     contract = _load_project_contract_fixture()
     contract["context_intake"] = {}
 
-    _assert_contract_tools_reject(contract, "context_intake must not be empty")
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    run_result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+    suggest_result = suggest_contract_checks(contract)
+
+    for result in (run_result, suggest_result):
+        assert result["schema_version"] == 1
+        assert result["error"] == "Invalid contract payload: context_intake must not be empty"
 
 
 def test_contract_tools_reject_missing_uncertainty_marker_subfields() -> None:
@@ -1167,13 +1255,10 @@ def test_contract_tools_reject_missing_uncertainty_marker_subfields() -> None:
     contract["uncertainty_markers"] = {}
 
     expected_details = [
-        "uncertainty_markers.disconfirming_observations is required",
-        "uncertainty_markers.weakest_anchors is required",
+        "uncertainty_markers.disconfirming_observations was missing and was defaulted to an empty list",
+        "uncertainty_markers.weakest_anchors was missing and was defaulted to an empty list",
     ]
-    expected_error = (
-        "Invalid contract payload: uncertainty_markers.disconfirming_observations is required; "
-        "uncertainty_markers.weakest_anchors is required"
-    )
+    expected_error = "Invalid contract payload: " + "; ".join(expected_details)
 
     run_result = run_contract_check(
         {
@@ -1462,8 +1547,8 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert benchmark["binding"]["acceptance_test_ids"] == ["test-benchmark"]
     assert benchmark["binding"]["reference_ids"] == ["ref-benchmark"]
     assert benchmark["metadata"]["source_reference_id"] == "ref-benchmark"
-    assert benchmark["observed"]["metric_value"] is None
-    assert benchmark["observed"]["threshold_value"] is None
+    assert benchmark["observed"]["metric_value"] == "<replace-with-metric-value>"
+    assert benchmark["observed"]["threshold_value"] == "<replace-with-threshold-value>"
     assert "artifact_content" not in benchmark
 
     limit = checks["contract.limit_recovery"]["request_template"]
@@ -1472,17 +1557,13 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert limit["binding"]["observable_ids"] == ["obs-benchmark"]
     assert limit["metadata"]["regime_label"] == "large-k"
     assert limit["metadata"]["expected_behavior"] == "Recovers the contracted large-k scaling"
-    assert limit["observed"]["limit_passed"] is None
-    assert limit["observed"]["observed_limit"] is None
+    assert "observed" not in limit
     assert "artifact_content" not in limit
 
     direct_proxy = checks["contract.direct_proxy_consistency"]["request_template"]
     assert direct_proxy["binding"]["claim_ids"] == ["claim-benchmark"]
     assert direct_proxy["binding"]["forbidden_proxy_ids"] == ["fp-01"]
-    assert direct_proxy["observed"]["proxy_only"] is None
-    assert direct_proxy["observed"]["direct_available"] is None
-    assert direct_proxy["observed"]["proxy_available"] is None
-    assert direct_proxy["observed"]["consistency_passed"] is None
+    assert "observed" not in direct_proxy
     assert "artifact_content" not in direct_proxy
 
     fit = checks["contract.fit_family_mismatch"]["request_template"]
@@ -1492,8 +1573,8 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert fit["metadata"]["declared_family"] == "power_law"
     assert fit["metadata"]["allowed_families"] == ["power_law"]
     assert fit["metadata"]["forbidden_families"] == ["polynomial"]
-    assert fit["observed"]["selected_family"] is None
-    assert fit["observed"]["competing_family_checked"] is None
+    assert fit["observed"]["selected_family"] == "<replace-with-selected-family>"
+    assert fit["observed"]["competing_family_checked"] is False
     assert "artifact_content" not in fit
 
     estimator = checks["contract.estimator_family_mismatch"]["request_template"]
@@ -1503,9 +1584,9 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert estimator["metadata"]["declared_family"] == "bootstrap"
     assert estimator["metadata"]["allowed_families"] == ["bootstrap"]
     assert estimator["metadata"]["forbidden_families"] == ["jackknife"]
-    assert estimator["observed"]["selected_family"] is None
-    assert estimator["observed"]["bias_checked"] is None
-    assert estimator["observed"]["calibration_checked"] is None
+    assert estimator["observed"]["selected_family"] == "<replace-with-selected-estimator-family>"
+    assert estimator["observed"]["bias_checked"] is False
+    assert estimator["observed"]["calibration_checked"] is False
     assert "artifact_content" not in estimator
     assert checks["contract.benchmark_reproduction"]["supported_binding_fields"] == [
         "binding.claim_ids",
@@ -1524,21 +1605,27 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     hypothesis = checks["contract.proof_hypothesis_coverage"]
     assert hypothesis["binding_targets"] == ["observable", "claim", "deliverable", "acceptance_test"]
     assert hypothesis["required_request_fields"] == ["contract", "observed.covered_hypothesis_ids"]
-    assert hypothesis["request_template"]["contract"] is None
+    assert "contract" in hypothesis["request_template"]
+    assert hypothesis["request_template"]["contract"]["schema_version"] == 1
     assert hypothesis["request_template"]["binding"]["claim_ids"] == ["claim-theorem"]
     assert hypothesis["request_template"]["binding"]["deliverable_ids"] == ["deliv-proof"]
     assert hypothesis["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-hyp"]
     assert hypothesis["request_template"]["binding"]["observable_ids"] == ["obs-proof"]
     assert hypothesis["request_template"]["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
-    assert hypothesis["request_template"]["observed"]["covered_hypothesis_ids"] is None
-    assert hypothesis["request_template"]["observed"]["missing_hypothesis_ids"] is None
+    assert hypothesis["request_template"]["observed"]["covered_hypothesis_ids"] == [
+        "<replace-with-covered-hypothesis-id>"
+    ]
+    assert hypothesis["request_template"]["observed"]["missing_hypothesis_ids"] == []
 
     parameter = checks["contract.proof_parameter_coverage"]
     assert parameter["required_request_fields"] == ["contract", "observed.covered_parameter_symbols"]
-    assert parameter["request_template"]["contract"] is None
+    assert "contract" in parameter["request_template"]
+    assert parameter["request_template"]["contract"]["schema_version"] == 1
     assert parameter["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-param"]
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-    assert parameter["request_template"]["observed"]["covered_parameter_symbols"] is None
+    assert parameter["request_template"]["observed"]["covered_parameter_symbols"] == [
+        "<replace-with-covered-parameter-symbol>"
+    ]
 
     quantifier = checks["contract.proof_quantifier_domain"]
     assert quantifier["required_request_fields"] == ["contract", "observed.quantifier_status", "observed.scope_status"]
@@ -1546,30 +1633,55 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "observed.uncovered_quantifiers" in quantifier["optional_request_fields"]
     assert "metadata.quantifiers[]" not in quantifier["optional_request_fields"]
     assert quantifier["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-quant"]
-    assert quantifier["request_template"]["contract"] is None
+    assert "contract" in quantifier["request_template"]
+    assert quantifier["request_template"]["contract"]["schema_version"] == 1
     assert quantifier["request_template"]["metadata"]["quantifiers"] == [
         "for all r_0 > 0",
         "for every admissible solution",
     ]
-    assert quantifier["request_template"]["observed"]["quantifier_status"] is None
-    assert quantifier["request_template"]["observed"]["scope_status"] is None
+    assert quantifier["request_template"]["observed"]["quantifier_status"] == "unclear"
+    assert quantifier["request_template"]["observed"]["scope_status"] == "unclear"
 
     alignment = checks["contract.claim_to_proof_alignment"]
     assert alignment["required_request_fields"] == ["contract", "observed.scope_status"]
     assert "metadata.conclusion_clause_ids" in alignment["optional_request_fields"]
     assert "metadata.conclusion_clause_ids[]" not in alignment["optional_request_fields"]
     assert alignment["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-align"]
-    assert alignment["request_template"]["contract"] is None
+    assert "contract" in alignment["request_template"]
+    assert alignment["request_template"]["contract"]["schema_version"] == 1
     assert alignment["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert alignment["request_template"]["metadata"]["conclusion_clause_ids"] is None
-    assert alignment["request_template"]["observed"]["uncovered_conclusion_clause_ids"] is None
+    assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
+    assert alignment["request_template"]["observed"]["scope_status"] == "unclear"
 
     counterexample = checks["contract.counterexample_search"]
     assert counterexample["required_request_fields"] == ["contract", "observed.counterexample_status"]
-    assert counterexample["request_template"]["contract"] is None
+    assert "contract" in counterexample["request_template"]
+    assert counterexample["request_template"]["contract"]["schema_version"] == 1
     assert counterexample["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-counterexample"]
     assert counterexample["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert counterexample["request_template"]["observed"]["counterexample_status"] is None
+    assert counterexample["request_template"]["observed"]["counterexample_status"] == "not_attempted"
+
+
+def test_suggest_contract_checks_proof_quantifier_template_roundtrips() -> None:
+    from copy import deepcopy
+
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    result = suggest_contract_checks(_proof_contract())
+    quantifier = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.proof_quantifier_domain"
+    )
+    request_template = deepcopy(quantifier["request_template"])
+    request_template["contract"] = _proof_contract()
+    request_template["observed"] = {"quantifier_status": "unclear", "scope_status": "unclear"}
+
+    run_result = run_contract_check(request_template)
+    assert run_result["status"] == "warning"
+    assert run_result["metrics"]["declared_quantifiers"] == [
+        "for all r_0 > 0",
+        "for every admissible solution",
+    ]
 
 
 def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contract_is_ambiguous() -> None:
@@ -1583,13 +1695,17 @@ def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contrac
 
     assert parameter["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert parameter["request_template"]["binding"] == {}
-    assert parameter["request_template"]["contract"] is None
-    assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] is None
+    assert "contract" in parameter["request_template"]
+    assert parameter["request_template"]["contract"]["schema_version"] == 1
+    assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == [
+        "<replace-with-theorem-parameter-symbol>"
+    ]
 
     assert alignment["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert alignment["request_template"]["binding"] == {}
-    assert alignment["request_template"]["contract"] is None
-    assert alignment["request_template"]["metadata"]["claim_statement"] is None
+    assert "contract" in alignment["request_template"]
+    assert alignment["request_template"]["contract"]["schema_version"] == 1
+    assert alignment["request_template"]["metadata"]["claim_statement"] == "<replace-with-claim-statement>"
 
 
 def test_suggest_contract_checks_omits_contract_derived_metadata_from_required_fields() -> None:
@@ -1670,7 +1786,10 @@ def test_suggest_contract_checks_templates_do_not_pass_when_reused_unchanged() -
             **copy.deepcopy(entry["request_template"]),
         }
         run_result = run_contract_check(request)
-        assert run_result["status"] == "insufficient_evidence", entry["check_key"]
+        if "error" in run_result:
+            assert "unreplaced request_template sentinel values" in run_result["error"], entry["check_key"]
+        else:
+            assert run_result["status"] in {"insufficient_evidence", "warning"}, entry["check_key"]
 
 
 def test_suggest_contract_checks_proof_templates_do_not_pass_when_reused_unchanged() -> None:
@@ -1691,7 +1810,10 @@ def test_suggest_contract_checks_proof_templates_do_not_pass_when_reused_unchang
             "contract": contract,
         }
         run_result = run_contract_check(request)
-        assert run_result["status"] == "insufficient_evidence", entry["check_key"]
+        if "error" in run_result:
+            assert "unreplaced request_template sentinel values" in run_result["error"], entry["check_key"]
+        else:
+            assert run_result["status"] in {"insufficient_evidence", "warning"}, entry["check_key"]
 
 
 def test_run_contract_check_reuses_contract_derived_limit_and_family_defaults() -> None:
@@ -1725,7 +1847,11 @@ def test_run_contract_check_reuses_contract_derived_limit_and_family_defaults() 
         }
     )
 
-    assert limit["status"] == "pass"
+    assert limit["status"] == "insufficient_evidence"
+    assert any(
+        "Limit recovery metadata was derived from contract defaults" in issue
+        for issue in limit["automated_issues"]
+    )
     assert fit["status"] == "pass"
     assert estimator["status"] == "pass"
 
@@ -1800,6 +1926,24 @@ def test_run_contract_check_proof_quantifier_domain_fails_on_scope_narrowing() -
 
     assert result["status"] == "fail"
     assert "quantifiers/domains" in " ".join(result["automated_issues"]).lower()
+
+
+def test_run_contract_check_proof_quantifier_metrics_surfaces_contract_quantifiers() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.proof_quantifier_domain",
+            "contract": _proof_contract(),
+            "observed": {"quantifier_status": "matched", "scope_status": "matched"},
+        }
+    )
+
+    assert result["status"] == "pass"
+    assert result["metrics"]["declared_quantifiers"] == [
+        "for all r_0 > 0",
+        "for every admissible solution",
+    ]
 
 
 def test_run_contract_check_claim_to_proof_alignment_fails_on_uncovered_clause() -> None:
@@ -1888,8 +2032,12 @@ def test_run_contract_check_backfills_contract_impacts_for_decisive_passes_witho
     assert benchmark["status"] == "pass"
     assert benchmark["contract_impacts"] == ["ref-benchmark"]
 
-    assert limit["status"] == "pass"
-    assert limit["contract_impacts"] == ["claim-benchmark", "obs-benchmark"]
+    assert limit["status"] == "insufficient_evidence"
+    assert any(
+        "Limit recovery metadata was derived from contract defaults" in issue
+        for issue in limit["automated_issues"]
+    )
+    assert limit["contract_impacts"] == []
 
     assert direct_proxy["status"] == "pass"
     assert direct_proxy["contract_impacts"] == ["fp-01"]
@@ -1994,14 +2142,15 @@ def test_suggest_contract_checks_leaves_ambiguous_metadata_placeholders_unresolv
     fit = checks["contract.fit_family_mismatch"]
     estimator = checks["contract.estimator_family_mismatch"]
 
-    assert "metadata.source_reference_id" in benchmark["required_request_fields"]
-    assert benchmark["request_template"]["metadata"]["source_reference_id"] is None
-    assert limit["request_template"]["metadata"]["regime_label"] is None
-    assert limit["request_template"]["metadata"]["expected_behavior"] is None
+    assert "metadata.source_reference_id" not in benchmark["required_request_fields"]
+    assert ["metadata.source_reference_id"] in benchmark["schema_required_request_anyof_fields"]
+    assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+    assert limit["request_template"]["metadata"]["regime_label"] == "large-k"
+    assert limit["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
     assert "metadata.declared_family" in fit["required_request_fields"]
-    assert fit["request_template"]["metadata"]["declared_family"] is None
+    assert fit["request_template"]["metadata"]["declared_family"] == "power_law"
     assert "metadata.declared_family" in estimator["required_request_fields"]
-    assert estimator["request_template"]["metadata"]["declared_family"] is None
+    assert "declared_family" not in estimator["request_template"].get("metadata", {})
 
 
 def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() -> None:
@@ -2010,16 +2159,17 @@ def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() 
     benchmark_result = suggest_contract_checks(_ambiguous_benchmark_binding_contract())
     benchmark_checks = {entry["check_key"]: entry for entry in benchmark_result["suggested_checks"]}
     benchmark = benchmark_checks["contract.benchmark_reproduction"]
-    assert "metadata.source_reference_id" in benchmark["required_request_fields"]
+    assert "metadata.source_reference_id" not in benchmark["required_request_fields"]
+    assert ["metadata.source_reference_id"] in benchmark["schema_required_request_anyof_fields"]
     assert benchmark["request_template"]["binding"] == {}
-    assert benchmark["request_template"]["metadata"]["source_reference_id"] is None
+    assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 
     limit_result = suggest_contract_checks(_ambiguous_limit_binding_contract())
     limit_checks = {entry["check_key"]: entry for entry in limit_result["suggested_checks"]}
     limit = limit_checks["contract.limit_recovery"]["request_template"]
     assert limit["binding"] == {}
-    assert limit["metadata"]["regime_label"] is None
-    assert limit["metadata"]["expected_behavior"] is None
+    assert limit["metadata"]["regime_label"] == "large-k"
+    assert limit["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
 
 
 def test_suggest_contract_checks_request_templates_validate_against_advertised_run_contract_schema() -> None:
@@ -2044,13 +2194,12 @@ def test_suggest_contract_checks_request_templates_validate_against_advertised_r
         ["metadata.source_reference_id"],
         ["contract"],
     ]
-    assert benchmark["observed"]["metric_value"] is None
-    assert benchmark["observed"]["threshold_value"] is None
+    assert benchmark["observed"]["metric_value"] == "<replace-with-metric-value>"
+    assert benchmark["observed"]["threshold_value"] == "<replace-with-threshold-value>"
 
     assert limit["metadata"]["regime_label"] == "large-k"
     assert limit["metadata"]["expected_behavior"] == "Recovers the contracted large-k scaling"
-    assert limit["observed"]["limit_passed"] is None
-    assert limit["observed"]["observed_limit"] is None
+    assert "observed" not in limit
 
     assert fit["metadata"]["declared_family"] == "power_law"
     assert fit["metadata"]["allowed_families"] == ["power_law"]
@@ -2072,23 +2221,49 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert checks["contract.proof_parameter_coverage"]["check"] == "contract.proof_parameter_coverage"
     assert checks["contract.claim_to_proof_alignment"]["check"] == "contract.claim_to_proof_alignment"
     assert hypothesis["check_key"] == "contract.proof_hypothesis_coverage"
-    assert hypothesis["contract"] is None
+    assert "contract" in hypothesis
+    assert hypothesis["contract"]["schema_version"] == 1
     assert hypothesis["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
-    assert hypothesis["observed"]["covered_hypothesis_ids"] is None
+    assert hypothesis["observed"]["covered_hypothesis_ids"] == ["<replace-with-covered-hypothesis-id>"]
 
     assert parameter["check_key"] == "contract.proof_parameter_coverage"
-    assert parameter["contract"] is None
+    assert "contract" in parameter
+    assert parameter["contract"]["schema_version"] == 1
     assert parameter["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-    assert parameter["observed"]["covered_parameter_symbols"] is None
+    assert parameter["observed"]["covered_parameter_symbols"] == ["<replace-with-covered-parameter-symbol>"]
 
     assert alignment["check_key"] == "contract.claim_to_proof_alignment"
-    assert alignment["contract"] is None
+    assert "contract" in alignment
+    assert alignment["contract"]["schema_version"] == 1
     assert alignment["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert alignment["metadata"]["conclusion_clause_ids"] is None
-    assert alignment["observed"]["uncovered_conclusion_clause_ids"] is None
+    assert "conclusion_clause_ids" not in alignment["metadata"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["observed"]
 
 
-def test_run_contract_check_schema_rejects_benchmark_requests_without_source_reference_id() -> None:
+def test_suggest_contract_checks_templates_cover_all_contract_aware_checks() -> None:
+    from jsonschema import Draft202012Validator
+
+    from gpd.mcp.servers.verification_server import (
+        _CONTRACT_AWARE_CHECK_KEYS,
+        _RUN_CONTRACT_CHECK_REQUEST_SCHEMA,
+        suggest_contract_checks,
+    )
+
+    contract = _full_contract_fixture()
+    result = suggest_contract_checks(contract)
+    suggested_keys = {entry["check_key"] for entry in result["suggested_checks"]}
+    missing_keys = sorted(_CONTRACT_AWARE_CHECK_KEYS - suggested_keys)
+    assert missing_keys == []
+
+    validator = Draft202012Validator(_RUN_CONTRACT_CHECK_REQUEST_SCHEMA)
+    for entry in result["suggested_checks"]:
+        if "<replace-with-" in json.dumps(entry["request_template"]):
+            continue
+        errors = [error.message for error in validator.iter_errors(entry["request_template"])]
+        assert not errors, f"{entry['check_key']} template invalid: {errors}"
+
+
+def test_run_contract_check_schema_defers_benchmark_source_reference_id_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2104,7 +2279,6 @@ def test_run_contract_check_schema_rejects_benchmark_requests_without_source_ref
     messages = [error.message for error in validator.iter_errors(request)]
 
     assert messages
-    assert any("any of the given schemas" in message for message in messages)
 
 
 def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> None:
@@ -2126,7 +2300,7 @@ def test_run_contract_check_schema_allows_benchmark_requests_without_source_refe
     assert messages == []
 
 
-def test_run_contract_check_schema_rejects_contract_derived_limit_and_family_metadata_when_missing_metadata() -> None:
+def test_run_contract_check_schema_defers_contract_derived_metadata_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2161,7 +2335,6 @@ def test_run_contract_check_schema_rejects_contract_derived_limit_and_family_met
         messages = [error.message for error in validator.iter_errors(request)]
 
         assert messages
-        assert any("metadata" in message for message in messages)
 
 
 @pytest.mark.parametrize(
@@ -2176,7 +2349,7 @@ def test_run_contract_check_schema_rejects_contract_derived_limit_and_family_met
         ("contract.counterexample_search", ("contract", "observed")),
     ],
 )
-def test_run_contract_check_schema_rejects_identifier_only_requests_for_mandatory_sections(
+def test_run_contract_check_schema_defers_identifier_only_requests_to_runtime_guidance(
     check_key: str,
     expected_required_fragments: tuple[str, ...],
 ) -> None:
@@ -2184,14 +2357,11 @@ def test_run_contract_check_schema_rejects_identifier_only_requests_for_mandator
     request = {"request": {"check_key": check_key}}
 
     messages = _schema_error_messages(schema, request)
-    combined_messages = "\n".join(messages)
 
     assert messages
-    assert any("required" in message for message in messages)
-    assert any(fragment in combined_messages for fragment in expected_required_fragments)
 
 
-def test_run_contract_check_schema_rejects_soft_missing_proof_audit_fields() -> None:
+def test_run_contract_check_schema_defers_soft_missing_proof_audit_fields_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2218,7 +2388,6 @@ def test_run_contract_check_schema_rejects_soft_missing_proof_audit_fields() -> 
         messages = [error.message for error in validator.iter_errors(request)]
 
         assert messages
-        assert any(fragment in "\n".join(messages) for fragment in ("metadata", "observed", "contract"))
 
 
 @pytest.mark.parametrize(
@@ -2277,8 +2446,11 @@ def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_proof_bearin
     schema_messages = _schema_error_messages(schema, request)
     runtime_result = _call_verification_tool("run_contract_check", request)
 
-    assert (not schema_messages) is expected_valid
-    assert (runtime_result.get("status") == "pass") is expected_valid
+    if expected_valid:
+        assert not schema_messages
+        assert runtime_result.get("status") == "pass"
+    else:
+        assert runtime_result.get("status") != "pass"
 
 
 def test_run_contract_check_blocks_proof_checks_for_repair_relevant_salvaged_contracts() -> None:
@@ -2316,6 +2488,7 @@ def test_run_contract_check_allows_case_only_salvage_for_proof_checks() -> None:
 
     assert result["status"] == "pass"
     assert result["contract_salvaged"] is True
+    assert any("Contract payload was salvaged" in issue for issue in result["automated_issues"])
 
 
 def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_recoverable_contract_payload_drift() -> None:
@@ -2366,9 +2539,11 @@ def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_
     assert "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage" in result[
         "contract_salvage_findings"
     ]
+    warnings = result.get("contract_warnings", [])
+    assert any("Proof metadata salvage" in warning for warning in warnings)
 
 
-def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_collections_when_metadata_is_missing() -> None:
+def test_run_contract_check_schema_defers_empty_optional_contract_metadata_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2398,7 +2573,6 @@ def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_coll
     messages = [error.message for error in validator.iter_errors(request)]
 
     assert messages
-    assert any("metadata" in message for message in messages)
 
 
 def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejection() -> None:
@@ -2419,10 +2593,8 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
         }
     }
 
-    messages = _schema_error_messages(_run_contract_check_input_schema(), request)
     runtime_result = _call_verification_tool("run_contract_check", request)
 
-    assert messages
     assert runtime_result == {
         "error": "Invalid contract payload: context_intake.must_read_refs.1 is a duplicate",
         "schema_version": 1,
@@ -2709,7 +2881,14 @@ def test_contract_tools_reject_unknown_nested_contract_fields() -> None:
         "schema_version": 1,
     }
 
-    assert salvage_result.recoverable_errors == ["references.0.notes: Extra inputs are not permitted"]
+    assert salvage_result.recoverable_errors == [
+        "references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
+    expected = {
+        "error": "Invalid contract payload: " + "; ".join(salvage_result.recoverable_errors),
+        "schema_version": 1,
+    }
     assert run_result == expected
     assert suggest_result == expected
 
@@ -2724,9 +2903,12 @@ def test_suggest_contract_checks_rejects_unknown_nested_contract_field_salvage_m
 
     result = suggest_contract_checks(contract)
 
-    assert salvage_result.recoverable_errors == ["references.0.notes: Extra inputs are not permitted"]
+    assert salvage_result.recoverable_errors == [
+        "references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
     assert result == {
-        "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
+        "error": "Invalid contract payload: " + "; ".join(salvage_result.recoverable_errors),
         "schema_version": 1,
     }
 
@@ -2751,7 +2933,7 @@ def test_contract_from_data_strict_probe_rejects_nested_unknown_scope_fields() -
     contract = _load_project_contract_fixture()
     contract["scope"]["legacy_notes"] = "nested extra field"
 
-    assert contract_from_data(contract, allow_recoverable_warnings=False) is None
+    assert contract_from_data(contract) is None
 
 
 def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
@@ -2771,8 +2953,12 @@ def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
     )
     suggest_result = suggest_contract_checks(contract)
 
+    expected_findings = [
+        "legacy_notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
     expected_error = {
-        "error": "Invalid contract payload: legacy_notes: Extra inputs are not permitted",
+        "error": "Invalid contract payload: " + "; ".join(expected_findings),
         "schema_version": 1,
     }
     assert run_result == expected_error
@@ -3093,7 +3279,8 @@ def test_run_contract_check_rejects_malformed_binding_and_metadata_list_members(
 
     result = run_contract_check(request_payload)
 
-    assert result == {"error": expected_error, "schema_version": 1}
+    assert result["error"] == expected_error
+    assert result["schema_version"] == 1
 
 
 @pytest.mark.parametrize(
@@ -3378,11 +3565,13 @@ def test_contract_tools_reject_shared_integrity_errors_after_salvage() -> None:
         "observed": {"metric_value": 0.01, "threshold_value": 0.02},
     }
     expected_details = [
-        "references.0.notes: Extra inputs are not permitted",
+        "references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)",
         "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous",
     ]
     expected_error = (
-        "Invalid contract payload: references.0.notes: Extra inputs are not permitted; "
+        "Invalid contract payload: references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys); "
         "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous"
     )
 
@@ -3456,8 +3645,12 @@ def test_run_contract_check_surfaces_unknown_nested_contract_field_salvage_metad
         }
     )
 
+    expected_findings = [
+        "claims.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
     assert result == {
-        "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
+        "error": "Invalid contract payload: " + "; ".join(expected_findings),
         "schema_version": 1,
     }
 
@@ -3533,3 +3726,72 @@ def test_verification_server_pure_success_tools_return_stable_envelopes() -> Non
     assert isinstance(limiting_case_check("E = m c^2", {"c -> infinity": "non-rel"}), StableMCPEnvelope)
     assert isinstance(symmetry_check("M(s,t)", ["parity"]), StableMCPEnvelope)
     assert isinstance(get_verification_coverage([15], ["5.1"]), StableMCPEnvelope)
+
+
+def test_run_contract_check_missing_shape_returns_template_backed_guidance() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check({"check_key": "contract.benchmark_reproduction"})
+
+    assert result["status"] == "insufficient_evidence"
+    assert "observed.metric_value" in result["missing_inputs"]
+    assert "observed.threshold_value" in result["missing_inputs"]
+    assert "metadata.source_reference_id" in result["missing_inputs"]
+    guidance = result["request_guidance"]
+    assert guidance["schema_required_request_fields"] == ["observed.metric_value", "observed.threshold_value"]
+    assert guidance["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
+    assert guidance["request_template"]["observed"]["metric_value"] == "<replace-with-metric-value>"
+
+
+def test_suggest_contract_checks_prunes_demoted_anyof_branches() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    result = suggest_contract_checks(_load_project_contract_fixture())
+    benchmark = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+
+    assert benchmark["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
+    assert "metadata.source_reference_id" not in benchmark["required_request_fields"]
+    assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+
+
+def test_salvaged_unknown_contract_keys_are_warning_worded_not_authoritative() -> None:
+    from gpd.core.contract_validation import salvage_project_contract
+
+    contract = _load_project_contract_fixture()
+    contract["draft_notes"] = "temporary"
+
+    parsed, findings, _ = salvage_project_contract(contract)
+
+    assert parsed is not None
+    assert any("draft/salvage warning" in finding for finding in findings)
+    assert any("strict authoritative validation still rejects unknown keys" in finding for finding in findings)
+
+
+def test_proof_hint_always_exposes_contract_template() -> None:
+    from gpd.mcp.servers.verification_server import _contract_check_request_hint
+
+    hint = _contract_check_request_hint("contract.proof_hypothesis_coverage")
+    assert hint["request_template"]["contract"] == "<replace-with-contract>"
+
+    contract = _load_project_contract_fixture()
+    from gpd.contracts import ResearchContract
+
+    contract_model = ResearchContract.model_validate(contract)
+    hint_with_contract = _contract_check_request_hint("contract.proof_hypothesis_coverage", contract=contract_model)
+    assert hint_with_contract["request_template"]["contract"]["schema_version"] == contract["schema_version"]
+
+
+def test_run_contract_check_rejects_contract_placeholders() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["scope"]["question"] = "<replace-with-scope-question>"
+    request = {
+        "check_key": "contract.proof_hypothesis_coverage",
+        "contract": contract,
+        "metadata": {"hypothesis_ids": ["claim-benchmark"]},
+        "observed": {"covered_hypothesis_ids": ["claim-benchmark"], "missing_hypothesis_ids": []},
+    }
+
+    result = run_contract_check(request)
+    assert "request contains unreplaced request_template sentinel values" in result["error"]

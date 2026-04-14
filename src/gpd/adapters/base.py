@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from collections.abc import Mapping
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,27 +28,51 @@ from gpd.adapters.install_utils import (
     copy_hook_scripts,
     install_gpd_content,
     managed_hook_paths,
+    manifest_contains_files_with_prefixes,
     pre_install_cleanup,
     process_settings_commit_attribution,
     prune_empty_ancestors,
     replace_placeholders,
+    rewrite_gpd_cli_invocations,
     strip_sub_tags,
     translate_frontmatter_tool_names,
     validate_package_integrity,
     write_manifest,
     write_version_file,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor, get_shared_install_metadata, resolve_global_config_dir
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
+    get_shared_install_metadata,
+    resolve_global_config_dir,
+)
+from gpd.adapters.runtime_catalog import (
+    iter_runtime_descriptors as _iter_runtime_descriptors,
+)
 from gpd.adapters.tool_names import (
     build_runtime_alias_map,
     reference_translation_map,
     translate_for_runtime,
 )
+from gpd.command_labels import CANONICAL_COMMAND_PREFIX
 
 if TYPE_CHECKING:
     from gpd.registry import AgentDef
 
 logger = logging.getLogger(__name__)
+
+
+def iter_runtime_descriptors():
+    """Compatibility wrapper for tests and callers that patch adapter catalogs."""
+    return _iter_runtime_descriptors()
+
+
+def get_runtime_descriptor_for_adapter_module(adapter_module: str):
+    """Return the descriptor for *adapter_module* through the patchable catalog wrapper."""
+    module_name = adapter_module.rsplit(".", 1)[-1]
+    for descriptor in iter_runtime_descriptors():
+        if descriptor.adapter_module == module_name:
+            return descriptor
+    raise RuntimeError(f"No runtime catalog entry owns adapter module {module_name!r}")
 
 
 def _managed_install_surface(target_dir: Path):
@@ -129,7 +154,7 @@ def _has_blocking_manifestless_install_surface(target_dir: Path) -> bool:
     return surface.has_managed_agents and has_managed_hooks
 
 
-class RuntimeAdapter(abc.ABC):
+class RuntimeAdapter(abc.ABC):  # noqa: B024
     """Abstract base for GPD runtime adapters."""
 
     tool_name_map: Mapping[str, str] = {}
@@ -138,9 +163,9 @@ class RuntimeAdapter(abc.ABC):
     strip_sub_tags_in_shared_markdown: bool = False
 
     @property
-    @abc.abstractmethod
     def runtime_name(self) -> str:
-        """Short identifier for this runtime."""
+        """Catalog-owned identifier for this adapter."""
+        return self.runtime_descriptor.runtime_name
 
     @property
     def display_name(self) -> str:
@@ -235,7 +260,14 @@ class RuntimeAdapter(abc.ABC):
 
     def translate_shared_command_references(self, content: str) -> str:
         """Rewrite shared command references for this runtime."""
-        return content
+        public_prefix = self.public_command_surface_prefix
+        canonical_prefix = CANONICAL_COMMAND_PREFIX
+        if public_prefix == canonical_prefix:
+            return content
+        slash_prefix = f"/{canonical_prefix}"
+        if slash_prefix != canonical_prefix:
+            content = content.replace(slash_prefix, public_prefix)
+        return content.replace(canonical_prefix, public_prefix)
 
     def translate_shared_markdown(
         self,
@@ -251,6 +283,23 @@ class RuntimeAdapter(abc.ABC):
         if self.strip_sub_tags_in_shared_markdown:
             content = strip_sub_tags(content)
         return convert_tool_references_in_body(content, self.tool_reference_translation_map())
+
+    def translate_shared_markdown_with_bridge(
+        self,
+        content: str,
+        path_prefix: str,
+        bridge_command: str,
+        *,
+        install_scope: str | None = None,
+        shell_fence_languages: frozenset[str] | None = None,
+    ) -> str:
+        """Translate shared markdown and rewrite runtime-bridge CLI invocations."""
+        translated = self.translate_shared_markdown(content, path_prefix, install_scope=install_scope)
+        return rewrite_gpd_cli_invocations(
+            translated,
+            bridge_command,
+            shell_fence_languages=shell_fence_languages,
+        )
 
     def project_markdown_surface(
         self,
@@ -289,10 +338,10 @@ class RuntimeAdapter(abc.ABC):
             return None
         return process_settings_commit_attribution(config_path)
 
-    @property
+    @cached_property
     def runtime_descriptor(self):
         """Adapter-owned metadata descriptor for this runtime."""
-        return get_runtime_descriptor(self.runtime_name)
+        return get_runtime_descriptor_for_adapter_module(self.__class__.__module__)
 
     @property
     def global_config_dir(self) -> Path:
@@ -304,9 +353,14 @@ class RuntimeAdapter(abc.ABC):
         """
         return self.resolve_global_config_dir()
 
-    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
+    def resolve_global_config_dir(
+        self,
+        *,
+        home: Path | None = None,
+        environ: dict[str, str] | None = None,
+    ) -> Path:
         """Resolve the runtime's global config dir."""
-        return resolve_global_config_dir(self.runtime_descriptor, home=home)
+        return resolve_global_config_dir(self.runtime_descriptor, home=home, environ=environ)
 
     def resolve_local_config_dir(self, cwd: Path | None = None) -> Path:
         """Resolve the runtime's local config dir."""
@@ -425,6 +479,14 @@ class RuntimeAdapter(abc.ABC):
             )
 
         if assessment.state == "untrusted_manifest":
+            runtime_prefixes = self.runtime_descriptor.manifest_file_prefixes
+            has_runtime_specific_files = False
+            if runtime_prefixes:
+                manifest_payload = self._read_install_manifest(target_dir)
+                has_runtime_specific_files = manifest_contains_files_with_prefixes(
+                    manifest_payload,
+                    runtime_prefixes,
+                )
             if (
                 action.startswith("uninstall")
                 and assessment.manifest_state == "missing"
@@ -432,7 +494,8 @@ class RuntimeAdapter(abc.ABC):
             ):
                 return
             if action.startswith("install") and _has_only_agent_residue(target_dir):
-                return
+                if not has_runtime_specific_files:
+                    return
             if assessment.manifest_state != "missing":
                 raise RuntimeError(
                     f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"

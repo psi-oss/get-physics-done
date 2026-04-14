@@ -1,10 +1,16 @@
 <purpose>
+When drafting or repairing project contracts, keep the compact hard-schema capsule model-visible.
+
 Initialize a new physics research project through unified flow: questioning, literature survey (optional), mathematical framework, computational setup, target venue identification. This is the most leveraged moment in any research project — deep questioning here means better formulations, better methods, better results. One workflow takes you from research idea to ready-for-investigation.
 </purpose>
 
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 </required_reading>
+
+<hard_schema_visibility_guard>
+Before drafting or repairing any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
 
 <auto_mode>
 
@@ -85,18 +91,20 @@ The file should contain at minimum:
 
 It should ideally also name at least one decisive output, anchor, prior output, or explicit "anchor unknown / need grounding / target not yet chosen" note so any repair prompt can stay narrow. Missing-anchor notes preserve uncertainty, but they do not satisfy approval on their own.
 
-Example structure:
+For an input-file outline, prefer the canonical scoping fields from `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md`; include a research question, success signal, anchors, and optional first investigation chunk.
+
+Minimal example:
   # Research Question
-  What is the critical exponent of the 3D Ising model?
+  What measurable quantity or theorem should this project resolve?
 
   # Success Signal
-  Extract the critical exponent and compare it against a trusted benchmark.
+  Name the decisive observable, derivation, figure, or benchmark comparison.
 
   # Anchors
-  Compare against the known 3D Ising result from the literature.
+  List must-use references, trusted baselines, or explicit grounding gaps.
 
   # Optional First Investigation Chunk
-  Set up the Monte Carlo simulation and finite-size scaling workflow.
+  Name the first bounded calculation, proof step, or setup task.
 ```
 
 **If `--minimal` without file** (`gpd:new-project --minimal`):
@@ -115,7 +123,7 @@ Wait for response. From the single response, extract:
 #### M1.5. Synthesize And Approve The Scoping Contract
 
 Build a canonical scoping contract from the extracted input.
-Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
+Before you build the literal `PROJECT_CONTRACT_JSON`, keep the canonical `project_contract` schema you already read via the guard above visible so you can follow each required field and the object rules it defines. Treat that schema as the only contract authority: keep the contract as the JSON object that will be stored in `project_contract`, and keep only the approval-critical reminders below instead of restating the full schema.
 
 **Blocking fields that must be present before approval:**
 
@@ -149,10 +157,10 @@ If the user named a prior output or review checkpoint that must ground approval 
 Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders. The approved contract must preserve the user guidance that downstream planning needs.
 If the only checks captured so far are limiting cases, sanity checks, or qualitative expectations, treat the contract as still underspecified unless the user explicitly states that these are the decisive standard.
 Missing-anchor notes preserve uncertainty, but they do not satisfy approval on their own. Do not offer approval until at least one concrete anchor, reference, prior-output constraint, or baseline is present.
-Before you show the approval gate, build the raw contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`:
+Before you show the approval gate, build the raw contract as a literal JSON object for the `project_contract` subsection of that canonical schema:
 
 - author only the JSON object that will be stored in `project_contract`, not the surrounding `state.json` envelope
-- follow the `project_contract` object rules in `templates/project-contract-schema.md` exactly
+- follow the `project_contract` object rules defined there exactly
 - do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements
 - do not invent near-miss enum values, extra keys, or scalar shortcuts for list fields
 - fix them to the schema before approval
@@ -160,6 +168,8 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
 - `schema_version` must be the integer `1`, `references[].must_surface` must stay a boolean `true` or `false`, and `context_intake`, `uncertainty_markers`, and `references[]` must stay visible in the approval gate so the contract still reflects the real inputs
 
 @{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
+
+Keep the canonical schema guard from above available through approval and persistence; do not restate the full schema text in the workflow body.
 
 Then present a concise scoping summary and require explicit approval:
 
@@ -177,15 +187,12 @@ After approval, validate the contract before persisting it:
 
 ```bash
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved
-```
-
-If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
-
-After validation passes, persist the approved contract into `GPD/state.json` from the same stdin payload:
-
-```bash
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 ```
+
+**Project contract schema visibility:** use that schema as the canonical source of truth for the object rules; Do not restate the full contract rules here; keep only the approval-critical reminders below.
+
+If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
@@ -237,6 +244,13 @@ Fill in what was extracted. For sections without enough information, use sensibl
   - Why it matters: [What it constrains]
   - Carry forward: [planning | execution | verification | writing]
   - Required action: [read | use | compare | cite | avoid]
+
+### Reference grounding rules
+
+Keep these model-visible contract rules in mind while you list the anchors that keep the scoping contract grounded:
+
+- Any `references[]` entry that stays visible before approval and sets `must_surface: true` must also declare non-empty `required_actions[]` (choose from `read`, `use`, `compare`, `cite`, `avoid`), non-empty `applies_to[]` coverage of the relevant claim or deliverable IDs, and a concrete `locator` that can be re-found later (a citation, DOI, arXiv ID, durable external URL, or an already-existing project-local artifact path).
+- Call out the `project_root guard` whenever a listed reference or anchor relies on a project-local path: project-local `locator` values and `applies_to[]` entries only count as approved grounding once the referenced file has already been created under the current project root. While those files are pending, mention the guard explicitly so downstream checks treat the anchor as unresolved rather than grounded.
 
 ### Carry-Forward Inputs
 
@@ -553,7 +567,7 @@ were skipped. Use gpd:settings to adjust workflow preferences.
 
 ---------------------------------------------------------------
 
-## >> Next Up
+## > Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 ```
@@ -1251,6 +1265,8 @@ Display spawning indicator:
 Spawn 4 parallel gpd-project-researcher agents with rich context:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1304,7 +1320,6 @@ shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Prior work research")
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1358,7 +1373,6 @@ shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Methods research")
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1413,7 +1427,6 @@ shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Computational approaches research")
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1476,7 +1489,6 @@ shared_state_policy: return_only
 After all 4 scout artifacts are present on disk and each fresh `gpd_return.files_written` proves its expected artifact, spawn synthesizer to create SUMMARY.md:
 
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
 
@@ -1736,7 +1748,6 @@ Display stage banner:
 
 Spawn gpd-roadmapper agent with context:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -1889,7 +1900,6 @@ Use ask_user:
 - Get user's adjustment notes
 - Re-spawn roadmapper with revision context:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
   ```
   task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -1966,7 +1976,6 @@ Set `CONVENTION_MODE` before spawning:
 
 Spawn gpd-notation-coordinator:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 ```
   task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
@@ -2087,7 +2096,7 @@ Present completion with next steps:
 
 ---------------------------------------------------------------
 
-## >> Next Up
+## > Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 

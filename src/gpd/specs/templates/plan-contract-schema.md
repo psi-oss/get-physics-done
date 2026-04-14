@@ -5,9 +5,16 @@ type: plan-contract-schema
 
 # PLAN Contract Schema
 
+Defaultable semantic fields remain explicit: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `claims[].claim_kind`, `references[].kind`, `references[].role`, and `links[].relation` may default in tooling, but plans should surface them when they affect validation.
+`approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
+`schema_version` is required and must be the integer `1`.
+
 Canonical source of truth for the `contract:` block embedded in PLAN frontmatter.
 
 Use this file whenever you author, revise, or validate a PLAN contract. Do not invent ad-hoc keys, flatten object lists into strings, or leave cross-referenced IDs unresolved.
+For alignment reminders, addendum notes, and validation command examples, consult the canonical addendum guidance below.
+
+`@{GPD_INSTALL_DIR}/templates/plan-contract-schema-notes.md`
 
 ---
 
@@ -15,25 +22,38 @@ Use this file whenever you author, revise, or validate a PLAN contract. Do not i
 
 The PLAN `contract` value must be a YAML object with these top-level sections:
 
-- `schema_version` (required and must be the integer `1`; no other value is supported)
-- `scope`
-- `context_intake`
-- `claims`
-- `deliverables`
-- `acceptance_tests`
-- `forbidden_proxies`
-- `uncertainty_markers`
-- `references` when the plan does not already carry explicit grounding through `context_intake` or preserved scoping inputs
+| Section | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `schema_version` | integer | yes | Must equal `1`. |
+| `scope` | object | yes | Defines the decisive question and scope boundaries. |
+| `context_intake` | object | yes | Captures concrete anchors, prior outputs, and gating context. |
+| `claims[]` | list | yes* | Required for non-scoping plans; scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input. |
+| `deliverables[]` | list | yes* | Must list the decisive artifacts; optional for scoping-only contracts. |
+| `acceptance_tests[]` | list | yes* | Each decisive claim or deliverable needs an executable test. |
+| `forbidden_proxies[]` | list | yes* | Needed whenever there are deceptive success patterns to reject. |
+| `uncertainty_markers` | object | yes | Exposes `weakest_anchors` and `disconfirming_observations`. |
+| `references[]` | list | conditional | Required when grounding is not already concrete; set `must_surface: true` when the anchor drives a decision. |
+| `approach_policy` | object | no | Execution guardrails; it does not count as grounding by itself. |
+| `observables[]` | list | no | Declare named quantities only when a claim or proof tracks them. |
+| `links[]` | list | no | Use when tracing handoffs or decisive comparisons between IDs. |
 
-Optional sections:
+`*` Non-scoping plans must keep the full claims/deliverables/acceptance_tests/forbidden_proxies suite. Scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input, and still rely on this shape for the declared anchors above.
 
-- `approach_policy`
-- `observables`
-- `links`
+For additional alignment rules and validation command examples, revisit the canonical addendum guidance above.
 
-Every list named above must contain objects, not strings.
-`context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
-`approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
+## General Rules
+
+- Every list named above must contain objects, not strings.
+- Hard-schema fields must be model-visible before validation: `scope.question`, non-empty `scope.in_scope`, `context_intake`, and `uncertainty_markers` are not inferred from prose.
+- `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
+- Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
+- All ID cross-links must resolve to declared IDs.
+- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+- All blank-after-trim values are invalid.
+- `approach_policy` constrains execution but does not count as grounding on its own; use `context_intake`, preserved scoping inputs, or `references[]` instead.
+- `context_intake` anchors must be concrete enough to re-find later. Placeholders like `TBD`, `unknown`, or `placeholder` do not count as grounding.
+- Provide durable grounding inside `context_intake`: populate `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, or `known_good_baselines` with artifact locators or previously surfaced references so `_has_contract_grounding_context` can detect them; when those anchors are missing, at least one `references[]` entry must set `must_surface: true` so the integrity checks still know what to dig up.
+- `uncertainty_markers` must include non-empty `weakest_anchors` and `disconfirming_observations`. The blockers in `collect_plan_contract_integrity_errors` and related parsing logic expect those lists to surface the weakest assumptions and counter-observations that still need resolution.
 
 ---
 
@@ -67,8 +87,7 @@ Rules:
 - `scope.in_scope` is required and must name at least one project boundary or objective.
 - `out_of_scope` and `unresolved_questions` are optional arrays of non-empty strings.
 - Use `scope.unresolved_questions` for genuinely undecided anchors; do not hide them in prose or placeholder text.
-- `context_intake` anchors must be concrete enough to re-find later. `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, and `known_good_baselines` count only when they name a declared reference id, durable project-artifact path, citation, DOI, arXiv ID, URL, or similarly concrete handle. `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding requirement by themselves.
-- Placeholder-only values like `TBD`, `unknown`, `placeholder`, or other non-concrete stand-ins do not count as grounding, even if they appear in a field that is otherwise permitted to carry context.
+- `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding requirement by themselves.
 
 ### `claims[]`
 
@@ -105,12 +124,18 @@ Rules:
 - `observables[]` may only reference declared `observables[].id`.
 - `deliverables[]` must not be empty.
 - `acceptance_tests[]` must not be empty.
+- For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required.
 - `deliverables[]` may only reference declared `deliverables[].id`.
 - `acceptance_tests[]` may only reference declared `acceptance_tests[].id`.
 - `references[]` may only reference declared `references[].id`.
+- `references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs.
+- If `references[]` is non-empty and the contract does not already carry concrete grounding elsewhere, at least one reference must set `must_surface: true`.
+- When concrete grounding already exists, a missing `must_surface: true` reference is a warning, not a blocker.
 - `claim_kind` is optional and defaults to `other` only for non-proof work; proof-bearing claims must set it explicitly and must not leave it at `other`.
+- For optional enum fields that include `other`, their default is `other` unless a proof obligation requires an explicit choice.
 - `claim_kind: theorem|lemma|corollary|proposition|result|claim|other`
 - Closed-vocabulary enum fields use the exact lowercase literals shown here. Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
+- The defaultable semantic fields above do not relax the hard requirements on `context_intake` or `uncertainty_markers`.
 - For theorem/proof work, enumerate `parameters[]`, `hypotheses[]`, `quantifiers[]`, `conclusion_clauses[]`, and `proof_deliverables[]` so proof audits can spot dropped assumptions, specialized parameters, and narrowed conclusions.
 - Keep nested proof lists as YAML arrays, even for one item: `parameters[].aliases`, `hypotheses[].symbols`, `quantifiers`, and `proof_deliverables` must not collapse to scalar strings.
 - `proof_deliverables[]` may only reference declared `deliverables[].id`.
@@ -135,7 +160,8 @@ Rules:
 - `contract.context_intake` is required and must be a non-empty object, not a string or list.
 - Every field above is optional inside the object, but the object itself must not be empty.
 - `must_read_refs[]` may only reference declared `references[].id`.
-- Use concrete anchors in `must_read_refs[]`, `must_include_prior_outputs[]`, `user_asserted_anchors[]`, and `known_good_baselines[]`; use `context_gaps`, `scope.unresolved_questions`, or `uncertainty_markers.weakest_anchors` for unresolved anchors instead of inventing placeholder references.
+- Use concrete anchors in `must_read_refs[]`, `must_include_prior_outputs[]`, `user_asserted_anchors[]`, and `known_good_baselines[]`; when those anchors do not already name real artifacts or references, mark at least one `references[]` entry with `must_surface: true` so `_has_contract_grounding_context` can still detect durable grounding, then rely on `context_gaps`, `scope.unresolved_questions`, or `uncertainty_markers.weakest_anchors` for unresolved anchors instead of inventing placeholder references.
+- `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy hard grounding on their own.
 
 ### `approach_policy`
 
@@ -235,7 +261,9 @@ Rules:
 - `must_surface` is a boolean scalar. Use the YAML literals `true` and `false`; do not quote them or replace them with synonyms such as `yes`, `no`, `required`, or `optional`.
 - If `must_surface: true`, `required_actions` must not be empty.
 - If `must_surface: true`, `applies_to[]` must not be empty.
+- `must_surface: true` references need concrete `applies_to[]` coverage of declared claim or deliverable IDs.
 - If `must_surface: true`, the locator must still be concrete enough to re-find later: a citation, DOI, arXiv identifier, durable external URL, or project-local artifact path. Placeholder locators such as `TBD`, `unknown`, or bare section/table labels do not count.
+- Project-local `locator` paths must resolve when `project_root` is available.
 
 ### `acceptance_tests[]`
 
@@ -289,39 +317,8 @@ Rules:
 
 - `weakest_anchors` must not be empty.
 - `disconfirming_observations` must not be empty.
+- `weakest_anchors` should name the least-certain anchors the contract still leans on, and `disconfirming_observations` should describe concrete evidence that would force rethinking. These lists feed the blockers in `collect_plan_contract_integrity_errors` and `_collect_strict_contract_results_errors`, so they must stay populated.
 - `uncertainty_markers` must be a YAML object, not a string or list.
 - `unvalidated_assumptions` and `competing_explanations` are optional arrays of non-empty strings, but when present they must stay explicit in the contract.
 
 ---
-
-## Contract Alignment Rules
-
-- Reduced contracts are legal only when the plan is explicitly scoping or exploratory.
-- If the plan will execute, verify, or publish a concrete result, use the full non-scoping shape.
-- A reduced contract still needs a real decision surface: preserve at least one target, open question, or carry-forward input instead of emitting a hollow scaffold.
-- If you are unsure, classify the plan as non-scoping and use the full shape.
-- `references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs. `context_gaps`, `crucial_inputs`, and `stop_and_rethink_conditions` keep uncertainty visible, but they do not satisfy the grounding/anchor requirement by themselves. When concrete grounding already exists, omit `references[]` rather than padding the contract with decorative anchors.
-- The schema still exposes semantic fields `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`; their default is `other`. Omit them only when `other` is intended, and set the specific value explicitly when the semantics are already known.
-- For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required.
-- The defaultable semantic fields above do not relax the hard requirements on `context_intake` or `uncertainty_markers`, and they do not replace required contract targets for non-scoping plans.
-- For non-scoping plans, include `references[]` unless explicit grounding context survives elsewhere in the contract.
-- When a plan depends on traceable handoffs or decisive comparisons, surface `links[]` explicitly instead of burying the dependency in prose.
-- All ID cross-links must resolve to declared IDs. Unresolved IDs are validation errors, not TODO placeholders.
-- IDs must be unique across each section.
-- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
-- Canonical IDs and other required strings are trimmed before validation; blank-after-trim values are invalid.
-- A cross-reference must fail loudly if it points to an undeclared ID.
-- A non-object `contract:` value is invalid. Treat it as a schema error, not as “missing”.
-- If `references[]` is non-empty and the contract does not already carry concrete grounding elsewhere, at least one reference must set `must_surface: true`. When concrete grounding already exists, a missing `must_surface: true` reference is a warning, not a blocker.
-- Do not assume any contract field is optional unless the active PLAN validator or workflow explicitly says so.
-
----
-
-## Validation Commands
-
-Use one of these before approving or committing a plan:
-
-```bash
-gpd frontmatter validate GPD/phases/XX-name/XX-YY-PLAN.md --schema plan
-gpd validate plan-contract GPD/phases/XX-name/XX-YY-PLAN.md
-```

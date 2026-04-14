@@ -6,18 +6,18 @@ template_version: 1
 
 Canonical PLAN.md structure for `gpd-planner`. PLAN.md is the executor prompt, so every field must be specific enough to execute and verify without interpretation.
 
+<hard_schema_visibility_guard>
 Use the canonical schema below before drafting any `contract:` block.
+Do not emit or approve a plan contract unless this schema surface is visible in context.
+</hard_schema_visibility_guard>
 
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
-Quick contract rules:
-- Put machine-checkable prerequisites in `tool_requirements`; keep human-only setup in `researcher_setup`. `tool_requirements[].id` values must be unique within the list.
-- Gap-closure plans still use `type: execute`; mark verification-repair plans with `gap_closure: true` instead of inventing a third plan type.
-- `scope.in_scope` must be populated in project-scoping plans, and `context_intake` anchors must be concrete enough to re-find later.
-- Keep `claim_kind`, `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, `links[].relation`, `must_surface`, `required_actions[]`, `applies_to[]`, `carry_forward_to[]`, and `uncertainty_markers` visible. When `must_surface` is `true`, keep `required_actions[]` and `applies_to[]` non-empty, and treat `carry_forward_to[]` as workflow scope only.
-- `context_intake`, `approach_policy`, and `uncertainty_markers` must stay YAML objects.
-- The validator accepts a closed tool vocabulary today: `wolfram` and `command`. For `tool: command`, a non-empty `command` field is mandatory; for other tools, omit `command`. `required` defaults to `true`, and `fallback` does not waive a required tool.
-- For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target.
+Use the shared schema and planning guidance as the single source of truth for contract fields, enum vocabulary, proof metadata, grounding anchors, tool requirements, and validator rules.
+
+For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target. Every claim must declare a stable `id`. Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+
+@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md
 
 ---
 
@@ -129,9 +129,7 @@ Downstream execution reads its execution workflow and summary template later. Do
 </execution_context>
 
 <context>
-@GPD/PROJECT.md
-@GPD/ROADMAP.md
-@GPD/STATE.md
+@{GPD_INSTALL_DIR}/templates/canonical-context-bundle.md
 @path/to/reference-or-benchmark-anchor.md
 @path/to/prior-summary-or-input.md
 </context>
@@ -184,6 +182,8 @@ These fields must always be present:
 - `interactive`
 - `conventions`
 - `contract`
+
+Contract visibility rules: keep at least one observable, claim, or deliverable; if `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`; every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage; project-local paths must resolve when `project_root` is available.
 
 Add `dimensional_check` whenever the plan produces quantitative results. Add `approximations` whenever any truncation, asymptotic regime, discretization, or numerical cutoff is active.
 

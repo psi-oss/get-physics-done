@@ -27,6 +27,7 @@ from gpd import registry
 from gpd.adapters import get_adapter, iter_runtime_descriptors
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    GPD_CONTENT_DIRS,
     MANIFEST_NAME,
     expand_at_includes,
     validate_package_integrity,
@@ -50,6 +51,13 @@ _ALL_RUNTIMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIP
 _RUNTIMES_WITH_MANIFEST_FILE_PREFIXES = tuple(
     descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.manifest_file_prefixes
 )
+_RUNTIME_WITH_ENV_CONFIG_DIR = next(
+    descriptor.runtime_name
+    for descriptor in _RUNTIME_DESCRIPTORS
+    if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+)
+_RUNTIME_WITH_MANIFEST_FILE_PREFIX = _RUNTIMES_WITH_MANIFEST_FILE_PREFIXES[0]
+_PROBE_RUNTIME = _ALL_RUNTIMES[0]
 
 
 def _make_gpd_root(tmp_path: Path) -> Path:
@@ -114,8 +122,8 @@ def _seed_ambiguous_install_target(target: Path, *, manifest_state: str) -> None
         )
 
 
-def _install_gemini_for_tests(gpd_root: Path, target: Path) -> None:
-    adapter = get_adapter("gemini")
+def _install_runtime_for_tests(runtime: str, gpd_root: Path, target: Path) -> None:
+    adapter = get_adapter(runtime)
     result = adapter.install(gpd_root, target, is_global=True)
     adapter.finalize_install(result)
 
@@ -123,7 +131,11 @@ def _install_gemini_for_tests(gpd_root: Path, target: Path) -> None:
 class _CommitAttributionProbeAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
-        return "claude-code"
+        return _PROBE_RUNTIME
+
+    @property
+    def runtime_descriptor(self):
+        return get_adapter(_PROBE_RUNTIME).runtime_descriptor
 
     def runtime_install_required_relpaths(self) -> tuple[str, ...]:
         return ("custom-config.json",)
@@ -132,10 +144,15 @@ class _CommitAttributionProbeAdapter(RuntimeAdapter):
 class _NoCommitAttributionProbeAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
-        return "claude-code"
+        return _PROBE_RUNTIME
+
+    @property
+    def runtime_descriptor(self):
+        return get_adapter(_PROBE_RUNTIME).runtime_descriptor
 
     def runtime_install_required_relpaths(self) -> tuple[str, ...]:
         return ()
+
 
 _FOREIGN_RUNTIME_BY_RUNTIME = {
     descriptor.runtime_name: _ALL_RUNTIMES[(index + 1) % len(_ALL_RUNTIMES)]
@@ -224,9 +241,19 @@ class TestInstallCorruptedPackage:
         with pytest.raises(FileNotFoundError, match="specs"):
             validate_package_integrity(root)
 
+    def test_missing_specs_content_child_dir(self, tmp_path: Path) -> None:
+        root = tmp_path / "broken"
+        for d in ("commands", "agents", "hooks", "specs"):
+            (root / d).mkdir(parents=True)
+        for d in GPD_CONTENT_DIRS[1:]:
+            (root / "specs" / d).mkdir(parents=True)
+
+        with pytest.raises(FileNotFoundError, match=f"specs/{GPD_CONTENT_DIRS[0]}"):
+            validate_package_integrity(root)
+
     def test_all_dirs_present_passes(self, tmp_path: Path) -> None:
         root = tmp_path / "valid"
-        for d in ("commands", "agents", "hooks", "specs"):
+        for d in ("commands", "agents", "hooks", "specs", *(f"specs/{name}" for name in GPD_CONTENT_DIRS)):
             (root / d).mkdir(parents=True)
         # Should not raise
         validate_package_integrity(root)
@@ -494,6 +521,25 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         assert f"Refusing to install into `{target}`" in message
         assert "manifest cannot be trusted" in message
 
+    def test_install_refuses_runtime_prefixed_manifest_with_only_agent_residue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        runtime = runtime_with_manifest_file_prefix("command/")
+        adapter = get_adapter(runtime)
+        target = tmp_path / "runtime-prefixed-only-agents"
+        target.mkdir()
+        agents_dir = target / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "gpd-residue.md").write_text("Residue.\n", encoding="utf-8")
+
+        manifest_data = {"install_scope": "local", "files": {"command/gpd-residue.md": "hash"}}
+        (target / MANIFEST_NAME).write_text(json.dumps(manifest_data), encoding="utf-8")
+
+        monkeypatch.setattr(adapter, "_install_explicit_target", True, raising=False)
+
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter._validate_target_runtime(target, action="install into")
+
     @pytest.mark.parametrize("manifest_state", ["missing", "corrupt", "unknown"])
     def test_uninstall_refuses_ambiguous_target_when_manifest_cannot_prove_ownership(
         self, tmp_path: Path, manifest_state: str
@@ -712,11 +758,11 @@ class TestLongPathNames:
 class TestHomeUnset:
     """When HOME is unset, adapters with env var overrides should still work."""
 
-    def test_claude_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
-        """CLAUDE_CONFIG_DIR should be used instead of Path.home()."""
-        adapter = get_adapter(PRIMARY_RUNTIME)
+    def test_runtime_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
+        """Runtime config env vars should be used instead of Path.home()."""
+        adapter = get_adapter(_RUNTIME_WITH_ENV_CONFIG_DIR)
         global_config = adapter.runtime_descriptor.global_config
-        custom_dir = tmp_path / "custom-claude"
+        custom_dir = tmp_path / "custom-runtime-config"
         custom_dir.mkdir()
 
         env_var = global_config.env_dir_var or global_config.env_var or global_config.env_file_var
@@ -725,10 +771,10 @@ class TestHomeUnset:
         with patch.dict(os.environ, {env_var: env_value}):
             assert adapter.global_config_dir == custom_dir
 
-    def test_codex_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
-        adapter = get_adapter(runtime_with_manifest_file_prefix("skills/"))
+    def test_manifest_prefixed_runtime_config_dir_env_overrides_home(self, tmp_path: Path) -> None:
+        adapter = get_adapter(_RUNTIME_WITH_MANIFEST_FILE_PREFIX)
         global_config = adapter.runtime_descriptor.global_config
-        custom_dir = tmp_path / "custom-codex"
+        custom_dir = tmp_path / "custom-prefixed-runtime"
         custom_dir.mkdir()
 
         env_var = global_config.env_dir_var or global_config.env_var or global_config.env_file_var
@@ -794,29 +840,31 @@ class TestMultiRuntimeSameTarget:
         # Same version, just confirming it survived
         assert second_content == first_content
 
-    def test_both_runtimes_leave_valid_structure(self, tmp_path: Path) -> None:
-        """Both runtimes can create valid installs in separate directories."""
+    def test_two_representative_runtimes_leave_valid_structure(self, tmp_path: Path) -> None:
+        """Two descriptor-selected runtimes can create valid installs in separate directories."""
         gpd_root = _make_gpd_root(tmp_path)
-        target_cc = tmp_path / get_adapter(PRIMARY_RUNTIME).config_dir_name
-        target_cc.mkdir()
-        target_gem = tmp_path / "gemini"
-        target_gem.mkdir()
+        runtime1 = PRIMARY_RUNTIME
+        runtime2 = _FOREIGN_RUNTIME_BY_RUNTIME[runtime1]
+        target1 = tmp_path / get_adapter(runtime1).config_dir_name
+        target1.mkdir()
+        target2 = tmp_path / f"{runtime2}-target"
+        target2.mkdir()
 
-        adapter_cc = get_adapter(PRIMARY_RUNTIME)
-        adapter_cc.install(gpd_root, target_cc, is_global=True)
+        adapter1 = get_adapter(runtime1)
+        adapter1.install(gpd_root, target1, is_global=True)
 
-        _install_gemini_for_tests(gpd_root, target_gem)
+        _install_runtime_for_tests(runtime2, gpd_root, target2)
 
         # Both should have written commands
-        assert (target_cc / "commands" / "gpd").is_dir()
-        assert (target_gem / "commands" / "gpd").is_dir()
+        assert (target1 / "commands" / "gpd").is_dir()
+        assert (target2 / "commands" / "gpd").is_dir()
         # Manifests should be valid independently
-        manifest_cc = json.loads((target_cc / MANIFEST_NAME).read_text(encoding="utf-8"))
-        manifest_gem = json.loads((target_gem / MANIFEST_NAME).read_text(encoding="utf-8"))
-        assert "version" in manifest_cc
-        assert "version" in manifest_gem
-        assert len(manifest_cc["files"]) > 0
-        assert len(manifest_gem["files"]) > 0
+        manifest1 = json.loads((target1 / MANIFEST_NAME).read_text(encoding="utf-8"))
+        manifest2 = json.loads((target2 / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert "version" in manifest1
+        assert "version" in manifest2
+        assert len(manifest1["files"]) > 0
+        assert len(manifest2["files"]) > 0
 
 
 # =========================================================================
@@ -904,11 +952,15 @@ class TestRegistryInvalidYaml:
 class TestExpandAtIncludesCircular:
     """Test circular include detection with 3-file cycle: A→B→C→A."""
 
+    def _include_path(self, tmp_path: Path, filename: str) -> str:
+        return f"{tmp_path}/{get_adapter(_PROBE_RUNTIME).config_dir_name}/get-physics-done/{filename}"
+
     def _make_src(self, tmp_path: Path, files: dict[str, str]) -> Path:
         gpd_dir = tmp_path / "get-physics-done"
-        gpd_dir.mkdir(parents=True, exist_ok=True)
+        source_dir = gpd_dir / "specs"
+        source_dir.mkdir(parents=True, exist_ok=True)
         for rel, content in files.items():
-            p = gpd_dir / rel
+            p = source_dir / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content, encoding="utf-8")
         return gpd_dir
@@ -918,12 +970,12 @@ class TestExpandAtIncludesCircular:
         gpd_dir = self._make_src(
             tmp_path,
             {
-                "a.md": f"alpha\n@{tmp_path}/get-physics-done/b.md",
-                "b.md": f"beta\n@{tmp_path}/get-physics-done/c.md",
-                "c.md": f"gamma\n@{tmp_path}/get-physics-done/a.md",
+                "a.md": f"alpha\n@{self._include_path(tmp_path, 'b.md')}",
+                "b.md": f"beta\n@{self._include_path(tmp_path, 'c.md')}",
+                "c.md": f"gamma\n@{self._include_path(tmp_path, 'a.md')}",
             },
         )
-        content = f"@{tmp_path}/get-physics-done/a.md"
+        content = f"@{self._include_path(tmp_path, 'a.md')}"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
 
         assert "alpha" in result
@@ -937,11 +989,11 @@ class TestExpandAtIncludesCircular:
             tmp_path,
             {
                 "d.md": "diamond-leaf",
-                "b.md": f"branch-b\n@{tmp_path}/get-physics-done/d.md",
-                "c.md": f"branch-c\n@{tmp_path}/get-physics-done/d.md",
+                "b.md": f"branch-b\n@{self._include_path(tmp_path, 'd.md')}",
+                "c.md": f"branch-c\n@{self._include_path(tmp_path, 'd.md')}",
             },
         )
-        content = f"@{tmp_path}/get-physics-done/b.md\n@{tmp_path}/get-physics-done/c.md"
+        content = f"@{self._include_path(tmp_path, 'b.md')}\n@{self._include_path(tmp_path, 'c.md')}"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
 
         assert "branch-b" in result
@@ -957,10 +1009,10 @@ class TestExpandAtIncludesCircular:
         """Include of a file with encoding errors produces an error comment."""
         gpd_dir = self._make_src(tmp_path, {})
         # Write a binary file that's not valid UTF-8
-        bad_file = tmp_path / "get-physics-done" / "binary.md"
+        bad_file = tmp_path / "get-physics-done" / "specs" / "binary.md"
         bad_file.write_bytes(b"\xff\xfe\x00\x01 invalid utf8")
 
-        content = f"@{tmp_path}/get-physics-done/binary.md"
+        content = f"@{self._include_path(tmp_path, 'binary.md')}"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert "include read error" in result
 
@@ -969,11 +1021,11 @@ class TestExpandAtIncludesCircular:
         gpd_dir = self._make_src(
             tmp_path,
             {
-                "deep.md": f"deep-content\n@{tmp_path}/get-physics-done/deeper.md",
+                "deep.md": f"deep-content\n@{self._include_path(tmp_path, 'deeper.md')}",
                 "deeper.md": "should-not-expand",
             },
         )
-        content = f"@{tmp_path}/get-physics-done/deep.md"
+        content = f"@{self._include_path(tmp_path, 'deep.md')}"
         # depth=9 means deep.md expands at depth=10, but deeper.md at depth=10
         # hits the "depth == MAX" check inside expand_at_includes
         result = expand_at_includes(content, str(gpd_dir), "~/.test/", depth=9)

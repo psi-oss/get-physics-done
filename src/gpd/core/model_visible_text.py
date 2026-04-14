@@ -6,6 +6,15 @@ from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
     render_model_visible_note,
 )
+from gpd.core.review_contract_schema import (
+    REVIEW_CONTRACT_CONDITIONAL_WHENS,
+    REVIEW_CONTRACT_FRONTMATTER_KEY,
+    REVIEW_CONTRACT_MODES,
+    REVIEW_CONTRACT_PREFLIGHT_CHECKS,
+    REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
+    REVIEW_CONTRACT_REQUIRED_STATES,
+    REVIEW_CONTRACT_WRAPPER_KEYS,
+)
 
 __all__ = [
     "agent_visibility_note",
@@ -29,12 +38,6 @@ __all__ = [
     "skeptical_rigor_guardrails_section",
 ]
 
-REVIEW_CONTRACT_FRONTMATTER_KEY = "review-contract"
-REVIEW_CONTRACT_PROMPT_WRAPPER_KEY = "review_contract"
-REVIEW_CONTRACT_WRAPPER_KEYS = (
-    REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
-    REVIEW_CONTRACT_FRONTMATTER_KEY,
-)
 SKEPTICAL_RIGOR_GUARDRAILS_HEADING = "Scientific Rigor Guardrails"
 VALID_CONTEXT_MODES = ("global", "projectless", "project-aware", "project-required")
 AGENT_COMMIT_AUTHORITIES = ("direct", "orchestrator")
@@ -42,58 +45,14 @@ AGENT_SURFACES = ("public", "internal")
 AGENT_ROLE_FAMILIES = ("worker", "analysis", "verification", "review", "coordination")
 AGENT_ARTIFACT_WRITE_AUTHORITIES = ("scoped_write", "read_only")
 AGENT_SHARED_STATE_AUTHORITIES = ("return_only", "direct")
-REVIEW_CONTRACT_MODES = ("publication", "review")
-REVIEW_CONTRACT_REQUIRED_STATES = ("phase_executed",)
-REVIEW_CONTRACT_CONDITIONAL_WHENS = (
-    "theorem-bearing claims are present",
-    "theorem-bearing manuscripts are present",
-)
-REVIEW_CONTRACT_PREFLIGHT_CHECKS = (
-    "command_context",
-    "project_state",
-    "knowledge_target",
-    "knowledge_document",
-    "knowledge_review_freshness",
-    "roadmap",
-    "conventions",
-    "research_artifacts",
-    "verification_reports",
-    "manuscript",
-    "artifact_manifest",
-    "bibliography_audit",
-    "bibliography_audit_clean",
-    "compiled_manuscript",
-    "publication_blockers",
-    "review_ledger",
-    "review_ledger_valid",
-    "referee_decision",
-    "referee_decision_valid",
-    "publication_review_outcome",
-    "reproducibility_manifest",
-    "reproducibility_ready",
-    "manuscript_proof_review",
-    "referee_report_source",
-    "phase_lookup",
-    "phase_artifacts",
-    "phase_summaries",
-    "phase_proof_review",
-)
-_EPISTEMIC_GUARDRAIL_CLAUSES = (
-    "Apply scientific skepticism and critical thinking. Stress-test both the user's preferred explanation and your own first impression without treating the user as an adversary.",
-    "Prefer skeptical verification, disconfirming evidence, and explicit uncertainty over agreeable affirmation.",
-    "Do not claim any result, citation, file, or artifact exists unless you directly observed it in the provided context or produced it in this session.",
-    "If search, execution, or generation fails, report the failure plainly instead of inventing fallback content.",
-)
-
-
 def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 
 
-def _command_agent_labels() -> tuple[str, ...]:
+def _default_command_agent_labels() -> tuple[str, ...]:
     try:
         from gpd.registry import canonical_agent_names
-    except Exception:
+    except ImportError:
         return ()
     return canonical_agent_names()
 
@@ -107,12 +66,13 @@ def agent_visibility_note() -> str:
         f"`role_family` must be {_join_disjunction(AGENT_ROLE_FAMILIES)};",
         f"`artifact_write_authority` must be {_join_disjunction(AGENT_ARTIFACT_WRITE_AUTHORITIES)};",
         f"`shared_state_authority` must be {_join_disjunction(AGENT_SHARED_STATE_AUTHORITIES)}.",
-        *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 
 
-def command_visibility_note() -> str:
-    agent_labels = _command_agent_labels()
+def command_visibility_note(agent_labels: tuple[str, ...] | None = None) -> str:
+    if agent_labels is None:
+        agent_labels = _default_command_agent_labels()
+
     agent_clause = (
         f"`agent` when present must be one of {_join_disjunction(agent_labels)};"
         if agent_labels
@@ -129,7 +89,6 @@ def command_visibility_note() -> str:
         agent_clause,
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
         "Missing required files or other decisive evidence are blocking for strong claims; do not treat omissions or proxies as success.",
-        *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 
 
@@ -152,7 +111,6 @@ def review_contract_visibility_note() -> str:
         "List fields reject blank entries and duplicates.",
         "Each conditional requirement must declare at least one non-empty field.",
         "Missing required outputs or evidence must stay explicit; do not omit, invent, or replace them with proxies.",
-        *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 
 

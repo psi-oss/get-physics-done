@@ -10,32 +10,23 @@ allowed-tools:
   - find_files
 ---
 
-
 <objective>
-Display accumulated physics error patterns from `GPD/ERROR-PATTERNS.md`. Optionally filter by category.
-
-Error patterns are recorded by the debugger after confirming root causes. They capture project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
-
-Categories:
-
-- `sign` -- Sign errors (metric, integration by parts, Wick rotation)
-- `factor` -- Missing factors (2, pi, symmetry factors, normalization)
-- `convention` -- Convention mismatches between modules or phases
-- `numerical` -- Numerical issues (convergence, precision, stability)
-- `approximation` -- Approximation validity breakdowns
-- `boundary` -- Boundary condition errors
-- `gauge` -- Gauge/frame artifacts
-- `combinatorial` -- Symmetry factors, diagram counting
-  </objective>
+Display project error patterns from `GPD/ERROR-PATTERNS.md`, optionally filtered by category, then append relevant cross-project patterns.
+</objective>
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/error-patterns.md
 @GPD/ERROR-PATTERNS.md
 </execution_context>
 
+<context>
+Category filter: $ARGUMENTS
+
+Supported categories include `sign`, `factor`, `convention`, `numerical`, `approximation`, `boundary`, `gauge`, and `combinatorial`.
+</context>
+
 <process>
 
-**Pre-flight check:**
 ```bash
 if [ ! -d "GPD" ]; then
   echo "Error: No GPD project found. Run gpd:new-project first."
@@ -43,81 +34,16 @@ if [ ! -d "GPD" ]; then
 fi
 ```
 
-<step name="check_file">
-```bash
-test -f GPD/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
-```
+If `GPD/ERROR-PATTERNS.md` is missing, report that no project patterns are recorded yet and suggest `gpd:debug` after a confirmed root cause.
 
-**If MISSING:**
+If a category is provided, show only matching project patterns and report `{shown} of {total}`. Otherwise show all project patterns and mention `gpd:error-patterns <category>`.
 
-```
-No error patterns recorded yet.
-
-Error patterns are captured by gpd:debug when root causes are confirmed.
-They help the verifier and planner proactively check for recurring issues.
-
----
-
-Start a debugging session with gpd:debug to begin building the pattern database.
-```
-
-Exit.
-</step>
-
-<step name="read_patterns">
-Read `GPD/ERROR-PATTERNS.md`.
-
-**If $ARGUMENTS provided (category filter):**
-
-Filter the patterns table to show only rows matching the category. Display:
-
-```
-## Error Patterns: {category}
-
-{filtered table rows}
-
----
-
-Showing {N} of {total} patterns. Run `gpd:error-patterns` to see all.
-```
-
-**If no arguments (show all):**
-
-Display the full contents formatted as:
-
-```
-## Project Error Patterns
-
-{full table}
-
----
-
-{total} patterns recorded. Filter by category: `gpd:error-patterns sign`
-```
-
-</step>
-
-<step name="global_patterns">
-**Also show relevant patterns from the global cross-project library.**
+Append cross-project patterns when available:
 
 ```bash
 gpd pattern init 2>/dev/null || true
 DOMAIN=$(grep -m1 "domain:" GPD/PROJECT.md 2>/dev/null | sed 's/.*: *//' || echo "")
-GLOBAL=$(gpd --raw pattern list ${DOMAIN:+--domain "$DOMAIN"} 2>/dev/null)
+gpd --raw pattern list ${DOMAIN:+--domain "$DOMAIN"} 2>/dev/null
 ```
-
-If global patterns exist (count > 0), append:
-
-```
-## Cross-Project Patterns
-
-{pattern list from global library, sorted by severity}
-
----
-
-Global library: {count} patterns. Search: `gpd pattern search "keyword"`
-```
-
-</step>
 
 </process>

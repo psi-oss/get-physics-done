@@ -3,15 +3,14 @@
 
 import hashlib
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+from gpd.adapters.install_utils import hook_python_interpreter
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import (
-    ENV_GPD_DEBUG,
     HOME_DATA_DIR_NAME,
     OBSERVABILITY_DIR_NAME,
     OBSERVABILITY_LAST_NOTIFY_FILENAME,
@@ -19,7 +18,9 @@ from gpd.core.constants import (
 )
 from gpd.core.observability import humanize_execution_reason
 from gpd.core.root_resolution import resolve_project_root
+from gpd.core.segment_constants import COMPLETED_SEGMENT_STATES, PAUSED_SEGMENT_STATES
 from gpd.core.utils import atomic_write, file_lock
+from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
@@ -27,29 +28,6 @@ from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_ro
 from gpd.hooks.runtime_lookup import resolve_runtime_lookup_context_from_payload_roots
 from gpd.hooks.update_resolution import latest_update_cache as _shared_latest_update_cache
 from gpd.hooks.update_resolution import update_command_for_candidate as _shared_update_command_for_candidate
-
-_PAUSED_SEGMENT_STATES = {"paused", "awaiting_user", "ready_to_continue"}
-_COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
-
-
-def _debug(msg: str) -> None:
-    if os.environ.get(ENV_GPD_DEBUG):
-        sys.stderr.write(f"[gpd-debug] {msg}\n")
-
-
-def _mapping(value: object) -> dict[str, object]:
-    """Return *value* when it is a dict, otherwise an empty mapping."""
-    return value if isinstance(value, dict) else {}
-
-
-def _first_string(value: object, *keys: str) -> str:
-    """Return the first non-empty string for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
 
 
 def _has_project_layout(cwd: str) -> bool:
@@ -71,7 +49,7 @@ def _trigger_update_check(cwd: str) -> None:
     try:
         check_update_script = Path(__file__).resolve(strict=False).with_name("check_update.py")
         subprocess.Popen(
-            [sys.executable, str(check_update_script)],
+            [hook_python_interpreter(), str(check_update_script)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -274,7 +252,7 @@ def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
             f"[GPD] Waiting in {phase_plan}: {waiting_reason}\n",
             f"wait:{snapshot.transition_id or snapshot.segment_id or snapshot.waiting_reason}",
         )
-    if segment_status in _COMPLETED_SEGMENT_STATES:
+    if segment_status in COMPLETED_SEGMENT_STATES:
         return None, None
     if snapshot.resume_file:
         resume_target = snapshot.resume_file
@@ -282,7 +260,7 @@ def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
             f"[GPD] Resume candidate from live overlay for {phase_plan}: {resume_target}\n",
             f"resume:{snapshot.transition_id or snapshot.segment_id or resume_target}",
         )
-    if segment_status in _PAUSED_SEGMENT_STATES:
+    if segment_status in PAUSED_SEGMENT_STATES:
         if segment_status == "awaiting_user":
             return (
                 f"[GPD] Waiting for user in {phase_plan}: {artifact}\n",

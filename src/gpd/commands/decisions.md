@@ -30,7 +30,7 @@ Routes to the decisions workflow which handles:
 </execution_context>
 
 <process>
-**Follow the decisions workflow** from `@{GPD_INSTALL_DIR}/workflows/decisions.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow handles all logic including:
 
@@ -38,4 +38,4 @@ The workflow handles all logic including:
 2. Argument parsing (phase number vs keyword)
 3. Table filtering and display
 4. Summary statistics
-   </process>
+</process>

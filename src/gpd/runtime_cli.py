@@ -13,6 +13,7 @@ entrypoint can:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -32,10 +33,16 @@ from gpd.core.cli_args import (
     resolve_root_global_cli_cwd_from_argv as _resolve_cli_cwd_from_argv,
 )
 from gpd.core.cli_args import (
+    split_root_global_cli_options as _split_cli_options,
+)
+from gpd.core.cli_args import (
     validate_root_global_cli_passthrough as _validate_root_global_cli_passthrough,
 )
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
+from gpd.core.small_utils import paths_equal as _paths_equal
 from gpd.hooks.install_metadata import (
+    MANIFEST_NAME,
+    config_dir_has_local_install_manifest,
     config_dir_has_managed_install_markers,
     load_install_manifest_runtime_status,
     load_install_manifest_scope_status,
@@ -113,10 +120,6 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     gpd_args = argv[index:]
     if gpd_args[:1] == ["--"]:
         gpd_args = gpd_args[1:]
-    try:
-        _validate_root_global_cli_passthrough(gpd_args)
-    except ValueError as exc:
-        raise _BridgeArgumentError(str(exc)) from exc
     return options, gpd_args
 
 
@@ -157,38 +160,32 @@ def _emit_bridge_failure(failure: _BridgeFailure) -> int:
 
 def _canonical_runtime_name(runtime: str) -> str:
     """Return the canonical runtime id for aliases and display names."""
+    if not runtime.strip():
+        raise _BridgeArgumentError("--runtime must be a non-empty runtime name")
     normalized = normalize_runtime_name(runtime)
     if normalized is not None:
         return normalized
     return runtime.strip()
 
 
-def _paths_equal(left: Path, right: Path) -> bool:
-    """Return whether two paths resolve to the same location when comparable."""
-    try:
-        return left.expanduser().resolve() == right.expanduser().resolve()
-    except OSError:
-        return left.expanduser() == right.expanduser()
-
-
 def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bool:
-    """Return whether *candidate* should satisfy a local bridge config-dir lookup."""
+    """Return whether *candidate* should satisfy a local bridge config-dir lookup via the shared manifest predicate."""
     if not candidate.is_dir():
         return False
 
-    adapter = get_adapter(runtime)
-    manifest_status, manifest, manifest_runtime = load_install_manifest_runtime_status(candidate)
-    if manifest_status == "ok":
-        if manifest_runtime != runtime:
-            return False
-
-        manifest_scope = manifest.get("install_scope")
-        return manifest_scope == "local"
-
-    global_config_dirs = resolve_global_config_dir_candidates(adapter.runtime_descriptor, home=Path.home())
-    has_install_markers = config_dir_has_managed_install_markers(candidate)
-    if not has_install_markers:
+    if not config_dir_has_local_install_manifest(candidate, runtime):
         return False
+
+    manifest_path = candidate / MANIFEST_NAME
+    try:
+        manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        manifest_payload = {}
+    if manifest_payload.get("install_target_dir") == str(candidate) and manifest_payload.get("explicit_target") is False:
+        return True
+
+    adapter = get_adapter(runtime)
+    global_config_dirs = resolve_global_config_dir_candidates(adapter.runtime_descriptor, home=Path.home())
     if any(_paths_equal(candidate, global_dir) for global_dir in global_config_dirs):
         return False
     return True
@@ -236,7 +233,7 @@ def _uses_effective_explicit_target(
 
     adapter = get_adapter(runtime)
     if install_scope == "global":
-        canonical_global_dir = adapter.resolve_global_config_dir(home=Path.home())
+        canonical_global_dir = adapter.resolve_global_config_dir(home=Path.home(), environ={})
         return not _paths_equal(config_dir, canonical_global_dir)
 
     default_local_config_dir = adapter.resolve_local_config_dir(cli_cwd).resolve(strict=False)
@@ -267,33 +264,64 @@ def _build_repair_command(
     )
 
 
+def _normalize_bridge_gpd_args(argv: list[str]) -> list[str]:
+    """Normalize forwarded root-global ``--cwd`` flags before bridge dispatch."""
+
+    try:
+        passthrough_index = argv.index("--")
+    except ValueError:
+        passthrough_index = len(argv)
+
+    before_passthrough = list(argv[:passthrough_index])
+    passthrough = list(argv[passthrough_index:])
+    forwarded_cwd_args: list[str] = []
+    remaining_args: list[str] = []
+    index = 0
+
+    while index < len(before_passthrough):
+        arg = str(before_passthrough[index])
+        if arg == "--cwd":
+            forwarded_cwd_args.append(arg)
+            if index + 1 < len(before_passthrough):
+                forwarded_cwd_args.append(str(before_passthrough[index + 1]))
+                index += 2
+            else:
+                index += 1
+            continue
+        if arg.startswith("--cwd="):
+            forwarded_cwd_args.append(arg)
+            index += 1
+            continue
+        remaining_args.append(arg)
+        index += 1
+
+    root_global_args, command_args = _split_cli_options(remaining_args)
+    normalized_args = [*root_global_args, *forwarded_cwd_args, *command_args, *passthrough]
+    try:
+        _validate_root_global_cli_passthrough(normalized_args)
+    except ValueError as exc:
+        raise _BridgeArgumentError(str(exc)) from exc
+    return normalized_args
+
+
+def _normalized_bridge_raw_argv(raw_argv: list[str], gpd_args: list[str], normalized_gpd_args: list[str]) -> list[str]:
+    """Return the bridge argv with already-normalized forwarded CLI args."""
+
+    bridge_prefix = raw_argv[: len(raw_argv) - len(gpd_args)] if gpd_args else list(raw_argv)
+    return [*bridge_prefix, *normalized_gpd_args]
+
+
 def _maybe_reexec_from_checkout(raw_argv: list[str], *, cli_cwd: Path) -> None:
     """Re-exec through a checkout when the active package does not match it."""
-    from gpd.version import checkout_root, current_python_executable, resolve_checkout_python
+    from gpd.version import reexec_from_checkout_if_needed
 
-    if os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC) == "1":
-        return
-
-    root = checkout_root(cli_cwd)
-    if root is None:
-        return
-
-    checkout_gpd = (root / "src" / "gpd").resolve(strict=False)
-    active_gpd = Path(__file__).resolve().parent
-    if active_gpd == checkout_gpd:
-        return
-
-    env = os.environ.copy()
-    checkout_src = str((root / "src").resolve(strict=False))
-    existing_pythonpath = [entry for entry in env.get("PYTHONPATH", "").split(os.pathsep) if entry]
-    if checkout_src not in existing_pythonpath:
-        env["PYTHONPATH"] = os.pathsep.join([checkout_src, *existing_pythonpath]) if existing_pythonpath else checkout_src
-    env[ENV_GPD_DISABLE_CHECKOUT_REEXEC] = "1"
-    active_python = current_python_executable()
-    checkout_python = resolve_checkout_python(root, fallback=active_python) or active_python
-    if checkout_python is None:
-        return
-    os.execve(checkout_python, [checkout_python, "-m", "gpd.runtime_cli", *raw_argv], env)
+    reexec_from_checkout_if_needed(
+        cwd=cli_cwd,
+        active_gpd=Path(__file__).resolve().parent,
+        module="gpd.runtime_cli",
+        argv=raw_argv,
+        disable_env_name=ENV_GPD_DISABLE_CHECKOUT_REEXEC,
+    )
 
 
 def _install_error_message(
@@ -642,9 +670,26 @@ def main(argv: list[str] | None = None) -> int:
                 _bridge_argument_error_message(str(exc)),
             )
         )
-    runtime = _canonical_runtime_name(options.runtime)
-    cli_cwd = _resolve_cli_cwd_from_argv(gpd_args)
-    _maybe_reexec_from_checkout(raw_argv, cli_cwd=cli_cwd)
+    try:
+        runtime = _canonical_runtime_name(options.runtime)
+    except _BridgeArgumentError as exc:
+        return _emit_bridge_failure(
+            _bridge_failure(
+                _BridgeFailureKind.MALFORMED_INVOCATION,
+                _bridge_argument_error_message(str(exc)),
+            )
+        )
+    try:
+        normalized_gpd_args = _normalize_bridge_gpd_args(gpd_args)
+    except _BridgeArgumentError as exc:
+        return _emit_bridge_failure(
+            _bridge_failure(
+                _BridgeFailureKind.MALFORMED_INVOCATION,
+                _bridge_argument_error_message(str(exc)),
+            )
+        )
+    cli_cwd = _resolve_cli_cwd_from_argv(normalized_gpd_args)
+    _maybe_reexec_from_checkout(_normalized_bridge_raw_argv(raw_argv, gpd_args, normalized_gpd_args), cli_cwd=cli_cwd)
     try:
         adapter = get_adapter(runtime)
     except KeyError as exc:
@@ -708,7 +753,7 @@ def main(argv: list[str] | None = None) -> int:
 
     original_argv = list(sys.argv)
     try:
-        sys.argv = ["gpd", *gpd_args]
+        sys.argv = ["gpd", *normalized_gpd_args]
         result = entrypoint()
     finally:
         sys.argv = original_argv

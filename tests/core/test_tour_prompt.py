@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.include_expansion import expand_at_includes
 from gpd.registry import get_command, list_commands
 from tests.doc_surface_contracts import assert_tour_command_surface_contract
 
@@ -35,7 +35,7 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
     workflow = (WORKFLOWS_DIR / "tour.md").read_text(encoding="utf-8")
     assert_tour_command_surface_contract(workflow)
     table_entries = workflow[
-        workflow.index("Include these entries:") : workflow.index("Keep this table runtime-facing only.")
+        workflow.index("Include these entries using the command syntax") : workflow.index("Keep this table runtime-facing only.")
     ]
     assert "- `gpd resume`" not in table_entries
     assert "Keep this table runtime-facing only." in workflow
@@ -46,15 +46,16 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
         "Use this when",
         "Do not use this when",
         "Example",
-        "gpd:plan-phase",
-        "gpd:execute-phase",
-        "gpd:verify-work",
-        "gpd:peer-review",
-        "gpd:respond-to-referees",
-        "gpd:arxiv-submission",
-        "gpd:branch-hypothesis",
-        "gpd:set-profile",
-        "gpd:set-tier-models",
+        "active runtime's native command prefix",
+        "plan-phase",
+        "execute-phase",
+        "verify-work",
+        "peer-review",
+        "respond-to-referees",
+        "arxiv-submission",
+        "branch-hypothesis",
+        "set-profile",
+        "set-tier-models",
         "Use `start` when you are still deciding, not `new-project`",
         "Use `resume-work` only when the project already has GPD state",
         "Use `set-tier-models` when you want to pin concrete runtime model ids only",
@@ -63,8 +64,18 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
         "`GPD project` - a folder where GPD already saved its own project files and state",
         "`research map` - GPD's summary of an existing research folder before full project setup",
         "`phase` - one chunk of the project plan that GPD will organize later",
-        "If you are still unsure, run gpd:start.",
-        "If you want to pin concrete tier-1, tier-2, and tier-3 model ids, run \\`gpd:set-tier-models\\`.",
-        "If you want to change permissions, autonomy, or runtime preferences after your first successful start or later, run \\`gpd:settings\\`.",
+        "If you are still unsure, run the runtime-specific start command.",
+        "If you want to pin concrete tier-1, tier-2, and tier-3 model ids, run the runtime-specific \\`set-tier-models\\` command.",
+        "If you want to change permissions, autonomy, or runtime preferences after your first successful start or later, run the runtime-specific \\`settings\\` command.",
     ):
         assert fragment in workflow
+
+    hard_coded_runtime_examples = (
+        "gpd:start",
+        "gpd:new-project",
+        "gpd:map-research",
+        "gpd:resume-work",
+        "gpd:settings",
+    )
+    for fragment in hard_coded_runtime_examples:
+        assert fragment not in workflow

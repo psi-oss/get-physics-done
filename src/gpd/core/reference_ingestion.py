@@ -11,6 +11,7 @@ import yaml
 
 from gpd.core.knowledge_runtime import KnowledgeDocRuntimeRecord, discover_knowledge_docs
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_artifacts
+from gpd.core.small_utils import relative_posix_path
 from gpd.mcp.paper.bibliography import CitationSource, parse_citation_source_payload
 
 __all__ = [
@@ -325,16 +326,6 @@ def _normalize_kind(value: str | None) -> str:
     return _KIND_MAP.get(raw, "other")
 
 
-def _relative_posix(root: Path, path: Path) -> str:
-    """Return a stable repo-relative POSIX path when possible."""
-    resolved_root = root.resolve(strict=False)
-    resolved_path = path.resolve(strict=False)
-    try:
-        return resolved_path.relative_to(resolved_root).as_posix()
-    except ValueError:
-        return resolved_path.as_posix()
-
-
 def ingest_manuscript_reference_status(project_root: Path) -> ManuscriptReferenceStatusIngestion:
     """Parse the current manuscript's bibliography audit into a derived status view."""
     from gpd.mcp.paper.bibliography import BibliographyAudit
@@ -342,8 +333,8 @@ def ingest_manuscript_reference_status(project_root: Path) -> ManuscriptReferenc
     manuscript_artifacts = resolve_current_manuscript_artifacts(project_root)
     manuscript_dir = manuscript_artifacts.manuscript_root or (project_root / "paper")
     audit_path = manuscript_artifacts.bibliography_audit or (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json")
-    manuscript_root = _relative_posix(project_root, manuscript_dir)
-    bibliography_audit_path = _relative_posix(project_root, audit_path)
+    manuscript_root = relative_posix_path(project_root, manuscript_dir)
+    bibliography_audit_path = relative_posix_path(project_root, audit_path)
 
     if not audit_path.exists():
         return ManuscriptReferenceStatusIngestion(

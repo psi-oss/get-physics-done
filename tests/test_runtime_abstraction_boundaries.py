@@ -13,19 +13,51 @@ Everywhere else, shared code should stay runtime-agnostic.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from gpd.adapters import iter_adapters
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor_for_adapter_module,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+    normalize_runtime_name,
+)
 from gpd.command_labels import runtime_public_command_prefixes
+from scripts.repo_graph_contract import (
+    BASE_EXCLUDED_GRAPH_DIRS,
+    load_contract,
+    runtime_owned_excluded_graph_dirs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _SHARED_INSTALL = get_shared_install_metadata()
+
+
+def test_stage0_fixture_plan_and_contract_are_readable() -> None:
+    fixture_dir = REPO_ROOT / "tests" / "fixtures" / "stage0"
+    plan_path = fixture_dir / "plan_with_contract.md"
+    contract_path = fixture_dir / "project_contract.json"
+
+    plan_content = plan_path.read_text(encoding="utf-8")
+    assert "contract:" in plan_content
+    assert "claim-benchmark" in plan_content
+
+    contract_data = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert contract_data.get("schema_version") == 1
+    assert contract_data.get("scope", {}).get("question", "").startswith("What benchmark")
+
+
+def test_context_core_avoids_adapter_install_utils_import() -> None:
+    content = (REPO_ROOT / "src/gpd/core/context.py").read_text(encoding="utf-8")
+    assert "gpd.adapters.install_utils" not in content
 
 
 def _runtime_env_prefix_patterns() -> list[str]:
@@ -140,11 +172,12 @@ _RUNTIME_OWNED_PREFIXES = (
 _ALLOWED_RUNTIME_FILES = {
     "CITATION.cff",
     ".gitignore",
-    "package.json",
-    "pyproject.toml",
+    "src/gpd/adapters/__init__.py",
+    "src/gpd/hooks/install_metadata.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
+    "src/gpd/hooks/install_metadata.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 _WOLFRAM_INTEGRATION_BOUNDARY_FILES = {
@@ -213,7 +246,7 @@ _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = tuple(
     if path.relative_to(REPO_ROOT).parts[:2] in {("tests", "core"), ("tests", "mcp")}
 )
 _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = (*_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS, REPO_ROOT / "tests/test_bootstrap_installer.py")
-_TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py"}
+_TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py", ".sh"}
 _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/core/test_health.py",
     REPO_ROOT / "tests/core/test_runtime_hints.py",
@@ -223,21 +256,54 @@ _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/hooks/test_notify.py",
     REPO_ROOT / "tests/hooks/test_statusline.py",
 )
-_SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN = re.compile(
-    r"""["'](?:openai|anthropic|google|gpt-[^"']+|claude-(?!code)[^"']+|gemini-(?!cli)[^"']+)["']"""
+_NON_RUNTIME_DOC_SURFACES = (
+    REPO_ROOT / "docs/command-workflow-allowlist.md",
+    REPO_ROOT / "docs/schema-registry-ownership.md",
 )
+_NON_RUNTIME_SCRIPT_SURFACES = (
+    REPO_ROOT / "scripts/block-gpd-commit.sh",
+    REPO_ROOT / "scripts/release_workflow.py",
+    REPO_ROOT / "scripts/repo_graph_contract.py",
+    REPO_ROOT / "scripts/schema_registry_sources.py",
+    REPO_ROOT / "scripts/sync_repo_graph_contract.py",
+)
+_NON_RUNTIME_DOC_AND_SCRIPT_SURFACES = (*_NON_RUNTIME_DOC_SURFACES, *_NON_RUNTIME_SCRIPT_SURFACES)
+def _shared_generic_provider_model_literal_pattern() -> re.Pattern[str]:
+    values: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for value in (
+            descriptor.runtime_name,
+            descriptor.display_name,
+            descriptor.launch_command,
+            descriptor.install_flag,
+            *descriptor.selection_aliases,
+            *descriptor.selection_flags,
+        ):
+            if value:
+                values.add(value)
+    if not values:
+        return re.compile(r"$^")
+    values.difference_update({descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS})
+    escaped = "|".join(re.escape(value) for value in sorted(values))
+    return re.compile(rf'["\'](?:{escaped})["\']')
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
-    result = subprocess.run(
-        ["git", "grep", "-n", "-I", "-E", pattern],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "grep", "-n", "-I", "-E", pattern],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        pytest.skip("git is not available; skipping runtime abstraction git-grep checks")
     if result.returncode not in (0, 1):
-        raise AssertionError(result.stderr or result.stdout)
+        stderr = (result.stderr or result.stdout).strip()
+        if result.returncode == 128 or "not a git repository" in stderr.lower():
+            pytest.skip("git repository metadata is unavailable; skipping runtime abstraction git-grep checks")
+        raise AssertionError(stderr or "git grep failed")
 
     matches: list[tuple[Path, int, str]] = []
     for line in result.stdout.splitlines():
@@ -322,6 +388,30 @@ def _runtime_fixture_values() -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
+def _runtime_quoted_literal_pattern() -> re.Pattern[str]:
+    values: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for value in (
+            descriptor.runtime_name,
+            descriptor.config_dir_name,
+            descriptor.launch_command,
+            descriptor.install_flag,
+            descriptor.global_config.env_var,
+            descriptor.global_config.env_dir_var,
+            descriptor.global_config.env_file_var,
+            descriptor.global_config.home_subpath,
+            descriptor.global_config.xdg_subdir,
+            *descriptor.selection_aliases,
+            *descriptor.selection_flags,
+        ):
+            if value:
+                values.add(value)
+    if not values:
+        return re.compile(r"$^")
+    pieces = [rf'["\']{re.escape(value)}["\']' for value in sorted(values)]
+    return re.compile(rf"(?:{'|'.join(pieces)})")
+
+
 def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2) -> list[str]:
     fixture_values = _runtime_fixture_values()
     block_pattern = re.compile(r"(?s)(\[[^\[\]]*\]|\{[^\{\}]*\}|\([^\(\)]*\))")
@@ -358,14 +448,18 @@ def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -
 
 
 def test_runtime_pattern_includes_capability_surface_literals() -> None:
-    capability_literals = (
-        "settings.json:permissions.defaultMode",
-        "settings.json:statusLine",
-        "config.toml:approval_policy+sandbox_mode",
-        "config.toml:notify",
-        "opencode.json:permission",
+    capability_literals = tuple(
+        value
+        for descriptor in _RUNTIME_DESCRIPTORS
+        for value in (
+            descriptor.capabilities.permission_surface_kind,
+            descriptor.capabilities.statusline_config_surface,
+            descriptor.capabilities.notify_config_surface,
+        )
+        if value and value != "none"
     )
 
+    assert capability_literals
     for literal in capability_literals:
         assert re.search(_RUNTIME_PATTERN, literal) is not None
 
@@ -375,6 +469,33 @@ def test_loaded_runtime_descriptors_keep_public_command_surfaces_descriptor_owne
 
     assert all(public_prefixes)
     assert public_prefixes == {descriptor.command_prefix for descriptor in _RUNTIME_DESCRIPTORS}
+
+
+def test_repo_graph_contract_runtime_owned_excludes_follow_runtime_descriptors() -> None:
+    excluded_dirs = load_contract()["excluded_graph_dirs"]
+    expected_runtime_dirs = runtime_owned_excluded_graph_dirs()
+
+    assert isinstance(excluded_dirs, list)
+    assert expected_runtime_dirs == tuple(descriptor.config_dir_name for descriptor in _RUNTIME_DESCRIPTORS)
+    for runtime_dir in expected_runtime_dirs:
+        assert runtime_dir in excluded_dirs
+
+    assert all(runtime_dir.startswith(".") for runtime_dir in expected_runtime_dirs)
+
+
+def test_repo_graph_contract_excluded_dirs_follow_generated_cache_inventory() -> None:
+    excluded_dirs = tuple(load_contract()["excluded_graph_dirs"])
+    expected = (
+        *BASE_EXCLUDED_GRAPH_DIRS[:-1],
+        *runtime_owned_excluded_graph_dirs(),
+        BASE_EXCLUDED_GRAPH_DIRS[-1],
+    )
+
+    assert excluded_dirs == expected, (
+        "The generated repo graph contract must list the canonical python cache artifacts "
+        "(__pycache__, .venv, etc.) together with the runtime-owned directories so the "
+        "inventory stays in sync with the runtime descriptors."
+    )
 
 
 def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypatch) -> None:
@@ -394,6 +515,22 @@ def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypat
     assert "$adapter-only-" not in prefixes
 
 
+def test_public_runtime_selector_surface_excludes_internal_adapter_module_tokens() -> None:
+    private_runtime_tokens = [
+        descriptor.adapter_module
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.adapter_module != descriptor.runtime_name
+    ]
+
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        dotted_module_path = f"gpd.adapters.{descriptor.adapter_module}"
+        assert normalize_runtime_name(dotted_module_path) is None
+        assert get_runtime_descriptor_for_adapter_module(dotted_module_path) == descriptor
+
+    for private_token in private_runtime_tokens:
+        assert normalize_runtime_name(private_token) is None
+
+
 def _readme_optional_terminal_reference() -> str:
     content = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(
@@ -406,6 +543,7 @@ def _readme_optional_terminal_reference() -> str:
     return match.group("body")
 
 
+@pytest.mark.slow
 def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -421,6 +559,16 @@ def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> Non
     )
 
 
+def test_packaging_metadata_stays_runtime_agnostic() -> None:
+    pattern = re.compile(_RUNTIME_PATTERN)
+
+    for rel_path in ("package.json", "pyproject.toml"):
+        path = REPO_ROOT / rel_path
+        content = path.read_text(encoding="utf-8")
+        assert pattern.search(content) is None, f"{rel_path} contains runtime-specific terms"
+
+
+@pytest.mark.slow
 def test_shared_python_modules_do_not_hardcode_runtime_terms() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -437,6 +585,7 @@ def test_shared_python_modules_do_not_hardcode_runtime_terms() -> None:
     )
 
 
+@pytest.mark.slow
 def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -450,6 +599,7 @@ def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> N
     )
 
 
+@pytest.mark.slow
 def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -462,6 +612,21 @@ def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
         "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_allowed_runtime_adapter_files_follow_runtime_catalog() -> None:
+    adapter_modules = {
+        adapter.__class__.__module__.rsplit(".", 1)[-1]
+        for adapter in iter_adapters()
+    }
+    expected_files = {
+        f"src/gpd/adapters/{module}.py" for module in adapter_modules
+    } | {
+        "src/gpd/adapters/runtime_catalog.py",
+        "src/gpd/adapters/runtime_catalog.json",
+    }
+
+    assert set(_ALLOWED_RUNTIME_ADAPTER_FILES) == expected_files
 
 
 def test_shared_canonical_surfaces_do_not_reference_runtime_install_artifacts() -> None:
@@ -512,6 +677,55 @@ def test_shared_python_surfaces_do_not_hardcode_runtime_command_prefixes() -> No
         "Shared Python surfaces should stay canonical instead of hardcoding runtime command prefixes:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_shared_python_surfaces_do_not_hardcode_runtime_names_outside_boundaries() -> None:
+    leaks = _scan_paths_for_pattern((REPO_ROOT / "src/gpd",), re.compile(_RUNTIME_PATTERN))
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in leaks
+        if path.suffix == ".py"
+        and not path.as_posix().startswith("src/gpd/adapters/")
+        and not path.as_posix().startswith("src/gpd/hooks/")
+        and not _is_allowed_shared_python_runtime_file(path)
+    ]
+
+    assert leaks == [], (
+        "Shared Python surfaces should not hardcode runtime names outside adapter/runtime boundaries:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_runtime_name_hardcoding_allowlists_are_catalog_derived() -> None:
+    adapter_modules = {
+        adapter.__class__.__module__.rsplit(".", 1)[-1]
+        for adapter in iter_adapters()
+    }
+    expected_adapter_files = {
+        f"src/gpd/adapters/{module}.py" for module in adapter_modules
+    } | {
+        "src/gpd/adapters/runtime_catalog.py",
+        "src/gpd/adapters/runtime_catalog.json",
+    }
+    expected_runtime_owned_prefixes = {
+        *(f"{descriptor.config_dir_name}/" for descriptor in _RUNTIME_DESCRIPTORS),
+        *(f"{descriptor.global_config.home_subpath}/" for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.home_subpath),
+        "src/gpd/adapters/",
+    }
+
+    assert set(_ALLOWED_RUNTIME_ADAPTER_FILES) == expected_adapter_files
+    assert set(_RUNTIME_OWNED_PREFIXES) == expected_runtime_owned_prefixes
+    assert _ALLOWED_RUNTIME_FILES == {
+        "CITATION.cff",
+        ".gitignore",
+        "src/gpd/adapters/__init__.py",
+        "src/gpd/hooks/install_metadata.py",
+        "src/gpd/hooks/runtime_detect.py",
+    }
+    assert _ALLOWED_SHARED_PYTHON_RUNTIME_FILES == {
+        "src/gpd/hooks/install_metadata.py",
+        "src/gpd/hooks/runtime_detect.py",
+    }
 
 
 def test_shared_source_surfaces_do_not_hardcode_runtime_tool_alias_literals() -> None:
@@ -567,6 +781,19 @@ def test_shared_runtime_docs_do_not_rebuild_install_metadata_literals() -> None:
     )
 
 
+def test_non_runtime_docs_and_scripts_stay_runtime_agnostic() -> None:
+    leaks = _scan_paths_for_pattern(
+        _NON_RUNTIME_DOC_AND_SCRIPT_SURFACES,
+        re.compile(_RUNTIME_PATTERN),
+    )
+
+    assert leaks == [], (
+        "Non-runtime docs and scripts should stay runtime-agnostic:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+@pytest.mark.slow
 def test_shared_python_modules_keep_wolfram_integration_tokens_out_of_non_boundary_files() -> None:
     wolfram_pattern = re.compile(
         r"(gpd-wolfram|gpd-mcp-wolfram|GPD_WOLFRAM_MCP_API_KEY|GPD_WOLFRAM_MCP_ENDPOINT|WOLFRAM_MCP_SERVICE_API_KEY)"
@@ -612,6 +839,20 @@ def test_shared_core_runtime_surface_tests_do_not_hardcode_single_runtime_catalo
     )
 
 
+def test_shared_core_runtime_surface_tests_do_not_quote_runtime_literals() -> None:
+    pattern = _runtime_quoted_literal_pattern()
+    leaks: list[tuple[Path, int, str]] = []
+    for path in _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS:
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if pattern.search(line):
+                leaks.append((path, line_no, line))
+
+    assert leaks == [], (
+        "Shared core runtime-surface tests should derive runtime literals from the catalog:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
 def test_bootstrap_installer_does_not_hardcode_runtime_name_or_display_name_literals() -> None:
     bootstrap_path = REPO_ROOT / "tests/test_bootstrap_installer.py"
     runtime_literals = tuple(
@@ -645,7 +886,7 @@ def test_bootstrap_installer_does_not_hardcode_runtime_name_or_display_name_lite
 def test_shared_generic_tests_do_not_hardcode_provider_or_model_literals() -> None:
     leaks = _scan_paths_for_pattern(
         _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS,
-        _SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN,
+        _shared_generic_provider_model_literal_pattern(),
     )
 
     assert leaks == [], (
@@ -676,5 +917,85 @@ def test_user_facing_runtime_command_hints_use_runtime_placeholder() -> None:
 
     assert leaks == [], (
         "User-facing runtime command hints should use the canonical <runtime> placeholder:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_adapter_runtime_identity_comes_from_catalog_not_literals() -> None:
+    runtime_literals = "|".join(re.escape(descriptor.runtime_name) for descriptor in _RUNTIME_DESCRIPTORS)
+    literal_identity_pattern = re.compile(
+        rf'(return\s+["\'](?:{runtime_literals})["\']|runtime\s*=\s*["\'](?:{runtime_literals})["\'])'
+    )
+    leaks: list[tuple[Path, int, str]] = []
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        adapter_path = REPO_ROOT / "src" / "gpd" / "adapters" / f"{descriptor.adapter_module}.py"
+        for line_no, line in enumerate(adapter_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if literal_identity_pattern.search(line):
+                leaks.append((adapter_path, line_no, line))
+
+    assert leaks == [], (
+        "Runtime adapters should use catalog-derived runtime identity, not repeated literals:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_adapters_runtime_identity_calls_are_catalog_driven() -> None:
+    runtime_literals = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
+    literal_group = "|".join(re.escape(value) for value in runtime_literals)
+    identity_pattern = re.compile(
+        rf'get_global_dir\(["\'](?:{literal_group})["\']|replace_placeholders\([^)]*["\'](?:{literal_group})["\']'
+    )
+
+    leaks: list[tuple[Path, int, str]] = []
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        adapter_path = REPO_ROOT / "src" / "gpd" / "adapters" / f"{descriptor.adapter_module}.py"
+        for line_no, line in enumerate(adapter_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if identity_pattern.search(line):
+                leaks.append((adapter_path, line_no, line))
+
+    assert leaks == [], (
+        "Runtime adapters should derive runtime identity from the catalog in wiring calls:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+@pytest.mark.slow
+def test_runtime_catalog_json_is_only_read_at_adapter_and_hook_boundaries() -> None:
+    catalog_path_literal_pattern = re.compile(r"runtime_catalog(?:_schema)?\.json")
+    allowed_files = {
+        "bin/install.js",
+        "docs/runtime-catalog-reference.md",
+        "docs/schema-registry-ownership.md",
+        "package.json",
+        "pyproject.toml",
+        "scripts/render_runtime_catalog_table.py",
+        "scripts/schema_registry_sources.py",
+        "scripts/validate_runtime_catalog_schema.py",
+        "scripts/release_workflow.py",
+        "src/gpd/adapters/runtime_catalog.py",
+        "README.md",
+        "docs/README.md",
+        "docs/linux.md",
+        "docs/macos.md",
+        "docs/windows.md",
+        "tests/README.md",
+        "tests/test_readme_runtime_mentions.py",
+        "tests/adapters/test_runtime_catalog.py",
+        "tests/adapters/test_runtime_catalog_schema_contract.py",
+        "tests/test_runtime_abstraction_boundaries.py",
+        "tests/test_bootstrap_installer.py",
+        "tests/test_packaging_resource_manifests.py",
+        "tests/test_release_consistency.py",
+        "tests/test_runtime_catalog_bootstrap_contract.py",
+        "tests/test_schema_registry_ownership_note.py",
+    }
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in _git_grep(r"runtime_catalog(_schema)?\.json")
+        if path.as_posix() not in allowed_files and catalog_path_literal_pattern.search(snippet)
+    ]
+
+    assert leaks == [], (
+        "Runtime catalog file literals should stay behind adapter/schema validation test boundaries:\n"
         f"{_format_failures(leaks)}"
     )

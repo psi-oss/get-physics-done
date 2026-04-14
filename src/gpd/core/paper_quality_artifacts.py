@@ -17,7 +17,13 @@ from gpd.contracts import (
     parse_comparison_verdicts_data_strict,
     parse_contract_results_data_artifact,
 )
-from gpd.core.constants import STANDALONE_VALIDATION, VALIDATION_SUFFIX, ProjectLayout
+from gpd.core.constants import (
+    HOME_DATA_DIR_NAME,
+    PLANNING_DIR_NAME,
+    STANDALONE_VALIDATION,
+    VALIDATION_SUFFIX,
+    ProjectLayout,
+)
 from gpd.core.conventions import (
     check_assertions,
     convention_check,
@@ -170,7 +176,7 @@ def _load_bibliography_audit(path: Path | None) -> BibliographyAudit | None:
 
 
 def _load_convention_lock(project_root: Path) -> ConventionLock | None:
-    payload = _load_json(project_root / "GPD" / "state.json")
+    payload = _load_json(ProjectLayout(project_root).state_json)
     lock_data = payload.get("convention_lock")
     if not isinstance(lock_data, dict):
         return None
@@ -252,6 +258,29 @@ def _first_existing_path(*candidates: Path) -> Path | None:
     return None
 
 
+def _legacy_paper_config_roots(project_root: Path) -> tuple[Path, ...]:
+    return tuple(
+        ProjectLayout(project_root, gpd_dir=gpd_dir).gpd / "paper"
+        for gpd_dir in (PLANNING_DIR_NAME, HOME_DATA_DIR_NAME)
+    )
+
+
+def reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
+    """Reject paper configs under retired planning directories."""
+    resolved_config = config_file.resolve(strict=False)
+    project_root = (project_root or config_file.parent).resolve(strict=False)
+    for legacy_config_root in _legacy_paper_config_roots(project_root):
+        try:
+            resolved_config.relative_to(legacy_config_root)
+        except ValueError:
+            continue
+        planning_dir_name = legacy_config_root.parent.name
+        raise GPDError(
+            f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
+            "Move the config to `paper/`, `manuscript/`, or `draft/`."
+        )
+
+
 def _load_manuscript_config(manuscript_dir: Path) -> dict[str, object]:
     config_path = _first_existing_path(manuscript_dir / "PAPER-CONFIG.json")
     if config_path is None:
@@ -297,7 +326,7 @@ def _best_effort_manuscript_root(project_root: Path) -> Path | None:
 
 
 def _derivation_artifacts(project_root: Path) -> list[Path]:
-    gpd_root = project_root / "GPD"
+    gpd_root = ProjectLayout(project_root).gpd
     if not gpd_root.exists():
         return []
     return sorted(
@@ -447,11 +476,10 @@ def _collect_comparison_verdicts(
     verdicts_by_key: dict[tuple[str, str | None, str | None, str], ComparisonVerdict] = {}
     parse_errors: list[str] = []
     layout = ProjectLayout(project_root)
-    phase_root = project_root / "GPD" / "phases"
 
     candidate_roots = [
-        phase_root,
-        project_root / "GPD" / "comparisons",
+        layout.phases_dir,
+        layout.comparisons_dir,
     ]
     if manuscript_root is not None:
         candidate_roots.append(manuscript_root)
@@ -459,7 +487,7 @@ def _collect_comparison_verdicts(
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.md")):
-            if root == phase_root and not _is_contract_coverage_artifact(path, layout):
+            if root == layout.phases_dir and not _is_contract_coverage_artifact(path, layout):
                 continue
             meta = _extract_meta(path, parse_errors=parse_errors)
             for verdict in _parse_comparison_verdict_entries(meta.get("comparison_verdicts"), errors=parse_errors):
@@ -535,10 +563,10 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
     contract_results_alignment_ok = True
     frontmatter_parse_errors = False
 
-    phases_root = project_root / "GPD" / "phases"
+    layout = ProjectLayout(project_root)
+    phases_root = layout.phases_dir
     if not phases_root.exists():
         return _ContractCoverage()
-    layout = ProjectLayout(project_root)
 
     for path in sorted(phases_root.rglob("*.md")):
         if not _is_contract_coverage_artifact(path, layout):

@@ -14,11 +14,7 @@ allowed-tools:
 
 
 <objective>
-Perform a systematic dimensional analysis audit on every equation in a derivation, computation, or phase. Track dimensions through all algebraic steps, verify consistency, and flag any dimensional anomalies.
-
-Dimensional analysis is the cheapest and most powerful diagnostic in physics. It catches ~30% of errors at near-zero cost. This command applies it systematically rather than ad hoc.
-
-**Why a dedicated command:** Dimensional analysis is often done informally -- "looks right" -- but rigorous tracking through multi-step derivations catches errors that informal checks miss. A factor of hbar dropped on line 12 of a derivation propagates silently until the final answer is off by orders of magnitude.
+Audit dimensions across every equation in the target derivation, computation, or phase. Track algebraic steps, dimensionless function arguments, measures, delta functions, and restored units through the workflow.
 </objective>
 
 <context>
@@ -44,6 +40,7 @@ cat GPD/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Convent
 </execution_context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 **Pre-flight check:**
 ```bash
@@ -53,10 +50,6 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
-
-Follow the dimensional-analysis workflow: @{GPD_INSTALL_DIR}/workflows/dimensional-analysis.md
-
-**For comprehensive verification** (dimensional analysis + limiting cases + symmetries + convergence), use `gpd:verify-work`.
 </process>
 
 <success_criteria>

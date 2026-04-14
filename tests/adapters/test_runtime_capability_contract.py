@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,8 +14,10 @@ import gpd.hooks.runtime_detect as runtime_detect
 from gpd.adapters import get_adapter
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
     get_hook_payload_policy,
     get_runtime_capabilities,
+    get_runtime_descriptor,
     iter_runtime_descriptors,
 )
 from gpd.core.costs import build_cost_summary, record_usage_from_runtime_payload
@@ -22,6 +25,19 @@ from gpd.core.surface_phrases import cost_summary_surface_note
 from tests.doc_surface_contracts import assert_settings_local_terminal_follow_up_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+ADAPTER_ROOT = REPO_ROOT / "src/gpd/adapters"
+
+
+def _public_method_names(module_path: Path) -> set[str]:
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    public_methods: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or not node.name.endswith("Adapter"):
+            continue
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and not item.name.startswith("_"):
+                public_methods.add(item.name)
+    return public_methods
 
 
 def _ordered_unique(groups: list[tuple[str, ...]]) -> tuple[str, ...]:
@@ -68,6 +84,40 @@ def _telemetry_payload(runtime_name: str) -> dict[str, object]:
             cost_key: 0.42,
         },
     }
+
+
+def _adapter_aliases(descriptor: RuntimeDescriptor) -> tuple[str, ...]:
+    candidates = (
+        descriptor.runtime_name,
+        descriptor.display_name,
+        descriptor.install_flag,
+        *descriptor.selection_flags,
+        *descriptor.selection_aliases,
+    )
+    seen: set[str] = set()
+    aliases: list[str] = []
+    for alias in candidates:
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        aliases.append(alias)
+    return tuple(aliases)
+
+
+def test_runtime_adapters_expose_same_public_method_surface() -> None:
+    base_surface = _public_method_names(ADAPTER_ROOT / "base.py")
+    method_surfaces = {
+        descriptor.runtime_name: _public_method_names(ADAPTER_ROOT / f"{descriptor.adapter_module}.py")
+        for descriptor in iter_runtime_descriptors()
+    }
+    adapter_specific_hooks = {"finish_install"}
+    unexpected_public_methods = {
+        runtime_name: sorted(methods - base_surface)
+        for runtime_name, methods in method_surfaces.items()
+        if methods - base_surface - adapter_specific_hooks
+    }
+
+    assert unexpected_public_methods == {}
 
 
 def test_merged_hook_payload_policy_is_exact_ordered_union_of_runtime_contracts() -> None:
@@ -120,35 +170,24 @@ def test_runtime_hook_payload_attribution_fields_stay_explicitly_opt_in() -> Non
 
 def test_runtime_capability_matrix_locks_hook_surfacing_surfaces() -> None:
     descriptors = iter_runtime_descriptors()
-    capabilities_by_runtime = {
-        descriptor.runtime_name: descriptor.capabilities for descriptor in descriptors
-    }
 
-    explicit_statusline = {
-        runtime_name
-        for runtime_name, capabilities in capabilities_by_runtime.items()
-        if capabilities.statusline_surface == "explicit"
-    }
-    explicit_notify = {
-        runtime_name
-        for runtime_name, capabilities in capabilities_by_runtime.items()
-        if capabilities.notify_surface == "explicit"
-    }
+    for descriptor in descriptors:
+        capabilities = descriptor.capabilities
+        hook_payload = descriptor.hook_payload
 
-    assert explicit_statusline == {"claude-code", "gemini"}
-    assert explicit_notify == {"codex"}
-
-    for runtime_name, capabilities in capabilities_by_runtime.items():
-        if runtime_name in explicit_statusline:
-            assert capabilities.statusline_config_surface == "settings.json:statusLine"
+        if capabilities.statusline_surface == "explicit":
+            assert capabilities.statusline_config_surface != "none"
             assert capabilities.supports_context_meter is True
+            assert hook_payload.context_window_size_keys
+            assert hook_payload.context_remaining_keys
         else:
             assert capabilities.statusline_surface == "none"
             assert capabilities.statusline_config_surface == "none"
             assert capabilities.supports_context_meter is False
 
-        if runtime_name in explicit_notify:
-            assert capabilities.notify_config_surface == "config.toml:notify"
+        if capabilities.notify_surface == "explicit":
+            assert capabilities.notify_config_surface != "none"
+            assert hook_payload.notify_event_types
         else:
             assert capabilities.notify_surface == "none"
             assert capabilities.notify_config_surface == "none"
@@ -156,25 +195,17 @@ def test_runtime_capability_matrix_locks_hook_surfacing_surfaces() -> None:
 
 def test_runtime_capability_matrix_locks_telemetry_source_and_completeness() -> None:
     descriptors = iter_runtime_descriptors()
-    capabilities_by_runtime = {
-        descriptor.runtime_name: descriptor.capabilities for descriptor in descriptors
-    }
 
-    best_effort_telemetry = {
-        runtime_name
-        for runtime_name, capabilities in capabilities_by_runtime.items()
-        if capabilities.telemetry_completeness == "best-effort"
-    }
-
-    assert best_effort_telemetry == {"codex"}
-
-    for runtime_name, capabilities in capabilities_by_runtime.items():
-        policy = get_hook_payload_policy(runtime_name)
-        if runtime_name == "codex":
+    for descriptor in descriptors:
+        capabilities = descriptor.capabilities
+        policy = get_hook_payload_policy(descriptor.runtime_name)
+        if capabilities.telemetry_completeness == "best-effort":
             assert capabilities.telemetry_source == "notify-hook"
-            assert capabilities.telemetry_completeness == "best-effort"
             assert capabilities.supports_usage_tokens is True
             assert capabilities.supports_cost_usd is True
+            assert policy.usage_keys
+            assert policy.input_tokens_keys
+            assert policy.output_tokens_keys
         else:
             assert capabilities.telemetry_source == "none"
             assert capabilities.telemetry_completeness == "none"
@@ -218,6 +249,19 @@ def test_runtime_capability_contract_matches_adapter_permission_surface(runtime_
         assert "launch_command" in status
     else:
         assert status["configured_mode"] == "unsupported"
+
+
+@pytest.mark.parametrize(
+    "runtime_name",
+    [descriptor.runtime_name for descriptor in iter_runtime_descriptors()],
+)
+def test_runtime_catalog_adapter_aliases(runtime_name: str) -> None:
+    descriptor = get_runtime_descriptor(runtime_name)
+    for alias in _adapter_aliases(descriptor):
+        adapter = get_adapter(alias)
+        assert adapter.runtime_name == descriptor.runtime_name
+        assert adapter.display_name == descriptor.display_name
+        assert adapter.__class__.__module__ == f"gpd.adapters.{descriptor.adapter_module}"
 
 
 @pytest.mark.parametrize(
@@ -336,3 +380,25 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
         assert "relaunch-required" in readme
         assert_settings_local_terminal_follow_up_contract(settings_workflow)
         assert "requires_relaunch" in settings_workflow
+
+@pytest.mark.parametrize(
+    ("line", "index", "expected"),
+    [
+        ("gpd plan", 0, True),
+        ("  gpd plan", 2, True),
+        ("uv run gpd plan", 7, False),
+        ("gpd-plan", 0, False),
+        ("mygpd plan", 2, False),
+        ("echo ok && gpd plan", 11, True),
+        ("echo ok || gpd plan", 11, True),
+        ("$(gpd plan)", 2, True),
+        ("echo|gpd plan", 5, True),
+        ("(gpd plan)", 1, True),
+    ],
+)
+def test_gpd_command_token_helpers_detect_only_shell_command_positions(
+    line: str, index: int, expected: bool
+) -> None:
+    from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
+
+    assert (is_gpd_command_start(line, index) and is_gpd_token_end(line, index + 3)) is expected

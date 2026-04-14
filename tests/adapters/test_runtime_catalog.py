@@ -6,23 +6,30 @@ import json
 import re
 from copy import deepcopy
 from dataclasses import fields, replace
+from importlib import import_module
 from pathlib import Path
 
 import pytest
 
+import gpd.adapters as adapters
 import gpd.adapters.runtime_catalog as runtime_catalog
+from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.runtime_catalog import (
     get_hook_payload_policy,
     get_managed_install_surface_policy,
     get_runtime_capabilities,
     get_runtime_descriptor,
+    get_runtime_descriptor_for_adapter_module,
     get_runtime_help_example_runtime,
     get_shared_install_metadata,
     iter_runtime_descriptors,
     list_runtime_names,
     normalize_runtime_name,
     resolve_global_config_dir,
+    resolve_global_config_dir_candidates,
 )
+from gpd.command_labels import runtime_public_command_prefixes, validated_public_command_prefix
+from scripts.validate_runtime_catalog_schema import validate_runtime_catalog_schema
 
 _RUNTIME_CATALOG_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.json"
 _RUNTIME_CATALOG_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog_schema.json"
@@ -84,8 +91,6 @@ def _iter_runtime_descriptors_from_schema(
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES", schema_shape["install_help_example_scopes"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_ENUMS", schema_shape["capability_enums"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_KEYS", schema_shape["global_config_keys"])
-    monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
-    monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_KEYS", schema_shape["hook_payload_keys"])
     monkeypatch.setattr(
         runtime_catalog,
         "_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS",
@@ -111,6 +116,109 @@ def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(m
     assert resolved == Path("/tmp/home/.codex")
 
 
+def test_get_runtime_descriptor_accepts_catalog_aliases() -> None:
+    descriptor = get_runtime_descriptor("  --CODEX-CLI  ")
+
+    assert descriptor.runtime_name == "codex"
+
+
+def test_runtime_catalog_rejects_duplicate_json_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text('[{"runtime_name":"codex","runtime_name":"codex-duplicate"}]', encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime_catalog.json contains duplicate JSON key: runtime_name"):
+            runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
+
+
+def test_runtime_catalog_rejects_duplicate_nested_json_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    entry = json.dumps(original[0], indent=2)
+    marker = '"capabilities": {\n    "permissions_surface": "config-file",'
+    assert marker in entry
+    modified_entry = entry.replace(
+        marker,
+        '"capabilities": {\n    "permissions_surface": "config-file",\n    "permissions_surface": "config-file",',
+        1,
+    )
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(f"[{modified_entry}]\n", encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime_catalog.json contains duplicate JSON key: permissions_surface"):
+            runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
+
+
+def test_runtime_catalog_loader_validates_schema_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(
+        json.dumps({"schema_version": 1, "top_level_keys": ["schema_version", "top_level_keys"], "unexpected": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+    runtime_catalog._load_catalog.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime catalog schema contains unknown key"):
+            runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+        runtime_catalog._load_catalog.cache_clear()
+
+
+def test_runtime_catalog_schema_requires_top_level_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime catalog schema.top_level_keys must be a list of strings"):
+            runtime_catalog._load_runtime_catalog_schema_shape()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+
+def test_runtime_catalog_rejects_unknown_nested_capability_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"]["extra_permission_flag"] = "noop"
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.capabilities contains unknown key\(s\): extra_permission_flag",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_missing_nested_capability_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    del payload[0]["capabilities"]["supports_prompt_free_mode"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.capabilities is missing required key\(s\): supports_prompt_free_mode",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monkeypatch) -> None:
     monkeypatch.setenv("OPENCODE_CONFIG_DIR", "/tmp/process-opencode-config")
     monkeypatch.setenv("OPENCODE_CONFIG", "/tmp/process-opencode/opencode.json")
@@ -125,10 +233,65 @@ def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monke
     assert resolved == Path("/tmp/home/.config/opencode")
 
 
+def test_resolve_global_config_dir_xdg_app_prefers_provided_environ(monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/real-xdg")
+    override = "/tmp/explicit-xdg"
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=Path("/tmp/home"),
+        environ={"XDG_CONFIG_HOME": override},
+    )
+
+    assert resolved == Path(override) / "opencode"
+
+
+def test_resolve_global_config_dir_candidates_includes_env_and_home_locations() -> None:
+    home = Path("/tmp/home")
+    override = Path("/tmp/explicit-codex")
+
+    candidates = resolve_global_config_dir_candidates(
+        get_runtime_descriptor("codex"),
+        home=home,
+        environ={"CODEX_CONFIG_DIR": str(override)},
+    )
+
+    assert candidates == (override, home / ".codex")
+
+
+def test_resolve_global_config_dir_candidates_deduplicates_matching_locations() -> None:
+    home = Path("/tmp/home")
+    override = home / ".codex"
+
+    candidates = resolve_global_config_dir_candidates(
+        get_runtime_descriptor("codex"),
+        home=home,
+        environ={"CODEX_CONFIG_DIR": str(override)},
+    )
+
+    assert candidates == (override,)
+
+
+def test_resolve_global_config_dir_rejects_unknown_strategy() -> None:
+    descriptor = replace(
+        get_runtime_descriptor("codex"),
+        global_config=runtime_catalog.GlobalConfigPolicy(strategy="my-strategy"),
+    )
+
+    with pytest.raises(ValueError, match="Unsupported global config strategy: my-strategy"):
+        resolve_global_config_dir(descriptor, home=Path("/tmp/home"), environ={})
+
+
 def test_runtime_catalog_explicit_priority_order() -> None:
     descriptors = iter_runtime_descriptors()
     assert [descriptor.runtime_name for descriptor in descriptors] == list_runtime_names()
     assert [descriptor.priority for descriptor in descriptors] == sorted(descriptor.priority for descriptor in descriptors)
+
+
+def test_runtime_descriptor_resolves_from_adapter_module() -> None:
+    for descriptor in iter_runtime_descriptors():
+        assert get_runtime_descriptor_for_adapter_module(f"gpd.adapters.{descriptor.adapter_module}") == descriptor
+        assert get_runtime_descriptor_for_adapter_module(descriptor.adapter_module) == descriptor
 
 
 def test_runtime_catalog_priority_order_is_intentional() -> None:
@@ -151,6 +314,37 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     }
     assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
+    assert set(schema["managed_install_surfaces"]) == {"nested_commands", "flat_commands", "external_commands"}
+
+
+def test_runtime_catalog_hook_payload_parser_fields_align_with_schema_and_dataclass() -> None:
+    assert runtime_catalog._RUNTIME_HOOK_PAYLOAD_KEYS == frozenset(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES)
+    assert set(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES) == {
+        field.name for field in fields(runtime_catalog.HookPayloadPolicy)
+    }
+
+
+def test_runtime_catalog_capability_parser_fields_align_with_schema_and_dataclass() -> None:
+    assert runtime_catalog._RUNTIME_CAPABILITY_KEYS == frozenset(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES)
+    assert set(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES) == {
+        field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)
+    }
+
+
+def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries() -> None:
+    validate_runtime_catalog_schema()
+
+
+def test_validate_runtime_catalog_schema_surfaces_loader_errors(monkeypatch) -> None:
+    message = "runtime catalog schema clarity lost"
+
+    def failing_loader():
+        raise ValueError(message)
+
+    monkeypatch.setattr(runtime_catalog, "iter_runtime_descriptors", failing_loader)
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        validate_runtime_catalog_schema()
 
 
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
@@ -162,6 +356,7 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
         descriptor = get_runtime_descriptor(runtime_name)
         for field_name in (
             "display_name",
+            "adapter_module",
             "install_flag",
             "selection_flags",
             "selection_aliases",
@@ -174,8 +369,8 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
             assert getattr(descriptor, field_name) == expected_value
 
         assert descriptor.runtime_name in descriptor.selection_aliases
-        assert descriptor.install_flag in descriptor.selection_flags
-        assert descriptor.public_command_surface_prefix == descriptor.command_prefix
+        assert descriptor.adapter_module
+        assert descriptor.install_flag not in descriptor.selection_flags
         assert normalize_runtime_name(runtime_name) == runtime_name
         assert normalize_runtime_name(descriptor.display_name) == runtime_name
         assert normalize_runtime_name(descriptor.install_flag) == runtime_name
@@ -183,6 +378,70 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
             assert normalize_runtime_name(selection_flag) == runtime_name
         for selection_alias in descriptor.selection_aliases:
             assert normalize_runtime_name(selection_alias) == runtime_name
+
+
+def test_runtime_catalog_and_adapter_registry_have_no_orphans() -> None:
+    descriptor_names = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
+    adapter_names = tuple(adapter.runtime_name for adapter in adapters.iter_adapters())
+
+    assert adapter_names == descriptor_names
+    assert adapters.list_runtimes() == list(descriptor_names)
+    assert list_runtime_names() == list(descriptor_names)
+
+
+def test_runtime_catalog_adapter_instances_mirror_descriptor_identity_fields() -> None:
+    for descriptor in iter_runtime_descriptors():
+        adapter = adapters.get_adapter(descriptor.runtime_name)
+
+        assert adapter.runtime_name == descriptor.runtime_name
+        assert adapter.display_name == descriptor.display_name
+        assert adapter.command_prefix == descriptor.command_prefix
+
+
+def test_runtime_catalog_descriptors_import_adapter_modules() -> None:
+    for descriptor in iter_runtime_descriptors():
+        module_path = f"gpd.adapters.{descriptor.adapter_module}"
+        module = import_module(module_path)
+        adapter_classes = [
+            value
+            for value in vars(module).values()
+            if isinstance(value, type) and issubclass(value, RuntimeAdapter) and value is not RuntimeAdapter
+        ]
+        assert adapter_classes, f"{module_path} must expose a RuntimeAdapter subclass"
+        assert any(
+            adapter_class().runtime_name == descriptor.runtime_name
+            for adapter_class in adapter_classes
+        ), "RuntimeAdapter must advertise the matching runtime_name"
+
+
+def test_runtime_public_command_prefixes_are_descriptor_owned_and_deterministic() -> None:
+    expected_prefixes = []
+    seen: set[str] = set()
+    for descriptor in iter_runtime_descriptors():
+        prefix = validated_public_command_prefix(descriptor)
+        if prefix not in seen:
+            seen.add(prefix)
+            expected_prefixes.append(prefix)
+    expected_prefixes.sort(key=len, reverse=True)
+
+    assert runtime_public_command_prefixes() == tuple(expected_prefixes)
+
+
+def test_runtime_catalog_rejects_descriptor_public_prefix_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["command_prefix"] = "/gpd"
+    codex["validated_command_surface"] = "public_runtime_slash_command"
+    codex["public_command_surface_prefix"] = "$public-"
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 2\.public_command_surface_prefix must match command_prefix",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_runtime_catalog_records_native_include_support() -> None:
@@ -235,6 +494,20 @@ def test_runtime_catalog_rejects_duplicate_local_install_help_example_scope(
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+def test_runtime_catalog_rejects_duplicate_priorities(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    _catalog_entry_by_runtime_name(payload, "codex")["priority"] = 20
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog contains duplicate priority 20 for 'codex' and 'gemini'",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_declares_one_explicit_installer_help_example_per_scope() -> None:
     examples = [descriptor.runtime_name for descriptor in iter_runtime_descriptors() if descriptor.installer_help_example_scope]
 
@@ -265,6 +538,8 @@ def test_normalize_runtime_name_is_centralized_in_runtime_catalog() -> None:
     assert normalize_runtime_name("--gemini-cli") == "gemini"
     assert normalize_runtime_name("--codex") == "codex"
     assert normalize_runtime_name("--opencode") == "opencode"
+    assert normalize_runtime_name("codex-cli") == "codex"
+    assert normalize_runtime_name("gemini-cli") == "gemini"
     assert normalize_runtime_name("not-a-runtime") is None
 
 
@@ -287,11 +562,68 @@ def test_normalize_runtime_name_accepts_install_flags_outside_selection_flags(
         runtime_catalog._load_catalog.cache_clear()
 
 
-def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:
+def test_normalize_runtime_name_rejects_internal_adapter_module_variants() -> None:
+    descriptor = get_runtime_descriptor("claude-code")
+
+    assert normalize_runtime_name(descriptor.adapter_module) is None
+    assert normalize_runtime_name("claude_code") is None
+    assert normalize_runtime_name("gpd.adapters.claude_code") is None
+    assert normalize_runtime_name("gpd.adapters.claude-code") is None
+    assert normalize_runtime_name("--gemini_cli") is None
+
+
+def test_get_runtime_descriptor_rejects_internal_adapter_module_selectors() -> None:
+    descriptor = get_runtime_descriptor("claude-code")
+
+    with pytest.raises(KeyError, match=r"Unknown runtime 'claude_code'"):
+        get_runtime_descriptor(descriptor.adapter_module)
+    with pytest.raises(KeyError, match=r"Unknown runtime 'gpd\.adapters\.claude_code'"):
+        get_runtime_descriptor(f"gpd.adapters.{descriptor.adapter_module}")
+    with pytest.raises(KeyError, match=r"Unknown runtime 'gpd\.adapters\.codex'"):
+        get_runtime_descriptor("gpd.adapters.codex")
+
+
+def test_runtime_catalog_selector_variants_have_single_owner() -> None:
+    owners: dict[str, str] = {}
+    collisions: list[tuple[str, str, str]] = []
+    for descriptor in iter_runtime_descriptors():
+        selectors = (
+            descriptor.runtime_name,
+            descriptor.display_name,
+            descriptor.install_flag,
+            descriptor.adapter_module,
+            *descriptor.selection_flags,
+            *descriptor.selection_aliases,
+        )
+        for selector in selectors:
+            variants = {selector.strip().casefold()}
+            if variants == {""}:
+                continue
+            if selector.startswith("--"):
+                token = selector.removeprefix("--").strip().casefold()
+                variants.update({f"--{token.replace('_', '-')}", f"--{token.replace('-', '_')}"})
+            if " " in selector:
+                variants.update({variant.replace(" ", "-") for variant in tuple(variants)})
+            for variant in variants:
+                existing = owners.setdefault(variant, descriptor.runtime_name)
+                if existing != descriptor.runtime_name:
+                    collisions.append((variant, existing, descriptor.runtime_name))
+                normalized = normalize_runtime_name(variant)
+                if normalized is not None:
+                    assert normalized == descriptor.runtime_name
+
+    assert collisions == []
+
+
+def test_managed_install_surface_policy_uses_explicit_runtime_metadata() -> None:
     claude_policy = get_managed_install_surface_policy("claude-code")
     opencode_policy = get_managed_install_surface_policy("opencode")
     codex_policy = get_managed_install_surface_policy("codex")
     merged_policy = get_managed_install_surface_policy()
+
+    assert get_runtime_descriptor("claude-code").managed_install_surface == "nested_commands"
+    assert get_runtime_descriptor("codex").managed_install_surface == "external_commands"
+    assert get_runtime_descriptor("opencode").managed_install_surface == "flat_commands"
 
     assert claude_policy.gpd_content_globs == ("get-physics-done/**/*",)
     assert claude_policy.nested_command_globs == ("commands/gpd/**/*",)
@@ -342,6 +674,81 @@ def test_runtime_catalog_rejects_schema_drift_against_fixed_schema(
         _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda schema: schema.__setitem__("legacy_schema_key", []),
+            r"runtime catalog schema contains unknown key\(s\): legacy_schema_key",
+        ),
+        (
+            lambda schema: schema.__setitem__("schema_version", 2),
+            r"Unsupported runtime catalog schema_version: 2",
+        ),
+        (
+            lambda schema: schema.__setitem__("capability_keys", [*schema["capability_keys"], "permissions_surface"]),
+            r"runtime catalog schema\.capability_keys must not contain duplicate values",
+        ),
+        (
+            lambda schema: schema["global_config_keys"].__setitem__("", ["strategy"]),
+            r"runtime catalog schema\.global_config_keys keys must be non-empty strings",
+        ),
+        (
+            lambda schema: schema["capability_enums"].__setitem__("", ["none"]),
+            r"runtime catalog schema\.capability_enums keys must be non-empty strings",
+        ),
+        (
+            lambda schema: schema["capability_keys"].pop(),
+            r"runtime catalog schema\.capability_keys must match the RuntimeCapabilityPolicy field names",
+        ),
+        (
+            lambda schema: schema["capability_required_keys"].pop(),
+            r"runtime catalog schema\.capability_required_keys must match capability_keys",
+        ),
+        (
+            lambda schema: schema["hook_payload_keys"].pop(),
+            r"runtime catalog schema\.hook_payload_keys must match the HookPayloadPolicy field names",
+        ),
+        (
+            lambda schema: schema["hook_payload_required_keys"].pop(),
+            r"runtime catalog schema\.hook_payload_required_keys must match hook_payload_keys",
+        ),
+    ],
+)
+def test_runtime_catalog_schema_loader_rejects_schema_contract_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutator,
+    match: str,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    mutator(schema)
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(json.dumps(schema), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match=match):
+            runtime_catalog._load_runtime_catalog_schema_shape()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+
+def test_runtime_catalog_schema_validator_exercises_catalog_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def fake_iter_runtime_descriptors():
+        calls.append("loaded")
+        return ()
+
+    monkeypatch.setattr(runtime_catalog, "iter_runtime_descriptors", fake_iter_runtime_descriptors)
+
+    validate_runtime_catalog_schema()
+
+    assert calls == ["loaded"]
+
+
 def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["selection_aliases"] = [payload[0]["selection_aliases"][0], " "]
@@ -364,16 +771,29 @@ def test_runtime_catalog_rejects_non_boolean_native_include_support(
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
-def test_runtime_catalog_accepts_future_validated_command_surface(
+def test_runtime_catalog_rejects_validated_command_surface_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["validated_command_surface"] = "public_runtime_semicolon_command"
 
-    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    with pytest.raises(ValueError, match=r"validated_command_surface must be 'public_runtime_slash_command'"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
-    assert descriptors[0].validated_command_surface == "public_runtime_semicolon_command"
+
+def test_runtime_catalog_rejects_selection_flags_that_repeat_install_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_flags"] = [payload[0]["install_flag"]]
+
+    with pytest.raises(
+        ValueError,
+        match=r"(selection_flags must not repeat install_flag|duplicates normalized runtime selection token)",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_runtime_catalog_rejects_invalid_delegation_capability_values(
@@ -461,6 +881,49 @@ def test_runtime_catalog_rejects_duplicate_install_flag(tmp_path: Path, monkeypa
     payload[1]["install_flag"] = payload[0]["install_flag"]
 
     with pytest.raises(ValueError, match=r"runtime catalog contains duplicate install_flag"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_normalized_selection_flag_duplicates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_flags"] = ["--claude-code", "--claude_code"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_flags\[1\] duplicates normalized runtime selection token",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_normalized_selection_alias_duplicates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_aliases"] = [*payload[0]["selection_aliases"], "Claude-Code"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_aliases\[3\] duplicates normalized runtime selection token",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_normalized_install_flag_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["install_flag"] = "--CLAUDE"
+    payload[0]["selection_flags"] = ["--claude"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_flags\[0\] duplicates normalized runtime selection token",
+    ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 

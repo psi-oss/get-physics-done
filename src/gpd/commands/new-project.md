@@ -13,9 +13,9 @@ allowed-tools:
 
 <context>
 **Flags:**
-- `--auto` — Automatic mode. Synthesizes a scoping contract from the supplied document, asks for one explicit scope approval, then runs research → requirements → roadmap with minimal follow-up interaction. Expects a research proposal document via @ reference.
-- `--minimal` — Fast staged-init mode. Uses one structured intake plus one scoping approval gate, then hands the roadmap and conventions to the staged post-scope agents with lean content. Scope, anchors, and decisive outputs are still required.
-- `--minimal @file.md` — Create project directly from a markdown file describing your research and staged continuation path. Parses research question, anchors, and key work chunks from the file.
+- `--auto` — Automatic mode: synthesize a scoping contract from one document, ask for a single scope approval, then run research → requirements → roadmap with minimal back-and-forth. Requires a research proposal markdown via `@`.
+- `--minimal` — Fast staged-init: one structured intake, one scoping approval gate, then hand the roadmap and conventions over to the post-scope agents with lean content. Decisive scope, anchors, and outputs are still required.
+- `--minimal @file.md` — Build the project directly from the supplied markdown description, parsing the research question, anchors, and the continuation plan inside.
 </context>
 
 <objective>
@@ -41,30 +41,13 @@ If no project config exists yet, start with physics questioning, surface a prese
 </execution_context>
 
 <process>
-**CRITICAL: First, read the full workflow file using the file_read tool:**
-Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly.
+Follow the workflow file exactly before proceeding.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
-After that, load late-stage authorities only when the workflow reaches the matching stage:
-- Read {GPD_INSTALL_DIR}/references/research/questioning.md only when entering the full questioning path.
-- Read {GPD_INSTALL_DIR}/templates/project-contract-schema.md and {GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md only when preparing the approval gate and validating the raw scoping contract.
-- Read {GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md only when authoring or repairing the scoping contract.
-- Read {GPD_INSTALL_DIR}/templates/project.md only when writing `GPD/PROJECT.md`.
-- Read {GPD_INSTALL_DIR}/templates/requirements.md only when writing `GPD/REQUIREMENTS.md`.
-- Read {GPD_INSTALL_DIR}/references/ui/ui-brand.md only when rendering branded completion or status blocks.
+**Scoping contract visibility:** Before drafting or repairing the scoping contract, let the workflow own the `project-contract-schema.md` and `project-contract-grounding-linkage.md` details. Preserve decisive outputs, anchors, and roadmap generation inputs, and require one explicit scope approval before downstream generation.
 
-Execute the workflow end-to-end. Preserve all workflow gates (validation, approvals, routing).
+**Next-step prompt:** After roadmap creation, ask exactly: "Discuss phase 1 now?"
 
-## Flag Detection
-
-Check `$ARGUMENTS` for flags:
-
-- **`--auto`** → Structured synthesis + scope approval
-- **`--minimal`** → Fast staged-init with scope approval
-- **`--minimal @file.md`** → Minimal mode with input file
-
-**If `--minimal` detected:** After Setup, route to the **minimal staged initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and then hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context.
-
-**If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
 </process>
 
 <output>
@@ -83,36 +66,3 @@ Check `$ARGUMENTS` for flags:
 - `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
-
-<success_criteria>
-
-**Full mode success criteria:**
-- [ ] `GPD/` exists and the repo is initialized
-- [ ] Deep questioning captured the research context
-- [ ] Scoping contract captures decisive outputs, anchors, weakest assumptions, and unresolved gaps
-- [ ] Scoping contract is explicitly approved before requirements or roadmap generation
-- [ ] `PROJECT.md` created and committed
-- [ ] `config.json` created and committed
-- [ ] Literature survey completed if selected and committed
-- [ ] `REQUIREMENTS.md` created with REQ-IDs and committed
-- [ ] `ROADMAP.md` created with phases and requirement mappings and committed
-- [ ] `STATE.md` initialized
-- [ ] `CONVENTIONS.md` created via `gpd-notation-coordinator` and committed
-- [ ] Convention lock populated via `gpd convention set`
-- [ ] User told the next step is `gpd:discuss-phase 1`
-
-**Minimal mode success criteria (if `--minimal`):**
-
-- [ ] `GPD/` created and the repo initialized
-- [ ] Structured intake captured the core question, decisive outputs, anchors, and known gaps
-- [ ] Scoping contract approved before requirements or roadmap generation
-- [ ] `PROJECT.md` created from one description or input file and committed
-- [ ] `ROADMAP.md` created from the input and committed
-- [ ] `REQUIREMENTS.md` created with auto-generated REQ-IDs and committed
-- [ ] `STATE.md` initialized and committed
-- [ ] `config.json` created with defaults and committed
-- [ ] All files committed in one commit: `docs: initialize research project (minimal)`
-- [ ] Same directory structure and file set as full path
-- [ ] User offered "Discuss phase 1 now?"
-
-</success_criteria>

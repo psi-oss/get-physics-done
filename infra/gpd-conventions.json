@@ -1,12 +1,11 @@
 {
   "name": "gpd-conventions",
   "description": "GPD convention lock management. Tools for querying, setting, validating, and comparing physics conventions across research phases, including ASSERT_CONVENTION validation. Every derivation artifact must carry at least one ASSERT_CONVENTION header that matches the project convention lock.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-conventions",
   "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "capabilities": [
     "convention_lock_status",
     "convention_set",

@@ -30,6 +30,8 @@ Normalize phase input before any directory lookups.
 
 <process>
 Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Do not duplicate init, spawn, or return routing here.
 Research depth follows the workflow-owned `research_mode`.
 </process>

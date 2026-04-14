@@ -7,6 +7,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 
 
 def _read(path: Path) -> str:
@@ -23,6 +24,27 @@ def test_planner_template_routes_on_typed_gpd_return_status_not_heading_markers(
     assert "gpd_return.status: blocked" in prompt
     assert "gpd_return.status: failed" in prompt
     assert "gpd_return.files_written" in prompt
+
+
+def test_plan_phase_command_requires_contract_rules_before_planner_output() -> None:
+    command = _read(COMMANDS_DIR / "plan-phase.md")
+    workflow = _read(WORKFLOWS_DIR / "plan-phase.md")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/plan-phase.md" in command
+    assert "model-visible PLAN contract schema-critical excerpt" in workflow
+    assert "not merely a path reference" in workflow
+    assert "enforced later" not in command
+    assert "enforced later" not in workflow
+
+
+def test_planner_template_keeps_schema_critical_excerpt_model_visible() -> None:
+    prompt = _read(TEMPLATES_DIR / "planner-subagent-prompt.md")
+
+    assert "the schema-critical PLAN contract excerpt below is model-visible and binding before output" in prompt
+    assert "**PLAN contract schema-critical excerpt:**" in prompt
+    assert "`schema_version: 1`" in prompt
+    assert "object-valued `scope`, `context_intake`, and `uncertainty_markers`" in prompt
+    assert "Proof-bearing claims must use explicit non-`other` `claim_kind`" in prompt
 
 
 def test_plan_phase_uses_structured_status_and_artifact_gating_for_research_and_planner_returns() -> None:

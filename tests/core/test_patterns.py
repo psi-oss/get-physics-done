@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gpd.core.constants import HOME_DATA_DIR_NAME
+from gpd.core.constants import HOME_DATA_DIR_NAME, PATTERNS_DIR_NAME
 from gpd.core.errors import PatternError
 from gpd.core.patterns import (
     _BOOTSTRAP_PATTERNS,
@@ -74,6 +74,24 @@ class TestPatternsRootResolution:
 
         assert patterns_root() == data_dir / "learned-patterns"
 
+    def test_expands_user_in_patterns_root_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("GPD_PATTERNS_ROOT", "~/custom-patterns")
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+
+        assert patterns_root() == fake_home / "custom-patterns"
+
+    def test_expands_user_in_data_dir_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.setenv("GPD_DATA_DIR", "~/pattern-data")
+
+        assert patterns_root() == fake_home / "pattern-data" / PATTERNS_DIR_NAME
+
     def test_defaults_to_home_gpd_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         fake_home = tmp_path / "home"
         fake_home.mkdir()
@@ -88,6 +106,26 @@ class TestPatternsRootResolution:
         monkeypatch.delenv("GPD_DATA_DIR", raising=False)
 
         assert patterns_root(specs_root=tmp_path / "project") == tmp_path / "project" / "learned-patterns"
+
+    def test_default_init_writes_home_cache(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+        legacy_root = fake_home / "GPD" / PATTERNS_DIR_NAME
+        legacy_root.mkdir(parents=True)
+        legacy_marker = legacy_root / "legacy.txt"
+        legacy_marker.write_text("legacy")
+
+        result_root = pattern_init()
+        expected_root = fake_home / HOME_DATA_DIR_NAME / PATTERNS_DIR_NAME
+
+        assert result_root == expected_root
+        assert (expected_root / "index.json").exists()
+        assert legacy_marker.exists()
+        assert not (legacy_root / "index.json").exists()
 
 
 # ─── pattern_init / ensure_library ───────────────────────────────────────────

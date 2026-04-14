@@ -34,7 +34,8 @@ Recommend runtime defaults when the user is unsure.
 </execution_context>
 
 <process>
-1. Read and follow `@{GPD_INSTALL_DIR}/workflows/set-tier-models.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 2. Keep the flow limited to the active runtime's concrete tier model mapping.
 3. Preserve runtime-native model string syntax exactly; do not normalize provider-specific ids.
 4. Keep the distinction explicit:

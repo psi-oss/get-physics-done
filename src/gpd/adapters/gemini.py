@@ -37,7 +37,6 @@ from gpd.adapters.install_utils import (
     remove_empty_json_object_file,
     remove_stale_agents,
     render_markdown_frontmatter,
-    should_preserve_public_local_cli_command,
     split_markdown_frontmatter,
     strip_sub_tags,
     verify_installed,
@@ -47,6 +46,11 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
+from gpd.adapters.install_utils import (
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
+)
+from gpd.adapters.runtime_catalog import RuntimeDescriptor
+from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -88,7 +92,7 @@ _TOOL_NAME_MAP: dict[str, str] = {
     "tool_search": "tool_search",
 }
 _TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
-_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
+_AUTO_DISCOVERED_TOOLS = AUTO_DISCOVERED_TOOL_DEFAULTS
 _DROP_MCP_FRONTMATTER_TOOLS = True
 _TOOL_REFERENCE_MAP = reference_translation_map(
     _TOOL_NAME_MAP,
@@ -100,15 +104,26 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
 _GEMINI_POLICY_DIR_NAME = "policies"
 _GEMINI_POLICY_FILE_NAME = "gpd-auto-edit.toml"
 _GEMINI_RUNTIME_BIN_DIR_NAME = "bin"
-_GEMINI_YOLO_WRAPPER_NAME = "gemini-gpd-yolo"
+
+
+def _gemini_prompt_free_mode_value(descriptor: RuntimeDescriptor) -> str:
+    return descriptor.capabilities.prompt_free_mode_value or "yolo"
+
+
+def _gemini_permission_surface(descriptor: RuntimeDescriptor) -> str:
+    return descriptor.capabilities.permissions_surface or "launch-wrapper"
+
+
+def _gemini_prompt_free_wrapper_name(descriptor: RuntimeDescriptor) -> str:
+    return f"{descriptor.runtime_name}-gpd-{_gemini_prompt_free_mode_value(descriptor)}"
+
 _GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
     "mkdir -p GPD",
-    "mkdir -p GPD/research",
+    "mkdir -p GPD/literature",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
     "Gemini shell compatibility:\n"
@@ -285,110 +300,6 @@ def _project_managed_mcp_servers(
     return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
 
 
-def _managed_mcp_server_keys() -> frozenset[str]:
-    """Return GPD-managed Gemini MCP server keys, including optional integrations."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(_managed_integrations.managed_optional_mcp_server_keys()))
-
-
-def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
-    """Rewrite shell-command ``gpd`` calls to the shared runtime CLI bridge.
-
-    Restrict rewrites to fenced shell code blocks and command positions only.
-    This keeps prose and inline code spans canonical while still rewriting
-    runnable shell steps.
-    """
-    rewritten: list[str] = []
-    in_shell_fence = False
-
-    for line in content.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
-            rewritten.append(line)
-            continue
-
-        if in_shell_fence:
-            rewritten.append(_rewrite_gemini_shell_line(line, bridge_command))
-            continue
-
-        rewritten.append(line)
-
-    return "".join(rewritten)
-
-
-def _rewrite_gemini_shell_line(line: str, bridge_command: str) -> str:
-    """Rewrite only command-position ``gpd`` tokens on a shell line."""
-    pieces: list[str] = []
-    index = 0
-    in_single = False
-    in_double = False
-
-    while index < len(line):
-        char = line[index]
-        previous = line[index - 1] if index > 0 else ""
-
-        if char == "'" and not in_double:
-            in_single = not in_single
-            pieces.append(char)
-            index += 1
-            continue
-
-        if char == '"' and not in_single and previous != "\\":
-            in_double = not in_double
-            pieces.append(char)
-            index += 1
-            continue
-
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and _is_gpd_command_start(line, index)
-            and _is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
-                index += 3
-                continue
-            pieces.append(bridge_command)
-            index += 3
-            continue
-
-        pieces.append(char)
-        index += 1
-
-    return "".join(pieces)
-
-
-def _is_gpd_command_start(line: str, index: int) -> bool:
-    """Return whether ``gpd`` starts a shell command token at *index*."""
-    probe = index - 1
-    while probe >= 0 and line[probe] in " \t":
-        probe -= 1
-
-    if probe < 0:
-        return True
-
-    if line[probe] in "|;(!":
-        return True
-
-    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
-        return True
-
-    return False
-
-
-def _is_gpd_token_end(line: str, end_index: int) -> bool:
-    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
-    if end_index >= len(line):
-        return True
-    return line[end_index].isspace() or line[end_index] in {'"', "'", "`", ";", "|", "&", ")", "<", ">"}
 
 
 def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> str:
@@ -806,14 +717,18 @@ def _managed_gemini_policy_path(target_dir: Path) -> Path:
     return target_dir / _GEMINI_POLICY_DIR_NAME / _GEMINI_POLICY_FILE_NAME
 
 
-def _managed_gemini_yolo_wrapper_path(target_dir: Path) -> Path:
-    """Return the GPD-managed Gemini launch wrapper for yolo sessions."""
-    return target_dir / "get-physics-done" / _GEMINI_RUNTIME_BIN_DIR_NAME / _GEMINI_YOLO_WRAPPER_NAME
+def _managed_gemini_prompt_free_wrapper_path(target_dir: Path, descriptor: RuntimeDescriptor) -> Path:
+    """Return the GPD-managed Gemini prompt-free launch wrapper."""
+    return target_dir / "get-physics-done" / _GEMINI_RUNTIME_BIN_DIR_NAME / _gemini_prompt_free_wrapper_name(descriptor)
 
 
-def _render_gemini_yolo_wrapper() -> str:
-    """Render a small launcher that starts Gemini in yolo approval mode."""
-    return "#!/bin/sh\nexec gemini --approval-mode=yolo \"$@\"\n"
+def _render_gemini_prompt_free_wrapper(descriptor: RuntimeDescriptor) -> str:
+    """Render a small launcher that starts Gemini in its prompt-free approval mode."""
+    mode_value = _gemini_prompt_free_mode_value(descriptor)
+    return (
+        "#!/bin/sh\n"
+        f"exec {descriptor.launch_command} --approval-mode={mode_value} \"$@\"\n"
+    )
 
 
 def _render_gemini_policy_toml(bridge_command: str) -> str:
@@ -956,6 +871,7 @@ def _copy_agents_gemini(
     install_scope: str | None = None,
     *,
     bridge_command: str,
+    runtime_name: str,
 ) -> None:
     """Install agent .md files with Gemini-specific conversions.
 
@@ -976,7 +892,7 @@ def _copy_agents_gemini(
     for agent_md in sorted(agents_src.glob("*.md")):
         content = compile_markdown_for_runtime(
             agent_md.read_text(encoding="utf-8"),
-            runtime="gemini",
+            runtime=runtime_name,
             path_prefix=path_prefix,
             install_scope=install_scope,
             src_root=source_root,
@@ -1008,6 +924,7 @@ def _install_commands_as_toml(
     install_scope: str | None = None,
     *,
     bridge_command: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> None:
     """Install commands as .toml files in nested ``commands/gpd/`` structure.
@@ -1031,6 +948,7 @@ def _install_commands_as_toml(
         gpd_src_root,
         install_scope,
         bridge_command=bridge_command,
+        runtime_name=runtime_name,
         explicit_target=explicit_target,
     )
 
@@ -1045,6 +963,7 @@ def _copy_commands_recursive(
     install_scope: str | None = None,
     *,
     bridge_command: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> None:
     """Recursively copy commands, converting .md to .toml for Gemini."""
@@ -1061,12 +980,13 @@ def _copy_commands_recursive(
                 gpd_src_root,
                 install_scope,
                 bridge_command=bridge_command,
+                runtime_name=runtime_name,
                 explicit_target=explicit_target,
             )
         elif entry.suffix == ".md":
             content = compile_markdown_for_runtime(
                 entry.read_text(encoding="utf-8"),
-                runtime="gemini",
+                runtime=runtime_name,
                 path_prefix=path_prefix,
                 install_scope=install_scope,
                 src_root=gpd_src_root,
@@ -1098,10 +1018,6 @@ class GeminiAdapter(RuntimeAdapter):
     auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
     drop_mcp_frontmatter_tools = _DROP_MCP_FRONTMATTER_TOOLS
     strip_sub_tags_in_shared_markdown = True
-
-    @property
-    def runtime_name(self) -> str:
-        return "gemini"
 
     def project_markdown_surface(
         self,
@@ -1175,6 +1091,7 @@ class GeminiAdapter(RuntimeAdapter):
             attribution=self.get_commit_attribution(),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
+            runtime_name=self.runtime_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
         if verify_installed(commands_dest):
@@ -1195,6 +1112,7 @@ class GeminiAdapter(RuntimeAdapter):
             attribution=self.get_commit_attribution(),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
+            runtime_name=self.runtime_name,
         )
         if verify_installed(agents_dest):
             logger.info("Installed agents")
@@ -1298,10 +1216,22 @@ class GeminiAdapter(RuntimeAdapter):
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
-            existing_mcp = settings.get("mcpServers", {})
-            merged_mcp = merge_managed_mcp_servers(existing_mcp, mcp_servers)
+            existing_mcp_raw = settings.get("mcpServers", {})
+            existing_mcp = existing_mcp_raw if isinstance(existing_mcp_raw, dict) else {}
+            managed_env_keys = {
+                "env": frozenset(
+                    key
+                    for entry in mcp_servers.values()
+                    for key in (entry.get("env", {}) if isinstance(entry.get("env"), dict) else {})
+                )
+            }
+            merged_mcp = merge_managed_mcp_servers(
+                existing_mcp,
+                mcp_servers,
+                user_owned_mapping_keys=managed_env_keys,
+            )
             for server_name in mcp_servers:
-                existing_entry = existing_mcp.get(server_name) if isinstance(existing_mcp, dict) else None
+                existing_entry = existing_mcp_raw.get(server_name) if isinstance(existing_mcp_raw, dict) else None
                 if not isinstance(existing_entry, dict) or "trust" not in existing_entry:
                     merged_mcp.setdefault(server_name, {})["trust"] = True
             settings["mcpServers"] = merged_mcp
@@ -1314,32 +1244,34 @@ class GeminiAdapter(RuntimeAdapter):
         }
 
     def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
-        """Report whether a Gemini yolo launcher is ready for the next session."""
-        wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
+        """Report whether a Gemini prompt-free launcher is ready for the next session."""
+        descriptor = self.runtime_descriptor
+        wrapper_path = _managed_gemini_prompt_free_wrapper_path(target_dir, descriptor)
         wrapper_exists = wrapper_path.is_file()
-        desired_mode = "yolo" if autonomy == "yolo" else "default"
+        prompt_free_mode = _gemini_prompt_free_mode_value(descriptor)
+        desired_mode = prompt_free_mode if autonomy == prompt_free_mode else "default"
         next_step: str | None = None
         message = "Gemini is using its normal approval-mode defaults."
-        if desired_mode == "yolo":
+        if desired_mode == prompt_free_mode:
             if wrapper_exists:
                 message = (
-                    "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session."
+                    f"Gemini only supports {prompt_free_mode} at launch time. The GPD launcher is ready for the next session."
                 )
                 next_step = (
                     "Exit the current Gemini session and relaunch with "
-                    f"{shlex.quote(str(wrapper_path))} so the runtime itself starts in yolo mode."
+                    f"{shlex.quote(str(wrapper_path))} so the runtime itself starts in {prompt_free_mode} mode."
                 )
             else:
                 message = (
-                    "Gemini only supports yolo at launch time. Generate and use the GPD launcher before "
-                    "expecting uninterrupted yolo execution."
+                    f"Gemini only supports {prompt_free_mode} at launch time. Generate and use the GPD launcher before "
+                    f"expecting uninterrupted {prompt_free_mode} execution."
                 )
         return {
             "runtime": self.runtime_name,
             "desired_mode": desired_mode,
-            "configured_mode": "launch-wrapper" if wrapper_exists else "default",
-            "config_aligned": wrapper_exists if desired_mode == "yolo" else True,
-            "requires_relaunch": wrapper_exists if desired_mode == "yolo" else False,
+            "configured_mode": _gemini_permission_surface(descriptor) if wrapper_exists else "default",
+            "config_aligned": wrapper_exists if desired_mode == prompt_free_mode else True,
+            "requires_relaunch": wrapper_exists if desired_mode == prompt_free_mode else False,
             "managed_by_gpd": wrapper_exists,
             "launch_command": shlex.quote(str(wrapper_path)) if wrapper_exists else None,
             "message": message,
@@ -1347,12 +1279,14 @@ class GeminiAdapter(RuntimeAdapter):
         }
 
     def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
-        """Create or remove the Gemini yolo launcher for the requested autonomy."""
-        wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
+        """Create or remove the Gemini prompt-free launcher for the requested autonomy."""
+        descriptor = self.runtime_descriptor
+        wrapper_path = _managed_gemini_prompt_free_wrapper_path(target_dir, descriptor)
         changed = False
-        if autonomy == "yolo":
+        prompt_free_mode = _gemini_prompt_free_mode_value(descriptor)
+        if autonomy == prompt_free_mode:
             wrapper_path.parent.mkdir(parents=True, exist_ok=True)
-            content = _render_gemini_yolo_wrapper()
+            content = _render_gemini_prompt_free_wrapper(descriptor)
             current = wrapper_path.read_text(encoding="utf-8") if wrapper_path.exists() else None
             if current != content:
                 wrapper_path.write_text(content, encoding="utf-8")
@@ -1367,15 +1301,17 @@ class GeminiAdapter(RuntimeAdapter):
             **status,
             "changed": changed,
             "sync_applied": bool(status.get("config_aligned")),
-            "requires_relaunch": autonomy == "yolo",
+            "requires_relaunch": autonomy == prompt_free_mode,
         }
-        if autonomy == "yolo" and status.get("launch_command"):
+        if autonomy == prompt_free_mode and status.get("launch_command"):
             result["next_step"] = (
                 "Exit the current Gemini session and relaunch with "
-                f"{status['launch_command']} so the runtime itself starts in yolo mode."
+                f"{status['launch_command']} so the runtime itself starts in {prompt_free_mode} mode."
             )
         elif changed:
-            result["next_step"] = "Future Gemini sessions will use the normal approval mode unless you re-enable yolo."
+            result["next_step"] = (
+                f"Future Gemini sessions will use the normal approval mode unless you re-enable {prompt_free_mode}."
+            )
         return result
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
@@ -1535,7 +1471,7 @@ class GeminiAdapter(RuntimeAdapter):
             # Remove GPD MCP servers
             mcp_servers = settings.get("mcpServers")
             if isinstance(mcp_servers, dict):
-                removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
+                removed_keys = [key for key in list(mcp_servers) if key in _managed_integrations.gpd_managed_mcp_server_keys()]
                 if removed_keys:
                     for key in removed_keys:
                         del mcp_servers[key]

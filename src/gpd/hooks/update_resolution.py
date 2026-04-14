@@ -7,8 +7,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 import gpd.hooks.install_context as hook_layout
-from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
-from gpd.core.root_resolution import resolve_project_root
 
 DebugLogger = Callable[[str], None]
 
@@ -52,10 +50,10 @@ def ordered_update_cache_candidates(
     preferred_runtime: str | None = None,
 ) -> list[object]:
     """Return update-cache candidates in the shared precedence order."""
+    from gpd.adapters.runtime_catalog import normalize_runtime_name
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
         get_update_cache_candidates,
-        normalize_runtime_name,
         should_consider_update_cache_candidate,
         supported_runtime_names,
     )
@@ -100,7 +98,14 @@ def ordered_update_cache_candidates(
                     continue
                 seen_paths.add(candidate_path)
                 preferred_first.append(candidate)
-            relevant_candidates = preferred_first
+            relevant_candidates = [
+                *preferred_first,
+                *[
+                    candidate
+                    for candidate in relevant_candidates
+                    if not isinstance(candidate.path, Path) or candidate.path not in seen_paths
+                ],
+            ]
     return relevant_candidates
 
 
@@ -113,18 +118,6 @@ def primary_update_cache_file(candidates: list[object], *, home: str | Path | No
     from gpd.hooks.runtime_detect import home_update_cache_file
 
     return home_update_cache_file(home=home)
-
-
-def _project_layout_update_cache_candidate(workspace_path: Path | None):
-    """Return the project-layout cache candidate when a GPD project root is visible."""
-    from gpd.hooks.runtime_detect import UpdateCacheCandidate
-
-    if workspace_path is None:
-        return None
-    project_root = resolve_project_root(workspace_path, require_layout=True)
-    if project_root is None:
-        return None
-    return UpdateCacheCandidate(project_root / "GPD" / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
 
 
 def latest_update_cache(
@@ -160,11 +153,6 @@ def latest_update_cache(
                 return cache, self_candidate
 
     fallback_hit: tuple[dict[str, object], object] | None = None
-    project_candidate = _project_layout_update_cache_candidate(workspace_path)
-    if project_candidate is not None:
-        project_cache = _read_update_cache(project_candidate.path, debug=debug)
-        if project_cache is not None:
-            fallback_hit = (project_cache, project_candidate)
     for candidate in ordered_update_cache_candidates(
         cwd=workspace_path,
         preferred_runtime=preferred_runtime,
@@ -198,6 +186,7 @@ def update_command_for_candidate(
         _runtime_dir_has_gpd_install,
         detect_active_runtime_with_gpd_install,
         detect_install_scope,
+        resolve_runtime_target_dir,
         update_command_for_runtime,
     )
 
@@ -207,7 +196,11 @@ def update_command_for_candidate(
     self_install = hook_layout.detect_self_owned_install(hook_file)
     candidate_path = getattr(candidate, "path", None)
     if self_install is not None and candidate_path == self_install.cache_file:
-        return installed_update_command(self_install.config_dir)
+        return installed_update_command(
+            self_install.config_dir,
+            cwd=workspace_path,
+            home=lookup.resolved_home,
+        )
 
     runtime = getattr(candidate, "runtime", None) or RUNTIME_UNKNOWN
     scope = getattr(candidate, "scope", None)
@@ -217,5 +210,6 @@ def update_command_for_candidate(
     if runtime == RUNTIME_UNKNOWN:
         runtime = detect_active_runtime_with_gpd_install(cwd=scope_lookup_cwd, home=lookup.resolved_home)
     if scope is None and runtime != RUNTIME_UNKNOWN:
-        scope = detect_install_scope(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
+        _, detected_scope = resolve_runtime_target_dir(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
+        scope = detected_scope or detect_install_scope(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
     return update_command_for_runtime(runtime, scope=scope)

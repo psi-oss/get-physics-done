@@ -13,6 +13,7 @@ from gpd.adapters.runtime_catalog import (
     GlobalConfigPolicy,
     HookPayloadPolicy,
     RuntimeDescriptor,
+    get_runtime_descriptor,
     iter_runtime_descriptors,
     list_runtime_names,
 )
@@ -25,6 +26,11 @@ from gpd.adapters.tool_names import (
     translate,
     translate_for_runtime,
 )
+
+
+def _patch_catalog_descriptors(monkeypatch: pytest.MonkeyPatch, descriptors: tuple[RuntimeDescriptor, ...]) -> None:
+    monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: descriptors)
+    monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: descriptors)
 
 
 def _runtime_tool_maps() -> dict[str, dict[str, str]]:
@@ -58,6 +64,54 @@ class TestRegistry:
         assert isinstance(adapter, RuntimeAdapter)
         assert adapter.runtime_name == runtime
 
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
+    def test_adapter_runtime_name_is_catalog_derived(self, runtime: str) -> None:
+        adapter = get_adapter(runtime)
+        descriptor = get_runtime_descriptor(runtime)
+
+        assert adapter.runtime_name == descriptor.runtime_name
+        assert adapter.__class__.__module__.rsplit(".", 1)[-1] == descriptor.adapter_module
+
+    def test_adapter_runtime_descriptor_is_cached_catalog_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        descriptor = RuntimeDescriptor(
+            runtime_name="catalog-runtime",
+            adapter_module="catalog_adapter",
+            display_name="Catalog Runtime",
+            priority=10,
+            config_dir_name=".catalog",
+            install_flag="--catalog",
+            launch_command="catalog",
+            command_prefix="/gpd:",
+            activation_env_vars=(),
+            selection_flags=("--catalog",),
+            selection_aliases=("catalog-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".catalog"),
+            hook_payload=HookPayloadPolicy(),
+        )
+
+        class CatalogAdapter(RuntimeAdapter):
+            pass
+
+        CatalogAdapter.__module__ = "gpd.adapters.catalog_adapter"
+        _patch_catalog_descriptors(monkeypatch, (descriptor,))
+
+        adapter = CatalogAdapter()
+
+        assert adapter.runtime_descriptor is descriptor
+        assert adapter.runtime_name == "catalog-runtime"
+
+        monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: pytest.fail("descriptor lookup repeated"))
+
+        assert adapter.runtime_descriptor is descriptor
+        assert adapter.runtime_name == "catalog-runtime"
+
+    @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda descriptor: descriptor.runtime_name)
+    def test_get_adapter_accepts_catalog_aliases(self, descriptor) -> None:
+        values = {descriptor.display_name, descriptor.install_flag, *descriptor.selection_flags, *descriptor.selection_aliases}
+        for value in values:
+            adapter = get_adapter(value)
+            assert adapter.runtime_name == descriptor.runtime_name
+
     def test_get_adapter_unknown_raises_key_error(self) -> None:
         with pytest.raises(KeyError, match="Unknown runtime"):
             get_adapter("nonexistent")
@@ -72,9 +126,10 @@ class TestRegistry:
         adapter = get_adapter(runtime)
         assert adapter.update_command == f"npx -y get-physics-done {adapter.runtime_descriptor.install_flag}"
 
-    def test_loader_uses_runtime_descriptors_to_import_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_adapter_loads_only_requested_runtime(self, monkeypatch: pytest.MonkeyPatch) -> None:
         alpha_descriptor = RuntimeDescriptor(
             runtime_name="alpha-runtime",
+            adapter_module="alpha_adapter",
             display_name="Alpha Runtime",
             priority=20,
             config_dir_name=".alpha",
@@ -89,6 +144,7 @@ class TestRegistry:
         )
         beta_descriptor = RuntimeDescriptor(
             runtime_name="beta-runtime",
+            adapter_module="beta_adapter",
             display_name="Beta Runtime",
             priority=10,
             config_dir_name=".beta",
@@ -103,71 +159,89 @@ class TestRegistry:
         )
 
         class AlphaAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "alpha-runtime"
+            pass
 
         class BetaAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "beta-runtime"
+            pass
+
+        AlphaAdapter.__module__ = "gpd.adapters.alpha_adapter"
+        BetaAdapter.__module__ = "gpd.adapters.beta_adapter"
 
         imported_modules: list[str] = []
 
         def fake_import_module(name: str) -> object:
             imported_modules.append(name)
             return {
-                "gpd.adapters.alpha_runtime": SimpleNamespace(AlphaAdapter=AlphaAdapter),
-                "gpd.adapters.beta_runtime": SimpleNamespace(BetaAdapter=BetaAdapter),
+                "gpd.adapters.alpha_adapter": SimpleNamespace(AlphaAdapter=AlphaAdapter),
+                "gpd.adapters.beta_adapter": SimpleNamespace(BetaAdapter=BetaAdapter),
             }[name]
 
-        monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (beta_descriptor, alpha_descriptor))
+        _patch_catalog_descriptors(monkeypatch, (beta_descriptor, alpha_descriptor))
         monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
 
-        adapters_module._ensure_loaded()
-
-        assert imported_modules == ["gpd.adapters.beta_runtime", "gpd.adapters.alpha_runtime"]
         assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
+        assert imported_modules == []
         assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
+        assert imported_modules == ["gpd.adapters.alpha_adapter"]
 
-    def test_loader_rejects_duplicate_runtime_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        duplicate_descriptor = RuntimeDescriptor(
-            runtime_name="duplicate-runtime",
-            display_name="Duplicate Runtime",
+    def test_loader_rejects_adapter_runtime_name_mismatch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        descriptor = RuntimeDescriptor(
+            runtime_name="catalog-runtime",
+            adapter_module="mismatch_adapter",
+            display_name="Catalog Runtime",
             priority=10,
-            config_dir_name=".duplicate",
-            install_flag="--duplicate",
-            launch_command="duplicate",
+            config_dir_name=".catalog",
+            install_flag="--catalog",
+            launch_command="catalog",
             command_prefix="/gpd:",
             activation_env_vars=(),
-            selection_flags=("--duplicate",),
-            selection_aliases=("duplicate-runtime",),
-            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".duplicate"),
+            selection_flags=("--catalog",),
+            selection_aliases=("catalog-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".catalog"),
             hook_payload=HookPayloadPolicy(),
         )
 
-        class DuplicateAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "duplicate-runtime"
+        class MismatchAdapter(RuntimeAdapter):
+            pass
 
-        monkeypatch.setattr(
-            adapters_module,
-            "iter_runtime_descriptors",
-            lambda: (duplicate_descriptor, duplicate_descriptor),
-        )
-        monkeypatch.setattr(
-            adapters_module,
-            "import_module",
-            lambda name: SimpleNamespace(DuplicateAdapter=DuplicateAdapter),
-        )
+        MismatchAdapter.__module__ = "gpd.adapters.mismatch_adapter"
+        MismatchAdapter.runtime_name = "other-runtime"
+
+        _patch_catalog_descriptors(monkeypatch, (descriptor,))
+        monkeypatch.setattr(adapters_module, "import_module", lambda name: SimpleNamespace(MismatchAdapter=MismatchAdapter))
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
 
-        with pytest.raises(RuntimeError, match="Duplicate runtime name in runtime catalog"):
-            adapters_module._ensure_loaded()
+        with pytest.raises(RuntimeError, match="Adapter runtime_name mismatch"):
+            adapters_module.get_adapter("catalog-runtime")
+
+    def test_list_runtimes_does_not_import_adapters(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(adapters_module, "import_module", lambda name: pytest.fail(f"imported {name}"))
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+
+        assert adapters_module.list_runtimes() == list_runtime_names()
+
+    def test_get_adapter_imports_declared_adapter_module_for_each_runtime(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        descriptors = tuple(iter_runtime_descriptors())
+        expected_modules = {f"gpd.adapters.{descriptor.adapter_module}" for descriptor in descriptors}
+        imported_modules: list[str] = []
+
+        original_import = adapters_module.import_module
+
+        def tracking_import(name: str) -> object:
+            imported_modules.append(name)
+            return original_import(name)
+
+        monkeypatch.setattr(adapters_module, "import_module", tracking_import)
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+
+        for descriptor in descriptors:
+            get_adapter(descriptor.runtime_name)
+
+        assert expected_modules <= set(imported_modules)
 
 
 class TestToolNames:

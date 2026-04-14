@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -203,7 +204,26 @@ class ManagedIntegrationDescriptor:
         env: Mapping[str, str] | None = None,
         cwd: Path | None = None,
     ) -> dict[str, object]:
-        record = self.project_record(cwd)
+        endpoint_error = None
+        projected_environment_error = None
+        try:
+            record = self.project_record(cwd)
+            enabled = self.project_enabled(cwd)
+        except RuntimeError as exc:
+            record = None
+            enabled = False
+            projected_environment_error = str(exc)
+        try:
+            endpoint = self.resolved_endpoint(env, cwd=cwd)
+        except RuntimeError as exc:
+            endpoint = None
+            endpoint_error = str(exc)
+        try:
+            projected_environment = self.projected_environment(env, cwd=cwd)
+        except RuntimeError as exc:
+            projected_environment = {}
+            projected_environment_error = str(exc)
+        configured = False if endpoint_error or projected_environment_error or not enabled else self.api_key_present(env)
         return {
             "integration_id": self.integration_id,
             "managed_server_key": self.managed_server_key,
@@ -211,11 +231,13 @@ class ManagedIntegrationDescriptor:
             "api_key_env_var": self.api_key_env_var,
             "api_key_env_vars": list(self.api_key_env_vars),
             "endpoint_env_var": self.endpoint_env_var,
-            "endpoint": self.resolved_endpoint(env, cwd=cwd),
-            "projected_environment": self.projected_environment(env, cwd=cwd),
+            "endpoint": endpoint,
+            "endpoint_error": endpoint_error,
+            "projected_environment": projected_environment,
+            "projected_environment_error": projected_environment_error,
             "project_configured": record is not None,
-            "enabled": self.project_enabled(cwd),
-            "configured": self.is_configured(env, cwd=cwd),
+            "enabled": enabled,
+            "configured": configured,
         }
 
 
@@ -265,10 +287,23 @@ def projected_managed_optional_mcp_servers(
     for integration in MANAGED_INTEGRATIONS.values():
         if not integration.is_configured(env, cwd=cwd):
             continue
-        managed_servers[integration.managed_server_key] = integration.projected_server_entry(
-            env,
-            cwd=cwd,
-        )
+        managed_servers[integration.managed_server_key] = integration.projected_server_entry(env, cwd=cwd)
+    return managed_servers
+
+
+def projected_managed_optional_mcp_servers_with_secrets(
+    env: Mapping[str, str] | None = None,
+    *,
+    cwd: Path | None = None,
+) -> dict[str, dict[str, object]]:
+    managed_servers = projected_managed_optional_mcp_servers(env, cwd=cwd)
+    for integration in MANAGED_INTEGRATIONS.values():
+        entry = managed_servers.get(integration.managed_server_key)
+        if entry is None:
+            continue
+        env_mapping = entry.setdefault("env", {})
+        if isinstance(env_mapping, dict):
+            env_mapping[integration.api_key_env_var] = integration.resolve_api_key(env)
     return managed_servers
 
 
@@ -276,3 +311,25 @@ def managed_optional_mcp_server_keys() -> frozenset[str]:
     """Return the registry-backed optional managed MCP server keys."""
 
     return frozenset(integration.managed_server_key for integration in MANAGED_INTEGRATIONS.values())
+
+
+def gpd_managed_mcp_server_keys() -> frozenset[str]:
+    """Return all MCP server keys owned by GPD, including optional integrations."""
+
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(managed_optional_mcp_server_keys()))
+
+
+def prune_gpd_managed_mcp_servers(existing_servers: object | None) -> dict[str, dict[str, object]]:
+    """Return a copy of the provided mapping with GPD-managed entries removed."""
+
+    existing_map = existing_servers if isinstance(existing_servers, dict) else {}
+    managed_keys = gpd_managed_mcp_server_keys()
+    pruned: dict[str, dict[str, object]] = {}
+    for name, entry in existing_map.items():
+        normalized = str(name)
+        if normalized in managed_keys:
+            continue
+        pruned[normalized] = deepcopy(entry)
+    return pruned

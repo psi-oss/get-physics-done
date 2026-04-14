@@ -4,7 +4,13 @@ This directory contains the automated test suite for GPD: core CLI and state reg
 
 The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
 
-Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. For default full-suite local runs, `tests/conftest.py` also raises xdist auto-worker selection toward the current CI shard fanout, so local `uv run pytest` stays in the same rough parallelism range as CI without changing what gets collected. If you need a serial run for debugging, override that default explicitly with `uv run pytest -n 0`. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` still weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`, and greedily rebalances those work units inside each category so the thematic shard names remain close to the well-balanced anonymous-shard timings while each shard still inherits the same default pytest work-stealing parallelism policy.
+Default `uv run pytest` runs the full checked-in suite in parallel, and `uv run pytest -q` does the same with quieter output. Set `UV_CACHE_DIR=tmp/uv-cache` before running those commands locally so the UV cache stays inside the repo and avoids permission issues with the global cache. `pyproject.toml` pins `-n auto --dist=worksteal` in `pytest` addopts so the default path stays under the 3-minute budget on a normal developer machine, and `tests/conftest.py` raises default full-suite xdist auto-worker selection toward the current CI shard fanout without changing what gets collected. Use `uv run pytest -n 0 ...` when you need a serial repro or debugger-friendly run. For a focused local contract-visibility smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. In GitHub Actions, the release/package smoke lane stays under 3 minutes and is the first gate: it runs the npm pack dry run, verifies the pack manifest, and executes the explicit smoke pytest targets before any shard fanout starts. A single `plan-shards` job then validates the runtime catalog schema once, collects the full test inventory once, and uploads the per-shard target files that the matrix jobs consume. The `pytest` matrix depends on both `smoke` and `plan-shards`, downloads its precomputed target file, and runs the same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`. CI shards still add `--durations=20 --durations-min=0` so slow-test reporting stays visible without changing collection, and `tests/ci_sharding.py` keeps the planner behavior lightweight by weighting files from the collected inventory, applying hotspot boosts only where multi-shard categories benefit, and greedily rebalancing those work units before the matrix runs.
+
+## Pytest markers
+
+- `pytest.mark.asyncio`: marks asynchronous test cases that rely on the `pytest-asyncio` event loop fixture across adapters, hooks, and CLI modules.
+- `pytest.mark.no_stable_hook_python`: skips the autouse `_stable_hook_python` fixture whenever an adapters test needs deterministic hook-shim output.
+- `pytest.mark.physics`, `pytest.mark.parametric`, `pytest.mark.exact`, and `pytest.mark.slow`: label the longer-form physics verification blocks documented in `src/gpd/specs/references/verification/core/code-testing-physics.md`.
 
 ## Repository Interdependency Graph
 
@@ -31,10 +37,10 @@ This graph therefore includes:
 - `src/gpd/commands/*.md`: `68`
 - `src/gpd/agents/*.md`: `24`
 - `src/gpd/specs/workflows/*.md`: `69`
-- `src/gpd/specs/templates/**/*.md`: `79`
-- `src/gpd/specs/references/**/*.md`: `180`
-- `src/gpd/adapters/*.py`: `9`
-- `src/gpd/hooks/*.py`: `11`
+- `src/gpd/specs/templates/**/*.md`: `85`
+- `src/gpd/specs/references/**/*.md`: `181`
+- `src/gpd/adapters/*.py`: `11`
+- `src/gpd/hooks/*.py`: `12`
 - `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 
@@ -136,6 +142,8 @@ flowchart TD
 
 ## Canonical Authority Chains
 
+The canonical schema and MCP descriptor ownership story lives in `docs/schema-registry-ownership.md`; `tests/test_schema_registry_ownership_note.py` keeps that note aligned with `src/gpd/mcp/builtin_servers.py::build_public_descriptors()` and the generated `infra/gpd-*.json` artifacts.
+
 - `package.json -> bin/install.js`
   `authority`
   npm/bootstrap surface; `bin/install.js` reads the npm wrapper version, the pinned Python package version, and repository metadata.
@@ -160,13 +168,13 @@ flowchart TD
 - `bin/install.js -> GitHub main-branch source family {https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> tagged release install candidate chain {tag archive, https tag checkout}`
+- `bin/install.js -> matching release install candidate chain {PyPI package, tag archive, https tag checkout}`
   `ordering-contract`
-  Normal install and `--reinstall` stay pinned to the matching tagged release and fail closed if it cannot be installed.
+  Normal install and `--reinstall` stay pinned to the matching release version, trying PyPI first and then the matching tagged GitHub sources if needed; they fail closed if no matching release source can be installed.
 
 - `bin/install.js -> main-branch upgrade candidate chain {main archive, https main checkout}`
   `ordering-contract`
-  `--upgrade` prefers the latest `main` branch source and fails closed if no main-branch source can be installed.
+  With `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1`, `--upgrade` force-reinstalls from the latest `main` branch source and fails closed if no main-branch source can be installed; without that env var, the managed-package upgrade path is skipped. Normal released updates use the runtime update command or rerun the matching released install command, not `--upgrade`.
 
 - `bin/install.js -> external binaries {node, python3, python, git}`
   `external-binary`
@@ -475,8 +483,21 @@ flowchart TD
 <!-- repo-graph-same-stem-command-workflow:start -->
 - `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,compare-results,complete-milestone,debug,decisions,derive-equation,digest-knowledge,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,export-logs,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,review-knowledge,revise-phase,sensitivity-analysis,set-profile,set-tier-models,settings,show-phase,slides,start,sync-state,tangent,tour,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
 <!-- repo-graph-same-stem-command-workflow:end -->
-  `include`
-  Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
+ `include`
+ Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
+
+<!-- repo-graph-local-cli-only:start -->
+- health
+- suggest-next
+<!-- repo-graph-local-cli-only:end -->
+These commands run only through the local CLI bridge and intentionally have no workflow counterparts.
+
+<!-- repo-graph-internal-workflow-only:start -->
+- execute-plan
+- transition
+- verify-phase
+<!-- repo-graph-internal-workflow-only:end -->
+These workflows are orchestrated internally and do not expose same-stem command wrappers.
 
 - `src/gpd/commands/help.md -> runtime slash-command surface contract {in-runtime `/gpd:*` reference, local CLI distinction, `gpd --help`, `gpd validate command-context gpd:<name>`}`
   `behavior-contract`

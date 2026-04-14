@@ -966,6 +966,53 @@ def test_validate_frontmatter_summary_with_source_path_rejects_non_contract_plan
     assert "plan_contract_ref: must end with '#/contract'" in result.errors
 
 
+def test_validate_frontmatter_summary_with_source_path_rejects_missing_plan_contract_ref(
+    tmp_path: Path,
+) -> None:
+    phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert any(
+        "plan_contract_ref: referenced PLAN does not exist at GPD/phases/01-benchmark/01-01-PLAN.md" in error
+        for error in result.errors
+    )
+
+
+def test_validate_frontmatter_summary_with_source_path_rejects_plan_identity_mismatch(
+    tmp_path: Path,
+) -> None:
+    phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    plan_path = phase_dir / "01-01-PLAN.md"
+    plan_path.write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md")
+        .read_text(encoding="utf-8")
+        .replace("phase: 01-benchmark", "phase: 02-mismatch", 1),
+        encoding="utf-8",
+    )
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert any(
+        "plan_contract_ref: referenced PLAN does not match summary phase/plan identity" in error
+        for error in result.errors
+    )
+
+
 def test_validate_frontmatter_summary_with_source_path_rejects_unknown_contract_ids(tmp_path: Path) -> None:
     phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)
@@ -1140,7 +1187,7 @@ def test_validate_frontmatter_summary_with_source_path_reports_unresolved_plan_c
     result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
 
     assert result.valid is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in result.errors)
 
 
 def test_validate_frontmatter_summary_does_not_resolve_plan_contract_ref_above_project_root(tmp_path: Path) -> None:
@@ -1170,8 +1217,8 @@ def test_validate_frontmatter_summary_does_not_resolve_plan_contract_ref_above_p
 
     assert validation_result.valid is False
     assert verification_result.passed is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in validation_result.errors
-    assert "plan_contract_ref: could not resolve matching plan contract" in verification_result.errors
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in validation_result.errors)
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in verification_result.errors)
 
 
 def test_validate_frontmatter_summary_with_source_path_reports_referenced_plan_contract_schema_errors(
@@ -1191,7 +1238,10 @@ def test_validate_frontmatter_summary_with_source_path_reports_referenced_plan_c
     result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
 
     assert result.valid is False
-    assert "plan_contract_ref: referenced PLAN contract: references.0.must_surface must be a boolean" in result.errors
+    assert (
+        "plan_contract_ref: referenced PLAN contract: references.0.must_surface: must be a boolean (coerced from 'yes')"
+        in result.errors
+    )
 
 
 def test_validate_frontmatter_summary_with_source_path_reports_referenced_plan_contract_semantic_errors(
@@ -1534,7 +1584,7 @@ def test_validate_frontmatter_summary_rejects_plan_contract_ref_that_points_to_d
     result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
 
     assert result.valid is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+    assert "plan_contract_ref: referenced PLAN does not match summary phase/plan identity" in result.errors
 
 
 def test_verify_summary_rejects_unresolved_plan_contract_ref(tmp_path: Path) -> None:
@@ -1555,7 +1605,7 @@ def test_verify_summary_rejects_unresolved_plan_contract_ref(tmp_path: Path) -> 
     result = verify_summary(tmp_path, summary_path)
 
     assert result.passed is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in result.errors)
 
 
 def test_verify_summary_rejects_non_contract_plan_fragment(tmp_path: Path) -> None:

@@ -30,6 +30,7 @@ from gpd.command_labels import (
     runtime_command_surface_is_path_like_context,
 )
 from gpd.core.errors import GPDError
+from gpd.core.model_visible_sections import render_model_visible_note
 from gpd.core.observability import gpd_span
 from gpd.core.review_contract_prompt import review_contract_payload
 from gpd.mcp.servers import (
@@ -146,8 +147,8 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
     if reference_documents:
         dependency_hint = (
             "Treat `content` as the wrapper/context surface. Load `schema_documents` and "
-            "`contract_documents` too when present; they carry the markdown bodies that back the "
-            "model-visible schema and contract rules."
+            "`contract_documents` too when present; inject them before schema-bound output "
+            "because they carry the model-visible schema and contract rules."
         )
     elif referenced_files:
         dependency_hint = (
@@ -167,6 +168,29 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
             f"{_SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
         )
     return f"{dependency_hint} {_SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+
+
+def _model_visible_documents_section(
+    schema_documents: list[dict[str, object]],
+    contract_documents: list[dict[str, object]],
+    *,
+    transitive_schema_documents: list[dict[str, object]] | None = None,
+    transitive_contract_documents: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    transitive_schema_documents = transitive_schema_documents or []
+    transitive_contract_documents = transitive_contract_documents or []
+    note = render_model_visible_note(
+        "Schema and contract documents.",
+        "`schema_documents` mirrors the schema-backed markdowns; `transitive_schema_documents` mirrors their transitive dependencies.",
+        "`contract_documents` mirrors contract-backed references; `transitive_contract_documents` mirrors the transitive contract references.",
+    )
+    return {
+        "note": note,
+        "schema_documents": [entry["path"] for entry in schema_documents],
+        "contract_documents": [entry["path"] for entry in contract_documents],
+        "transitive_schema_documents": [entry["path"] for entry in transitive_schema_documents],
+        "transitive_contract_documents": [entry["path"] for entry in transitive_contract_documents],
+    }
 
 
 def _skill_review_contract_payload(review_contract: content_registry.ReviewCommandContract | None) -> dict[str, object] | None:
@@ -267,6 +291,7 @@ def _agent_policy_payload(agent: content_registry.AgentDef) -> dict[str, object]
         "artifact_write_authority": agent.artifact_write_authority,
         "shared_state_authority": agent.shared_state_authority,
         "tools": list(agent.tools),
+        "color": agent.color,
     }
 
 
@@ -301,6 +326,10 @@ def _task_words(normalized_task: str) -> set[str]:
 def _contains_route_phrase(normalized_task: str, phrase: str) -> bool:
     normalized_phrase = _normalize_route_text(phrase)
     return bool(normalized_phrase) and normalized_phrase in normalized_task
+
+
+def _keyword_relevance_score(normalized_keyword: str) -> int:
+    return len(normalized_keyword.replace(" ", "").replace("-", ""))
 
 
 def _score_new_project_route(normalized_task: str, words: set[str]) -> int:
@@ -502,6 +531,18 @@ def _extract_referenced_files(
     return direct_references, transitive_references
 
 
+def _deduplicate_references(entries: list[dict[str, object]]) -> list[dict[str, object]]:
+    seen: set[str] = set()
+    unique: list[dict[str, object]] = []
+    for entry in entries:
+        path = entry["path"]
+        if path in seen:
+            continue
+        seen.add(path)
+        unique.append(entry)
+    return unique
+
+
 def _is_schema_reference(path: str) -> bool:
     if Path(path).name.endswith("-schema.md"):
         return True
@@ -654,6 +695,8 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
 
             content, source_path = _canonical_skill_content(skill)
             referenced_files, transitive_referenced_files = _extract_referenced_files(content, source_path=source_path)
+            referenced_files = _deduplicate_references(referenced_files)
+            transitive_referenced_files = _deduplicate_references(transitive_referenced_files)
             template_references = [entry["path"] for entry in referenced_files if entry["kind"] == "template"]
             schema_references, schema_documents = _expanded_reference_documents(
                 referenced_files,
@@ -674,10 +717,22 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 transitive_referenced_files,
                 predicate=lambda path: _is_contract_reference(path) and not _is_schema_reference(path),
             )
+            has_reference_documents = bool(
+                schema_documents
+                or contract_documents
+                or transitive_schema_documents
+                or transitive_contract_documents
+            )
             loading_hint = _skill_loading_hint(
                 source_kind=skill.source_kind,
                 referenced_files=bool(referenced_files),
-                reference_documents=bool(schema_documents or contract_documents),
+                reference_documents=has_reference_documents,
+            )
+            model_visible_documents = _model_visible_documents_section(
+                schema_documents,
+                contract_documents,
+                transitive_schema_documents=transitive_schema_documents,
+                transitive_contract_documents=transitive_contract_documents,
             )
             payload = {
                 "name": skill.name,
@@ -700,6 +755,8 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 "transitive_contract_documents": transitive_contract_documents,
                 "loading_hint": loading_hint,
             }
+            if has_reference_documents:
+                payload["model_visible_documents"] = model_visible_documents
             if skill.source_kind == "command":
                 command = content_registry.get_command(skill.registry_name)
                 allowed_tools = _normalize_allowed_tools(command.allowed_tools)
@@ -851,12 +908,13 @@ def route_skill(
                 ],
             }
 
-            scored: list[tuple[int, str]] = []
+            scored: list[tuple[int, int, str]] = []
             for skill_name in available_names:
                 keywords = [*command_keywords.get(skill_name, []), *_derived_route_keywords(skills_by_name[skill_name])]
                 if not keywords:
                     continue
                 score = 0
+                relevance = 0
                 for kw in keywords:
                     normalized_kw = re.sub(r"[^a-z0-9\s-]", "", kw.lower()).strip()
                     if not normalized_kw:
@@ -864,20 +922,24 @@ def route_skill(
                     if " " in normalized_kw:
                         if normalized_kw in normalized_task:
                             score += 2
+                            relevance += _keyword_relevance_score(normalized_kw)
                     elif normalized_kw in words:
                         score += 1
+                        relevance += _keyword_relevance_score(normalized_kw)
                 if score > 0:
-                    scored.append((score, skill_name))
+                    scored.append((score, relevance, skill_name))
 
             if new_project_score > 0:
-                scored.append((new_project_score, "gpd-new-project"))
+                scored.append((new_project_score, 0, "gpd-new-project"))
 
             skill_order = {name: index for index, name in enumerate(skills_by_name)}
-            scored.sort(key=lambda item: (-item[0], skill_order.get(item[1], len(skill_order))))
+            scored.sort(
+                key=lambda item: (-item[0], -item[1], skill_order.get(item[2], len(skill_order)))
+            )
 
             if scored:
-                best = scored[0][1]
-                alternatives = [s for _, s in scored[1:4]]
+                best = scored[0][2]
+                alternatives = [entry[2] for entry in scored[1:4]]
                 return stable_mcp_response(
                     {
                         "suggestion": best,

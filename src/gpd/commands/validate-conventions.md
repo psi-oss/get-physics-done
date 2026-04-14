@@ -40,7 +40,7 @@ Scope: $ARGUMENTS (optional)
 </context>
 
 <process>
-Execute the validate-conventions workflow from @{GPD_INSTALL_DIR}/workflows/validate-conventions.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow checks:
 

@@ -21,16 +21,17 @@ def _read(path: Path) -> str:
 
 def test_debug_subagent_prompt_surfaces_the_canonical_session_contract_before_template_output() -> None:
     prompt = _read(DEBUG_PROMPT_PATH)
-    contract_block = prompt.split("## Template", 1)[0]
+    contract_block = prompt.split("## Debug Template", 1)[0]
 
     assert "## Canonical Debug Session Contract" in contract_block
     assert SESSION_PATH in contract_block
     assert STATUS_VOCAB in contract_block
     assert GOAL_VOCAB in contract_block
     assert CONTINUATION_PHRASE in contract_block
-    assert prompt.index(SESSION_PATH) < prompt.index("## Template")
-    assert prompt.index(STATUS_VOCAB) < prompt.index("## Template")
-    assert prompt.index(GOAL_VOCAB) < prompt.index("## Template")
+    assert prompt.index(SESSION_PATH) < prompt.index("## Debug Template")
+    assert prompt.index(STATUS_VOCAB) < prompt.index("## Debug Template")
+    assert prompt.index(GOAL_VOCAB) < prompt.index("## Debug Template")
+    assert prompt.count("## Debug Template") == 1
     assert "<debug_session_contract>" in prompt
     assert "<debug_file>" not in prompt
 

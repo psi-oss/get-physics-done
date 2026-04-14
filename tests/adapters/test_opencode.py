@@ -5,17 +5,20 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import gpd.adapters.opencode as opencode_module
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command, hook_python_interpreter
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
     configure_opencode_permissions,
-    convert_claude_to_opencode_frontmatter,
+    convert_frontmatter_for_opencode,
     convert_tool_name,
     copy_agents_as_agent_files,
     copy_flattened_commands,
+    get_opencode_global_dir,
 )
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -51,6 +54,50 @@ class TestProperties:
     def test_help_command(self, adapter: OpenCodeAdapter) -> None:
         assert adapter.help_command == "/gpd-help"
 
+    def test_translate_shared_command_references_uses_catalog_public_surface(self, adapter: OpenCodeAdapter) -> None:
+        assert adapter.translate_shared_command_references("Run `/gpd:help` then `/gpd:start`.") == (
+            "Run `/gpd-help` then `/gpd-start`."
+        )
+
+    def test_translate_shared_command_references_translates_canonical_labels(
+        self,
+        adapter: OpenCodeAdapter,
+    ) -> None:
+        assert adapter.translate_shared_command_references("Use gpd:plan-phase next.") == (
+            "Use /gpd-plan-phase next."
+        )
+
+
+class TestRuntimeIdentityFromCatalog:
+    def test_get_opencode_global_dir_uses_catalog_runtime_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_runtime: dict[str, str] = {}
+
+        captured_adapter: dict[str, str] = {}
+
+        def fake_descriptor(adapter_module: str):
+            captured_adapter["module"] = adapter_module
+            return SimpleNamespace(runtime_name="opencode-catalog-runtime")
+
+        monkeypatch.setattr(opencode_module, "get_runtime_descriptor_for_adapter_module", fake_descriptor)
+        monkeypatch.setattr(
+            opencode_module,
+            "get_global_dir",
+            lambda runtime_name, explicit_dir=None: (
+                captured_runtime.setdefault("runtime_name", runtime_name),
+                "/tmp/opencode-config",
+            )[1],
+        )
+
+        opencode_module._runtime_name_from_catalog.cache_clear()
+        try:
+            resolved = get_opencode_global_dir()
+        finally:
+            opencode_module._runtime_name_from_catalog.cache_clear()
+
+        assert captured_adapter["module"] == opencode_module.__name__
+        assert captured_runtime["runtime_name"] == "opencode-catalog-runtime"
+        assert resolved == Path("/tmp/opencode-config")
+
 
 class TestConvertToolName:
     def test_special_mappings(self) -> None:
@@ -70,39 +117,39 @@ class TestConvertToolName:
 class TestConvertFrontmatter:
     def test_no_frontmatter_passthrough(self) -> None:
         content = "Just body text"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "question" not in result  # no AskUserQuestion to convert
         assert "/gpd-" not in result  # no /gpd: to convert
 
     def test_name_stripped(self) -> None:
         content = "---\nname: gpd:help\ndescription: Help\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "name:" not in result
         assert "description: Help" in result
 
     def test_color_name_to_hex(self) -> None:
         content = "---\ncolor: cyan\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert '"#00FFFF"' in result
 
     def test_color_hex_preserved(self) -> None:
         content = "---\ncolor: #FF0000\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "#FF0000" in result
 
     def test_color_invalid_hex_stripped(self) -> None:
         content = "---\ncolor: #GGGGGG\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "color:" not in result
 
     def test_color_unknown_name_stripped(self) -> None:
         content = "---\ncolor: chartreuse\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "color:" not in result
 
     def test_allowed_tools_to_tools_object(self) -> None:
         content = "---\ndescription: D\nallowed-tools:\n  - Read\n  - Bash\n  - AskUserQuestion\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "tools:" in result
         assert "read_file: true" in result
         assert "shell: true" in result
@@ -116,7 +163,7 @@ class TestConvertFrontmatter:
             "See https://example.test//gpd:help and /tmp//gpd:help.txt.\n"
             "Use `/gpd:tour` when you mean the runtime command.\n"
         )
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "/gpd-execute-phase" in result
         assert "`/gpd-tour`" in result
         assert "https://example.test//gpd:help" in result
@@ -124,28 +171,35 @@ class TestConvertFrontmatter:
 
     def test_claude_path_conversion(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
-        result = convert_claude_to_opencode_frontmatter(content)
-        assert "~/.config/opencode/agents/gpd-verifier.md" in result
+        result = convert_frontmatter_for_opencode(content)
+        expected_agent_path = get_opencode_global_dir() / "agents" / "gpd-verifier.md"
+        assert expected_agent_path.as_posix() in result
 
     def test_claude_path_conversion_uses_resolved_path_prefix(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
-        result = convert_claude_to_opencode_frontmatter(content, "./.opencode/")
+        result = convert_frontmatter_for_opencode(content, "./.opencode/")
         assert "./.opencode/agents/gpd-verifier.md" in result
         assert "~/.config/opencode/agents/gpd-verifier.md" not in result
 
+    def test_global_config_home_subpath_conversion(self) -> None:
+        content = "---\ndescription: D\n---\nSee ~/.config/opencode/agents/gpd-verifier.md"
+        result = convert_frontmatter_for_opencode(content)
+        expected_agent_path = get_opencode_global_dir() / "agents" / "gpd-verifier.md"
+        assert expected_agent_path.as_posix() in result
+
     def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert result == content
 
     def test_inline_tools_field(self) -> None:
         content = "---\ndescription: D\ntools: Read, Write\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "tools:" in result
 
     def test_description_with_triple_dash_is_preserved(self) -> None:
         content = "---\ndescription: before --- after\nallowed-tools:\n  - Read\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "description: before --- after" in result
         assert "read_file: true" in result
         assert result.rstrip().endswith("Body")
@@ -153,16 +207,41 @@ class TestConvertFrontmatter:
     def test_review_contract_is_prepended_to_prompt_body(self) -> None:
         content = compile_review_contract_fixture_for_runtime("opencode")
 
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
 
         assert_review_contract_prompt_surface(result)
+
+    @pytest.mark.parametrize(
+        ("text", "expected_fragment", "should_rewrite"),
+        [
+            ("See ~/.claude/agents/gpd-verifier.md", "/agents/gpd-verifier.md", True),
+            ("See ~/.claude.json (leave as-is)", "~/.claude.json", False),
+            ("Home dir: ~/.claude", "", True),
+        ],
+    )
+    def test_claude_path_rewrite_skips_claude_json(
+        self,
+        text: str,
+        expected_fragment: str,
+        should_rewrite: bool,
+    ) -> None:
+        content = f"---\ndescription: D\n---\n{text}"
+        result = convert_frontmatter_for_opencode(content)
+        global_dir = get_opencode_global_dir().as_posix()
+
+        if should_rewrite:
+            assert f"{global_dir}{expected_fragment}" in result
+            assert "~/.claude" not in result
+        else:
+            assert expected_fragment in result
+            assert "~/.claude.json" in result
 
 
 class TestCopyFlattenedCommands:
     def test_flattens_nested_dirs(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        count = copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/")
+        count = copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", runtime_name="opencode")
 
         assert count >= 2
         assert (dest / "gpd-help.md").exists()
@@ -171,7 +250,7 @@ class TestCopyFlattenedCommands:
     def test_placeholder_replacement(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/")
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", runtime_name="opencode")
 
         content = (dest / "gpd-help.md").read_text(encoding="utf-8")
         assert "{GPD_INSTALL_DIR}" not in content
@@ -180,7 +259,7 @@ class TestCopyFlattenedCommands:
     def test_frontmatter_converted(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/")
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", runtime_name="opencode")
 
         content = (dest / "gpd-help.md").read_text(encoding="utf-8")
         # name: should be stripped by OpenCode frontmatter conversion
@@ -196,7 +275,7 @@ class TestCopyFlattenedCommands:
             encoding="utf-8",
         )
 
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=tmp_path)
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=tmp_path, runtime_name="opencode")
 
         assert not (dest / "gpd-old-command.md").exists()
         assert (dest / "custom-command.md").exists()
@@ -212,7 +291,7 @@ class TestCopyFlattenedCommands:
             encoding="utf-8",
         )
 
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=target)
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=target, runtime_name="opencode")
 
         assert not (dest / "gpd-old-command.md").exists()
         assert (dest / "gpd-user-keep.md").exists()
@@ -220,7 +299,7 @@ class TestCopyFlattenedCommands:
     def test_nonexistent_src_returns_zero(self, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        assert copy_flattened_commands(tmp_path / "nope", dest, "gpd", "/") == 0
+        assert copy_flattened_commands(tmp_path / "nope", dest, "gpd", "/", runtime_name="opencode") == 0
 
 
 class TestCopyAgentsAsAgentFiles:
@@ -413,7 +492,7 @@ class TestInstall:
 
         assert adapter.missing_install_artifacts(target) == ("opencode.json",)
 
-    def test_install_completeness_requires_manifest_backed_command_surface(
+    def test_install_completeness_requires_manifest_command_surface_files(
         self,
         adapter: OpenCodeAdapter,
         gpd_root: Path,
@@ -432,7 +511,26 @@ class TestInstall:
         assert "command/gpd-*.md" in missing
         assert any(item.startswith("command/") for item in missing)
 
-    def test_install_completeness_requires_manifest_metadata_for_generated_commands(
+
+    def test_install_completeness_accepts_manifestless_command_dir_with_files(
+        self,
+        adapter: OpenCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (target / "get-physics-done").mkdir(parents=True)
+        command_dir = target / "command"
+        command_dir.mkdir(parents=True)
+        (command_dir / "gpd-test.md").write_text("test\n", encoding="utf-8")
+        (target / "opencode.json").write_text(json.dumps({"permission": {}}), encoding="utf-8")
+
+        missing = adapter.missing_install_artifacts(target)
+
+        assert "command/gpd-*.md" not in missing
+        assert "gpd-file-manifest.json" in missing
+
+    def test_install_completeness_falls_back_to_manifestless_generated_commands(
         self,
         adapter: OpenCodeAdapter,
         gpd_root: Path,
@@ -449,8 +547,8 @@ class TestInstall:
 
         missing = adapter.missing_install_artifacts(target)
 
-        assert adapter.has_complete_install(target) is False
-        assert "command/gpd-*.md" in missing
+        assert adapter.has_complete_install(target) is True
+        assert "command/gpd-*.md" not in missing
         assert all(not item.startswith("command/gpd-") or item == "command/gpd-*.md" for item in missing)
 
     def test_install_fails_closed_for_malformed_opencode_json(
@@ -721,9 +819,10 @@ class TestInstall:
         assert wolfram["type"] == "local"
         assert wolfram["command"] == ["gpd-mcp-wolfram"]
         assert wolfram["enabled"] is True
-        assert wolfram["environment"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"}
-        assert "super-secret-token" not in json.dumps(wolfram)
-        assert "GPD_WOLFRAM_MCP_API_KEY" not in json.dumps(wolfram)
+        assert wolfram["environment"] == {
+            "GPD_WOLFRAM_MCP_API_KEY": "super-secret-token",
+            "GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp",
+        }
 
     def test_install_preserves_existing_managed_wolfram_overrides(
         self,

@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from functools import lru_cache
 
 from gpd.adapters import get_adapter, iter_runtime_descriptors
+from gpd.core import surface_phrases as _surface_phrases
 from gpd.core.public_surface_contract import (
     load_public_surface_contract,
     local_cli_cost_command,
@@ -118,10 +119,87 @@ def _action_surface_fragments(action: str, *, include_bare: bool = False) -> tup
     fragments.extend(_runtime_command_fragments(action))
     return tuple(dict.fromkeys(fragments))
 
+
+def _shared_surface_phrase(*candidate_names: str, fallback: str) -> str:
+    for name in candidate_names:
+        helper = getattr(_surface_phrases, name, None)
+        if not callable(helper):
+            continue
+        value = helper()
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return fallback
+
+
+def _update_summary_phrase() -> str:
+    return _shared_surface_phrase(
+        "update_summary_surface_note",
+        "update_summary_phrase",
+        "update_summary",
+        fallback="Update GPD to latest version and show recent release notes",
+    )
+
+
+def _update_execution_phrase() -> str:
+    return _shared_surface_phrase(
+        "update_execution_surface_note",
+        "update_execution_phrase",
+        "update_bootstrap_action_line",
+        fallback="public bootstrap update command",
+    )
+
+
+def _update_release_notes_phrase() -> str:
+    return _shared_surface_phrase(
+        "update_release_notes_surface_note",
+        "update_release_notes_phrase",
+        "update_release_notes_line",
+        fallback="recent release notes",
+    )
+
+
+def _update_patch_backup_phrase() -> str:
+    return _shared_surface_phrase(
+        "update_patch_backup_surface_note",
+        "update_patch_backup_phrase",
+        "update_patch_backup_line",
+        fallback="patch backups",
+    )
+
+
+def _reapply_patches_summary_phrase() -> str:
+    return _shared_surface_phrase(
+        "reapply_patches_summary_surface_note",
+        "reapply_patches_summary_phrase",
+        "reapply_patches_summary",
+        fallback="Reapply local modifications after a GPD update",
+    )
+
+
+def _reapply_saved_modifications_phrase() -> str:
+    return _shared_surface_phrase(
+        "reapply_patches_saved_by_update_notice",
+        "reapply_patches_saved_modifications_note",
+        "reapply_saved_modifications_phrase",
+        "reapply_saved_by_update_notice",
+        "reapply_saved_by_update_phrase",
+        fallback="Local patches are automatically saved when you run gpd:update after modifying managed GPD files.",
+    )
+
+
+def _reapply_manifest_regeneration_note() -> str:
+    return _shared_surface_phrase(
+        "reapply_patches_manifest_follow_up_note",
+        "reapply_manifest_regeneration_note",
+        "reapply_manifest_follow_up_phrase",
+        fallback="The managed file manifest is rebuilt by the next `gpd:update`",
+    )
+
 __all__ = [
     "DOCTOR_RUNTIME_SCOPE_RE",
     "assert_cost_advisory_contract",
     "assert_cost_surface_discoverability",
+    "assert_reapply_patches_surface_contract",
     "assert_execution_observability_surface_contract",
     "assert_health_command_public_contract",
     "assert_help_command_quick_start_extract_contract",
@@ -138,6 +216,7 @@ __all__ = [
     "assert_start_workflow_router_contract",
     "assert_tour_command_surface_contract",
     "assert_unattended_readiness_contract",
+    "assert_update_surface_contract",
     "assert_wolfram_plan_boundary_contract",
     "assert_workflow_preset_surface_contract",
     "resume_authority_public_vocabulary_intro",
@@ -341,6 +420,80 @@ def assert_execution_observability_surface_contract(content: str) -> None:
         ),
         label="read-only execution checks wording",
     )
+
+
+def assert_update_surface_contract(content: str, *, require_summary: bool = False) -> None:
+    if require_summary:
+        assert _update_summary_phrase() in content
+    _assert_contains_any(
+        content,
+        (
+            _update_execution_phrase(),
+            "public bootstrap command",
+            "public update command to run",
+        ),
+        label="bootstrap update execution wording",
+    )
+    _assert_contains_any(
+        content,
+        (
+            _update_release_notes_phrase(),
+            "What's New",
+        ),
+        label="release-notes wording",
+    )
+    _assert_contains_any(
+        content,
+        (
+            _update_patch_backup_phrase(),
+            "backed up before the update",
+            "backed up to `{GPD_PATCHES_DIR_NAME}/`",
+        ),
+        label="patch-backup wording",
+    )
+    _assert_contains_any(
+        content,
+        _runtime_command_fragments("reapply-patches"),
+        label="reapply-patches follow-up surface",
+    )
+    lowered = content.lower()
+    assert "pulls latest gpd files from the repository" not in lowered
+    assert "changelog" not in lowered
+
+
+def assert_reapply_patches_surface_contract(
+    content: str,
+    *,
+    require_summary: bool = False,
+    require_manifest_follow_up: bool = True,
+) -> None:
+    if require_summary:
+        assert _reapply_patches_summary_phrase() in content
+    _assert_contains_any(
+        content,
+        _runtime_command_fragments("reapply-patches"),
+        label="reapply-patches command surface",
+    )
+    _assert_contains_any(
+        content,
+        _runtime_command_fragments("update"),
+        label="post-update timing surface",
+    )
+    _assert_contains_any(
+        content,
+        (
+            _reapply_saved_modifications_phrase(),
+            "backed up before the update",
+            "saved local modifications",
+        ),
+        label="saved-modifications wording",
+    )
+    assert "managed GPD files" in content
+    if require_manifest_follow_up:
+        assert _reapply_manifest_regeneration_note() in content
+    lowered = content.lower()
+    assert "regenerate the file manifest" not in lowered
+    assert "manually regenerate the manifest" not in lowered
 
 
 def assert_health_command_public_contract(content: str) -> None:
@@ -634,6 +787,25 @@ def assert_tour_read_only_teaching_contract(content: str) -> None:
 
 def assert_tour_command_surface_contract(content: str) -> None:
     assert_tour_read_only_teaching_contract(content)
+    if "refer to command ids without a\nhard-coded runtime prefix" in content:
+        for command_id in (
+            "start",
+            "new-project --minimal",
+            "new-project",
+            "map-research",
+            "resume-work",
+            "suggest-next",
+            "progress",
+            "explain",
+            "quick",
+            "settings",
+            "help",
+            "discuss-phase",
+            "write-paper",
+            "tangent",
+        ):
+            assert f"`{command_id}" in content
+        return
     for label, options in (
         ("tour start surface", _runtime_command_fragments("start")),
         ("tour new-project --minimal surface", _runtime_command_fragments("new-project --minimal")),

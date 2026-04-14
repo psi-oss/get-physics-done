@@ -17,7 +17,7 @@ The spawned debugger must satisfy this contract before producing output:
 - Goal vocabulary: `find_root_cause_only | find_and_fix`
 - Continuation semantics: read `GPD/debug/{slug}.md` first, then continue from next_action
 
-## Template
+## Debug Template
 
 ```markdown
 <debug_session_contract>
@@ -60,118 +60,35 @@ goal: {find_root_cause_only | find_and_fix}
 
 ## Placeholders
 
-| Placeholder | Source | Example |
-| --- | --- | --- |
-| `{issue_id}` | Orchestrator-assigned | `wrong-berry-phase` |
-| `{issue_summary}` | User description | `Berry phase computation gives pi instead of 2pi` |
-| `{expected}` | From symptoms | `Berry phase = 2pi for bilayer graphene` |
-| `{actual}` | From symptoms | `Numerical integration yields pi` |
-| `{discrepancy}` | From symptoms | `Factor of 2 (exact), consistent across parameters` |
-| `{errors}` | From symptoms | `No runtime errors, result is finite and smooth` |
-| `{reproduction}` | From symptoms | `Run berry_phase.py with default parameters` |
-| `{timeline}` | From symptoms | `After switching from rectangular to hexagonal BZ mesh` |
-| `{domain}` | From context | `condensed matter, topological bands` |
-| `{formalism}` | From context | `tight-binding, Berry connection on discretized BZ` |
-| `{key_equations}` | From context | `gamma = oint A(k) . dk, A = -i ⟨u_k∣∇_k∣u_k⟩` |
-| `{conventions}` | From context | `Bloch convention ∣psi_k⟩ = e^{ikr}∣u_k⟩, BZ in 1st zone` |
-| `{approximations}` | From context | `Discretized Berry connection via log of overlap matrix` |
-| `{goal}` | Orchestrator sets | `find_and_fix` |
-| `{slug}` | Generated | `wrong-berry-phase` |
+| Placeholder | Purpose |
+| --- | --- |
+| `{issue_id}` | Issue slug used inside `GPD/debug/{slug}.md` and the `issue` heading above. This usually matches the verification truth label. |
+| `{issue_summary}` | The failed expectation (previously referred to as `truth`) that the subagent investigates and fills the `summary` field above. |
+| `{truth_short}` | A condensed label for short UI strings such as the `description` argument in the runtime delegation block. Runtimes may reuse `{issue_id}` if no shorter text is available. |
+| `{expected}` | Verification target value (the expected/normally correct physics result). |
+| `{actual}` | Observation reported in the gap or issue (what actually happened). |
+| `{discrepancy}` | Short characterisation of the mismatch (wrong sign, missing factor, numerical instability, etc.). |
+| `{errors}` | Errors, tracebacks, or anomalous values reported along with the failure. |
+| `{reproduction}` | Repro instructions such as `Check {check_num}` or a script path. |
+| `{timeline}` | When the issue was noticed, or how it evolved during validation. |
+| `{domain}` | Physics domain (e.g., `condensed matter`, `plasma`). |
+| `{formalism}` | Mathematical/physical formalism (e.g., `effective field theory`, `tight-binding`). |
+| `{key_equations}` | The equations that capture the phenomenon under investigation. |
+| `{conventions}` | Coordinate/momentum/Fourier/metric conventions to respect. |
+| `{approximations}` | Known approximations or truncations that could explain the discrepancy. |
+| `{goal}` | Typically `find_root_cause_only` for verification debug flows. |
+| `{slug}` | Same as `{issue_id}` above; used for file paths and session contracts. |
+
+The runtime also receives `{truth_short}` so the high-level delegation description can stay concise, even if the template itself only references the longer `{issue_summary}`.
 
 ---
 
 ## Usage
 
-**From gpd:debug:**
-
-```python
-task(
-  prompt=filled_template,
-  subagent_type="gpd-debugger",
-  description="Debug {slug}"
-  # model parameter from profile tier — omit on single-model platforms
-)
-```
-
-**From debug (validation):**
-
-```python
-task(prompt=template, subagent_type="gpd-debugger", description="Debug VAL-001")
-# model parameter from profile tier — omit on single-model platforms
-```
-
-## <!-- task() subagent_type and model parameters are runtime-specific; the installer adapts them to the target platform's delegation mechanism. -->
-
-## Systematic Physics Debugging Strategy
-
-The gpd-debugger agent applies a systematic approach to physics calculation errors:
-
-1. **Quantify the discrepancy** - exact factor, sign, functional form, parameter dependence
-2. **Check conventions** - metric signature, Fourier transform, normalization, active/passive
-3. **Check factors** - 2pi, hbar, symmetry factors, combinatorial prefactors, Jacobians
-4. **Check signs** - commutator ordering, integration orientation, branch cuts
-5. **Check indices** - contraction, raising/lowering, summation ranges, Einstein convention
-6. **Check approximations** - is expansion parameter small? correct order? radius of convergence?
-7. **Check numerics** - convergence, grid resolution, floating-point precision, boundary effects
-8. **Limiting cases** - does the result reduce correctly in all known limits?
-
----
+Delegate to `gpd-debugger` with a filled prompt and a short description such as `Debug {slug}` or `Debug VAL-001`. Runtime-specific adapters choose the concrete delegation call shape and model argument policy.
 
 ## Continuation
 
-For checkpoints, spawn a fresh agent with:
+For checkpoints, spawn a fresh agent with the same debug contract and the debug file path, then continue from `next_action`. Keep the goal vocabulary and `GPD/debug/{slug}.md` path unchanged.
 
-```markdown
-<debug_session_contract>
-session_artifact: GPD/debug/{slug}.md
-status: gathering | investigating | fixing | verifying | resolved
-goal: {goal}
-continuation: Read the file at GPD/debug/{slug}.md first, then continue from next_action.
-</debug_session_contract>
-
-<objective>
-Continue debugging {slug}. Evidence is in the debug file.
-</objective>
-
-<prior_state>
-Read the file at GPD/debug/{slug}.md
-</prior_state>
-
-<checkpoint_response>
-**Type:** {checkpoint_type}
-**Response:** {user_response}
-</checkpoint_response>
-
-<physics_context>
-domain: {domain}
-formalism: {formalism}
-conventions: {conventions}
-</physics_context>
-
-<mode>
-goal: {goal}
-</mode>
-```
-
-<failure_protocol>
-
-## When Investigation Stalls
-
-If you cannot make progress after 3 investigation rounds, report structured failure:
-
-```markdown
-**Status:** Cannot proceed
-**Reason:** [Specific physics/technical reason — e.g., "sign ambiguity cannot be resolved without additional input"]
-**Blocked by:** [What would unblock progress — e.g., "access to reference implementation", "user decision on branch cut convention"]
-**Suggested alternative:** [Different approach that might work — e.g., "try asymptotic expansion instead of numerical integration"]
-**Evidence gathered:** [What WAS determined before getting stuck — partial results are valuable]
-```
-
-1. **Document what you tried** — list each hypothesis tested and why it was eliminated
-2. **State what you know** — summarize confirmed facts and narrowed-down possibilities
-3. **Identify the blocker** — what specific information or capability is missing
-4. **Return CHECKPOINT REACHED** with the structured failure block above
-
-Do NOT spin in circles retrying the same approaches. Escalate with structured context.
-
-</failure_protocol>
+If progress stalls after a few loops, return a structured checkpoint: blocker, evidence gathered, and the smallest unblocker needed.

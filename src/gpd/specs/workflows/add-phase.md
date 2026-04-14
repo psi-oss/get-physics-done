@@ -99,7 +99,7 @@ Roadmap updated: GPD/ROADMAP.md
 
 ---
 
-## Next Up
+## > Next Up
 
 **Phase {N}: {description}**
 

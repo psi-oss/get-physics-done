@@ -9,9 +9,14 @@ import sys
 import time
 from pathlib import Path
 
-from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
-from gpd.adapters.runtime_catalog import get_shared_install_metadata
-from gpd.core.constants import ENV_GPD_DEBUG
+from gpd.adapters.install_utils import (
+    CACHE_DIR_NAME,
+    GPD_INSTALL_DIR_NAME,
+    UPDATE_CACHE_FILENAME,
+    hook_python_interpreter,
+)
+from gpd.adapters.runtime_catalog import get_shared_install_metadata, normalize_runtime_name
+from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.install_context import should_prefer_self_owned_install
 from gpd.hooks.install_metadata import config_dir_has_complete_install
 
@@ -65,11 +70,6 @@ def _version_key(version: str) -> tuple[tuple[int, ...], int, int, str]:
     return (release, rank, number, "")
 
 
-def _debug(msg: str) -> None:
-    if os.environ.get(ENV_GPD_DEBUG):
-        sys.stderr.write(f"[gpd-debug] {msg}\n")
-
-
 def _self_config_dir() -> Path | None:
     """Return the installed runtime config dir when this hook runs from one."""
     from gpd.hooks.install_context import detect_self_owned_install
@@ -88,7 +88,7 @@ def _parse_worker_cache_file(argv: list[str]) -> Path | None:
 def _background_worker_command(cache_file: Path) -> list[str]:
     """Return the background-worker command anchored to the current hook script."""
     return [
-        sys.executable,
+        hook_python_interpreter(),
         str(Path(__file__).resolve(strict=False)),
         "--cache-file",
         str(cache_file),
@@ -287,12 +287,15 @@ def _relevant_update_cache_candidates(
             active_runtime=active_installed_runtime,
             workspace_path=workspace_path,
         ):
+            self_runtime = (
+                normalize_runtime_name(self_install.runtime) if self_install and self_install.runtime is not None else None
+            )
             self_candidate = (
                 UpdateCacheCandidate(path=self_config_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
                 if self_install is None
                 else UpdateCacheCandidate(
                     path=self_install.cache_file,
-                    runtime=self_install.runtime,
+                    runtime=self_runtime or self_install.runtime,
                     scope=self_install.install_scope,
                 )
             )
@@ -336,8 +339,11 @@ def main(argv: list[str] | None = None) -> None:
     # Throttle: skip only when the preferred runtime/home cache set is still fresh.
     runtime_names = supported_runtime_names()
     has_runtime_specific_candidate = any(candidate.runtime in runtime_names for candidate in relevant_candidates)
+    preferred_runtime = next((candidate.runtime for candidate in relevant_candidates if candidate.runtime in runtime_names), None)
     for candidate in relevant_candidates:
         if candidate.runtime is None and has_runtime_specific_candidate:
+            continue
+        if preferred_runtime is not None and candidate.runtime not in (preferred_runtime, None):
             continue
         candidate_path = candidate.path
         if not candidate_path.exists():

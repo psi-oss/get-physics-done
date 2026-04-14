@@ -32,6 +32,8 @@ def test_project_layout_file_properties(attribute: str, filename: str, tmp_path:
         ("phases_dir", "phases"),
         ("literature_dir", "literature"),
         ("knowledge_dir", "knowledge"),
+        ("review_dir", "review"),
+        ("comparisons_dir", "comparisons"),
         ("research_map_dir", "research-map"),
         ("scratch_dir", "tmp"),
     ],
@@ -137,3 +139,37 @@ def test_project_layout_ignores_non_project_hidden_gpd_dirs(tmp_path: Path) -> N
     (legacy / "venv" / "bin").mkdir(parents=True)
 
     assert ProjectLayout(tmp_path).gpd == tmp_path / PLANNING_DIR_NAME
+
+
+def test_project_layout_prefers_canonical_tree_over_legacy(tmp_path: Path) -> None:
+    canonical = tmp_path / PLANNING_DIR_NAME
+    canonical.mkdir()
+    (canonical / "state.json").write_text("canonical\n", encoding="utf-8")
+    (canonical / "CONVENTIONS.md").write_text("current conventions\n", encoding="utf-8")
+    phases = canonical / "phases"
+    phases.mkdir()
+
+    legacy = tmp_path / ".gpd"
+    legacy.mkdir()
+    (legacy / "state.json").write_text("legacy\n", encoding="utf-8")
+    (legacy / "CONVENTIONS.md").write_text("legacy conventions\n", encoding="utf-8")
+
+    layout = ProjectLayout(tmp_path)
+
+    assert layout.gpd == canonical
+    assert layout.state_json.read_text(encoding="utf-8") == "canonical\n"
+    assert layout.conventions_md.read_text(encoding="utf-8") == "current conventions\n"
+    assert layout.state_json.parent == canonical
+    assert layout.conventions_md.parent == canonical
+
+
+def test_project_layout_knowledge_reviews_dir_uses_canonical_parent(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+
+    assert layout.knowledge_reviews_dir == tmp_path / "GPD" / "knowledge" / "reviews"
+
+
+def test_project_layout_knowledge_reviews_dir_respects_custom_gpd_root(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path, gpd_dir="Research")
+
+    assert layout.knowledge_reviews_dir == tmp_path / "Research" / "knowledge" / "reviews"

@@ -17,7 +17,7 @@ allowed-tools:
 ---
 
 <objective>
-Create executable phase prompts for a research phase.
+Produce an executable phase prompt for the current research phase.
 </objective>
 
 <execution_context>
@@ -25,20 +25,19 @@ Create executable phase prompts for a research phase.
 </execution_context>
 
 <context>
-Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omitted)
-Canonical contract schema and hard validation rules are enforced later by the staged planner and checker handoffs; every proof-bearing plan must surface the theorem statement, named parameters, hypotheses, quantifier/domain obligations, and intended conclusion clauses visibly enough that a later audit can detect missing coverage.
+Phase number: $ARGUMENTS (optional, defaults to the next unplanned phase)
 
 **Flags:**
 
-- `--research` -- Re-research even if `RESEARCH.md` exists
-- `--skip-research` -- Skip research and plan directly
-- `--gaps` -- Gap-closure mode (`VERIFICATION.md`, no research)
-- `--skip-verify` -- Skip the verification loop
-- `--light` -- Produce contract-plus-constraints plans only
-
-Normalize the phase input before any directory lookups.
+- `--research` — Force re-research even when `RESEARCH.md` already exists
+- `--skip-research` — Skip research and go straight to planning
+- `--gaps` — Gap-closure mode (`VERIFICATION.md`, no research)
+- `--skip-verify` — Skip the verification loop
+- `--light` — Emit only the contract and constraint plan
+- `--inline-discuss` — Combine discuss-phase and plan-phase by capturing the 2-3 most critical decisions inline instead of running `gpd:discuss-phase` for simple work
 </context>
 
 <process>
+Read the workflow file defined above.
 Follow the included workflow file exactly.
 </process>

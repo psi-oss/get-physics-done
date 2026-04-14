@@ -17,7 +17,6 @@ from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.adapters.install_utils import GPD_INSTALL_DIR_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ConventionLock, ResearchContract, parse_project_contract_data_salvage
 from gpd.core import state as _state_module
@@ -45,7 +44,6 @@ from gpd.core.constants import (
     STANDALONE_VALIDATION,
     STATE_JSON_BACKUP_FILENAME,
     STATE_MD_FILENAME,
-    TODOS_DIR_NAME,
     VALIDATION_SUFFIX,
     VERIFICATION_SUFFIX,
     ProjectLayout,
@@ -75,6 +73,8 @@ from gpd.core.protocol_bundles import render_protocol_bundle_context, select_pro
 from gpd.core.publication_runtime import publication_runtime_snapshot_context
 from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
 from gpd.core.results import result_list
+from gpd.core.resume_candidates import candidate_text as _candidate_text
+from gpd.core.resume_candidates import has_resume_candidate
 from gpd.core.resume_surface import (
     RESUME_COMPATIBILITY_ALIAS_FIELDS,
     RESUME_SURFACE_SCHEMA_VERSION,
@@ -86,6 +86,7 @@ from gpd.core.resume_surface import (
     resume_origin_for_interrupted_agent,
 )
 from gpd.core.root_resolution import resolve_project_root, resolve_project_roots
+from gpd.core.small_utils import relative_posix_path
 from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
@@ -108,6 +109,9 @@ from gpd.core.workflow_staging import (
 )
 from gpd.core.workflow_staging import (
     MAP_RESEARCH_INIT_FIELDS as _MAP_RESEARCH_INIT_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    NEW_PROJECT_INIT_FIELDS as _NEW_PROJECT_INIT_FIELDS,
 )
 from gpd.core.workflow_staging import (
     PLAN_PHASE_CONTRACT_GATE_FIELDS as _PLAN_PHASE_CONTRACT_GATE_FIELDS,
@@ -139,14 +143,13 @@ from gpd.core.workflow_staging import (
 from gpd.core.workflow_staging import (
     RESEARCH_PHASE_INIT_FIELDS as _RESEARCH_PHASE_INIT_FIELDS,
 )
+from gpd.hooks.install_metadata import GPD_INSTALL_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
 
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
-_LITERATURE_DIR_NAME = "literature"
-_LEGACY_RESEARCH_DIR_NAME = "research"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
 _RESEARCH_MAP_INCLUDE_LIMIT = 4
@@ -616,6 +619,47 @@ _VERIFY_WORK_REFERENCE_RUNTIME_FIELDS = frozenset(
         "reference_artifacts_content",
     }
 )
+_MAP_RESEARCH_REFERENCE_RUNTIME_FIELDS = frozenset(
+    {
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "knowledge_doc_files",
+        "knowledge_doc_count",
+        "stable_knowledge_doc_files",
+        "stable_knowledge_doc_count",
+        "knowledge_doc_status_counts",
+        "derived_active_references",
+        "derived_active_reference_count",
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_warnings",
+        "citation_source_files",
+        "citation_source_count",
+        "citation_source_warnings",
+        "derived_citation_sources",
+        "derived_citation_source_count",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_verifier_extensions",
+        "protocol_bundle_context",
+        "active_references",
+        "active_reference_count",
+    }
+)
 _VERIFY_WORK_STRUCTURED_STATE_FIELDS = frozenset(
     {
         "state_load_source",
@@ -820,6 +864,8 @@ __all__ = [
     "init_todos",
     "init_verify_work",
     "load_config",
+    "load_context_config_dict",
+    "resolve_context_model",
 ]
 
 
@@ -1161,20 +1207,19 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
         return []
 
 
-def _preferred_review_dir(cwd: Path) -> Path | None:
-    """Return the canonical review directory, falling back to legacy research only when needed."""
-    literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
+def _preferred_review_dir(layout: ProjectLayout) -> Path | None:
+    """Return the preferred literature-review discovery directory."""
+    literature_dir = layout.literature_dir
     if literature_dir.is_dir():
         return literature_dir
-    legacy_research_dir = cwd / PLANNING_DIR_NAME / _LEGACY_RESEARCH_DIR_NAME
-    if legacy_research_dir.is_dir():
-        return legacy_research_dir
-    return None
-
-
-def _relative_posix(cwd: Path, path: Path) -> str:
-    """Return a stable repo-relative POSIX path."""
-    return path.relative_to(cwd).as_posix()
+    legacy_research_dir = layout.gpd / "research"
+    if not legacy_research_dir.is_dir():
+        return None
+    try:
+        has_legacy_review = any(path.is_file() for path in legacy_research_dir.glob("*-REVIEW.md"))
+    except OSError:
+        return None
+    return legacy_research_dir if has_legacy_review else None
 
 
 def _serialize_active_references(contract: ResearchContract | None) -> list[dict[str, object]]:
@@ -1205,6 +1250,12 @@ def _append_unique_strings(target: list[str], values: list[object] | tuple[objec
         text = str(value).strip()
         if text and text not in target:
             target.append(text)
+
+
+def _merge_context_missing_keys(target: dict[str, object], source: Mapping[str, object]) -> None:
+    """Fill missing context keys without overwriting richer values."""
+    for key, value in source.items():
+        target.setdefault(key, value)
 
 
 def _should_skip_research_scan_entry(cwd: Path, entry: Path) -> bool:
@@ -1612,9 +1663,10 @@ def _append_contract_warnings(lines: list[str], warnings: list[str]) -> None:
 
 def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     """Collect durable reference artifacts for downstream planning and verification."""
-    review_dir = _preferred_review_dir(cwd)
+    layout = ProjectLayout(cwd)
+    review_dir = _preferred_review_dir(layout)
     literature_paths = _sorted_markdown_files(review_dir) if review_dir is not None else []
-    research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
+    research_map_dir = layout.research_map_dir
     research_map_paths = _sorted_markdown_files(research_map_dir)
     knowledge_inventory = discover_knowledge_docs(cwd)
     prioritized_research_map_paths = [
@@ -1623,8 +1675,8 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     prioritized_names = {path.name for path in prioritized_research_map_paths}
     prioritized_research_map_paths.extend(path for path in research_map_paths if path.name not in prioritized_names)
 
-    literature_review_files = [_relative_posix(cwd, path) for path in literature_paths]
-    research_map_reference_files = [_relative_posix(cwd, path) for path in prioritized_research_map_paths]
+    literature_review_files = [relative_posix_path(cwd, path) for path in literature_paths]
+    research_map_reference_files = [relative_posix_path(cwd, path) for path in prioritized_research_map_paths]
     knowledge_doc_files = [record.path for record in knowledge_inventory.records]
     stable_knowledge_doc_files = [
         record.path for record in knowledge_inventory.records if record.status == "stable" and record.is_fresh_approved
@@ -1905,11 +1957,6 @@ def _build_peer_review_runtime_context(
         )
     )
     result.update(
-        _build_publication_bootstrap_runtime_context(
-            cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest
-        )
-    )
-    result.update(
         _build_publication_runtime_snapshot_context(
             cwd,
             persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
@@ -2186,42 +2233,6 @@ def _canonical_resume_candidate(
     )
 
 
-def _has_candidate(
-    segment_candidates: list[dict[str, object]],
-    *,
-    source: str,
-    resume_file: str | None = None,
-    agent_id: str | None = None,
-) -> bool:
-    for candidate in segment_candidates:
-        if str(candidate.get("source") or "").strip() != source:
-            continue
-        if resume_file is not None and candidate.get("resume_file") != resume_file:
-            continue
-        if agent_id is not None and candidate.get("agent_id") != agent_id:
-            continue
-        return True
-    return False
-
-
-def _has_resume_candidate(
-    resume_candidates: list[dict[str, object]],
-    *,
-    kind: str,
-    resume_pointer: str | None = None,
-    agent_id: str | None = None,
-) -> bool:
-    for candidate in resume_candidates:
-        if str(candidate.get("kind") or "").strip() != kind:
-            continue
-        if resume_pointer is not None and candidate.get("resume_pointer") != resume_pointer:
-            continue
-        if agent_id is not None and candidate.get("agent_id") != agent_id:
-            continue
-        return True
-    return False
-
-
 def _build_resume_read_state(
     execution_context: dict[str, object],
     *,
@@ -2295,7 +2306,7 @@ def _build_resume_read_state(
             )
 
     if isinstance(resume_projection.missing_handoff_resume_file, str) and resume_projection.missing_handoff_resume_file:
-        if not _has_resume_candidate(
+        if not has_resume_candidate(
             resume_candidates,
             kind="continuity_handoff",
             resume_pointer=resume_projection.missing_handoff_resume_file,
@@ -2318,7 +2329,7 @@ def _build_resume_read_state(
                 )
             )
 
-    if interrupted_agent_id is not None and not _has_candidate(
+    if interrupted_agent_id is not None and not has_resume_candidate(
         resume_candidates,
         source="interrupted_agent",
         agent_id=interrupted_agent_id,
@@ -2328,7 +2339,7 @@ def _build_resume_read_state(
             "status": "interrupted",
             "agent_id": interrupted_agent_id,
         }
-        if not _has_resume_candidate(
+        if not has_resume_candidate(
             resume_candidates,
             kind="interrupted_agent",
             agent_id=interrupted_agent_id,
@@ -2398,11 +2409,7 @@ def _build_resume_read_state(
 def _mapping_text(value: Mapping[str, object] | None, key: str) -> str | None:
     if not isinstance(value, Mapping):
         return None
-    candidate = value.get(key)
-    if not isinstance(candidate, str):
-        return None
-    stripped = candidate.strip()
-    return stripped or None
+    return _candidate_text(value, key)
 
 
 def _promote_auto_selected_recent_bounded_segment(
@@ -2548,7 +2555,7 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
     return d
 
 
-def load_config(cwd: Path) -> dict:
+def load_context_config_dict(cwd: Path) -> dict:
     """Load GPD/config.json with defaults.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical
@@ -2559,6 +2566,9 @@ def load_config(cwd: Path) -> dict:
     """
     cfg = _load_config_structured(cwd)
     return _config_to_dict(cfg)
+
+
+load_config = load_context_config_dict
 
 
 # ─── Resolve Model ────────────────────────────────────────────────────────────
@@ -2585,28 +2595,27 @@ def _resolve_model(
     active_runtime = runtime
     runtime_unknown = "unknown"
     normalize_runtime = _normalize_runtime_local
+    try:
+        from gpd.adapters.runtime_catalog import normalize_runtime_name
+        from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN
+
+        runtime_unknown = RUNTIME_UNKNOWN
+        normalize_runtime = normalize_runtime_name
+    except Exception:
+        pass
     if active_runtime is None:
-        try:
-            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, normalize_runtime_name
-
-            runtime_unknown = RUNTIME_UNKNOWN
-            normalize_runtime = normalize_runtime_name
-        except Exception:
-            pass
         active_runtime = _detect_platform(cwd)
-    else:
-        try:
-            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, normalize_runtime_name
-
-            runtime_unknown = RUNTIME_UNKNOWN
-            normalize_runtime = normalize_runtime_name
-        except Exception:
-            pass
     active_runtime = normalize_runtime(active_runtime)
     if active_runtime == runtime_unknown:
         active_runtime = None
 
     return _resolve_model_canonical(cwd, agent_type, runtime=active_runtime)
+
+
+def resolve_context_model(cwd: Path, agent_type: str, runtime: str | None = None) -> str | None:
+    """Resolve the concrete agent model for CLI contexts."""
+
+    return _resolve_model(cwd, agent_type, runtime=runtime)
 
 
 # ─── Phase Info Helper ────────────────────────────────────────────────────────
@@ -2688,7 +2697,7 @@ def init_execute_phase(
             "gpd init execute-phase does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase)
     milestone = _try_get_milestone_info(cwd)
 
@@ -2972,7 +2981,7 @@ def init_plan_phase(
             "gpd init plan-phase does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase)
 
     result: dict[str, object] = {
@@ -3027,11 +3036,7 @@ def init_plan_phase(
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "plan-phase",
-        allowed_tools=_PLAN_PHASE_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_PLAN_PHASE_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("plan-phase", known_init_fields=_PLAN_PHASE_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3082,7 +3087,7 @@ def init_plan_phase(
 
 def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new project creation."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
 
     # Detect existing research files (walk up to depth 3, max 5 files)
     has_research_files = False
@@ -3147,11 +3152,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "new-project",
-        allowed_tools={"ask_user", "file_read", "file_write", "shell", "task"},
-        known_init_fields=set(result),
-    )
+    manifest = load_workflow_stage_manifest("new-project", known_init_fields=_NEW_PROJECT_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3170,7 +3171,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
 
 def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new milestone creation."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     milestone = _try_get_milestone_info(cwd)
     base_result = {
         # Config
@@ -3205,11 +3206,7 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "new-milestone",
-        allowed_tools=_NEW_MILESTONE_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_NEW_MILESTONE_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("new-milestone", known_init_fields=_NEW_MILESTONE_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3261,7 +3258,7 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
 def init_quick(cwd: Path, description: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for quick task execution."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     now = datetime.now(UTC)
     normalized_description = description.strip() if isinstance(description, str) else description
     slug = _generate_slug(normalized_description)
@@ -3317,11 +3314,7 @@ def init_quick(cwd: Path, description: str | None = None, stage: str | None = No
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "quick",
-        allowed_tools=_QUICK_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_QUICK_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("quick", known_init_fields=_QUICK_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3356,7 +3349,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         data_root=data_root,
         prefer_workspace_layout=True,
     )
-    config = load_config(effective_cwd)
+    config = load_context_config_dict(effective_cwd)
     execution_context = _build_execution_runtime_context(effective_cwd)
     result_lookup_by_id = _build_resume_result_lookup(effective_cwd)
 
@@ -3483,10 +3476,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "resume-work",
-        allowed_tools={"ask_user", "file_read", "file_write", "shell"},
-    )
+    manifest = load_workflow_stage_manifest("resume-work")
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3563,10 +3553,7 @@ def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | N
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "sync-state",
-        allowed_tools={"ask_user", "file_read", "file_write", "shell", "find_files", "search_files"},
-    )
+    manifest = load_workflow_stage_manifest("sync-state")
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3609,7 +3596,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
             "phase is required for init verify-work. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase)
     phase_proof_review_status = resolve_phase_proof_review_status(
         cwd,
@@ -3647,11 +3634,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "verify-work",
-        allowed_tools=_VERIFY_WORK_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_VERIFY_WORK_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("verify-work", known_init_fields=_VERIFY_WORK_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3686,7 +3669,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
 def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for manuscript authoring and publication review."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "state_exists": _state_exists(cwd),
@@ -3703,11 +3686,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "write-paper",
-        allowed_tools=_WRITE_PAPER_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_WRITE_PAPER_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("write-paper", known_init_fields=_WRITE_PAPER_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3750,7 +3729,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
 def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for staged manuscript peer review."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "state_exists": _state_exists(cwd),
@@ -3761,18 +3740,12 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_reference_runtime_context(cwd))
-        result.update(_build_publication_bootstrap_runtime_context(cwd))
-        result.update(_build_publication_runtime_snapshot_context(cwd))
+        result.update(_build_peer_review_runtime_context(cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "peer-review",
-        allowed_tools=_PEER_REVIEW_STAGE_ALLOWED_TOOLS,
-        known_init_fields=PEER_REVIEW_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("peer-review", known_init_fields=PEER_REVIEW_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3782,10 +3755,11 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    if required_fields & _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS:
-        staged_source.update(_build_reference_runtime_context(cwd))
-    if required_fields & _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS:
-        staged_source.update(_build_publication_runtime_snapshot_context(cwd))
+    peer_review_runtime_fields = (
+        _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS | _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS
+    )
+    if required_fields & peer_review_runtime_fields:
+        staged_source.update(_build_peer_review_runtime_context(cwd))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
@@ -3798,7 +3772,7 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
 
 def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for arXiv submission packaging."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "state_exists": _state_exists(cwd),
@@ -3853,7 +3827,7 @@ def init_phase_op(
             "gpd init phase-op does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase) if phase else None
 
     result: dict[str, object] = {
@@ -3918,13 +3892,39 @@ def init_phase_op(
             f"Unknown research-phase stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
         ) from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+
+    if required_fields & {
+        "state_load_source",
+        "state_integrity_issues",
+        "convention_lock",
+        "convention_lock_count",
+        "intermediate_results",
+        "intermediate_result_count",
+        "approximations",
+        "approximation_count",
+        "propagated_uncertainties",
+        "propagated_uncertainty_count",
+    }:
+        staged_source.update(_build_structured_state_runtime_context(cwd))
+
+    if required_fields & {"state_content", "config_content", "roadmap_content"}:
+        planning = cwd / PLANNING_DIR_NAME
+        if "state_content" in required_fields:
+            staged_source["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        if "config_content" in required_fields:
+            staged_source["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
+        if "roadmap_content" in required_fields:
+            staged_source["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(
             f"research-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
         )
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 
@@ -3941,7 +3941,7 @@ def init_research_phase(
 
 def init_literature_review(cwd: Path, topic: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for literature review orchestration."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     normalized_topic = topic.strip() if isinstance(topic, str) and topic.strip() else None
     slug = _generate_slug(normalized_topic)
     if normalized_topic and slug is None:
@@ -3988,10 +3988,11 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
 
 def init_todos(cwd: Path, area: str | None = None) -> dict:
     """Assemble context for todo management."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     now = datetime.now(UTC)
 
-    pending_dir = cwd / PLANNING_DIR_NAME / TODOS_DIR_NAME / "pending"
+    layout = ProjectLayout(cwd)
+    pending_dir = layout.todos_dir / "pending"
     todos: list[dict[str, str]] = []
 
     try:
@@ -4018,7 +4019,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
                     "created": created,
                     "title": title,
                     "area": todo_area,
-                    "path": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending/{f.name}",
+                    "path": relative_posix_path(cwd, f),
                 }
             )
     except (FileNotFoundError, PermissionError):
@@ -4038,12 +4039,12 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "pending_todos": todos,
         "area_filter": area,
         # Paths
-        "pending_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending",
-        "done_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/done",
+        "pending_dir": relative_posix_path(cwd, pending_dir),
+        "done_dir": relative_posix_path(cwd, layout.todos_dir / "done"),
         # File existence
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}"),
-        "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending"),
+        "planning_exists": layout.gpd.exists(),
+        "todos_dir_exists": layout.todos_dir.exists(),
+        "pending_dir_exists": pending_dir.exists(),
         # Platform
         "platform": _detect_platform(cwd),
     }
@@ -4051,7 +4052,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
 
 def init_milestone_op(cwd: Path) -> dict:
     """Assemble context for milestone operations (complete, archive, etc.)."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     milestone = _try_get_milestone_info(cwd)
     reference_runtime_context = _build_reference_runtime_context(cwd)
 
@@ -4100,7 +4101,7 @@ def init_milestone_op(cwd: Path) -> dict:
 
 def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
 
     # Check for existing research maps
     research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
@@ -4129,9 +4130,8 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-
     if stage is None:
+        result.update(_build_reference_runtime_context(cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4140,13 +4140,22 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
-        raise ValueError(f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}.") from exc
+        raise ValueError(
+            f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+    if required_fields & _MAP_RESEARCH_REFERENCE_RUNTIME_FIELDS:
+        staged_source.update(_build_reference_runtime_context(cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
+        raise ValueError(
+            f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 
@@ -4180,7 +4189,7 @@ def init_progress(
             "project_root_source": "workspace",
             "project_root_auto_selected": False,
         }
-    config = load_config(effective_cwd)
+    config = load_context_config_dict(effective_cwd)
     milestone = _try_get_milestone_info(effective_cwd)
 
     # Analyze phases

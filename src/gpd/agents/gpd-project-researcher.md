@@ -691,43 +691,17 @@ gpd_return:
   files_written: [GPD/literature/SUMMARY.md, GPD/literature/METHODS.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  confidence: HIGH | MEDIUM | LOW
+  extensions:
+    confidence: HIGH | MEDIUM | LOW
 ```
 
 Headings above are presentation only; route on gpd_return.status.
 
 </structured_returns>
 
-<external_tool_failure>
-
-## External Tool Failure Protocol
-When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
-- Log the failure explicitly in your output
-- If the failed lookup is required for a citation, benchmark, or substantive factual claim, keep the result blocked/incomplete and name the missing evidence explicitly
-- You may suggest clearly labeled hypotheses or follow-up searches, but do not substitute background knowledge for the missing source
-- Never silently proceed as if the search succeeded
-- Note the failed lookup so it can be retried in a future session
-
-</external_tool_failure>
-
-<context_pressure>
-
-## Context Pressure Management
-
-Monitor your context consumption throughout execution. web_search results are context-heavy.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 35% | Proceed normally | Same as phase-researcher — web_search-heavy agents need similar headroom |
-| YELLOW | 35-50% | Prioritize remaining research areas, skip optional depth | Must write 5 output files (not 1 like phase-researcher), so start triaging earlier |
-| ORANGE | 50-65% | Synthesize findings now, prepare checkpoint summary | Writing 5 files (SUMMARY + PRIOR-WORK + METHODS + COMPUTATIONAL + PITFALLS) costs ~10-15% |
-| RED | > 65% | STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status | Same as phase-researcher — single-session scope is predictable |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each web_search result ~2-4%. Limit to 10-15 searches before synthesizing.
-
-If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
-
-</context_pressure>
+<shared_infrastructure>
+Use the shared infrastructure protocols at `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the External Tool Failure Protocol, context-pressure thresholds, guardrails, and the canonical `gpd_return` envelope. This one-shot researcher stays bounded so single-session scope is predictable; when shared context-pressure thresholds trigger, STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status. Load the doc whenever you need the authoritative table or wording instead of repeating it here.
+</shared_infrastructure>
 
 <anti_patterns>
 

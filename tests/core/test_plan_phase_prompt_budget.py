@@ -48,19 +48,26 @@ def test_plan_phase_workflow_defers_stage_authorities_until_the_manifest_stages_
     planner_authoring = manifest.stages[2]
     checker_revision = manifest.stages[3]
 
-    assert bootstrap.loaded_authorities == ("workflows/plan-phase.md",)
+    assert bootstrap.loaded_authorities == (
+        "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
+    )
     assert "templates/plan-contract-schema.md" in bootstrap.must_not_eager_load
     assert "templates/planner-subagent-prompt.md" in bootstrap.must_not_eager_load
     assert "references/ui/ui-brand.md" in bootstrap.must_not_eager_load
 
     assert planner_authoring.loaded_authorities == (
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md",
     )
+    assert "templates/project-contract-schema.md" in planner_authoring.loaded_authorities
     assert checker_revision.loaded_authorities == (
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md",
     )
+    assert "templates/project-contract-schema.md" in checker_revision.loaded_authorities
     assert "reference_artifacts_content" in planner_authoring.required_init_fields
     assert "reference_artifacts_content" in checker_revision.required_init_fields
     assert "experiment_design_content" in planner_authoring.required_init_fields

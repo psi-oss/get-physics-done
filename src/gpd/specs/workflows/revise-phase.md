@@ -384,7 +384,7 @@ Present completion summary and next steps:
 <sub>`/clear` first -> fresh context window</sub>
 
 **Review affected downstream phases first?**
-{List gpd:show-phase commands for affected phases}
+List the relevant `gpd --raw init phase-op <phase-number>` commands for affected phases
 
 ---
 ```

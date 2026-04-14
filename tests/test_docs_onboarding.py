@@ -74,8 +74,10 @@ def test_os_quickstarts_install_matrix_matches_runtime_catalog(doc_name: str) ->
     content = _read(f"docs/{doc_name}")
     install_section = _markdown_section(content, "## Install GPD")
 
-    for surface in beginner_runtime_surfaces():
-        assert _expected_install_row(surface) in install_section
+    assert "docs/runtime-catalog-reference.md" in install_section
+    assert "npx -y get-physics-done --<flag> --local" in install_section
+    assert "Replace `<flag>` with the install flag documented in the runtime catalog reference" in install_section
+    assert "python scripts/render_runtime_catalog_table.py" in install_section
 
 
 @pytest.mark.parametrize(
@@ -171,6 +173,8 @@ def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces(
     content = _read("README.md")
     supported_runtimes = _markdown_section(content, "## Supported Runtimes")
     normalized_supported_runtimes = _normalize_markdown_table(supported_runtimes)
+    launch_command_list = ", ".join(f"`{surface.launch_command}`" for surface in beginner_runtime_surfaces()[:-1])
+    launch_command_list = f"{launch_command_list}, or `{beginner_runtime_surfaces()[-1].launch_command}`"
 
     for surface in beginner_runtime_surfaces():
         expected_row = (
@@ -179,6 +183,9 @@ def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces(
             f"{surface.map_research_command} | {surface.resume_work_command} |"
         )
         assert expected_row in normalized_supported_runtimes
+
+    assert f"then launch your selected runtime with {launch_command_list}" in content
+    assert f"launchable there ({launch_command_list})" in content
 
     assert "Config path overrides" not in content
     assert "CLAUDE_CONFIG_DIR" not in content

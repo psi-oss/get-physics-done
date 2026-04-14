@@ -10,9 +10,11 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.core.constants import ProjectLayout
 from gpd.core.git_ops import (
     CommitResult,
     PreCommitCheckResult,
+    _supports_assert_convention_validation,
     cmd_commit,
     cmd_pre_commit_check,
 )
@@ -46,6 +48,13 @@ class TestPreCommitCheck:
         result = cmd_pre_commit_check(tmp_path, [])
         assert result.passed is True
         assert result.files_checked == 0
+
+    def test_supports_assert_convention_validation_for_expected_text_artifacts(self) -> None:
+        assert _supports_assert_convention_validation("derivation.md") is True
+        assert _supports_assert_convention_validation("derivation.markdown") is True
+        assert _supports_assert_convention_validation("derivation.py") is True
+        assert _supports_assert_convention_validation("derivation.tex") is True
+        assert _supports_assert_convention_validation("notes.json") is False
 
     @patch("gpd.core.git_ops._exec_git")
     def test_no_files_checks_staged_files_when_available(self, mock_git: MagicMock, tmp_path: Path) -> None:
@@ -538,8 +547,10 @@ class TestCommit:
             cmd_commit(tmp_path, "test: default staging")
             # Verify the git add was called with GPD/
             add_call = mock_git.call_args_list[0]
-            assert "GPD/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
+            layout = ProjectLayout(tmp_path)
+            expected = f"{layout.gpd.relative_to(tmp_path)}/"
+            assert expected in add_call[0][1]
+            mock_precheck.assert_called_once_with(tmp_path, [expected])
 
     def test_empty_files_defaults_to_planning_dir(self, tmp_path: Path) -> None:
         with (
@@ -558,8 +569,10 @@ class TestCommit:
             ]
             cmd_commit(tmp_path, "test: default staging", files=[])
             add_call = mock_git.call_args_list[0]
-            assert "GPD/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
+            layout = ProjectLayout(tmp_path)
+            expected = f"{layout.gpd.relative_to(tmp_path)}/"
+            assert expected in add_call[0][1]
+            mock_precheck.assert_called_once_with(tmp_path, [expected])
 
     def test_commit_blocks_when_pre_commit_check_fails(self, tmp_path: Path) -> None:
         pre_commit = PreCommitCheckResult(

@@ -6,48 +6,55 @@ import pytest
 
 from gpd.adapters.install_utils import expand_at_includes
 from gpd.core.public_surface_contract import resume_authority_fields
-from tests.doc_surface_contracts import resume_authority_public_vocabulary_intro, resume_compat_alias_fields
+from gpd.core.surface_phrases import (
+    reapply_patches_detection_surface_note,
+    reapply_patches_summary_surface_note,
+    update_summary_surface_note,
+)
+from tests.doc_surface_contracts import (
+    assert_reapply_patches_surface_contract,
+    assert_update_surface_contract,
+    resume_authority_public_vocabulary_intro,
+    resume_compat_alias_fields,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+
+WORKFLOWS_WITH_PROJECT_CONTRACT_AUTHORITY = tuple(
+    sorted(
+        path.name
+        for path in WORKFLOWS_DIR.glob("*.md")
+        if "project_contract_gate.authoritative" in path.read_text(encoding="utf-8")
+    )
+)
 
 
 def _workflow_text(name: str) -> str:
     return (WORKFLOWS_DIR / name).read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize(
-    ("workflow_name", "surface_marker", "expected_token"),
-    [
-        ("plan-phase.md", "Parse JSON for:", "project_contract_gate"),
-        ("execute-phase.md", "Parse JSON for:", "project_contract_gate"),
-        ("execute-plan.md", "Extract from init JSON:", "project_contract_gate"),
-        ("quick.md", "Parse JSON for:", "project_contract_gate"),
-        ("literature-review.md", "Parse JSON for:", "project_contract_gate"),
-        ("compare-experiment.md", "Parse JSON for:", "project_contract_gate"),
-        ("compare-results.md", "Parse JSON for:", "project_contract_gate"),
-        ("new-project.md", "Parse JSON for:", "project_contract_gate"),
-        ("new-milestone.md", "Parse JSON for:", "project_contract_gate"),
-        ("map-research.md", "Extract from init JSON:", "project_contract_gate"),
-        ("progress.md", "Extract from init JSON:", "project_contract_gate"),
-        ("audit-milestone.md", "Extract from init JSON:", "project_contract_gate"),
-        ("resume-work.md", "- **Availability and contract authority:**", "project_contract_gate"),
-        ("write-paper.md", "Parse JSON for:", "project_contract_gate"),
-        ("respond-to-referees.md", "Parse JSON for:", "project_contract_gate"),
-        ("peer-review.md", "Parse JSON for:", "project_contract_gate"),
-    ],
-)
-def test_contract_gate_is_visible_before_authoritative_use(
-    workflow_name: str,
-    surface_marker: str,
-    expected_token: str,
-) -> None:
+@pytest.mark.parametrize("workflow_name", WORKFLOWS_WITH_PROJECT_CONTRACT_AUTHORITY)
+def test_contract_gate_is_visible_before_authoritative_use(workflow_name: str) -> None:
     workflow = _workflow_text(workflow_name)
-    surface_line = next(line for line in workflow.splitlines() if surface_marker in line)
+    lines = workflow.splitlines()
+    authority_index = next(
+        index for index, line in enumerate(lines) if "project_contract_gate.authoritative" in line
+    )
+    surface_indices = [
+        index
+        for index, line in enumerate(lines)
+        if "project_contract_gate" in line and "project_contract_gate.authoritative" not in line
+    ]
 
-    assert expected_token in surface_line
-    assert workflow.index(surface_line) < workflow.index("project_contract_gate.authoritative")
+    assert surface_indices, (
+        f"{workflow_name} never surfaces `project_contract_gate` before `project_contract_gate.authoritative`."
+    )
+    surface_index = min(surface_indices)
+    assert surface_index < authority_index, (
+        f"{workflow_name} mentions `project_contract_gate.authoritative` before the gate was surfaced."
+    )
 
 
 def test_literature_review_workflow_surfaces_contract_gate_before_deferred_reference_artifacts() -> None:
@@ -96,17 +103,25 @@ def test_peer_review_reliability_reference_matches_peer_review_workflow_invocati
 def test_reapply_patches_keeps_manifest_regeneration_contract_honest() -> None:
     workflow = _workflow_text("reapply-patches.md")
 
-    assert "do not invent a manual manifest-regeneration step" in workflow
-    assert "The managed file manifest is rebuilt by the next `gpd:update`" in workflow
+    assert_reapply_patches_surface_contract(workflow)
     assert "regenerate the file manifest" not in workflow
 
 
 def test_help_update_describes_bootstrap_update_surface_not_repo_pull() -> None:
     workflow = _workflow_text("help.md")
 
-    assert "Runs the public bootstrap update command for the active runtime" in workflow
-    assert "Preserves local modifications via patch backups" in workflow
+    assert_update_surface_contract(workflow)
     assert "Pulls latest GPD files from the repository" not in workflow
+
+
+def test_help_maintenance_index_uses_canonical_update_and_reapply_summaries() -> None:
+    workflow = _workflow_text("help.md")
+
+    assert f"- `gpd:update` - {update_summary_surface_note()}" in workflow
+    assert f"- `gpd:reapply-patches` - {reapply_patches_summary_surface_note()}" in workflow
+    assert reapply_patches_detection_surface_note() in workflow
+    assert "- `gpd:update` - Update GPD to the latest version" not in workflow
+    assert "- `gpd:reapply-patches` - Reapply local modifications after updating" not in workflow
 
 
 def test_new_milestone_roadmapper_prompt_surfaces_contract_gate_inputs() -> None:
@@ -248,3 +263,53 @@ def test_settings_publication_manuscript_preset_surfaces_real_latex_readiness_ga
 
     assert "only affects local smoke checks" not in settings
     assert "can degrade or block `paper-build` / `arxiv-submission`" in settings
+
+
+def test_pause_work_workflow_surfaces_continue_here_schema_fields() -> None:
+    workflow = _workflow_text("pause-work.md")
+
+    assert "@{GPD_INSTALL_DIR}/templates/continue-here.md" in workflow
+    assert "YAML frontmatter: `phase`, `task`, `total_tasks`, `status`, `last_updated`" in workflow
+    assert "<current_state>" in workflow
+    assert "<remaining_work>" in workflow
+    assert "<persistent_state>" in workflow
+
+
+def test_resume_work_workflow_surfaces_state_json_schema_and_resume_vocabulary() -> None:
+    workflow = _workflow_text("resume-work.md")
+
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in workflow
+    assert "@{GPD_INSTALL_DIR}/references/orchestration/resume-vocabulary.md" in workflow
+    assert "resume_surface_schema_version" in workflow
+    assert "project_contract_gate" in workflow
+
+
+def test_compare_workflows_surface_comparison_frontmatter_ledgers() -> None:
+    compare_results = _workflow_text("compare-results.md")
+    compare_experiment = _workflow_text("compare-experiment.md")
+
+    assert "{GPD_INSTALL_DIR}/templates/paper/internal-comparison.md" in compare_results
+    assert "comparison_verdicts" in compare_results
+    assert "comparison_sources" in compare_results
+    assert "subject_id" in compare_results
+
+    assert "{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md" in compare_experiment
+    assert "comparison_verdicts" in compare_experiment
+    assert "subject_id" in compare_experiment
+    assert "reference_id" in compare_experiment
+
+
+def test_analysis_workflows_surface_uncertainty_and_contract_structure() -> None:
+    error_propagation = _workflow_text("error-propagation.md")
+    parameter_sweep = _workflow_text("parameter-sweep.md")
+
+    assert "{GPD_INSTALL_DIR}/templates/uncertainty-budget.md" in error_propagation
+    assert "{GPD_INSTALL_DIR}/templates/parameter-table.md" in error_propagation
+    assert "error-propagation-protocol.md" in error_propagation
+
+    assert "contract:" in parameter_sweep
+    assert "schema_version: 1" in parameter_sweep
+    assert "claims:" in parameter_sweep
+    assert "deliverables:" in parameter_sweep
+    assert "acceptance_tests:" in parameter_sweep
+    assert "forbidden_proxies:" in parameter_sweep

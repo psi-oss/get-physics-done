@@ -8,7 +8,7 @@ from __future__ import annotations
 import copy
 import json
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -35,6 +35,7 @@ __all__ = [
     "effective_config_value",
     "load_config",
     "resolve_agent_tier",
+    "resolve_model_overrides_for_runtime",
     "resolve_tier",
     "resolve_model",
     "supported_config_keys",
@@ -399,6 +400,38 @@ class GPDProjectConfig(BaseModel):
 
         return normalized or None
 
+    def to_storage_dict(self) -> dict[str, object]:
+        """Return a canonical `config.json` payload for defaults."""
+
+        return {
+            "autonomy": self.autonomy.value,
+            "execution": {
+                "review_cadence": self.review_cadence.value,
+                "max_unattended_minutes_per_plan": self.max_unattended_minutes_per_plan,
+                "max_unattended_minutes_per_wave": self.max_unattended_minutes_per_wave,
+                "checkpoint_after_n_tasks": self.checkpoint_after_n_tasks,
+                "checkpoint_after_first_load_bearing_result": self.checkpoint_after_first_load_bearing_result,
+                "checkpoint_before_downstream_dependent_tasks": self.checkpoint_before_downstream_dependent_tasks,
+                "project_usd_budget": self.project_usd_budget,
+                "session_usd_budget": self.session_usd_budget,
+            },
+            "research_mode": self.research_mode.value,
+            "commit_docs": self.commit_docs,
+            "parallelization": self.parallelization,
+            "model_profile": self.model_profile.value,
+            "workflow": {
+                "research": self.research,
+                "plan_checker": self.plan_checker,
+                "verifier": self.verifier,
+            },
+            "git": {
+                "branching_strategy": self.branching_strategy.value,
+                "phase_branch_template": self.phase_branch_template,
+                "milestone_branch_template": self.milestone_branch_template,
+            },
+            "model_overrides": copy.deepcopy(self.model_overrides),
+        }
+
 
 # ─── Config Loading ─────────────────────────────────────────────────────────────
 
@@ -407,7 +440,7 @@ _CONFIG_DEFAULTS = GPDProjectConfig()
 
 def _normalize_config_key(key: str) -> str:
     """Normalize a user-facing config key path."""
-    return key.strip()
+    return key.strip().lower().replace("-", "_")
 
 
 def _enum_value(value: object) -> object:
@@ -738,6 +771,16 @@ def _unsupported_config_keys(parsed: dict[str, object]) -> list[str]:
     return sorted(unsupported)
 
 
+def _reject_duplicate_config_keys(pairs: Iterable[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate object keys while parsing config.json."""
+    parsed: dict[str, object] = {}
+    for key, value in pairs:
+        if key in parsed:
+            raise ConfigError(f"Duplicate config.json key: `{key}`")
+        parsed[key] = value
+    return parsed
+
+
 def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
     """Build the canonical config model from a parsed config payload."""
     if not isinstance(parsed, dict):
@@ -880,7 +923,9 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
 
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(raw, object_pairs_hook=_reject_duplicate_config_keys)
+    except ConfigError:
+        raise
     except json.JSONDecodeError as e:
         raise ConfigError(f"Malformed config.json: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json") from e
     return _apply_gitignore_commit_docs(project_dir, _model_from_parsed_config(parsed))
@@ -944,6 +989,17 @@ def resolve_tier(project_dir: Path, agent_name: str) -> ModelTier:
     return resolve_agent_tier(agent_name, config.model_profile)
 
 
+def resolve_model_overrides_for_runtime(
+    config: GPDProjectConfig,
+    runtime: str | None,
+) -> dict[str, str]:
+    """Return explicit model overrides for a runtime id, alias, or display name."""
+    normalized_runtime = normalize_runtime_name(runtime)
+    if normalized_runtime is None:
+        return {}
+    return (config.model_overrides or {}).get(normalized_runtime) or {}
+
+
 @instrument_gpd_function("config.resolve_model")
 def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None) -> str | None:
     """Resolve the runtime-specific model override for an agent in a project.
@@ -959,10 +1015,7 @@ def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None
 
     config = load_config(project_dir)
     tier = resolve_agent_tier(agent_name, config.model_profile).value
-    normalized_runtime = normalize_runtime_name(runtime)
-    if normalized_runtime is None:
-        return None
-    runtime_overrides = (config.model_overrides or {}).get(normalized_runtime)
+    runtime_overrides = resolve_model_overrides_for_runtime(config, runtime)
     if not runtime_overrides:
         return None
     return runtime_overrides.get(tier)

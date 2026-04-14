@@ -10,6 +10,10 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 </required_reading>
 
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
+
 <process>
 
 ## 1. Bootstrap and Load Context
@@ -197,6 +201,8 @@ mkdir -p GPD/literature
 Spawn 4 parallel gpd-project-researcher agents. Each uses this template with dimension-specific fields:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 **Common structure for all 4 scouts:**
 
 ```
@@ -220,7 +226,7 @@ Focus ONLY on what's needed for the NEW research questions.
 
 <output>
 Write to: GPD/literature/{FILE}
-Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
+Use the matching template in {GPD_INSTALL_DIR}/templates/research-project/ for each required research-project output file.
 </output>
 
 <return_contract>
@@ -479,7 +485,6 @@ Parse JSON for: `roadmapper_model`, `commit_docs`, `autonomy`, `current_mileston
 
 Use the bootstrap init for milestone identity and contract gating. Use this late-stage init for the final handoff and do not reuse stale roadmapping inputs from the survey/objective loop.
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -605,7 +610,6 @@ Success criteria:
 
 **If "Adjust":** Get notes, then respawn the roadmapper with a revision continuation handoff:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
   ```
   task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -662,7 +666,7 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files GPD/ROAD
 
 **[N] phases** | **[X] objectives** | Ready to investigate
 
-## >> Next Up
+## > Next Up
 
 **Phase [N]: [Phase Name]** — [Goal]
 ```

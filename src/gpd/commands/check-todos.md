@@ -38,7 +38,7 @@ Area filters can target research domains such as:
 </execution_context>
 
 <process>
-**Follow the check-todos workflow** from `@{GPD_INSTALL_DIR}/workflows/check-todos.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow handles all logic including:
 
@@ -50,4 +50,4 @@ The workflow handles all logic including:
 6. Action offering and execution
 7. STATE.md updates
 8. Git commits
-   </process>
+</process>

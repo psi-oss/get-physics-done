@@ -7,13 +7,18 @@ from pathlib import Path
 
 import pytest
 
+from gpd import registry
 from gpd.core.context import init_write_paper
 from gpd.core.workflow_staging import (
+    ARXIV_SUBMISSION_BOOTSTRAP_FIELDS,
+    ARXIV_SUBMISSION_SNAPSHOT_FIELDS,
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
     LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
     MAP_RESEARCH_STAGE_MANIFEST_PATH,
     NEW_PROJECT_STAGE_MANIFEST_PATH,
+    PLAN_PHASE_REFERENCE_RUNTIME_FIELDS,
     PLAN_PHASE_STAGE_MANIFEST_PATH,
+    QUICK_REFERENCE_RUNTIME_FIELDS,
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
     invalidate_workflow_stage_manifest_cache,
@@ -23,11 +28,37 @@ from gpd.core.workflow_staging import (
     resolve_workflow_stage_manifest_path,
     validate_workflow_stage_manifest_payload,
 )
+from gpd.registry import _parse_allowed_tools
+
+WORKFLOWS_DIR = NEW_PROJECT_STAGE_MANIFEST_PATH.parent
 
 
 def _workflow_payload(workflow_id: str) -> dict[str, object]:
     manifest_path = resolve_workflow_stage_manifest_path(workflow_id)
     return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def _workflow_stage_index(payload: dict[str, object], stage_id: str) -> int:
+    stages = payload["stages"]
+    assert isinstance(stages, list)
+    return next(index for index, stage in enumerate(stages) if stage["id"] == stage_id)
+
+
+def _load_manifest_with_command_policy(
+    tmp_path: Path,
+    workflow_id: str,
+    payload: dict[str, object],
+):
+    registry.invalidate_cache()
+    command = registry.get_command(workflow_id)
+    manifest_path = tmp_path / f"{workflow_id}-stage-manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    return load_workflow_stage_manifest_from_path(
+        manifest_path,
+        expected_workflow_id=workflow_id,
+        allowed_tools=command.allowed_tools,
+        known_init_fields=known_init_fields_for_workflow(workflow_id),
+    )
 
 
 @pytest.mark.parametrize(
@@ -121,6 +152,13 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
     )
     assert first.stages[2].next_stages == ()
 
+
+def test_command_allowed_tools_are_canonicalized_and_deduped() -> None:
+    assert _parse_allowed_tools(["Read", "file_read", " shell "], command_name="demo") == [
+        "file_read",
+        "shell",
+    ]
+
     execute_phase_manifest = load_workflow_stage_manifest("execute-phase")
     assert execute_phase_manifest.stage_ids() == (
         "phase_bootstrap",
@@ -162,7 +200,10 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
         "interactive_validation",
         "gap_repair",
     )
-    assert manifest.stages[0].loaded_authorities == ("workflows/verify-work.md",)
+    assert manifest.stages[0].loaded_authorities == (
+        "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
+    )
     assert "references/verification/core/verification-core.md" in manifest.stages[0].must_not_eager_load
     assert "templates/verification-report.md" in manifest.stages[0].must_not_eager_load
     assert "phase_proof_review_status" in manifest.stages[0].required_init_fields
@@ -173,6 +214,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "phase_proof_review_status" in manifest.stages[1].required_init_fields
     assert manifest.stages[2].loaded_authorities == (
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "references/verification/meta/verification-independence.md",
     )
     assert "protocol_bundle_verifier_extensions" in manifest.stages[2].required_init_fields
@@ -198,6 +240,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "reference_artifacts_content" not in manifest.stages[3].required_init_fields
     assert manifest.stages[3].loaded_authorities == (
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -223,6 +266,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "reference_artifacts_content" in manifest.stages[4].required_init_fields
     assert manifest.stages[4].loaded_authorities == (
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -281,15 +325,20 @@ def test_validate_workflow_stage_manifest_payload_loads_plan_phase_manifest() ->
         "planner_authoring",
         "checker_revision",
     )
-    assert manifest.stages[0].loaded_authorities == ("workflows/plan-phase.md",)
+    assert manifest.stages[0].loaded_authorities == (
+        "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
+    )
     assert "templates/plan-contract-schema.md" in manifest.stages[0].must_not_eager_load
     assert "templates/planner-subagent-prompt.md" in manifest.stages[0].must_not_eager_load
     assert manifest.stages[2].loaded_authorities == (
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md",
     )
     assert manifest.stages[3].loaded_authorities == (
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md",
     )
     assert "reference_artifacts_content" in manifest.stages[2].required_init_fields
@@ -815,7 +864,11 @@ def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
     manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
 
     if not manifest_path.exists():
-        pytest.skip("arxiv-submission stage manifest has not landed yet")
+        workflow_text = WORKFLOWS_DIR.joinpath("arxiv-submission.md").read_text(encoding="utf-8")
+
+        assert "stage manifest" not in workflow_text.lower()
+        assert "staged loading" not in workflow_text.lower()
+        return
 
     manifest = validate_workflow_stage_manifest_payload(
         json.loads(manifest_path.read_text(encoding="utf-8")),
@@ -833,6 +886,26 @@ def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
     assert "references/publication/publication-review-round-artifacts.md" in manifest.stage("review_gate").loaded_authorities
     assert "references/publication/peer-review-reliability.md" in manifest.stage("review_gate").loaded_authorities
     assert "references/publication/publication-response-writer-handoff.md" not in manifest.stage("review_gate").loaded_authorities
+
+
+def test_arxiv_submission_stage_manifest_surfaces_bootstrap_and_snapshot_fields() -> None:
+    manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
+
+    if not manifest_path.exists():
+        return
+
+    manifest = validate_workflow_stage_manifest_payload(
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+        expected_workflow_id="arxiv-submission",
+    )
+
+    for stage_id in manifest.stage_ids():
+        required_fields = set(manifest.stage(stage_id).required_init_fields)
+        missing_bootstrap = ARXIV_SUBMISSION_BOOTSTRAP_FIELDS - required_fields
+        missing_snapshot = ARXIV_SUBMISSION_SNAPSHOT_FIELDS - required_fields
+        assert not missing_bootstrap, f"{stage_id} missing bootstrap fields: {', '.join(sorted(missing_bootstrap))}"
+        assert not missing_snapshot, f"{stage_id} missing snapshot fields: {', '.join(sorted(missing_snapshot))}"
+
 
 @pytest.mark.parametrize(
     ("mutator", "message"),
@@ -877,6 +950,45 @@ def test_validate_workflow_stage_manifest_payload_rejects_bad_entries(
         validate_workflow_stage_manifest_payload(payload)
 
 
+@pytest.mark.parametrize(
+    ("workflow_id", "stage_id", "tool_name"),
+    [
+        ("quick", "task_authoring", "file_edit"),
+        ("verify-work", "interactive_validation", "mcp__gpd_verification__suggest_contract_checks"),
+    ],
+)
+def test_load_workflow_stage_manifest_from_path_accepts_tools_allowed_by_owning_command(
+    workflow_id: str,
+    stage_id: str,
+    tool_name: str,
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload(workflow_id)
+    stage_index = _workflow_stage_index(payload, stage_id)
+    payload["stages"][stage_index]["allowed_tools"] = [
+        *payload["stages"][stage_index]["allowed_tools"],
+        tool_name,
+    ]
+
+    manifest = _load_manifest_with_command_policy(tmp_path, workflow_id, payload)
+
+    assert tool_name in manifest.stage(stage_id).allowed_tools
+
+
+def test_load_workflow_stage_manifest_from_path_rejects_tool_disallowed_by_owning_command(
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload("plan-phase")
+    stage_index = _workflow_stage_index(payload, "phase_bootstrap")
+    payload["stages"][stage_index]["allowed_tools"] = [
+        *payload["stages"][stage_index]["allowed_tools"],
+        "file_edit",
+    ]
+
+    with pytest.raises(ValueError, match="file_edit"):
+        _load_manifest_with_command_policy(tmp_path, "plan-phase", payload)
+
+
 @pytest.mark.parametrize("workflow_id", ["new-project"])
 def test_load_workflow_stage_manifest_from_path_respects_cache_invalidation(
     workflow_id: str,
@@ -899,3 +1011,39 @@ def test_load_workflow_stage_manifest_from_path_respects_cache_invalidation(
 
     assert third is not first
     assert third.stages[0].purpose == "updated purpose"
+
+
+def test_load_workflow_stage_manifest_from_path_without_expected_workflow_accepts_custom_init_fields(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "custom-stage-manifest.json"
+    manifest_payload = {
+        "schema_version": 1,
+        "workflow_id": "custom-workflow",
+        "stages": [
+            {
+                "id": "alpha",
+                "order": 1,
+                "purpose": "custom",
+                "mode_paths": ["workflows/new-project.md"],
+                "required_init_fields": ["custom_field"],
+                "loaded_authorities": [],
+                "conditional_authorities": [],
+                "must_not_eager_load": [],
+                "allowed_tools": ["file_read"],
+                "writes_allowed": ["GPD/STATE.md"],
+                "produced_state": [],
+                "next_stages": [],
+            }
+        ],
+    }
+    manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
+
+    manifest = load_workflow_stage_manifest_from_path(manifest_path)
+
+    assert manifest.workflow_id == "custom-workflow"
+    assert manifest.stages[0].required_init_fields == ("custom_field",)
+
+
+def test_plan_and_quick_reference_runtime_fields_align_intentionally() -> None:
+    assert PLAN_PHASE_REFERENCE_RUNTIME_FIELDS == QUICK_REFERENCE_RUNTIME_FIELDS

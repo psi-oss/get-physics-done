@@ -437,6 +437,95 @@ def test_run_contract_check_canonicalizes_returned_binding_payload() -> None:
     assert result["binding"] == {"claim_ids": ["claim-benchmark"]}
 
 
+def test_run_contract_check_limit_recovery_contract_only_defaults_are_not_decisive() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = {
+        "schema_version": 1,
+        "scope": {"question": "Q?"},
+        "context_intake": {"crucial_inputs": ["Use the large-k limit."]},
+        "observables": [{"id": "obs-limit", "name": "O", "definition": "Limit observable", "regime": "large-k"}],
+        "claims": [
+            {
+                "id": "claim-limit",
+                "statement": "O recovers the large-k asymptote",
+                "deliverables": ["deliverable-limit"],
+                "observables": ["obs-limit"],
+                "acceptance_tests": ["test-limit"],
+            }
+        ],
+        "deliverables": [{"id": "deliverable-limit", "description": "Limit recovery note"}],
+        "acceptance_tests": [
+            {
+                "id": "test-limit",
+                "subject": "claim-limit",
+                "kind": "limiting_case",
+                "procedure": "Take the large-k asymptotic limit.",
+                "pass_condition": "O approaches 1",
+            }
+        ],
+        "uncertainty_markers": {
+            "weakest_anchors": ["asymptotic regime"],
+            "disconfirming_observations": ["limit mismatch"],
+        },
+    }
+
+    result = run_contract_check(
+        {"check_key": "contract.limit_recovery", "contract": contract, "observed": {"limit_passed": True}}
+    )
+
+    assert result["status"] == "insufficient_evidence"
+    assert result["metrics"]["regime_label"] == "large-k"
+    assert any("derived from contract defaults" in issue for issue in result["automated_issues"])
+
+
+def test_suggest_contract_checks_limit_recovery_single_anchor_request_template_is_valid() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = {
+        "schema_version": 1,
+        "scope": {"question": "Q?"},
+        "context_intake": {"crucial_inputs": ["Use the large-k limit."]},
+        "observables": [{"id": "obs-limit", "name": "O", "definition": "Limit observable", "regime": "large-k"}],
+        "claims": [
+            {
+                "id": "claim-limit",
+                "statement": "O recovers the large-k asymptote",
+                "deliverables": ["deliverable-limit"],
+                "observables": ["obs-limit"],
+                "acceptance_tests": ["test-limit"],
+            }
+        ],
+        "deliverables": [{"id": "deliverable-limit", "description": "Limit recovery note"}],
+        "acceptance_tests": [
+            {
+                "id": "test-limit",
+                "subject": "claim-limit",
+                "kind": "limiting_case",
+                "procedure": "Take the large-k asymptotic limit.",
+                "pass_condition": "O approaches 1",
+            }
+        ],
+        "uncertainty_markers": {
+            "weakest_anchors": ["asymptotic regime"],
+            "disconfirming_observations": ["limit mismatch"],
+        },
+    }
+
+    suggestion = next(
+        entry
+        for entry in suggest_contract_checks(contract)["suggested_checks"]
+        if entry["check_key"] == "contract.limit_recovery"
+    )
+    request_template = suggestion["request_template"]
+    request_template["contract"] = contract
+    request_template["observed"] = {"limit_passed": True}
+
+    assert "metadata.regime_label" not in suggestion["schema_required_request_fields"]
+    assert "metadata.expected_behavior" not in suggestion["schema_required_request_fields"]
+    assert run_contract_check(request_template)["status"] == "pass"
+
+
 def test_verification_suggest_contract_checks_returns_error_envelope_on_backend_failure() -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 

@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from copy import deepcopy
 
 from gpd.mcp.verification_contract_policy import verification_server_description
@@ -33,37 +34,30 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
     "gpd-conventions": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.conventions_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-errors": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.errors_mcp"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-patterns": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.patterns_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-protocols": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.protocols_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-skills": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.skills_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-state": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.state_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-verification": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.verification_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-arxiv": {
         "command": _PYTHON_COMMAND_SENTINEL,
@@ -158,11 +152,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         },
     },
     "gpd-skills": {
-        "description": (
-            "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, "
-            "and indexing GPD workflow skills for agent prompt injection. Treat missing evidence or artifacts as "
-            "missing, blocked, failed, or inconclusive; never fabricate fallback outputs."
-        ),
+        "description": "GPD skill discovery and routing for workflow prompts; never fabricate missing outputs.",
         "capabilities": [
             "list_skills",
             "get_skill",
@@ -242,6 +232,8 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
 _UNRESOLVED_RE = re.compile(r"\$\{[^}]+\}")
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
 
+_MODULE_AVAILABILITY_CACHE: dict[tuple[str, str], bool] = {}
+
 # Keys that are GPD-managed and should be removed on uninstall.
 GPD_MCP_SERVER_KEYS = frozenset(_BUILTIN_SERVERS.keys())
 
@@ -264,8 +256,12 @@ def _resolve_env(value: str) -> str:
 def _is_module_available(module_name: str, *, python_path: str | None = None) -> bool:
     """Check if a Python module is importable in a specific interpreter."""
     interpreter = python_path or sys.executable
+    cache_key = (module_name, interpreter)
+    if cache_key in _MODULE_AVAILABILITY_CACHE:
+        return _MODULE_AVAILABILITY_CACHE[cache_key]
+
     try:
-        return subprocess.run(
+        result = subprocess.run(
             [
                 interpreter,
                 "-c",
@@ -277,7 +273,10 @@ def _is_module_available(module_name: str, *, python_path: str | None = None) ->
             stderr=subprocess.DEVNULL,
         ).returncode == 0
     except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError):
-        return False
+        result = False
+
+    _MODULE_AVAILABILITY_CACHE[cache_key] = result
+    return result
 
 
 def _build_public_alternatives(name: str) -> dict[str, dict[str, object]] | None:
@@ -346,13 +345,14 @@ def merge_managed_mcp_entry(
     managed_entry: dict[str, object],
     *,
     merge_mapping_keys: frozenset[str] = frozenset(),
+    user_owned_mapping_keys: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, object]:
     """Merge a managed MCP entry into an existing runtime config entry.
 
     Managed scalar fields overwrite the existing entry so reinstall can keep
     the runtime launch command current. Mapping fields like ``env`` can be
-    merged instead, with existing values taking precedence so user overrides
-    survive reinstalls.
+    merged instead, with managed values taking precedence unless a subkey is
+    explicitly marked user-owned by policy.
     """
 
     merged: dict[str, object] = {}
@@ -365,7 +365,12 @@ def merge_managed_mcp_entry(
             merged_mapping = {str(subkey): deepcopy(subvalue) for subkey, subvalue in managed_value.items()}
             if isinstance(existing_value, dict):
                 for subkey, subvalue in existing_value.items():
-                    merged_mapping[str(subkey)] = deepcopy(subvalue)
+                    normalized_subkey = str(subkey)
+                    if normalized_subkey in merged_mapping and normalized_subkey not in (
+                        user_owned_mapping_keys or {}
+                    ).get(key, frozenset()):
+                        continue
+                    merged_mapping[normalized_subkey] = deepcopy(subvalue)
             if merged_mapping:
                 merged[key] = merged_mapping
             else:
@@ -382,6 +387,7 @@ def merge_managed_mcp_servers(
     managed_servers: dict[str, dict[str, object]],
     *,
     merge_mapping_keys: frozenset[str] = frozenset({"env"}),
+    user_owned_mapping_keys: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, dict[str, object]]:
     """Merge managed GPD MCP entries into a runtime config mapping."""
 
@@ -397,6 +403,7 @@ def merge_managed_mcp_servers(
             existing_map.get(name) if isinstance(existing_map, dict) else None,
             managed_entry,
             merge_mapping_keys=merge_mapping_keys,
+            user_owned_mapping_keys=user_owned_mapping_keys,
         )
 
     return merged_servers
@@ -446,6 +453,10 @@ def build_mcp_servers_dict(
                 logger.debug("Skipping server %s: unresolved env vars in env", name)
                 continue
             entry["env"] = resolved_env
+
+        log_level = os.environ.get("LOG_LEVEL")
+        if log_level is not None:
+            entry.setdefault("env", {})["LOG_LEVEL"] = log_level
 
         servers[name] = entry
 

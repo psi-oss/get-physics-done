@@ -42,7 +42,8 @@ Scope: $ARGUMENTS (optional)
 </context>
 
 <process>
-Execute the regression-check workflow from @{GPD_INSTALL_DIR}/workflows/regression-check.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Preserve the workflow gates that mirror the shipped implementation:
 
 1. Validate command context and determine phase scope

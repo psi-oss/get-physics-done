@@ -31,6 +31,10 @@ class StableMCPEnvelope(dict[str, object]):
     """Schema-versioned MCP envelope for all server responses."""
 
 
+class FastMCPCompatibilityError(RuntimeError):
+    """Raised when FastMCP is missing the internals this shim relies on."""
+
+
 class _DynamicStderrHandler(logging.StreamHandler):
     """Stream handler that always emits to the current ``sys.stderr``."""
 
@@ -129,11 +133,18 @@ def run_mcp_server(mcp: object, description: str) -> None:
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args()
-    if args.host:
-        mcp.settings.host = args.host  # type: ignore[union-attr]
-    if args.port is not None:
-        mcp.settings.port = args.port  # type: ignore[union-attr]
+    apply_mcp_settings_overrides(mcp, host=args.host, port=args.port)
     mcp.run(transport=args.transport)  # type: ignore[union-attr]
+
+
+def apply_mcp_settings_overrides(mcp: object, *, host: str | None = None, port: int | None = None) -> None:
+    """Apply optional CLI settings overrides to an MCP-like object."""
+
+    settings = mcp.settings
+    if host:
+        settings.host = host
+    if port is not None:
+        settings.port = port
 
 
 def published_tool_input_schema(tool: object) -> dict[str, object] | None:
@@ -216,10 +227,41 @@ def refresh_string_enum_property_schema(
     return refreshed
 
 
+def _ensure_callable_attribute(obj: object, attribute: str, *, context: str) -> object:
+    if not hasattr(obj, attribute):
+        raise FastMCPCompatibilityError(
+            f"{context} requires `{attribute}` but FastMCP does not expose it."
+        )
+    value = getattr(obj, attribute)
+    if not callable(value):
+        raise FastMCPCompatibilityError(
+            f"{context}.{attribute} must be callable to tighten tool contracts."
+        )
+    return value
+
+
+def _ensure_tool_manager(mcp: object) -> object:
+    if not hasattr(mcp, "_tool_manager"):
+        raise FastMCPCompatibilityError(
+            "tighten_registered_tool_contracts requires FastMCP `_tool_manager`."
+        )
+    tool_manager = mcp._tool_manager  # type: ignore[attr-defined]
+    if tool_manager is None:
+        raise FastMCPCompatibilityError(
+            "tighten_registered_tool_contracts found `_tool_manager=None`; FastMCP must expose a manager."
+        )
+    _ensure_callable_attribute(tool_manager, "list_tools", context="tighten_registered_tool_contracts `_tool_manager`")
+    return tool_manager
+
+
 def tighten_registered_tool_contracts(mcp: object) -> None:
     """Publish strict top-level tool schemas and stable validation envelopes."""
 
     strict_schemas_by_name: dict[str, dict[str, object]] = {}
+    tool_manager = _ensure_tool_manager(mcp)
+    list_tools_callable = _ensure_callable_attribute(
+        mcp, "list_tools", context="tighten_registered_tool_contracts"
+    )
 
     def _build_strict_call(original_call, allowed_keys):
         async def _strict_call_fn_with_arg_validation(fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
@@ -233,8 +275,23 @@ def tighten_registered_tool_contracts(mcp: object) -> None:
 
         return _strict_call_fn_with_arg_validation
 
-    for tool in mcp._tool_manager.list_tools():  # type: ignore[attr-defined]
-        arg_model = tool.fn_metadata.arg_model
+    for tool in tool_manager.list_tools():  # type: ignore[attr-defined]
+        fn_metadata = getattr(tool, "fn_metadata", None)
+        if fn_metadata is None:
+            raise FastMCPCompatibilityError(
+                "tighten_registered_tool_contracts expects every registered tool to expose `fn_metadata`."
+            )
+        arg_model = getattr(fn_metadata, "arg_model", None)
+        if arg_model is None or not hasattr(arg_model, "model_fields"):
+            raise FastMCPCompatibilityError(
+                "tighten_registered_tool_contracts requires a Pydantic `arg_model` with `model_fields`."
+            )
+        call_fn = getattr(fn_metadata, "call_fn_with_arg_validation", None)
+        if not callable(call_fn):
+            raise FastMCPCompatibilityError(
+                "tighten_registered_tool_contracts needs callable `fn_metadata.call_fn_with_arg_validation`."
+            )
+
         strict_model = create_model(
             f"{arg_model.__name__}Strict",
             __base__=arg_model,
@@ -249,10 +306,9 @@ def tighten_registered_tool_contracts(mcp: object) -> None:
             for key in (field_name, field_info.alias)
             if key is not None
         }
-        original_call = tool.fn_metadata.call_fn_with_arg_validation
-        object.__setattr__(tool.fn_metadata, "call_fn_with_arg_validation", _build_strict_call(original_call, allowed_keys))
+        object.__setattr__(fn_metadata, "call_fn_with_arg_validation", _build_strict_call(call_fn, allowed_keys))
 
-    original_list_tools = mcp.list_tools
+    original_list_tools = list_tools_callable
 
     async def _list_tools_with_strict_schemas():
         tools = await original_list_tools()
@@ -268,6 +324,7 @@ def tighten_registered_tool_contracts(mcp: object) -> None:
 
 __all__ = [
     "ABSOLUTE_PROJECT_DIR_SCHEMA",
+    "FastMCPCompatibilityError",
     "MCP_SCHEMA_VERSION",
     "StableMCPEnvelope",
     "conventions_server",
@@ -279,6 +336,7 @@ __all__ = [
     "protocols_server",
     "resolve_absolute_project_dir",
     "run_mcp_server",
+    "apply_mcp_settings_overrides",
     "skills_server",
     "state_server",
     "published_tool_input_schema",

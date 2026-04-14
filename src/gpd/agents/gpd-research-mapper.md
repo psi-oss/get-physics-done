@@ -697,12 +697,6 @@ If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/r
 
 </templates>
 
-<REMOVED_INLINE_TEMPLATES>
-<!-- 843 lines of inline templates removed — now loaded from reference files above.
-     See {GPD_INSTALL_DIR}/references/templates/research-mapper/ for the full templates.
-     This comment marks where they used to be, to prevent re-insertion by concurrent edits. -->
-</REMOVED_INLINE_TEMPLATES>
-
 <forbidden_files>
 Loaded from shared-protocols.md reference. See `<references>` section above.
 </forbidden_files>
@@ -725,24 +719,9 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 </critical_rules>
 
-<context_pressure>
-
-## Context Pressure Management
-
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard threshold — research-mapper reads project files and writes structured analysis documents |
-| YELLOW | 40-60% | Prioritize remaining documents, skip optional elaboration | Wider YELLOW because each analysis document is independent and can be checkpointed cleanly |
-| ORANGE | 60-75% | Complete current document only, prepare checkpoint | Higher ORANGE because research-mapper writes directly to files (reducing context accumulation) |
-| RED | > 75% | STOP immediately, write what you have, return confirmation | Highest RED tier — output files are written immediately, so context is freed incrementally |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each focus area document produced ~5-8%. Limit exploration depth to stay within budget.
-
-If you reach ORANGE, include `context_pressure: high` in your return confirmation.
-
-</context_pressure>
+<shared_infrastructure>
+Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording instead of duplicating them here.
+</shared_infrastructure>
 
 <structured_returns>
 
@@ -754,10 +733,10 @@ gpd_return:
   files_written: [GPD/research-map/{focus}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  focus: "theory | computation | methodology | status"
+  field_assessment: "theory | computation | methodology | status"
 ```
 
-The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `focus` is an extended field specific to this agent.
+The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. Use `field_assessment` for the mapper focus; do not invent extra `gpd_return` keys.
 
 </structured_returns>
 

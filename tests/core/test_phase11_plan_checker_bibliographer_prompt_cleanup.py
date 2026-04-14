@@ -17,9 +17,31 @@ def _gpd_return_block(source: str) -> str:
     return source.split("gpd_return:\n", 1)[1].split("```", 1)[0]
 
 
+def _top_level_keys(block: str) -> list[str]:
+    return [
+        line.strip().split(":", 1)[0]
+        for line in block.splitlines()
+        if line.startswith("  ") and not line.startswith("    ") and ":" in line and not line.lstrip().startswith("#")
+    ]
+
+
+def _extension_keys(block: str) -> list[str]:
+    extension_keys: list[str] = []
+    in_extensions = False
+    for line in block.splitlines():
+        if line.startswith("  ") and not line.startswith("    "):
+            in_extensions = line.strip() == "extensions:"
+            continue
+        if in_extensions and line.startswith("    ") and ":" in line and not line.lstrip().startswith("#"):
+            extension_keys.append(line.strip().split(":", 1)[0])
+    return extension_keys
+
+
 def test_plan_checker_prompt_uses_typed_status_and_concise_presentation_language() -> None:
     source = _read(PLAN_CHECKER)
     envelope = _gpd_return_block(source)
+    top_level_keys = _top_level_keys(envelope)
+    extension_keys = _extension_keys(envelope)
 
     assert "This is a one-shot handoff. If user input is needed, return `status: checkpoint`; do not wait inside the same run." in source
     assert "artifact_write_authority: read_only" in source
@@ -32,6 +54,12 @@ def test_plan_checker_prompt_uses_typed_status_and_concise_presentation_language
     assert "next_actions: [list of recommended follow-up actions]" in envelope
     assert "approved_plans: [list of plan IDs that passed]" in envelope
     assert "blocked_plans: [list of plan IDs needing revision or escalation]" in envelope
+    assert top_level_keys[:4] == ["status", "files_written", "issues", "next_actions"]
+    assert {"approved_plans", "blocked_plans"}.issubset(set(top_level_keys) | set(extension_keys))
+    assert ("approved_plans" in top_level_keys) == ("blocked_plans" in top_level_keys)
+    assert ("approved_plans" in extension_keys) == ("blocked_plans" in extension_keys)
+    assert not ({"approved_plans", "blocked_plans"}.issubset(top_level_keys) and {"approved_plans", "blocked_plans"}.issubset(extension_keys))
+    assert not ({"dimensions_checked", "revision_round", "revision_guidance"}.issubset(top_level_keys) and {"dimensions_checked", "revision_round", "revision_guidance"}.issubset(extension_keys))
 
 
 def test_bibliographer_prompt_uses_typed_checkpoint_language_and_shorter_heading_note() -> None:
@@ -51,3 +79,6 @@ def test_bibliographer_prompt_uses_typed_checkpoint_language_and_shorter_heading
     assert "entries_added: N" in envelope
     assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in source
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" not in source
+    assert _top_level_keys(envelope) == ["status", "files_written", "issues", "next_actions", "extensions"]
+    assert _extension_keys(envelope) == ["entries_added"]
+    assert "entries_added" not in _top_level_keys(envelope)

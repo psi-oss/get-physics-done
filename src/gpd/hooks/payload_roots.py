@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.core.root_resolution import RootResolutionBasis, resolve_project_root, resolve_project_roots
+from gpd.core.small_utils import first_nonempty_string as _first_string
+from gpd.core.small_utils import first_strict_bool
 
 
 @dataclass(frozen=True)
@@ -22,26 +24,13 @@ class PayloadRoots:
     project_dir_trusted: bool = False
 
 
-def _object_value(value: object, key: str) -> object | None:
-    if isinstance(value, dict):
-        return value.get(key)
-    return getattr(value, key, None)
-
-
-def _first_string(value: object, *keys: str) -> str:
-    for key in keys:
-        candidate = _object_value(value, key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
+def first_mapping_string(value: object, *keys: str) -> str:
+    """Return the first non-empty string for keys from mappings only."""
+    return _first_string(value if isinstance(value, dict) else {}, *keys)
 
 
 def _first_bool(value: object, *keys: str) -> bool | None:
-    for key in keys:
-        candidate = _object_value(value, key)
-        if isinstance(candidate, bool):
-            return candidate
-    return None
+    return first_strict_bool(value, *keys)
 
 
 def normalize_workspace_text(value: str | None) -> str:
@@ -199,6 +188,28 @@ def _coerce_root_pair(
     )
 
 
+def _type_error_indicates_signature_mismatch(exc: TypeError) -> bool:
+    message = exc.args[0] if exc.args else ""
+    if not isinstance(message, str):
+        message = str(message)
+    lower = message.lower()
+    if not lower:
+        return False
+    if "unexpected keyword argument" in lower:
+        return True
+    if "multiple values for argument" in lower:
+        return True
+    if "required positional argument" in lower:
+        return True
+    if "positional-only argument" in lower:
+        return True
+    if "keyword-only argument" in lower:
+        return True
+    if "positional arguments but" in lower or "positional argument but" in lower:
+        return True
+    return False
+
+
 def _resolve_with_shared_service(
     data: dict[str, object],
     *,
@@ -222,8 +233,10 @@ def _resolve_with_shared_service(
     for kwargs in attempts:
         try:
             resolved = service(**kwargs)
-        except TypeError:
-            continue
+        except TypeError as exc:
+            if _type_error_indicates_signature_mismatch(exc):
+                continue
+            raise RuntimeError("shared root resolution service failed") from exc
         except Exception as exc:
             raise RuntimeError("shared root resolution service failed") from exc
         return _coerce_root_pair(
@@ -288,7 +301,7 @@ def project_root_from_payload(
             project_dir_trusted=shared_project_dir_trusted,
         )
     resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
-    candidate_project_root = str(resolved_root) if resolved_root is not None else workspace_dir
+    candidate_project_root = str(resolved_root) if resolved_root is not None else (project_dir if project_dir else workspace_dir)
     return _authoritative_project_root(
         workspace_dir=workspace_dir,
         candidate_project_root=candidate_project_root,
@@ -351,6 +364,8 @@ def resolve_payload_roots(
         policy_getter=policy_getter,
         cwd=cwd,
     )
+    if not project_dir_present and not project_dir_trusted:
+        project_root = workspace_dir
     return PayloadRoots(
         workspace_dir=workspace_dir,
         project_root=project_root,

@@ -56,9 +56,7 @@ def iter_runtime_descriptors():
     return _runtime_catalog_module().iter_runtime_descriptors()
 
 
-_LOCAL_RUNTIME_MIRROR_EXCLUDES = tuple(descriptor.config_dir_name for descriptor in iter_runtime_descriptors())
-
-EXCLUDED_GRAPH_DIRS = (
+BASE_EXCLUDED_GRAPH_DIRS = (
     ".git",
     ".mcp.json",
     ".npm-cache",
@@ -68,9 +66,19 @@ EXCLUDED_GRAPH_DIRS = (
     ".mypy_cache",
     ".ruff_cache",
     "GPD",
-    *_LOCAL_RUNTIME_MIRROR_EXCLUDES,
     "dist",
 )
+
+
+def runtime_owned_excluded_graph_dirs() -> tuple[str, ...]:
+    return tuple(descriptor.config_dir_name for descriptor in iter_runtime_descriptors())
+
+
+def excluded_graph_dirs() -> tuple[str, ...]:
+    return (*BASE_EXCLUDED_GRAPH_DIRS[:-1], *runtime_owned_excluded_graph_dirs(), BASE_EXCLUDED_GRAPH_DIRS[-1])
+
+
+EXCLUDED_GRAPH_DIRS = excluded_graph_dirs()
 
 
 def read_graph_text() -> str:
@@ -237,7 +245,7 @@ def build_contract(
     repo_root: Path = REPO_ROOT,
 ) -> dict[str, object]:
     scope_counts = expected_scope_counts(repo_root)
-    excluded_dirs = list(EXCLUDED_GRAPH_DIRS)
+    excluded_dirs = list(excluded_graph_dirs())
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -246,8 +254,12 @@ def build_contract(
     }
 
 
+def render_contract_text(contract: dict[str, object]) -> str:
+    return json.dumps(contract, indent=2) + "\n"
+
+
 def write_contract(contract: dict[str, object], contract_path: Path = CONTRACT_PATH) -> None:
-    contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+    contract_path.write_text(render_contract_text(contract), encoding="utf-8")
 
 
 def _excluded_dir_readme_pattern(path_name: str) -> str:

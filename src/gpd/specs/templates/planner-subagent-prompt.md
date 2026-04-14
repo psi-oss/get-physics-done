@@ -8,6 +8,8 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 
 ---
 
+**Schema authority:** the PLAN contract schema is the binding definition of the `contract` block the planner must honor; keep the excerpt below visible and authoritative before emitting PLAN.md.
+
 ## Standard Planning Template
 
 ```markdown
@@ -18,8 +20,13 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 **Research mode:** {research_mode}
 **Autonomy:** {autonomy}
 
-Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. Keep this prompt for scope selection, mode flags, and return conventions only.
-If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
+Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. the schema-critical PLAN contract excerpt below is model-visible and binding before output, because a path reference alone is not sufficient.
+**PLAN contract schema-critical excerpt:**
+`schema_version: 1`
+object-valued `scope`, `context_intake`, and `uncertainty_markers`; required fields include `scope.question`, `scope.in_scope`, `claims`, `deliverables`, `acceptance_tests`, `forbidden_proxies`, and `uncertainty_markers`. Proof-bearing claims must use explicit non-`other` `claim_kind` and surface `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables`.
+@{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md
+
+@{GPD_INSTALL_DIR}/templates/planner-reference-index.md
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
@@ -33,13 +40,18 @@ If `{project_contract}` is empty, stale, or too underspecified to identify the p
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
+Reference and knowledge authority:
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
+
+Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses.
+Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
 
 **Phase Context:**
-IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-phase.
+If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
 
-- **Decisions** = LOCKED -- honor exactly, do not revisit
-- **Agent's Discretion** = Freedom -- make methodological choices
-- **Deferred Ideas** = Out of scope -- do NOT include
+IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-phase; treat them per the shared guidance.
+Treat `Decisions` as locked, `Agent's Discretion` as freedom, and `Deferred Ideas` as out of scope.
+@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md
 
 {context_content}
 
@@ -54,10 +66,8 @@ Keep dimensions, limits, and cross-method consistency explicit. For proof-bearin
 
 <contract_visibility_requirements>
 Planning requires an approved `project_contract`. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of guessing.
-Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors.
-Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses. They may clarify assumptions, caveats, and method choice when they agree with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
-If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; do not invent a separate knowledge authority or ledger.
-Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
+Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections, and treat stable knowledge docs as advisory background only: they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
+If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; use `knowledge_deps` only when downstream gating must enforce the reliance.
 Treat `approach_policy` as execution policy only. Keep `scope.in_scope` populated and `contract.context_intake` concrete enough to audit.
 For proof-bearing work, use an explicit non-`other` `claim_kind` with auditable hypotheses, quantified variables, and named parameters.
 </contract_visibility_requirements>
@@ -75,21 +85,17 @@ Keep plan prompts concise. Prefer fresh reads over copied history, and split ove
 </context_budget_guidance>
 
 <downstream_consumer>
-Output is consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigorous verification criteria, complete contract coverage, explicit dependency wiring, and surfaced anchors or benchmarks. Reflect selected protocol bundle guidance in tasks, verification paths, and decisive artifact choices.
+Output is consumed by the execute-plan workflow invoked from `gpd:execute-phase`. Plans need frontmatter, XML tasks, rigorous verification criteria, complete contract coverage, explicit dependency wiring, and surfaced anchors or benchmarks. Reflect selected protocol bundle guidance in tasks, verification paths, and decisive artifact choices.
 </downstream_consumer>
 
 <quality_gate>
 - [ ] PLAN.md files created in phase directory
-- [ ] Frontmatter is valid
-- [ ] The contract block is complete per `plan-contract-schema.md`
-- [ ] `tool_requirements` are declared whenever specialized machine-checkable prerequisites exist
+- [ ] Frontmatter and contract block validated (`plan-contract-schema.md`)
 - [ ] `tool_requirements` pass `gpd validate plan-preflight <PLAN.md>` before the plan is treated as execution-ready
-- [ ] Tasks are specific, actionable, and testable
-- [ ] Dependencies and waves are correct
-- [ ] Required refs, prior outputs, baselines, and protocol bundle guidance are surfaced where needed
-- [ ] Forbidden proxies are rejected explicitly
-- [ ] Dimensional analysis and validation checkpoints cover each quantitative result
+- [ ] Tasks are specific, testable, and wave ordering is correct
+- [ ] Required refs, baselines, and forbidden proxies are surfaced
 - [ ] Proof-bearing plans keep proof artifacts and sibling `*-PROOF-REDTEAM.md` audits explicit
+- [ ] Dimensional checks and validation checkpoints remain explicit
 </quality_gate>
 ```
 
@@ -112,8 +118,8 @@ Output is consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigo
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
-Stable knowledge docs may appear in the shared reference surfaces above. Treat them as reviewed background synthesis only: they can shape assumptions and method choice when consistent with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence.
-If a plan materially depends on a reviewed knowledge doc and the reliance must be gateable downstream, express that dependency with explicit `knowledge_deps`; otherwise keep the knowledge implicit and advisory.
+Stable knowledge docs may appear in the shared reference surfaces above.
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 
 **Phase Context:**
 Revisions MUST still honor user decisions.
@@ -123,7 +129,7 @@ Revisions MUST still honor user decisions.
 <instructions>
 Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental.
-If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of patching around guessed scope.
+Respect the contract visibility requirements above; if the project contract gate indicates the scope is blocked or invalid, return `gpd_return.status: checkpoint` rather than patching around guesswork.
 If the approved project contract is missing or no longer sufficient to identify the right phase slice, return `gpd_return.status: checkpoint` instead of patching around guessed scope.
 Fix contract-gate blockers first: missing decisive outputs, missing acceptance tests, missing anchor refs, forbidden-proxy misses, and missing disconfirming paths.
 Return what changed.

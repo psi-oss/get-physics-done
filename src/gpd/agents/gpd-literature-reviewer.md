@@ -336,15 +336,14 @@ gpd_return:
   files_written: [GPD/literature/{slug}-REVIEW.md]
   issues: [most important unresolved issues or empty list]
   next_actions: [recommended follow-up actions or reading path]
-  papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```
 
-For a complete review, include `papers_reviewed`, `field_assessment`, a short findings summary, and the citation verification status. If the review is incomplete, use `gpd_return.status: checkpoint` and do not wait in-run for user approval.
+For a complete review, include `field_assessment`, a short findings summary, and the citation verification status. If the review is incomplete, use `gpd_return.status: checkpoint` and do not wait in-run for user approval.
 
 ### Checkpoints
 
-When reaching a checkpoint, return a typed `gpd_return` checkpoint and stop. The `## CHECKPOINT REACHED` heading below is presentation only; the orchestrator presents it to the user and spawns a fresh continuation run after the response.
+When reaching a checkpoint, return a typed `gpd_return` checkpoint and stop. The `## CHECKPOINT REACHED` heading below is presentation only; refer to the Continuation section for the orchestrator handoff guidance.
 
 ```markdown
 ## CHECKPOINT REACHED
@@ -371,7 +370,6 @@ gpd_return:
   files_written: [GPD/literature/{slug}-REVIEW.md]
   issues: [checkpoint question or ambiguity]
   next_actions: [resume after user response]
-  papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```
 

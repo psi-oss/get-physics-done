@@ -1,3 +1,4 @@
+
 <purpose>
 Structure and write a physics paper from completed research results. Handles the full pipeline from outline through polished draft: section planning, equation presentation, figure integration, narrative flow, and internal consistency verification.
 
@@ -41,17 +42,17 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 <process>
 
 <step name="init" priority="first">
-**Load project context and resolve models:**
+**Load project context and resolve models (paper bootstrap stage):**
 
 ```bash
-INIT=$(gpd --raw init phase-op --include config)
+INIT=$(gpd --raw init write-paper --stage paper_bootstrap --include config)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`. These mirror the `paper_bootstrap` stage definition in `write-paper-stage-manifest.json`.
 
 **Load mode settings:**
 
@@ -658,6 +659,8 @@ If the file exists, proceed to the next section.
 **For each section, spawn a writer agent:**
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
@@ -851,7 +854,6 @@ Resolve bibliographer model:
 ```bash
 BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
@@ -1040,7 +1042,6 @@ When revising a paper in response to referee reports:
 
 3. **Produce paired response artifacts after the edits land:** Spawn a paper-writer agent to produce the structured author response and response letter that the gpd-referee expects for multi-round review:
 
-   @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
    > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

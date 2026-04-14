@@ -29,6 +29,10 @@ Topic: $ARGUMENTS
 </context>
 
 <process>
+Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly.
+The workflow owns staged loading, scope fixing, artifact gating, and citation verification.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 ```bash
 CONTEXT=$(gpd --raw validate command-context literature-review "$ARGUMENTS")
 if [ $? -ne 0 ]; then
@@ -36,6 +40,4 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
-
-Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly. The workflow owns staged loading, scope fixing, artifact gating, and citation verification.
 </process>

@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.return_contract import REQUIRED_RETURN_FIELDS, VALID_RETURN_STATUSES
-
 __all__ = [
     "ACTIVE_TRACE_FILENAME",
     "ANALYSIS_DIR_NAME",
@@ -38,8 +36,11 @@ __all__ = [
     "EXECUTION_LINEAGE_REDUCER_VERSION",
     "EXECUTION_LINEAGE_SCHEMA_VERSION",
     "HOME_DATA_DIR_NAME",
+    "LEGACY_REPO_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "KNOWLEDGE_DIR_NAME",
+    "REVIEW_DIR_NAME",
+    "COMPARISONS_DIR_NAME",
     "MILESTONES_DIR_NAME",
     "MILESTONES_FILENAME",
     "MIN_PYTHON_MAJOR",
@@ -61,7 +62,6 @@ __all__ = [
     "RECOMMENDED_PYTHON_VERSION",
     "REQUIRED_PLANNING_DIRS",
     "REQUIRED_PLANNING_FILES",
-    "REQUIRED_RETURN_FIELDS",
     "REQUIRED_SPECS_SUBDIRS",
     "REQUIREMENTS_FILENAME",
     "RESEARCH_MAP_DIR_NAME",
@@ -91,7 +91,6 @@ __all__ = [
     "TODOS_DIR_NAME",
     "TRACES_DIR_NAME",
     "UNCOMMITTED_FILES_THRESHOLD",
-    "VALID_RETURN_STATUSES",
     "VALIDATION_SUFFIX",
     "VERIFICATION_SUFFIX",
 ]
@@ -183,6 +182,12 @@ TODOS_DIR_NAME = "todos"
 LITERATURE_DIR_NAME = "literature"
 """Subdirectory under GPD/ for literature review files."""
 
+REVIEW_DIR_NAME = "review"
+"""Subdirectory under GPD/ for staged review artifacts."""
+
+COMPARISONS_DIR_NAME = "comparisons"
+"""Subdirectory under GPD/ for review comparison snapshots."""
+
 KNOWLEDGE_DIR_NAME = "knowledge"
 """Subdirectory under GPD/ for knowledge documents."""
 
@@ -218,6 +223,9 @@ STATE_JSON_BACKUP_FILENAME = "state.json.bak"
 
 STATE_WRITE_INTENT_FILENAME = ".state-write-intent"
 """Intent marker file for atomic dual-write crash recovery."""
+
+KNOWLEDGE_REVIEWS_DIR_NAME = "reviews"
+"""Subdirectory under GPD/knowledge for deterministic review artifacts."""
 
 
 # ─── File Suffixes ────────────────────────────────────────────────────────────
@@ -287,6 +295,9 @@ PATTERNS_BY_DOMAIN_DIR = "patterns-by-domain"
 
 HOME_DATA_DIR_NAME = ".gpd"
 """Hidden home-directory data root for cross-project caches and managed runtime state."""
+
+LEGACY_REPO_DATA_DIR_NAME = ".gpd"
+"""Legacy repository-local data cache directory that should not replace `GPD/`."""
 
 
 # ─── Environment Variable Names ──────────────────────────────────────────────
@@ -479,6 +490,14 @@ class ProjectLayout:
         return self.gpd / LINEAGE_DIR_NAME
 
     @property
+    def review_dir(self) -> Path:
+        return self.gpd / REVIEW_DIR_NAME
+
+    @property
+    def comparisons_dir(self) -> Path:
+        return self.gpd / COMPARISONS_DIR_NAME
+
+    @property
     def observability_sessions_dir(self) -> Path:
         return self.observability_dir / OBSERVABILITY_SESSIONS_DIR_NAME
 
@@ -517,6 +536,10 @@ class ProjectLayout:
     @property
     def knowledge_dir(self) -> Path:
         return self.gpd / KNOWLEDGE_DIR_NAME
+
+    @property
+    def knowledge_reviews_dir(self) -> Path:
+        return self.knowledge_dir / KNOWLEDGE_REVIEWS_DIR_NAME
 
     @property
     def research_map_dir(self) -> Path:

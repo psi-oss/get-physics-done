@@ -13,10 +13,12 @@ from pathlib import Path
 import pytest
 
 from gpd import registry as content_registry
+from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
+from gpd.mcp.servers.skills_server import _normalize_allowed_tools
 from gpd.registry import VALID_CONTEXT_MODES
 
 
@@ -76,6 +78,13 @@ def test_decorated_mcp_tools_includes_async_function_defs(
     )
 
     assert _decorated_mcp_tools("async_mcp_module.py") == ["async_tool"]
+
+
+def test_registry_skill_allowed_tools_use_canonical_names() -> None:
+    normalized = _normalize_allowed_tools(["Write", "shell", "Grep", "Grep"])
+
+    assert normalized == ["file_write", "shell", "search_files"]
+    assert all(tool in CANONICAL_TOOL_NAMES for tool in normalized)
 
 
 def _descriptor_python_module(descriptor: dict[str, object]) -> str | None:
@@ -245,6 +254,19 @@ def test_gpd_skills_infra_health_check_tracks_the_research_vertical() -> None:
     assert health_check["input"] == {}
     assert "gpd-execute-phase" in health_check["expect"]
     assert "gpd-research-phase" in health_check["expect"]
+
+
+def test_infra_mcp_descriptors_mark_source_of_truth() -> None:
+    repo_root = _repo_root()
+    allowed_sources = {
+        "src/gpd/mcp/builtin_servers.py",
+        "src/gpd/mcp/servers/skills_server.py",
+    }
+    for path in sorted((repo_root / "infra").glob("gpd-*.json")):
+        descriptor = json.loads(path.read_text(encoding="utf-8"))
+        source = descriptor.get("source_of_truth")
+        assert source in allowed_sources
+        assert (repo_root / str(source)).is_file()
 
 
 def test_optional_wolfram_bridge_stays_outside_builtin_public_mcp_surface() -> None:

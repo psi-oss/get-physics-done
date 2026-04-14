@@ -879,7 +879,8 @@ gpd_return:
   files_written: [ROADMAP.md, STATE.md]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  phases_created: {count}
+  tasks_completed: {phases created}
+  tasks_total: {phases planned}
 ```
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
@@ -899,24 +900,9 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </anti_patterns>
 
-<context_pressure>
-
-## Context Pressure Management
-
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard for planning agents — reads SUMMARY.md and produces structured roadmap |
-| YELLOW | 40-60% | Prioritize remaining phases, use concise descriptions | Wider YELLOW band because roadmap generation is highly structured with predictable output size |
-| ORANGE | 60-75% | Complete current phase design only, prepare checkpoint | Higher than most agents — roadmap output is structured YAML/markdown, compact per phase |
-| RED | > 75% | STOP immediately, write checkpoint with roadmap progress so far, return with CHECKPOINT status | Highest RED tier — roadmap files are small relative to research artifacts |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each phase designed ~3-5%. For 8+ phase roadmaps, use concise phase descriptions.
-
-If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
-
-</context_pressure>
+<shared_infrastructure>
+Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording instead of duplicating them here.
+</shared_infrastructure>
 
 <success_criteria>
 

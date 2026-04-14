@@ -10,10 +10,10 @@ from typing import Literal
 import pytest
 
 from gpd import registry
-from gpd.adapters.install_utils import expand_at_includes
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ResearchContract, VerificationEvidence
 from gpd.core.frontmatter import validate_frontmatter
+from gpd.core.include_expansion import expand_at_includes
 from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
 from gpd.registry import _parse_frontmatter, _parse_tools
 from tests.core.test_spawn_contracts import _find_single_task
@@ -62,11 +62,43 @@ PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
 )
 PUBLICATION_ROUND_ARTIFACTS_PATH = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+LEGACY_RESEARCH_COMPAT_NOTE_RE = re.compile(
+    r"Legacy `GPD/research/`\s+review artifacts are compatibility inputs only and must not be used as new write targets\."
+)
+EXPAND_AT_INCLUDES_TOKEN_RE = re.compile(r"\bexpand_at_includes\(")
+ALLOWED_PRODUCTION_EXPAND_AT_INCLUDES_FILES = frozenset(
+    {
+        "src/gpd/adapters/install_utils.py",
+        "src/gpd/core/include_expansion.py",
+        "src/gpd/registry.py",
+    }
+)
 
 
 def _assert_contains_fragments(text: str, *fragments: str) -> None:
     missing = [fragment for fragment in fragments if fragment not in text]
     assert not missing, "Missing expected prompt fragments:\n" + "\n".join(missing)
+
+
+def _assert_legacy_research_paths_are_read_only_compat(
+    text: str,
+    *,
+    require_compat_note: bool = False,
+) -> None:
+    sanitized, compat_note_count = LEGACY_RESEARCH_COMPAT_NOTE_RE.subn("", text)
+    if require_compat_note:
+        assert compat_note_count >= 1
+    assert "GPD/research/" not in sanitized
+
+
+def test_expand_at_includes_production_usage_stays_bounded_to_core_registry_and_install_wrapper() -> None:
+    actual = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "src" / "gpd").rglob("*.py")
+        if EXPAND_AT_INCLUDES_TOKEN_RE.search(path.read_text(encoding="utf-8"))
+    }
+
+    assert actual == ALLOWED_PRODUCTION_EXPAND_AT_INCLUDES_FILES
 
 
 COMMAND_SPAWN_TOKENS = {
@@ -297,10 +329,111 @@ def _expand_prompt_surface(path: Path) -> str:
     )
 
 
+def _model_visible_prompt_surface(surface_kind: Literal["command", "agent"], name: str) -> str:
+    if surface_kind == "command":
+        return registry.get_command(name).content
+    return registry.get_agent(name).system_prompt
+
+
 def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
     start = content.index(start_marker) + len(start_marker)
     end = content.index(end_marker, start)
     return content[start:end]
+
+
+ISSUE_4_ABSENT_SURFACE_FRAGMENTS = (
+    (
+        "command",
+        "verify-work",
+        (
+            "First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.",
+            (
+                "Project Contract Gate:\n\n"
+                "Project Contract Load Info:\n\n"
+                "Project Contract Validation:\n\n"
+                "Contract Intake:\n\n"
+                "Effective Reference Intake:"
+            ),
+            "Return `status: checkpoint` instead of waiting for user input inside this run.",
+        ),
+    ),
+    (
+        "command",
+        "plan-phase",
+        (
+            "Parse JSON for: `project_contract_gate`.",
+        ),
+    ),
+    (
+        "command",
+        "new-project",
+        (
+            "Before drafting or repairing the scoping contract, The workflow owns",
+        ),
+    ),
+    (
+        "command",
+        "derive-equation",
+        ("First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.",),
+    ),
+)
+
+
+ISSUE_4_SINGLE_OCCURRENCE_SURFACE_FRAGMENTS = (
+    (
+        "command",
+        "plan-phase",
+        ('gpd --raw init plan-phase "$PHASE" --stage research_routing',),
+    ),
+    (
+        "command",
+        "execute-phase",
+        ("If any executed plan is proof-bearing, proof verification still runs.",),
+    ),
+    (
+        "command",
+        "new-project",
+        ("compact hard-schema capsule",),
+    ),
+    (
+        "agent",
+        "gpd-project-researcher",
+        (
+            "single-session scope is predictable",
+            "STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status.",
+        ),
+    ),
+)
+
+
+@pytest.mark.parametrize(("surface_kind", "name", "fragments"), ISSUE_4_ABSENT_SURFACE_FRAGMENTS)
+def test_issue4_leaked_fragments_stay_out_of_model_visible_prompt_surfaces(
+    surface_kind: Literal["command", "agent"],
+    name: str,
+    fragments: tuple[str, ...],
+) -> None:
+    surface = _model_visible_prompt_surface(surface_kind, name)
+
+    for fragment in fragments:
+        assert fragment not in surface
+
+
+def test_issue11_verify_work_model_visible_surface_keeps_canonical_checkpoint_phrase() -> None:
+    surface = _model_visible_prompt_surface("command", "verify-work")
+
+    assert "If user input is needed, return `status: checkpoint`; do not wait inside the same run." in surface
+
+
+@pytest.mark.parametrize(("surface_kind", "name", "fragments"), ISSUE_4_SINGLE_OCCURRENCE_SURFACE_FRAGMENTS)
+def test_issue4_rehomed_fragments_appear_only_once_in_model_visible_prompt_surfaces(
+    surface_kind: Literal["command", "agent"],
+    name: str,
+    fragments: tuple[str, ...],
+) -> None:
+    surface = _model_visible_prompt_surface(surface_kind, name)
+
+    for fragment in fragments:
+        assert surface.count(fragment) == 1
 
 
 def test_planner_templates_exist():
@@ -399,7 +532,7 @@ def test_executor_completion_examples_use_command_based_next_actions() -> None:
     completion = (REFERENCES_DIR / "execution" / "executor-completion.md").read_text(encoding="utf-8")
 
     assert '"gpd:execute-phase {phase}"' in completion
-    assert '"gpd:show-phase {phase}"' in completion
+    assert '"gpd --raw init phase-op {phase}"' in completion
     assert "gpd state validate" in completion
     assert "gpd:sync-state" in completion
     assert "file_edit tool" not in completion
@@ -437,6 +570,17 @@ def test_executor_prompt_defaults_to_return_only_shared_state_updates() -> None:
     assert "decisions:" in executor_completion
     assert "blockers:" in executor_completion
     assert "continuation_update:" in executor_completion
+
+
+def test_executor_prompt_uses_canonical_completion_schema_not_inline_copy() -> None:
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    completion_section = executor[executor.index("### Completion Return Format") :]
+
+    assert "Append the structured YAML return envelope from `executor-completion.md`" in completion_section
+    assert "do not reconstruct the full schema from memory" in completion_section
+    assert "files_written: [list of file paths created or modified]" not in completion_section
+    assert "tasks_completed: N" not in completion_section
+    assert "contract_updates:" not in completion_section
 
 
 def test_referee_prompt_no_longer_claims_read_only_artifact_policy() -> None:
@@ -504,7 +648,6 @@ def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
             assert "@{GPD_INSTALL_DIR}/workflows/health.md" not in command_text
         elif command_stem == "suggest-next":
             assert "gpd --raw suggest" in command_text
-            assert "Local CLI fallback: `gpd --raw suggest`" in command_text
             assert "@{GPD_INSTALL_DIR}/workflows/suggest-next.md" not in command_text
 
 
@@ -746,7 +889,7 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
 
 def test_representative_prompts_use_centralized_command_context_preflight() -> None:
     expected = {
-        COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
+        WORKFLOWS_DIR / "compare-experiment.md": "gpd --raw init progress --include state",
         COMMANDS_DIR / "compare-results.md": "gpd --raw validate command-context compare-results",
         COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
         COMMANDS_DIR / "explain.md": "gpd --raw validate command-context explain",
@@ -1083,7 +1226,7 @@ def test_new_project_defers_workflow_setup_until_after_scope_approval() -> None:
 def test_new_project_command_avoids_stale_workflow_line_counts() -> None:
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
-    assert "Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly." in command_text
+    assert "Follow the workflow file exactly before proceeding." in command_text
     assert "step-by-step instructions" not in command_text
     assert "lines)" not in command_text
 
@@ -1251,7 +1394,6 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
 def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> None:
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
     planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
-    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
     assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_prompt
@@ -1269,7 +1411,7 @@ def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> No
     assert "The markdown headings `## PLANNING COMPLETE`, `## CHECKPOINT REACHED`, and `## PLANNING INCONCLUSIVE` are human-readable labels only." in planner_prompt
     assert "gpd_return.status: completed" in workflow_text
     assert "Human-readable headings such as `## VERIFICATION PASSED`, `## ISSUES FOUND`, and `## PARTIAL APPROVAL` are presentation only." in workflow_text
-    assert "Human review does not replace those requirements." in checker_agent
+    assert "Plan checking runs with the same contract, anchor, and verification rigor regardless of autonomy." in (REFERENCES_DIR / "orchestration" / "agent-autonomy.md").read_text(encoding="utf-8")
 
 
 def test_stable_knowledge_remains_background_only_across_planning_verification_and_execution() -> None:
@@ -1370,7 +1512,8 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "gpd_return:" in roadmapper_agent
     assert "status: completed | checkpoint | blocked | failed" in roadmapper_agent
     assert "files_written: [ROADMAP.md, STATE.md]" in roadmapper_agent
-    assert "phases_created: {count}" in roadmapper_agent
+    assert "tasks_completed: {phases created}" in roadmapper_agent
+    assert "tasks_total: {phases planned}" in roadmapper_agent
     assert "gpd_return.files_written" in new_project_roadmapper
     assert "GPD/REQUIREMENTS.md" in new_project_roadmapper
     assert "do not rely on runtime completion text alone." in new_project_roadmapper
@@ -1398,12 +1541,26 @@ def test_research_prompt_surfaces_use_canonical_literature_outputs() -> None:
     roadmapper_agent = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
 
     for content in (project_researcher, research_synthesizer, phase_researcher, roadmapper_agent):
-        assert "GPD/research/" not in content
+        _assert_legacy_research_paths_are_read_only_compat(content)
 
     assert "GPD/literature/" in project_researcher
     assert "GPD/literature/SUMMARY.md" in research_synthesizer
     assert "GPD/literature/SUMMARY.md" in phase_researcher
     assert "literature/SUMMARY.md" in roadmapper_agent
+
+
+def test_expanded_research_and_planning_prompts_keep_legacy_research_paths_read_only() -> None:
+    for agent_name in (
+        "gpd-project-researcher",
+        "gpd-research-synthesizer",
+        "gpd-phase-researcher",
+        "gpd-roadmapper",
+        "gpd-planner",
+    ):
+        surface = _model_visible_prompt_surface("agent", agent_name)
+
+        assert "GPD/literature/" in surface
+        _assert_legacy_research_paths_are_read_only_compat(surface, require_compat_note=True)
 
 
 def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomposition() -> None:
@@ -1496,8 +1653,8 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
     for content, agent_name, file_token in (
         (debug, "gpd-debugger", "GPD/debug/{slug}.md"),
     ):
-        assert f"read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions" in content
-        assert "readonly=false" in content
+        assert f"{agent_name} agent" in content
+        assert "@{GPD_INSTALL_DIR}/workflows/debug.md" in content
         assert f"{file_token}\nRead that file before continuing" in content
         assert f"@{file_token}" not in content
         assert "Fresh 200k context" not in content
@@ -1567,7 +1724,7 @@ def test_audit_milestone_uses_canonical_phase_helpers_instead_of_raw_glob_discov
     audit = (WORKFLOWS_DIR / "audit-milestone.md").read_text(encoding="utf-8")
 
     assert "gpd phase list" in audit
-    assert "gpd show-phase <phase-number>" in audit
+    assert "gpd --raw init phase-op <phase-number>" in audit
     assert "`find_files` `GPD/phases/*/*-VERIFICATION.md` by hand" in audit
     assert "cat GPD/phases/01-*/*-VERIFICATION.md" not in audit
     assert "cat GPD/phases/02-*/*-VERIFICATION.md" not in audit
@@ -1710,7 +1867,7 @@ def test_audit_milestone_command_does_not_preload_raw_verification_globs() -> No
 
     assert "find_files: GPD/phases/*/*SUMMARY.md" in audit_command
     assert "gpd phase list" in audit_command
-    assert "gpd show-phase <phase-number>" in audit_command
+    assert "gpd --raw init phase-op <phase-number>" in audit_command
     assert "find_files: GPD/phases/*/*-VERIFICATION.md" not in audit_command
 
 
@@ -1755,7 +1912,7 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
             "Treat `effective_reference_intake` as the structured source of carry-forward anchors; "
             "`active_reference_context` is the readable projection, not the source of truth."
         )
-        == 2
+        == 1
     )
 
 
@@ -1880,7 +2037,8 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert '#     command: "pdflatex --version"' in phase_prompt
     assert "`required` defaults to true when omitted" in phase_prompt
     assert "fallback does not make a missing required tool non-blocking" in phase_prompt
-    assert "Quick contract rules:" in phase_prompt
+    assert "single source of truth for contract fields" in phase_prompt
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert "# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)" in planner_agent
     assert "tool: command" in planner_agent
     assert "Use only the closed tool vocabulary the validator accepts" in planner_agent
@@ -1898,6 +2056,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         "`tool_requirements` pass `gpd validate plan-preflight <PLAN.md>` before the plan is treated as execution-ready"
         in planner_prompt_template
     )
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in planner_prompt_template
     plan_phase_manifest = validate_workflow_stage_manifest_payload(
         json.loads((REPO_ROOT / "src/gpd/specs/workflows/plan-phase-stage-manifest.json").read_text(encoding="utf-8")),
         expected_workflow_id="plan-phase",
@@ -1908,8 +2067,13 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         "planner_authoring",
         "checker_revision",
     )
-    assert plan_phase_manifest.stages[0].loaded_authorities == ("workflows/plan-phase.md",)
+    assert plan_phase_manifest.stages[0].loaded_authorities == (
+        "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
+    )
+    assert "templates/project-contract-schema.md" in plan_phase_manifest.stages[2].loaded_authorities
     assert "templates/planner-subagent-prompt.md" in plan_phase_manifest.stages[2].loaded_authorities
+    assert "templates/project-contract-schema.md" in plan_phase_manifest.stages[3].loaded_authorities
     assert "templates/planner-subagent-prompt.md" in plan_phase_manifest.stages[3].loaded_authorities
     assert (
         "Treat `VERIFICATION.md` as contract-backed only through the schema-owned ledgers `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and `suggested_contract_checks`; do not expect verifier-local aliases or ad hoc machine-readable artifact fields."
@@ -1995,10 +2159,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         in execute_plan
     )
     assert "emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry" in execute_plan
-    assert (
-        "Immediately before writing frontmatter, re-open `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` and apply it literally."
-        in execute_plan
-    )
+    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in execute_plan
     assert "contract_results" in verify_phase
     assert "Verification targets must stay user-visible" in verify_phase
     assert "must_haves" not in verify_phase
@@ -2073,6 +2234,11 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "project_contract_validation" in execute_workflow
     assert "project_contract_load_info" in execute_workflow
     assert "visible-but-blocked contract as an approved execution contract" in execute_workflow
+    assert (
+        "Treat `project_contract` as the authoritative machine-readable execution contract only when "
+        "`project_contract_gate.authoritative` is true."
+    ) in execute_workflow
+    assert "Treat `project_contract` as the authoritative machine-readable execution contract only when `Parse JSON for:" not in execute_workflow
 
 
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:
@@ -2099,7 +2265,7 @@ def test_execute_phase_and_execute_plan_surface_required_reference_and_state_own
     assert (
         "substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`"
     ) in execute_plan
-    assert "Shared-state updates land after each completed plan" in execute_command
+    assert "The orchestrator applies them through `gpd apply-return-updates` after each agent completes" in execute_workflow
     assert "STATE.md is updated after each wave completes" not in execute_command
     assert "By the time the wave-complete report is emitted" in execute_workflow
     assert "continuation_update" in execute_plan
@@ -3126,8 +3292,8 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "schema_version: 1" in phase_prompt
     assert "in_scope:" in phase_prompt
     assert "context_intake:" in phase_prompt
-    assert "Quick contract rules:" in phase_prompt
-    assert phase_prompt.count("Quick contract rules:") == 1
+    assert "single source of truth for contract fields" in phase_prompt
+    assert "Quick contract rules:" not in phase_prompt
     for token in (
         "tool_requirements",
         "researcher_setup",
@@ -3344,25 +3510,16 @@ def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normali
 def test_phase_prompt_surfaces_validation_critical_plan_contract_rules() -> None:
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
 
-    assert "Quick contract rules:" in phase_prompt
-    assert phase_prompt.count("Quick contract rules:") == 1
+    assert "single source of truth for contract fields" in phase_prompt
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
+    assert "Quick contract rules:" not in phase_prompt
     for token in (
         "tool_requirements",
         "researcher_setup",
         "type: execute",
         "gap_closure: true",
-        "scope.in_scope",
         "claim_kind",
-        "observables[].kind",
-        "deliverables[].kind",
-        "acceptance_tests[].kind",
-        "references[].kind",
-        "references[].role",
-        "links[].relation",
         "must_surface",
-        "required_actions[]",
-        "applies_to[]",
-        "carry_forward_to[]",
         "uncertainty_markers",
     ):
         assert token in phase_prompt
@@ -3480,7 +3637,7 @@ def test_debug_command_and_workflow_wire_directly_to_gpd_debugger() -> None:
     debugger = (AGENTS_DIR / "gpd-debugger.md").read_text(encoding="utf-8")
 
     assert "gpd-debugger" in debug_command
-    assert 'DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)' in debug_command
+    assert 'DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)' not in debug_command
     assert 'subagent_type="gpd-debugger"' in debug_workflow
     assert "First, read {GPD_AGENTS_DIR}/gpd-debugger.md" in debug_workflow
     assert "public writable production agent specialized for discrepancy investigation" in debugger
@@ -3663,12 +3820,12 @@ def test_pause_resume_and_derivation_templates_preserve_result_id_continuity() -
 
 def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_verification() -> None:
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
     continuation = (TEMPLATES_DIR / "continuation-prompt.md").read_text(encoding="utf-8")
     planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
-    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
     verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
     executor_guide = (REFERENCES_DIR / "execution" / "executor-subfield-guide.md").read_text(encoding="utf-8")
@@ -3776,7 +3933,6 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
         encoding="utf-8"
     )
     planner = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
-    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
     verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
 
     assert "emit decisive verdicts" in compare_command
@@ -3820,7 +3976,7 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "still run every contract-aware check required by the plan" in verifier_profiles
     assert "required first-result, anchor, and pre-fanout checkpoints" in planner
     assert "Do NOT change conventions mid-project without an explicit checkpoint" in planner
-    assert "Required first-result, anchor, and pre-fanout gates still apply even in yolo mode" in executor
+    assert "Always execute the same sanity gates" in (REFERENCES_DIR / "orchestration" / "agent-autonomy.md").read_text(encoding="utf-8")
     assert "suggested_contract_checks" in verifier_agent
 
 

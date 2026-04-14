@@ -232,7 +232,10 @@ def test_get_skill_plan_phase_surfaces_staged_loading_sidecar() -> None:
                 purpose="phase lookup",
                 mode_paths=("workflows/plan-phase.md",),
                 required_init_fields=("researcher_model",),
-                loaded_authorities=("workflows/plan-phase.md",),
+                loaded_authorities=(
+                    "workflows/plan-phase.md",
+                    "templates/project-contract-schema.md",
+                ),
                 conditional_authorities=(),
                 must_not_eager_load=("references/ui/ui-brand.md",),
                 allowed_tools=("file_read",),
@@ -283,7 +286,7 @@ def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injec
         {
             "agent": "gpd-notation-coordinator",
             "shared_state_policy": "return_only",
-            "write_scope": {"mode": "scoped_write", "paths": ["GPD/CONVENTIONS.md"]},
+            "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/CONVENTIONS.md"]},
             "expected_artifacts": ["GPD/CONVENTIONS.md"],
         },
     )
@@ -407,7 +410,7 @@ def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
             {
                 "agent": "gpd-notation-coordinator",
                 "shared_state_policy": "return_only",
-                "write_scope": {"mode": "scoped_write", "paths": ["GPD/CONVENTIONS.md"]},
+                "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/CONVENTIONS.md"]},
                 "expected_artifacts": ["GPD/CONVENTIONS.md"],
             },
         ),
@@ -449,7 +452,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
         "gap_repair",
     ]
     assert result["staged_loading"]["workflow_id"] == "verify-work"
-    assert result["staged_loading"]["stages"][0]["loaded_authorities"] == ["workflows/verify-work.md"]
+    assert result["staged_loading"]["stages"][0]["loaded_authorities"] == ["workflows/verify-work.md", "templates/project-contract-schema.md"]
     assert "Follow the included workflow file exactly." in result["content"]
     assert (
         "The workflow file owns the detailed check taxonomy; this wrapper only bootstraps the canonical "
@@ -462,6 +465,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     assert "For deeper focused analysis" not in result["content"]
     assert result["staged_loading"]["stages"][2]["loaded_authorities"] == [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "references/verification/meta/verification-independence.md",
     ]
     assert result["staged_loading"]["stages"][2]["next_stages"] == ["interactive_validation"]
@@ -482,6 +486,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     ]
     assert result["staged_loading"]["stages"][3]["loaded_authorities"] == [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -496,6 +501,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     ]
     assert result["staged_loading"]["stages"][4]["loaded_authorities"] == [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -511,6 +517,22 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     ]
     assert result["structured_metadata_authority"]["staged_loading"] == "mirrored"
     assert result["allowed_tools_surface"] == "command.allowed-tools"
+
+
+def test_get_skill_verify_work_surfaces_model_visible_documents() -> None:
+    from gpd.mcp.servers.skills_server import get_skill
+
+    result = get_skill("gpd-verify-work")
+    schema_documents = result["schema_documents"]
+    assert any(doc["path"].endswith("project-contract-schema.md") for doc in schema_documents)
+    assert any(doc["path"].endswith("proof-redteam-schema.md") for doc in schema_documents)
+    contract_documents = result["contract_documents"]
+    assert any(doc["path"].endswith("proof-redteam-protocol.md") for doc in contract_documents)
+
+    model_visible = result.get("model_visible_documents")
+    assert model_visible is not None
+    assert any(path.endswith("project-contract-schema.md") for path in model_visible["schema_documents"])
+    assert any(path.endswith("proof-redteam-protocol.md") for path in model_visible["contract_documents"])
 
 
 def test_get_skill_unrelated_command_does_not_expose_stage_sidecars() -> None:

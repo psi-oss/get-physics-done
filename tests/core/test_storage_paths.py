@@ -257,6 +257,12 @@ def test_validate_commit_target_allows_internal_docs_but_rejects_internal_artifa
     with pytest.raises(StoragePathError, match=r"Suspicious durable-artifact path under .*GPD"):
         layout.validate_commit_target(hidden_results)
 
+    mixed_case_hidden_results = layout.internal_root / "phases" / "02-setup" / "Results" / "out.json"
+    mixed_case_hidden_results.parent.mkdir(parents=True)
+    mixed_case_hidden_results.write_text("{}", encoding="utf-8")
+    with pytest.raises(StoragePathError, match=r"Suspicious durable-artifact path under .*GPD"):
+        layout.validate_commit_target(mixed_case_hidden_results)
+
     artifact_like = layout.internal_root / "paper" / "curvature_flow_bounds.tex"
     artifact_like.parent.mkdir(parents=True)
     artifact_like.write_text("\\documentclass{article}\n", encoding="utf-8")

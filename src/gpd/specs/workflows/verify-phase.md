@@ -1,3 +1,4 @@
+<!-- internal-workflow-only -->
 <purpose>
 Verify research phase goal achievement through decisive verification. Check that the research delivers what the phase promised by actually testing the physics — substituting values, re-deriving limits, parsing dimensions, cross-checking by independent methods, and for proof obligations, auditing theorem-to-proof coverage adversarially instead of trusting polished algebra.
 
@@ -112,6 +113,10 @@ done
 
 </step>
 
+<step name="surface_verification_contract_policy">
+Before satisfying hard contract schemas or schema-critical checks, surface the shared verification contract policy: closed schemas, authoritative proof contracts, `schema_version=1`, non-empty `context_intake`, `uncertainty_markers.weakest_anchors[]`, `uncertainty_markers.disconfirming_observations[]`, concrete grounding, `must_surface=true` reference anchors when references are the only grounding, unique cross-section IDs, exact proof metadata, and the canonical binding arrays (`binding.observable_ids`, `binding.claim_ids`, `binding.deliverable_ids`, `binding.acceptance_test_ids`, `binding.reference_ids`, `binding.forbidden_proxy_ids`). Call `suggest_contract_checks(...)` before `run_contract_check(...)` and fill its `request_template` without placeholder sentinels.
+</step>
+
 <step name="establish_contract_targets">
 **Primary option: contract in PLAN frontmatter**
 
@@ -131,7 +136,10 @@ Before finalizing the check list, use this contract-check loop whenever project-
 
 1. Call `suggest_contract_checks(contract, project_dir=...)`.
 2. Fold the returned contract-aware checks into the plan unless they are clearly inapplicable.
-3. For each returned check, start from `request_template`, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, use only `supported_binding_fields` inside `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
+3. For each returned check, start from `request_template` and treat the returned metadata fields (`schema_required_request_fields`, `schema_required_request_anyof_fields`, `supported_binding_fields`, `request_template`) as binding instructions: satisfy `required_request_fields` and every entry in `schema_required_request_fields`, complete a full alternative from `schema_required_request_anyof_fields`, restrict `request.binding` to the listed `supported_binding_fields`, and keep `project_dir` as the top-level absolute project root argument. Replace every `<replace-with-...>` sentinel left inside metadata, bindings, or the request body before dispatching the check.
+
+   Before you execute the check, include the compact schema-critical excerpt from `templates/plan-contract-schema.md` / `templates/plan-contract-schema-excerpt.md` in check context so the agent sees the shape that `run_contract_check` evaluates. Reuse the excerpt the planner saw; do not rely on an implicit reference only.
+   @{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md
 4. Execute `run_contract_check(request=..., project_dir=...)` so the contract-aware check actually runs.
 
 **Option B: Derive contract-like targets from phase goal**
@@ -193,17 +201,13 @@ task(
   subagent_type="gpd-check-proof",
   model="{check_proof_model}",
   readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
-
-Operate in proof-redteam repair mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.
+  prompt="Read {GPD_AGENTS_DIR}/gpd-check-proof.md plus {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
+Work in a fresh proof-redteam repair context; if user input is needed, return `status: checkpoint`.
 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
-Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.
-Return `status: checkpoint` if the runtime needs user input instead of waiting inside the spawned run.",
+Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.",
   description="Repair proof redteam artifact for phase {phase_number}"
 )
 ```

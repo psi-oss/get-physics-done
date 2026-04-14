@@ -275,6 +275,9 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert metadata_schema["properties"]["source_reference_id"]["pattern"] == r"\S"
     assert "null" not in json.dumps(metadata_schema["properties"]["source_reference_id"])
     assert contract_schema["required"] == ["schema_version", "scope", "context_intake", "uncertainty_markers"]
+    assert "schema_version" in contract_schema["properties"]
+    assert "context_intake" in contract_schema["properties"]
+    assert "uncertainty_markers" in contract_schema["properties"]
 
     proof_hypothesis_requirement = _request_requirement_for_check(request_schema, "contract.proof_hypothesis_coverage")
     assert proof_hypothesis_requirement is not None
@@ -311,6 +314,45 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["minItems"] == 1
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["items"]["type"] == "string"
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["items"]["minLength"] == 1
+
+
+def test_run_contract_check_schema_description_includes_call_shape_and_constraints() -> None:
+    from gpd.mcp.servers.verification_server import mcp
+    from gpd.mcp.verification_contract_policy import VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT
+
+    run_schema = _tool_input_schema(mcp, "run_contract_check")
+    request_schema = _schema_object(run_schema, run_schema["properties"]["request"])
+    description = request_schema.get("description", "")
+
+    assert (
+        "suggest_contract_checks(contract=project_contract, active_checks=active_checks)"
+        in description
+    )
+    assert "Hard request constraint fields surfaced by hints" in description
+    assert VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT in description
+
+
+def test_observed_status_descriptions_reference_canonical_enums() -> None:
+    from gpd.contracts import (
+        PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
+        PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
+        PROOF_AUDIT_SCOPE_STATUS_VALUES,
+    )
+    from gpd.mcp.servers.verification_server import mcp
+
+    run_schema = _tool_input_schema(mcp, "run_contract_check")
+    request_schema = _schema_object(run_schema, run_schema["properties"]["request"])
+    observed_schema = _schema_anyof_object(request_schema["properties"]["observed"])
+
+    status_choices: dict[str, tuple[str, ...]] = {
+        "quantifier_status": PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
+        "scope_status": PROOF_AUDIT_SCOPE_STATUS_VALUES,
+        "counterexample_status": PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
+    }
+    for field_name, choices in status_choices.items():
+        field_schema = observed_schema["properties"][field_name]
+        string_branch = next(branch for branch in field_schema["anyOf"] if branch.get("type") == "string")
+        assert tuple(string_branch["enum"]) == choices
 
     alignment_requirement = _request_requirement_for_check(request_schema, "contract.claim_to_proof_alignment")
     assert alignment_requirement is not None
@@ -378,8 +420,12 @@ def test_run_contract_check_rejects_non_exact_check_identifiers(
 ) -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
-    assert run_contract_check(request_payload) == expected_error
-    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+    for result in (
+        run_contract_check(request_payload),
+        _call_verification_tool("run_contract_check", {"request": request_payload}),
+    ):
+        assert result["error"] == expected_error["error"]
+        assert result["schema_version"] == expected_error["schema_version"]
 
 
 def test_run_contract_check_accepts_typed_nested_request_objects() -> None:
@@ -511,6 +557,38 @@ def test_run_contract_check_rejects_legacy_binding_alias_keys() -> None:
     assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
 
 
+def test_run_contract_check_request_shape_errors_stay_minimal_with_valid_check_key() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    request_payload = {
+        "check_key": "contract.benchmark_reproduction",
+        "unexpected": True,
+    }
+    expected_error = {
+        "error": (
+            "request contains unsupported keys: unexpected; supported keys are "
+            "check_key, contract, binding, metadata, observed, artifact_content"
+        ),
+        "schema_version": 1,
+    }
+
+    result = run_contract_check(request_payload)
+    mcp_result = _call_verification_tool("run_contract_check", {"request": request_payload})
+    for actual in (result, mcp_result):
+        assert actual["error"] == expected_error["error"]
+        assert actual["schema_version"] == expected_error["schema_version"]
+        assert actual["allowed_top_level_request_fields"] == [
+            "check_key",
+            "contract",
+            "binding",
+            "metadata",
+            "observed",
+            "artifact_content",
+        ]
+        assert actual["schema_required_request_fields"] == ["observed.metric_value", "observed.threshold_value"]
+        assert actual["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
+
+
 def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
@@ -536,11 +614,16 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
         "observed": {"metric_value": 0.01, "threshold_value": 0.02},
     }
 
-    assert run_contract_check(request) == expected
-    assert suggest_contract_checks(contract) == expected
-    assert _call_verification_tool("run_contract_check", {"request": request}) == expected
-    assert _call_verification_tool("suggest_contract_checks", {"contract": contract}) == expected
-
+    for result in (
+        run_contract_check(request),
+        suggest_contract_checks(contract),
+        _call_verification_tool("run_contract_check", {"request": request}),
+        _call_verification_tool("suggest_contract_checks", {"contract": contract}),
+    ):
+        assert result["error"] == expected["error"]
+        assert result["schema_version"] == expected["schema_version"]
+        if "contract_error_details" in result:
+            assert result["contract_error_details"] == expected["contract_error_details"]
 
 @pytest.mark.parametrize("tool_name", ["run_contract_check", "suggest_contract_checks"])
 def test_contract_payload_schema_relaxes_only_recoverable_embedded_contract_list_fields(
@@ -627,6 +710,49 @@ def test_suggest_contract_checks_published_schema_keeps_active_checks_strict() -
     assert active_checks_array["items"]["pattern"] == r"\S"
 
 
+def test_contract_integrity_missing_deliverables_surfaces_diagnostic() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["deliverables"] = []
+    for claim in contract.get("claims", []):
+        claim["deliverables"] = []
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    result = run_contract_check(request)
+    assert "missing deliverables" in result["error"]
+    assert "deliverables is required" not in result["error"]
+
+
+def test_contract_integrity_missing_context_intake_surfaces_diagnostic() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    result = run_contract_check(request)
+    assert result["schema_version"] == 1
+    assert result["error"] == "Invalid contract payload: context_intake must not be empty"
+
+
 def test_contract_check_request_templates_use_string_artifact_placeholders() -> None:
     from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS
 
@@ -635,6 +761,50 @@ def test_contract_check_request_templates_use_string_artifact_placeholders() -> 
         assert isinstance(template, dict)
         if "artifact_content" in template:
             assert template["artifact_content"] == ""
+
+
+def test_contract_check_request_templates_use_replace_me_sentinels_not_plausible_values() -> None:
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS
+
+    serialized = json.dumps(_CONTRACT_CHECK_REQUEST_HINTS)
+
+    assert "hypothesis-placeholder" not in serialized
+    assert "param-1" not in serialized
+    assert "Claim statement placeholder" not in serialized
+    assert "large-k" not in serialized
+    assert "approaches the contracted limit behavior" not in serialized
+    assert "ref-benchmark" not in serialized
+    assert "power_law" not in serialized
+    assert "for all x" not in serialized
+    assert "<replace-with-regime-label>" in serialized
+    assert "<replace-with-expected-behavior>" in serialized
+    assert "<replace-with-source-reference-id>" in serialized
+    assert "<replace-with-metric-value>" in serialized
+    assert "<replace-with-threshold-value>" in serialized
+    assert "<replace-with-declared-family>" in serialized
+    assert "<replace-with-selected-family>" in serialized
+    assert "<replace-with-quantifier>" in serialized
+    assert "<replace-with-hypothesis-id>" in serialized
+    assert "<replace-with-theorem-parameter-symbol>" in serialized
+    assert "<replace-with-claim-statement>" in serialized
+    assert "<required:" not in serialized
+
+
+def test_run_contract_check_rejects_unreplaced_request_template_sentinels() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    request_payload = {
+        "check_key": "contract.proof_parameter_coverage",
+        "metadata": {"theorem_parameter_symbols": ["<replace-with-theorem-parameter-symbol>"]},
+        "observed": {"covered_parameter_symbols": ["r_0"]},
+    }
+
+    result = run_contract_check(request_payload)
+
+    assert "unreplaced request_template sentinel" in result["error"]
+    assert result["request_template"]["metadata"]["theorem_parameter_symbols"] == [
+        "<replace-with-theorem-parameter-symbol>"
+    ]
 
 
 def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
@@ -662,6 +832,36 @@ def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
     result = run_contract_check(request)
 
     assert result["status"] == "pass"
+    assert "references.0.role must use exact canonical value: benchmark" in result["contract_salvage_findings"]
+
+
+def test_suggest_contract_checks_rejects_case_drift_contract_payload() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["references"][0]["role"] = "BENCHMARK"
+
+    result = suggest_contract_checks(contract)
+
+    assert result["suggested_count"] > 0
+    assert "references.0.role must use exact canonical value: benchmark" in result["contract_salvage_findings"]
+
+
+def test_run_contract_check_rejects_contract_string_where_list_required() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["references"][0]["applies_to"] = "claim-main"
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    result = run_contract_check(request)
+
+    assert result["error"] == "Invalid contract payload: reference ref-benchmark applies_to unknown target claim-main"
 
 
 @pytest.mark.parametrize(
@@ -722,5 +922,17 @@ def test_run_contract_check_rejects_unknown_keys_as_stable_request_errors(
 ) -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
-    assert run_contract_check(request_payload) == expected_error
-    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+    for result in (
+        run_contract_check(request_payload),
+        _call_verification_tool("run_contract_check", {"request": request_payload}),
+    ):
+        assert result["error"] == expected_error["error"]
+        assert result["schema_version"] == expected_error["schema_version"]
+        assert result["allowed_top_level_request_fields"] == [
+            "check_key",
+            "contract",
+            "binding",
+            "metadata",
+            "observed",
+            "artifact_content",
+        ]

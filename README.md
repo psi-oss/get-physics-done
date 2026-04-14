@@ -11,9 +11,9 @@
 
 <p align="center">
   <a href="#supported-runtimes"><img alt="Claude Code supported" src="https://img.shields.io/badge/Claude%20Code-supported-d97757?style=flat&labelColor=141413&logo=claude&logoColor=faf9f5"></a>
-  <a href="#supported-runtimes"><img alt="Codex supported" src="https://img.shields.io/badge/Codex-supported-f5f5f5?style=flat&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0iTGF5ZXJfMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCAxNTguNzEyOCAxNTcuMjk2Ij4KICA8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMjkuMi4xLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogMi4xLjAgQnVpbGQgMTE2KSAgLS0%2BCiAgPHBhdGggZmlsbD0iI0ZGRkZGRiIgZD0iTTYwLjg3MzQsNTcuMjU1NnYtMTQuOTQzMmMwLTEuMjU4Ni40NzIyLTIuMjAyOSwxLjU3MjgtMi44MzE0bDMwLjA0NDMtMTcuMzAyM2M0LjA4OTktMi4zNTkzLDguOTY2Mi0zLjQ1OTksMTMuOTk4OC0zLjQ1OTksMTguODc1OSwwLDMwLjgzMDcsMTQuNjI4OSwzMC44MzA3LDMwLjIwMDYsMCwxLjEwMDcsMCwyLjM1OTMtLjE1OCwzLjYxNzhsLTMxLjE0NDYtMTguMjQ2N2MtMS44ODcyLTEuMTAwNi0zLjc3NTQtMS4xMDA2LTUuNjYyOSwwbC0zOS40ODEyLDIyLjk2NTFaTTEzMS4wMjc2LDExNS40NTYxdi0zNS43MDc0YzAtMi4yMDI4LS45NDQ2LTMuNzc1Ni0yLjgzMTgtNC44NzYzbC0zOS40ODEtMjIuOTY1MSwxMi44OTgyLTcuMzkzNGMxLjEwMDctLjYyODUsMi4wNDUzLS42Mjg1LDMuMTQ1OCwwbDMwLjA0NDEsMTcuMzAyNGM4LjY1MjMsNS4wMzQxLDE0LjQ3MDgsMTUuNzI5NiwxNC40NzA4LDI2LjExMDcsMCwxMS45NTM5LTcuMDc2OSwyMi45NjUtMTguMjQ2MSwyNy41Mjd2LjAwMjFaTTUxLjU5Myw4My45OTY0bC0xMi44OTgyLTcuNTQ5N2MtMS4xMDA3LS42Mjg1LTEuNTcyOC0xLjU3MjgtMS41NzI4LTIuODMxNHYtMzQuNjA0OGMwLTE2LjgzMDMsMTIuODk4Mi0yOS41NzIyLDMwLjM1ODUtMjkuNTcyMiw2LjYwNywwLDEyLjc0MDMsMi4yMDI5LDE3LjkzMjQsNi4xMzQ5bC0zMC45ODcsMTcuOTMyNGMtMS44ODcxLDEuMTAwNy0yLjgzMTQsMi42NzM1LTIuODMxNCw0Ljg3NjR2NDUuNjE1OWwtLjAwMTQtLjAwMTVaTTc5LjM1NjIsMTAwLjA0MDNsLTE4LjQ4MjktMTAuMzgxMXYtMjIuMDIwOWwxOC40ODI5LTEwLjM4MTEsMTguNDgxMiwxMC4zODExdjIyLjAyMDlsLTE4LjQ4MTIsMTAuMzgxMVpNOTEuMjMxOSwxNDcuODU5MWMtNi42MDcsMC0xMi43NDAzLTIuMjAzMS0xNy45MzI0LTYuMTM0NGwzMC45ODY2LTE3LjkzMzNjMS44ODcyLTEuMTAwNSwyLjgzMTgtMi42NzI4LDIuODMxOC00Ljg3NTl2LTQ1LjYxNmwxMy4wNTY0LDcuNTQ5OGMxLjEwMDUuNjI4NSwxLjU3MjMsMS41NzI4LDEuNTcyMywyLjgzMTR2MzQuNjA1MWMwLDE2LjgyOTctMTMuMDU2NCwyOS41NzIzLTMwLjUxNDcsMjkuNTcyM3YuMDAxWk01My45NTIyLDExMi43ODIybC0zMC4wNDQzLTE3LjMwMjRjLTguNjUyLTUuMDM0My0xNC40NzEtMTUuNzI5Ni0xNC40NzEtMjYuMTEwNywwLTEyLjExMTksNy4yMzU2LTIyLjk2NTIsMTguNDAzLTI3LjUyNzJ2MzUuODYzNGMwLDIuMjAyOC45NDQzLDMuNzc1NiwyLjgzMTQsNC44NzYzbDM5LjMyNDgsMjIuODA2OC0xMi44OTgyLDcuMzkzOGMtMS4xMDA3LjYyODctMi4wNDUuNjI4Ny0zLjE0NTYsMFpNNTIuMjIyOSwxMzguNTc5MWMtMTcuNzc0NSwwLTMwLjgzMDYtMTMuMzcxMy0zMC44MzA2LTI5Ljg4NzEsMC0xLjI1ODUuMTU3OC0yLjUxNjkuMzE0My0zLjc3NTRsMzAuOTg3LDE3LjkzMjNjMS44ODcxLDEuMTAwNSwzLjc3NTcsMS4xMDA1LDUuNjYyOCwwbDM5LjQ4MTEtMjIuODA3djE0Ljk0MzVjMCwxLjI1ODUtLjQ3MjEsMi4yMDIxLTEuNTcyOCwyLjgzMDhsLTMwLjA0NDMsMTcuMzAyNWMtNC4wODk4LDIuMzU5LTguOTY2MiwzLjQ2MDUtMTMuOTk4OSwzLjQ2MDVoLjAwMTRaTTkxLjIzMTksMTU3LjI5NmMxOS4wMzI3LDAsMzQuOTE4OC0xMy41MjcyLDM4LjUzODMtMzEuNDU5NCwxNy42MTY0LTQuNTYyLDI4Ljk0MjUtMjEuMDc3OSwyOC45NDI1LTM3LjkwOCwwLTExLjAxMTItNC43MTktMjEuNzA2Ni0xMy4yMTMzLTI5LjQxNDMuNzg2Ny0zLjMwMzUsMS4yNTk1LTYuNjA3LDEuMjU5NS05LjkwOSwwLTIyLjQ5MjktMTguMjQ3MS0zOS4zMjQ3LTM5LjMyNTEtMzkuMzI0Ny00LjI0NjEsMC04LjMzNjMuNjI4NS0xMi40MjYyLDIuMDQ1LTcuMDc5Mi02LjkyMTMtMTYuODMxOC0xMS4zMjU0LTI3LjUyNzEtMTEuMzI1NC0xOS4wMzMxLDAtMzQuOTE5MSwxMy41MjY4LTM4LjUzODQsMzEuNDU5MUMxMS4zMjU1LDM2LjAyMTIsMCw1Mi41MzczLDAsNjkuMzY3NWMwLDExLjAxMTIsNC43MTg0LDIxLjcwNjUsMTMuMjEyNSwyOS40MTQyLS43ODY1LDMuMzAzNS0xLjI1ODYsNi42MDY3LTEuMjU4Niw5LjkwOTIsMCwyMi40OTIzLDE4LjI0NjYsMzkuMzI0MSwzOS4zMjQ4LDM5LjMyNDEsNC4yNDYyLDAsOC4zMzYyLS42Mjc3LDEyLjQyNi0yLjA0NDEsNy4wNzc2LDYuOTIxLDE2LjgzMDIsMTEuMzI1MSwyNy41MjcxLDExLjMyNTFaIi8%2BCjwvc3ZnPg%3D%3D"></a>
+  <a href="#supported-runtimes"><img alt="Codex supported" src="https://img.shields.io/badge/Codex-supported-000000?style=flat&labelColor=000000"></a>
   <a href="#supported-runtimes"><img alt="Gemini CLI supported" src="https://img.shields.io/badge/Gemini%20CLI-supported-4285f4?style=flat&labelColor=202124&logo=googlegemini&logoColor=8e75b2"></a>
-  <a href="#supported-runtimes"><img alt="OpenCode supported" src="https://img.shields.io/badge/OpenCode-supported-cfcecd?style=flat&labelColor=565656&logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABzUlEQVR4AeycQQrCQBAEF1%2Bg6J%2F0o5LPCXmCnnNx0E2nNqGEPciw024VffV0PZ%2FfHo7BqflBCSgAxd%2BaAhQAE4DjbYACYAJwvA1QAEwAjrcBCgAIDBRpA2AZClAATACOtwEKgAnA8TZAATABOD7egNc8tz2ftJ%2B4gPQD9r5fAbDBDQXALx00XgGwGAUoACYAx9sABcAE4HgboACYABxvAxSwJHC7XFryLNP4bzYg7KBar4CKUHiugDDgar0CKkLhuQLCgKv1CqgIhecKCAOu1iugIhSeKyAMuFqvgIpQeK6AMOBq%2FXAC7o9H6z5fdlRAtp4PJ2BrAHSeAmADClAATACOtwEKgAnA8TZAATABON4GKAAmAMev2AD4JTuNVwAsTgEKgAnA8TZAATABON4GKAAmAMfbAAXABOB4G9ApoPe6AnoJdt5XQCfA3uvDCXhOU0ueXmBr3x9OwNoPHH2fAmBDClAATACOtwEKgAnA8TZAAX8QONAVGwDLVIACYAJwfLwByf%2F%2B2WJ32k9cQPoBe9%2BvANigAhQAE4DjbYACYAJw%2FA8NgH%2FpQeMVAItVgAJgAnC8DVAATACOtwEKgAnA8TZAATABON4GFALS4w8AAAD%2F%2Fx7wkLQAAAAGSURBVAMAKj5LkLSa6SQAAAAASUVORK5CYII%3D"></a>
+  <a href="#supported-runtimes"><img alt="OpenCode supported" src="https://img.shields.io/badge/OpenCode-supported-808080?style=flat&labelColor=565656"></a>
 </p>
 
 Get Physics Done is an open-source agentic AI system for physics research from [Physical Superintelligence PBC (PSI)](https://www.psi.inc), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
 ## Start Here
 
-GPD is not a standalone app. It installs physics-research commands into Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD is not a standalone app. It installs physics-research commands into Claude Code, Gemini CLI, Codex, or OpenCode.
 
 To install GPD, run this in your system terminal:
 ```bash
@@ -96,6 +96,10 @@ GPD is built to favor scientific rigor and critical thinking over agreeability. 
 
 We welcome contributions and feedback via GitHub issues or pull requests; if GPD is useful in your work, please star the repo, and share it with colleagues who might benefit.
 
+## Descriptor Authority
+
+Runtime/catalog schema ownership is captured in `docs/schema-registry-ownership.md`, including how `infra/gpd-*.json` is derived from the canonical builder `src/gpd/mcp/builtin_servers.py` (`build_public_descriptors()`). When you modify runtime capabilities, MCP servers, or any public schema, update the builder and this note before touching the generated JSON artifacts; `tests/test_schema_registry_ownership_note.py` keeps the note honest.
+
 ## Quick Start
 
 If you already know your runtime and are comfortable in a terminal, use this as the fast path. If not, go back to [Start Here](#start-here) and use the [Beginner Onboarding Hub](./docs/README.md) instead.
@@ -108,7 +112,7 @@ Run its help command first: Claude Code / Gemini CLI use `/gpd:help`. Codex uses
 
 Expert fast path:
 
-- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch `claude`, `codex`, `gemini`, or `opencode`.
+- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch your selected runtime with `claude`, `gemini`, `codex`, or `opencode`.
 - Run the matching GPD help command shown in [Supported Runtimes](#supported-runtimes).
 - Then use `start` if you are not sure what fits this folder, `tour` for a read-only walkthrough, `new-project --minimal` for new work, `map-research` for existing work, or `resume-work` when you return later.
 - Treat the new-work choice as distinct from the existing-work choice; pick one, then follow it through.
@@ -160,7 +164,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` when you want a terminal-side unattended or overnight verdict.
 - If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
 - Provider authentication is checked manually in the runtime itself; GPD will point this out, but it does not hard-block installation readiness on it
-- Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` snapshot
+- `--upgrade` is a dev-only main-branch path. Set `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1` only when you intentionally want the latest unreleased GitHub `main` snapshot; without that env var, the managed-package upgrade is skipped. For normal released updates, use your runtime's update command or rerun the matching bootstrap install command.
 
 **Quick verification path**
 
@@ -191,23 +195,23 @@ Typical new-project workflow:
 
 | Flag | Meaning |
 |------|---------|
-| `--claude`, `--codex`, `--gemini`, `--opencode` | Select one runtime. `--claude-code` and `--gemini-cli` also work. |
+| `--claude`, `--codex`, `--gemini`, `--opencode` | Select one runtime. These are the canonical install flags; see `docs/runtime-catalog-reference.md` for the other documented public runtime selector spellings. |
 | `--all` | Select all supported runtimes. |
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
-| `--upgrade` | Upgrade `~/GPD/venv` from the latest GitHub `main` source. |
+| `--reinstall` | Force-reinstall the managed GPD package in `~/GPD/venv` at the matching release version; tries PyPI first, then the matching GitHub tag if needed. |
+| `--upgrade` | Dev-only: when `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1` is set, force-reinstall from GitHub `main` into `~/GPD/venv`. Without that env var, the managed-package upgrade is skipped. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Ordinary installs stay pinned to the matching tagged release. Use `--upgrade` only when you intentionally want the latest unreleased `main` source.
+Ordinary released updates use your runtime's update command or rerun the matching bootstrap install command. Do not use `--upgrade` unless you explicitly want the unreleased GitHub `main` snapshot and have set `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1`.
 
 Install the unreleased GitHub `main` snapshot explicitly:
 
 ```bash
-npx -y github:psi-oss/get-physics-done --upgrade
+GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1 npx -y github:psi-oss/get-physics-done --upgrade
 ```
 
 </details>
@@ -223,7 +227,9 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:start` | `/gpd:tour` | `/gpd:new-project --minimal` | `/gpd:map-research` | `/gpd:resume-work` |
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-start` | `/gpd-tour` | `/gpd-new-project --minimal` | `/gpd-map-research` | `/gpd-resume-work` |
 
-Each runtime uses its own command prefix, but the workflow is the same across all four. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
+Each runtime uses its own command prefix and alias style: Claude Code and Gemini CLI use slash commands like `/gpd:start`, Codex uses dollar-prefixed aliases like `$gpd-start`, and OpenCode uses slash-dash commands like `/gpd-start`. The workflow is the same across all four even when examples use a different runtime's prefix. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
+
+The canonical install flags above and the broader documented public runtime selectors are mirrored in [docs/runtime-catalog-reference.md](docs/runtime-catalog-reference.md), which is generated from `src/gpd/adapters/runtime_catalog.json` by running `python scripts/render_runtime_catalog_table.py`. Rerun that script after every runtime catalog change so the onboarding docs stay aligned with the adapter metadata.
 
 ## What GPD Does
 
@@ -264,6 +270,13 @@ Wave 3: plans that depend on earlier waves
 - **Plan**: the detailed execution breakdown for a phase, created by the runtime-specific `plan-phase N` command.
 - **Wave**: not a separate top-level planning object, but the execution order inside a phase. Plans in the same wave can run in parallel; later waves depend on earlier ones.
 
+### Filesystem roots
+- `GPD/` (repo-local) is the portable project tree: phases, state/STATE.md, observability, knowledge, and every plan or task artifact belongs there.
+- `~/.gpd/` (or what `GPD_DATA_DIR` names) is the machine-local cache/data root for recent-project indexes, learned patterns, telemetry, and other runtime metadata—keep it outside version control.
+- `~/GPD/` (or `$GPD_HOME`) is the managed runtime install/venv created by the bootstrap installer; it lives outside each project and may coexist with the cache root.
+
+If a repo still contains a `.gpd/` directory, treat it as legacy/ignored. Move any useful files into `GPD/` so that the layout helpers and storage policy see them and so `gpd` commands keep using the canonical tree.
+
 Phase numbers continue across the whole project, so a new milestone may start at `Phase 6` rather than resetting to `Phase 1`.
 
 ## Worked Example
@@ -271,7 +284,7 @@ Phase numbers continue across the whole project, so a new milestone may start at
 <details>
 <summary><strong>Conformal bootstrap workflow</strong></summary>
 
-The example below uses Claude Code / Gemini CLI syntax.
+The example below uses Claude Code / Gemini CLI syntax. In Codex, replace `gpd:<command>` with `$gpd-<command>`; in OpenCode, replace it with `/gpd-<command>`.
 
 Suppose you want to use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 
@@ -308,7 +321,7 @@ Typical artifacts include derivation notes, numerical scripts, convergence studi
 
 ## Key GPD Paths
 
-Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The examples below use Claude Code / Gemini CLI syntax when a runtime command is shown.
+Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The examples below use Claude Code / Gemini CLI syntax when a runtime command is shown; Codex users should read those as `$gpd-...`, and OpenCode users should read them as `/gpd-...`.
 
 ### Core Runtime Paths
 
@@ -319,6 +332,7 @@ Most research actions run inside your installed AI runtime after GPD has been in
 | Leave or return after a break | `gpd resume`, `gpd resume --recent`, `resume-work`, `pause-work`, `suggest-next` |
 | Run the research loop | `discuss-phase N`, `plan-phase N`, `execute-phase N`, `verify-work`, `progress`, `quick` |
 | Write and review | `write-paper`, `peer-review`, `respond-to-referees`, `arxiv-submission` |
+| Manuscript build (normal terminal) | `gpd paper-build [PAPER-CONFIG.json] [--output-dir <dir>]` (materialize the canonical manuscript scaffold from `paper/PAPER-CONFIG.json`) |
 | Configure or branch | `settings`, `set-profile`, `set-tier-models`, `tangent`, `branch-hypothesis` |
 
 Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase 1 -> gpd:execute-phase 1 -> gpd:verify-work -> repeat -> gpd:complete-milestone`
@@ -508,6 +522,26 @@ Low-level function and span calls are not recorded automatically. Observability 
 | `gpd paper-build [PAPER-CONFIG.json] [--output-dir <dir>]` | Materialize the canonical manuscript scaffold from `paper/PAPER-CONFIG.json`, emit `{topic_specific_stem}.tex`, bibliography artifacts, and the paper artifact manifest |
 
 </details>
+
+## Testing
+
+Use the fast smoke suite tracked by `tests/ci_sharding.py` before pushing changes. The file defines `CI_SMOKE_TEST_TARGETS` and `ci_smoke_pytest_command()` so reviewers and automation can reproduce the GitHub Actions smoke job, which targets a 3-minute timeout (`CI_SMOKE_JOB_TIMEOUT_MINUTES = 3`).
+
+```bash
+uv run pytest -q \
+  tests/test_release_consistency.py \
+  tests/test_ci_suite_commands.py \
+  tests/test_repo_hygiene.py \
+  tests/test_schema_registry_ownership_note.py \
+  tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files \
+  tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order \
+  tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module \
+  tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json \
+  tests/core/test_contract_validation_fast_regressions.py \
+  tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields
+```
+
+Update this command whenever `CI_SMOKE_TEST_TARGETS` changes so it stays aligned with the smoke shard configuration.
 
 ## System Requirements
 

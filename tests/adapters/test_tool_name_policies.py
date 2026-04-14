@@ -8,6 +8,7 @@ import pytest
 
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters import tool_names as tool_names_module
+from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS
 from gpd.adapters.tool_names import (
     CANONICAL_TOOL_NAMES,
     build_canonical_alias_map,
@@ -57,6 +58,9 @@ def test_translate_uses_adapter_owned_maps(runtime: str, tool_name: str, expecte
 def test_translate_for_runtime_uses_adapter_owned_omission_policy() -> None:
     codex = get_adapter("codex")
     gemini = get_adapter("gemini")
+
+    assert codex.auto_discovered_tools is AUTO_DISCOVERED_TOOL_DEFAULTS
+    assert gemini.auto_discovered_tools is AUTO_DISCOVERED_TOOL_DEFAULTS
 
     assert translate_for_runtime(
         "task",

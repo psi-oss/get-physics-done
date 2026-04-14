@@ -11,12 +11,14 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     from gpd.mcp.servers.verification_server import (
         _CONTRACT_PAYLOAD_INPUT_SCHEMA,
         _CONTRACT_SCOPE_INPUT_SCHEMA,
+        _RUN_CONTRACT_CHECK_REQUEST_SCHEMA,
         mcp,
     )
     from gpd.mcp.verification_contract_policy import (
         VERIFICATION_BINDING_FIELD_NAMES,
         VERIFICATION_BINDING_TARGETS,
         VERIFICATION_CONTRACT_POLICY_TEXT,
+        VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES,
         verification_contract_surface_summary_text,
         verification_server_description,
     )
@@ -52,8 +54,8 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert tools["suggest_contract_checks"].description is not None
     assert verification_contract_surface_summary_text() in verification_descriptor["description"]
     assert verification_descriptor["description"].count(VERIFICATION_CONTRACT_POLICY_TEXT) == 0
-    assert tools["run_contract_check"].description.count(VERIFICATION_CONTRACT_POLICY_TEXT) == 0
-    assert tools["suggest_contract_checks"].description.count(VERIFICATION_CONTRACT_POLICY_TEXT) == 0
+    assert VERIFICATION_CONTRACT_POLICY_TEXT in tools["run_contract_check"].description
+    assert VERIFICATION_CONTRACT_POLICY_TEXT in tools["suggest_contract_checks"].description
     assert verification_contract_surface_summary_text() in tools["run_contract_check"].description
     assert verification_contract_surface_summary_text() in tools["suggest_contract_checks"].description
     assert "``request`` object" in tools["run_contract_check"].description
@@ -63,26 +65,41 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert "request_template" in tools["suggest_contract_checks"].description
     assert "active_checks" in tools["suggest_contract_checks"].description
     assert "``contract`` must be an object" in tools["suggest_contract_checks"].description
-    assert "schema_required_request_fields" in tools["suggest_contract_checks"].description
-    assert "Nested object schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "unknown top-level or nested keys" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "its absence is a blocker" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "missing `must_surface=true` is a non-blocking warning" in VERIFICATION_CONTRACT_POLICY_TEXT
+    request_schema_description = _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"]
+    for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES:
+        assert field_name in tools["suggest_contract_checks"].description
+        assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
+        assert f"`{field_name}`" in request_schema_description
+    assert "Schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "unknown keys" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "one anchor must set `must_surface=true`" in VERIFICATION_CONTRACT_POLICY_TEXT
     for field_name in VERIFICATION_BINDING_FIELD_NAMES:
         assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert (
-        "If `references[]` is non-empty and the contract does not already carry concrete grounding elsewhere, "
-        "at least one reference must set `must_surface: true`."
-    ) in plan_schema
-    assert "a missing `must_surface: true` reference is a warning, not a blocker" in plan_schema
-    assert (
-        "If a project contract has any `references[]` and does not already carry concrete prior-output, "
-        "user-anchor, or baseline grounding, at least one reference must set `must_surface: true`."
-    ) in state_schema
-    assert "a missing `must_surface: true` reference is still a warning" in state_schema
+    assert "when those anchors are missing, at least one `references[]` entry must set `must_surface: true`" in plan_schema
+    assert "a missing `must_surface: true` reference is a warning" in plan_schema
+    assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema
+    assert "If a project contract has any `references[]`" not in state_schema
     assert (
         "Project-scoping contracts must also provide non-empty `scope.in_scope` naming at least one concrete "
         "objective or boundary"
     ) in _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
     assert "`scope.in_scope` is required and must name at least one project boundary or objective." in plan_schema
-    assert "`scope.in_scope` must name at least one project boundary or objective." in state_schema
+    assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema
+
+    required_fields = _CONTRACT_PAYLOAD_INPUT_SCHEMA.get("required", [])
+    assert "context_intake" in required_fields
+    assert "uncertainty_markers" in required_fields
+
+    payload_properties = _CONTRACT_PAYLOAD_INPUT_SCHEMA["properties"]
+    context_properties = payload_properties["context_intake"]
+    assert "must_surface: true" in context_properties.get("description", "")
+
+    uncertainty_properties = payload_properties["uncertainty_markers"]
+    uncertainty_required = uncertainty_properties.get("required", [])
+    assert "weakest_anchors" in uncertainty_required
+    assert "disconfirming_observations" in uncertainty_required
+
+    uncertainty_list_props = uncertainty_properties["properties"]
+    assert uncertainty_list_props["weakest_anchors"].get("minItems") == 1
+    assert uncertainty_list_props["disconfirming_observations"].get("minItems") == 1
+    assert "collect_plan_contract_integrity_errors" in uncertainty_properties.get("description", "")

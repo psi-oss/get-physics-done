@@ -47,6 +47,7 @@ If a GPD project exists, use it:
 </context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 ## 1. Inspect Context
 
@@ -67,7 +68,6 @@ Ask a compact set of high-leverage questions for any missing requirements, inclu
 
 ## 3. Execute the Slides Workflow
 
-Follow the slides workflow from `@{GPD_INSTALL_DIR}/workflows/slides.md` end-to-end.
 
 ## 4. Write Deliverables
 

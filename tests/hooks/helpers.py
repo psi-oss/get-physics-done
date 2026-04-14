@@ -5,20 +5,32 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from functools import cache
 from pathlib import Path
 
 from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import build_runtime_install_repair_command
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+)
 from tests.runtime_install_helpers import seed_complete_runtime_install
 
-_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _SHARED_INSTALL = get_shared_install_metadata()
 
 
+@cache
+def _runtime_descriptors() -> tuple[RuntimeDescriptor, ...]:
+    try:
+        return iter_runtime_descriptors()
+    except (FileNotFoundError, PermissionError):
+        return ()
+
+
 def runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
+    prefixes: set[str] = {"GPD_"}
+    for descriptor in _runtime_descriptors():
         for env_var in descriptor.activation_env_vars:
             prefixes.add(env_var)
             prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
@@ -27,7 +39,7 @@ def runtime_env_prefixes() -> tuple[str, ...]:
 
 def runtime_env_vars_to_clear() -> set[str]:
     env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
+    for descriptor in _runtime_descriptors():
         global_config = descriptor.global_config
         for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
             if env_var:
@@ -41,7 +53,7 @@ def clean_runtime_env() -> dict[str, str]:
 
 
 def _infer_runtime_from_config_dir(config_dir: Path) -> str | None:
-    for descriptor in _RUNTIME_DESCRIPTORS:
+    for descriptor in _runtime_descriptors():
         candidate = descriptor.runtime_name
         adapter = get_adapter(candidate)
         if config_dir.name in {adapter.config_dir_name, adapter.local_config_dir_name}:

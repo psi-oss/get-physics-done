@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, get_args, get_origin
 
-from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import (
     CONTRACT_ACCEPTANCE_AUTOMATION_VALUES,
     CONTRACT_ACCEPTANCE_TEST_KIND_VALUES,
@@ -42,6 +41,8 @@ from gpd.contracts import (
     SuggestedContractCheck,
     VerificationEvidence,
 )
+from gpd.core.include_expansion import expand_at_includes
+from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPECS_DIR = REPO_ROOT / "src/gpd/specs"
@@ -165,6 +166,24 @@ def test_plan_contract_schema_surfaces_canonical_research_contract_fields() -> N
     assert "do not count as grounding" in plan_schema
     assert "proof-specific acceptance test" in plan_schema
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in plan_schema
+    assert "Hard-schema fields must be model-visible before validation" in plan_schema
+
+
+def test_plan_contract_schema_include_expands_validation_commands() -> None:
+    expanded_plan_schema = _expanded(TEMPLATES_DIR / "plan-contract-schema.md")
+
+    assert "gpd frontmatter validate GPD/phases/XX-name/XX-YY-PLAN.md --schema plan" in expanded_plan_schema
+    assert "gpd validate plan-contract GPD/phases/XX-name/XX-YY-PLAN.md" in expanded_plan_schema
+
+
+def test_summary_and_verification_templates_expand_contract_results_details() -> None:
+    summary_expanded = _expanded(TEMPLATES_DIR / "summary.md")
+    verification_expanded = _expanded(TEMPLATES_DIR / "verification-report.md")
+
+    assert "gpd frontmatter validate GPD/phases/XX-name/XX-YY-SUMMARY.md --schema summary" in summary_expanded
+    assert "proof_audit" in summary_expanded
+    assert "gpd frontmatter validate GPD/phases/XX-name/XX-VERIFICATION.md --schema verification" in verification_expanded
+    assert "proof_audit" in verification_expanded
 
 
 def test_expanded_phase_prompt_surfaces_the_same_research_contract_fields_before_generation() -> None:
@@ -175,6 +194,38 @@ def test_expanded_phase_prompt_surfaces_the_same_research_contract_fields_before
     assert "do not count as grounding" in phase_prompt
     assert "proof-specific acceptance test" in phase_prompt
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in phase_prompt
+
+
+def test_planner_template_surfaces_research_contract_fields_before_planning() -> None:
+    planner_template = _read(TEMPLATES_DIR / "planner-subagent-prompt.md")
+
+    assert "PLAN contract schema-critical excerpt" in planner_template
+
+
+def test_plan_phase_workflow_mentions_schema_visibility_notice() -> None:
+    plan_workflow = _read(SPECS_DIR / "workflows/plan-phase.md")
+
+    assert "model-visible PLAN contract schema-critical excerpt" in plan_workflow
+
+
+def test_verify_phase_contract_checks_restate_schema_before_run_contract_check() -> None:
+    verify_workflow = _read(SPECS_DIR / "workflows/verify-phase.md")
+
+    assert "compact schema-critical excerpt" in verify_workflow
+    assert "templates/plan-contract-schema.md" in verify_workflow
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md" in verify_workflow
+    for token in (
+        "schema_required_request_fields",
+        "schema_required_request_anyof_fields",
+        "supported_binding_fields",
+        "request_template",
+    ):
+        assert token in verify_workflow
+    assert "<replace-with-...>" in verify_workflow
+    assert "surface the shared verification contract policy" in verify_workflow
+    assert "`schema_version=1`" in verify_workflow
+    assert "unique cross-section IDs" in verify_workflow
+    assert "Call `suggest_contract_checks(...)` before `run_contract_check(...)`" in verify_workflow
 
 
 def test_contract_results_schema_and_verification_template_surface_canonical_result_ledger_fields() -> None:
@@ -216,6 +267,15 @@ def test_project_contract_schema_examples_surface_validator_accepted_proof_objec
         assert "Project Contract ID Linkage Rules" in schema_text
         assert "`context_intake.must_read_refs[]` must contain `references[].id` values only." in schema_text
         assert "`links[].verified_by[]` must contain `acceptance_tests[].id` values only." in schema_text
+        if schema_name == "project-contract-schema.md":
+            assert "Hard-schema fields must be model-visible before validation" in schema_text
+
+
+def test_verification_contract_policy_surfaces_hard_schema_model_visibility() -> None:
+    policy_text = verification_contract_policy_text()
+
+    assert "must make `scope.question`, non-empty `scope.in_scope`, `context_intake`, and `uncertainty_markers` model-visible" in policy_text
+    assert "scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input" in policy_text
 
 
 def test_project_and_state_contract_schemas_surface_full_closed_research_vocabularies() -> None:

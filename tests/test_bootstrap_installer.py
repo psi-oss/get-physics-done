@@ -78,6 +78,13 @@ _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
 )
 
 
+def _require_node_path() -> str:
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("node is required for bootstrap installer tests")
+    return node_path
+
+
 def _render_runtime_recovery_ladder(runtime: str) -> str:
     return _RUNTIME_RECOVERY_LADDER_TEMPLATE.format(
         resume_work=f"`{_RUNTIME_RESUME_WORK_COMMANDS[runtime]}`",
@@ -600,9 +607,7 @@ def _run_bootstrap_with_fake_python(
     python_versions: dict[str, str] | None = None,
     precreate_managed_version: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
-    node_path = shutil.which("node")
-    if node_path is None:
-        raise RuntimeError("node is required for bootstrap installer tests")
+    node_path = _require_node_path()
 
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -664,9 +669,7 @@ def _run_bootstrap_with_fake_python(
 
 
 def _run_node_contract_validation(script: str) -> subprocess.CompletedProcess[str]:
-    node_path = shutil.which("node")
-    if node_path is None:
-        raise RuntimeError("node is required for bootstrap installer tests")
+    node_path = _require_node_path()
 
     return subprocess.run(
         [node_path, "-e", script],
@@ -998,7 +1001,7 @@ const {{ validateSharedPublicSurfaceSchemaShape }} = require("./bin/install.js")
 const schema = {json.dumps(drifted_schema)};
 assert.throws(
   () => validateSharedPublicSurfaceSchemaShape(schema),
-  /public surface contract schema\\.sections\\.beginner_onboarding\\.keys must exactly match the code-supported public surface fields/
+  /public surface contract schema\\.sections\\.beginner_onboarding\\.keys must exactly match the code-supported contract fields/
 );
 """
     )
@@ -1014,7 +1017,7 @@ const {{ validateSharedPublicSurfaceSchemaShape }} = require("./bin/install.js")
 const schema = {json.dumps(drifted_top_level_schema)};
 assert.throws(
   () => validateSharedPublicSurfaceSchemaShape(schema),
-  /public surface contract schema\\.top_level_keys must exactly match the code-supported public surface fields/
+  /public surface contract schema\\.top_level_keys must exactly match the code-supported contract fields/
 );
 """
     )
@@ -1095,6 +1098,20 @@ assert.throws(
   /runtime catalog entry 0 contains unknown key\(s\): legacy_note/
 );
 
+const missingAdapterModuleCatalog = JSON.parse(JSON.stringify(catalog));
+delete missingAdapterModuleCatalog[0].adapter_module;
+assert.throws(
+  () => validateRuntimeCatalog(missingAdapterModuleCatalog),
+  /runtime catalog entry 0 is missing required key\(s\): adapter_module/
+);
+
+const invalidAdapterModuleCatalog = JSON.parse(JSON.stringify(catalog));
+invalidAdapterModuleCatalog[0].adapter_module = " ";
+assert.throws(
+  () => validateRuntimeCatalog(invalidAdapterModuleCatalog),
+  /runtime catalog entry 0\.adapter_module must be a non-empty string/
+);
+
 const blankAliasCatalog = JSON.parse(JSON.stringify(catalog));
 blankAliasCatalog[0].selection_aliases = [blankAliasCatalog[0].selection_aliases[0], " "];
 assert.throws(
@@ -1167,6 +1184,13 @@ duplicateInstallFlagCatalog[1].install_flag = duplicateInstallFlagCatalog[0].ins
 assert.throws(
   () => validateRuntimeCatalog(duplicateInstallFlagCatalog),
   /runtime catalog contains duplicate install_flag/
+);
+
+const repeatedInstallFlagCatalog = JSON.parse(JSON.stringify(catalog));
+repeatedInstallFlagCatalog[0].selection_flags = [repeatedInstallFlagCatalog[0].install_flag];
+assert.throws(
+  () => validateRuntimeCatalog(repeatedInstallFlagCatalog),
+  /runtime catalog entry ".+" selection_flags must not repeat install_flag/
 );
 
 const badTelemetryCatalog = JSON.parse(JSON.stringify(catalog));
@@ -1327,6 +1351,60 @@ assert.throws(() => validateRuntimeCatalog(catalog), /runtime catalog contains d
 """
     )
     assert duplicate_result.returncode == 0, f"{duplicate_result.stdout}\n{duplicate_result.stderr}"
+
+
+def test_bootstrap_runtime_catalog_validator_preserves_external_skill_fields() -> None:
+    canonical_payload = json.loads((REPO_ROOT / "src" / "gpd" / "adapters" / "runtime_catalog.json").read_text(encoding="utf-8"))
+    catalog_entry = canonical_payload[0]
+    external_skill_keys = [
+        "external_skill_relative_dirs",
+        "external_skill_env_vars",
+        "external_skill_subdir_prefixes",
+        "external_skill_markers",
+        "external_skill_config_markers",
+    ]
+    expected_external_skills = {
+        key: catalog_entry.get(key, []) for key in external_skill_keys
+    }
+
+    script = f"""
+const assert = require("node:assert/strict");
+const {{ validateRuntimeCatalog }} = require("./bin/install.js");
+const catalog = {json.dumps(canonical_payload)};
+const normalized = validateRuntimeCatalog(catalog);
+const runtimeName = catalog[0].runtime_name;
+const catalogEntry = normalized.find((entry) => entry.runtime_name === runtimeName);
+assert.ok(catalogEntry);
+const externalSkillKeys = {json.dumps(external_skill_keys)};
+const expectedExternalSkills = {json.dumps(expected_external_skills)};
+for (const key of externalSkillKeys) {{
+  assert.deepStrictEqual(catalogEntry[key], expectedExternalSkills[key]);
+}}
+
+const minimalCatalog = JSON.parse(JSON.stringify(catalog));
+const minimalRuntimeIndex = minimalCatalog.findIndex((runtime) => runtime.runtime_name === runtimeName);
+const minimalRuntime = minimalCatalog[minimalRuntimeIndex];
+for (const key of externalSkillKeys) {{
+  delete minimalRuntime[key];
+}}
+const minimalNormalized = validateRuntimeCatalog(minimalCatalog);
+const minimalEntry = minimalNormalized.find((entry) => entry.runtime_name === runtimeName);
+assert.ok(minimalEntry);
+for (const key of externalSkillKeys) {{
+  assert.deepStrictEqual(minimalEntry[key], []);
+}}
+
+const duplicateCatalog = JSON.parse(JSON.stringify(catalog));
+const duplicateRuntime = duplicateCatalog.find((runtime) => runtime.runtime_name === runtimeName);
+duplicateRuntime.external_skill_markers = ["marker", "marker"];
+assert.throws(
+  () => validateRuntimeCatalog(duplicateCatalog),
+  /runtime catalog entry \\d+\\.external_skill_markers must not contain duplicate values/
+);
+"""
+
+    result = _run_node_contract_validation(script)
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1545,6 +1623,7 @@ def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_
         tmp_path,
         extra_env={"FAKE_MISSING_LAUNCHERS": _CODEX_RUNTIME_NAME},
     )
+    combined_output = "\n".join(part for part in (result.stdout, result.stderr) if part)
 
     assert result.returncode == 1
 
@@ -1569,7 +1648,7 @@ def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_
         f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Launcher: "
         f"{_RUNTIME_LAUNCH_COMMANDS[_CODEX_RUNTIME_NAME]} not found on PATH"
     ) in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1587,6 +1666,7 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
         )
     finally:
         protected_parent.chmod(0o755)
+    combined_output = "\n".join(part for part in (result.stdout, result.stderr) if part)
 
     assert result.returncode == 1
 
@@ -1620,8 +1700,8 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
     assert "Runtime launcher/target preflight failed." in result.stderr
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
     assert "is not writable" in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in result.stdout
-    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in result.stdout
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in combined_output
+    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1827,6 +1907,7 @@ def test_bootstrap_upgrade_prefers_latest_main_source(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
+        extra_env={"GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1"},
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -1845,11 +1926,32 @@ def test_bootstrap_upgrade_prefers_latest_main_source(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_skips_main_branch_without_dev_flag(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1]
+        for entry in entries
+        if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == []
+    assert "Skipping GitHub main upgrade because GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1 is not set." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_upgrade_falls_back_to_main_git_checkout(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
-        extra_env={"FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1"},
+        extra_env={"FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1", "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1"},
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -1873,6 +1975,7 @@ def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inac
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
         extra_env={
+            "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     MAIN_ARCHIVE_SPEC: {
@@ -1909,6 +2012,7 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
         extra_env={
+            "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1",
             "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
             "FAKE_PIP_FAIL_MAIN_GIT": "1",
         },
@@ -2171,6 +2275,27 @@ def test_bootstrap_recreates_managed_env_when_selected_minor_changes(tmp_path: P
             "python3.13": "Python 3.13.2",
         },
         precreate_managed_version="Python 3.14.3",
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    venv_creations = [
+        entry for entry in entries if entry["argv"][:2] == ["-m", "venv"] and entry["argv"] != ["-m", "venv", "--help"]
+    ]
+
+    assert len(venv_creations) == 1
+    assert venv_creations[0]["exe"].endswith("python3.13")
+    assert "switching to Python 3.13.2" in result.stdout
+    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_recreates_managed_env_when_managed_python_is_older_than_selected_base(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        precreate_managed_version="Python 3.12.9",
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"

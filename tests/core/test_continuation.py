@@ -25,7 +25,7 @@ def _write_resume(project_root: Path, relative_path: str) -> Path:
 
 
 def _documented_bounded_segment_fields(text: str) -> list[str]:
-    match = re.search(r"Persisted bounded-segment fields:\s*(?P<fields>.+?)\.", text, re.DOTALL)
+    match = re.search(r"Persisted bounded-segment fields(?: \(see schema registry\))?:\s*(?P<fields>.+?)\.", text, re.DOTALL)
     assert match is not None
     return re.findall(r"`([a-z_]+)`", match.group("fields"))
 
@@ -101,6 +101,18 @@ def test_normalize_continuation_with_issues_drops_malformed_boolean_gate_fields(
         in issue
         for issue in issues
     )
+
+
+def test_normalize_continuation_with_issues_flags_missing_schema_version(tmp_path: Path) -> None:
+    continuation, issues = normalize_continuation_with_issues(
+        tmp_path,
+        {
+            "handoff": {"resume_file": "GPD/phases/03-analysis/handoff.md"},
+        },
+    )
+
+    assert continuation.schema_version == 1
+    assert any('missing "continuation.schema_version"' in issue for issue in issues)
 
 
 def test_canonical_bounded_segment_from_execution_snapshot_normalizes_lineage_fields(

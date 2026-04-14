@@ -1,3 +1,4 @@
+<!-- internal-workflow-only -->
 <required_reading>
 
 **Read these files NOW:**
@@ -945,7 +946,7 @@ Key results to benchmark against: [list from SUMMARY.md]"]
 
 ---
 
-## >> Next Up
+## > Next Up
 
 **Phase [X+1]: [Name]** — [Goal from ROADMAP.md]
 
@@ -992,7 +993,7 @@ Milestone {version} is 100% complete — all {N} phases finished!
 
 ---
 
-## >> Next Up
+## > Next Up
 
 **Complete Milestone {version}** — archive results and prepare for next direction
 

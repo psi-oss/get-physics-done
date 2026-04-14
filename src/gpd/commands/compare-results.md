@@ -25,6 +25,8 @@ This command exists because "the two plots look similar" is not a decisive compa
 </execution_context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 ```bash
 CONTEXT=$(gpd --raw validate command-context compare-results "$ARGUMENTS")
 if [ $? -ne 0 ]; then
@@ -33,6 +35,5 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Execute the compare-results workflow from @{GPD_INSTALL_DIR}/workflows/compare-results.md end-to-end.
 Preserve all validation gates (target mapping, metric selection, verdict emission, and follow-up routing).
 </process>

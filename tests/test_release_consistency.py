@@ -8,10 +8,12 @@ import re
 import shutil
 import subprocess
 import tomllib
+from importlib import import_module, resources
 from pathlib import Path
 
 import pytest
 
+from gpd.adapters.install_utils import HOOK_SCRIPTS, bundled_hook_relpaths
 from gpd.adapters.runtime_catalog import get_shared_install_metadata
 from scripts.release_workflow import (
     ReleaseError,
@@ -33,6 +35,8 @@ _BOOTSTRAP_JSON_ASSETS = (
     "src/gpd/core/public_surface_contract.json",
     "src/gpd/core/public_surface_contract_schema.json",
 )
+
+_WHEEL_JSON_ASSETS = tuple(path.removeprefix("src/") for path in _BOOTSTRAP_JSON_ASSETS)
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -63,9 +67,22 @@ def _python_release_version(repo_root: Path) -> str:
     return pyproject_version
 
 
-def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
+def _npm_or_skip() -> str:
     npm = shutil.which("npm")
-    assert npm is not None, "npm is required for npm pack validation"
+    if npm is None:
+        pytest.skip("npm is not available")
+    return npm
+
+
+def _git_or_skip() -> str:
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not available")
+    return git
+
+
+def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
+    npm = _npm_or_skip()
 
     cache_dir = work_dir / "npm-cache"
     env = os.environ.copy()
@@ -93,6 +110,18 @@ def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
     pack = pack_data[0]
     assert isinstance(pack, dict)
     return pack
+
+
+def _repo_cache_snapshot(cache_root: Path) -> list[str]:
+    transient_prefix = "__gpd_repo_graph_test__/"
+    return sorted(
+        rel_path
+        for rel_path in (
+            path.relative_to(cache_root).as_posix()
+            for path in cache_root.rglob("*")
+        )
+        if rel_path != "__gpd_repo_graph_test__" and not rel_path.startswith(transient_prefix)
+    )
 
 
 def _packaged_file_paths(pack: dict[str, object]) -> set[str]:
@@ -167,6 +196,15 @@ def test_required_public_release_artifacts_exist() -> None:
     assert missing == []
 
 
+def test_changelog_vnext_bullets_are_unique() -> None:
+    changelog = (_repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
+    match = re.search(r"^## vNEXT\s*\n(.*?)(?=^## v|\Z)", changelog, re.M | re.S)
+    assert match is not None, "Missing ## vNEXT section in CHANGELOG.md"
+
+    bullets = [stripped for line in match.group(1).splitlines() if (stripped := line.strip()).startswith("- ")]
+    assert len(bullets) == len(set(bullets))
+
+
 def test_public_citation_metadata_uses_iso_release_date() -> None:
     repo_root = _repo_root()
     citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")
@@ -223,6 +261,39 @@ def test_public_release_surfaces_share_agentic_system_positioning() -> None:
     assert expected in pyproject["project"]["description"].lower()
     assert "Open-source agentic AI system for physics research" in installer
 
+
+def test_pyproject_wheel_targets_real_gpd_package() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
+
+    assert wheel["packages"] == ["gpd"]
+    assert wheel["package-dir"] == {"": "src"}
+
+
+def test_pyproject_wheel_artifacts_match_source_assets() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
+    artifacts = wheel["artifacts"]
+
+    assert isinstance(artifacts, list)
+    assert artifacts
+
+    seen: set[str] = set()
+    for pattern in artifacts:
+        assert isinstance(pattern, str)
+        assert pattern.startswith("src/gpd/"), f"Wheel artifact {pattern!r} must live under src/gpd"
+        assert pattern not in seen, f"Wheel artifact list contains duplicate pattern {pattern!r}"
+        seen.add(pattern)
+
+        matches = [path for path in repo_root.glob(pattern) if path.is_file()]
+        assert matches, f"Wheel artifact pattern {pattern!r} matches no files"
+        for matched in matches:
+            relative = matched.relative_to(repo_root)
+            assert str(relative).startswith("src/gpd/"), "Matched file is outside src/gpd"
+
+
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
@@ -230,9 +301,37 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
 
     assert package_json["name"] == "get-physics-done"
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
-    assert "bin/" in packaged_files
+    assert "bin/install.js" in packaged_files
     assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
     assert (repo_root / "bin" / "install.js").is_file()
+
+
+def test_wheel_package_includes_runtime_json_assets_needed_at_import_time() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert force_include == dict(zip(_BOOTSTRAP_JSON_ASSETS, _WHEEL_JSON_ASSETS, strict=True))
+
+
+def test_npm_files_match_bootstrap_installer_resource_strategy() -> None:
+    repo_root = _repo_root()
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    installer = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+    packaged_files = set(package_json.get("files", []))
+    required_requires = {
+        "src/gpd/adapters/runtime_catalog.json": 'require("../src/gpd/adapters/runtime_catalog.json")',
+        "src/gpd/adapters/runtime_catalog_schema.json": 'require("../src/gpd/adapters/runtime_catalog_schema.json")',
+        "src/gpd/core/public_surface_contract.json": 'require("../src/gpd/core/public_surface_contract.json")',
+        "src/gpd/core/public_surface_contract_schema.json": (
+            'require("../src/gpd/core/public_surface_contract_schema.json")'
+        ),
+    }
+
+    assert "bin/install.js" in packaged_files
+    assert set(required_requires) <= packaged_files
+    for expected_require in required_requires.values():
+        assert expected_require in installer
 
 
 def test_public_bootstrap_installer_uses_python_cli_without_uv() -> None:
@@ -249,11 +348,15 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
 
     assert 'require("../package.json")' in content
     assert 'require("../src/gpd/core/public_surface_contract.json")' in content
+    assert 'require("../src/gpd/core/public_surface_contract_schema.json")' in content
     assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
     assert 'const GITHUB_MAIN_BRANCH = "main"' in content
+    assert 'const MAIN_BRANCH_UPGRADE_ENV = "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE"' in content
     assert "installManagedPackage(managedEnv.python, pythonPackageVersion" in content
+    assert 'process.env[MAIN_BRANCH_UPGRADE_ENV] !== "1"' in content
+    assert "Skipping GitHub ${GITHUB_MAIN_BRANCH} upgrade because ${MAIN_BRANCH_UPGRADE_ENV}=1 is not set." in content
     assert "archive/refs/tags/v${version}.tar.gz" in content
     assert "archive/refs/heads/${GITHUB_MAIN_BRANCH}.tar.gz" in content
     assert "git+${repoGitUrl}@v${version}" in content
@@ -262,6 +365,14 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "function repositorySshGitUrl(" not in content
     assert "requestedVersion" in content
     assert "GitHub sources" in content
+
+
+def test_public_bootstrap_installer_requires_runtime_catalog_assets() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert 'require("../src/gpd/adapters/runtime_catalog.json")' in content
+    assert 'require("../src/gpd/adapters/runtime_catalog_schema.json")' in content
 
 
 def test_export_workflow_uses_release_attribution_footer() -> None:
@@ -300,6 +411,27 @@ def test_public_cli_surface_is_unified() -> None:
     assert sorted(path.name for path in (repo_root / "src" / "gpd").glob("cli*.py")) == ["cli.py"]
 
 
+def test_project_script_targets_are_importable() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    for script_name, target in pyproject["project"]["scripts"].items():
+        module_name, separator, attribute_name = target.partition(":")
+        assert separator == ":", f"{script_name} must use module:attribute syntax"
+        assert getattr(import_module(module_name), attribute_name, None) is not None
+
+
+def test_packaged_resource_directories_and_hooks_are_importable() -> None:
+    required_resource_dirs = ("agents", "commands", "specs")
+    for resource_dir in required_resource_dirs:
+        assert resources.files("gpd").joinpath(resource_dir).is_dir()
+
+    hook_modules = {path.removesuffix(".py") for path in HOOK_SCRIPTS.values()}
+    assert {path.rsplit("/", 1)[-1].removesuffix(".py") for path in bundled_hook_relpaths()} >= hook_modules
+    for module_name in hook_modules:
+        assert import_module(f"gpd.hooks.{module_name}") is not None
+
+
 def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
@@ -326,11 +458,15 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
-    assert "Resolve pytest shard targets" in workflow
+    assert "plan-shards:" in workflow
+    assert "Plan pytest shards" in workflow
+    assert "Upload pytest shard plan" in workflow
+    assert "Download pytest shard plan" in workflow
     assert "Run pytest shard" in workflow
-    assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
-    assert "PYTEST_CATEGORY" in workflow
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in workflow
+    assert "from tests.ci_sharding import write_ci_shard_plan" in workflow
+    assert "PYTEST_SHARD_PLAN_DIR" in workflow
+    assert "pytest-shard-plan" in workflow
+    assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in workflow
 
 
 def test_staging_rebuild_workflow_stays_separate_and_dispatches_the_tested_main_push_sha() -> None:
@@ -402,6 +538,16 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "workflow_dispatch:" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
+    assert re.search(
+        r'^\s*python scripts/release_workflow\.py stamp-publish-date --repo \. --release-date "\$\{\{ needs\.build-release\.outputs\.release_date \}\}" > /tmp/publish-date\.json$',
+        workflow,
+        re.M,
+    )
+    assert not re.search(
+        r'^\s*uv run python scripts/release_workflow\.py stamp-publish-date --repo \. --release-date "\$\{\{ needs\.build-release\.outputs\.release_date \}\}" > /tmp/publish-date\.json$',
+        workflow,
+        re.M,
+    )
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
     assert "id-token: write" in workflow
@@ -416,6 +562,16 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "post-release/v${VERSION}-publish-date" in workflow
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
     assert "scripts/release_workflow.py release-notes" in workflow
+    assert re.search(
+        r'^\s*python scripts/release_workflow\.py release-notes --repo \. --version "\$VERSION" > /tmp/release-notes\.txt$',
+        workflow,
+        re.M,
+    )
+    assert not re.search(
+        r'^\s*uv run python scripts/release_workflow\.py release-notes --repo \. --version "\$VERSION" > /tmp/release-notes\.txt$',
+        workflow,
+        re.M,
+    )
     assert "gh pr create" in workflow
 
 
@@ -464,7 +620,9 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
         assert expected in content, f"{path.name} should reference the public prerequisite flow"
         for marker in stale_markers:
             assert marker not in content, f"{path.name} should not mention {marker!r}"
-        assert json.loads(content) == expected_descriptors[path.stem]
+        descriptor = json.loads(content)
+        descriptor.pop("source_of_truth", None)
+        assert descriptor == expected_descriptors[path.stem]
 
     assert {
         path.stem for path in (repo_root / "infra").glob("gpd-*.json")
@@ -525,6 +683,7 @@ def test_block_gpd_commit_hook_script_exists_and_is_executable() -> None:
 @pytest.mark.skipif(os.name == "nt", reason="requires bash")
 def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     """Integration: the hook script strips GPD/ files from the index."""
+    _git_or_skip()
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "block-gpd-commit.sh"
 
@@ -574,18 +733,38 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     assert "GPD/STATE.md" not in staged_files
 
 
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_hook_blocks_non_human_coauthors(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("Improve tests\n\nCo-Authored-By: GPT <noreply@openai.com>\n", encoding="utf-8")
+
+    result = subprocess.run([str(hook_script), str(message)], capture_output=True, text=True, check=False)
+
+    assert result.returncode == 1
+    assert "non-human co-author detected" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_hook_allows_human_coauthors(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("Improve tests\n\nCo-Authored-By: Ada Lovelace <ada@example.com>\n", encoding="utf-8")
+
+    result = subprocess.run([str(hook_script), str(message)], capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0
+
+
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_root = _repo_root()
-    if shutil.which("npm") is None:
-        pytest.skip("npm is not available")
+    _npm_or_skip()
 
     repo_cache = repo_root / ".npm-cache"
     existed_before = repo_cache.exists()
-    before_paths = (
-        sorted(path.relative_to(repo_cache).as_posix() for path in repo_cache.rglob("*"))
-        if existed_before
-        else []
-    )
+    before_paths = _repo_cache_snapshot(repo_cache) if existed_before else []
 
     pack = _npm_pack_dry_run(repo_root, tmp_path)
     packed_paths = _packaged_file_paths(pack)
@@ -598,7 +777,7 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     assert (tmp_path / "npm-cache").is_dir()
 
     if existed_before:
-        after_paths = sorted(path.relative_to(repo_cache).as_posix() for path in repo_cache.rglob("*"))
+        after_paths = _repo_cache_snapshot(repo_cache)
         assert after_paths == before_paths
     else:
         assert not repo_cache.exists()

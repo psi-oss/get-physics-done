@@ -37,7 +37,8 @@ Provide the equation or topic to derive as an argument (e.g., `gpd:derive-equati
 </execution_context>
 
 <process>
-Execute the derive-equation workflow from @{GPD_INSTALL_DIR}/workflows/derive-equation.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Preserve all workflow gates (assumption statement, notation, step-by-step derivation, verification, documentation).
 
 The workflow will:

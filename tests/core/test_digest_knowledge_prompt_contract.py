@@ -64,7 +64,7 @@ def test_digest_knowledge_workflow_documents_deterministic_target_resolution_and
     assert "GPD/knowledge/{knowledge_id}.md" in workflow
     assert _contains_any(workflow, "explicit file path", "existing file path", "file path must exist", "must exist before")
     assert _contains_any(workflow, "2401.12345", "modern arxiv", "modern arXiv")
-    assert _contains_any(workflow, "hep-th/9901001", "legacy arxiv", "legacy arXiv")
+    assert _contains_any(workflow, "hep-th/9901001", "classic arxiv", "classic arXiv")
 
 
 def test_digest_knowledge_templates_keep_non_runtime_deferrals_explicit() -> None:
@@ -92,3 +92,15 @@ def test_digest_knowledge_templates_keep_non_runtime_deferrals_explicit() -> Non
     )
     assert _contains_any(knowledge_template, "review-knowledge", "review approval", "stable promotion")
     assert _contains_any(knowledge_schema, "review-knowledge", "review approval", "stable promotion")
+
+
+def test_digest_knowledge_surfaces_knowledge_schema_guard() -> None:
+    knowledge_template = _read(KNOWLEDGE_TEMPLATE_PATH)
+    workflow = _read(DIGEST_WORKFLOW_PATH)
+    command = _read(DIGEST_COMMAND_PATH)
+
+    assert "<hard_schema_visibility_guard>" in knowledge_template
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in knowledge_template
+    assert "<hard_schema_visibility_guard>" in workflow
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in workflow
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in command

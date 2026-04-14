@@ -8,6 +8,7 @@ import pytest
 
 from gpd.core.constants import HOME_DATA_DIR_NAME
 from gpd.core.recent_projects import (
+    RecentProjectEntry,
     RecentProjectsError,
     classify_recent_project_recovery,
     list_recent_projects,
@@ -43,6 +44,18 @@ class TestRecentProjectsRootResolution:
 
 
 class TestRecentProjectsIndexPersistence:
+    def test_entry_normalizes_resume_target_kind_without_recursion(self, tmp_path: Path) -> None:
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+
+        entry = RecentProjectEntry(
+            project_root=project_root.as_posix(),
+            last_seen_at="2026-03-26T12:00:00+00:00",
+            resume_target_kind=" bounded_segment ",
+        )
+
+        assert entry.resume_target_kind == "bounded_segment"
+
     def test_save_and_load_round_trip(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GPD_DATA_DIR", raising=False)
         store_root = tmp_path / "cache"
@@ -387,6 +400,31 @@ class TestRecentProjectsIndexPersistence:
         assert row.source_transition_id is None
         assert row.source_event_id is None
         assert row.source_recorded_at is None
+
+    def test_record_recent_project_defaults_to_home_cache(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+
+        session_data = {
+            "last_date": "2026-03-26T12:00:00+00:00",
+            "stopped_at": "Phase 1",
+        }
+
+        entry = record_recent_project(project_root, session_data=session_data)
+
+        expected_index_dir = fake_home / HOME_DATA_DIR_NAME / "recent-projects"
+        expected_index_path = expected_index_dir / "index.json"
+
+        assert expected_index_path.exists()
+        assert entry.project_root == project_root.resolve(strict=False).as_posix()
+        assert expected_index_path.parent == expected_index_dir
+        assert (project_root / "GPD").exists() is False
+        assert (project_root / ".gpd").exists() is False
 
     def test_record_recent_project_reads_index_after_lock_acquisition(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         store_root = tmp_path / "cache"

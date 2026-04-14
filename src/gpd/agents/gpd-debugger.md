@@ -53,6 +53,10 @@ Core responsibilities:
 On demand only: shared protocols, verification core, physics subfields, agent infrastructure, and cross-project patterns. Load them only when the current question needs them.
 </references>
 
+<shared_infrastructure>
+Reload the shared agent-infrastructure.md reference on demand for Context Pressure Management, guardrails, External Tool Failure Protocol, and `gpd_return` envelope expectations. Use the canonical doc instead of copying these sections verbatim.
+</shared_infrastructure>
+
 <philosophy>
 ## Debugging Stance
 
@@ -124,6 +128,8 @@ A checkpoint is a one-shot handoff for the current run. Write it once, stop, and
 [What the orchestrator must pass into the next run]
 ```
 
+Return this block with `gpd_return.status: checkpoint` whenever you require a hard handoff, user verification, or user action.
+
 ## Checkpoint Types
 
 - `human-verify`: user confirmation needed.
@@ -146,10 +152,11 @@ gpd_return:
   files_written: [GPD/debug/{slug}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  session_file: GPD/debug/{slug}.md
+  extensions:
+    session_file: GPD/debug/{slug}.md
 ```
 
-The base fields required by agent-infrastructure are `status`, `files_written`, `issues`, and `next_actions`. `session_file` is debugger-specific visibility for the handoff. Use only the canonical status names.
+The base fields required by agent-infrastructure are `status`, `files_written`, `issues`, and `next_actions`. Put debugger-specific handoff visibility under `extensions.session_file`. Use only the canonical status names.
 
 ## ROOT CAUSE FOUND
 
@@ -172,6 +179,8 @@ The base fields required by agent-infrastructure are `status`, `files_written`, 
 **Suggested Correction Direction:** {brief hint, not full implementation}
 ```
 
+Return this block with `gpd_return.status: completed` when you have a decisive root-cause finding.
+
 ## TROUBLESHOOTING COMPLETE
 
 ```markdown
@@ -188,6 +197,8 @@ The base fields required by agent-infrastructure are `status`, `files_written`, 
 
 **Commit:** {hash}
 ```
+
+Return this block with `gpd_return.status: completed` when both diagnostics and fixes are recorded.
 
 ## INVESTIGATION INCONCLUSIVE
 
@@ -212,6 +223,8 @@ The base fields required by agent-infrastructure are `status`, `files_written`, 
 
 **Recommendation:** {next steps or manual review needed}
 ```
+
+Return this block with `gpd_return.status: blocked` to flag an unresolved investigation requiring escalation.
 </structured_returns>
 
 <modes>

@@ -7,10 +7,17 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 </core_principle>
 
 <required_reading>
-Load the structured init-state payload first; reopen STATE.md only if a later staged refresh is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
+Load the structured init-state payload first; reopen raw state files only if a later staged refresh is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
 For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
 For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md`.
+For contract-backed verification and summary outputs, reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` before touching `contract_results` or related verdict ledgers.
 </required_reading>
+
+<hard_schema_visibility_guard>
+Keep project-contract and plan-contract hard-schema fields model-visible before execution decisions, including before delegating to a subagent.
+</hard_schema_visibility_guard>
+
+The shared runtime-delegation note loaded above applies to every real `task(...)` handoff in this workflow unless a later step adds stricter artifact gates or narrower child-specific requirements.
 
 <process>
 
@@ -43,7 +50,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
+Parse the bootstrap JSON fields used below: execution config, phase metadata, plan lists/counts, state/roadmap flags, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, and platform.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -117,7 +124,7 @@ Log the classification: `"Phase ${phase_number} classified as: ${PHASE_CLASSES[*
 
 **Use classification for:**
 - Agent selection (see `agent-infrastructure.md` Meta-Orchestration Intelligence > Agent Selection by Phase Type)
-- Context budget targets (see `agent-infrastructure.md` Meta-Orchestration Intelligence > Context Budget Allocation)
+- Context budget targets (see `agent-infrastructure.md` Meta-Orchestration Intelligence > Context Budget Allocation and `references/orchestration/context-budget.md`)
 - Verifier check prioritization (derivation phases promote dimensional / limit / identity-critical checks; numerical phases promote `5.5` convergence and `5.14` statistics; validation phases run the full relevant registry)
 - Computation-type-aware execution adaptation (see `adapt_to_computation_type` below)
 </step>
@@ -275,6 +282,7 @@ For each proof-bearing plan, require a sibling proof audit artifact named `{plan
 
 Never treat a clean `SUMMARY.md`, correct algebra in a subset of cases, or "human will inspect later" as a substitute for this artifact.
 When runtime delegation is available, `gpd-check-proof` is the canonical owner of this sibling artifact. The executor may draft the proof and theorem inventory, but it must not self-certify theorem-proof alignment as its own independent redteam.
+If any executed plan is proof-bearing, proof verification still runs.
 </step>
 
 <step name="refresh_wave_planning_context">
@@ -288,7 +296,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `reference_artifacts_content`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`.
+Parse the wave-planning fields used below: protocol bundles, active references/artifact content, intermediate results, approximations, uncertainties, and derived convention/intermediate-result/approximation summaries plus counts.
 </step>
 
 <step name="structural_validation">
@@ -334,7 +342,7 @@ Load plan inventory with wave grouping in one call:
 PLAN_INDEX=$(gpd phase index "${phase_number}")
 ```
 
-Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`.
+Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`, `project_contract_gate`.
 
 **Filtering:** Skip plans where `has_summary: true`. If `--gaps-only`: also skip non-gap_closure plans. If all filtered: "No matching incomplete plans" -> exit.
 
@@ -486,7 +494,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `current_execution`, `has_live_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `execution_blocked`, `execution_resumable`, `execution_paused_at`, `current_execution_resume_file`, `session_resume_file`, `recorded_session_resume_file`, `missing_session_resume_file`, `execution_resume_file`, `execution_resume_file_source`, `resume_projection`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`, `session_last_date`, `session_stopped_at`, `machine_change_detected`, `machine_change_notice`, `state_load_source`, `state_integrity_issues`.
+Parse the wave-dispatch fields used below: protocol bundles, live-execution/review/blocking/resume state, session/machine-change metadata, state-load source, and integrity issues.
 
 **For each wave:**
 
@@ -619,18 +627,15 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 
    After a proof-bearing executor has written its proof artifact(s) and `SUMMARY.md`, but before the wave-level spot-check accepts the plan, spawn `gpd-check-proof` in a fresh context:
 
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** See {GPD_INSTALL_DIR}/references/orchestration/agent-delegation.md for the fresh one-shot handoff pattern before spawning runtime-specific subagents.
 
    ```
    task(
      subagent_type="gpd-check-proof",
      model="{check_proof_model}",
      readonly=false,
-     prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
-
-       Operate in proof-redteam mode with a fresh context.
-       If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
+     prompt="Read {GPD_AGENTS_DIR}/gpd-check-proof.md plus {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
+       Work in a fresh proof-redteam context; if user input is needed, return `status: checkpoint`.
 
        Write to: {phase_dir}/{plan_id}-PROOF-REDTEAM.md
 
@@ -659,7 +664,7 @@ Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_D
 
    This ensures the user sees progress even when waves have multiple parallel plans. Do not wait for the entire wave to finish before showing any output.
 
-   **If any executor agent fails to spawn or returns an error:** Check if the agent committed any work (`git log --oneline -3`). If commits exist, the agent may have completed but failed to report — spot-check output files and proceed. If no work was done, record the plan as failed for this wave. After all other agents complete, report failed plans and offer: 1) Retry failed plans in a new wave, 2) Execute failed plans in the main context, 3) Skip failed plans and continue. Do not abort the entire phase for individual plan failures.
+   **If any executor fails to spawn or return cleanly:** Check for recent plan commits. If work exists, spot-check required outputs before accepting it. Otherwise mark the plan failed, let other agents finish, then offer retry, main-context execution, or skip/continue. Do not abort the phase for one plan failure.
 
 6. **Report completion -- spot-check claims first:**
 
@@ -1377,7 +1382,7 @@ gpd commit \
 </step>
 
 <step name="verify_phase_goal">
-**If `verifier_enabled` is false** (from init JSON config / `workflow.verifier` in config.json): Skip only the generic post-execution verifier for non-proof phases. If any executed plan is proof-bearing, proof verification still runs and missing/open `*-PROOF-REDTEAM.md` artifacts keep the phase fail-closed. Log the distinction explicitly instead of treating verifier-disabled config as a blanket bypass.
+**If `verifier_enabled` is false:** Skip only generic post-execution verification for non-proof phases. Proof-bearing work remains fail-closed until canonical proof-redteam artifacts and verifier-owned checks clear; see `docs/schema-registry-ownership.md` for schema ownership.
 
 Verify phase achieved its GOAL, not just completed tasks.
 
@@ -1437,7 +1442,7 @@ All automated checks passed. {N} items need human review:
 {Any dimensional inconsistencies, failed limiting cases, or conservation law violations}
 
 ---
-## >> Next Up
+## > Next Up
 
 `gpd:plan-phase {X} --gaps`
 
@@ -1469,7 +1474,6 @@ TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$' "
 
 **For localized failures (1 contract target):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -1505,7 +1509,6 @@ task(
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 ```
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -1514,7 +1517,7 @@ task(
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.
 
-  Use {GPD_INSTALL_DIR}/specs/templates/debug-subagent-prompt.md as the explicit one-shot debug contract. Populate it from the failed verification file, the gap-closure summary, and the original summary; set `goal: find_root_cause_only`, `symptoms_prefilled: true`, and `Create: GPD/debug/{FAILED_PLAN}.md`.
+  Use {GPD_INSTALL_DIR}/templates/debug-subagent-prompt.md as the explicit one-shot debug contract. Populate it from the failed verification file, the gap-closure summary, and the original summary; set `goal: find_root_cause_only`, `symptoms_prefilled: true`, and `Create: GPD/debug/{FAILED_PLAN}.md`.
 
   Return exactly one typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, include the session file, and stop. Do not route on heading markers or continue the investigation interactively inside the child.",
   description="Diagnose persistent verification failure"
@@ -1559,7 +1562,6 @@ Automatically re-verify the phase to confirm gaps are closed:
 VERIFIER_MODEL=$(gpd resolve-model gpd-verifier)
 ```
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -1590,7 +1592,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 
 	Rebuild the structured phase context with `gpd --raw init phase-op {PHASE_NUMBER}` and keep `project_contract`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, and `phase_proof_review_status` visible while re-checking the remaining gaps. Treat any stable knowledge docs surfaced in those fields as reviewed background only: they may inform interpretation, but they do not override the contract, proof audits, or decisive evidence.
 
-	Focus on the gaps that were previously marked failed, partial, blocked, or otherwise unresolved in the previous verification. If the prior report carries `session_status: diagnosed`, use the recorded root causes and missing actions as the starting point for re-verification. For proof-bearing work, re-check every required `*-PROOF-REDTEAM.md` artifact and keep the phase blocked until those audits report `status: passed`.
+	Focus on the gaps that were previously marked failed, partial, blocked, or otherwise unresolved in the previous verification. If the prior report carries `session_status: diagnosed`, use the recorded root causes and missing actions as the starting point for re-verification. For proof-bearing work, apply the canonical proof-redteam artifact requirements instead of restating them in this workflow.
 	Check whether the gap closure plans have resolved each issue.
 	Update VERIFICATION.md with new status for each gap.
 	Return exactly one typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, include `files_written`, and write `{phase_dir}/{phase}-VERIFICATION.md` before returning. Use the verifier's canonical `verification_status: passed | gaps_found | expert_needed | human_needed` inside the structured return or the written report; do not return legacy `passed | gaps_found` text as the routing surface.",
@@ -1598,7 +1600,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 )
 ```
 
-**If the verifier agent fails to spawn or returns an error:** Stop in a blocked state. Do not mark the phase complete or clear gap-closure state on this path. The user should run `gpd:verify-work` separately to confirm gaps are closed. If the phase is proof-bearing, do NOT mark it complete on this path; proof-obligation work remains blocked until re-verification and proof-redteam audits actually clear. Do not trust the runtime handoff status by itself. Do not let a stale existing verification file satisfy the success path.
+**If the verifier agent fails to spawn or returns an error:** Stop in a blocked state. Do not mark the phase complete or clear gap-closure state on this path. The user should run `gpd:verify-work` separately to confirm gaps are closed. If the phase is proof-bearing, do NOT mark it complete on this path; proof-obligation work remains blocked until canonical proof-redteam and re-verification gates clear. Do not trust the runtime handoff status by itself. Do not let a stale existing verification file satisfy the success path.
 
 **Handle the verifier response through `gpd_return.status`:**
 
@@ -1627,7 +1629,6 @@ CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker)
 
 Spawn the consistency checker in rapid mode:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
 
@@ -1677,7 +1678,6 @@ If the user chooses convention repair in a fresh continuation, spawn `gpd-notati
 NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -1790,7 +1790,7 @@ After phase completion, check the project's autonomy mode. If yolo or balanced w
 **If more phases:**
 
 ```
-## Next Up
+## > Next Up
 
 **Phase {X+1}: {Name}** -- {Goal}
 

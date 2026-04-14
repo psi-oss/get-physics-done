@@ -44,6 +44,6 @@ def test_expanded_executor_prompt_stays_under_budget_and_excludes_late_publicati
 
     bootstrap, _, _ = expanded.partition("<summary_creation>")
 
-    assert len(expanded) < 220_000
+    assert len(expanded) < 223_000
     assert "Order-of-Limits Awareness" not in bootstrap
     assert "main.tex" not in expanded

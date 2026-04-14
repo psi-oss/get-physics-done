@@ -1,10 +1,13 @@
 """GPD -- Get Physics Done: unified physics research orchestration."""
 
+import sys
 from importlib import import_module
 
-from gpd._python_compat import require_supported_python
-
-require_supported_python()
+if sys.version_info < (3, 11):  # noqa: UP036
+    raise RuntimeError(
+        "get-physics-done requires Python 3.11+; "
+        f"current interpreter is Python {sys.version_info.major}.{sys.version_info.minor}"
+    )
 
 __version__ = import_module("gpd.version").__version__
 

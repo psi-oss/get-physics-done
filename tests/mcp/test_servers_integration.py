@@ -143,6 +143,11 @@ def _write_state_with_project_contract(
     state["position"]["current_phase"] = current_phase
     state["position"]["status"] = status
     state["project_contract"] = contract
+    for prior_output in contract.get("context_intake", {}).get("must_include_prior_outputs", []):
+        if isinstance(prior_output, str) and prior_output.startswith("GPD/"):
+            output_path = project_root / prior_output
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text("prior output\n", encoding="utf-8")
     (gpd_dir / "state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     (gpd_dir / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
     return project_root

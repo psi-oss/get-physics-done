@@ -33,7 +33,6 @@ from gpd.contracts import (
     _collect_project_contract_list_member_errors,
     _collect_project_local_grounding_integrity_errors,
     collect_contract_integrity_errors,
-    collect_plan_contract_integrity_errors,
     parse_project_contract_data_salvage,
     parse_project_contract_data_strict,
 )
@@ -59,6 +58,8 @@ from gpd.core.continuation import (
     resolve_continuation,
 )
 from gpd.core.contract_validation import (
+    CONTEXT_INTAKE_DEFAULT_WARNING,
+    UNCERTAINTY_MARKERS_DEFAULT_WARNING,
     _collect_list_shape_drift_errors,
     _has_authoritative_scalar_schema_findings,
     _project_contract_schema_version_missing_error,
@@ -154,6 +155,9 @@ __all__ = [
     "state_update_progress",
     "state_validate",
     "sync_state_json",
+    "load_state_json_with_integrity_issues",
+    "load_state_snapshot_for_mutation",
+    "recover_intent_locked",
     "validate_state_transition",
 ]
 
@@ -517,6 +521,9 @@ class StateValidateResult(BaseModel):
     integrity_mode: str = "standard"
     integrity_status: str = "healthy"
     state_source: str | None = None
+    primary_state_corrupt: bool = False
+    recovered_from_backup: bool = False
+    recovered_from_markdown: bool = False
 
 
 class StateUpdateResult(BaseModel):
@@ -700,15 +707,25 @@ def _optional_state_text(value: object) -> str | None:
     return stripped or None
 
 
+def _canonical_state_id(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
 def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
     """Return whether the state tracks a canonical intermediate result with this ID."""
     results = state_obj.get("intermediate_results")
     if not isinstance(results, list):
         return False
+    normalized_target = _canonical_state_id(result_id)
+    if normalized_target is None:
+        return False
     for item in results:
-        if isinstance(item, dict) and _optional_state_text(item.get("id")) == result_id:
+        if isinstance(item, dict) and _canonical_state_id(item.get("id")) == normalized_target:
             return True
-        if isinstance(item, IntermediateResult) and _optional_state_text(item.id) == result_id:
+        if isinstance(item, IntermediateResult) and _canonical_state_id(item.id) == normalized_target:
             return True
     return False
 
@@ -751,30 +768,24 @@ def _project_contract_load_payload(
     return payload
 
 
-def _project_contract_missing_required_schema_errors(raw_contract: object) -> list[str]:
-    """Return hard schema blockers that must stay non-authoritative in state loads."""
+def _project_contract_missing_required_schema_errors(raw_contract: object) -> tuple[list[str], list[str]]:
+    """Return schema blockers and warnings that should be surfaced for legacy loads."""
 
     if not isinstance(raw_contract, dict):
-        return []
+        return ([], [])
 
     errors: list[str] = []
+    warnings: list[str] = []
     schema_version_error = _project_contract_schema_version_missing_error(raw_contract)
     if schema_version_error is not None:
         errors.append(schema_version_error)
 
     if "context_intake" not in raw_contract:
-        errors.append("context_intake is required")
+        warnings.append(CONTEXT_INTAKE_DEFAULT_WARNING)
 
     if "uncertainty_markers" not in raw_contract:
-        errors.append("uncertainty_markers is required")
-    else:
-        uncertainty_markers = raw_contract.get("uncertainty_markers")
-        if isinstance(uncertainty_markers, dict):
-            for field_name in ("weakest_anchors", "disconfirming_observations"):
-                if field_name not in uncertainty_markers:
-                    errors.append(f"uncertainty_markers.{field_name} is required")
-
-    return list(dict.fromkeys(errors))
+        warnings.append(UNCERTAINTY_MARKERS_DEFAULT_WARNING)
+    return list(dict.fromkeys(errors)), list(dict.fromkeys(warnings))
 
 
 def _project_contract_schema_reference_for_errors(errors: list[str]) -> str:
@@ -838,7 +849,9 @@ def _classify_project_contract_payload(
 
     list_shape_drift_errors = _collect_list_shape_drift_errors(raw_contract)
     list_member_errors = _collect_project_contract_list_member_errors(raw_contract)
-    missing_required_schema_errors = _project_contract_missing_required_schema_errors(raw_contract)
+    missing_required_schema_errors, missing_required_schema_warnings = _project_contract_missing_required_schema_errors(
+        raw_contract
+    )
     if missing_required_schema_errors:
         logger.warning(
             "Skipping project_contract from %s because required schema fields are missing: %s",
@@ -851,14 +864,21 @@ def _classify_project_contract_payload(
             provenance=provenance,
             raw_project_contract_classified=provenance == "raw",
             errors=missing_required_schema_errors,
-            warnings=list(dict.fromkeys([*list_shape_drift_errors, *list_member_errors])),
+            warnings=list(
+                dict.fromkeys([*list_shape_drift_errors, *list_member_errors, *missing_required_schema_warnings])
+            ),
         )
-    normalized_contract, schema_findings = salvage_project_contract(raw_contract)
+    normalized_contract, schema_findings, schema_metadata = salvage_project_contract(raw_contract)
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,
         allow_case_drift_recovery=True,
+        metadata_by_error=schema_metadata,
     )
-    schema_warnings = list(dict.fromkeys([*schema_warnings, *list_shape_drift_errors, *list_member_errors]))
+    schema_warnings = list(
+        dict.fromkeys(
+            [*schema_warnings, *list_shape_drift_errors, *list_member_errors, *missing_required_schema_warnings]
+        )
+    )
     blocking_schema_errors = list(schema_errors)
     if normalized_contract is None and not blocking_schema_errors:
         blocking_schema_errors = list(parse_project_contract_data_salvage(raw_contract).blocking_errors)
@@ -882,12 +902,7 @@ def _classify_project_contract_payload(
         normalized_contract,
         project_root=cwd,
     )
-    plan_integrity_errors = set(collect_plan_contract_integrity_errors(normalized_contract, project_root=cwd))
-    if local_grounding_errors and (
-        "missing references or explicit grounding context" in plan_integrity_errors
-        or "references must include at least one must_surface=true anchor" in plan_integrity_errors
-    ):
-        integrity_errors.extend(local_grounding_errors)
+    integrity_errors.extend(local_grounding_errors)
     if integrity_errors:
         logger.warning(
             "Loaded blocked project_contract from %s because semantic integrity checks failed: %s",
@@ -1107,6 +1122,12 @@ def _load_state_snapshot_for_mutation(cwd: Path, *, recover_intent: bool = True)
         return recovered_state
 
     return default_state_dict()
+
+
+def load_state_snapshot_for_mutation(cwd: Path, *, recover_intent: bool = True) -> dict:
+    """Return a fresh mutable state snapshot for mutation workflows."""
+
+    return _load_state_snapshot_for_mutation(cwd, recover_intent=recover_intent)
 
 
 def _load_or_rebuild_state_markdown_locked(cwd: Path) -> str | None:
@@ -1809,9 +1830,7 @@ def _normalize_state_schema(
     if raw is None:
         return default_state_dict(), []
     if not raw:  # {} case — emit sentinel to trigger backup recovery
-        return default_state_dict(), [
-            "schema normalization: irrecoverable validation failure; reset to defaults"
-        ]
+        return default_state_dict(), ["schema normalization: irrecoverable validation failure; reset to defaults"]
     if not isinstance(raw, dict):
         return default_state_dict(), [f"state root must be an object, got {type(raw).__name__}"]
 
@@ -1880,7 +1899,7 @@ def _normalize_state_schema(
                             removed_validation_paths.add(list_parent_loc)
                             removed_validation_paths.add(loc)
                             issue = (
-                                f'schema normalization: dropped malformed list entry '
+                                f"schema normalization: dropped malformed list entry "
                                 f'"{_format_validation_location(list_parent_loc)}": {message}'
                             )
                             if issue not in validation_findings:
@@ -2113,9 +2132,10 @@ def _normalize_project_contract_section(
 
     list_shape_drift_errors = _collect_list_shape_drift_errors(value)
     list_member_errors = _collect_project_contract_list_member_errors(value)
-    normalized_contract, errors = salvage_project_contract(value)
+    normalized_contract, errors, schema_metadata = salvage_project_contract(value)
     combined_errors = list(dict.fromkeys(errors))
     normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
+    schema_findings = list(dict.fromkeys([*combined_errors, *list_shape_drift_errors, *list_member_errors]))
     if list_shape_drift_errors:
         integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in list_shape_drift_errors)
     if list_member_errors:
@@ -2132,24 +2152,35 @@ def _normalize_project_contract_section(
                     'schema normalization: dropped "project_contract" because contract schema required normalization'
                 )
         return None
+    if schema_findings and not allow_project_contract_salvage:
+        if _has_authoritative_scalar_schema_findings(schema_findings):
+            integrity_issues.append(
+                'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
+            )
+        else:
+            integrity_issues.append(
+                'schema normalization: dropped "project_contract" because contract schema required normalization'
+            )
+        return None
     if combined_errors:
         # Run contract salvage before any direct Pydantic acceptance so coercive
         # scalar drift is surfaced as an integrity issue instead of silently
         # canonicalized by field validators or bool/int coercion.
         integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in combined_errors)
-        if _has_authoritative_scalar_schema_findings(combined_errors):
-            integrity_issues.append(
-                'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
-            )
-            return None
         _schema_warnings, schema_errors = split_project_contract_schema_findings(
             combined_errors,
             allow_case_drift_recovery=allow_project_contract_salvage,
+            metadata_by_error=schema_metadata,
         )
         if schema_errors:
-            integrity_issues.append(
-                'schema normalization: dropped "project_contract" because contract schema required normalization'
-            )
+            if _has_authoritative_scalar_schema_findings(schema_errors):
+                integrity_issues.append(
+                    'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
+                )
+            else:
+                integrity_issues.append(
+                    'schema normalization: dropped "project_contract" because contract schema required normalization'
+                )
             return None
     draft_validation = validate_project_contract(normalized_contract, mode="draft", project_root=project_root)
     if not draft_validation.valid:
@@ -2279,6 +2310,7 @@ def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | N
     )
     normalized = copy.deepcopy(normalized)
     normalized["session"] = _session_from_continuation_payload(normalized.get("continuation"))
+
     if any("project_contract" in issue for issue in integrity_issues):
         logger.warning(
             "state.json persistence normalized project_contract with issue(s): %s", "; ".join(integrity_issues)
@@ -2760,6 +2792,7 @@ def _recover_intent_locked(cwd: Path) -> None:
     intent_file = _intent_path(cwd)
     json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
+    planning_dir = json_path.parent.resolve()
 
     try:
         intent_raw = intent_file.read_text(encoding="utf-8")
@@ -2776,6 +2809,27 @@ def _recover_intent_locked(cwd: Path) -> None:
     parts = intent_raw.strip().split("\n")
     json_tmp = Path(parts[0]) if parts else None
     md_tmp = Path(parts[1]) if len(parts) > 1 else None
+
+    def _is_same_gpd_dir_temp(path: Path | None, target: Path) -> bool:
+        if path is None:
+            return False
+        try:
+            resolved_parent = path.parent.resolve(strict=False)
+        except OSError:
+            return False
+        return resolved_parent == planning_dir and (
+            path.name.startswith(f"{target.name}.tmp.")
+            or path.name == (".state-json-tmp" if target.name == "state.json" else ".state-md-tmp")
+        )
+
+    paths_are_valid = _is_same_gpd_dir_temp(json_tmp, json_path) and _is_same_gpd_dir_temp(md_tmp, md_path)
+    if not paths_are_valid:
+        logger.warning("Ignoring state write intent with temp paths outside the project GPD directory")
+        try:
+            intent_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return
 
     json_tmp_exists = json_tmp is not None and json_tmp.exists()
     md_tmp_exists = md_tmp is not None and md_tmp.exists()
@@ -2829,6 +2883,12 @@ def _recover_intent_locked(cwd: Path) -> None:
         intent_file.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def recover_intent_locked(cwd: Path) -> None:
+    """Run the intent recovery guard for CLI/MCP callers."""
+
+    return _recover_intent_locked(cwd)
 
 
 def _build_state_from_markdown(
@@ -2893,6 +2953,7 @@ def _build_state_from_markdown(
                 cwd,
                 source_path=backup_path if primary_unreadable else json_path,
                 raw_state=existing,
+                allowed_statuses={"loaded", "loaded_with_approval_blockers", "blocked_integrity"},
             )
             if preserved_contract is None:
                 existing = copy.deepcopy(existing)
@@ -2963,6 +3024,7 @@ def _preserved_visible_project_contract_from_raw_state(
     *,
     source_path: Path,
     raw_state: object,
+    allowed_statuses: set[str] | None = None,
 ) -> dict[str, object] | None:
     """Return the visible normalized contract when state already exposes it."""
 
@@ -2981,13 +3043,27 @@ def _preserved_visible_project_contract_from_raw_state(
     if visible_contract is None:
         return None
 
-    if load_info.get("status") not in {
+    allowed_statuses = allowed_statuses or {
         "loaded",
         "loaded_with_schema_normalization",
         "loaded_with_approval_blockers",
         "blocked_integrity",
-    }:
+    }
+    status = load_info.get("status")
+    if status not in allowed_statuses:
         return None
+    if status == "blocked_integrity":
+        if any(
+            is_repair_relevant_project_contract_schema_finding(warning)
+            for warning in list(load_info.get("warnings") or [])
+        ):
+            return None
+        draft_validation = validate_project_contract(visible_contract, mode="draft", project_root=cwd)
+        local_grounding_errors = set(
+            _collect_project_local_grounding_integrity_errors(visible_contract, project_root=cwd)
+        )
+        if any(error not in local_grounding_errors for error in draft_validation.errors):
+            return None
 
     return visible_contract.model_dump(mode="python")
 
@@ -2996,6 +3072,7 @@ def _preserved_visible_project_contract_from_state_file(
     cwd: Path,
     *,
     state_path: Path,
+    allowed_statuses: set[str] | None = None,
 ) -> dict[str, object] | None:
     """Return the visible normalized project contract preserved from one state JSON file."""
 
@@ -3009,6 +3086,62 @@ def _preserved_visible_project_contract_from_state_file(
         cwd,
         source_path=state_path,
         raw_state=raw_state,
+        allowed_statuses=allowed_statuses,
+    )
+
+
+def _preserved_raw_project_contract_from_raw_state(
+    cwd: Path,
+    *,
+    source_path: Path,
+    raw_state: object,
+    allowed_statuses: set[str] | None = None,
+) -> dict[str, object] | None:
+    """Return the raw persisted contract when the source state already exposes it."""
+
+    if not isinstance(raw_state, dict):
+        return None
+
+    raw_contract = raw_state.get("project_contract")
+    if not isinstance(raw_contract, dict):
+        return None
+
+    _visible_contract, load_info = _classify_project_contract_payload(
+        cwd=cwd,
+        source_path=source_path,
+        raw_contract=raw_contract,
+    )
+    allowed_statuses = allowed_statuses or {
+        "loaded",
+        "loaded_with_schema_normalization",
+        "loaded_with_approval_blockers",
+        "blocked_integrity",
+    }
+    if load_info.get("status") not in allowed_statuses:
+        return None
+
+    return copy.deepcopy(raw_contract)
+
+
+def _preserved_raw_project_contract_from_state_file(
+    cwd: Path,
+    *,
+    state_path: Path,
+    allowed_statuses: set[str] | None = None,
+) -> dict[str, object] | None:
+    """Return the raw persisted project contract preserved from one state JSON file."""
+
+    try:
+        raw_state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None
+    if not isinstance(raw_state, dict):
+        return None
+    return _preserved_raw_project_contract_from_raw_state(
+        cwd,
+        source_path=state_path,
+        raw_state=raw_state,
+        allowed_statuses=allowed_statuses,
     )
 
 
@@ -3048,12 +3181,11 @@ def _write_state_pair_locked(
         intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
         _replace_with_retry(json_tmp, json_path)
         _replace_with_retry(md_tmp, md_path)
+        atomic_write(backup_path, backup_rendered)
         try:
             intent_file.unlink(missing_ok=True)
         except OSError:
             pass
-
-        atomic_write(backup_path, backup_rendered)
     except Exception:
         for f in (intent_file, json_tmp, md_tmp):
             try:
@@ -3236,11 +3368,17 @@ def _load_state_json_with_integrity_issues(
                 or recovered_continuation_from_backup
                 or recovered_session_from_backup
             ):
-                preserved_contract = _preserved_visible_project_contract_from_raw_state(
-                    cwd,
-                    source_path=json_path,
-                    raw_state=parsed,
-                )
+                if state_source == "state.json.bak":
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
+                        cwd,
+                        state_path=bak_path,
+                    )
+                else:
+                    preserved_contract = _preserved_raw_project_contract_from_raw_state(
+                        cwd,
+                        source_path=json_path,
+                        raw_state=parsed,
+                    )
                 _write_state_pair_locked(
                     cwd,
                     state_obj=normalized,
@@ -3261,7 +3399,7 @@ def _load_state_json_with_integrity_issues(
                     "state.json root was recovered from state.json.bak after primary state.json was missing"
                 )
                 if persist_recovery:
-                    preserved_contract = _preserved_visible_project_contract_from_state_file(
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
                         cwd,
                         state_path=bak_path,
                     )
@@ -3288,7 +3426,7 @@ def _load_state_json_with_integrity_issues(
                     "state.json root was recovered from state.json.bak after primary state.json was unavailable or unreadable"
                 )
                 if persist_recovery:
-                    preserved_contract = _preserved_visible_project_contract_from_state_file(
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
                         cwd,
                         state_path=bak_path,
                     )
@@ -3322,7 +3460,7 @@ def _load_state_json_with_integrity_issues(
                     "state.json root was recovered from state.json.bak after primary state.json was unavailable or unreadable"
                 )
                 if persist_recovery:
-                    preserved_contract = _preserved_visible_project_contract_from_state_file(
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
                         cwd,
                         state_path=bak_path,
                     )
@@ -3369,6 +3507,29 @@ def _load_state_json_with_integrity_issues(
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("STATE.md fallback failed")
             return None, [], None
+
+
+def load_state_json_with_integrity_issues(
+    cwd: Path,
+    *,
+    integrity_mode: str = "standard",
+    persist_recovery: bool = True,
+    recover_intent: bool = True,
+    import_session_continuation_from_markdown: bool = False,
+    surface_blocked_project_contract: bool = False,
+    acquire_lock: bool = True,
+) -> tuple[dict | None, list[str], str | None]:
+    """Return the normalized state, integrity issues, and source."""
+
+    return _load_state_json_with_integrity_issues(
+        cwd,
+        integrity_mode=integrity_mode,
+        persist_recovery=persist_recovery,
+        recover_intent=recover_intent,
+        import_session_continuation_from_markdown=import_session_continuation_from_markdown,
+        surface_blocked_project_contract=surface_blocked_project_contract,
+        acquire_lock=acquire_lock,
+    )
 
 
 def peek_state_json(
@@ -3467,6 +3628,25 @@ def _load_state_json_from_backup(
         return restored, integrity_issues
     except (FileNotFoundError, TypeError, json.JSONDecodeError, OSError, UnicodeDecodeError):
         return None, []
+
+
+def state_project_contract_runtime_payload(
+    cwd: Path,
+    *,
+    state_obj: dict | None,
+    state_source: str | None,
+    preloaded_contract: ResearchContract | None = None,
+    preloaded_load_info: dict[str, object] | None = None,
+) -> tuple[dict[str, object], dict[str, object] | None, dict[str, object]]:
+    """Build shared project-contract diagnostics for state-facing read paths."""
+
+    return _project_contract_runtime_payload_for_state(
+        cwd,
+        state_obj=state_obj,
+        state_source=state_source,
+        preloaded_contract=preloaded_contract,
+        preloaded_load_info=preloaded_load_info,
+    )
 
 
 def _project_contract_runtime_payload_for_state(
@@ -3649,20 +3829,14 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
         return None
 
     if load_info.get("status") not in {
-        "blocked_integrity",
-        "loaded_with_schema_normalization",
+        "loaded",
         "loaded_with_approval_blockers",
     }:
         return None
 
-    candidate_contract, candidate_schema_findings = salvage_project_contract(candidate)
-    if candidate_contract is None:
-        return None
-    _, candidate_schema_errors = split_project_contract_schema_findings(
-        candidate_schema_findings,
-        allow_case_drift_recovery=True,
-    )
-    if candidate_schema_errors:
+    candidate_strict_result = parse_project_contract_data_strict(candidate)
+    candidate_contract = candidate_strict_result.contract
+    if candidate_contract is None or candidate_strict_result.errors:
         return None
 
     # Compare semantic contract content instead of raw dict shape so callers
@@ -3691,6 +3865,7 @@ def _preserved_project_contract_for_markdown_save(
             cwd,
             source_path=layout.state_json,
             raw_state=existing,
+            allowed_statuses={"loaded", "loaded_with_approval_blockers", "blocked_integrity"},
         )
         if preserved is not None:
             return preserved
@@ -3709,6 +3884,7 @@ def _preserved_project_contract_for_markdown_save(
         cwd,
         source_path=layout.state_json_backup,
         raw_state=backup_existing,
+        allowed_statuses={"loaded", "loaded_with_approval_blockers", "blocked_integrity"},
     )
 
 
@@ -3943,46 +4119,53 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
             "last session", "stopped at", "resume file",
             "last result id", "hostname", "platform",
         })
+        normalized_targets: dict[str, tuple[str, str]] = {}
+        normalized_entries: list[tuple[str, str, str]] = []
+        # Track each normalized form so duplicates can be rejected up front.
 
         for field, value in patches.items():
-            # --- Three-phase field resolution ---
-            # Phase 1: try the raw input exactly as given
-            field_norm = field
-            found = state_has_field(content, field_norm)
+            field_norm = field.replace("_", " ")
+            normalized_key = field_norm.casefold()
+            if normalized_key in normalized_targets:
+                previous_field, previous_norm = normalized_targets[normalized_key]
+                raise StateError(
+                    f'Duplicate normalized patch key "{field_norm}" (from "{field}") conflicts with "{previous_field}" ({previous_norm})'
+                )
+            normalized_targets[normalized_key] = (field, field_norm)
+            normalized_entries.append((field, field_norm, value))
+
+        for field, field_norm, value in normalized_entries:
+            resolved_field = field
+            found = state_has_field(content, resolved_field)
             also_tried: list[str] = []
 
-            # Phase 2: try underscore → space normalization
             if not found:
                 underscore_form = field.replace("_", " ")
                 if underscore_form != field:
                     also_tried.append(underscore_form)
                     found = state_has_field(content, underscore_form)
                     if found:
-                        field_norm = underscore_form
+                        resolved_field = underscore_form
 
-            # Phase 3: dot-prefix stripping (on the best candidate so far)
             if not found and "." in field:
-                # Strip from the raw field first (preserves underscores)
                 stripped_raw = field.rsplit(".", 1)[-1]
-                also_tried.append(stripped_raw)
+                if stripped_raw not in also_tried:
+                    also_tried.append(stripped_raw)
                 found = state_has_field(content, stripped_raw)
                 if found:
-                    field_norm = stripped_raw
+                    resolved_field = stripped_raw
                 else:
-                    # Also try underscore-replaced + stripped
                     stripped_norm = field.replace("_", " ").rsplit(".", 1)[-1]
                     if stripped_norm != stripped_raw:
                         also_tried.append(stripped_norm)
                         found = state_has_field(content, stripped_norm)
                         if found:
-                            field_norm = stripped_norm
+                            resolved_field = stripped_norm
 
-            # Guard: reject Session Continuity mirror fields — they are
-            # regenerated from state.json on save, so markdown patches are no-ops.
-            if found and field_norm.lower() in _session_mirror:
+            if found and resolved_field.lower() in _session_mirror:
                 failed.append(field)
                 failure_reasons[field] = (
-                    f'Field "{field_norm}" is a Session Continuity mirror field '
+                    f'Field "{resolved_field}" is a Session Continuity mirror field '
                     f"that is regenerated from state.json on save. "
                     f"Use the continuation API to update session state."
                 )
@@ -4005,7 +4188,7 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                         continue
 
             if found:
-                content = state_replace_field(content, field_norm, value)
+                content = state_replace_field(content, resolved_field, value)
                 updated.append(field)
             else:
                 failed.append(field)
@@ -4611,8 +4794,7 @@ def state_record_session(
         )
         if (
             not clear_resume_file
-            and
-            resume_file is not None
+            and resume_file is not None
             and normalized_resume_file is None
             and resume_file.strip()
             and resume_file.strip() not in {EM_DASH, "[Not set]"}
@@ -4764,7 +4946,16 @@ def state_validate(
         cwd,
         integrity_mode=integrity_mode,
         recover_intent=recover_intent,
+        surface_blocked_project_contract=True,
     )
+    primary_state_corrupt = any(
+        issue.startswith(("state.json parse error:", "state.json structural error:"))
+        or "after primary state.json required normalization" in issue
+        or "after primary state.json was unavailable or unreadable" in issue
+        for issue in normalization_issues
+    )
+    recovered_from_backup = state_source == "state.json.bak"
+    recovered_from_markdown = state_source == "STATE.md"
     if normalization_issues:
         parse_issues = [issue for issue in normalization_issues if issue.startswith("state.json parse error:")]
         other_issues = [issue for issue in normalization_issues if not issue.startswith("state.json parse error:")]
@@ -4796,6 +4987,9 @@ def state_validate(
             integrity_mode=integrity_mode,
             integrity_status=_integrity_status_from(issues, warnings, integrity_mode),
             state_source=state_source,
+            primary_state_corrupt=primary_state_corrupt,
+            recovered_from_backup=recovered_from_backup,
+            recovered_from_markdown=recovered_from_markdown,
         )
 
     if isinstance(state_json, dict) and state_json.get("project_contract") is not None:
@@ -4880,11 +5074,15 @@ def state_validate(
         seen: set[str] = set()
         existing_ids: set[str] = set()
         for r in state_json["intermediate_results"]:
-            if isinstance(r, dict) and r.get("id"):
-                if r["id"] in seen:
-                    issues.append(f'intermediate_results: duplicate result ID "{r["id"]}"')
-                seen.add(r["id"])
-                existing_ids.add(str(r["id"]))
+            if not isinstance(r, dict):
+                continue
+            normalized_id = _canonical_state_id(r.get("id"))
+            if normalized_id is None:
+                continue
+            if normalized_id in seen:
+                issues.append(f'intermediate_results: duplicate result ID "{normalized_id}"')
+            seen.add(normalized_id)
+            existing_ids.add(normalized_id)
 
         for r in state_json["intermediate_results"]:
             if not isinstance(r, dict):
@@ -4892,7 +5090,8 @@ def state_validate(
             rid = r.get("id") or "<missing-id>"
             depends_on = r.get("depends_on") or []
             for dep_id in depends_on:
-                if dep_id not in existing_ids:
+                normalized_dep = _canonical_state_id(dep_id)
+                if normalized_dep not in existing_ids:
                     issues.append(f'intermediate_results[{rid}]: missing dependency "{dep_id}"')
 
             records = r.get("verification_records") or []
@@ -4947,6 +5146,9 @@ def state_validate(
         integrity_mode=integrity_mode,
         integrity_status=integrity_status,
         state_source=state_source,
+        primary_state_corrupt=primary_state_corrupt,
+        recovered_from_backup=recovered_from_backup,
+        recovered_from_markdown=recovered_from_markdown,
     )
 
 

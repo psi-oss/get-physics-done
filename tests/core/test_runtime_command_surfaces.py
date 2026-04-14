@@ -11,7 +11,11 @@ import pytest
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core import public_surface_contract as public_surface_contract_module
 from gpd.core import runtime_command_surfaces as runtime_command_surfaces_module
-from gpd.core.runtime_command_surfaces import format_active_runtime_command, resolve_active_runtime_descriptor
+from gpd.core.runtime_command_surfaces import (
+    format_active_runtime_command,
+    installed_runtime_for_surface,
+    resolve_active_runtime_descriptor,
+)
 
 
 def test_format_active_runtime_command_uses_descriptor_public_surface(monkeypatch) -> None:
@@ -33,6 +37,26 @@ def test_format_active_runtime_command_uses_descriptor_public_surface(monkeypatc
     assert format_active_runtime_command("help") == "/public:help"
 
 
+def test_format_active_runtime_command_requires_public_surface_prefix(monkeypatch) -> None:
+    descriptor = SimpleNamespace(
+        runtime_name="runtime-a",
+        public_command_surface_prefix=" ",
+        command_prefix="/adapter-only:",
+    )
+    monkeypatch.setattr(
+        runtime_command_surfaces_module,
+        "resolve_active_runtime_descriptor",
+        lambda **kwargs: descriptor,
+    )
+    monkeypatch.setattr(
+        "gpd.adapters.get_adapter",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("adapter formatting should not be used")),
+    )
+
+    with pytest.raises(ValueError, match="missing a public command surface prefix"):
+        format_active_runtime_command("help")
+
+
 def test_resolve_active_runtime_descriptor_normalizes_aliases_before_lookup() -> None:
     descriptor = next(
         item
@@ -47,6 +71,55 @@ def test_resolve_active_runtime_descriptor_normalizes_aliases_before_lookup() ->
 
     assert resolved is not None
     assert resolved.runtime_name == descriptor.runtime_name
+
+
+def test_installed_runtime_for_surface_normalizes_alias_and_requires_install_target(tmp_path: Path) -> None:
+    descriptor = next(
+        descriptor
+        for descriptor in iter_runtime_descriptors()
+        if descriptor.selection_flags or descriptor.selection_aliases
+    )
+    runtime_signal = (
+        descriptor.selection_flags[0]
+        if descriptor.selection_flags
+        else descriptor.selection_aliases[0]
+    )
+    assert (
+        installed_runtime_for_surface(
+            tmp_path,
+            detect_runtime=lambda **kwargs: runtime_signal,
+            detect_install_target=lambda runtime, **kwargs: tmp_path / f".{runtime}",
+        )
+        == descriptor.runtime_name
+    )
+
+    assert (
+        installed_runtime_for_surface(
+            tmp_path,
+            detect_runtime=lambda **kwargs: runtime_signal,
+            detect_install_target=lambda runtime, **kwargs: None,
+        )
+        is None
+    )
+
+
+def test_installed_runtime_for_surface_rejects_unknown_normalizations(monkeypatch, tmp_path: Path) -> None:
+    descriptor = next(iter(iter_runtime_descriptors()))
+    unknown_runtime = f"unknown-{descriptor.runtime_name}-literal"
+    install_dir = tmp_path / f".{descriptor.config_dir_name}"
+    monkeypatch.setattr(
+        runtime_command_surfaces_module,
+        "normalize_runtime_name",
+        lambda value: None,
+    )
+    assert (
+        installed_runtime_for_surface(
+            tmp_path,
+            detect_runtime=lambda **kwargs: unknown_runtime,
+            detect_install_target=lambda runtime, **kwargs: install_dir,
+        )
+        is None
+    )
 
 
 def test_active_runtime_command_prefix_rejects_descriptor_missing_public_surface(monkeypatch) -> None:

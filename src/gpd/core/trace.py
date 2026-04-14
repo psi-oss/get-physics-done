@@ -17,7 +17,6 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -27,6 +26,7 @@ import gpd.core.observability as _observability
 from gpd.core.constants import ProjectLayout
 from gpd.core.errors import TraceError
 from gpd.core.observability import gpd_span, instrument_gpd_function
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 logger = logging.getLogger(__name__)
@@ -192,10 +192,6 @@ def _resolve_active_trace_file(cwd: Path, active: ActiveTrace) -> Path:
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
 
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
 def _safe_trace_component(value: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
 
@@ -234,7 +230,7 @@ def _read_trace_events(file_path: Path) -> list[TraceEvent]:
 
 def _serialize_event(event_type: str, **extra: object) -> str:
     """Serialize one JSONL line with ``type`` key."""
-    obj: dict[str, object] = {"timestamp": _now_iso(), "type": event_type}
+    obj: dict[str, object] = {"timestamp": utc_now_iso(), "type": event_type}
     obj.update({k: v for k, v in extra.items() if v is not None})
     return json.dumps(obj, default=str)
 
@@ -384,7 +380,7 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     _traces_dir(cwd).mkdir(parents=True, exist_ok=True)
 
     trace_file = _trace_file_path(cwd, phase, plan)
-    started_at = _now_iso()
+    started_at = utc_now_iso()
     trace_id = _trace_id(phase, plan)
     session_id = _ensure_observability_session(cwd, phase=phase, plan=plan)
 
@@ -503,7 +499,7 @@ def trace_stop(cwd: Path) -> TraceStopResult:
     for evt in _read_trace_events(trace_file):
         counts[evt.event_type] = counts.get(evt.event_type, 0) + 1
 
-    stopped_at = _now_iso()
+    stopped_at = utc_now_iso()
     stop_line = json.dumps(
         {
             "timestamp": stopped_at,

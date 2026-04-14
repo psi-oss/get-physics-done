@@ -24,7 +24,7 @@ In the physics research context, "patches" include corrections to calculation te
 </execution_context>
 
 <process>
-Follow the reapply-patches workflow: @{GPD_INSTALL_DIR}/workflows/reapply-patches.md
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 </process>
 
 <success_criteria>

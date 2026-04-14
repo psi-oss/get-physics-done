@@ -53,6 +53,13 @@ runner = _StableCliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+def test_state_patch_cli_rejects_duplicate_normalized_keys_before_dict_overwrite() -> None:
+    result = runner.invoke(app, ["state", "patch", "current_plan", "2", "Current Plan", "3"])
+
+    assert result.exit_code == 1
+    assert "Duplicate normalized patch key" in result.output
+
+
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
 
@@ -750,6 +757,9 @@ class TestStateCommands:
         assert seen["cwd"] == child_root
 
     def test_set_project_contract(self, gpd_project: Path) -> None:
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
             (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
@@ -763,6 +773,9 @@ class TestStateCommands:
     def test_set_project_contract_raw_surfaces_warnings_on_success(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["references"][0]["must_surface"] = False
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "warning-contract.json"
         contract_path.write_text(json.dumps(contract), encoding="utf-8")
 
@@ -794,6 +807,33 @@ class TestStateCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is False
         assert any("weakest_anchors" in error for error in payload["errors"])
+        assert any("disconfirming_observations" in error for error in payload["errors"])
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"] is None
+
+    def test_set_project_contract_rejects_contract_missing_uncertainty_markers_at_schema_boundary(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract.pop("uncertainty_markers", None)
+        contract_path = gpd_project / "invalid-contract.json"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "state", "set-project-contract", str(contract_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["updated"] is False
+        assert payload["reason"] == "Invalid project contract schema: uncertainty_markers is required"
+        assert payload["warnings"] == []
+        assert payload["schema_reference"] == "templates/project-contract-schema.md"
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"] is None
 
     def test_set_project_contract_rejects_singleton_list_drift_at_write_boundary(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
@@ -824,6 +864,9 @@ class TestStateCommands:
         gpd_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
             (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
@@ -854,6 +897,9 @@ class TestStateCommands:
         gpd_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
             (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
@@ -880,6 +926,29 @@ class TestStateCommands:
         assert payload["updated"] is False
         assert payload["reason"] == "Project contract already matches requested value"
 
+    def test_validate_project_contract_stdin_resolves_project_root_from_nested_cwd(self, gpd_project: Path) -> None:
+        nested = gpd_project / "GPD" / "phases" / "01-test-phase"
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["references"][0]["kind"] = "prior_artifact"
+        contract["references"][0]["locator"] = "GPD/phases/01-test-phase/01-SUMMARY.md"
+        contract["context_intake"]["must_include_prior_outputs"] = [
+            "GPD/phases/01-test-phase/01-SUMMARY.md"
+        ]
+        contract["context_intake"]["user_asserted_anchors"] = []
+        contract["context_intake"]["known_good_baselines"] = []
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(nested), "--raw", "validate", "project-contract", "-"],
+            input=json.dumps(contract),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is True
+        assert payload["mode"] == "approved"
+
     def test_set_project_contract_raw_rejects_schema_valid_contract_with_approval_blockers(
         self,
         gpd_project: Path,
@@ -892,7 +961,7 @@ class TestStateCommands:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": ["Need a concrete must-surface anchor before approval."],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
@@ -1151,7 +1220,7 @@ review_summary:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": ["Need a concrete must-surface anchor before approval."],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
@@ -1167,6 +1236,10 @@ review_summary:
         assert payload["contract_intake"]["context_gaps"] == ["Need a concrete must-surface anchor before approval."]
         assert payload["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
         assert payload["project_contract_validation"]["valid"] is False
+        assert payload["project_contract_gate"]["visible"] is True
+        assert payload["project_contract_gate"]["load_blocked"] is False
+        assert payload["project_contract_gate"]["approval_blocked"] is True
+        assert payload["project_contract_gate"]["authoritative"] is False
         assert "project_contract_load_info" in payload
         assert "project_contract_validation" in payload
 
@@ -1247,7 +1320,7 @@ review_summary:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": ["Need a concrete must-surface anchor before approval."],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
@@ -1263,6 +1336,10 @@ review_summary:
         assert payload["contract_intake"]["context_gaps"] == ["Need a concrete must-surface anchor before approval."]
         assert payload["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
         assert payload["project_contract_validation"]["valid"] is False
+        assert payload["project_contract_gate"]["visible"] is True
+        assert payload["project_contract_gate"]["load_blocked"] is False
+        assert payload["project_contract_gate"]["approval_blocked"] is True
+        assert payload["project_contract_gate"]["authoritative"] is False
         assert "project_contract_load_info" in payload
         assert "project_contract_validation" in payload
 
@@ -2307,7 +2384,7 @@ class TestReviewValidationCommands:
         assert f"public command surface rooted at `{dollar_command_prefix}`" in payload["dispatch_note"]
 
     @pytest.mark.parametrize("command_name", ["health", "suggest-next"])
-    def test_command_context_projectless_recovery_commands_pass_without_project(
+    def test_command_context_projectless_recovery_commands_reject_local_cli_only(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command_name: str
     ) -> None:
         monkeypatch.chdir(tmp_path)
@@ -2318,11 +2395,20 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert payload["command"] == f"gpd:{command_name}"
         assert payload["context_mode"] == "projectless"
-        assert payload["passed"] is True
+        assert payload["passed"] is False
+        slug = payload["command"].split(":", 1)[-1]
+        local_cli_command = "`gpd`" if not slug else f"`gpd {slug}`"
+        assert payload["guidance"] == (
+            "This command runs exclusively on the local CLI surface. "
+            f"Run {local_cli_command} here instead of dispatching it through a runtime."
+        )
+        assert payload["dispatch_note"] == ""
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["local_cli_only"]["passed"] is False
 
     @pytest.mark.parametrize("command_name", ["gpd:settings", "gpd:set-tier-models"])
     def test_command_context_surfaces_runtime_command_dispatch_note(
@@ -5884,6 +5970,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert any("Unknown claim contract_results entry: claim-unknown" in error for error in payload["errors"])
+        assert payload["schema_reference"] == "templates/summary.md"
 
     def test_validate_summary_contract_command_reports_unresolved_plan_contract_ref(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
@@ -5902,7 +5989,7 @@ class TestReviewValidationCommands:
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert "plan_contract_ref: could not resolve matching plan contract" in payload["errors"]
+        assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in payload["errors"])
 
     def test_validate_verification_contract_command_requires_contract_results(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
@@ -5933,6 +6020,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert "contract_results: required for contract-backed plan" in payload["errors"]
+        assert payload["schema_reference"] == "templates/verification-report.md"
 
     def test_validate_reproducibility_manifest_strict_command(self, gpd_project: Path) -> None:
         manifest_path = gpd_project / "reproducibility-ready.json"

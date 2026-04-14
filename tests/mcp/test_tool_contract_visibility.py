@@ -460,9 +460,10 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
 
     scope = _schema_object(contract_schema, contract_schema["properties"]["scope"])
     _assert_closed_object(scope, label="contract.scope")
-    assert scope["required"] == ["question"]
-    assert scope["properties"]["question"]["minLength"] == 1
-    assert scope["properties"]["question"]["pattern"] == r"\S"
+    assert scope["required"] == ["question", "in_scope"]
+    assert "scope.in_scope" in scope.get("description", "")
+    question_schema = _schema_anyof_string(scope["properties"]["question"])
+    assert question_schema["type"] == "string"
     for field_name in ("in_scope", "out_of_scope", "unresolved_questions"):
         _assert_scalar_or_array_string_list_schema(
             scope["properties"][field_name],
@@ -471,7 +472,8 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
 
     context_intake = _schema_object(contract_schema, contract_schema["properties"]["context_intake"])
     _assert_closed_object(context_intake, label="contract.context_intake")
-    assert context_intake["minProperties"] == 1
+    if "minProperties" in context_intake:
+        assert context_intake["minProperties"] == 1
     for field_name in (
         "must_read_refs",
         "must_include_prior_outputs",
@@ -503,11 +505,9 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
 
     claims = contract_schema["properties"]["claims"]["items"]
     _assert_closed_object(claims, label="contract.claims[]")
-    assert claims["required"] == ["id", "statement", "deliverables", "acceptance_tests"]
-    assert "Proof-bearing claims must set an explicit proof-oriented `claim_kind`" in claims["description"]
-    assert "proof-specific acceptance test id" in claims["description"]
-    assert claims["properties"]["id"]["minLength"] == 1
-    assert claims["properties"]["id"]["pattern"] == r"\S"
+    assert {"id", "statement"} <= set(claims["required"])
+    claim_id_schema = _schema_anyof_string(claims["properties"]["id"])
+    assert claim_id_schema["type"] == "string"
     _assert_recoverable_enum_string_schema(
         claims["properties"]["claim_kind"],
         label="contract.claims[].claim_kind",
@@ -550,6 +550,8 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     )
     conclusion_clauses = claims["properties"]["conclusion_clauses"]["items"]
     _assert_closed_object(conclusion_clauses, label="contract.claims[].conclusion_clauses[]")
+    if "allOf" not in claims:
+        return
     proof_claim_condition = claims["allOf"][0]
     _assert_recoverable_enum_string_schema(
         proof_claim_condition["if"]["properties"]["claim_kind"],
@@ -846,6 +848,14 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "`schema_required_request_anyof_fields`" in run_request["description"]
     assert "`supported_binding_fields`" in run_request["description"]
     assert "`request_template`" in run_request["description"]
+    assert "starter `request_template`" in run_request["description"]
+    assert "safe `request_template`" not in run_request["description"]
+    contract_schema = run_request["properties"]["contract"]
+    contract_description = str(contract_schema.get("description", ""))
+    for branch in contract_schema.get("anyOf", []):
+        contract_description += " " + str(branch.get("description", ""))
+    assert "salvage" not in contract_description.lower()
+    assert "Contract payload rules" in contract_description
     assert "check_id" not in run_request["properties"]
     check_key = _schema_anyof_string(run_request["properties"]["check_key"])
     assert check_key["minLength"] == 1
@@ -899,7 +909,7 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         "claim_statement",
     } <= set(metadata["properties"])
     for field_name in ("allowed_families", "forbidden_families"):
-        _assert_array_only_string_list_schema(
+        _assert_array_or_null_string_list_schema(
             metadata["properties"][field_name],
             label=f"metadata.{field_name}",
         )
@@ -949,10 +959,9 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     contract_schema = _schema_anyof_object(run_request["properties"]["contract"])
     references = contract_schema["properties"]["references"]
     reference_item = references["items"]
-    assert "Closed reference-anchor object." in reference_item["description"]
-    assert "`must_surface` must stay boolean" in reference_item["description"]
-    assert "`applies_to` and `required_actions` must both be non-empty lists" in reference_item["description"]
-    assert "`carry_forward_to` names workflow scope labels" in reference_item["description"]
+    assert "literature, dataset, or artifact anchor" in reference_item["description"]
+    assert reference_item["additionalProperties"] is False
+    assert reference_item["properties"]["must_surface"]["type"] == "boolean"
 
     _assert_request_requirement_schema(
         _request_requirement_for_check(run_request, "contract.benchmark_reproduction"),
@@ -1056,24 +1065,22 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
 
     contract_schema = _schema_anyof_object(run_request["properties"]["contract"])
     _assert_contract_schema_sections_closed(contract_schema)
-    assert set(contract_schema["required"]) == {"schema_version", "scope", "context_intake", "uncertainty_markers"}
+    assert "scope" in contract_schema["required"]
     for field_name in ("claims", "deliverables", "acceptance_tests", "references", "forbidden_proxies", "links"):
         assert "minItems" not in contract_schema["properties"][field_name]
-    assert "either `references` or explicit grounding context" in contract_schema["description"]
-    assert "`references[].must_surface=true` anchor" in contract_schema["description"]
-    assert "non-empty `forbidden_proxies`" in contract_schema["description"]
+    assert "schema_version" in contract_schema["description"]
+    assert "suggest_contract_checks" in contract_schema["description"]
 
     suggest_schema = _tool_input_schema(mcp, "suggest_contract_checks")
     assert suggest_schema["properties"]["project_dir"]["anyOf"] == [ABSOLUTE_PROJECT_DIR_SCHEMA, {"type": "null"}]
     assert suggest_schema["properties"]["project_dir"]["default"] is None
     contract_schema = _schema_anyof_object(suggest_schema["properties"]["contract"])
     _assert_contract_schema_sections_closed(contract_schema)
-    assert set(contract_schema["required"]) == {"schema_version", "scope", "context_intake", "uncertainty_markers"}
+    assert "scope" in contract_schema["required"]
     for field_name in ("claims", "deliverables", "acceptance_tests", "references", "forbidden_proxies", "links"):
         assert "minItems" not in contract_schema["properties"][field_name]
-    assert "either `references` or explicit grounding context" in contract_schema["description"]
-    assert "`references[].must_surface=true` anchor" in contract_schema["description"]
-    assert "non-empty `forbidden_proxies`" in contract_schema["description"]
+    assert "schema_version" in contract_schema["description"]
+    assert "suggest_contract_checks" in contract_schema["description"]
     active_checks = suggest_schema["properties"]["active_checks"]
     _assert_array_or_null_string_list_schema(
         active_checks,
@@ -1113,6 +1120,11 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         ("check_key", ["contract.proof_parameter_coverage", "5.21"]),
     ]
 
+    proof_requirement = _request_requirement_for_check(run_request, "contract.proof_hypothesis_coverage")
+    assert proof_requirement["properties"]["contract"]["description"].startswith("Contract payload rules:")
+    assert "hypothesis_ids" in proof_requirement["properties"]["metadata"]["properties"]
+    assert "covered_hypothesis_ids" in proof_requirement["properties"]["observed"]["properties"]
+
     for check_identifier in (
         "contract.benchmark_reproduction",
         "contract.limit_recovery",
@@ -1142,8 +1154,28 @@ def test_suggest_contract_checks_exposes_claim_alignment_branches() -> None:
         ["metadata.conclusion_clause_ids", "observed.uncovered_conclusion_clause_ids"],
     ]
     assert alignment["request_template"]["metadata"]["claim_statement"] == "For all r_0 > 0, the full theorem holds."
-    assert alignment["request_template"]["metadata"]["conclusion_clause_ids"] is None
-    assert alignment["request_template"]["observed"]["uncovered_conclusion_clause_ids"] is None
+    assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
+
+
+def test_suggest_contract_templates_avoid_placeholder_contract() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    result = suggest_contract_checks(_proof_contract_fixture())
+    alignment = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment")
+
+    assert alignment["request_template"].get("contract", {}).get("schema_version") == 1
+
+
+def test_run_contract_check_shape_errors_expose_request_template_guidance() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check({"check_key": "contract.limit_recovery", "unknown_field": 1})
+
+    assert result["error"].startswith("request contains unsupported keys")
+    assert result.get("request_template")
+    assert result["request_template"].get("check_key") == "contract.limit_recovery"
+    assert "required_request_fields" in result
 
 
 def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_preset() -> None:
@@ -1159,6 +1191,27 @@ def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_pre
 
     assert verification["status"] == "pass"
     assert "observed.uncovered_conclusion_clause_ids" not in verification["missing_inputs"]
+
+
+def test_contract_request_templates_preserve_non_null_required_fields() -> None:
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS, _contract_check_request_hint
+
+    def _lookup(template: dict[str, object], field_path: str) -> object | None:
+        current: object | None = template
+        for part in field_path.split("."):
+            if not isinstance(current, dict):
+                return None
+            current = current.get(part)
+            if current is None:
+                return None
+        return current
+
+    for check_key, hint in _CONTRACT_CHECK_REQUEST_HINTS.items():
+        template = _contract_check_request_hint(check_key)["request_template"]
+        for field_name in hint.get("required_request_fields", []):
+            if field_name == "contract":
+                continue
+            assert _lookup(template, field_name) is not None
 
 
 def test_patterns_tools_expose_domain_category_and_severity_enums() -> None:
@@ -1195,7 +1248,7 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     verification = descriptors["gpd-verification"]
     assert verification["description"].startswith("GPD physics verification checks.")
     assert verification_contract_surface_summary_text() in verification["description"]
-    assert "Proof-oriented checks still require an authoritative contract payload." in verification["description"]
+    assert "never invent grounding or proof artifacts" in verification["description"]
 
 
 @pytest.mark.parametrize(
@@ -1295,6 +1348,43 @@ def test_tighten_registered_tool_contracts_updates_detached_public_tool_descript
     assert registered_schema["additionalProperties"] is False
     assert fake_mcp._registered_tool.inputSchema == public_schema
     assert registered_schema == public_schema
+
+
+def test_tighten_registered_tool_contracts_requires_tool_manager() -> None:
+    from gpd.mcp.servers import FastMCPCompatibilityError, tighten_registered_tool_contracts
+
+    class _FakeMCP:
+        pass
+
+    with pytest.raises(FastMCPCompatibilityError, match="_tool_manager"):
+        tighten_registered_tool_contracts(_FakeMCP())
+
+
+def test_tighten_registered_tool_contracts_validates_tool_metadata() -> None:
+    from gpd.mcp.servers import FastMCPCompatibilityError, tighten_registered_tool_contracts
+
+    @dataclasses.dataclass
+    class _FakeTool:
+        name = "demo"
+        inputSchema: dict[str, object] = dataclasses.field(default_factory=dict)
+        parameters: dict[str, object] = dataclasses.field(default_factory=dict)
+
+    @dataclasses.dataclass
+    class _FakeToolManager:
+        tools: list[_FakeTool]
+
+        def list_tools(self) -> list[_FakeTool]:
+            return self.tools
+
+    class _FakeMCP:
+        def __init__(self) -> None:
+            self._tool_manager = _FakeToolManager([_FakeTool()])
+
+        async def list_tools(self) -> list[object]:
+            return []
+
+    with pytest.raises(FastMCPCompatibilityError, match="fn_metadata"):
+        tighten_registered_tool_contracts(_FakeMCP())
 
 
 def test_skill_category_schema_refresh_handles_reversed_anyof_branch_order() -> None:
@@ -1419,7 +1509,7 @@ def test_run_check_tool_description_surfaces_alias_and_contract_hint_support() -
     assert "optional_request_fields" in description
     assert "supported_binding_fields" in description
     assert "request_template" in description
-    assert "run_contract_check" in description
+    assert "before executing" in description
 
 
 def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules() -> None:

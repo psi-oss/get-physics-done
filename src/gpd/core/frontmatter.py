@@ -9,7 +9,6 @@ Core operations:
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import subprocess
 from copy import deepcopy
@@ -37,7 +36,6 @@ from gpd.contracts import (
     parse_contract_results_data_artifact,
     parse_project_contract_data_strict,
 )
-from gpd.core import knowledge_docs as _knowledge_docs
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -46,6 +44,15 @@ from gpd.core.constants import (
 )
 from gpd.core.contract_validation import _format_schema_error
 from gpd.core.errors import GPDError
+from gpd.core.knowledge_constants import (
+    KNOWLEDGE_REVIEW_DECISION_APPROVED,
+    KNOWLEDGE_REVIEW_DECISION_VALUES,
+    KNOWLEDGE_STATUS_DRAFT,
+    KNOWLEDGE_STATUS_IN_REVIEW,
+    KNOWLEDGE_STATUS_STABLE,
+    KNOWLEDGE_STATUS_VALUES,
+)
+from gpd.core.knowledge_docs import compute_knowledge_reviewed_content_sha256
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.path_validation import is_cross_platform_absolute_path
 from gpd.core.root_resolution import resolve_project_root
@@ -124,6 +131,8 @@ class FrontmatterValidationError(GPDError, ValueError):
 _FRONTMATTER_RE = re.compile(r"^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)")
 _EMPTY_FRONTMATTER_RE = re.compile(r"^---[ \t]*\r?\n---[ \t]*(?:\r?\n|$)")
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)")
+FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
+LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE
 
 # Matches the full frontmatter block (including empty) for replacement operations.
 # Uses a lookahead so the trailing newline is preserved for the caller to reattach.
@@ -328,11 +337,17 @@ def _validate_contract_mapping(
 
     if not isinstance(contract_data, dict):
         return _PlanContractResolution(errors=["expected an object"])
+    schema_version = contract_data.get("schema_version")
+    if type(schema_version) is not int:
+        return _PlanContractResolution(errors=["schema_version must be the integer 1"])
 
     normalized_contract_data = _normalize_frontmatter_contract_mapping(contract_data)
     strict_result: ProjectContractParseResult = parse_project_contract_data_strict(normalized_contract_data)
     if strict_result.errors:
-        return _PlanContractResolution(errors=list(dict.fromkeys(strict_result.errors)))
+        from gpd.core.contract_validation import salvage_project_contract
+
+        _contract, schema_findings, _schema_metadata = salvage_project_contract(normalized_contract_data)
+        return _PlanContractResolution(errors=list(dict.fromkeys([*strict_result.errors, *schema_findings])))
 
     contract = strict_result.contract
     if contract is None:
@@ -379,7 +394,7 @@ def parse_contract_block(content: str, *, source_path: Path | None = None) -> Re
 # Schema definitions and validation
 # ---------------------------------------------------------------------------
 
-FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
+FRONTMATTER_SCHEMAS: dict[str, dict[str, object]] = {
     "plan": {
         "required": [
             "phase",
@@ -395,9 +410,11 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
     },
     "summary": {
         "required": ["phase", "plan", "depth", "provides", "completed"],
+        "schema_reference": "templates/summary.md",
     },
     "verification": {
         "required": ["phase", "verified", "status", "score"],
+        "schema_reference": "templates/verification-report.md",
     },
     "knowledge": {
         "required": [
@@ -411,6 +428,7 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "sources",
             "coverage_summary",
         ],
+        "schema_reference": "templates/knowledge-schema.md",
     },
 }
 
@@ -451,7 +469,7 @@ def validate_knowledge_frontmatter(
         status_value = ""
     else:
         status_value = status.strip()
-        if status_value not in _KNOWLEDGE_STATUS_VALUES:
+        if status_value not in KNOWLEDGE_STATUS_VALUES:
             errors.append("knowledge.status: must be one of draft, in_review, stable, superseded")
 
     created_at = _validate_knowledge_datetime_field(meta, "created_at", errors)
@@ -529,7 +547,12 @@ def validate_knowledge_frontmatter(
             )
 
     review = meta.get("review")
-    current_content_sha256 = compute_knowledge_reviewed_content_sha256(content)
+    current_content_sha256 = ""
+    if not errors:
+        try:
+            current_content_sha256 = compute_knowledge_reviewed_content_sha256(content)
+        except Exception as exc:
+            errors.append(f"knowledge.reviewed_content_sha256: {exc}")
     if status_value == "draft":
         if review is not None:
             errors.append("knowledge.review is forbidden when status is draft")
@@ -635,7 +658,6 @@ def _is_absolute_path(path_text: str) -> bool:
     return is_cross_platform_absolute_path(path_text)
 
 
-_KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
 _KNOWLEDGE_TOP_LEVEL_FIELDS = {
     "knowledge_schema_version",
     "knowledge_id",
@@ -672,7 +694,6 @@ _KNOWLEDGE_REVIEW_LEGACY_FIELDS = {
     "commit_sha",
     "trace_id",
 }
-_KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
 def _parse_iso8601_datetime(value: object) -> datetime | None:
     """Parse an ISO 8601 timestamp or return ``None`` when invalid."""
 
@@ -791,7 +812,7 @@ def _validate_knowledge_review_block(
         decision_value = None
     else:
         decision_value = decision.strip()
-        if decision_value not in _KNOWLEDGE_REVIEW_DECISION_VALUES:
+        if decision_value not in KNOWLEDGE_REVIEW_DECISION_VALUES:
             errors.append("knowledge.review.decision: must be one of approved, needs_changes, rejected")
 
     summary = review.get("summary")
@@ -847,16 +868,16 @@ def _validate_knowledge_review_block(
         if review.get("stale") is not None and type(review.get("stale")) is not bool:
             errors.append("knowledge.review.stale: expected a boolean")
 
-    if decision_value == "approved":
-        if status == "draft":
+    if decision_value == KNOWLEDGE_REVIEW_DECISION_APPROVED:
+        if status == KNOWLEDGE_STATUS_DRAFT:
             errors.append("knowledge.review.decision: approved review is forbidden when status is draft")
-        elif status == "in_review":
+        elif status == KNOWLEDGE_STATUS_IN_REVIEW:
             if canonical_contract:
                 if review.get("stale") is not True:
                     errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
             elif review.get("stale") is False:
                 errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
-        elif status == "stable":
+        elif status == KNOWLEDGE_STATUS_STABLE:
             if canonical_contract:
                 if review.get("stale") is not False:
                     errors.append("knowledge.review.stale: approved stable docs must be marked stale: false")
@@ -886,93 +907,13 @@ def _validate_knowledge_review_block(
                         "knowledge.review: requires at least one concrete evidence pointer: "
                         "evidence_path, audit_artifact_path, commit_sha, or trace_id"
                     )
-    if status == "stable" and not canonical_contract:
+    if status == KNOWLEDGE_STATUS_STABLE and not canonical_contract:
         if review is None:
             errors.append("knowledge.review is required when status is stable")
-        elif decision_value != "approved":
+        elif decision_value != KNOWLEDGE_REVIEW_DECISION_APPROVED:
             errors.append("knowledge.review.decision must be approved when status is stable")
-    if status == "in_review" and review is not None and canonical_contract and decision_value == "approved" and review.get("stale") is not True:
+    if status == KNOWLEDGE_STATUS_IN_REVIEW and review is not None and canonical_contract and decision_value == KNOWLEDGE_REVIEW_DECISION_APPROVED and review.get("stale") is not True:
         errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
-
-
-def _knowledge_reviewed_content_projection(meta: dict[str, object], body: str) -> dict[str, object]:
-    """Return the canonical content projection used for knowledge freshness hashing."""
-
-    return {
-        "knowledge_schema_version": meta.get("knowledge_schema_version"),
-        "knowledge_id": meta.get("knowledge_id"),
-        "title": meta.get("title"),
-        "topic": meta.get("topic"),
-        "sources": meta.get("sources"),
-        "coverage_summary": meta.get("coverage_summary"),
-        "body": body.replace("\r\n", "\n"),
-    }
-
-
-def _normalize_knowledge_review_inputs(
-    knowledge_doc_or_content: object,
-    *,
-    body_text: str = "",
-    meta: dict[str, object] | None = None,
-    body: str | None = None,
-) -> tuple[dict[str, object], str]:
-    """Return ``(meta, body_text)`` for any supported knowledge-review input form."""
-
-    effective_body = body_text or (body if body is not None else "")
-    if meta is not None:
-        if not isinstance(meta, dict):
-            raise TypeError("meta must be a mapping")
-        return meta, effective_body
-    if isinstance(knowledge_doc_or_content, str):
-        extracted_meta, extracted_body = extract_frontmatter(knowledge_doc_or_content)
-        return extracted_meta, effective_body or extracted_body
-    if isinstance(knowledge_doc_or_content, dict):
-        return knowledge_doc_or_content, effective_body
-    if hasattr(knowledge_doc_or_content, "model_dump"):
-        return knowledge_doc_or_content.model_dump(mode="python"), effective_body
-    raise TypeError("expected a knowledge document, content string, or metadata mapping")
-
-
-def compute_knowledge_reviewed_content_sha256(
-    knowledge_doc_or_content: object,
-    *,
-    body_text: str = "",
-    meta: dict[str, object] | None = None,
-    body: str | None = None,
-) -> str:
-    """Compute the canonical hash of the trust-bearing knowledge-doc projection."""
-
-    normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
-        knowledge_doc_or_content,
-        body_text=body_text,
-        meta=meta,
-        body=body,
-    )
-    projection = _knowledge_reviewed_content_projection(normalized_meta, normalized_body)
-    encoded = json.dumps(projection, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return _sha256_text(encoded)
-
-
-def _compat_knowledge_reviewed_content_projection(
-    knowledge_doc_or_content: object,
-    *,
-    body_text: str = "",
-    meta: dict[str, object] | None = None,
-    body: str | None = None,
-) -> dict[str, object]:
-    """Compatibility wrapper for the knowledge-doc projection helper."""
-
-    normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
-        knowledge_doc_or_content,
-        body_text=body_text,
-        meta=meta,
-        body=body,
-    )
-    return _knowledge_reviewed_content_projection(normalized_meta, normalized_body)
-
-
-_knowledge_docs.compute_knowledge_reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256
-_knowledge_docs.knowledge_reviewed_content_projection = _compat_knowledge_reviewed_content_projection
 
 
 def _resolve_contract_artifact_path(
@@ -1006,6 +947,7 @@ class FrontmatterValidation(BaseModel):
     present: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     schema_name: str = ""
+    schema_reference: str | None = None
 
 
 def _resolve_field(meta: dict, name: str) -> str | None:
@@ -1922,7 +1864,9 @@ def _resolve_plan_contract_candidate(
         )
 
     if not _frontmatter_identity_matches(meta, artifact_meta):
-        return False, _PlanContractResolution()
+        return True, _PlanContractResolution(
+            errors=["referenced PLAN does not match summary phase/plan identity"]
+        )
 
     if "contract" not in meta:
         return True, _PlanContractResolution(errors=["referenced PLAN is missing contract frontmatter"])
@@ -1970,13 +1914,17 @@ def _find_matching_plan_contract(
             return _PlanContractResolution(errors=[f"plan_contract_ref: {path_error}"])
         assert candidate is not None
         if not candidate.exists():
-            return _PlanContractResolution()
+            return _PlanContractResolution(
+                errors=[f"referenced PLAN does not exist at {relative_plan_path.as_posix()}"]
+            )
         matched, resolution = _resolve_plan_contract_candidate(
             candidate,
             summary_meta,
             project_root=project_root,
         )
         if matched:
+            return resolution
+        if resolution.errors:
             return resolution
         return _PlanContractResolution()
 
@@ -2188,12 +2136,16 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
                             )
                         )
 
+    schema_reference = schema.get("schema_reference")
+    if schema_reference is not None and not isinstance(schema_reference, str):
+        schema_reference = None
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,
         missing=missing,
         present=present,
         errors=errors,
         schema_name=schema_name,
+        schema_reference=schema_reference,
     )
 
 

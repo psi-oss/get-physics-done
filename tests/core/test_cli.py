@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 import gpd.cli as cli_module
@@ -851,6 +852,56 @@ def test_permissions_runtime_resolution_prefers_installed_runtime_selector_when_
     assert resolved == FOREIGN_RUNTIME
 
 
+def test_runtime_permissions_payload_validates_autonomy_before_target_lookup() -> None:
+    with (
+        patch("gpd.cli._resolve_permissions_runtime_name", return_value=PRIMARY_RUNTIME),
+        patch(
+            "gpd.cli._resolve_permissions_autonomy",
+            side_effect=cli_module._PermissionsResolutionError("Unknown autonomy 'balnced'"),
+        ) as resolve_autonomy,
+        patch("gpd.cli._resolve_permissions_target_dir") as resolve_target,
+    ):
+        payload = cli_module._runtime_permissions_payload(
+            runtime=PRIMARY_RUNTIME,
+            autonomy="balnced",
+            target_dir=None,
+            apply_sync=True,
+            strict=False,
+            cwd=Path("/tmp/project-root"),
+        )
+
+    resolve_autonomy.assert_called_once_with("balnced", strict=False, cwd=Path("/tmp/project-root"))
+    resolve_target.assert_not_called()
+    assert payload["runtime"] == PRIMARY_RUNTIME
+    assert payload["target"] is None
+    assert payload["sync_applied"] is False
+    assert payload["message"] == "Unknown autonomy 'balnced'"
+
+
+def test_config_set_autonomy_sync_prefers_installed_runtime_and_project_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_runtime_permissions_payload(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"message": "synced"}
+
+    monkeypatch.setattr(cli_module, "_runtime_permissions_payload", fake_runtime_permissions_payload)
+
+    result = runner.invoke(app, ["--raw", "config", "set", "autonomy", "yolo"])
+
+    assert result.exit_code == 0
+    assert captured["runtime"] is None
+    assert captured["autonomy"] == "yolo"
+    assert captured["apply_sync"] is True
+    assert captured["strict"] is False
+    assert captured["prefer_installed_runtime"] is True
+    assert captured["cwd"] == tmp_path
+
+
 def test_permissions_status_surfaces_runtime_capabilities_and_config_scope() -> None:
     runtime = _CONFIG_FILE_RUNTIME
     target_dir = runtime_target_dir(Path("/tmp"), runtime)
@@ -965,6 +1016,49 @@ def test_runtime_permissions_sync_payload_surfaces_launch_wrapper_scope() -> Non
     assert payload["requested_surface"] == "prompt-free"
     assert payload["status_scope"] == "next-launch"
     assert payload["current_session_verified"] is False
+
+
+def test_prompt_runtimes_reports_empty_runtime_registry() -> None:
+    with patch("gpd.cli._list_runtimes_or_error", return_value=[]):
+        with pytest.raises(typer.Exit):
+            cli_module._prompt_runtimes(action="install")
+
+
+def test_install_single_runtime_reuses_resolved_target_override(tmp_path: Path) -> None:
+    resolved_target = tmp_path / "resolved-runtime"
+    unresolved_target = tmp_path / "unresolved-runtime"
+    calls: dict[str, object] = {}
+
+    class _InstallAdapter:
+        def install(self, gpd_root: Path, dest: Path, *, is_global: bool, explicit_target: bool) -> dict[str, object]:
+            calls.update(
+                {
+                    "gpd_root": gpd_root,
+                    "dest": dest,
+                    "is_global": is_global,
+                    "explicit_target": explicit_target,
+                }
+            )
+            return {"target": str(dest)}
+
+        def resolve_target_dir(self, is_global: bool, cwd: Path) -> Path:
+            raise AssertionError("resolved override should be reused")
+
+    with (
+        patch("gpd.cli._get_adapter_or_error", return_value=_InstallAdapter()),
+        patch("gpd.cli._resolve_cli_target_dir", side_effect=AssertionError("target should not be resolved twice")),
+        patch("gpd.version.resolve_install_gpd_root", return_value=tmp_path / "gpd-root"),
+    ):
+        result = cli_module._install_single_runtime(
+            PRIMARY_RUNTIME,
+            is_global=False,
+            target_dir_override=str(unresolved_target),
+            resolved_target_override=resolved_target,
+        )
+
+    assert result == {"target": str(resolved_target)}
+    assert calls["dest"] == resolved_target
+    assert calls["explicit_target"] is True
 
 
 def _write_install_manifest(config_dir: Path, *, runtime: str, install_scope: str = "local", raw: str | None = None) -> None:
@@ -1159,6 +1253,19 @@ def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeyp
     assert advice.fast_next_command == "runtime `suggest-next`"
     assert advice.mode == "recent-projects"
     assert advice.primary_command == local_cli_resume_recent_command()
+
+
+def test_resume_runtime_commands_use_fallback_runtime_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime_name = list_runtimes()[0]
+    adapter = get_adapter(runtime_name)
+
+    monkeypatch.setattr(cli_module, "installed_runtime_for_surface", lambda cwd: None)
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: runtime_name)
+
+    assert cli_module._resume_runtime_commands(cwd=Path("/tmp/runtime-advice")) == (
+        adapter.format_command("resume-work"),
+        adapter.format_command("suggest-next"),
+    )
 
 
 def test_resume_runtime_commands_logs_runtime_resolution_failures(
@@ -2953,6 +3060,29 @@ def test_state_record_session_exits_nonzero_for_invalid_last_result_id(mock_reco
     assert "Unknown canonical result ID: R-missing" in result.output
 
 
+@patch("gpd.core.state.state_record_session")
+def test_state_record_session_clear_flags_forwarded(mock_record_session):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"recorded": True, "updated": ["Last session"]}
+    mock_record_session.return_value = mock_result
+
+    result = runner.invoke(
+        app,
+        [
+            "state",
+            "record-session",
+            "--clear-resume-file",
+            "--clear-last-result-id",
+        ],
+    )
+
+    assert result.exit_code == 0
+    mock_record_session.assert_called_once()
+    _, kwargs = mock_record_session.call_args
+    assert kwargs["clear_resume_file"] is True
+    assert kwargs["clear_last_result_id"] is True
+
+
 @patch("gpd.core.state.state_validate")
 def test_state_validate_pass(mock_validate):
     mock_result = MagicMock()
@@ -4551,11 +4681,12 @@ def test_doctor_runtime_mode_defaults_to_local_target_when_scope_is_unspecified(
     mock_result.model_dump.return_value = {"mode": "runtime-readiness", "overall": "ok"}
     mock_doctor.return_value = mock_result
     runtime_name = list_runtimes()[0]
-    local_target = cli_module._get_adapter_or_error(runtime_name, action="doctor").resolve_target_dir(False, tmp_path)
+    cli_module._get_adapter_or_error(runtime_name, action="doctor").resolve_target_dir(False, tmp_path)
+    detected_target = tmp_path / "runtime-global-target"
 
     with patch(
-        "gpd.hooks.runtime_detect.detect_runtime_install_target",
-        return_value=SimpleNamespace(config_dir=tmp_path / "runtime-global-target", install_scope="global"),
+        "gpd.hooks.runtime_detect.resolve_runtime_target_dir",
+        return_value=(detected_target, "global"),
     ):
         result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "doctor", "--runtime", runtime_name])
 
@@ -4564,8 +4695,8 @@ def test_doctor_runtime_mode_defaults_to_local_target_when_scope_is_unspecified(
     mock_doctor.assert_called_once_with(
         specs_dir=SPECS_DIR,
         runtime=runtime_name,
-        install_scope="local",
-        target_dir=local_target,
+        install_scope="global",
+        target_dir=detected_target,
         cwd=tmp_path,
         live_executable_probes=False,
     )
@@ -4841,8 +4972,8 @@ def test_validate_unattended_readiness_uses_detected_installed_target_when_scope
     monkeypatch.setattr(cli_module, "_validated_runtime_surface", lambda cwd=None: "runtime-surface-test")
 
     with patch(
-        "gpd.hooks.runtime_detect.detect_runtime_install_target",
-        return_value=SimpleNamespace(config_dir=detected_target, install_scope="global"),
+        "gpd.hooks.runtime_detect.resolve_runtime_target_dir",
+        return_value=(detected_target, "global"),
     ):
         result = runner.invoke(
             app,
@@ -5713,6 +5844,81 @@ def test_init_new_project_rejects_invalid_stage(mock_init):
     assert "Unknown new-project stage 'bogus'." in result.output
 
 
+@pytest.mark.parametrize(
+    ("command", "patch_target", "stage"),
+    [
+        ("new-milestone", "gpd.core.context.init_new_milestone", "milestone_bootstrap"),
+        ("write-paper", "gpd.core.context.init_write_paper", "paper_bootstrap"),
+        ("peer-review", "gpd.core.context.init_peer_review", "preflight"),
+        ("map-research", "gpd.core.context.init_map_research", "mapper_authoring"),
+    ],
+)
+def test_stage_only_init_commands_forward_stage_option(
+    command: str,
+    patch_target: str,
+    stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, str | None]] = []
+
+    def fake_init(cwd: Path, stage: str | None = None):
+        calls.append((cwd, stage))
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"context": "..."}
+        return mock_result
+
+    monkeypatch.setattr(patch_target, fake_init)
+    result = runner.invoke(app, ["init", command, "--stage", stage])
+
+    assert result.exit_code == 0
+    assert calls == [(cli_module._get_cwd(), stage)]
+
+
+@pytest.mark.parametrize(
+    ("command", "patch_target", "argv", "keyword", "expected_text", "stage"),
+    [
+        (
+            "quick",
+            "gpd.core.context.init_quick",
+            ["quick", "spot-check"],
+            "description",
+            "quick spot-check",
+            "task_authoring",
+        ),
+        (
+            "literature-review",
+            "gpd.core.context.init_literature_review",
+            ["loop", "corrections"],
+            "topic",
+            "loop corrections",
+            "scope_locked",
+        ),
+    ],
+)
+def test_text_init_commands_forward_stage_option(
+    command: str,
+    patch_target: str,
+    argv: list[str],
+    keyword: str,
+    expected_text: str,
+    stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_init(cwd: Path, **kwargs):
+        calls.append((cwd, kwargs))
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"context": "..."}
+        return mock_result
+
+    monkeypatch.setattr(patch_target, fake_init)
+    result = runner.invoke(app, ["init", command, *argv, "--stage", stage])
+
+    assert result.exit_code == 0
+    assert calls == [(cli_module._get_cwd(), {keyword: expected_text, "stage": stage})]
+
+
 def test_init_verify_work_preserves_plain_call_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[Path, str | None, str | None]] = []
 
@@ -5838,6 +6044,38 @@ def test_init_plan_phase_rejects_invalid_stage(monkeypatch: pytest.MonkeyPatch) 
 
     assert result.exit_code == 1
     assert "Unknown plan-phase stage 'bogus'" in result.output
+
+
+@pytest.mark.parametrize(
+    ("command", "patch_target"),
+    [
+        ("phase-op", "gpd.core.context.init_phase_op"),
+        ("research-phase", "gpd.core.context.init_research_phase"),
+    ],
+)
+def test_phase_init_commands_forward_stage_option(
+    command: str,
+    patch_target: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, str | None, set[str] | None, str | None]] = []
+
+    def fake_init(
+        cwd: Path,
+        phase: str | None,
+        includes: set[str] | None = None,
+        stage: str | None = None,
+    ):
+        calls.append((cwd, phase, includes, stage))
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"context": "..."}
+        return mock_result
+
+    monkeypatch.setattr(patch_target, fake_init)
+    result = runner.invoke(app, ["init", command, "02", "--stage", "research_handoff"])
+
+    assert result.exit_code == 0
+    assert calls == [(cli_module._get_cwd(), "02", set(), "research_handoff")]
 
 
 def test_init_resume_help_surfaces_recovery_snapshot_entrypoint() -> None:
@@ -6818,9 +7056,7 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
     assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"
 
 
-def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_when_literature_is_missing(
-    tmp_path: Path,
-) -> None:
+def test_paper_build_ignores_legacy_research_citation_sources_without_literature(tmp_path: Path) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
     (tmp_path / "GPD").mkdir()
@@ -6871,10 +7107,8 @@ def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_whe
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["citation_sources_path"] == "../GPD/research/topic-CITATION-SOURCES.json"
-    assert any("temporary directory" in warning for warning in payload["warnings"])
-    assert mock_build.await_args.kwargs["citation_sources"] is not None
-    assert mock_build.await_args.kwargs["citation_sources"][0].title == "Legacy Reference"
+    assert payload["citation_sources_path"] == ""
+    assert mock_build.await_args.kwargs["citation_sources"] is None
 
 
 def test_paper_build_warns_when_multiple_literature_citation_sidecars_exist(tmp_path: Path) -> None:
@@ -7196,6 +7430,76 @@ def test_verify_path_subcommand(mock_verify):
     result = runner.invoke(app, ["verify-path", "some/path"])
     assert result.exit_code == 0
     mock_verify.assert_called_once()
+
+
+@patch("gpd.core.frontmatter.verify_summary")
+def test_verify_summary_invokes_frontmatter(mock_verify_summary, tmp_path: Path) -> None:
+    mock_verify_summary.return_value = SimpleNamespace(passed=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    summary_arg = "SUMMARY.md"
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "summary", summary_arg])
+
+    assert result.exit_code == 0
+    mock_verify_summary.assert_called_once_with(workspace.resolve(), Path(summary_arg), check_file_count=2)
+
+
+@patch("gpd.core.frontmatter.verify_references")
+def test_verify_references_invokes_frontmatter(mock_verify_references, tmp_path: Path) -> None:
+    mock_verify_references.return_value = SimpleNamespace(valid=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    references_arg = "REFERENCES.md"
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "references", references_arg])
+
+    assert result.exit_code == 0
+    mock_verify_references.assert_called_once_with(workspace.resolve(), Path(references_arg))
+
+
+@patch("gpd.core.frontmatter.verify_commits")
+def test_verify_commits_invokes_frontmatter(mock_verify_commits, tmp_path: Path) -> None:
+    mock_verify_commits.return_value = SimpleNamespace(all_valid=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    hashes = ["abc123", "deadbeef"]
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "commits", *hashes])
+
+    assert result.exit_code == 0
+    mock_verify_commits.assert_called_once_with(workspace.resolve(), hashes)
+
+
+@patch("gpd.core.frontmatter.verify_artifacts")
+def test_verify_artifacts_invokes_frontmatter(mock_verify_artifacts, tmp_path: Path) -> None:
+    mock_verify_artifacts.return_value = SimpleNamespace(all_passed=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_arg = "PLAN.md"
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "artifacts", plan_arg])
+
+    assert result.exit_code == 0
+    mock_verify_artifacts.assert_called_once_with(workspace.resolve(), Path(plan_arg))
+
+
+@patch("gpd.core.frontmatter.verify_summary")
+def test_global_cwd_option_expands_home(mock_verify_summary, tmp_path: Path) -> None:
+    mock_verify_summary.return_value = SimpleNamespace(passed=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    workspace = home / "workspace"
+    workspace.mkdir()
+
+    result = runner.invoke(
+        app,
+        ["--cwd", "~/workspace", "verify", "summary", "proof.md"],
+        env={"HOME": str(home)},
+    )
+
+    assert result.exit_code == 0
+    assert mock_verify_summary.call_args.args[0] == workspace.resolve()
 
 
 @patch("gpd.core.commands.cmd_history_digest")

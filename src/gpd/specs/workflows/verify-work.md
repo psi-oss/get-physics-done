@@ -13,19 +13,11 @@ The verifier agent owns contract-backed target construction, proof policy, compu
 - File-producing handoffs must prove the expected artifact exists before success is accepted.
 </philosophy>
 
-<shared_contract_floor>
-**Project Contract Gate:** {project_contract_gate}
-**Project Contract Load Info:** {project_contract_load_info}
-**Project Contract Validation:** {project_contract_validation}
-**Contract Intake:** {contract_intake}
-**Effective Reference Intake:** {effective_reference_intake}
-
-Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. A visible-but-blocked contract must be repaired before it is used as authoritative verification scope; keep the same contract-critical floor at all times.
-Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
-Do NOT skip contract-critical anchors.
-</shared_contract_floor>
-
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
 
 <process>
 
@@ -56,7 +48,13 @@ fi
 
 Parse the init JSON for the wrapper-facing fields only: `planner_model`, `checker_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `phase_proof_review_status`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`.
 
-Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
+After parsing init, preserve these contract-critical fields as the wrapper's floor for every delegation and repair route: `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, and `effective_reference_intake`. Preserve the same contract-critical floor at all times. A visible-but-blocked contract must be repaired before it is used as authoritative verification scope. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth. Do NOT skip contract-critical anchors.
+
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
+**Contract Intake:** {contract_intake}
+**Effective Reference Intake:** {effective_reference_intake}
 
 **If `phase_found` is false:**
 
@@ -121,14 +119,12 @@ task(
   subagent_type="gpd-check-proof",
   model="{check_proof_model}",
   readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
+  prompt="Read {GPD_AGENTS_DIR}/gpd-check-proof.md plus {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
-Read the phase proof artifacts, the relevant PLAN contract slice, and any current verification artifact before auditing.
-Return `status: checkpoint` instead of waiting for user input inside this run.",
+Read the phase proof artifacts, the relevant PLAN contract slice, and any current verification artifact before auditing. If user input is needed, return `status: checkpoint`; do not wait inside the same run.",
   description="Repair proof audit for phase {phase_number}"
 )
 ```

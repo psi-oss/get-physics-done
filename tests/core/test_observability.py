@@ -11,6 +11,9 @@ from pathlib import Path
 def _bootstrap_project(tmp_path: Path) -> Path:
     planning = tmp_path / "GPD"
     planning.mkdir()
+    from gpd.core.state import default_state_dict
+
+    (planning / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
     return tmp_path
 
 

@@ -15,10 +15,15 @@ Approved-mode grounding is field-specific:
 - If a `references[].locator` uses a project-local artifact path instead of an external paper locator, it only counts as approved grounding when the referenced file already exists inside the current project root. If no project root is available, it does not count as approved grounding.
 - `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
 
+#### Project-root guard for local anchors
+
+Project-local anchors depend on the resolved `project_root`. The `project_root guard` keeps any relative path, local artifact locator, or baseline from counting as approved grounding until the root can resolve and verify the file. Surface the guard explicitly when you mention that anchor so downstream checks know the evidence is pending. When `project_root` later becomes available, re-validate that the artifact still exists before treating it as concrete grounding.
+
 #### Project Contract ID Linkage Rules
 
 Every ID-like field must point to a declared object ID in the same contract:
 
+- Cross-section unique ID rule: every declared `id` must stay unique across every contract section so target references never drift when linked from multiple lists.
 - Same-kind IDs must be unique within each section. Do not repeat an `id` inside `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`.
 - Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
 - `context_intake.must_read_refs[]` must contain `references[].id` values only.
