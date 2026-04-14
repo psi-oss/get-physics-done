@@ -411,12 +411,17 @@ Skill(skill="gpd:plan-phase", args="${PHASE_NUM} --gaps")
 
 Verify gap plans were created — re-run `init phase-op ${PHASE_NUM}` and check `has_plans`. If no new gap plans → go to handle_blocker: "Gap closure planning for phase ${PHASE_NUM} did not produce plans."
 
-Re-execute:
+Re-execute with `--gaps-only` to run ONLY the gap-closure plans (not re-run original plans):
 ```
-Skill(skill="gpd:execute-phase", args="${PHASE_NUM}")
+Skill(skill="gpd:execute-phase", args="${PHASE_NUM} --gaps-only")
 ```
 
-Re-read verification status:
+Force fresh verification after gap closure — do NOT read stale VERIFICATION.md:
+```
+Skill(skill="gpd:verify-work", args="${PHASE_NUM}")
+```
+
+Re-read verification status from the FRESH artifact:
 ```bash
 VERIFY_STATUS=$(grep "^status:" "${PHASE_DIR}"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' ')
 ```
@@ -783,20 +788,15 @@ ls GPD/CONVENTIONS.md 2>/dev/null
 
 **If CONVENTIONS.md does not exist:** Skip this step — no conventions to check against.
 
-**If CONVENTIONS.md exists:** Run a lightweight convention consistency scan on the just-completed phase:
+**If CONVENTIONS.md exists:** Run the command-backed convention validation on the just-completed phase. This is the authoritative check — no ad-hoc scanning.
 
-```bash
-PHASE_DIR=$(echo "$PHASE_STATE" | gpd json get .phase_dir --default "")
+```
+Skill(skill="gpd:validate-conventions", args="${PHASE_NUM}")
 ```
 
-Scan the phase's SUMMARY.md and any derivation/calculation artifacts for convention usage. Check for:
+Read the validation result. The command writes a validation artifact or reports to stdout.
 
-1. **Symbol redefinition** — Does this phase use any symbol differently than CONVENTIONS.md defines it?
-2. **Unit system drift** — Does this phase use units inconsistent with the locked convention?
-3. **Sign convention mismatch** — Does this phase use a different metric signature, Fourier convention, or sign convention than locked?
-4. **Approximation regime compatibility** — Are approximation regimes in this phase consistent with conventions assumed by prior phases?
-
-**If no convention drift detected:**
+**If validation passes (no issues reported):**
 
 Display:
 ```
@@ -805,22 +805,15 @@ Phase ${PHASE_NUM}: Convention check passed — consistent with CONVENTIONS.md
 
 Proceed to iterate step.
 
-**If convention drift detected:**
+**If validation reports issues (convention drift, symbol redefinition, unit mismatch, sign conflict):**
 
-Display the specific drift found, then ask user via ask_user:
-- **question:** "Convention drift detected in phase ${PHASE_NUM}. How to proceed?"
-- **options:** "Run full convention validation" / "Continue — drift is intentional" / "Stop autonomous mode"
-
-On **"Run full convention validation":**
-```
-Skill(skill="gpd:validate-conventions", args="${PHASE_NUM}")
-```
-
-Read the validation result. If issues persist, go to handle_blocker with the convention issues. If resolved, proceed to iterate step.
+Display the specific issues found, then ask user via ask_user:
+- **question:** "Convention issues found in phase ${PHASE_NUM}. How to proceed?"
+- **options:** "Continue — drift is intentional" / "Stop autonomous mode"
 
 On **"Continue — drift is intentional":** Display `Phase ${PHASE_NUM}: Convention drift accepted by user` and proceed to iterate step.
 
-On **"Stop autonomous mode":** Go to handle_blocker with "Convention drift in phase ${PHASE_NUM} — user stopped to investigate."
+On **"Stop autonomous mode":** Go to handle_blocker with "Convention issues in phase ${PHASE_NUM} — user stopped to investigate."
 
 </step>
 
