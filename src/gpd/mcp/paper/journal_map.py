@@ -61,16 +61,21 @@ JOURNAL_SPECS: dict[str, JournalSpec] = {
         key="nature",
         document_class="article",
         class_options=["12pt"],
-        bib_style="naturemag",
+        # naturemag.bst predates natbib and has no author-name macro;
+        # pandoc's \citet renders as '(author?)' when paired with it.
+        # unsrtnat is the natbib-aware drop-in that produces the same
+        # superscript-numeric visual output under the natbib package
+        # options used in nature_template.tex.
+        bib_style="unsrtnat",
         column_width_cm=8.9,
         double_width_cm=18.3,
         max_height_cm=24.7,
         dpi=300,
         preferred_formats=["pdf", "eps", "tiff", "png"],
         compiler="pdflatex",
-        texlive_package="latex-base",
-        required_tex_files=["naturemag.bst"],
-        install_hint="Install via: tlmgr install nature",
+        texlive_package="natbib",
+        required_tex_files=["unsrtnat.bst"],
+        install_hint="Install via: tlmgr install natbib",
     ),
     "jhep": JournalSpec(
         # JHEP uses article + jheppub.sty with JHEP.bst for bibliography.
