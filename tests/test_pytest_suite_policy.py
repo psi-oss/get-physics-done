@@ -23,6 +23,8 @@ from tests.ci_sharding import (
     all_test_relpaths,
     build_ci_work_units,
     category_for_test_relpath,
+    ci_shard_specs,
+    ci_shard_target_filename,
     collected_test_counts_by_file,
     collected_test_inventory,
     expand_ci_targets_to_nodeids,
@@ -60,6 +62,18 @@ def _workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict
     return steps
 
 
+def _pytest_matrix_include(workflow: dict[str, object]) -> list[dict[str, object]]:
+    pytest_job = _workflow_job(workflow, "pytest")
+    strategy = pytest_job["strategy"]
+    assert isinstance(strategy, dict)
+    matrix = strategy["matrix"]
+    assert isinstance(matrix, dict)
+    include = matrix["include"]
+    assert isinstance(include, list)
+    assert all(isinstance(entry, dict) for entry in include)
+    return include
+
+
 def _job_needs(job: dict[str, object]) -> tuple[str, ...]:
     needs = job.get("needs")
     if needs is None:
@@ -78,6 +92,25 @@ def _step_by_name(steps: list[dict[str, object]], name: str) -> dict[str, object
     matches = [step for step in steps if step.get("name") == name]
     assert len(matches) == 1
     return matches[0]
+
+
+def _render_pytest_shard_target_filename(entry: dict[str, object], target_path: str) -> str:
+    prefix = "${{ runner.temp }}/pytest-shards/"
+    assert target_path.startswith(prefix)
+    filename_template = target_path[len(prefix) :]
+
+    if filename_template == "${{ matrix.target_filename }}":
+        return str(entry["target_filename"])
+    if filename_template == "${{ matrix.target_file }}":
+        return str(entry["target_file"])
+    if filename_template == "${{ matrix.slug }}.txt":
+        return f"{entry['slug']}.txt"
+    if filename_template == "${{ matrix.category }}-${{ matrix.shard_index }}.txt":
+        return f"{entry['category']}-{entry['shard_index']}.txt"
+    if filename_template == "${{ matrix.category }}.txt":
+        return f"{entry['category']}.txt"
+
+    pytest.fail(f"Unsupported PYTEST_SHARD_TARGET_FILE template: {target_path}")
 
 
 def _runtime_descriptors_or_skip() -> tuple[RuntimeDescriptor, ...]:
@@ -191,6 +224,39 @@ def test_ci_pytest_job_downloads_preplanned_shard_targets_instead_of_resolving_t
     assert "select_ci_shard_targets" not in pytest_shard_command
     assert "plan_category_ci_shards" not in pytest_shard_command
     assert "--collect-only" not in pytest_shard_command
+
+
+def test_ci_pytest_job_consumes_canonical_shard_target_filenames_for_every_matrix_row() -> None:
+    workflow = _workflow_data()
+    matrix_include = _pytest_matrix_include(workflow)
+    pytest_step = _step_by_name(_workflow_job_steps(workflow, "pytest"), CI_PYTEST_SHARD_STEP_NAME)
+    env = pytest_step.get("env")
+    assert isinstance(env, dict)
+    target_path = str(env["PYTEST_SHARD_TARGET_FILE"])
+
+    actual_filenames = {
+        (
+            str(entry["category"]),
+            int(entry["shard_index"]),
+            int(entry["shard_total"]),
+        ): _render_pytest_shard_target_filename(entry, target_path)
+        for entry in matrix_include
+    }
+    expected_filenames = {
+        (
+            spec.category,
+            spec.shard_index,
+            spec.shard_total,
+        ): ci_shard_target_filename(
+            category=spec.category,
+            shard_index=spec.shard_index,
+            shard_total=spec.shard_total,
+        )
+        for spec in ci_shard_specs()
+    }
+
+    assert actual_filenames == expected_filenames
+    assert actual_filenames[("mcp", 1, 1)] == "mcp.txt"
 
 
 def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:

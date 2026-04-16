@@ -141,6 +141,55 @@ def _copy_release_surfaces(repo_root: Path, out_dir: Path) -> None:
         shutil.copy2(repo_root / relative_path, out_dir / relative_path)
 
 
+def _init_temp_git_repo(repo_dir: Path) -> None:
+    _git_or_skip()
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=repo_dir, check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=repo_dir, check=True, capture_output=True,
+    )
+
+
+def _commit_in_temp_git_repo(repo_dir: Path, *, message: str, tracked_path: str, content: str) -> str:
+    path = repo_dir / tracked_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    subprocess.run(["git", "add", tracked_path], cwd=repo_dir, check=True, capture_output=True)
+
+    message_path = repo_dir / ".git" / "COMMIT_EDITMSG"
+    message_path.write_text(message, encoding="utf-8")
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "--file", str(message_path)],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _run_human_author_range_check(repo_dir: Path, git_range: str) -> subprocess.CompletedProcess[str]:
+    hook_script = _repo_root() / "scripts" / "check-human-authors.sh"
+    return subprocess.run(
+        [str(hook_script), "--range", git_range],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def _expected_runtime_dependency_names() -> set[str]:
     return {
         "jinja2",
@@ -756,6 +805,99 @@ def test_human_author_hook_allows_human_coauthors(tmp_path: Path) -> None:
     result = subprocess.run([str(hook_script), str(message)], capture_output=True, text=True, check=False)
 
     assert result.returncode == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_range_check_blocks_non_human_coauthors_on_head_commit(tmp_path: Path) -> None:
+    _init_temp_git_repo(tmp_path)
+    _commit_in_temp_git_repo(tmp_path, message="init\n", tracked_path="README.md", content="seed\n")
+    offending_hash = _commit_in_temp_git_repo(
+        tmp_path,
+        message="Improve tests\n\nCo-Authored-By: GPT <noreply@openai.com>\n",
+        tracked_path="README.md",
+        content="seed\nhead\n",
+    )
+
+    result = _run_human_author_range_check(tmp_path, "HEAD^!")
+
+    assert result.returncode == 1
+    assert "non-human co-author lines found in commit range HEAD^!" in result.stderr
+    assert offending_hash in result.stderr
+    assert "Improve tests" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_range_check_handles_root_commit(tmp_path: Path) -> None:
+    _init_temp_git_repo(tmp_path)
+    root_hash = _commit_in_temp_git_repo(
+        tmp_path,
+        message="Initial import\n\nCo-Authored-By: GPT <noreply@openai.com>\n",
+        tracked_path="README.md",
+        content="seed\n",
+    )
+
+    result = _run_human_author_range_check(tmp_path, "HEAD^!")
+
+    assert result.returncode == 1
+    assert "non-human co-author lines found in commit range HEAD^!" in result.stderr
+    assert root_hash in result.stderr
+    assert "Initial import" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_range_check_rejects_invalid_range(tmp_path: Path) -> None:
+    _init_temp_git_repo(tmp_path)
+    _commit_in_temp_git_repo(tmp_path, message="init\n", tracked_path="README.md", content="seed\n")
+
+    result = _run_human_author_range_check(tmp_path, "definitely-not-a-rev..HEAD")
+
+    assert result.returncode == 1
+    assert "invalid git range definitely-not-a-rev..HEAD" in result.stderr
+    assert "Human author attribution check passed" not in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_range_check_is_case_insensitive(tmp_path: Path) -> None:
+    _init_temp_git_repo(tmp_path)
+    _commit_in_temp_git_repo(tmp_path, message="init\n", tracked_path="README.md", content="seed\n")
+    offending_hash = _commit_in_temp_git_repo(
+        tmp_path,
+        message="Improve tests\n\nco-authored-by: GPT <noreply@openai.com>\n",
+        tracked_path="README.md",
+        content="seed\nlowercase\n",
+    )
+
+    result = _run_human_author_range_check(tmp_path, "HEAD^!")
+
+    assert result.returncode == 1
+    assert offending_hash in result.stderr
+    assert "Improve tests" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_range_check_scans_full_multi_commit_ranges(tmp_path: Path) -> None:
+    _init_temp_git_repo(tmp_path)
+    _commit_in_temp_git_repo(tmp_path, message="Base commit\n", tracked_path="README.md", content="seed\n")
+    bad_middle_hash = _commit_in_temp_git_repo(
+        tmp_path,
+        message="Bad middle\n\nCo-Authored-By: GPT <noreply@openai.com>\n",
+        tracked_path="README.md",
+        content="seed\nmiddle\n",
+    )
+    good_tip_hash = _commit_in_temp_git_repo(
+        tmp_path,
+        message="Good tip\n\nCo-Authored-By: Ada Lovelace <ada@example.com>\n",
+        tracked_path="README.md",
+        content="seed\nmiddle\ntip\n",
+    )
+
+    result = _run_human_author_range_check(tmp_path, "HEAD~2..HEAD")
+
+    assert result.returncode == 1
+    assert bad_middle_hash in result.stderr
+    assert "Bad middle" in result.stderr
+    assert good_tip_hash not in result.stderr
+    assert "Good tip" not in result.stderr
 
 
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:

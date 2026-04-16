@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 import shlex
 from pathlib import Path
 
@@ -34,6 +36,8 @@ REQUIRED_SMOKE_TARGET_PREFIXES = (
     "tests/core/test_research_phase_stage_manifest.py::",
     "tests/core/test_write_paper_prompt_budget.py::",
 )
+README_SMOKE_ANCHOR = "Use the fast smoke suite tracked by `tests/ci_sharding.py` before pushing changes."
+CONTRIBUTING_SMOKE_ANCHOR = "Fast smoke (≈3 min): run the targets from `tests/ci_sharding.py` via"
 
 
 def _workflow_data() -> dict[str, object]:
@@ -76,6 +80,28 @@ def _pytest_command_targets(command: str) -> tuple[str, ...]:
     return tuple(tokens[4:])
 
 
+def _normalized_shell_command(command: str) -> str:
+    normalized = re.sub(r"\\\s*\n\s*", " ", command)
+    return " ".join(normalized.split())
+
+
+def _extract_markdown_bash_block(rel_path: str, *, anchor: str) -> str:
+    text = (REPO_ROOT / rel_path).read_text(encoding="utf-8")
+    anchored_text = text[text.index(anchor) :]
+    match = re.search(r"```bash\n(?P<command>.*?)\n```", anchored_text, re.DOTALL)
+    assert match is not None, f"missing bash block after {anchor!r} in {rel_path}"
+    return match.group("command")
+
+
+def _package_smoke_command() -> str:
+    package_data = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+    scripts = package_data["scripts"]
+    assert isinstance(scripts, dict)
+    smoke_command = scripts["smoke"]
+    assert isinstance(smoke_command, str)
+    return smoke_command
+
+
 def test_ci_smoke_command_builder_uses_only_explicit_fast_targets() -> None:
     command = ci_smoke_pytest_command()
     targets = _pytest_command_targets(command)
@@ -111,3 +137,23 @@ def test_ci_smoke_workflow_skips_shard_resolution_and_collect_only_helpers() -> 
     assert CI_SHARD_TARGET_RESOLVER_STEP_NAME not in smoke_step_names
     assert smoke_command == ci_smoke_pytest_command()
     assert all(token not in smoke_command for token in FORBIDDEN_SMOKE_SELECTION_TOKENS)
+
+
+def test_ci_smoke_package_and_docs_surfaces_match_authoritative_command() -> None:
+    expected_command = _normalized_shell_command(ci_smoke_pytest_command())
+    smoke_surfaces = {
+        "package.json scripts.smoke": _package_smoke_command(),
+        "README.md smoke block": _extract_markdown_bash_block(
+            "README.md",
+            anchor=README_SMOKE_ANCHOR,
+        ),
+        "CONTRIBUTING.md smoke block": _extract_markdown_bash_block(
+            "CONTRIBUTING.md",
+            anchor=CONTRIBUTING_SMOKE_ANCHOR,
+        ),
+    }
+
+    for surface_name, surface_command in smoke_surfaces.items():
+        normalized_surface_command = _normalized_shell_command(surface_command)
+        assert normalized_surface_command == expected_command, surface_name
+        assert _pytest_command_targets(normalized_surface_command) == CI_SMOKE_TEST_TARGETS, surface_name

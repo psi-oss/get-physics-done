@@ -20,6 +20,7 @@ from tests.ci_sharding import (
     CI_TOTAL_SHARD_COUNT_TARGET,
     build_ci_work_units,
     ci_shard_specs,
+    ci_shard_target_filename,
     ci_smoke_pytest_command,
     collected_test_counts_by_file,
     collected_test_inventory,
@@ -125,6 +126,15 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
         (spec.display_name, spec.category, spec.shard_index, spec.shard_total)
         for spec in ci_shard_specs()
     )
+    actual_target_filenames = tuple(str(entry["target_filename"]) for entry in matrix_include)
+    expected_target_filenames = tuple(
+        ci_shard_target_filename(
+            category=spec.category,
+            shard_index=spec.shard_index,
+            shard_total=spec.shard_total,
+        )
+        for spec in ci_shard_specs()
+    )
 
     pytest_job = jobs["pytest"]
     assert isinstance(pytest_job, dict)
@@ -133,6 +143,11 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert "smoke" in _job_needs(pytest_job)
     assert strategy["fail-fast"] is False
     assert actual_shards == expected_shards
+    assert actual_target_filenames == expected_target_filenames
+    assert any(
+        entry["category"] == "mcp" and entry["target_filename"] == "mcp.txt"
+        for entry in matrix_include
+    )
     assert len(matrix_include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
     assert len(matrix_include) == CI_TOTAL_SHARD_COUNT_TARGET
     assert len(matrix_include) <= CI_MAX_SHARD_COUNT_TARGET
@@ -144,10 +159,14 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
     pytest_shard_command = pytest_run_steps[CI_PYTEST_SHARD_STEP_NAME]
+    pytest_shard_step = _step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME)
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert _run_command_contains_tokens(pytest_shard_command, CI_PYTEST_SHARD_COMMAND_TOKENS)
     assert '"${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert _step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME)["run"] == pytest_shard_command
+    assert pytest_shard_step["run"] == pytest_shard_command
+    assert pytest_shard_step["env"]["PYTEST_SHARD_TARGET_FILE"] == (
+        "${{ runner.temp }}/pytest-shards/${{ matrix.target_filename }}"
+    )
     node_step = _step_by_name(pytest_steps, "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"

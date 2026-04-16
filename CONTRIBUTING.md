@@ -75,7 +75,6 @@ Fast smoke (≈3 min): run the targets from `tests/ci_sharding.py` via
 ```bash
 uv run pytest -q \
   tests/test_release_consistency.py \
-  tests/test_ci_suite_commands.py \
   tests/test_repo_hygiene.py \
   tests/test_schema_registry_ownership_note.py \
   tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files \
@@ -83,7 +82,14 @@ uv run pytest -q \
   tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module \
   tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json \
   tests/core/test_contract_validation_fast_regressions.py \
-  tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields
+  tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields \
+  tests/core/test_workflow_stage_manifest_inventory.py \
+  tests/core/test_workflow_staging.py::test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest \
+  tests/core/test_workflow_staging.py::test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest \
+  tests/core/test_research_phase_stage_manifest.py::test_research_phase_stage_manifest_defers_runtime_delegation_until_the_handoff_stage \
+  tests/core/test_research_phase_stage_manifest.py::test_research_phase_command_prompt_budget_keeps_delegation_authorities_out_of_the_wrapper \
+  tests/core/test_write_paper_prompt_budget.py::test_write_paper_command_stays_thin_and_only_eagerly_loads_the_workflow \
+  tests/core/test_write_paper_prompt_budget.py::test_write_paper_workflow_defers_stage_authorities_until_the_manifest_stages_need_them
 ```
 
 The command is the same as `ci_smoke_pytest_command()` and the `CI_SMOKE_TEST_TARGETS` tuple, so update this block whenever those values change.

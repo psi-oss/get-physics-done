@@ -48,6 +48,21 @@ def test_single_shard_categories_do_not_split_hot_files() -> None:
     assert work_units[0].targets == ("tests/mcp/test_servers.py",)
 
 
+def test_single_shard_specs_keep_bare_category_slug_and_filename_for_mcp() -> None:
+    mcp_specs = [
+        spec
+        for spec in ci_shard_specs()
+        if spec.category == "mcp"
+    ]
+
+    assert len(mcp_specs) == 1
+    mcp_spec = mcp_specs[0]
+    assert mcp_spec.shard_total == 1
+    assert mcp_spec.slug == "mcp"
+    assert ci_shard_target_filename(category="mcp", shard_index=1, shard_total=1) == "mcp.txt"
+    assert ci_shard_target_filename(category="mcp", shard_index=1, shard_total=1) != "mcp-1.txt"
+
+
 def test_write_ci_shard_plan_collects_inventory_once_and_writes_all_target_files(
     monkeypatch,
     tmp_path: Path,
@@ -83,3 +98,7 @@ def test_write_ci_shard_plan_collects_inventory_once_and_writes_all_target_files
         )
         assert written_files[spec.slug] == target_file
         assert target_file.read_text(encoding="utf-8") == "\n".join(planned_targets[spec.slug]) + "\n"
+
+    assert written_files["mcp"].name == "mcp.txt"
+    assert written_files["mcp"].exists()
+    assert not (target_dir / "mcp-1.txt").exists()

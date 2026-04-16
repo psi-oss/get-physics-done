@@ -161,78 +161,97 @@ jobs:
             category: root
             shard_index: 1
             shard_total: 9
+            target_filename: root-1.txt
           - display_name: root 2/9
             category: root
             shard_index: 2
             shard_total: 9
+            target_filename: root-2.txt
           - display_name: root 3/9
             category: root
             shard_index: 3
             shard_total: 9
+            target_filename: root-3.txt
           - display_name: root 4/9
             category: root
             shard_index: 4
             shard_total: 9
+            target_filename: root-4.txt
           - display_name: root 5/9
             category: root
             shard_index: 5
             shard_total: 9
+            target_filename: root-5.txt
           - display_name: root 6/9
             category: root
             shard_index: 6
             shard_total: 9
+            target_filename: root-6.txt
           - display_name: root 7/9
             category: root
             shard_index: 7
             shard_total: 9
+            target_filename: root-7.txt
           - display_name: root 8/9
             category: root
             shard_index: 8
             shard_total: 9
+            target_filename: root-8.txt
           - display_name: root 9/9
             category: root
             shard_index: 9
             shard_total: 9
+            target_filename: root-9.txt
           - display_name: adapters 1/2
             category: adapters
             shard_index: 1
             shard_total: 2
+            target_filename: adapters-1.txt
           - display_name: adapters 2/2
             category: adapters
             shard_index: 2
             shard_total: 2
+            target_filename: adapters-2.txt
           - display_name: hooks 1/2
             category: hooks
             shard_index: 1
             shard_total: 2
+            target_filename: hooks-1.txt
           - display_name: hooks 2/2
             category: hooks
             shard_index: 2
             shard_total: 2
+            target_filename: hooks-2.txt
           - display_name: mcp
             category: mcp
             shard_index: 1
             shard_total: 1
+            target_filename: mcp.txt
           - display_name: core 1/5
             category: core
             shard_index: 1
             shard_total: 5
+            target_filename: core-1.txt
           - display_name: core 2/5
             category: core
             shard_index: 2
             shard_total: 5
+            target_filename: core-2.txt
           - display_name: core 3/5
             category: core
             shard_index: 3
             shard_total: 5
+            target_filename: core-3.txt
           - display_name: core 4/5
             category: core
             shard_index: 4
             shard_total: 5
+            target_filename: core-4.txt
           - display_name: core 5/5
             category: core
             shard_index: 5
             shard_total: 5
+            target_filename: core-5.txt
 
     steps:
       - name: Check out repository
@@ -262,7 +281,7 @@ jobs:
 
       - name: Run pytest shard
         env:
-          PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-shards/${{ matrix.category }}-${{ matrix.shard_index }}.txt
+          PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-shards/${{ matrix.target_filename }}
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
           uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"

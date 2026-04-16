@@ -32,15 +32,28 @@ fi
 # --- Mode 2: range check (--range <range>) ---
 if [ "${1:-}" = "--range" ] && [ -n "${2:-}" ]; then
     range="$2"
-    offenders=$(git log "$range" --format="%H %s" --grep="Co-Authored-By" 2>/dev/null | while read hash msg; do
-        body=$(git log -1 --format="%b" "$hash")
-        if echo "$body" | grep -qi "$NON_HUMAN_COAUTHOR_PATTERN"; then
-            echo "  $hash $msg"
+    if ! git rev-list "$range" >/dev/null 2>&1; then
+        echo "${RED}ERROR: invalid git range ${range}.${NC}" >&2
+        exit 1
+    fi
+
+    offenders=""
+    for hash in $(git rev-list "$range"); do
+        body=$(git log -1 --format=%B "$hash")
+        if printf '%s\n' "$body" | grep -qi "$NON_HUMAN_COAUTHOR_PATTERN"; then
+            subject=$(git log -1 --format=%s "$hash")
+            if [ -n "$offenders" ]; then
+                offenders="$offenders
+  $hash $subject"
+            else
+                offenders="  $hash $subject"
+            fi
         fi
-    done)
+    done
+
     if [ -n "$offenders" ]; then
         echo "${RED}ERROR: non-human co-author lines found in commit range ${range}:${NC}" >&2
-        echo "$offenders" >&2
+        printf '%s\n' "$offenders" >&2
         exit 1
     fi
     echo "Human author attribution check passed for $range."

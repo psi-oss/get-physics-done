@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from tests.ci_sharding import ci_shard_specs
+from tests.ci_sharding import ci_shard_specs, ci_shard_target_filename
 from tests.phase16_projection_oracle_helpers import phase16_case_keys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -131,6 +131,14 @@ def test_nightly_handoff_bundle_workflow_keeps_compatible_ci_topology_shape() ->
         )
         for entry in include
     ) == tuple((spec.display_name, spec.category, spec.shard_index, spec.shard_total) for spec in ci_shard_specs())
+    assert tuple(str(entry["target_filename"]) for entry in include) == tuple(
+        ci_shard_target_filename(
+            category=spec.category,
+            shard_index=spec.shard_index,
+            shard_total=spec.shard_total,
+        )
+        for spec in ci_shard_specs()
+    )
 
     nightly_jobs = nightly_workflow["jobs"]
     assert isinstance(nightly_jobs, dict)

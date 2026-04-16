@@ -57,3 +57,14 @@ def test_release_metadata_checks_accept_current_repo_configuration() -> None:
 
     assert validate_release_metadata_sources(pyproject_text, package_json_text)
     validate_package_data_rules(pyproject_text, package_json_text)
+
+
+def test_package_json_lint_package_checks_exact_head_commit_range() -> None:
+    package_json = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+    scripts = package_json["scripts"]
+    assert isinstance(scripts, dict)
+
+    lint_package = scripts["lint:package"]
+    assert isinstance(lint_package, str)
+    assert "check-human-authors.sh --range HEAD^!" in lint_package
+    assert "HEAD~0..HEAD" not in lint_package
