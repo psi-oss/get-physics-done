@@ -1671,6 +1671,42 @@ def test_progress_render_json(tmp_path: Path) -> None:
     assert len(result.phases) == 1
 
 
+def test_progress_render_keeps_missing_roadmap_phase_visible_as_pending(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Test
+
+        ### Phase 1: Setup
+        **Goal:** setup
+
+        ### Phase 2: Build
+        **Goal:** build
+
+        ### Phase 3: Validate
+        **Goal:** validate
+        """,
+    )
+
+    setup_dir = _create_phase_dir(tmp_path, "01-setup")
+    (setup_dir / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+    validate_dir = _create_phase_dir(tmp_path, "03-validate")
+    (validate_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
+
+    result = progress_render(tmp_path, "json")
+
+    assert [phase.number for phase in result.phases] == ["01", "02", "03"]
+
+    pending_phase = next(phase for phase in result.phases if phase.number == "02")
+    assert pending_phase.plans == 0
+    assert pending_phase.summaries == 0
+    assert pending_phase.status == "Pending"
+    assert result.total_plans == 2
+    assert result.total_summaries == 0
+    assert result.percent == 0
+
+
 def test_progress_render_bar(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "## v1.0: Test\n")

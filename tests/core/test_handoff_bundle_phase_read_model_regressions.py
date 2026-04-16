@@ -25,6 +25,10 @@ def _phase_by_number(phases: list[object], number: str):
     return next(phase for phase in phases if phase.number == number)
 
 
+def _progress_phase_rows(phases: list[object]) -> list[tuple[str, int, int, str]]:
+    return [(phase.number, phase.plans, phase.summaries, phase.status) for phase in phases]
+
+
 @pytest.mark.parametrize(
     (
         "slug",
@@ -34,10 +38,39 @@ def _phase_by_number(phases: list[object], number: str):
         "expected_total_summaries",
         "expected_completed_phases",
         "expected_current_phase",
+        "expected_progress_phases",
     ),
     [
-        ("completed-phase", "positive", True, 2, 2, 2, "2"),
-        ("plan-only", "mutation", False, 2, 0, 0, "1"),
+        (
+            "completed-phase",
+            "positive",
+            True,
+            2,
+            2,
+            2,
+            "2",
+            [
+                ("01", 1, 1, "Complete"),
+                ("02", 0, 0, "Pending"),
+                ("03", 1, 1, "Complete"),
+                ("04", 0, 0, "Pending"),
+            ],
+        ),
+        (
+            "plan-only",
+            "mutation",
+            False,
+            2,
+            0,
+            0,
+            "1",
+            [
+                ("01", 1, 0, "Planned"),
+                ("02", 0, 0, "Pending"),
+                ("03", 1, 0, "Planned"),
+                ("04", 0, 0, "Pending"),
+            ],
+        ),
     ],
     ids=["completed-phase-positive", "plan-only-mutation"],
 )
@@ -49,6 +82,7 @@ def test_handoff_bundle_workspaces_keep_read_models_in_sync(
     expected_total_summaries: int,
     expected_completed_phases: int,
     expected_current_phase: str | None,
+    expected_progress_phases: list[tuple[str, int, int, str]],
     tmp_path: Path,
 ) -> None:
     root = _copy_fixture_workspace(slug, variant, tmp_path)
@@ -61,6 +95,7 @@ def test_handoff_bundle_workspaces_keep_read_models_in_sync(
     roadmap_phase = _phase_by_number(roadmap.phases, "1")
     progress_phase = _phase_by_number(progress.phases, "01")
 
+    assert _progress_phase_rows(progress.phases) == expected_progress_phases
     assert roadmap.phase_count == len(progress.phases)
     assert roadmap.total_plans == progress.total_plans == expected_total_plans
     assert roadmap.total_summaries == progress.total_summaries == expected_total_summaries

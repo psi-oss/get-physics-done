@@ -2450,7 +2450,33 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
         total_summaries = 0
 
         if phases_dir.is_dir():
+            def _progress_status(plan_count: int, summary_count: int) -> str:
+                if plan_count == 0:
+                    return "Pending"
+                if summary_count >= plan_count:
+                    return "Complete"
+                if summary_count > 0:
+                    return "In Progress"
+                return "Planned"
+
+            def _roadmap_phase_status(disk_status: str) -> str:
+                if disk_status == "complete":
+                    return "Complete"
+                if disk_status == "partial":
+                    return "In Progress"
+                if disk_status == "planned":
+                    return "Planned"
+                return "Pending"
+
+            def _roadmap_phase_name(phase_name: str) -> str:
+                slug = generate_slug(phase_name)
+                if slug is not None:
+                    return slug.replace("-", " ")
+                return phase_name.strip().casefold()
+
             dirs = _list_phase_dirs(cwd)
+            disk_phase_rows: list[tuple[str, PhaseProgress]] = []
+            disk_phase_map: dict[str, PhaseProgress] = {}
             for d in dirs:
                 dm = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", d)
                 phase_num = dm.group(1) if dm else d
@@ -2465,24 +2491,52 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
                 total_plans += plan_count
                 total_summaries += summary_count
 
-                if plan_count == 0:
-                    status = "Pending"
-                elif summary_count >= plan_count:
-                    status = "Complete"
-                elif summary_count > 0:
-                    status = "In Progress"
-                else:
-                    status = "Planned"
-
-                phases.append(
-                    PhaseProgress(
-                        number=phase_num,
-                        name=phase_name,
-                        plans=plan_count,
-                        summaries=summary_count,
-                        status=status,
-                    )
+                normalized_phase_num = phase_normalize(phase_num)
+                phase_progress = PhaseProgress(
+                    number=phase_num,
+                    name=phase_name,
+                    plans=plan_count,
+                    summaries=summary_count,
+                    status=_progress_status(plan_count, summary_count),
                 )
+                disk_phase_rows.append((normalized_phase_num, phase_progress))
+                disk_phase_map[normalized_phase_num] = phase_progress
+
+            roadmap_phases = roadmap_analyze(cwd).phases
+            if roadmap_phases:
+                seen_disk_phase_numbers: set[str] = set()
+                roadmap_phase_numbers: set[str] = set()
+
+                # Keep the public progress rows in roadmap order while still
+                # deriving aggregate progress from the on-disk artifacts.
+                for roadmap_phase in roadmap_phases:
+                    normalized_phase_num = phase_normalize(roadmap_phase.number)
+                    roadmap_phase_numbers.add(normalized_phase_num)
+
+                    disk_phase = disk_phase_map.get(normalized_phase_num)
+                    if disk_phase is not None:
+                        phases.append(disk_phase)
+                        seen_disk_phase_numbers.add(normalized_phase_num)
+                        continue
+
+                    phases.append(
+                        PhaseProgress(
+                            number=normalized_phase_num,
+                            name=_roadmap_phase_name(roadmap_phase.name),
+                            plans=0,
+                            summaries=0,
+                            status=_roadmap_phase_status(roadmap_phase.disk_status),
+                        )
+                    )
+
+                for normalized_phase_num, phase_progress in disk_phase_rows:
+                    if normalized_phase_num in seen_disk_phase_numbers:
+                        continue
+                    if normalized_phase_num in roadmap_phase_numbers:
+                        continue
+                    phases.append(phase_progress)
+            else:
+                phases = [phase_progress for _, phase_progress in disk_phase_rows]
 
         percent = min(100, round(total_summaries / total_plans * 100)) if total_plans > 0 else 0
 
