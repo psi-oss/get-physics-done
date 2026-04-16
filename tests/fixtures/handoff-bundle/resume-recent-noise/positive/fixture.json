@@ -1,0 +1,67 @@
+{
+  "actual_assertions": [
+    "Parallel `gpd state update` calls are not safe for dependent transitions: when I tried that once, the second command still saw the old state and failed the transition check."
+  ],
+  "anchor_candidate_ids": [
+    "VF-01-almheiri-r01-008"
+  ],
+  "bug_type_ids": [
+    "BT-071"
+  ],
+  "command_recipes": [
+    [
+      "gpd state update"
+    ]
+  ],
+  "evidence_links": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/11-fadel-r03-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/16-collier-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/results/01-almheiri-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/11-fadel-r03",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/16-collier-r01/HANDOFF.md",
+    "phase-06/seed-CS-0354",
+    "phase-06/seed-CS-0373",
+    "phase-06/seed-CS-0510"
+  ],
+  "expected_assertions": [
+    "`resume_recent` should satisfy the `mutation_ordering` contract against `phase_and_state_contract`."
+  ],
+  "fixture_id": "FX-resume-recent-noise-positive",
+  "fixture_kind": "positive",
+  "fixture_path": "tests/fixtures/handoff-bundle/resume-recent-noise/positive",
+  "fixture_role": "anchor",
+  "fixture_root": "tests/fixtures/handoff-bundle/resume-recent-noise/positive",
+  "fixture_slug": "resume-recent-noise",
+  "interface_classes": [
+    "race"
+  ],
+  "mutation_axis": null,
+  "order": 17,
+  "packet_ids": [
+    "PK-BT-071-01"
+  ],
+  "paired_fixture_id": "FX-resume-recent-noise-mutation",
+  "positive_only_justification": "",
+  "primary_interface_class": "race",
+  "priority_band": [
+    "high"
+  ],
+  "priority_score": 222,
+  "source_reports": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/results/01-almheiri-r01-report.md"
+  ],
+  "source_workspaces": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01"
+  ],
+  "starting_snapshot_hashes": [
+    "5b465abc46d358db17ae21850af054e3253275188420a9a6e6df562c271b2b3a"
+  ],
+  "status": "live",
+  "workspace_byte_count": 110165,
+  "workspace_file_count": 13,
+  "workspace_path": "tests/fixtures/handoff-bundle/resume-recent-noise/positive/workspace",
+  "workspace_sha256": "47de02594a5dce5ee8457f76a46ed10bae94b795625820a46197780fdcd88e70"
+}

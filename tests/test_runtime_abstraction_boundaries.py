@@ -151,6 +151,7 @@ def _runtime_owned_path_patterns() -> list[str]:
             patterns.add(rf"{escaped_base}/command")
     return sorted(patterns)
 
+
 _RUNTIME_PATTERN = (
     "("
     + "|".join(
@@ -166,9 +167,14 @@ _RUNTIME_PATTERN = (
 _DOC_SUFFIXES = {".md"}
 _RUNTIME_OWNED_PREFIXES = (
     *(f"{descriptor.config_dir_name}/" for descriptor in _RUNTIME_DESCRIPTORS),
-    *(f"{descriptor.global_config.home_subpath}/" for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.home_subpath),
+    *(
+        f"{descriptor.global_config.home_subpath}/"
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.global_config.home_subpath
+    ),
     "src/gpd/adapters/",
 )
+_CAMPAIGN_EVIDENCE_PREFIXES = ("artifacts/bug-campaign/",)
 _ALLOWED_RUNTIME_FILES = {
     "CITATION.cff",
     ".gitignore",
@@ -216,9 +222,7 @@ _RUNTIME_INSTALL_ARTIFACT_PATTERN = re.compile(
     + ")"
 )
 _SHARED_COMMAND_SURFACE_PATTERN = _runtime_public_command_surface_pattern()
-_SHARED_BOOTSTRAP_COMMAND_PATTERN = re.compile(
-    r"(\bnpx\b|\bnpm\b|\buvx\b|\bpip\b|\bpipx\b|\bbunx\b|get-physics-done)"
-)
+_SHARED_BOOTSTRAP_COMMAND_PATTERN = re.compile(r"(\bnpx\b|\bnpm\b|\buvx\b|\bpip\b|\bpipx\b|\bbunx\b|get-physics-done)")
 _SHARED_RUNTIME_AGNOSTIC_PATHS = (
     REPO_ROOT / "src/gpd/agents",
     REPO_ROOT / "src/gpd/commands",
@@ -227,6 +231,8 @@ _SHARED_RUNTIME_AGNOSTIC_PATHS = (
     REPO_ROOT / "src/gpd/registry.py",
     REPO_ROOT / "src/gpd/mcp/servers/skills_server.py",
 )
+
+
 def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
     paths: list[Path] = []
     for path in sorted((REPO_ROOT / "tests").rglob("*.py")):
@@ -245,7 +251,10 @@ _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = tuple(
     for path in _SHARED_TEST_RUNTIME_SURFACE_PATHS
     if path.relative_to(REPO_ROOT).parts[:2] in {("tests", "core"), ("tests", "mcp")}
 )
-_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = (*_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS, REPO_ROOT / "tests/test_bootstrap_installer.py")
+_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = (
+    *_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS,
+    REPO_ROOT / "tests/test_bootstrap_installer.py",
+)
 _TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py", ".sh"}
 _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/core/test_health.py",
@@ -317,11 +326,16 @@ def _is_doc(rel_path: Path) -> bool:
 
 
 def _is_installed_shared_markdown(rel_path: Path) -> bool:
-    return rel_path.parts[:3] == ("src", "gpd", "commands") or rel_path.parts[:3] == (
-        "src",
-        "gpd",
-        "agents",
-    ) or rel_path.parts[:3] == ("src", "gpd", "specs")
+    return (
+        rel_path.parts[:3] == ("src", "gpd", "commands")
+        or rel_path.parts[:3]
+        == (
+            "src",
+            "gpd",
+            "agents",
+        )
+        or rel_path.parts[:3] == ("src", "gpd", "specs")
+    )
 
 
 def _is_test(rel_path: Path) -> bool:
@@ -334,6 +348,7 @@ def _is_runtime_boundary_file(rel_path: Path) -> bool:
         rel in _ALLOWED_RUNTIME_FILES
         or rel in _ALLOWED_RUNTIME_ADAPTER_FILES
         or any(rel.startswith(prefix) for prefix in _RUNTIME_OWNED_PREFIXES)
+        or any(rel.startswith(prefix) for prefix in _CAMPAIGN_EVIDENCE_PREFIXES)
     )
 
 
@@ -353,7 +368,9 @@ def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -
             candidates = [path]
         else:
             candidates = sorted(
-                candidate for candidate in path.rglob("*") if candidate.is_file() and candidate.suffix in _TEXT_SURFACE_SUFFIXES
+                candidate
+                for candidate in path.rglob("*")
+                if candidate.is_file() and candidate.suffix in _TEXT_SURFACE_SUFFIXES
             )
         for candidate in candidates:
             if candidate.suffix not in _TEXT_SURFACE_SUFFIXES:
@@ -422,11 +439,7 @@ def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2)
         if block in seen_blocks:
             continue
         seen_blocks.add(block)
-        matched_values = {
-            value
-            for value in fixture_values
-            if re.search(rf'["\']{re.escape(value)}["\']', block)
-        }
+        matched_values = {value for value in fixture_values if re.search(rf'["\']{re.escape(value)}["\']', block)}
         if len(matched_values) >= minimum_matches:
             findings.append(block.replace("\n", " "))
     return findings
@@ -554,8 +567,7 @@ def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> Non
     ]
 
     assert leaks == [], (
-        "Runtime-specific hardcoding leaked outside adapter/runtime boundary files:\n"
-        f"{_format_failures(leaks)}"
+        f"Runtime-specific hardcoding leaked outside adapter/runtime boundary files:\n{_format_failures(leaks)}"
     )
 
 
@@ -594,8 +606,7 @@ def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> N
     ]
 
     assert leaks == [], (
-        "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
-        f"{_format_failures(leaks)}"
+        f"Shared adapter infrastructure should not hardcode runtime-specific terms:\n{_format_failures(leaks)}"
     )
 
 
@@ -604,13 +615,11 @@ def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
     leaks = [
         (path, line_no, snippet)
         for path, line_no, snippet in _git_grep(_SHARED_ADAPTER_RUNTIME_BRANCH_PATTERN)
-        if path.parts[:3] == ("src", "gpd", "adapters")
-        and path.as_posix() not in _ALLOWED_RUNTIME_ADAPTER_FILES
+        if path.parts[:3] == ("src", "gpd", "adapters") and path.as_posix() not in _ALLOWED_RUNTIME_ADAPTER_FILES
     ]
 
     assert leaks == [], (
-        "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
-        f"{_format_failures(leaks)}"
+        f"Shared adapter infrastructure should not hardcode runtime-specific terms:\n{_format_failures(leaks)}"
     )
 
 
@@ -866,9 +875,7 @@ def test_bootstrap_installer_does_not_hardcode_runtime_name_or_display_name_lite
         )
     )
     runtime_literal_pattern = re.compile(
-        r'(?<![A-Za-z0-9_.-])(?:'
-        + "|".join(re.escape(value) for value in runtime_literals)
-        + r')(?![A-Za-z0-9_.-])'
+        r"(?<![A-Za-z0-9_.-])(?:" + "|".join(re.escape(value) for value in runtime_literals) + r")(?![A-Za-z0-9_.-])"
     )
 
     leaks = [
@@ -916,8 +923,7 @@ def test_user_facing_runtime_command_hints_use_runtime_placeholder() -> None:
     )
 
     assert leaks == [], (
-        "User-facing runtime command hints should use the canonical <runtime> placeholder:\n"
-        f"{_format_failures(leaks)}"
+        f"User-facing runtime command hints should use the canonical <runtime> placeholder:\n{_format_failures(leaks)}"
     )
 
 

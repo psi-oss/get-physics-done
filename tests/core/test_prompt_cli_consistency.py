@@ -586,20 +586,35 @@ def test_help_prompt_workflow_modes_match_current_settings_vocabulary() -> None:
 
 def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    local_cli_add_ons = _extract_between(
+        help_workflow,
+        "### Optional Local CLI Add-Ons",
+        "### Tangents & Hypothesis Branches",
+    )
 
     assert "### Optional Local CLI Add-Ons" in help_workflow
-    assert "**Workflow presets**" in help_workflow
-    assert "Paper/manuscript workflows" in help_workflow
-    assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None
-    assert "executable probes" in help_workflow
-    assert_workflow_preset_surface_contract(help_workflow)
-    assert "paper-toolchain readiness" in help_workflow
-    assert "degrade `write-paper`" in help_workflow
-    assert "`paper-build` remains the build contract" in help_workflow
-    assert "`arxiv-submission` requires the built manuscript" in help_workflow
-    assert "gpd:set-tier-models" in help_workflow
-    assert "gpd:settings" in help_workflow
-    assert "gpd:set-profile" in help_workflow
+    assert "**Workflow presets**" in local_cli_add_ons
+    assert "Paper/manuscript workflows" in local_cli_add_ons
+    assert DOCTOR_RUNTIME_SCOPE_RE.search(local_cli_add_ons) is not None
+    assert "executable probes" in local_cli_add_ons
+    assert_workflow_preset_surface_contract(local_cli_add_ons)
+
+
+def test_help_prompt_keeps_local_doctor_flags_out_of_runtime_facing_sections() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    runtime_facing = help_workflow[: help_workflow.index("### Optional Local CLI Add-Ons")]
+    local_cli_add_ons = _extract_between(
+        help_workflow,
+        "### Optional Local CLI Add-Ons",
+        "### Tangents & Hypothesis Branches",
+    )
+
+    assert "--local" not in runtime_facing
+    assert "--global" not in runtime_facing
+    assert "--live-executable-probes" not in runtime_facing
+    assert "gpd doctor --runtime <runtime> --local" in local_cli_add_ons
+    assert "gpd doctor --runtime <runtime> --global" in local_cli_add_ons
+    assert "--live-executable-probes" in local_cli_add_ons
 
 
 def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command() -> None:

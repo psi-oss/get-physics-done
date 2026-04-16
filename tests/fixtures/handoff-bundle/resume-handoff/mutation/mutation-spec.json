@@ -1,0 +1,4 @@
+{
+  "mutation_axis": "handoff_artifact_removed",
+  "note": "Deletes the handoff artifact while preserving the same canonical workspace snapshot."
+}

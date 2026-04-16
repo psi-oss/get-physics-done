@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "bug_id": "f4-nested-root-readonly-probe-parity",
+  "family_id": "nested-root-readonly-probe-parity",
+  "family_title": "nested-root read-only probe parity",
+  "phase": "15",
+  "wave": "F4",
+  "status": "closed",
+  "classification": "projection_bug",
+  "scope": {
+    "fixed_surfaces": [
+      "resolve_project_roots",
+      "resolve_project_root(require_layout=True)",
+      "cli._project_scoped_cwd",
+      "hooks.statusline._statusline_project_root",
+      "core.health._peek_normalized_state_for_health",
+      "mcp.state_server.load_state_json"
+    ],
+    "adjacent_surfaces": [
+      "tests/core/test_f4_nested_root_readonly_regressions.py",
+      "tests/core/test_root_resolution.py"
+    ],
+    "out_of_scope": [
+      "production code changes",
+      "resume families",
+      "runtime bridge families",
+      "new acceptance tree"
+    ],
+    "authority_source": "empty-phase/positive workspace copy with synthetic nested GPD stub"
+  },
+  "source": {
+    "exploration_report": "/tmp/gpd-bug-campaign/phase-15/report.md",
+    "execution_brief": "/tmp/gpd-bug-campaign/phase-15/execution/brief.md",
+    "anchor_fixture": "tests/fixtures/handoff-bundle/empty-phase/positive/workspace",
+    "regression_tests": [
+      "tests/core/test_f4_nested_root_readonly_regressions.py"
+    ]
+  },
+  "exact_repro": {
+    "fixture": "tests/fixtures/handoff-bundle/empty-phase/positive/workspace",
+    "workspace_root": "<tmp_path>/empty-phase-positive",
+    "preconditions": [
+      "workspace contains a real GPD project root",
+      "nested src/notes/GPD stub exists and is empty",
+      "probe is read-only"
+    ],
+    "command": "uv run pytest -q tests/test_bug_nested_root_readonly_probe_parity.py",
+    "expected_before_fix": "the nested empty GPD stub can capture the read-only probe or produce surface drift",
+    "observed_before_fix": "the stronger ancestor workspace root is selected consistently across all read-only surfaces",
+    "assertions": [
+      "resolve_project_roots chooses the workspace root",
+      "resolve_project_root(require_layout=True) returns the workspace root",
+      "cli._project_scoped_cwd, _statusline_project_root, _peek_normalized_state_for_health, and load_state_json agree on the workspace root",
+      "the nested GPD stub stays empty"
+    ],
+    "evidence_paths": [
+      "/tmp/gpd-bug-campaign/phase-15/report.md"
+    ]
+  },
+  "exact_fix": {
+    "changed_files": [
+      "tests/test_bug_nested_root_readonly_probe_parity.py",
+      "artifacts/phases/15-verification-contract/verification/fixes/f4-nested-root-readonly-probe-parity.json"
+    ],
+    "fix_summary": "Encode a deterministic proxy contract that exercises the nested-root/read-only family across the shared root-resolution surfaces without mutating the nested stub.",
+    "green_command": "uv run pytest -q tests/test_bug_nested_root_readonly_probe_parity.py",
+    "expected_after_fix": "all read-only probes converge on the real workspace root and leave the nested GPD stub untouched",
+    "actual_after_fix": "passed"
+  },
+  "adjacent_checks": [
+    {
+      "surface": "nested-root regression packet",
+      "test_command": "uv run pytest -q tests/core/test_f4_nested_root_readonly_regressions.py",
+      "must_pass": true,
+      "why_it_matters": "guards the family-specific regression packet that the contract wraps",
+      "result": "passed"
+    },
+    {
+      "surface": "ancestor root preference",
+      "test_command": "uv run pytest -q tests/core/test_root_resolution.py -k nested_empty_gpd_stub",
+      "must_pass": true,
+      "why_it_matters": "keeps the stronger-ancestor resolution rule stable",
+      "result": "passed"
+    }
+  ],
+  "verification": {
+    "red_exact_repro": true,
+    "green_exact_fix": true,
+    "green_adjacent_checks": true,
+    "ruff": "passed",
+    "pytest": "passed",
+    "status": "closed"
+  },
+  "checklist": {
+    "red_exact_repro": {
+      "passed": true,
+      "command": "uv run pytest -q tests/test_bug_nested_root_readonly_probe_parity.py",
+      "assertion": "nested read-only surfaces resolve the stronger ancestor workspace root and do not mutate the nested stub",
+      "evidence": "/tmp/gpd-bug-campaign/phase-15/report.md"
+    },
+    "green_exact_fix": {
+      "passed": true,
+      "command": "uv run pytest -q tests/test_bug_nested_root_readonly_probe_parity.py",
+      "changed_files": [
+        "tests/test_bug_nested_root_readonly_probe_parity.py",
+        "artifacts/phases/15-verification-contract/verification/fixes/f4-nested-root-readonly-probe-parity.json"
+      ],
+      "evidence": "/tmp/gpd-bug-campaign/phase-15/execution/brief.md"
+    },
+    "green_adjacent_checks": {
+      "passed": true,
+      "commands": [
+        "uv run pytest -q tests/core/test_f4_nested_root_readonly_regressions.py",
+        "uv run pytest -q tests/core/test_root_resolution.py -k nested_empty_gpd_stub"
+      ],
+      "affected_surfaces": [
+        "root resolution",
+        "statusline project root",
+        "health read-only peek",
+        "MCP state loader"
+      ],
+      "evidence": "/tmp/gpd-bug-campaign/phase-15/report.md"
+    },
+    "carry_forward_notes": "The contract is intentionally proxy-grade: it uses a copied fixture workspace plus a synthetic nested GPD stub and stays read-only."
+  },
+  "notes": [
+    "This artifact is scoped to the Phase 15 nested-root/read-only family only.",
+    "The nested stub is synthetic and disposable; the canonical fix remains in the existing production surfaces."
+  ]
+}

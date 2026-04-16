@@ -1,0 +1,30 @@
+{
+  "generated_on": "2026-04-09",
+  "manuscript_type": "literature synthesis",
+  "numerics": {
+    "used": false,
+    "notes": "No simulations or new numerical fits were performed for this manuscript."
+  },
+  "code": {
+    "used": false,
+    "notes": "No project code is required to reproduce the scientific claims because the manuscript is a source-level comparative audit."
+  },
+  "inputs": [
+    "Five verified anchor papers listed in manuscript/references.bib",
+    "GPD/literature/PRIOR-WORK.md",
+    "GPD/literature/SINGULARITY-DIAGNOSTICS.md",
+    "GPD/phases/01-core-holographic-constructions-and-anchor-papers/SUMMARY.md",
+    "GPD/phases/01-core-holographic-constructions-and-anchor-papers/01-VERIFICATION.md",
+    "GPD/STATE.md"
+  ],
+  "manual_checks": [
+    "Citation-to-title matching against arXiv and published records",
+    "Consistency check that all source-backed results remain unchanged",
+    "Dimensional and limiting-case audit of all retained schematic equations"
+  ],
+  "known_limits": [
+    "The manuscript makes no new derivational claim.",
+    "The manuscript does not verify R-01-DIAGNOSTIC-SPLIT beyond keeping it explicitly provisional.",
+    "Equation checks are limited to schematic definitions because the source project contains no quantitative derivation artifact."
+  ]
+}

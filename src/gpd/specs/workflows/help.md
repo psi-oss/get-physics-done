@@ -60,7 +60,7 @@ Phase {N} complete:
 Publication workflow:
   gpd:peer-review         — Run manuscript peer review inside the current project
   gpd:arxiv-submission    — Package only after review passes and the paper-build contract succeeds
-  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+  gpd doctor — Check runtime-local paper-toolchain readiness from your normal terminal. Use the local CLI add-ons section below when you need the preset-specific doctor flags or executable probes. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
 
@@ -94,7 +94,7 @@ Project ─── the overall research goal
 3. `gpd:plan-phase N` — Create detailed plans for phase N
 4. `gpd:execute-phase N` — Run all plans (derivations, simulations, analysis)
 5. `gpd:verify-work` — Verify physics correctness
-6. Repeat 2-5 for each phase
+6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
 7. `gpd:write-paper` — Generate publication from results
 8. `gpd:peer-review` — Run manuscript review before submission inside the current project
 9. `gpd:respond-to-referees` — Address reviewer comments if needed
@@ -136,7 +136,7 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 - Use these names inside the installed agent/runtime command surface.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
-- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`.
+- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict and `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment. If you also want cheap local executable probes or the preset-specific doctor flags, use the local CLI add-ons section below from your normal terminal.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
@@ -203,6 +203,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
+- `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
 - `gpd:derive-equation` - Run a rigorous derivation workflow
 
 ### Roadmap and milestones
@@ -417,6 +418,18 @@ Usage: `gpd:plan-phase 5 --light --skip-verify`
 Result: Creates `GPD/phases/01-framework-setup/01-01-PLAN.md`
 
 ### Execution
+
+**`gpd:autonomous [--from N]`**
+Run all remaining phases autonomously — discuss → plan → execute → verify for each phase.
+
+- Chains all phase commands automatically, pausing only for user decisions
+- Smart discuss proposes gray area answers in batch tables for fast acceptance
+- Convention propagation check between phases (if CONVENTIONS.md exists)
+- Gap closure with 1-retry limit; blocker handling (fix/skip/stop)
+- After all phases: milestone audit → complete
+- Re-reads ROADMAP.md after each phase to catch inserted phases
+
+Usage: `gpd:autonomous` or `gpd:autonomous --from 3`
 
 **`gpd:execute-phase <phase-number>`**
 Execute all plans in a phase.
@@ -875,7 +888,7 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 **Workflow presets**
 
 - `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
-- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
+gpd doctor --runtime <runtime> --local|--global - Check the local or global runtime target from your normal terminal before using that preset. Expanded forms: `gpd doctor --runtime <runtime> --local`, `gpd doctor --runtime <runtime> --global`. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
 - `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
 - `gpd presets show <preset>` - Preview one preset's bundle before applying it
 - `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema

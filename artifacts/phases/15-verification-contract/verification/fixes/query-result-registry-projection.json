@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "phase": "15",
+  "bug_id": "query-result-registry-projection",
+  "family_id": "query-result-registry-projection",
+  "family_title": "query/result registry projection",
+  "wave": "F3",
+  "status": "verified",
+  "classification": "cross_surface_projection_contract",
+  "contract_test": "tests/core/test_projection_query_result.py",
+  "source_artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/f3-query-result-registry-projection.json",
+  "source_artifact_status": "verified",
+  "source_artifact_wave": "F3",
+  "gates": {
+    "red_exact_repro_present": true,
+    "green_exact_fix_present": true,
+    "green_adjacent_checks_present": true,
+    "artifact_json_written": true
+  },
+  "closure_candidate": false
+}

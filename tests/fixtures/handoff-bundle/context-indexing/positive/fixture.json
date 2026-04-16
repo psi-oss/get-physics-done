@@ -1,0 +1,132 @@
+{
+  "actual_assertions": [
+    "`gpd observe event`, `gpd observe show`, and `gpd observe sessions` now record the session-3 audit activity for Phase 01.",
+    "`gpd result list`, `gpd result show`, and `gpd result deps` all agree on that result graph, but `gpd query deps R-08-verdict` and `gpd query search --text dilaton` do not see the result registry at all.",
+    "`gpd query deps`, `gpd query search`, and `gpd query assumptions` still read only phase-summary artifacts.",
+    "`gpd result show lit-ensemble-semiclassical`, `result deps lit-coexistence-mechanism`, `result downstream lit-rank-one-jt`, and `result search --text observer` all behaved coherently."
+  ],
+  "anchor_candidate_ids": [
+    "VF-01-almheiri-r02-001",
+    "VF-13-usatyuk-r02-009",
+    "VF-16-collier-r02-011",
+    "VF-20-hubeny-r01-005"
+  ],
+  "bug_type_ids": [
+    "BT-075",
+    "BT-140",
+    "BT-136",
+    "BT-145"
+  ],
+  "command_recipes": [
+    [
+      "gpd observe event",
+      "gpd observe show",
+      "gpd observe sessions"
+    ],
+    [
+      "gpd result list",
+      "gpd result show",
+      "gpd result deps",
+      "gpd query deps R-08-verdict"
+    ],
+    [
+      "gpd query deps",
+      "gpd query search",
+      "gpd query assumptions"
+    ],
+    [
+      "gpd result show lit-ensemble-semiclassical"
+    ]
+  ],
+  "evidence_links": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/03-shahbazi-r03-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/08-liu-r03-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/13-usatyuk-r02-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/16-collier-r02-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r02",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r02/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r02/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/02-maloney-r02/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/03-shahbazi-r03",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/03-shahbazi-r03/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/08-liu-r03/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/13-usatyuk-r02",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/13-usatyuk-r02/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/14-bao-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/14-bao-r01/results/14-bao-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/16-collier-r02",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/16-collier-r02/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/16-collier-r02/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/20-hubeny-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/20-hubeny-r01/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/20-hubeny-r01/REPORT.md",
+    "phase-06/seed-CS-0107",
+    "phase-06/seed-CS-0118",
+    "phase-06/seed-CS-0221",
+    "phase-06/seed-CS-0232",
+    "phase-06/seed-CS-0234",
+    "phase-06/seed-CS-0250",
+    "phase-06/seed-CS-0276",
+    "phase-06/seed-CS-0287",
+    "phase-06/seed-CS-0290",
+    "phase-06/seed-CS-0310"
+  ],
+  "expected_assertions": [
+    "`observe_sessions` should satisfy the `observability_parity` contract against `phase_and_state_contract`.",
+    "`query_deps` should expose the same relationship visible in the accepted `canonical_result_registry` registry.",
+    "`query_search` should expose the same relationship visible in the accepted `canonical_result_registry` registry.",
+    "`result_list` should expose the same relationship visible in the accepted `canonical_result_registry` registry."
+  ],
+  "fixture_id": "FX-context-indexing-positive",
+  "fixture_kind": "positive",
+  "fixture_path": "tests/fixtures/handoff-bundle/context-indexing/positive",
+  "fixture_role": "anchor",
+  "fixture_root": "tests/fixtures/handoff-bundle/context-indexing/positive",
+  "fixture_slug": "context-indexing",
+  "interface_classes": [
+    "cli"
+  ],
+  "mutation_axis": null,
+  "order": 13,
+  "packet_ids": [
+    "PK-BT-075-01",
+    "PK-BT-140-01",
+    "PK-BT-136-01",
+    "PK-BT-145-01"
+  ],
+  "paired_fixture_id": null,
+  "positive_only_justification": "Context/query indexing failures are preserved as a stable anchor corpus; index-level mutation is deferred to the breadth and oracle waves.",
+  "primary_interface_class": "cli",
+  "priority_band": [
+    "critical",
+    "high"
+  ],
+  "priority_score": 1011,
+  "source_reports": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/13-usatyuk-r02-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/16-collier-r02-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r02/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/20-hubeny-r01/REPORT.md"
+  ],
+  "source_workspaces": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r02",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/13-usatyuk-r02",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/16-collier-r02",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/20-hubeny-r01"
+  ],
+  "starting_snapshot_hashes": [
+    "3d285f84ed7d7b9fe9d8d457ae2aeaa557d7333f2a7ffce7bdf57c2e6567cfc7",
+    "628002e1ea1633be4965bcdb30a540c4e4bcd32efc70bc260b3fa8223abfd89e",
+    "8f79855b88bc93e7579719fa31d601dff3c9146c28056dc217655f426aa99f1d",
+    "9667e4388eb665795a722d737d1719bf26f50c66ba5bc348cd5621e0e89fc898"
+  ],
+  "status": "live",
+  "workspace_byte_count": 144793,
+  "workspace_file_count": 27,
+  "workspace_path": "tests/fixtures/handoff-bundle/context-indexing/positive/workspace",
+  "workspace_sha256": "181c43555b308078c1cbf7eec2c98edb3874059be6d41795701636084a0f73e2"
+}

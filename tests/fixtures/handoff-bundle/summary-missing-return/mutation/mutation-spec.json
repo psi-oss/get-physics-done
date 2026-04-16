@@ -1,0 +1,4 @@
+{
+  "mutation_axis": "provenance_artifacts_removed",
+  "note": "Removes provenance and return-path artifacts while keeping the same source workspace and command lineage."
+}

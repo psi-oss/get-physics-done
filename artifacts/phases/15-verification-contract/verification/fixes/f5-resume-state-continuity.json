@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "bug_id": "f5-resume-state-continuity",
+  "family_id": "canonical-session-continuation-access",
+  "family_title": "canonical session / continuation access and recent-project runtime-hints continuity",
+  "phase": "15",
+  "wave": "F5",
+  "status": "closed",
+  "classification": "verification_contract",
+  "scope": {
+    "fixed_surfaces": [
+      "state get session",
+      "state get continuation",
+      "state get handoff",
+      "project reentry",
+      "runtime hints"
+    ],
+    "adjacent_surfaces": [
+      "state snapshot",
+      "resume",
+      "test_state.py",
+      "test_project_reentry.py",
+      "test_runtime_hints.py",
+      "test_resume_runtime.py",
+      "test_recent_project_cli_regressions.py",
+      "test_cli_integration.py"
+    ],
+    "out_of_scope": [
+      "production resume policy redesign",
+      "MCP schema churn",
+      "new recent-project ranking heuristics"
+    ],
+    "authority_source": "canonical state.json plus recent-project hydration"
+  },
+  "source": {
+    "exploration_report": "/tmp/gpd-bug-campaign/phase-15/report.md",
+    "execution_brief": "/tmp/gpd-bug-campaign/phase-15/execution/brief.md",
+    "fixture_ids": [
+      "resume-handoff/positive",
+      "resume-recent-noise/positive"
+    ],
+    "regression_tests": [
+      "tests/core/test_state.py",
+      "tests/core/test_project_reentry.py",
+      "tests/core/test_runtime_hints.py",
+      "tests/core/test_resume_runtime.py",
+      "tests/core/test_recent_project_cli_regressions.py",
+      "tests/test_cli_integration.py"
+    ]
+  },
+  "exact_repro": {
+    "fixture_root": "tests/fixtures/handoff-bundle/resume-handoff/positive/workspace",
+    "mutations": [
+      "replace the Session Continuity block in STATE.md with stale host/platform/resume metadata",
+      "create a partial current workspace that only has GPD/state.json, GPD/STATE.md, and GPD/ROADMAP.md",
+      "pair that workspace with a stronger recent-project candidate from resume-recent-noise"
+    ],
+    "command": "uv run pytest -q tests/test_bug_resume_state_continuity.py -k bug_resume_state_continuity_contract",
+    "assertions": [
+      "state_get(session|continuation|handoff) returns canonical payloads from state.json",
+      "stale Session Continuity prose does not override canonical continuity fields",
+      "recent-project selection prefers the stronger recent project over the partial current workspace",
+      "runtime-hints hydration preserves recent-project provenance and missing-handoff fields"
+    ],
+    "evidence_paths": [
+      "/tmp/gpd-bug-campaign/phase-15/report.md",
+      "/tmp/gpd-bug-campaign/phase-15/execution/brief.md"
+    ],
+    "red_exact_repro": true
+  },
+  "exact_fix": {
+    "changed_files": [
+      "tests/test_bug_resume_state_continuity.py",
+      "artifacts/phases/15-verification-contract/verification/fixes/f5-resume-state-continuity.json"
+    ],
+    "fix_summary": "Encode the Phase 15 contract for canonical continuity access, recent-project selection, and runtime-hints provenance without changing production behavior in this lane.",
+    "green_command": "uv run pytest -q tests/test_bug_resume_state_continuity.py",
+    "expected_after_fix": "The contract test passes and confirms the existing fix is still closed under stale markdown, partial-current-workspace, and missing-handoff conditions.",
+    "actual_after_fix": "passed",
+    "green_exact_fix": true
+  },
+  "adjacent_checks": [
+    {
+      "surface": "state snapshot / state get parity",
+      "test_command": "uv run pytest -q tests/core/test_state.py -k prefers_canonical_session_continuation_and_handoff_payloads",
+      "must_pass": true,
+      "why_it_matters": "Confirms the canonical state accessor stays aligned with the snapshot and markdown renderer."
+    },
+    {
+      "surface": "recent-project selection",
+      "test_command": "uv run pytest -q tests/core/test_project_reentry.py -k prefers_unique_strong_recent_project_over_partial_recoverable_current_workspace",
+      "must_pass": true,
+      "why_it_matters": "Ensures the partial current workspace does not outrank a stronger recent project."
+    },
+    {
+      "surface": "runtime hints provenance",
+      "test_command": "uv run pytest -q tests/core/test_runtime_hints.py -k surfaces_recent_project_missing_handoff_provenance",
+      "must_pass": true,
+      "why_it_matters": "Ensures hydration preserves session provenance and missing-handoff data in runtime hints."
+    }
+  ],
+  "verification": {
+    "red_exact_repro": true,
+    "green_exact_fix": true,
+    "green_adjacent_checks": true,
+    "ruff": "passed",
+    "pytest": "passed",
+    "status": "closed"
+  },
+  "notes": [
+    "This lane intentionally stays test-and-artifact only.",
+    "The contract covers both canonical continuity access and the recent-project/runtime-hints continuity edge."
+  ]
+}

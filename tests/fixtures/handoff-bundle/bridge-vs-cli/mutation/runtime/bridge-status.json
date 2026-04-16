@@ -1,0 +1,7 @@
+{
+  "bridge_status": "cancelled",
+  "cli_status": "usable",
+  "error_signature": "user cancelled MCP tool call",
+  "mutation_axis": "bridge_cancellation_stub_added",
+  "note": "Adds a bridge/runtime cancellation stub beside the copied workspace while leaving the CLI anchor unchanged."
+}
