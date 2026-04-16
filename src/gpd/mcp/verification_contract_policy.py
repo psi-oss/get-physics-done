@@ -47,8 +47,8 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "explicit grounding context; scoping-only contracts may omit claims only when they "
     "still preserve a target, unresolved question, or grounding input.",
     "When `references[]` is present and no other concrete grounding exists, at least one "
-    "`references[].must_surface=true` anchor is required; otherwise missing "
-    "`must_surface=true` is a warning that should be repaired. "
+    "`references[].must_surface=true` anchor is required and its absence is a blocker; "
+    "otherwise missing `must_surface=true` is a non-blocking warning that should be repaired. "
     "`references[].carry_forward_to` uses workflow scope labels only, never contract IDs, "
     "and `references[].must_surface` requires non-empty `applies_to` and "
     "`required_actions` lists.",

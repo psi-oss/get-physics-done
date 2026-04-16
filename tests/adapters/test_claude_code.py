@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 from pathlib import Path
 
 import pytest
@@ -360,10 +361,10 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert settings["theme"] == "solarized"
-        assert settings["statusLine"]["command"] == f"{selected_python} .claude/hooks/statusline.py"
+        assert settings["statusLine"]["command"] == f"{shlex.quote(selected_python)} .claude/hooks/statusline.py"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert f"{selected_python} .claude/hooks/check_update.py" in cmds
+        assert f"{shlex.quote(selected_python)} .claude/hooks/check_update.py" in cmds
 
     def test_reinstall_rewrites_stale_managed_update_hook(
         self,
@@ -406,7 +407,7 @@ class TestInstall:
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert cmds.count(f"{selected_python} .claude/hooks/check_update.py") == 1
+        assert cmds.count(f"{shlex.quote(selected_python)} .claude/hooks/check_update.py") == 1
         assert "python3 .claude/hooks/check_update.py" not in cmds
 
     def test_install_preserves_non_gpd_check_update_hook(
@@ -462,10 +463,13 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hook_python = hook_python_interpreter()
-        assert settings["statusLine"]["command"] == f"{hook_python} {(target / 'hooks' / 'statusline.py')}"
+        expected_statusline_path = str(target / 'hooks' / 'statusline.py').replace("\\", "/")
+        assert settings["statusLine"]["command"] == f"{shlex.quote(hook_python)} {expected_statusline_path}"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert f"{hook_python} {(target / 'hooks' / 'check_update.py')}" in cmds
+        expected_check_update_path = str(target / 'hooks' / 'check_update.py').replace("\\", "/")
+        expected_check_update_cmd = f"{shlex.quote(hook_python)} {expected_check_update_path}"
+        assert expected_check_update_cmd in cmds
 
     def test_install_preserves_existing_mcp_overrides(
         self,

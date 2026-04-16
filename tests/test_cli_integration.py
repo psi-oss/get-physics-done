@@ -1924,8 +1924,12 @@ class TestObserveExecution:
 
 class TestSuggest:
     def test_suggest_raw_from_nested_paused_project_surfaces_public_resume_command(
-        self, gpd_project: Path
+        self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        fake_home = gpd_project / "fake-home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr("gpd.hooks.runtime_detect.Path.home", lambda: fake_home)
+
         state_path = gpd_project / "GPD" / "state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["position"]["status"] = "Paused"

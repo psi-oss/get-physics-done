@@ -637,3 +637,4 @@ class PaperOutput(BaseModel):
     manifest: ArtifactManifest | None = None
     success: bool
     errors: list[str] = Field(default_factory=list)
+    citation_warnings: list[str] = Field(default_factory=list)

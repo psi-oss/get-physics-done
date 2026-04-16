@@ -482,6 +482,16 @@ class TestReadPosition:
         assert kwargs["recover_intent"] is False
         assert kwargs["surface_blocked_project_contract"] is True
 
+    def test_empty_gpd_ancestor_without_project_markers_does_not_capture_statusline_root(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "scratch" / "workspace"
+        workspace.mkdir(parents=True)
+        (tmp_path / "GPD").mkdir()
+
+        assert _statusline_project_root(str(workspace)) is None
+
     def test_tilde_workspace_expands_before_project_root_lookup(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         project = home / "project"
@@ -492,7 +502,7 @@ class TestReadPosition:
         state = {"position": {"current_phase": 7, "total_phases": 8}}
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
-        with patch.dict(os.environ, {"HOME": str(home)}):
+        with patch.dict(os.environ, {"HOME": str(home), "USERPROFILE": str(home)}):
             assert _read_position("~/project/src") == "P7/8"
 
     def test_no_position_key_returns_empty(self, tmp_path: Path) -> None:
@@ -855,6 +865,8 @@ class TestCheckUpdateHook:
     def test_explicit_target_hook_cache_uses_target_dir_update_command(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()
+        home = tmp_path / "home"
+        home.mkdir()
         explicit_target = tmp_path / "custom-runtime-dir"
         hook_path = explicit_target / "hooks" / "statusline.py"
         cache_file = explicit_target / "cache" / "gpd-update-check.json"
@@ -864,7 +876,10 @@ class TestCheckUpdateHook:
         _mark_complete_install(explicit_target, runtime="codex")
         cache_file.write_text(json.dumps({"update_available": True, "checked": 20}), encoding="utf-8")
 
-        with patch("gpd.hooks.statusline.__file__", str(hook_path)):
+        with (
+            patch("gpd.hooks.statusline.__file__", str(hook_path)),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
             result = _check_update(str(workspace))
 
         expected = _repair_command(

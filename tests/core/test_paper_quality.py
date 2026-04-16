@@ -747,3 +747,25 @@ def test_validate_tex_draft_ignores_commented_markup() -> None:
     )
 
     assert findings == []
+
+
+def test_validate_tex_draft_detects_natbib_empty_citep() -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "See \\citep{}.\n"
+        "\\end{document}\n"
+    )
+    checks = {finding.check for finding in findings}
+    assert "empty_citation_command" in checks
+
+
+def test_validate_tex_draft_detects_natbib_missing_citep() -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "See \\citep{MISSING:ref1}.\n"
+        "\\end{document}\n"
+    )
+    checks = {finding.check for finding in findings}
+    assert "missing_citation_placeholder" in checks

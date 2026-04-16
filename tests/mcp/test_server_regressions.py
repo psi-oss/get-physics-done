@@ -542,7 +542,7 @@ def test_absolute_project_dir_schema_matches_current_host_path_semantics() -> No
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA, resolve_absolute_project_dir
 
     if os.name == "nt":
-        assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^(?:[A-Za-z]:[\\/]|\\\\)"
+        assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^(?:[A-Za-z]:[\\/](?:.*)?|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/].*)?)"
     else:
         assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^/"
         assert resolve_absolute_project_dir(r"C:\repo") is None

@@ -126,7 +126,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "limit_passed": None,
                 "observed_limit": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.benchmark_reproduction": {
@@ -153,7 +153,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "metric_value": None,
                 "threshold_value": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.direct_proxy_consistency": {
@@ -175,7 +175,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "proxy_available": None,
                 "consistency_passed": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.fit_family_mismatch": {
@@ -199,7 +199,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "selected_family": None,
                 "competing_family_checked": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.estimator_family_mismatch": {
@@ -233,7 +233,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "bias_checked": None,
                 "calibration_checked": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.proof_hypothesis_coverage": {
@@ -258,7 +258,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "covered_hypothesis_ids": None,
                 "missing_hypothesis_ids": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.proof_parameter_coverage": {
@@ -283,7 +283,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "covered_parameter_symbols": None,
                 "missing_parameter_symbols": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.proof_quantifier_domain": {
@@ -309,7 +309,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "quantifier_status": None,
                 "scope_status": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.claim_to_proof_alignment": {
@@ -340,7 +340,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "uncovered_conclusion_clause_ids": None,
                 "scope_status": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
     "contract.counterexample_search": {
@@ -356,7 +356,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "observed": {
                 "counterexample_status": None,
             },
-            "artifact_content": None,
+            "artifact_content": "",
         },
     },
 }
@@ -739,9 +739,9 @@ _CONTRACT_OBSERVED_INPUT_SCHEMA: dict[str, object] = _object_schema(
 _CONTRACT_SCOPE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "question": _non_empty_string_schema(),
-        "in_scope": _contract_string_or_string_list_schema(),
-        "out_of_scope": _contract_string_or_string_list_schema(),
-        "unresolved_questions": _contract_string_or_string_list_schema(),
+        "in_scope": _contract_string_list_schema(),
+        "out_of_scope": _contract_string_list_schema(),
+        "unresolved_questions": _contract_string_list_schema(),
     },
     required=("question",),
     additional_properties=False,
@@ -753,7 +753,7 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
-        field_name: _contract_string_or_string_list_schema(min_items=1)
+        field_name: _contract_string_list_schema(min_items=1)
         for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
     },
     additional_properties=False,
@@ -768,7 +768,7 @@ _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["description"] = (
     "gaps, or other user-stated inputs the model must still see when later contract-aware tools validate the work."
 )
 _CONTRACT_APPROACH_POLICY_INPUT_SCHEMA: dict[str, object] = _object_schema(
-    {field_name: _contract_string_or_string_list_schema() for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES},
+    {field_name: _contract_string_list_schema() for field_name in CONTRACT_APPROACH_POLICY_FIELD_NAMES},
     additional_properties=False,
 )
 _CONTRACT_OBSERVABLE_INPUT_SCHEMA: dict[str, object] = _object_schema(
@@ -787,7 +787,7 @@ _CONTRACT_PROOF_PARAMETER_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "symbol": _non_empty_string_schema(),
         "domain_or_type": _string_schema(),
-        "aliases": _contract_string_or_string_list_schema(),
+        "aliases": _contract_string_list_schema(),
         "required_in_proof": {"type": "boolean"},
         "notes": _non_empty_string_or_null_schema(),
     },
@@ -798,7 +798,7 @@ _CONTRACT_PROOF_HYPOTHESIS_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "id": _non_empty_string_schema(),
         "text": _non_empty_string_schema(),
-        "symbols": _contract_string_or_string_list_schema(),
+        "symbols": _contract_string_list_schema(),
         "category": _contract_enum_string_schema(PROOF_HYPOTHESIS_CATEGORY_VALUES),
         "required_in_proof": {"type": "boolean"},
     },
@@ -818,15 +818,15 @@ _CONTRACT_CLAIM_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "id": _non_empty_string_schema(),
         "statement": _non_empty_string_schema(),
         "claim_kind": _contract_enum_string_schema(CONTRACT_CLAIM_KIND_VALUES),
-        "observables": _contract_string_or_string_list_schema(),
-        "deliverables": _contract_string_or_string_list_schema(min_items=1),
-        "acceptance_tests": _contract_string_or_string_list_schema(min_items=1),
-        "references": _contract_string_or_string_list_schema(),
+        "observables": _contract_string_list_schema(),
+        "deliverables": _contract_string_list_schema(min_items=1),
+        "acceptance_tests": _contract_string_list_schema(min_items=1),
+        "references": _contract_string_list_schema(),
         "parameters": {"type": "array", "items": dict(_CONTRACT_PROOF_PARAMETER_INPUT_SCHEMA)},
         "hypotheses": {"type": "array", "items": dict(_CONTRACT_PROOF_HYPOTHESIS_INPUT_SCHEMA)},
-        "quantifiers": _contract_string_or_string_list_schema(),
+        "quantifiers": _contract_string_list_schema(),
         "conclusion_clauses": {"type": "array", "items": dict(_CONTRACT_PROOF_CONCLUSION_INPUT_SCHEMA)},
-        "proof_deliverables": _contract_string_or_string_list_schema(),
+        "proof_deliverables": _contract_string_list_schema(),
     },
     required=("id", "statement", "deliverables", "acceptance_tests"),
     additional_properties=False,
@@ -850,7 +850,7 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
         "then": {
             "required": ["proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
-                "proof_deliverables": _contract_string_or_string_list_schema(min_items=1),
+                "proof_deliverables": _contract_string_list_schema(min_items=1),
                 "parameters": {
                     "type": "array",
                     "minItems": 1,
@@ -883,7 +883,7 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
         "then": {
             "required": ["proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
-                "proof_deliverables": _contract_string_or_string_list_schema(min_items=1),
+                "proof_deliverables": _contract_string_list_schema(min_items=1),
                 "parameters": {
                     "type": "array",
                     "minItems": 1,
@@ -915,7 +915,7 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
             "required": ["claim_kind", "proof_deliverables", "parameters", "hypotheses", "conclusion_clauses"],
             "properties": {
                 "claim_kind": _contract_enum_string_schema(THEOREM_CLAIM_KIND_VALUES),
-                "proof_deliverables": _contract_string_or_string_list_schema(min_items=1),
+                "proof_deliverables": _contract_string_list_schema(min_items=1),
                 "parameters": {
                     "type": "array",
                     "minItems": 1,
@@ -941,7 +941,7 @@ _CONTRACT_DELIVERABLE_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "kind": _contract_enum_string_schema(CONTRACT_DELIVERABLE_KIND_VALUES),
         "path": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "description": _non_empty_string_schema(),
-        "must_contain": _contract_string_or_string_list_schema(),
+        "must_contain": _contract_string_list_schema(),
     },
     required=("id", "description"),
     additional_properties=False,
@@ -953,7 +953,7 @@ _CONTRACT_ACCEPTANCE_TEST_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "kind": _contract_enum_string_schema(CONTRACT_ACCEPTANCE_TEST_KIND_VALUES),
         "procedure": _non_empty_string_schema(),
         "pass_condition": _non_empty_string_schema(),
-        "evidence_required": _contract_string_or_string_list_schema(),
+        "evidence_required": _contract_string_list_schema(),
         "automation": _contract_enum_string_schema(CONTRACT_ACCEPTANCE_AUTOMATION_VALUES),
     },
     required=("id", "subject", "procedure", "pass_condition"),
@@ -964,13 +964,13 @@ _CONTRACT_REFERENCE_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "id": _non_empty_string_schema(),
         "kind": _contract_enum_string_schema(CONTRACT_REFERENCE_KIND_VALUES),
         "locator": _non_empty_string_schema(),
-        "aliases": _contract_string_or_string_list_schema(),
+        "aliases": _contract_string_list_schema(),
         "role": _contract_enum_string_schema(CONTRACT_REFERENCE_ROLE_VALUES),
         "why_it_matters": _non_empty_string_schema(),
-        "applies_to": _contract_string_or_string_list_schema(),
-        "carry_forward_to": _contract_string_or_string_list_schema(),
+        "applies_to": _contract_string_list_schema(),
+        "carry_forward_to": _contract_string_list_schema(),
         "must_surface": {"type": "boolean"},
-        "required_actions": _contract_enum_string_or_string_list_schema(CONTRACT_REFERENCE_ACTION_VALUES),
+        "required_actions": _contract_enum_string_list_schema(CONTRACT_REFERENCE_ACTION_VALUES),
     },
     required=("id", "locator", "why_it_matters"),
     additional_properties=False,
@@ -996,7 +996,7 @@ _CONTRACT_LINK_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "source": _non_empty_string_schema(),
         "target": _non_empty_string_schema(),
         "relation": _contract_enum_string_schema(CONTRACT_LINK_RELATION_VALUES),
-        "verified_by": _contract_string_or_string_list_schema(),
+        "verified_by": _contract_string_list_schema(),
     },
     required=("id", "source", "target"),
     additional_properties=False,
@@ -1264,6 +1264,8 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
     request_template = copy.deepcopy(hint.get("request_template", {}))
     if check_key:
         request_template["check_key"] = check_key
+    if request_template.get("artifact_content") == "":
+        request_template.pop("artifact_content")
     required_request_fields = list(hint.get("required_request_fields", []))
     schema_required_request_fields = list(hint.get("schema_required_request_fields", required_request_fields))
     schema_required_request_anyof_fields = [

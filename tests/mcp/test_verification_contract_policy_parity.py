@@ -66,6 +66,8 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert "schema_required_request_fields" in tools["suggest_contract_checks"].description
     assert "Nested object schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert "unknown top-level or nested keys" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "its absence is a blocker" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "missing `must_surface=true` is a non-blocking warning" in VERIFICATION_CONTRACT_POLICY_TEXT
     for field_name in VERIFICATION_BINDING_FIELD_NAMES:
         assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert (

@@ -724,3 +724,35 @@ class TestClassFileFallback:
         assert "jheppub.sty not found" in output.errors[0]
         assert output.manifest_path == tmp_path / "ARTIFACT-MANIFEST.json"
         assert output.manifest is not None
+
+    @pytest.mark.asyncio
+    async def test_build_paper_warns_on_zero_citations(self, tmp_path, monkeypatch):
+        """BUG-076: build_paper warns when bib has entries but tex has no citations."""
+        from gpd.mcp.paper.compiler import build_paper
+
+        config = PaperConfig(
+            title="Test Paper",
+            authors=[Author(name="Test Author")],
+            abstract="Abstract text.",
+            sections=[Section(title="Introduction", content="No citations here.")],
+        )
+        bib = BibliographyData()
+        bib.entries["ref2020"] = Entry(
+            "article", [("title", "Ref"), ("author", "Doe"), ("year", "2020")]
+        )
+
+        output_stem = derive_output_filename(config)
+        pdf_path = tmp_path / f"{output_stem}.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+        pdf_path.write_bytes(b"%PDF-fake")
+
+        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
+            return mock_result
+
+        _allow_journal_dependencies(monkeypatch)
+        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
+
+        output = await build_paper(config, tmp_path, bib_data=bib)
+
+        assert output.citation_warnings
+        assert any("zero" in w.lower() for w in output.citation_warnings)

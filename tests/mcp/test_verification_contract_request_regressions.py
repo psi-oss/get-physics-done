@@ -420,6 +420,36 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     assert _call_verification_tool("suggest_contract_checks", {"contract": contract}) == expected
 
 
+def test_contract_payload_schema_does_not_advertise_scalar_list_drift() -> None:
+    from gpd.mcp.servers.verification_server import _CONTRACT_PAYLOAD_INPUT_SCHEMA
+
+    def assert_array_only(schema: dict[str, object], field_path: tuple[str, ...]) -> None:
+        current: object = schema
+        for field_name in field_path:
+            assert isinstance(current, dict)
+            current = current[field_name]
+        assert isinstance(current, dict)
+        assert current["type"] == "array"
+        assert "anyOf" not in current
+
+    assert_array_only(_CONTRACT_PAYLOAD_INPUT_SCHEMA, ("properties", "claims", "items", "properties", "references"))
+    assert_array_only(
+        _CONTRACT_PAYLOAD_INPUT_SCHEMA,
+        ("properties", "references", "items", "properties", "required_actions"),
+    )
+    assert_array_only(_CONTRACT_PAYLOAD_INPUT_SCHEMA, ("properties", "context_intake", "properties", "must_read_refs"))
+
+
+def test_contract_check_request_templates_use_string_artifact_placeholders() -> None:
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS
+
+    for hint in _CONTRACT_CHECK_REQUEST_HINTS.values():
+        template = hint.get("request_template")
+        assert isinstance(template, dict)
+        if "artifact_content" in template:
+            assert template["artifact_content"] == ""
+
+
 def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
     from gpd.mcp.servers.verification_server import _is_recoverable_contract_parse_error, run_contract_check
 

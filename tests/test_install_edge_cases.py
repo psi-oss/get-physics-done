@@ -151,6 +151,7 @@ _FOREIGN_RUNTIME_BY_RUNTIME = {
 class TestInstallReadOnlyDirectory:
     """Install to a read-only target should fail with a clear error."""
 
+    @pytest.mark.skipif(os.name == "nt", reason="os.chmod does not restrict writes on Windows")
     def test_install_to_readonly_target_raises(self, tmp_path: Path) -> None:
         gpd_root = _make_gpd_root(tmp_path)
         target = tmp_path / "readonly"
@@ -166,6 +167,7 @@ class TestInstallReadOnlyDirectory:
             # Restore permissions for cleanup
             target.chmod(stat.S_IRWXU)
 
+    @pytest.mark.skipif(os.name == "nt", reason="os.chmod does not restrict writes on Windows")
     def test_write_settings_to_readonly_dir_raises(self, tmp_path: Path) -> None:
         readonly = tmp_path / "readonly"
         readonly.mkdir()

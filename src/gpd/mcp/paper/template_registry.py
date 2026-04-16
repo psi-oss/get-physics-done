@@ -14,7 +14,7 @@ from importlib.resources import files
 from jinja2 import BaseLoader, Environment, TemplateNotFound
 
 from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section, normalize_acknowledgments
-from gpd.utils.latex import clean_latex_fences, fix_bibliography_conflict, sanitize_latex
+from gpd.utils.latex import clean_latex_fences, escape_user_text_for_latex, fix_bibliography_conflict, sanitize_latex
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,9 @@ def load_template(journal: str):
 def _clean_author(author: Author) -> Author:
     return author.model_copy(
         update={
-            "name": clean_latex_fences(author.name),
-            "email": clean_latex_fences(author.email),
-            "affiliation": clean_latex_fences(author.affiliation),
+            "name": _clean_user_text(author.name),
+            "email": _clean_user_text(author.email),
+            "affiliation": _clean_user_text(author.affiliation),
         }
     )
 
@@ -93,6 +93,11 @@ def _clean_figure(figure: FigureRef) -> dict:
     }
 
 
+def _clean_user_text(raw: str) -> str:
+    """Clean and escape a user-provided metadata string for LaTeX."""
+    return escape_user_text_for_latex(clean_latex_fences(raw))
+
+
 def render_paper(config: PaperConfig) -> str:
     """Render a complete LaTeX document from a PaperConfig.
 
@@ -105,12 +110,12 @@ def render_paper(config: PaperConfig) -> str:
     appendix_sections = [_clean_section(section) for section in config.appendix_sections]
     figures = [_clean_figure(figure) for figure in config.figures]
     rendered = template.render(
-        title=clean_latex_fences(config.title),
+        title=_clean_user_text(config.title),
         authors=authors,
-        abstract=clean_latex_fences(config.abstract),
+        abstract=_clean_user_text(config.abstract),
         sections=sections,
         figures=figures,
-        acknowledgments=clean_latex_fences(normalize_acknowledgments(config.acknowledgments)),
+        acknowledgments=_clean_user_text(normalize_acknowledgments(config.acknowledgments)),
         bib_file=config.bib_file,
         appendix_sections=appendix_sections,
         attribution_footer=clean_latex_fences(config.attribution_footer),

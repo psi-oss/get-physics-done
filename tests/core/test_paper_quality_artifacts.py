@@ -1880,3 +1880,29 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     assert "bundle_expectations (optional):" not in experimental_template
     assert "omit `protocol_bundle_ids` and `bundle_expectations` entirely" in experimental_template.lower()
     assert "additive provenance" in experimental_template
+
+
+def test_build_paper_quality_input_counts_natbib_citations(tmp_path: Path) -> None:
+    """Ensure natbib commands like \\citep and \\citet are counted."""
+    _write(
+        tmp_path / "paper" / "natbib_test.md",
+        "# Natbib Test\n\n"
+        "## Abstract\nTest.\n\n"
+        "## Introduction\n"
+        "See \\citep{bench2026} and \\citet{other2025}.\n\n"
+        "## Conclusion\nDone.\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Natbib Test", "mnras")),
+    )
+    _write(
+        tmp_path / "paper" / "refs.bib",
+        "@article{bench2026,\n  title={Benchmark},\n  author={Doe},\n  year={2026}\n}\n"
+        "@article{other2025,\n  title={Other},\n  author={Smith},\n  year={2025}\n}\n",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.citations.citation_keys_resolve.total == 2
+    assert result.citations.citation_keys_resolve.satisfied >= 1

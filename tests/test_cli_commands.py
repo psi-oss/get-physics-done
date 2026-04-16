@@ -2399,7 +2399,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "command-context",
                 "digest-knowledge",
-                str(knowledge_file.relative_to(outside_dir)),
+                knowledge_file.relative_to(outside_dir).as_posix(),
             ],
             catch_exceptions=False,
         )
@@ -2499,7 +2499,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "command-context",
                 "review-knowledge",
-                str(knowledge_file.relative_to(outside_dir)),
+                knowledge_file.relative_to(outside_dir).as_posix(),
             ],
             catch_exceptions=False,
         )

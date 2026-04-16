@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 
 import pytest
@@ -129,6 +129,60 @@ def test_runtime_catalog_explicit_priority_order() -> None:
     descriptors = iter_runtime_descriptors()
     assert [descriptor.runtime_name for descriptor in descriptors] == list_runtime_names()
     assert [descriptor.priority for descriptor in descriptors] == sorted(descriptor.priority for descriptor in descriptors)
+
+
+def test_runtime_catalog_priority_order_is_intentional() -> None:
+    assert [(descriptor.runtime_name, descriptor.priority) for descriptor in iter_runtime_descriptors()] == [
+        ("claude-code", 10),
+        ("gemini", 20),
+        ("codex", 30),
+        ("opencode", 40),
+    ]
+
+
+def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    assert set(schema["entry_required_keys"]) | set(schema["entry_optional_keys"]) == {
+        field.name for field in fields(runtime_catalog.RuntimeDescriptor)
+    }
+    assert set(schema["global_config_keys"]["env_or_home"]) | set(schema["global_config_keys"]["xdg_app"]) == {
+        field.name for field in fields(runtime_catalog.GlobalConfigPolicy)
+    }
+    assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
+    assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
+
+
+def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
+    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+
+    assert list_runtime_names() == [entry["runtime_name"] for entry in catalog_payload]
+    for entry in catalog_payload:
+        runtime_name = entry["runtime_name"]
+        descriptor = get_runtime_descriptor(runtime_name)
+        for field_name in (
+            "display_name",
+            "install_flag",
+            "selection_flags",
+            "selection_aliases",
+            "command_prefix",
+            "validated_command_surface",
+            "public_command_surface_prefix",
+        ):
+            raw_value = entry.get(field_name, getattr(descriptor, field_name))
+            expected_value = tuple(raw_value) if isinstance(raw_value, list) else raw_value
+            assert getattr(descriptor, field_name) == expected_value
+
+        assert descriptor.runtime_name in descriptor.selection_aliases
+        assert descriptor.install_flag in descriptor.selection_flags
+        assert descriptor.public_command_surface_prefix == descriptor.command_prefix
+        assert normalize_runtime_name(runtime_name) == runtime_name
+        assert normalize_runtime_name(descriptor.display_name) == runtime_name
+        assert normalize_runtime_name(descriptor.install_flag) == runtime_name
+        for selection_flag in descriptor.selection_flags:
+            assert normalize_runtime_name(selection_flag) == runtime_name
+        for selection_alias in descriptor.selection_aliases:
+            assert normalize_runtime_name(selection_alias) == runtime_name
 
 
 def test_runtime_catalog_records_native_include_support() -> None:

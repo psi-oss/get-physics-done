@@ -1,0 +1,37 @@
+# Trigger GPD Web staging rebuild after tests pass on main.
+#
+# Separated from test.yml so it doesn't appear as a skipped check on PRs.
+# GitHub Actions shows all jobs in a workflow as PR checks, even when
+# their `if` condition evaluates to false (they show as "Skipped").
+
+name: staging rebuild
+
+on:
+  workflow_run:
+    workflows: ["tests"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-staging-rebuild:
+    name: trigger GPD Web staging rebuild
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch rebuild to gpd-web
+        env:
+          GPD_WEB_TOKEN: ${{ secrets.GPD_WEB_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GPD_WEB_TOKEN" ]; then
+            echo "::warning::GPD_WEB_DISPATCH_TOKEN not configured — skipping staging rebuild trigger"
+            exit 0
+          fi
+          curl -sf -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GPD_WEB_TOKEN}" \
+            https://api.github.com/repos/physicalsuperintelligence/gpd-web/dispatches \
+            -d "{\"event_type\":\"rebuild-gpd\",\"client_payload\":{\"source\":\"github\",\"repo\":\"psi-oss/get-physics-done\",\"version\":\"${{ github.event.workflow_run.head_sha }}\",\"image_tag\":\"staging\"}}"
+          echo "Dispatched staging rebuild to gpd-web"

@@ -238,7 +238,7 @@ def _statusline_project_root(workspace_dir: str) -> Path | None:
         return None
 
     bare_gpd_root: Path | None = None
-    for candidate in (normalized, *normalized.parents):
+    for steps, candidate in enumerate((normalized, *normalized.parents)):
         layout = ProjectLayout(candidate)
         if not layout.gpd.is_dir():
             continue
@@ -250,7 +250,7 @@ def _statusline_project_root(workspace_dir: str) -> Path | None:
             or layout.phases_dir.is_dir()
         ):
             return candidate
-        if bare_gpd_root is None:
+        if steps == 0 and bare_gpd_root is None:
             bare_gpd_root = candidate
     return bare_gpd_root
 
@@ -612,6 +612,11 @@ def main() -> None:
             hook_payload=payload_policy,
         ):
             project_dir_trusted = False
+        statusline_project_root = _statusline_project_root(workspace_dir)
+        if statusline_project_root is not None:
+            project_root = str(statusline_project_root)
+        elif not project_dir_trusted:
+            project_root = workspace_dir
         runtime_roots = SimpleNamespace(
             workspace_dir=workspace_dir,
             project_root=project_root,

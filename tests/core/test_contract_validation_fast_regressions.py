@@ -112,6 +112,16 @@ def test_fast_contract_validation_nested_optional_proof_field_truncation_is_bloc
     assert result.blocking_errors == ["claims.0.parameters.0.domain_or_type: Input should be a valid string"]
 
 
+def test_fast_contract_validation_strict_entrypoint_rejects_missing_context_intake() -> None:
+    contract = _load_contract_fixture()
+    del contract["context_intake"]
+
+    validation = validate_project_contract(contract, mode="approved")
+
+    assert validation.valid is False
+    assert "context_intake is required" in validation.errors
+
+
 def test_fast_contract_validation_rootless_path_like_anchor_does_not_count_as_approved_grounding() -> None:
     contract = _load_contract_fixture()
     _strip_reference_dependencies(contract)

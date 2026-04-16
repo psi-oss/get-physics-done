@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,7 +20,7 @@ def test_write_settings_errors_reference_the_directory(tmp_path: Path) -> None:
     settings_path = tmp_path / "settings.json"
 
     with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
-        with pytest.raises(PermissionError, match=str(tmp_path)):
+        with pytest.raises(PermissionError, match=re.escape(str(tmp_path))):
             write_settings(settings_path, {"key": "value"})
 
 

@@ -132,8 +132,6 @@ def test_resume_recent_noise_positive_fixture_still_auto_selects_the_recoverable
     assert resolution.selected_candidate.project_root == recoverable_recent.resolve(strict=False).as_posix()
     assert resolution.selected_candidate.auto_selectable is True
     assert resolution.candidates[0].project_root == recoverable_recent.resolve(strict=False).as_posix()
-
-
 def test_resume_recent_requests_only_the_bounded_recent_picker_window(monkeypatch) -> None:
     captured: dict[str, object] = {}
 

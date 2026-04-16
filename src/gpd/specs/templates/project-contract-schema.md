@@ -195,6 +195,8 @@ Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `t
 
 When that applies, require:
 
+- proof-bearing claims must keep `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` visible.
+- Do not collapse proof obligations into a generic claim statement.
 - `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
 - Closed semantic enum fields use these exact lowercase literals:
   - `claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`
@@ -210,6 +212,7 @@ When that applies, require:
 - `claims[].proof_deliverables[]` must be non-empty and contain only `deliverables[].id` values.
 - `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
 - `claims[].acceptance_tests[]` must include at least one proof-specific test kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).
+- include an acceptance test with `kind: claim_to_proof_alignment` when the proof artifact must map a theorem-like claim to named hypotheses, parameters, and conclusion clauses.
 - `claims[].quantifiers[]` is optional but, when present, must stay a list (not a scalar string).
 
 ### Shared Grounding And Linkage Rules

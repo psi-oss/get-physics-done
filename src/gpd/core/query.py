@@ -32,6 +32,9 @@ __all__ = [
     "QueryMatch",
     "QueryResult",
     "SummaryEntry",
+    "VALID_SCOPES",
+    "collect_all_markdown",
+    "collect_phase_markdown",
     "collect_summaries",
     "extract_context",
     "extract_requires_values",
@@ -46,8 +49,11 @@ __all__ = [
 # ─── Models ──────────────────────────────────────────────────────────────────────
 
 
+VALID_SCOPES = frozenset({"summary", "phase", "all"})
+
+
 class SummaryEntry(BaseModel):
-    """A parsed SUMMARY file from a phase directory."""
+    """A parsed markdown file from a phase directory (SUMMARY or other .md file)."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -485,6 +491,111 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
     return results
 
 
+@instrument_gpd_function("query.collect_phase_markdown")
+def collect_phase_markdown(cwd: Path) -> list[SummaryEntry]:
+    """Enumerate all phase directories and collect non-SUMMARY .md files."""
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
+    results: list[SummaryEntry] = []
+
+    if not phases_dir.is_dir():
+        return results
+
+    phase_dirs = sorted(
+        [d for d in phases_dir.iterdir() if d.is_dir()],
+        key=lambda d: _phase_sort_key(d.name),
+    )
+
+    for dir_path in phase_dirs:
+        phase_match = re.match(r"^(\d+(?:\.\d+)*)", dir_path.name)
+        phase_num = phase_match.group(1) if phase_match else dir_path.name
+
+        try:
+            files = list(dir_path.iterdir())
+        except OSError:
+            continue
+
+        md_files = [
+            f for f in files
+            if f.suffix.lower() == ".md" and not layout.is_summary_file(f.name)
+        ]
+
+        for md_file in md_files:
+            try:
+                content = md_file.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+
+            try:
+                fm, body = extract_frontmatter(content)
+            except FrontmatterParseError:
+                fm = {}
+                body = content
+
+            results.append(
+                SummaryEntry(
+                    phase=phase_num,
+                    dir_name=dir_path.name,
+                    file=md_file.name,
+                    plan=md_file.stem,
+                    frontmatter=fm,
+                    body=body,
+                )
+            )
+
+    return results
+
+
+@instrument_gpd_function("query.collect_all_markdown")
+def collect_all_markdown(cwd: Path) -> list[SummaryEntry]:
+    """Collect all .md files across the entire GPD project directory."""
+    layout = ProjectLayout(cwd)
+    gpd_dir = layout.gpd
+    results: list[SummaryEntry] = []
+
+    if not gpd_dir.is_dir():
+        return results
+
+    for md_file in gpd_dir.rglob("*.md"):
+        if not md_file.is_file():
+            continue
+
+        rel = md_file.relative_to(gpd_dir)
+        parts = rel.parts
+        phase_num = ""
+        dir_name = ""
+        if len(parts) >= 2 and parts[0] == "phases":
+            dir_name = parts[1]
+            phase_match = re.match(r"^(\d+(?:\.\d+)*)", dir_name)
+            phase_num = phase_match.group(1) if phase_match else dir_name
+        else:
+            dir_name = str(rel.parent)
+
+        try:
+            content = md_file.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+
+        try:
+            fm, body = extract_frontmatter(content)
+        except FrontmatterParseError:
+            fm = {}
+            body = content
+
+        results.append(
+            SummaryEntry(
+                phase=phase_num,
+                dir_name=dir_name,
+                file=md_file.name,
+                plan=md_file.stem,
+                frontmatter=fm,
+                body=body,
+            )
+        )
+
+    return sorted(results, key=lambda e: (_phase_sort_key(e.dir_name), e.file))
+
+
 @instrument_gpd_function("query.search")
 def query(
     cwd: Path,
@@ -495,17 +606,37 @@ def query(
     equation: str | None = None,
     phase_range: str | None = None,
     text: str | None = None,
+    scope: str = "summary",
 ) -> QueryResult:
-    """Search across all phase results.
+    """Search across phase results.
 
-    Scans all GPD/phases/*-SUMMARY.md files, matching frontmatter fields
-    and body text against the provided search terms.
+    Scans markdown files according to ``scope``: ``summary`` (default,
+    SUMMARY files only), ``phase`` (all .md in phase dirs), or ``all``
+    (entire GPD directory).  Frontmatter filters (provides/requires/affects)
+    always use SUMMARY files regardless of scope.
     """
-    summaries = collect_summaries(cwd)
+    if scope not in VALID_SCOPES:
+        raise QueryError(f"invalid scope {scope!r}; expected one of: {', '.join(sorted(VALID_SCOPES))}")
+
+    # provides/requires/affects are SUMMARY-specific frontmatter fields.
+    # equation and text search body content, so they respect --scope.
+    has_frontmatter_filter = any([provides, requires, affects])
+
+    if has_frontmatter_filter:
+        entries = collect_summaries(cwd)
+    elif scope == "summary":
+        entries = collect_summaries(cwd)
+    elif scope == "phase":
+        entries = collect_summaries(cwd) + collect_phase_markdown(cwd)
+    elif scope == "all":
+        entries = collect_all_markdown(cwd)
+    else:
+        entries = collect_summaries(cwd)
+
     matches: list[QueryMatch] = []
     parsed_range = parse_phase_range(phase_range)
 
-    for entry in summaries:
+    for entry in entries:
         phase = entry.phase
         plan = entry.plan
         fm = entry.frontmatter

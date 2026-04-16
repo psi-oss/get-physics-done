@@ -459,6 +459,7 @@ class ResearchState(BaseModel):
     active_calculations: list[str | dict] = Field(default_factory=list)
     intermediate_results: list[IntermediateResult | str] = Field(default_factory=list)
     open_questions: list[str | dict] = Field(default_factory=list)
+    resolved_questions: list[dict] = Field(default_factory=list)
     performance_metrics: PerformanceMetrics = Field(default_factory=PerformanceMetrics)
     decisions: list[Decision] = Field(default_factory=list)
     approximations: list[Approximation] = Field(default_factory=list)
@@ -543,6 +544,7 @@ class StatePatchResult(BaseModel):
 
     updated: list[str] = Field(default_factory=list)
     failed: list[str] = Field(default_factory=list)
+    failure_reasons: dict[str, str] = Field(default_factory=dict)
 
 
 class AdvancePlanResult(BaseModel):
@@ -1804,8 +1806,12 @@ def _normalize_state_schema(
     project_root: Path | None = None,
 ) -> tuple[dict, list[str]]:
     """Normalize a raw state dict and capture integrity-affecting coercions."""
-    if not raw:
+    if raw is None:
         return default_state_dict(), []
+    if not raw:  # {} case — emit sentinel to trigger backup recovery
+        return default_state_dict(), [
+            "schema normalization: irrecoverable validation failure; reset to defaults"
+        ]
     if not isinstance(raw, dict):
         return default_state_dict(), [f"state root must be an object, got {type(raw).__name__}"]
 
@@ -1844,6 +1850,7 @@ def _normalize_state_schema(
     removed_top_level_keys: set[str] = set()
     while True:
         try:
+            removed_validation_paths = set()
             validated = ResearchState.model_validate(normalized).model_dump()
             integrity_issues.extend(validation_findings)
             return _mirror_continuation_state(validated), integrity_issues
@@ -1863,6 +1870,23 @@ def _normalize_state_schema(
                             validation_findings.append(issue)
                         nested_removed = True
                         continue
+                    # Nested field removal failed (e.g. missing required field).
+                    # If the error path traverses a list, remove the entire
+                    # malformed list element instead of letting it cascade to
+                    # top-level section removal.
+                    list_parent_loc = _find_list_parent_loc(normalized, loc)
+                    if list_parent_loc is not None and list_parent_loc not in removed_validation_paths:
+                        if _remove_validation_error_path(normalized, list_parent_loc):
+                            removed_validation_paths.add(list_parent_loc)
+                            removed_validation_paths.add(loc)
+                            issue = (
+                                f'schema normalization: dropped malformed list entry '
+                                f'"{_format_validation_location(list_parent_loc)}": {message}'
+                            )
+                            if issue not in validation_findings:
+                                validation_findings.append(issue)
+                            nested_removed = True
+                            continue
                 if loc:
                     top_level_keys.add(str(loc[0]))
 
@@ -1978,6 +2002,32 @@ def _normalize_state_schema_with_backup_project_contract(
 
 def _format_validation_location(loc: tuple[object, ...]) -> str:
     return ".".join(str(part) for part in loc)
+
+
+def _find_list_parent_loc(payload: object, loc: tuple[object, ...]) -> tuple[object, ...] | None:
+    """Find the nearest ancestor loc whose terminal step is a list index.
+
+    For loc ``('approximations', 1, 'name')``, returns ``('approximations', 1)``
+    because ``payload['approximations']`` is a list and index 1 identifies the
+    element to remove.
+
+    Returns ``None`` when *loc* does not traverse through any list.
+    """
+    container: object = payload
+    for i, part in enumerate(loc[:-1]):
+        if isinstance(container, dict):
+            if part not in container:
+                return None
+            container = container[part]
+        elif isinstance(container, list):
+            if isinstance(part, int) and 0 <= part < len(container):
+                # This is a list index -- the loc up to and including this index
+                # would remove the list element.
+                return loc[: i + 1]
+            return None
+        else:
+            return None
+    return None
 
 
 def _remove_validation_error_path(payload: object, loc: tuple[object, ...]) -> bool:
@@ -2532,6 +2582,21 @@ def generate_state_markdown(raw: dict) -> str:
         for q in s["open_questions"]:
             p(f"- {_item_text(q)}")
     p("")
+
+    resolved = s.get("resolved_questions") or []
+    if resolved:
+        p("## Resolved Questions")
+        p("")
+        for rq in resolved:
+            if isinstance(rq, dict):
+                q_text = rq.get("question", "")
+                a_text = rq.get("answer", "")
+                p(f"- **Q:** {q_text}")
+                if a_text:
+                    p(f"  **A:** {a_text}")
+            else:
+                p(f"- {rq}")
+        p("")
 
     p("## Performance Metrics")
     p("")
@@ -3833,7 +3898,7 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
         content = _load_or_rebuild_state_markdown_locked(cwd)
         if content is None:
             return StateUpdateResult(updated=False, reason="STATE.md not found")
-        field_norm = field.replace("_", " ")
+        field_norm = field.replace("_", " ")  # TODO(FULL-017): Apply dot-notation stripping here too
 
         # Validate state transitions
         if field_norm.lower() == "status":
@@ -3868,13 +3933,66 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
             )
         updated: list[str] = []
         failed: list[str] = []
+        failure_reasons: dict[str, str] = {}
+
+        # Session Continuity fields are non-authoritative mirrors in STATE.md —
+        # save_state_markdown_locked() regenerates this section from state.json,
+        # so patching these fields via markdown replacement is silently a no-op.
+        # Keep in sync with generate_state_markdown() L2716-2724.
+        _session_mirror = frozenset({
+            "last session", "stopped at", "resume file",
+            "last result id", "hostname", "platform",
+        })
 
         for field, value in patches.items():
-            # Normalize snake_case → Title Case (e.g. "current_plan" → "Current Plan")
-            field_norm = field.replace("_", " ")
+            # --- Three-phase field resolution ---
+            # Phase 1: try the raw input exactly as given
+            field_norm = field
+            found = state_has_field(content, field_norm)
+            also_tried: list[str] = []
+
+            # Phase 2: try underscore → space normalization
+            if not found:
+                underscore_form = field.replace("_", " ")
+                if underscore_form != field:
+                    also_tried.append(underscore_form)
+                    found = state_has_field(content, underscore_form)
+                    if found:
+                        field_norm = underscore_form
+
+            # Phase 3: dot-prefix stripping (on the best candidate so far)
+            if not found and "." in field:
+                # Strip from the raw field first (preserves underscores)
+                stripped_raw = field.rsplit(".", 1)[-1]
+                also_tried.append(stripped_raw)
+                found = state_has_field(content, stripped_raw)
+                if found:
+                    field_norm = stripped_raw
+                else:
+                    # Also try underscore-replaced + stripped
+                    stripped_norm = field.replace("_", " ").rsplit(".", 1)[-1]
+                    if stripped_norm != stripped_raw:
+                        also_tried.append(stripped_norm)
+                        found = state_has_field(content, stripped_norm)
+                        if found:
+                            field_norm = stripped_norm
+
+            # Guard: reject Session Continuity mirror fields — they are
+            # regenerated from state.json on save, so markdown patches are no-ops.
+            if found and field_norm.lower() in _session_mirror:
+                failed.append(field)
+                failure_reasons[field] = (
+                    f'Field "{field_norm}" is a Session Continuity mirror field '
+                    f"that is regenerated from state.json on save. "
+                    f"Use the continuation API to update session state."
+                )
+                continue
 
             if field_norm.lower() == "status" and not is_valid_status(value):
                 failed.append(field)
+                failure_reasons[field] = (
+                    f'Invalid status: "{value}". Valid: {", ".join(VALID_STATUSES)}'
+                )
                 continue
 
             if field_norm.lower() == "status":
@@ -3883,18 +4001,27 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                     err = validate_state_transition(current_status, value)
                     if err:
                         failed.append(field)
+                        failure_reasons[field] = err
                         continue
 
-            if state_has_field(content, field_norm):
+            if found:
                 content = state_replace_field(content, field_norm, value)
                 updated.append(field)
             else:
                 failed.append(field)
+                if also_tried:
+                    tried_str = ", ".join(f'"{t}"' for t in also_tried)
+                    failure_reasons[field] = (
+                        f'Field "{field}" not found in STATE.md'
+                        f" (also tried {tried_str})"
+                    )
+                else:
+                    failure_reasons[field] = f'Field "{field}" not found in STATE.md'
 
         if updated:
             _write_state_markdown_locked(cwd, content)
 
-    return StatePatchResult(updated=updated, failed=failed)
+    return StatePatchResult(updated=updated, failed=failed, failure_reasons=failure_reasons)
 
 
 @instrument_gpd_function("state.set_project_contract")

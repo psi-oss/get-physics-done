@@ -76,9 +76,9 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert actual_shards == expected_shards
     assert len(matrix_include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
 
-    trigger_job = jobs["trigger-staging-rebuild"]
-    assert isinstance(trigger_job, dict)
-    assert trigger_job["needs"] == ["pytest"]
+    # trigger-staging-rebuild moved to staging-rebuild.yml (workflow_run trigger)
+    # to avoid showing as a skipped check on PRs.
+    assert "trigger-staging-rebuild" not in jobs
 
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")

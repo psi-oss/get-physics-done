@@ -50,6 +50,8 @@ def test_new_project_prompt_surfaces_the_canonical_contract_schema_for_project_c
     assert "do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements" in new_project_text
     assert "do not invent near-miss enum values, extra keys, or scalar shortcuts for list fields" in new_project_text
     assert "fix them to the schema before approval" in new_project_text
+    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists." in new_project_text
+    assert "`schema_version` must be the integer `1`, `references[].must_surface` must stay a boolean `true` or `false`, and `context_intake`, `uncertainty_markers`, and `references[]` must stay visible in the approval gate so the contract still reflects the real inputs" in new_project_text
     assert "the contract schema is closed: do not add invented top-level or nested keys" not in new_project_text
     assert "list fields must stay lists even for single-item values" not in new_project_text
     assert "blank or duplicate list entries are invalid after trimming whitespace" not in new_project_text

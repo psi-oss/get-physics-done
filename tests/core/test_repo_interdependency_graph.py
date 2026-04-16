@@ -55,7 +55,7 @@ def _transient_root_artifacts():
         for root_path, root_existed in created_paths:
             sentinel_dir = root_path / sentinel_root
             if sentinel_dir.exists():
-                shutil.rmtree(sentinel_dir)
+                shutil.rmtree(sentinel_dir, ignore_errors=True)
             if not root_existed and root_path.exists() and not any(root_path.iterdir()):
                 root_path.rmdir()
 

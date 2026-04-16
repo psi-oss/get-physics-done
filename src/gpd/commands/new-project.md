@@ -11,8 +11,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
-
 <context>
 **Flags:**
 - `--auto` — Automatic mode. Synthesizes a scoping contract from the supplied document, asks for one explicit scope approval, then runs research → requirements → roadmap with minimal follow-up interaction. Expects a research proposal document via @ reference.

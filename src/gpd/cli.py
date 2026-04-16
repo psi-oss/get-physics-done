@@ -204,8 +204,15 @@ def _pretty_print(d: dict) -> None:
     table.add_column("Key")
     table.add_column("Value")
     for k, v in d.items():
-        val = json.dumps(v, default=str) if isinstance(v, (dict, list)) else str(v)
-        table.add_row(str(k), val)
+        if k == "failure_reasons" and isinstance(v, dict):
+            # Render each failure reason as its own row for readability
+            for fk, fv in v.items():
+                table.add_row(f"  reason: {fk}", str(fv))
+        elif isinstance(v, (dict, list)):
+            val = json.dumps(v, default=str)
+            table.add_row(str(k), val)
+        else:
+            table.add_row(str(k), str(v))
     console.print(table)
 
 
@@ -222,9 +229,17 @@ def _get_cwd() -> Path:
     return _cwd.resolve()
 
 
+def _migrate_planning_files(cwd: Path) -> None:
+    """Auto-migrate ROADMAP.md / PROJECT.md from root into GPD/ if needed."""
+    from gpd.core.project_files import migrate_root_planning_files
+
+    migrate_root_planning_files(cwd)
+
+
 def _status_command_reentry(cwd: Path | None = None) -> ProjectReentryResolution:
     """Resolve the shared re-entry contract for recovery/status commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    _migrate_planning_files(workspace_cwd)
     return resolve_project_reentry(workspace_cwd)
 
 
@@ -240,6 +255,7 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
 def _state_command_cwd(cwd: Path | None = None) -> Path:
     """Resolve the effective cwd for state and project-contract commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     if resolved is not None:
         return resolved
@@ -249,6 +265,7 @@ def _state_command_cwd(cwd: Path | None = None) -> Path:
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
     """Resolve the nearest verified project root for project-scoped preflights."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
 
@@ -355,7 +372,7 @@ def _format_display_path_from_cwd(target: str | Path | None, *, cwd: Path) -> st
     except ValueError:
         if resolved_target.anchor and resolved_target.anchor == resolved_cwd.anchor:
             relative_text = os.path.relpath(resolved_target, resolved_cwd)
-            return "." if relative_text in ("", ".") else relative_text
+            return "." if relative_text in ("", ".") else Path(relative_text).as_posix()
         return _format_display_path(resolved_target)
 
     relative_text = relative.as_posix()
@@ -3370,6 +3387,7 @@ def query_search(
     equation: str | None = typer.Option(None, "--equation", help="Search by equation"),
     text: str | None = typer.Option(None, "--text", help="Full-text search"),
     phase_range: str | None = typer.Option(None, "--phase-range", help="Phase range filter (e.g. 10-20)"),
+    scope: str = typer.Option("summary", "--scope", help="Search scope: summary (default), phase, all"),
 ) -> None:
     """Search across phases by provides/requires/text."""
     from gpd.core.query import query as query_search
@@ -3383,6 +3401,7 @@ def query_search(
             equation=equation,
             text=text,
             phase_range=phase_range,
+            scope=scope,
         )
     )
 
@@ -3420,14 +3439,16 @@ def suggest(
     limit: int | None = typer.Option(None, "--limit", help="Max suggestions to return"),
 ) -> None:
     """Suggest what to do next based on project state."""
-    from gpd.core.root_resolution import resolve_project_root
     from gpd.core.suggest import suggest_next
 
     kwargs: dict[str, int] = {}
     if limit is not None:
         kwargs["limit"] = limit
-    workspace_cwd = _get_cwd().expanduser().resolve(strict=False)
-    suggest_cwd = resolve_project_root(workspace_cwd, require_layout=True) or workspace_cwd
+    # NOTE: _project_scoped_cwd() runs migration before resolution. If run
+    # from a subfolder that has its own PROJECT.md, migration may create a
+    # spurious GPD/ there and resolve to the wrong project root. This is a
+    # known limitation shared with progress/state/status commands.
+    suggest_cwd = _project_scoped_cwd()
     _output(suggest_next(suggest_cwd, **kwargs))
 
 
@@ -4790,8 +4811,9 @@ def question_list() -> None:
 @question_app.command("resolve")
 def question_resolve(
     text: list[str] = typer.Argument(..., help="Question text to resolve"),
+    answer: str | None = typer.Option(None, "--answer", "-a", help="Answer text to record with the resolved question"),
 ) -> None:
-    """Mark a question as resolved."""
+    """Mark a question as resolved, optionally recording the answer."""
     from gpd.core.constants import ProjectLayout
     from gpd.core.extras import question_resolve
     from gpd.core.state import save_state_json_locked
@@ -4803,7 +4825,7 @@ def question_resolve(
     with file_lock(state_path):
         state = _load_mutation_state_snapshot(cwd)
         joined = " ".join(text)
-        res = question_resolve(state, joined)
+        res = question_resolve(state, joined, answer=answer)
         if res == 0:
             _error(
                 f'No open question matching "{joined}". '
@@ -8308,7 +8330,8 @@ def paper_build(
         "toolchain": toolchain,
         "warnings": list(storage_check.warnings)
         + [warning for warning in toolchain["warnings"] if warning not in storage_check.warnings]
-        + ([citation_source_warning] if citation_source_warning else []),
+        + ([citation_source_warning] if citation_source_warning else [])
+        + list(getattr(result, "citation_warnings", [])),
     }
     _output(payload)
     if not result.success:
