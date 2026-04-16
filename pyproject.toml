@@ -35,7 +35,7 @@ dependencies = [
     "rich>=14.3.3",
     "pydantic>=2.12",
     "PyYAML>=6.0.3",
-    "mcp[cli]>=1.26.0",
+    "mcp[cli]>=1.27.0",
     # Utilities
     "pybtex>=0.25.1",
     "Pillow>=12.1.1",
