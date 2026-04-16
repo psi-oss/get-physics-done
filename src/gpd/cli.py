@@ -9229,6 +9229,7 @@ def install(
     global_install: bool = typer.Option(False, "--global", help="Install into the global runtime config dir"),
     target_dir: str | None = typer.Option(None, "--target-dir", help="Override target config directory"),
     force_statusline: bool = typer.Option(False, "--force-statusline", help="Overwrite existing statusline config"),
+    skip_readiness_check: bool = typer.Option(False, "--skip-readiness-check", help="Skip runtime readiness preflight (for embedded/sidecar use)"),
 ) -> None:
     """Install GPD skills, agents, and hooks into runtime config directories."""
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -9283,11 +9284,14 @@ def install(
     install_scope = "global" if is_global else "local"
     resolved_target_override = _resolve_cli_target_dir(target_dir) if target_dir else None
 
-    preflight_failures, preflight_advisories = _run_install_readiness_preflight(
-        selected,
-        install_scope=install_scope,
-        target_dir=resolved_target_override,
-    )
+    preflight_failures: list[tuple[str, list[str]]] = []
+    preflight_advisories: dict[str, list[str]] = {}
+    if not skip_readiness_check:
+        preflight_failures, preflight_advisories = _run_install_readiness_preflight(
+            selected,
+            install_scope=install_scope,
+            target_dir=resolved_target_override,
+        )
     if preflight_failures:
         if _raw:
             _output(
