@@ -33,7 +33,7 @@ dependencies = [
     # Core
     "typer>=0.24.1",
     "rich>=15.0.0",
-    "pydantic>=2.12",
+    "pydantic>=2.13.1",
     "PyYAML>=6.0.3",
     "mcp[cli]>=1.27.0",
     # Utilities
