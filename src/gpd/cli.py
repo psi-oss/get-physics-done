@@ -9519,6 +9519,90 @@ def uninstall(
         raise typer.Exit(code=1)
 
 
+@app.command("mcp-serve", help="Launch a GPD MCP server by name (for sidecar/binary mode).")
+def mcp_serve(
+    server: str = typer.Argument(
+        ...,
+        help="Server name (e.g., conventions, errors, patterns, protocols, skills, state, verification, arxiv).",
+    ),
+) -> None:
+    """Launch a specific GPD MCP server via stdio transport."""
+    import importlib
+
+    from gpd.mcp.builtin_servers import _BUILTIN_SERVERS
+
+    # Accept both "conventions" and "gpd-conventions"
+    if not server.startswith("gpd-"):
+        server = f"gpd-{server}"
+
+    if server not in _BUILTIN_SERVERS:
+        available = ", ".join(sorted(_BUILTIN_SERVERS.keys()))
+        raise typer.BadParameter(f"Unknown server: {server}. Available: {available}")
+
+    entry = _BUILTIN_SERVERS[server]
+    args = entry.get("args", [])
+    if len(args) >= 2 and args[0] == "-m":
+        module_path = args[1]
+    else:
+        raise typer.BadParameter(f"Server {server} has no module path")
+
+    # Clean argv so the server's argparse sees no leftover args
+    sys.argv = [sys.argv[0]]
+
+    mod = importlib.import_module(module_path)
+    mod.main()
+
+
+@app.command("list-servers", help="List available MCP servers as JSON config for runtime integration.")
+def list_servers(
+    json_output: bool = typer.Option(True, "--json/--text", help="Output as JSON (default) or text."),
+    binary_path: str = typer.Option(None, "--binary", help="Override binary path in command arrays."),
+) -> None:
+    """Emit runtime-compatible MCP server config JSON from the builtin registry."""
+    import importlib
+    import json as json_mod
+
+    from gpd.mcp.builtin_servers import _BUILTIN_SERVERS
+
+    sidecar = binary_path or (sys.executable if getattr(sys, "frozen", False) else None)
+    servers: dict[str, object] = {}
+
+    for name, entry in _BUILTIN_SERVERS.items():
+        # Skip optional servers whose deps are missing
+        module_check = entry.get("module_check")
+        if module_check:
+            try:
+                importlib.import_module(module_check)
+            except ImportError:
+                continue
+
+        short_name = name.removeprefix("gpd-")
+
+        if sidecar:
+            # Binary mode: use the sidecar binary
+            cmd = [sidecar, "mcp-serve", short_name]
+        else:
+            # Python mode: use python -m
+            cmd = [sys.executable, "-m", entry["args"][1]]
+
+        server_entry: dict[str, object] = {
+            "type": "local",
+            "command": cmd,
+            "enabled": True,
+        }
+        env = entry.get("env")
+        if env:
+            server_entry["environment"] = env
+
+        servers[name] = server_entry
+
+    if json_output:
+        typer.echo(json_mod.dumps(servers, indent=2))
+    else:
+        for name in sorted(servers):
+            typer.echo(f"  {name}")
+
+
 def entrypoint() -> int | None:
     """Console-script and ``python -m`` entrypoint with checkout preference."""
     _maybe_reexec_from_checkout()
