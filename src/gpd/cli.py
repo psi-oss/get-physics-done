@@ -3392,13 +3392,6 @@ def doctor(
         if target_dir and _target_dir_matches_global(normalized_runtime, target_dir, action="doctor")
         else "local"
     )
-    if target_dir is None and not global_install and not local_install:
-        from gpd.hooks.runtime_detect import resolve_runtime_target_dir
-
-        detected_target, detected_scope = resolve_runtime_target_dir(normalized_runtime, cwd=_get_cwd())
-        if detected_target is not None and detected_scope is not None:
-            resolved_target = detected_target
-            install_scope = detected_scope
     _output(
         run_doctor(
             specs_dir=SPECS_DIR,

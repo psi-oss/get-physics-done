@@ -91,7 +91,7 @@
         "observed_before_fix": "local-first defaulting was not guaranteed before the F5 fix",
         "assertions": [
           "run_doctor receives install_scope=local",
-          "run_doctor receives the local target dir resolved from the current workspace"
+          "runtime readiness stays pinned to the current workspace local target instead of a detected global install"
         ],
         "evidence_paths": [
           "/tmp/gpd-bug-campaign/fix-wave-f5/report.md"

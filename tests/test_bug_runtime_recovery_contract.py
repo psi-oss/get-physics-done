@@ -5,14 +5,12 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 import gpd.runtime_cli as runtime_cli
-from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import app
 from gpd.core.observability import (
@@ -203,17 +201,18 @@ def test_doctor_runtime_recovery_contract_defaults_to_local_target_when_scope_is
 
     workspace = _copy_fixture_workspace(tmp_path, "config-readback")
     runtime_name = BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
-    adapter = get_adapter(runtime_name)
-    expected_target = adapter.resolve_target_dir(False, workspace)
-    global_target = workspace / "detected-global" / BRIDGE_RUNTIME_DESCRIPTOR.config_dir_name
     mock_result = _DoctorModelDumpResult({"mode": "runtime-readiness", "overall": "ok"})
 
-    monkeypatch.setattr(
-        "gpd.hooks.runtime_detect.detect_runtime_install_target",
-        lambda runtime_name, cwd=None: SimpleNamespace(config_dir=global_target, install_scope="global"),
-    )
-
-    with patch("gpd.core.health.run_doctor", return_value=mock_result) as mock_doctor:
+    with (
+        patch(
+            "gpd.hooks.runtime_detect.resolve_runtime_target_dir",
+            side_effect=AssertionError(
+                "doctor should stay local-first and must not consult detected install targets "
+                "when scope is unspecified"
+            ),
+        ),
+        patch("gpd.core.health.run_doctor", return_value=mock_result) as mock_doctor,
+    ):
         result = RUNNER.invoke(app, ["--cwd", str(workspace), "--raw", "doctor", "--runtime", runtime_name])
 
     assert result.exit_code == 0
@@ -222,7 +221,7 @@ def test_doctor_runtime_recovery_contract_defaults_to_local_target_when_scope_is
         specs_dir=SPECS_DIR,
         runtime=runtime_name,
         install_scope="local",
-        target_dir=expected_target,
+        target_dir=None,
         cwd=workspace,
         live_executable_probes=False,
     )
