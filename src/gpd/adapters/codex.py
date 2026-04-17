@@ -64,7 +64,7 @@ from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS, SHELL_F
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
-from gpd.registry import AgentDef, load_agents_from_dir
+from gpd.registry import AgentDef, command_local_cli_only_from_path, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
 
@@ -1464,6 +1464,23 @@ def _copy_preserved_skill_entry(src: Path, dest: Path) -> None:
     shutil.copy2(src, dest)
 
 
+def _codex_command_slug(prefix: str, entry: Path) -> str:
+    """Derive the canonical command slug for one command markdown entry."""
+    nested_prefix = "" if prefix == "gpd" else prefix.removeprefix("gpd-")
+    if not nested_prefix:
+        return entry.stem
+    return f"{nested_prefix}-{entry.stem}"
+
+
+def _codex_command_local_cli_only(entry: Path, *, prefix: str) -> bool:
+    """Return Codex command-only status using the canonical registry parser."""
+    slug = _codex_command_slug(prefix, entry)
+    try:
+        return command_local_cli_only_from_path(entry, slug=slug)
+    except ValueError as exc:
+        raise ValueError(f"Malformed frontmatter for gpd:{slug}: {exc}") from exc
+
+
 def _planned_codex_skill_dirs(src_dir: Path, prefix: str) -> set[str]:
     """Return the exact Codex skill directory names generated from command sources."""
     planned: set[str] = set()
@@ -1471,14 +1488,9 @@ def _planned_codex_skill_dirs(src_dir: Path, prefix: str) -> set[str]:
         if entry.is_dir():
             planned.update(_planned_codex_skill_dirs(entry, f"{prefix}-{entry.name}"))
             continue
-        if entry.suffix == ".md" and not _markdown_has_local_cli_only_frontmatter(entry):
+        if entry.suffix == ".md" and not _codex_command_local_cli_only(entry, prefix=prefix):
             planned.add(f"{prefix}-{entry.stem}")
     return planned
-
-
-def _markdown_has_local_cli_only_frontmatter(path: Path) -> bool:
-    _preamble, frontmatter, _separator, _body = split_markdown_frontmatter(path.read_text(encoding="utf-8"))
-    return any(line.strip() == "local_cli_only: true" for line in frontmatter.splitlines())
 
 
 def _render_commands_as_skills(
@@ -1513,7 +1525,7 @@ def _render_commands_as_skills(
                 )
             )
         elif entry.suffix == ".md":
-            if _markdown_has_local_cli_only_frontmatter(entry):
+            if _codex_command_local_cli_only(entry, prefix=prefix):
                 continue
             base_name = entry.stem
             skill_name = f"{prefix}-{base_name}"

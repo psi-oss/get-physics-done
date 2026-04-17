@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd import registry as content_registry
 from gpd.adapters import get_adapter, iter_adapters
 from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.codex import CodexAdapter
@@ -176,6 +177,15 @@ def _expected_local_bridge_for_runtime(runtime: str, target: Path) -> str:
         is_global=False,
         explicit_target=False,
     )
+
+
+def _canonical_codex_command_skill_dirs() -> set[str]:
+    content_registry.invalidate_cache()
+    return {
+        f"gpd-{command_name}"
+        for command_name in content_registry.list_commands()
+        if not content_registry.get_command(command_name).local_cli_only
+    }
 
 
 def _canonicalize_runtime_markdown(content: str, *, runtime: str) -> str:
@@ -501,11 +511,7 @@ class TestCodexRoundtrip:
     def test_command_count_matches_source(self, installed: tuple[Path, Path]) -> None:
         """Number of skills matches source command count."""
         _, skills = installed
-        expected_skills = {
-            f"gpd-{path.stem}"
-            for path in (REPO_GPD_ROOT / "commands").rglob("*.md")
-            if "local_cli_only: true" not in path.read_text(encoding="utf-8")
-        }
+        expected_skills = _canonical_codex_command_skill_dirs()
         skill_dirs = {d.name for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")}
         assert skill_dirs == expected_skills
 

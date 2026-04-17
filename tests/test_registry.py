@@ -26,6 +26,7 @@ from gpd.registry import (
     _parse_spawn_contract_block,
     _parse_tools,
     _RegistryCache,
+    command_local_cli_only_from_path,
     load_agents_from_dir,
     render_command_visibility_sections_from_frontmatter,
 )
@@ -748,6 +749,115 @@ class TestParseCommandFile:
             match="project_reentry_capable for gpd:start requires context_mode 'project-required'",
         ):
             _parse_command_file(f, source="commands")
+
+    @pytest.mark.parametrize(
+        ("frontmatter_line", "expected"),
+        [
+            ("local_cli_only: True", True),
+            ("local_cli_only: FALSE", False),
+            ("local_cli_only: true  # inline note", True),
+            ("local_cli_only: false # inline note", False),
+        ],
+    )
+    def test_command_local_cli_only_accepts_yaml_boolean_case_variants_and_inline_comments(
+        self,
+        tmp_path: Path,
+        frontmatter_line: str,
+        expected: bool,
+    ) -> None:
+        f = tmp_path / "help.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: Help\n"
+            f"{frontmatter_line}\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.local_cli_only is expected
+        assert command_local_cli_only_from_path(f) is expected
+
+    @pytest.mark.parametrize("raw_value", ["yes", "no", "on", "off", '"true"', '"false"', "1", "0"])
+    def test_command_local_cli_only_rejects_legacy_boolean_aliases(
+        self,
+        tmp_path: Path,
+        raw_value: str,
+    ) -> None:
+        f = tmp_path / "help.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: Help\n"
+            f"local_cli_only: {raw_value}\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="local_cli_only for gpd:help must be a boolean"):
+            _parse_command_file(f, source="commands")
+        with pytest.raises(ValueError, match="local_cli_only for gpd:help must be a boolean"):
+            command_local_cli_only_from_path(f)
+
+    @pytest.mark.parametrize("frontmatter_line", ["local_cli_only:", "local_cli_only: null"])
+    def test_command_local_cli_only_rejects_explicitly_empty_values(
+        self,
+        tmp_path: Path,
+        frontmatter_line: str,
+    ) -> None:
+        f = tmp_path / "help.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: Help\n"
+            f"{frontmatter_line}\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="local_cli_only for gpd:help must be a boolean"):
+            _parse_command_file(f, source="commands")
+        with pytest.raises(ValueError, match="local_cli_only for gpd:help must be a boolean"):
+            command_local_cli_only_from_path(f)
+
+    def test_command_local_cli_only_block_scalar_text_does_not_set_flag(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: |\n"
+            "  note\n"
+            "  local_cli_only: true\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.local_cli_only is False
+        assert command_local_cli_only_from_path(f) is False
+
+    def test_command_local_cli_only_helper_rejects_duplicate_keys(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: Help\n"
+            "local_cli_only: false\n"
+            "local_cli_only: true\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="Invalid frontmatter"):
+            command_local_cli_only_from_path(f)
 
     def test_command_invalid_context_mode_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "help.md"

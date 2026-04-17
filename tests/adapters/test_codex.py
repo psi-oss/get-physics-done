@@ -118,6 +118,13 @@ def _make_managed_home_python(tmp_path: Path) -> Path:
     return managed_python
 
 
+def _write_command_markdown(gpd_root: Path, relative_path: str, content: str) -> Path:
+    command_path = gpd_root / "commands" / relative_path
+    command_path.parent.mkdir(parents=True, exist_ok=True)
+    command_path.write_text(content, encoding="utf-8")
+    return command_path
+
+
 class TestProperties:
     def test_runtime_name(self, adapter: CodexAdapter) -> None:
         assert adapter.runtime_name == "codex"
@@ -676,6 +683,132 @@ class TestInstall:
         assert not (skills / "gpd-health").exists()
         assert not (skills / "gpd-suggest-next").exists()
         assert (skills / "gpd-help" / "SKILL.md").exists()
+
+    @pytest.mark.parametrize(
+        ("local_cli_only_line", "probe_name"),
+        [
+            ("local_cli_only: true  # keep local", "comment-probe"),
+            ("local_cli_only: True", "case-probe"),
+        ],
+    )
+    def test_install_skips_local_cli_only_commands_for_semantic_boolean_variants(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        local_cli_only_line: str,
+        probe_name: str,
+    ) -> None:
+        _write_command_markdown(
+            gpd_root,
+            f"{probe_name}.md",
+            (
+                "---\n"
+                f"name: gpd:{probe_name}\n"
+                "description: Probe command\n"
+                f"{local_cli_only_line}\n"
+                "---\n"
+                "Probe body.\n"
+            ),
+        )
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert not (skills / f"gpd-{probe_name}").exists()
+        assert (skills / "gpd-help" / "SKILL.md").exists()
+
+    def test_install_does_not_skip_commands_when_local_cli_only_appears_only_in_block_scalar(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        _write_command_markdown(
+            gpd_root,
+            "block-scalar-probe.md",
+            (
+                "---\n"
+                "name: gpd:block-scalar-probe\n"
+                "description: |\n"
+                "  Keep this command public.\n"
+                "  local_cli_only: true\n"
+                "---\n"
+                "Probe body.\n"
+            ),
+        )
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (skills / "gpd-block-scalar-probe" / "SKILL.md").exists()
+
+    def test_install_fails_closed_on_malformed_local_cli_only_frontmatter(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        _write_command_markdown(
+            gpd_root,
+            "broken-probe.md",
+            (
+                "---\n"
+                "name: gpd:broken-probe\n"
+                "description: Broken command\n"
+                "local_cli_only: false\n"
+                "local_cli_only: true\n"
+                "---\n"
+                "Probe body.\n"
+            ),
+        )
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid frontmatter in .*broken-probe\.md: Malformed YAML frontmatter",
+        ):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+    @pytest.mark.parametrize("local_cli_only_line", ['local_cli_only: yes', 'local_cli_only: "true"'])
+    def test_install_fails_closed_on_non_boolean_local_cli_only_frontmatter(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        local_cli_only_line: str,
+    ) -> None:
+        _write_command_markdown(
+            gpd_root,
+            "invalid-local-cli-only-probe.md",
+            (
+                "---\n"
+                "name: gpd:invalid-local-cli-only-probe\n"
+                "description: Broken command\n"
+                f"{local_cli_only_line}\n"
+                "---\n"
+                "Probe body.\n"
+            ),
+        )
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        with pytest.raises(
+            ValueError,
+            match="local_cli_only for gpd:invalid-local-cli-only-probe must be a boolean",
+        ):
+            adapter.install(gpd_root, target, skills_dir=skills)
 
     def test_install_registers_agent_roles_in_config_toml(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
+from gpd import registry as content_registry
 
 TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
@@ -80,18 +80,15 @@ def _parse_allowlist_section(heading: str) -> tuple[str, ...]:
     )
 
 
-def _load_command_frontmatter(path: Path) -> dict[str, object]:
-    text = path.read_text(encoding="utf-8")
-    if not text.lstrip().startswith("---"):
-        return {}
-    lines = text.lstrip().splitlines()
-    try:
-        end = lines[1:].index("---") + 1
-    except ValueError:
-        return {}
-    block = "\n".join(lines[1:end])
-    parsed = yaml.safe_load(block)
-    return parsed or {}
+def _command_def(stem: str):
+    return content_registry.get_command(stem)
+
+
+def _canonical_local_cli_only_command_stems() -> tuple[str, ...]:
+    content_registry.invalidate_cache()
+    return tuple(
+        sorted(command_name for command_name in content_registry.list_commands() if content_registry.get_command(command_name).local_cli_only)
+    )
 
 
 def _command_stems_without_workflows() -> tuple[str, ...]:
@@ -118,11 +115,11 @@ def test_command_wrappers_delegate_to_matching_workflow_names() -> None:
     for stem in _delegated_stem_names():
         command_path = COMMANDS_DIR / f"{stem}.md"
         command_text = command_path.read_text(encoding="utf-8")
-        frontmatter = _load_command_frontmatter(command_path)
+        command = _command_def(stem)
 
-        assert frontmatter.get("name") == f"gpd:{stem}"
-        assert frontmatter.get("description"), f"Missing description for {stem}"
-        assert frontmatter.get("local_cli_only") is not True
+        assert command.name == f"gpd:{stem}"
+        assert command.description, f"Missing description for {stem}"
+        assert command.local_cli_only is False
 
         workflow_include = f"@{{GPD_INSTALL_DIR}}/workflows/{stem}.md"
         assert workflow_include in command_text, f"{stem} wrapper must include {workflow_include}"
@@ -133,12 +130,13 @@ def test_local_cli_only_commands_marked_and_exempt() -> None:
     assert local_cli_only == set(_parse_allowlist_section("Command-only surfaces"))
     assert local_cli_only == {"health", "suggest-next"}
     assert set(_command_stems_without_workflows()) == local_cli_only
+    assert local_cli_only == set(_canonical_local_cli_only_command_stems())
 
     for stem in local_cli_only:
         command_path = COMMANDS_DIR / f"{stem}.md"
         assert command_path.is_file(), f"Missing local CLI command spec for {stem}"
-        frontmatter = _load_command_frontmatter(command_path)
-        assert frontmatter.get("local_cli_only") is True
+        command = _command_def(stem)
+        assert command.local_cli_only is True
 
 
 def test_internal_workflows_marked_and_documented() -> None:

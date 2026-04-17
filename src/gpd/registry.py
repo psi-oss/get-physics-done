@@ -534,24 +534,39 @@ def _validate_raw_nonempty_string_frontmatter_field(
     raise ValueError(f"{field_name} for {owner_name} must be a non-empty string")
 
 
-def _validate_raw_command_frontmatter(frontmatter: str | None, *, command_name: str) -> None:
+def _validate_raw_command_frontmatter(
+    frontmatter: str | None,
+    *,
+    command_name: str,
+    meta: dict[str, object] | None = None,
+) -> None:
     """Reject legacy raw frontmatter spellings for strict command metadata."""
 
-    _validate_raw_nonempty_string_frontmatter_field(
-        frontmatter,
-        field_name="context_mode",
-        owner_name=command_name,
-    )
-    _validate_raw_nonempty_string_frontmatter_field(
-        frontmatter,
-        field_name="agent",
-        owner_name=command_name,
-    )
-    _validate_raw_boolean_frontmatter_field(
-        frontmatter,
-        field_name="project_reentry_capable",
-        command_name=command_name,
-    )
+    parsed_keys = meta or {}
+    if "context_mode" in parsed_keys:
+        _validate_raw_nonempty_string_frontmatter_field(
+            frontmatter,
+            field_name="context_mode",
+            owner_name=command_name,
+        )
+    if "agent" in parsed_keys:
+        _validate_raw_nonempty_string_frontmatter_field(
+            frontmatter,
+            field_name="agent",
+            owner_name=command_name,
+        )
+    if "project_reentry_capable" in parsed_keys:
+        _validate_raw_boolean_frontmatter_field(
+            frontmatter,
+            field_name="project_reentry_capable",
+            command_name=command_name,
+        )
+    if "local_cli_only" in parsed_keys:
+        _validate_raw_boolean_frontmatter_field(
+            frontmatter,
+            field_name="local_cli_only",
+            command_name=command_name,
+        )
 
 
 def _validate_raw_agent_frontmatter(frontmatter: str | None, *, agent_name: str) -> None:
@@ -653,11 +668,14 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
 
 
 def _parse_local_cli_only(raw: object, *, command_name: str) -> bool:
-    if raw is None:
-        return False
-    if isinstance(raw, bool):
-        return raw
-    raise ValueError(f"local_cli_only for {command_name} must be a boolean")
+    """Normalize local_cli_only with the canonical strict boolean parser."""
+
+    return _parse_bool_field(
+        raw,
+        field_name="local_cli_only",
+        command_name=command_name,
+        default=False,
+    )
 
 
 def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
@@ -943,8 +961,8 @@ def render_command_visibility_sections(
 def render_command_visibility_sections_from_frontmatter(frontmatter: str, *, command_name: str) -> str:
     """Render canonical model-visible command constraints from raw frontmatter."""
 
-    _validate_raw_command_frontmatter(frontmatter, command_name=command_name)
     meta = _load_frontmatter_mapping(frontmatter, error_prefix=f"Malformed frontmatter for {command_name}")
+    _validate_raw_command_frontmatter(frontmatter, command_name=command_name, meta=meta)
     review_contract_value = _review_contract_frontmatter_value(meta, command_name=command_name)
     _validate_command_frontmatter_keys(meta, command_name=command_name)
 
@@ -1294,7 +1312,7 @@ def _parse_command_file(path: Path, source: str, *, slug: str | None = None) -> 
         default=command_slug,
         required=True,
     )
-    _validate_raw_command_frontmatter(raw_frontmatter, command_name=command_name)
+    _validate_raw_command_frontmatter(raw_frontmatter, command_name=command_name, meta=meta)
 
     try:
         review_contract = _parse_review_contract(
@@ -1358,6 +1376,47 @@ def _parse_command_file(path: Path, source: str, *, slug: str | None = None) -> 
         path=str(path),
         source=source,
         local_cli_only=local_cli_only,
+    )
+
+
+def command_local_cli_only_from_text(
+    text: str,
+    *,
+    path: Path | None = None,
+    slug: str | None = None,
+) -> bool:
+    """Return the canonical ``local_cli_only`` boolean for one command markdown payload."""
+
+    raw_frontmatter, _unused_body = _frontmatter_parts(text)
+    try:
+        meta, _body = _parse_frontmatter(text)
+    except ValueError as exc:
+        owner = str(path) if path is not None else "command"
+        raise ValueError(f"Invalid frontmatter in {owner}: {exc}") from exc
+
+    command_slug = slug or (_command_slug_from_path(path) if path is not None else "command")
+    command_name = _parse_frontmatter_string_field(
+        meta.get("name"),
+        field_name="name",
+        owner_name=command_slug,
+        default=command_slug,
+        required=True,
+    )
+    _validate_raw_command_frontmatter(raw_frontmatter, command_name=command_name, meta=meta)
+    _validate_command_frontmatter_keys(meta, command_name=command_name)
+    return _parse_local_cli_only(
+        meta.get("local_cli_only"),
+        command_name=command_name,
+    )
+
+
+def command_local_cli_only_from_path(path: Path, *, slug: str | None = None) -> bool:
+    """Return the canonical ``local_cli_only`` boolean for one command file."""
+
+    return command_local_cli_only_from_text(
+        path.read_text(encoding="utf-8"),
+        path=path,
+        slug=slug,
     )
 
 
@@ -1734,6 +1793,8 @@ __all__ = [
     "AGENT_SURFACES",
     "VALID_CONTEXT_MODES",
     "canonical_agent_names",
+    "command_local_cli_only_from_path",
+    "command_local_cli_only_from_text",
     "get_agent",
     "get_command",
     "get_skill",
