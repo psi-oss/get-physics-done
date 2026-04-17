@@ -174,7 +174,6 @@ _RUNTIME_OWNED_PREFIXES = (
     ),
     "src/gpd/adapters/",
 )
-_CAMPAIGN_EVIDENCE_PREFIXES = ("artifacts/bug-campaign/",)
 _ALLOWED_RUNTIME_FILES = {
     "CITATION.cff",
     ".gitignore",
@@ -348,7 +347,6 @@ def _is_runtime_boundary_file(rel_path: Path) -> bool:
         rel in _ALLOWED_RUNTIME_FILES
         or rel in _ALLOWED_RUNTIME_ADAPTER_FILES
         or any(rel.startswith(prefix) for prefix in _RUNTIME_OWNED_PREFIXES)
-        or any(rel.startswith(prefix) for prefix in _CAMPAIGN_EVIDENCE_PREFIXES)
     )
 
 

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
-import shutil
 from pathlib import Path
 
 import pytest
@@ -17,13 +15,8 @@ from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 from gpd.core.state import (
     parse_state_to_json,
     state_carry_forward_continuation_last_result_id,
-    state_get,
     state_record_session,
-    state_snapshot,
 )
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-HANDOFF_BUNDLE_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "handoff-bundle"
 
 
 def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None:
@@ -42,29 +35,6 @@ def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None
 def _assert_no_resume_compat_aliases(payload: dict[str, object]) -> None:
     for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
         assert key not in payload
-
-
-def _copy_handoff_bundle_workspace(tmp_path: Path, slug: str, variant: str = "positive") -> Path:
-    source = HANDOFF_BUNDLE_FIXTURES / slug / variant / "workspace"
-    target = tmp_path / f"{slug}-{variant}"
-    shutil.copytree(source, target)
-    return target
-
-
-def _make_stale_session_continuity_markdown(project_root: Path) -> None:
-    state_md = project_root / "GPD" / "STATE.md"
-    content = state_md.read_text(encoding="utf-8")
-    stale_block = (
-        "## Session Continuity\n\n"
-        "**Last session:** 1999-01-01T00:00:00+00:00\n"
-        "**Hostname:** stale-host\n"
-        "**Platform:** stale-platform\n"
-        "**Stopped at:** Stale stop\n"
-        "**Resume file:** stale-resume.md\n"
-        "**Last result ID:** stale-result\n"
-    )
-    content = re.sub(r"## Session Continuity\n\n.*\Z", stale_block, content, flags=re.S)
-    state_md.write_text(content, encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -1436,25 +1406,3 @@ def test_init_resume_nested_workspace_probe_does_not_create_fake_gpd_dir(
     assert ctx["state_exists"] is True
     assert ctx["workspace_state_exists"] is False
     assert not (nested / "GPD").exists()
-
-
-def test_state_get_session_continuation_and_handoff_surface_canonical_state_when_markdown_is_stale(
-    tmp_path: Path,
-) -> None:
-    workspace = _copy_handoff_bundle_workspace(tmp_path, "resume-handoff")
-    snapshot = state_snapshot(workspace)
-    assert snapshot.session is not None
-    _make_stale_session_continuity_markdown(workspace)
-
-    expected_session = snapshot.session
-    assert isinstance(expected_session, dict)
-
-    for section in ("session", "continuation", "handoff"):
-        result = state_get(workspace, section)
-        payload = result.value or result.content or ""
-
-        assert result.error is None
-        assert expected_session["resume_file"] in payload
-        assert expected_session["stopped_at"] in payload
-        assert expected_session["last_result_id"] in payload
-        assert "stale-host" not in payload

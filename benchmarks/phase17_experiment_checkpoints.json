@@ -1,6 +1,0 @@
-{
-  "schema_version": 1,
-  "kind": "gpd-stress-test-experiment-checkpoints",
-  "experiments": {},
-  "repair_rounds": 4
-}
