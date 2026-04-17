@@ -1229,7 +1229,7 @@ def test_resume_recovery_advice_uses_resolved_runtime_commands(monkeypatch: pyte
     monkeypatch.setattr(
         cli_module,
         "_resume_runtime_commands",
-        lambda cwd=None: ("/gpd:resume-work", "/gpd:suggest-next"),
+        lambda cwd=None: ("/gpd:resume-work", "gpd suggest"),
     )
 
     advice = cli_module._resume_recovery_advice(
@@ -1253,13 +1253,13 @@ def test_resume_recovery_advice_uses_resolved_runtime_commands(monkeypatch: pyte
     )
 
     assert advice.continue_command == "/gpd:resume-work"
-    assert advice.fast_next_command == "/gpd:suggest-next"
+    assert advice.fast_next_command == "gpd suggest"
     assert advice.mode == "current-workspace"
     assert advice.primary_command == local_cli_resume_command()
 
 
 def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli_module, "_resume_runtime_commands", lambda cwd=None: (None, None))
+    monkeypatch.setattr(cli_module, "_resume_runtime_commands", lambda cwd=None: (None, "gpd suggest"))
 
     advice = cli_module._resume_recovery_advice(
         recent_rows=[{"project_root": "/tmp/project-a", "available": True, "resumable": True}],
@@ -1268,7 +1268,7 @@ def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeyp
     )
 
     assert advice.continue_command == "runtime `resume-work`"
-    assert advice.fast_next_command == "runtime `suggest-next`"
+    assert advice.fast_next_command == "gpd suggest"
     assert advice.mode == "recent-projects"
     assert advice.primary_command == local_cli_resume_recent_command()
 
@@ -1282,7 +1282,7 @@ def test_resume_runtime_commands_use_fallback_runtime_detection(monkeypatch: pyt
 
     assert cli_module._resume_runtime_commands(cwd=Path("/tmp/runtime-advice")) == (
         adapter.format_command("resume-work"),
-        adapter.format_command("suggest-next"),
+        "gpd suggest",
     )
 
 
@@ -1298,8 +1298,8 @@ def test_resume_runtime_commands_logs_runtime_resolution_failures(
     with caplog.at_level(logging.WARNING, logger="gpd.cli"):
         commands = cli_module._resume_runtime_commands(cwd=Path("/tmp/runtime-advice"))
 
-    assert commands == (None, None)
-    assert any("Failed to resolve runtime-specific resume commands" in record.message for record in caplog.records)
+    assert commands == (None, "gpd suggest")
+    assert any("Failed to resolve resume ladder commands" in record.message for record in caplog.records)
 
 
 def test_resume_origin_label_no_longer_exposes_legacy_session_alias() -> None:
@@ -1393,7 +1393,7 @@ def test_resume_recent_human_output_surfaces_command_and_missing_projects(
     assert "gpd --cwd" in result.output
     assert "continue there with `resume-work`" in result.output
     assert "resume-work" in result.output
-    assert "suggest-next" in result.output
+    assert "gpd suggest" in result.output
     assert "Why shown: shown because it still has a usable handoff target" in result.output
     assert "ready to reopen" in result.output
     assert "Inspect:" not in result.output
@@ -1975,7 +1975,7 @@ def test_resume_plain_output_surfaces_bounded_segment_status_from_canonical_resu
     normalized = " ".join(result.output.split())
     assert "A bounded segment is resumable from the current workspace state." in normalized
     assert "resume-work" in result.output
-    assert "suggest-next" in result.output
+    assert "gpd suggest" in result.output
 
 
 def test_resume_plain_output_surfaces_canonical_bounded_segment_without_live_snapshot(
@@ -2025,7 +2025,7 @@ def test_resume_plain_output_surfaces_canonical_bounded_segment_without_live_sna
     normalized = " ".join(result.output.split())
     assert "A bounded segment is resumable from the current workspace state." in normalized
     assert "resume-work" in result.output
-    assert "suggest-next" in result.output
+    assert "gpd suggest" in result.output
 
 
 def test_resume_plain_output_surfaces_interrupted_agent_status_from_candidate(tmp_path: Path, monkeypatch) -> None:
@@ -2090,7 +2090,7 @@ def test_resume_plain_output_surfaces_machine_change_as_advisory_status(tmp_path
     assert "the project state is portable and does not require repair." in normalized
     assert "Rerun the installer" in normalized
     assert "resume-work" not in result.output
-    assert "suggest-next" not in result.output
+    assert "gpd suggest" not in result.output
     assert "No recent local recovery target is currently recorded." not in result.output
 
 
@@ -2140,7 +2140,7 @@ def test_resume_plain_output_keeps_machine_change_notice_when_session_handoff_is
     assert "continuity_handoff" in result.output
     assert "Rerun the installer" in normalized
     assert "resume-work" in result.output
-    assert "suggest-next" in result.output
+    assert "gpd suggest" in result.output
 
 
 def test_resume_plain_output_surfaces_advisory_live_execution_status(tmp_path: Path, monkeypatch) -> None:
@@ -2173,7 +2173,7 @@ def test_resume_plain_output_surfaces_advisory_live_execution_status(tmp_path: P
     assert "A live execution snapshot exists" in normalized
     assert "it is advisory only and does not expose a portable bounded-segment target." in normalized
     assert "resume-work" not in result.output
-    assert "suggest-next" not in result.output
+    assert "gpd suggest" not in result.output
 
 
 def test_resume_plain_output_surfaces_missing_handoff_status(tmp_path: Path, monkeypatch) -> None:
@@ -2212,7 +2212,7 @@ def test_resume_plain_output_surfaces_missing_handoff_status(tmp_path: Path, mon
     assert "continuity_handoff" in result.output
     assert "the continuity handoff file is missing." in normalized
     assert "resume-work" not in result.output
-    assert "suggest-next" not in result.output
+    assert "gpd suggest" not in result.output
 
 
 def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, monkeypatch) -> None:

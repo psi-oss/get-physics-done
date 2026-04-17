@@ -18,7 +18,7 @@ Routes to the pause-work workflow which handles:
 - Complete state gathering (current derivation state, parameter values, intermediate results, completed work, remaining work, decisions, blockers)
 - Canonical continuation handoff artifact creation using the shared continue-here template
 - Git commit as WIP
-- Return instructions for `gpd resume`, `gpd resume --recent`, `gpd:resume-work`, and `gpd:suggest-next` so the recovery ladder stays explicit
+- Return instructions for `gpd resume`, `gpd resume --recent`, runtime `gpd:resume-work`, and local `gpd suggest` for the `gpd:suggest-next` next-action step so the recovery ladder stays explicit
   </objective>
 
 <execution_context>
@@ -40,5 +40,5 @@ The workflow handles all logic including:
    - Next steps that were planned before pausing
 3. Canonical `.continue-here.md` continuation handoff writing with timestamp and session continuity pointer
 4. Git commit
-5. Confirmation with `gpd resume`, `gpd resume --recent`, runtime `gpd:resume-work`, and `gpd:suggest-next`
+5. Confirmation with `gpd resume`, `gpd resume --recent`, runtime `gpd:resume-work`, and local `gpd suggest` for the `gpd:suggest-next` next-action step
 </process>

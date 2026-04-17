@@ -1648,7 +1648,7 @@ class TestResume:
         assert "gpd resume --recent" in result.output
         assert "gpd --raw resume" in result.output
         assert "resume-work" in result.output
-        assert "suggest-next" in result.output
+        assert "gpd suggest" in result.output
 
     def test_resume_human_output_surfaces_hydrated_resume_result_from_nested_cwd(
         self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch
@@ -1763,7 +1763,7 @@ class TestResume:
         assert "gpd resume --recent" in result.output
         assert "gpd --raw resume" in result.output
         assert "resume-work" in result.output
-        assert "suggest-next" in result.output
+        assert "gpd suggest" in result.output
 
     def test_resume_recent_lists_recent_projects_in_recency_order(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

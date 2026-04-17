@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.core.recent_projects import record_recent_project
+from gpd.core.recovery_advice import RECOVERY_FAST_NEXT_LOCAL_COMMAND
 from gpd.core.runtime_hints import build_runtime_hint_payload
 
 
@@ -110,7 +111,7 @@ def test_build_runtime_hint_payload_reuses_one_resolved_runtime_for_commands_and
     assert unstable_detector.calls == 1  # type: ignore[attr-defined]
     assert payload.source_meta["active_runtime"] == runtime
     assert payload.orientation["continue_command"] == adapter.format_command("resume-work")
-    assert payload.orientation["fast_next_command"] == adapter.format_command("suggest-next")
+    assert payload.orientation["fast_next_command"] == RECOVERY_FAST_NEXT_LOCAL_COMMAND
 
 
 def test_build_runtime_hint_payload_falls_back_to_cost_summary_runtime_when_no_install_runtime_exists(
@@ -161,4 +162,4 @@ def test_build_runtime_hint_payload_falls_back_to_cost_summary_runtime_when_no_i
     assert payload.source_meta["active_runtime"] == runtime
     assert payload.source_meta["current_session_id"] == "sess-cost-fallback"
     assert payload.orientation["continue_command"] == adapter.format_command("resume-work")
-    assert payload.orientation["fast_next_command"] == adapter.format_command("suggest-next")
+    assert payload.orientation["fast_next_command"] == RECOVERY_FAST_NEXT_LOCAL_COMMAND

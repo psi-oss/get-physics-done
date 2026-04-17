@@ -2401,7 +2401,8 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "projectless"
         assert payload["passed"] is False
         slug = payload["command"].split(":", 1)[-1]
-        local_cli_command = "`gpd`" if not slug else f"`gpd {slug}`"
+        local_cli_slug = "suggest" if slug == "suggest-next" else slug
+        local_cli_command = "`gpd`" if not local_cli_slug else f"`gpd {local_cli_slug}`"
         assert payload["guidance"] == (
             "This command runs exclusively on the local CLI surface. "
             f"Run {local_cli_command} here instead of dispatching it through a runtime."

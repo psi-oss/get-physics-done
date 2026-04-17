@@ -733,6 +733,8 @@ def assert_help_workflow_command_index_contract(content: str) -> None:
     for label, options in (
         ("command-index help surface", _runtime_command_fragments("help")),
         ("command-index start surface", _runtime_command_fragments("start")),
+        ("command-index suggest-next surface", _runtime_command_fragments("suggest-next")),
+        ("command-index health surface", _runtime_command_fragments("health")),
         ("command-index plan-phase surface", _runtime_command_fragments("plan-phase")),
         ("command-index execute-phase surface", _runtime_command_fragments("execute-phase")),
         ("command-index write-paper surface", _runtime_command_fragments("write-paper")),
@@ -1305,7 +1307,7 @@ def assert_help_workflow_runtime_reference_contract(
     content: str,
     *,
     resume_work_fragments: Iterable[str] = _runtime_command_fragments("resume-work"),
-    suggest_next_fragments: Iterable[str] = _runtime_command_fragments("suggest-next"),
+    suggest_next_fragments: Iterable[str] = _quoted_fragments("gpd suggest"),
     pause_work_fragments: Iterable[str] = _runtime_command_fragments("pause-work"),
 ) -> None:
     _assert_contains_any(
@@ -1361,6 +1363,11 @@ def assert_help_workflow_runtime_reference_contract(
     )
     assert_beginner_startup_routing_contract(content)
     assert_runtime_readiness_handoff_contract(content)
+    _assert_contains_any(
+        content,
+        _quoted_fragments("gpd health", "gpd health --fix"),
+        label="local health execution surface",
+    )
     assert_recovery_ladder_contract(
         content,
         resume_work_fragments=resume_work_fragments,

@@ -448,14 +448,23 @@ def _format_runtime_list(runtime_names: list[str]) -> str:
     return f"{', '.join(display_names[:-1])}, and {display_names[-1]}"
 
 
-def _local_cli_command_hint(public_command_name: str) -> str:
-    """Return the canonical local CLI invocation for *public_command_name*."""
+def _local_cli_command(public_command_name: str) -> str:
+    """Return the canonical local CLI command for *public_command_name*."""
     slug = public_command_name
     prefix = "gpd:"
     if slug.startswith(prefix):
         slug = slug[len(prefix) :]
     slug = slug.strip()
-    return "`gpd`" if not slug else f"`gpd {slug}`"
+    local_cli_overrides = {
+        "suggest-next": "suggest",
+    }
+    resolved_slug = local_cli_overrides.get(slug, slug)
+    return "gpd" if not resolved_slug else f"gpd {resolved_slug}"
+
+
+def _local_cli_command_hint(public_command_name: str) -> str:
+    """Return the canonical local CLI invocation for *public_command_name*."""
+    return f"`{_local_cli_command(public_command_name)}`"
 
 
 def _supported_runtime_names() -> list[str]:
@@ -1327,30 +1336,32 @@ def _resume_recent_hint(payload: dict[str, object]) -> str | None:
 
 
 def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, str | None]:
-    """Return runtime-specific resume/suggest commands when they can be resolved."""
+    """Return the resolved resume ladder commands for the current CLI surface."""
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN
+
+    suggest_next_command = _local_cli_command("gpd:suggest-next")
     try:
         from gpd.adapters import get_adapter
 
         runtime_cwd = cwd or _get_cwd()
         runtime_name = installed_runtime_for_surface(runtime_cwd)
         if runtime_name is None:
-            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
+            from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
 
             runtime_name = detect_runtime_for_gpd_use(cwd=runtime_cwd)
         if runtime_name in (None, RUNTIME_UNKNOWN):
-            return None, None
+            return None, suggest_next_command
         adapter = get_adapter(runtime_name)
         resume_work_command = str(adapter.format_command("resume-work")).strip()
-        suggest_next_command = str(adapter.format_command("suggest-next")).strip()
         return resume_work_command or None, suggest_next_command or None
     except Exception as exc:
         logger.warning(
-            "Failed to resolve runtime-specific resume commands for %s: %s",
+            "Failed to resolve resume ladder commands for %s: %s",
             cwd or _get_cwd(),
             exc,
             exc_info=True,
         )
-        return None, None
+        return None, suggest_next_command
 
 
 def _resume_recovery_advice(
@@ -2268,7 +2279,9 @@ def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
     console.print()
     console.print("[bold]Next here[/]")
     console.print("- Select a workspace above, then continue there with `resume-work`.")
-    console.print("- After resuming, `suggest-next` is the fastest next action.")
+    console.print(
+        f"- After resuming, {_local_cli_command_hint('gpd:suggest-next')} is the fastest next action."
+    )
 
 
 def _render_resume_summary(payload: dict[str, object]) -> None:
@@ -8905,7 +8918,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             ) = next_step_entries[0]
             runtime_adapter = _get_adapter_or_error(single_runtime_name, action="install summary")
             resume_work_command = runtime_adapter.format_command("resume-work")
-            suggest_next_command = runtime_adapter.format_command("suggest-next")
+            suggest_next_command = _local_cli_command("gpd:suggest-next")
             pause_work_command = runtime_adapter.format_command("pause-work")
             console.print(
                 f"1. Open [bold]{display_name}[/] from your system terminal "
@@ -8980,7 +8993,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             console.print(
                 recovery_ladder_note(
                     resume_work_phrase="your runtime-specific `resume-work` command",
-                    suggest_next_phrase="your runtime-specific `suggest-next` command",
+                    suggest_next_phrase=_local_cli_command_hint("gpd:suggest-next"),
                     pause_work_phrase="your runtime-specific `pause-work` command",
                 ),
                 soft_wrap=True,

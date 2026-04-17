@@ -4,6 +4,7 @@ from pathlib import Path
 
 from gpd.core.recent_projects import list_recent_projects, record_recent_project
 from gpd.core.recovery_advice import (
+    RECOVERY_FAST_NEXT_LOCAL_COMMAND,
     build_recovery_advice,
     serialize_recovery_advice,
     serialize_recovery_orientation,
@@ -1233,7 +1234,7 @@ def test_build_recovery_advice_force_recent_prefers_explicit_recent_rows_over_wo
     assert advice.primary_command == "gpd resume --recent"
     assert advice.recent_projects_count == 1
     assert advice.continue_command == "runtime `resume-work`"
-    assert advice.fast_next_command == "runtime `suggest-next`"
+    assert advice.fast_next_command == RECOVERY_FAST_NEXT_LOCAL_COMMAND
 
 
 def test_build_recovery_advice_does_not_backfill_recent_candidate_for_explicit_current_workspace(

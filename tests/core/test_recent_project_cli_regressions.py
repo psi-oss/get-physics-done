@@ -81,7 +81,7 @@ def test_render_recent_resume_summary_keeps_runtime_specific_commands_generic(
     assert "Recent Projects" in output
     assert "Select a workspace above" in output
     assert "resume-work" in output
-    assert "suggest-next" in output
+    assert "gpd suggest" in output
     assert "/gpd:resume-work" not in output
     assert "$gpd-resume-work" not in output
     assert "/gpd:suggest-next" not in output

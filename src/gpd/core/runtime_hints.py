@@ -24,6 +24,7 @@ from gpd.core.project_reentry import (
 from gpd.core.public_surface_contract import recovery_local_snapshot_command
 from gpd.core.recent_projects import _strict_bool_value, list_recent_projects
 from gpd.core.recovery_advice import (
+    RECOVERY_FAST_NEXT_LOCAL_COMMAND,
     RecoveryAdvice,
     build_recovery_advice,
     serialize_recovery_orientation,
@@ -553,7 +554,7 @@ def build_runtime_hint_payload(
             recent_rows=recent_rows,
             resume_payload=resume_context,
             continue_command=_runtime_command("resume-work", cwd=project_root, runtime_name=resolved_runtime),
-            fast_next_command=_runtime_command("suggest-next", cwd=project_root, runtime_name=resolved_runtime),
+            fast_next_command=RECOVERY_FAST_NEXT_LOCAL_COMMAND,
         )
     recovery = (
         {

@@ -200,7 +200,7 @@ def _assert_single_runtime_next_steps(
 ) -> None:
     adapter = _install_adapter(descriptor)
     resume_work_command = adapter.format_command("resume-work")
-    suggest_next_command = adapter.format_command("suggest-next")
+    suggest_next_command = "gpd suggest"
     pause_work_command = adapter.format_command("pause-work")
     ordered_patterns = (
         re.escape("Startup checklist"),
@@ -275,12 +275,12 @@ def _assert_install_summary_recovery_contract(
 ) -> None:
     if runtime_specific:
         resume_work_fragments = ("your runtime-specific `resume-work` command",)
-        suggest_next_fragments = ("your runtime-specific `suggest-next` command",)
+        suggest_next_fragments = ("`gpd suggest`",)
         pause_work_fragments = ("your runtime-specific `pause-work` command",)
     else:
         adapter = _install_adapter(descriptor)
         resume_work_fragments = (f"`{adapter.format_command('resume-work')}`",)
-        suggest_next_fragments = (f"`{adapter.format_command('suggest-next')}`",)
+        suggest_next_fragments = ("`gpd suggest`",)
         pause_work_fragments = (f"`{adapter.format_command('pause-work')}`",)
 
     assert_recovery_ladder_contract(

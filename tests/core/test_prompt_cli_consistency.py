@@ -418,6 +418,11 @@ def test_progress_prompt_and_help_clarify_runtime_vs_local_cli_boundary() -> Non
     assert "takes `json|bar|table` and does not accept these flags" in normalized_command
     assert "The local CLI `gpd progress` is a separate read-only renderer" in normalized_progress_section
     assert "Local CLI: `gpd progress json|bar|table`" in normalized_progress_section
+    assert "**`gpd:suggest-next`**" in help_workflow
+    assert "Local CLI: `gpd suggest`" in help_workflow
+    assert "**`gpd:health`**" in help_workflow
+    assert "Local CLI: `gpd health`" in help_workflow
+    assert "Local CLI: `gpd health --fix`" in help_workflow
 
 
 def test_plan_phase_prompt_is_a_thin_dispatch_shell() -> None:
@@ -687,7 +692,7 @@ def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_r
     assert_recovery_ladder_contract(
         help_workflow,
         resume_work_fragments=("gpd:resume-work", "/gpd:resume-work"),
-        suggest_next_fragments=("gpd:suggest-next", "/gpd:suggest-next"),
+        suggest_next_fragments=("`gpd suggest`", "gpd suggest"),
         pause_work_fragments=("gpd:pause-work", "/gpd:pause-work"),
     )
 

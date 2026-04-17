@@ -26,7 +26,7 @@ Returning to work:
   gpd resume --recent    — Find the workspace first when you need to reopen a different one
   gpd:resume-work         — Continue in-runtime from the selected project's canonical state
   gpd:progress            — Review the broader project snapshot
-  gpd:suggest-next        — Fastest post-resume next command
+  gpd suggest             — Fastest post-resume next action from your normal terminal
   gpd observe execution    — Read-only live status from your normal terminal; use this for progress / waiting state, then follow its suggested read-only checks rather than runtime hotkeys
   gpd cost                 — Read-only machine-local usage / cost summary from your normal terminal
   gpd:tangent             — Choose stay / quick / defer / branch when a side investigation appears
@@ -141,7 +141,7 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
 - For cross-project discovery from your normal terminal, use `gpd resume --recent` to find the workspace first, then open the selected project and continue there with the runtime `resume-work` command.
-- After resuming inside the runtime, use `gpd:suggest-next` when you only need the next action.
+- `gpd:suggest-next` remains the public command identity; when you want the executable local follow-up after resuming, run `gpd suggest` from your normal terminal.
 - For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`.
 
 ## Quick Start
@@ -166,7 +166,7 @@ Use the path that matches your current situation:
 2. `gpd resume --recent` - Find a different workspace first from your normal terminal
 3. `gpd:resume-work` - Continue inside the reopened project's canonical state
 4. `gpd:progress` - See the broader project snapshot
-5. `gpd:suggest-next` - Get the fastest next action
+5. `gpd suggest` - Get the fastest next action from your normal terminal
 6. `gpd observe execution` - Watch progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks from your normal terminal
 7. `gpd cost` - Review recorded machine-local usage / cost from your normal terminal
 
@@ -725,10 +725,11 @@ Run project health checks and optionally auto-fix issues.
 
 - Checks state, frontmatter, storage-path policy, and other project health surfaces
 - Reports warnings and fixable issues before they become workflow blockers
+- Public command identity stays `gpd:health`; run it from your normal terminal as `gpd health`
 - Supports `--fix` for automatic repair of common problems
 
-Usage: `gpd:health`
-Usage: `gpd:health --fix`
+Local CLI: `gpd health`
+Local CLI: `gpd health --fix`
 
 ### Quantitative Analysis
 
@@ -835,11 +836,11 @@ Suggest the most impactful next action based on current project state.
 
 - Scans phases, plans, verification status, blockers, and todos
 - Produces a prioritized action list
-- Local CLI fallback: `gpd --raw suggest`
+- Public command identity stays `gpd:suggest-next`; run the executable local follow-up as `gpd suggest`
 - Fastest way to answer "what should I do next?" without reading through progress reports
 - Fastest post-resume command when you only need the next action
 
-Usage: `gpd:suggest-next`
+Local CLI: `gpd suggest`
 
 **`gpd:literature-review [topic]`**
 Structured literature review for a physics research topic.
@@ -1265,7 +1266,7 @@ gpd:pause-work        # Before leaving mid-phase, capture a continuation handoff
 gpd resume             # Current-workspace read-only recovery snapshot from your normal terminal
 gpd resume --recent    # Find the workspace first in your normal terminal when you need to reopen a different one
 gpd:resume-work       # Continue in-runtime from the reopened project's canonical state after reopening that workspace
-gpd:suggest-next      # Fastest post-resume next command when you only need the next action
+gpd suggest           # Fastest post-resume next action from your normal terminal when you only need the next step
 gpd:progress --brief  # Short orientation snapshot if you need more context
 ```
 

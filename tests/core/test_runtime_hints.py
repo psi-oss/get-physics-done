@@ -12,6 +12,7 @@ from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ProjectLayout
 from gpd.core.costs import UsageRecord, _profile_tier_mix, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
+from gpd.core.recovery_advice import RECOVERY_FAST_NEXT_LOCAL_COMMAND
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.runtime_hints import (
@@ -326,7 +327,7 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.orientation["resume_candidates_count"] >= 1
     assert payload.orientation["has_local_recovery_target"] is True
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert "actions" not in payload.orientation
 
     assert payload.cost["project_root"] == project.resolve(strict=False).as_posix()
@@ -497,7 +498,7 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert payload.workflow_presets["blocked"] == 5
     assert any("resume --recent" in action for action in payload.next_actions)
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
     assert any("base runtime-readiness" in action for action in payload.next_actions)
 
 
@@ -559,9 +560,9 @@ def test_build_runtime_hint_payload_auto_selects_unique_recoverable_recent_proje
     assert payload.orientation["has_local_recovery_target"] is True
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_auto_selected_bounded_segment_recent_project_stays_bounded_segment(
@@ -646,9 +647,9 @@ def test_build_runtime_hint_payload_auto_selected_bounded_segment_recent_project
     assert payload.orientation["resume_candidates_count"] == 1
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_recent_missing_handoff_stays_non_auto_selected_and_does_not_invent_local_pointer(
@@ -834,9 +835,9 @@ def test_build_runtime_hint_payload_prefers_selected_project_resume_state_for_au
     assert payload.orientation["has_local_recovery_target"] is True
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_promotes_auto_selected_recent_bounded_segment_over_same_pointer_handoff(
@@ -903,9 +904,9 @@ def test_build_runtime_hint_payload_promotes_auto_selected_recent_bounded_segmen
     assert payload.orientation["resume_candidates_count"] == 1
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_uses_selected_project_reentry_candidate_for_summary_text(
@@ -1042,7 +1043,7 @@ def test_build_runtime_hint_payload_preserves_existing_local_target_over_recent_
     assert payload.orientation["current_workspace_resumable"] is True
     assert payload.orientation["continue_command"] is not None
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
 
 
@@ -1105,7 +1106,7 @@ def test_build_runtime_hint_payload_does_not_hydrate_over_existing_canonical_con
     assert payload.orientation["current_workspace_has_resume_file"] is True
     assert payload.orientation["has_local_recovery_target"] is True
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
 
 
 def test_build_runtime_hint_payload_does_not_treat_missing_handoff_only_state_as_local_target(
@@ -1159,7 +1160,7 @@ def test_build_runtime_hint_payload_does_not_treat_missing_handoff_only_state_as
     assert payload.orientation["current_workspace_resumable"] is False
     assert payload.orientation["primary_command"] == "gpd resume"
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
 
 
 def test_build_runtime_hint_payload_keeps_ambiguous_recent_projects_explicit(tmp_path: Path) -> None:
@@ -1208,7 +1209,7 @@ def test_build_runtime_hint_payload_keeps_ambiguous_recent_projects_explicit(tmp
     assert payload.recovery["current_project"] is None
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert not any("resume-work" in action for action in payload.next_actions)
-    assert not any("suggest-next" in action for action in payload.next_actions)
+    assert not any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_keeps_cost_guidance_quiet_when_best_effort_telemetry_has_no_guardrail(
@@ -1512,7 +1513,7 @@ def test_build_runtime_hint_payload_uses_canonical_bounded_resume_mode_without_l
     _assert_no_resume_compat_aliases(payload.orientation)
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_keeps_legacy_execution_overlay_advisory_without_resume_target(
@@ -1556,7 +1557,7 @@ def test_build_runtime_hint_payload_keeps_legacy_execution_overlay_advisory_with
     _assert_no_resume_compat_aliases(payload.orientation)
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
     assert not any("resume-work" in action for action in payload.next_actions)
-    assert not any("suggest-next" in action for action in payload.next_actions)
+    assert not any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_prefers_canonical_continuity_fields_over_conflicting_legacy_execution_flags(
@@ -1623,7 +1624,7 @@ def test_build_runtime_hint_payload_prefers_canonical_continuity_fields_over_con
     assert "actions" not in payload.orientation
     _assert_no_resume_compat_aliases(payload.orientation)
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_prefers_canonical_resume_fields_over_legacy_top_level_aliases(
@@ -1671,7 +1672,7 @@ def test_build_runtime_hint_payload_prefers_canonical_resume_fields_over_legacy_
     assert "actions" not in payload.orientation
     _assert_no_resume_compat_aliases(payload.orientation)
     assert any("resume-work" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_uses_canonical_bounded_segment_without_current_execution_snapshot(
@@ -1701,7 +1702,7 @@ def test_build_runtime_hint_payload_uses_canonical_bounded_segment_without_curre
     _assert_no_resume_compat_aliases(payload.orientation)
     assert payload.orientation["has_local_recovery_target"] is True
     assert "resume-work" in str(payload.orientation["continue_command"])
-    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert RECOVERY_FAST_NEXT_LOCAL_COMMAND in str(payload.orientation["fast_next_command"])
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
 
 
@@ -1787,7 +1788,7 @@ def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_cur
     assert payload.orientation["has_local_recovery_target"] is False
     assert any("resume --recent" in action for action in payload.next_actions)
     assert any("After selecting a workspace" in action for action in payload.next_actions)
-    assert any("suggest-next" in action for action in payload.next_actions)
+    assert any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_surfaces_recent_project_missing_handoff_provenance(
@@ -1896,9 +1897,9 @@ def test_build_runtime_hint_payload_formats_generic_runtime_follow_up_when_runti
     )
 
     assert payload.orientation["continue_command"] == "runtime `resume-work`"
-    assert payload.orientation["fast_next_command"] == "runtime `suggest-next`"
+    assert payload.orientation["fast_next_command"] == RECOVERY_FAST_NEXT_LOCAL_COMMAND
     assert "runtime `resume-work` continues in-runtime from the selected project state." in payload.next_actions
-    assert "runtime `suggest-next` is the fastest post-resume next command when you only need the next action." in payload.next_actions
+    assert f"`{RECOVERY_FAST_NEXT_LOCAL_COMMAND}` is the fastest post-resume next command when you only need the next action." in payload.next_actions
     assert not any("`runtime `resume-work``" in action for action in payload.next_actions)
 
 
@@ -2015,9 +2016,9 @@ def test_build_runtime_hint_payload_uses_generic_runtime_commands_when_no_instal
     )
 
     assert payload.orientation["continue_command"] == "runtime `resume-work`"
-    assert payload.orientation["fast_next_command"] == "runtime `suggest-next`"
+    assert payload.orientation["fast_next_command"] == RECOVERY_FAST_NEXT_LOCAL_COMMAND
     assert "runtime `resume-work` continues in-runtime from the selected project state." in payload.next_actions
-    assert "runtime `suggest-next` is the fastest post-resume next command when you only need the next action." in payload.next_actions
+    assert f"`{RECOVERY_FAST_NEXT_LOCAL_COMMAND}` is the fastest post-resume next command when you only need the next action." in payload.next_actions
     assert not any(action.startswith("runtime-under-test ") for action in payload.next_actions)
 
 
@@ -2067,7 +2068,7 @@ def test_build_runtime_hint_payload_uses_global_runtime_commands_when_global_ins
     )
 
     continue_command = adapter.format_command("resume-work")
-    fast_next_command = adapter.format_command("suggest-next")
+    fast_next_command = RECOVERY_FAST_NEXT_LOCAL_COMMAND
     assert payload.orientation["continue_command"] == continue_command
     assert payload.orientation["fast_next_command"] == fast_next_command
     assert (
@@ -2124,7 +2125,7 @@ def test_build_runtime_hint_payload_surfaces_runtime_metadata_without_cost_summa
     assert payload.source_meta["active_runtime"] == runtime
     assert payload.source_meta["current_session_id"] == "sess-runtime-only"
     assert payload.orientation["continue_command"] == adapter.format_command("resume-work")
-    assert payload.orientation["fast_next_command"] == adapter.format_command("suggest-next")
+    assert payload.orientation["fast_next_command"] == RECOVERY_FAST_NEXT_LOCAL_COMMAND
 
 
 def test_build_runtime_hint_payload_machine_change_only_keeps_local_resume_without_in_runtime_followups(
@@ -2162,7 +2163,7 @@ def test_build_runtime_hint_payload_machine_change_only_keeps_local_resume_witho
     assert payload.orientation["machine_change_notice"] is not None
     assert not any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
     assert not any("resume-work" in action for action in payload.next_actions)
-    assert not any("suggest-next" in action for action in payload.next_actions)
+    assert not any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_missing_handoff_keeps_local_resume_without_in_runtime_followups(
@@ -2201,7 +2202,7 @@ def test_build_runtime_hint_payload_missing_handoff_keeps_local_resume_without_i
     assert payload.orientation["has_local_recovery_target"] is False
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
     assert not any("resume-work" in action for action in payload.next_actions)
-    assert not any("suggest-next" in action for action in payload.next_actions)
+    assert not any(RECOVERY_FAST_NEXT_LOCAL_COMMAND in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_include_recovery_false_ignores_recent_project_state(
@@ -2270,7 +2271,7 @@ def test_build_runtime_hint_payload_suppresses_duplicate_resume_recovery_nudge(t
 
     assert len(resume_actions) == 1
     assert "runtime `resume-work` continues in-runtime from the selected project state." in payload.next_actions
-    assert "runtime `suggest-next` is the fastest post-resume next command when you only need the next action." in payload.next_actions
+    assert f"`{RECOVERY_FAST_NEXT_LOCAL_COMMAND}` is the fastest post-resume next command when you only need the next action." in payload.next_actions
 
 
 def test_workflow_preset_surface_note_is_command_oriented_and_preview_first() -> None:

@@ -52,7 +52,7 @@ _RUNTIME_TOUR_COMMANDS = {name: adapter.format_command("tour") for name, adapter
 _RUNTIME_NEW_PROJECT_COMMANDS = {name: adapter.new_project_command for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_MAP_RESEARCH_COMMANDS = {name: adapter.map_research_command for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_RESUME_WORK_COMMANDS = {name: adapter.format_command("resume-work") for name, adapter in _RUNTIME_ADAPTERS.items()}
-_RUNTIME_SUGGEST_NEXT_COMMANDS = {name: adapter.format_command("suggest-next") for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_SUGGEST_NEXT_COMMANDS = dict.fromkeys(_RUNTIME_ADAPTERS, "gpd suggest")
 _RUNTIME_PAUSE_WORK_COMMANDS = {name: adapter.format_command("pause-work") for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_HELP_EXAMPLE_DESCRIPTORS = tuple(
     descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.installer_help_example_scope is not None
@@ -68,7 +68,7 @@ _CODEX_INSTALL_FLAG = runtime_install_flag(_CODEX_RUNTIME_NAME)
 _CLAUDE_INSTALL_FLAG = runtime_install_flag(_CLAUDE_RUNTIME_NAME)
 _GENERIC_RECOVERY_LADDER_NOTE = recovery_ladder_note(
     resume_work_phrase="your runtime-specific `resume-work` command",
-    suggest_next_phrase="your runtime-specific `suggest-next` command",
+    suggest_next_phrase="`gpd suggest`",
     pause_work_phrase="your runtime-specific `pause-work` command",
 )
 _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
@@ -2064,7 +2064,7 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
         result.stdout,
         runtime_help_fragments=tuple(_RUNTIME_HELP_COMMANDS[runtime] for runtime in _RUNTIME_NAMES),
         resume_work_fragments=("your runtime-specific `resume-work` command",),
-        suggest_next_fragments=("your runtime-specific `suggest-next` command",),
+        suggest_next_fragments=("`gpd suggest`",),
         pause_work_fragments=("your runtime-specific `pause-work` command",),
     )
 

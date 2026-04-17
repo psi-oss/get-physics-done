@@ -39,12 +39,17 @@ from gpd.core.surface_phrases import (
 )
 
 __all__ = [
+    "RECOVERY_FAST_NEXT_LOCAL_COMMAND",
     "RecoveryAdvice",
     "RecoveryAdviceAction",
     "build_recovery_advice",
     "serialize_recovery_advice",
     "serialize_recovery_orientation",
 ]
+
+
+RECOVERY_FAST_NEXT_LOCAL_COMMAND = "gpd suggest"
+
 
 class RecoveryAdviceAction(BaseModel):
     """One structured recovery follow-up action."""
@@ -685,7 +690,10 @@ def build_recovery_advice(
         fast_next_reason = "No next action is available until a workspace can be recovered."
     else:
         resolved_continue_command = _normalize_command(continue_command, fallback="runtime `resume-work`")
-        resolved_fast_next_command = _normalize_command(fast_next_command, fallback="runtime `suggest-next`")
+        resolved_fast_next_command = _normalize_command(
+            fast_next_command,
+            fallback=RECOVERY_FAST_NEXT_LOCAL_COMMAND,
+        )
         continue_reason = recovery_continue_reason(mode=mode)
         fast_next_reason = recovery_fast_next_reason()
 
