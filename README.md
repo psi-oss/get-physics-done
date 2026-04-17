@@ -553,7 +553,7 @@ Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). h
 If your paper includes an acknowledgements section, use:
 
 ```text
-This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).
+This research made use of Get Physics Done (GPD), developed by Physical Superintelligence PBC (PSI).
 ```
 
 ## Papers Using GPD
