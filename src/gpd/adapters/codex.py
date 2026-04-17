@@ -1240,9 +1240,15 @@ class CodexAdapter(RuntimeAdapter):
             removed: list[str] = []
             counts: dict[str, int] = {"skills": 0, "agents": 0, "hooks": 0}
             managed_hooks = managed_hook_paths(target_dir)
-            tracked_skill_dirs = _tracked_codex_generated_skill_dirs(
-                target_dir,
-                skills_dir=skills_dir,
+            # External Codex skills are only removable when the local config
+            # tree has authoritative manifest-backed ownership of that skills dir.
+            tracked_skill_dirs = (
+                _tracked_codex_generated_skill_dirs(
+                    target_dir,
+                    skills_dir=skills_dir,
+                )
+                if has_authoritative_manifest
+                else ()
             )
 
             # 1. Remove generated GPD skill directories tracked in the manifest,

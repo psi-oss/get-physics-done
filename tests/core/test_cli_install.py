@@ -105,6 +105,14 @@ def _descriptor_with_runtime_selection_flag() -> tuple[object, str]:
     raise AssertionError("Expected at least one runtime descriptor with a catalog selection flag")
 
 
+def _descriptor_with_manifest_file_prefix(prefix: str):
+    return next(
+        descriptor
+        for descriptor in _INSTALL_TEST_DESCRIPTORS
+        if prefix in descriptor.manifest_file_prefixes
+    )
+
+
 def _install_target(tmp_path: Path, descriptor=_PRIMARY_INSTALL_DESCRIPTOR) -> Path:
     return tmp_path / descriptor.config_dir_name
 
@@ -1419,6 +1427,44 @@ def test_install_target_dir_uses_env_overridden_global_path_as_global_target(
             "target_dir": override_dir.resolve(strict=False),
         }
     ]
+
+
+def test_install_target_dir_ignores_env_managed_codex_skills_for_absent_local_target(
+    gpd_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Env-driven shared Codex skills must not taint ownership of a new local target."""
+    descriptor = _descriptor_with_manifest_file_prefix("skills/")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = workspace / descriptor.config_dir_name
+    shared_skills = tmp_path / "shared-skills"
+    managed_skill = shared_skills / "gpd-help"
+    managed_skill.mkdir(parents=True, exist_ok=True)
+    descriptor_marker = descriptor.external_skill_markers[0]
+    (managed_skill / "SKILL.md").write_text(
+        "---\nname: gpd-help\ndescription: Shared help skill\n---\n"
+        "<!-- Managed by Get Physics Done (GPD). -->\n"
+        f"{descriptor_marker}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
+
+    with (
+        patch("gpd.version.resolve_install_gpd_root", return_value=gpd_root),
+        patch("gpd.cli._get_cwd", return_value=workspace),
+    ):
+        result = runner.invoke(app, ["install", descriptor.runtime_name, "--target-dir", str(target)])
+
+    assert result.exit_code == 0, result.output
+    manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+    assert manifest["runtime"] == descriptor.runtime_name
+    assert manifest["install_scope"] == "local"
+    assert manifest["explicit_target"] is True
+    assert manifest["codex_skills_dir"] == str(workspace / ".agents" / "skills")
+    assert (workspace / ".agents" / "skills" / "gpd-help" / "SKILL.md").is_file()
+    assert (managed_skill / "SKILL.md").is_file()
 
 
 def test_install_single_runtime_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):

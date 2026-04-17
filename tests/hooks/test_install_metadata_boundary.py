@@ -139,7 +139,7 @@ def test_config_dir_has_managed_install_markers_ignores_user_agents_and_hooks(tm
     assert config_dir_has_managed_install_markers(config_dir) is False
 
 
-def test_config_dir_has_managed_install_markers_detects_codex_external_skills(tmp_path: Path) -> None:
+def test_config_dir_has_managed_install_markers_detects_repo_scoped_codex_external_skills(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     config_dir = workspace / ".codex"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -151,6 +151,57 @@ def test_config_dir_has_managed_install_markers_detects_codex_external_skills(tm
     (skill_dir / "SKILL.md").write_text(f"{marker}\n", encoding="utf-8")
 
     assert config_dir_has_managed_install_markers(config_dir) is True
+
+
+def test_assess_install_target_ignores_env_only_codex_external_skills_for_non_global_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = get_runtime_descriptor("codex")
+    assert descriptor.external_skill_markers
+    marker = descriptor.external_skill_markers[0]
+
+    shared_skills = tmp_path / "managed-global-skills" / "gpd-help"
+    shared_skills.mkdir(parents=True, exist_ok=True)
+    (shared_skills / "SKILL.md").write_text(f"{marker}\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills.parent))
+
+    absent = tmp_path / "workspace-absent" / ".codex"
+    clean = tmp_path / "workspace-clean" / ".codex"
+    clean.mkdir(parents=True, exist_ok=True)
+
+    absent_assessment = assess_install_target(absent, expected_runtime="codex")
+    clean_assessment = assess_install_target(clean, expected_runtime="codex")
+
+    assert config_dir_has_managed_install_markers(absent) is False
+    assert config_dir_has_managed_install_markers(clean) is False
+    assert absent_assessment.state == "absent"
+    assert absent_assessment.has_managed_markers is False
+    assert clean_assessment.state == "clean"
+    assert clean_assessment.has_managed_markers is False
+
+
+def test_assess_install_target_treats_repo_scoped_codex_external_skills_as_local_markers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    config_dir = workspace / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.delenv("CODEX_SKILLS_DIR", raising=False)
+
+    descriptor = get_runtime_descriptor("codex")
+    assert descriptor.external_skill_markers
+    marker = descriptor.external_skill_markers[0]
+
+    skill_dir = workspace / ".agents" / "skills" / "gpd-help"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(f"{marker}\n", encoding="utf-8")
+
+    assessment = assess_install_target(config_dir, expected_runtime="codex")
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.has_managed_markers is True
 
 
 def test_install_metadata_boundary_is_codex_import_free_and_relies_on_descriptor(tmp_path: Path) -> None:

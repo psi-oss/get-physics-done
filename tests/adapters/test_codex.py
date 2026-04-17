@@ -342,6 +342,10 @@ class TestInstall:
         target = codex_config_dir(tmp_path)
         target.mkdir()
         shared_skills = tmp_path / "global-skills"
+        managed_marker = adapter.runtime_descriptor.external_skill_markers[0]
+        managed_skill = shared_skills / "gpd-shared-keep"
+        managed_skill.mkdir(parents=True)
+        (managed_skill / "SKILL.md").write_text(f"{managed_marker}\nkeep\n", encoding="utf-8")
         preserved_skill = shared_skills / "custom-keep"
         preserved_skill.mkdir(parents=True)
         (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
@@ -352,7 +356,8 @@ class TestInstall:
 
         assert result["skills_dir"] == str(local_skills)
         assert any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
-        assert not any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
+        assert {d.name for d in shared_skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")} == {"gpd-shared-keep"}
+        assert (managed_skill / "SKILL.md").exists()
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_install_creates_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
@@ -1463,6 +1468,45 @@ class TestUninstall:
 
         assert not local_skills.exists() or not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
+
+    def test_manifestless_local_uninstall_preserves_repo_scoped_external_skills(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        managed_marker = adapter.runtime_descriptor.external_skill_markers[0]
+        repo_skills = tmp_path / ".agents" / "skills"
+        preserved_skill = repo_skills / "gpd-help"
+        preserved_skill.mkdir(parents=True)
+        (preserved_skill / "SKILL.md").write_text(f"{managed_marker}\n", encoding="utf-8")
+
+        result = adapter.uninstall(target)
+
+        assert not any("skills" in item for item in result["removed"])
+        assert (preserved_skill / "SKILL.md").exists()
+
+    def test_manifestless_global_uninstall_preserves_env_external_skills(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        managed_marker = adapter.runtime_descriptor.external_skill_markers[0]
+        env_skills = tmp_path / "shared-skills"
+        preserved_skill = env_skills / "gpd-help"
+        preserved_skill.mkdir(parents=True)
+        (preserved_skill / "SKILL.md").write_text(f"{managed_marker}\n", encoding="utf-8")
+        monkeypatch.setenv("CODEX_CONFIG_DIR", str(target))
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(env_skills))
+
+        result = adapter.uninstall(target)
+
+        assert not any("skills" in item for item in result["removed"])
+        assert (preserved_skill / "SKILL.md").exists()
 
     def test_uninstall_removes_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = codex_config_dir(tmp_path)

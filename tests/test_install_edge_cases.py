@@ -713,6 +713,38 @@ class TestUninstallCorruptedManifest:
             adapter.install(gpd_root, target, is_global=True)
 
 
+class TestCodexOwnershipBoundary:
+    def test_codex_uninstall_preserves_env_managed_shared_skills_without_manifest(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        runtime = runtime_with_manifest_file_prefix("skills/")
+        adapter = get_adapter(runtime)
+        descriptor = next(descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.runtime_name == runtime)
+        workspace = tmp_path / "workspace"
+        target = workspace / adapter.config_dir_name
+        target.mkdir(parents=True, exist_ok=True)
+        shared_skills = tmp_path / "shared-skills"
+        managed_skill = shared_skills / "gpd-help"
+        managed_skill.mkdir(parents=True, exist_ok=True)
+        descriptor_marker = descriptor.external_skill_markers[0]
+        (managed_skill / "SKILL.md").write_text(
+            "---\nname: gpd-help\ndescription: Shared help skill\n---\n"
+            "<!-- Managed by Get Physics Done (GPD). -->\n"
+            f"{descriptor_marker}\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
+
+        result = adapter.uninstall(target)
+
+        assert result["runtime"] == runtime
+        assert result["skills"] == 0
+        assert result["removed"] == []
+        assert (managed_skill / "SKILL.md").is_file()
+
+
 # =========================================================================
 # 6. Install with very long path names
 # =========================================================================

@@ -14,7 +14,9 @@ from gpd.adapters.runtime_catalog import (
     get_shared_install_metadata,
     iter_runtime_descriptors,
     list_runtime_names,
+    resolve_global_config_dir_candidates,
 )
+from gpd.core.small_utils import paths_equal
 
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
@@ -151,14 +153,29 @@ def _has_descriptor_external_skills(config_dir: Path) -> bool:
     for descriptor in iter_runtime_descriptors():
         if not descriptor.external_skill_markers or not _matches_descriptor_config_dir(config_dir, descriptor):
             continue
-        if _descriptor_has_external_skills(config_dir, descriptor):
+        if _descriptor_has_external_skills(
+            config_dir,
+            descriptor,
+            include_env=_config_dir_is_authoritative_global_root(config_dir, descriptor),
+        ):
             return True
     return False
 
 
-def _descriptor_has_external_skills(config_dir: Path, descriptor: RuntimeDescriptor) -> bool:
+def _config_dir_is_authoritative_global_root(config_dir: Path, descriptor: RuntimeDescriptor) -> bool:
+    home = Path(os.environ["HOME"]).expanduser() if os.environ.get("HOME") else Path(os.path.expanduser("~")).expanduser()
+    candidates = resolve_global_config_dir_candidates(descriptor, home=home, environ=os.environ)
+    return any(paths_equal(config_dir, candidate) for candidate in candidates)
+
+
+def _descriptor_has_external_skills(
+    config_dir: Path,
+    descriptor: RuntimeDescriptor,
+    *,
+    include_env: bool,
+) -> bool:
     prefixes = descriptor.external_skill_subdir_prefixes
-    for skills_dir in _descriptor_external_skill_dirs(config_dir, descriptor):
+    for skills_dir in _descriptor_external_skill_dirs(config_dir, descriptor, include_env=include_env):
         if not skills_dir.is_dir():
             continue
         try:
@@ -182,7 +199,12 @@ def _descriptor_has_external_skills(config_dir: Path, descriptor: RuntimeDescrip
     return False
 
 
-def _descriptor_external_skill_dirs(config_dir: Path, descriptor: RuntimeDescriptor) -> tuple[Path, ...]:
+def _descriptor_external_skill_dirs(
+    config_dir: Path,
+    descriptor: RuntimeDescriptor,
+    *,
+    include_env: bool,
+) -> tuple[Path, ...]:
     candidates: list[Path] = []
     seen: set[Path] = set()
     base_dir = config_dir.parent
@@ -196,15 +218,16 @@ def _descriptor_external_skill_dirs(config_dir: Path, descriptor: RuntimeDescrip
         seen.add(candidate)
         candidates.append(candidate)
 
-    for env_var in descriptor.external_skill_env_vars:
-        env_path = os.environ.get(env_var)
-        if not env_path:
-            continue
-        candidate = Path(env_path).expanduser()
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        candidates.append(candidate)
+    if include_env:
+        for env_var in descriptor.external_skill_env_vars:
+            env_path = os.environ.get(env_var)
+            if not env_path:
+                continue
+            candidate = Path(env_path).expanduser()
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            candidates.append(candidate)
 
     return tuple(candidates)
 
