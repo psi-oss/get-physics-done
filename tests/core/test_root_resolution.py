@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from gpd.core.root_resolution import (
     RootResolutionBasis,
     RootResolutionConfidence,
@@ -42,7 +44,7 @@ def test_resolve_project_roots_uses_verified_explicit_project_dir_walkup(tmp_pat
     project = tmp_path / "project"
     nested_hint = project / "src" / "notes"
     other_workspace = tmp_path / "workspace"
-    (project / "GPD").mkdir(parents=True)
+    _make_project_root(project)
     nested_hint.mkdir(parents=True)
     other_workspace.mkdir()
 
@@ -244,6 +246,46 @@ def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_docs_only_l
     assert resolution.walk_up_steps == 2
 
 
+@pytest.mark.parametrize(
+    ("builder", "expected_steps"),
+    [
+        ("state-json", 0),
+        ("state-md", 0),
+        ("phases-project", 0),
+        ("phases-roadmap", 0),
+    ],
+)
+def test_resolve_project_roots_treats_verified_identity_markers_as_verified_layouts(
+    tmp_path: Path,
+    builder: str,
+    expected_steps: int,
+) -> None:
+    workspace = tmp_path / "workspace"
+    planning = workspace / "GPD"
+    workspace.mkdir()
+    planning.mkdir()
+
+    if builder == "state-json":
+        (planning / "state.json").write_text("{}", encoding="utf-8")
+    elif builder == "state-md":
+        (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
+    elif builder == "phases-project":
+        (planning / "phases").mkdir()
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    elif builder == "phases-roadmap":
+        (planning / "phases").mkdir()
+        (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == expected_steps
+    assert resolve_project_root(workspace, require_layout=True) == workspace.resolve(strict=False)
+
+
 def test_resolve_project_roots_falls_back_to_nearest_bare_gpd_when_no_stronger_ancestor_exists(
     tmp_path: Path,
 ) -> None:
@@ -255,9 +297,106 @@ def test_resolve_project_roots_falls_back_to_nearest_bare_gpd_when_no_stronger_a
     assert resolution is not None
     assert resolution.project_root == workspace.resolve(strict=False)
     assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+    assert resolve_project_root(workspace, require_layout=True) is None
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        "bare-stub",
+        "docs-only",
+        "phases-only",
+        "backup-only",
+    ],
+)
+def test_resolve_project_roots_treats_partial_layout_markers_as_unverified_fallbacks(
+    tmp_path: Path,
+    builder: str,
+) -> None:
+    workspace = tmp_path / "workspace"
+    planning = workspace / "GPD"
+    workspace.mkdir()
+    planning.mkdir()
+
+    if builder == "docs-only":
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    elif builder == "phases-only":
+        (planning / "phases").mkdir()
+    elif builder == "backup-only":
+        (planning / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+    assert resolve_project_root(workspace, require_layout=True) is None
+
+
+def test_resolve_project_roots_falls_back_to_workspace_stub_preserving_walk_distance(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    workspace = project / "notes" / "scratch"
+    (project / "GPD").mkdir(parents=True)
+    workspace.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == project.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 2
+    assert resolve_project_root(workspace, require_layout=True) is None
+
+
+def test_resolve_project_roots_falls_back_to_explicit_stub_preserving_walk_distance(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    project_hint = tmp_path / "project" / "notes" / "scratch"
+    (tmp_path / "project" / "GPD").mkdir(parents=True)
+    workspace.mkdir()
+    project_hint.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace, project_dir=project_hint)
+
+    assert resolution is not None
+    assert resolution.project_root == (tmp_path / "project").resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.PROJECT_DIR
+    assert resolution.confidence == RootResolutionConfidence.MEDIUM
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 2
+    assert resolve_project_root(workspace, project_dir=project_hint, require_layout=True) is None
+
+
+def test_resolve_project_roots_prefers_verified_workspace_over_explicit_stub_fallback(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    workspace = project / "src" / "notes"
+    explicit_stub_hint = tmp_path / "hint-root" / "nested" / "notes"
+    _make_project_root(project)
+    workspace.mkdir(parents=True)
+    (tmp_path / "hint-root" / "GPD").mkdir(parents=True)
+    explicit_stub_hint.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace, project_dir=explicit_stub_hint)
+
+    assert resolution is not None
+    assert resolution.project_root == project.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
     assert resolution.confidence == RootResolutionConfidence.HIGH
     assert resolution.has_project_layout is True
-    assert resolution.walk_up_steps == 0
+    assert resolution.walk_up_steps == 2
 
 
 def test_resolve_project_root_require_layout_rejects_unverified_fallback(tmp_path: Path) -> None:

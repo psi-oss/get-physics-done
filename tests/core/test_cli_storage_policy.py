@@ -118,7 +118,9 @@ def test_paper_build_nested_cwd_uses_project_root_for_storage_validation(
     monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    planning = tmp_path / "GPD"
+    planning.mkdir()
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
     _write_basic_paper_config(tmp_path)
     paper_dir = tmp_path / "paper"
 

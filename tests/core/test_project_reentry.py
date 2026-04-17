@@ -114,7 +114,7 @@ def test_resolve_project_reentry_prefers_current_workspace_recovery(tmp_path: Pa
 
 
 def test_resolve_project_reentry_walks_up_to_ancestor_project_root(tmp_path: Path) -> None:
-    project = _make_gpd_workspace(tmp_path / "project", project=True)
+    project = _make_gpd_workspace(tmp_path / "project", project=True, state=True)
     nested = project / "src" / "notes"
     nested.mkdir(parents=True)
 

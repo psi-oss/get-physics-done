@@ -59,10 +59,17 @@ _XDG_RUNTIME_DESCRIPTOR = next(
 
 
 def _setup_project(tmp_path: Path) -> Path:
-    """Create a minimal GPD project structure and return project root."""
+    """Create a stub GPD workspace (`GPD/phases` only) and return its root."""
     planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
+    return tmp_path
+
+
+def _setup_verified_project(tmp_path: Path) -> Path:
+    """Create a verified GPD workspace and return its root."""
+    _setup_project(tmp_path)
+    (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     return tmp_path
 
 
@@ -2856,14 +2863,14 @@ class TestInitResume:
         assert "source" not in ctx["resume_candidates"][0]
         assert "compat_resume_surface" not in ctx
 
-    def test_resume_prefers_explicit_gpd_workspace_over_recent_project(self, tmp_path: Path) -> None:
+    def test_resume_prefers_verified_workspace_over_recent_project(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         recent_project = tmp_path / "recent-project"
         data_root = tmp_path / "data"
 
         workspace.mkdir()
         recent_project.mkdir()
-        _setup_project(workspace)
+        _setup_verified_project(workspace)
         (workspace / "GPD" / "current-agent-id.txt").write_text("agent-local\n", encoding="utf-8")
 
         _setup_project(recent_project)
@@ -2898,6 +2905,50 @@ class TestInitResume:
         assert ctx["has_interrupted_agent"] is True
         assert ctx["interrupted_agent_id"] == "agent-local"
         assert ctx["active_resume_kind"] == "interrupted_agent"
+
+    def test_resume_prefers_recent_project_over_stub_workspace(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        recent_project = tmp_path / "recent-project"
+        data_root = tmp_path / "data"
+
+        workspace.mkdir()
+        recent_project.mkdir()
+        _setup_project(workspace)
+        (workspace / "GPD" / "current-agent-id.txt").write_text("agent-local\n", encoding="utf-8")
+
+        _setup_project(recent_project)
+        from gpd.core.state import default_state_dict
+
+        (recent_project / "GPD" / "state.json").write_text(
+            json.dumps(default_state_dict()),
+            encoding="utf-8",
+        )
+        (recent_project / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (recent_project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        resume_path = recent_project / "GPD" / "phases" / "01-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        record_recent_project(
+            recent_project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "resume_file": "GPD/phases/01-analysis/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        ctx = init_resume(workspace, data_root=data_root)
+
+        assert ctx["project_root"] == recent_project.resolve().as_posix()
+        assert ctx["project_root_source"] == "recent_project"
+        assert ctx["project_root_auto_selected"] is True
+        assert ctx["project_reentry_mode"] == "auto-recent-project"
+        assert ctx["project_reentry_selected_candidate"] is not None
+        assert ctx["project_reentry_selected_candidate"]["source"] == "recent_project"
+        assert ctx["project_reentry_selected_candidate"]["resume_target_kind"] == "handoff"
+        assert ctx["has_interrupted_agent"] is False
+        assert ctx["interrupted_agent_id"] is None
+        assert ctx["active_resume_kind"] is None
 
     def test_json_only_state_counts_as_existing(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict
@@ -3936,14 +3987,14 @@ class TestInitProgress:
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             init_progress(tmp_path)
 
-    def test_progress_prefers_explicit_gpd_workspace_config_over_recent_project(self, tmp_path: Path) -> None:
+    def test_progress_prefers_verified_workspace_config_over_recent_project(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         recent_project = tmp_path / "recent-project"
         data_root = tmp_path / "data"
 
         workspace.mkdir()
         recent_project.mkdir()
-        _setup_project(workspace)
+        _setup_verified_project(workspace)
         _create_config(workspace, {"autonomy": "guided"})
 
         _setup_project(recent_project)
@@ -3969,6 +4020,58 @@ class TestInitProgress:
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             init_progress(workspace, data_root=data_root)
+
+    def test_progress_prefers_recent_project_over_stub_workspace_config(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        recent_project = tmp_path / "recent-project"
+        data_root = tmp_path / "data"
+
+        workspace.mkdir()
+        recent_project.mkdir()
+        _setup_project(workspace)
+        _create_config(workspace, {"autonomy": "guided"})
+
+        _setup_project(recent_project)
+        from gpd.core.state import default_state_dict
+
+        (recent_project / "GPD" / "state.json").write_text(
+            json.dumps(default_state_dict()),
+            encoding="utf-8",
+        )
+        (recent_project / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (recent_project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        _create_config(
+            recent_project,
+            {
+                "autonomy": "balanced",
+                "review_cadence": "adaptive",
+                "research_mode": "balanced",
+            },
+        )
+        resume_path = recent_project / "GPD" / "phases" / "01-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        record_recent_project(
+            recent_project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "resume_file": "GPD/phases/01-analysis/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        ctx = init_progress(workspace, data_root=data_root)
+
+        assert ctx["project_root"] == recent_project.resolve().as_posix()
+        assert ctx["project_root_source"] == "recent_project"
+        assert ctx["project_root_auto_selected"] is True
+        assert ctx["project_reentry_mode"] == "auto-recent-project"
+        assert ctx["project_reentry_selected_candidate"] is not None
+        assert ctx["project_reentry_selected_candidate"]["source"] == "recent_project"
+        assert ctx["project_reentry_selected_candidate"]["resume_target_kind"] == "handoff"
+        assert ctx["autonomy"] == "balanced"
+        assert ctx["review_cadence"] == "adaptive"
+        assert ctx["research_mode"] == "balanced"
 
     def test_progress_prefers_live_execution_pause_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

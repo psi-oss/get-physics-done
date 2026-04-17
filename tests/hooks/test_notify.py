@@ -169,7 +169,9 @@ def test_notify_dedupes_repeated_update_notices(tmp_path: Path) -> None:
 
 def test_notify_keeps_update_and_execution_fingerprints_isolated(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
-    (workspace / "GPD").mkdir(parents=True)
+    planning = workspace / "GPD"
+    planning.mkdir(parents=True)
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
 
     stderr = io.StringIO()
     update_cache = {
@@ -568,7 +570,9 @@ def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp
 
 def test_notification_state_path_uses_project_layout_observability_root(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
-    (workspace / "GPD").mkdir(parents=True)
+    planning = workspace / "GPD"
+    planning.mkdir(parents=True)
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
     nested = workspace / "src" / "notes"
     nested.mkdir(parents=True)
 
@@ -847,7 +851,9 @@ def test_main_passes_workspace_and_project_roots_to_usage_recorder_when_supporte
     project = tmp_path / "project"
     nested = project / "src" / "notes"
     nested.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    planning = project / "GPD"
+    planning.mkdir()
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
 
     payload = {
         "type": "agent-turn-complete",
@@ -903,7 +909,9 @@ def test_main_expands_tilde_workspace_and_project_dir(tmp_path: Path) -> None:
     project = home / "project"
     nested = project / "src"
     nested.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    planning = project / "GPD"
+    planning.mkdir()
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
     payload = {"type": "agent-turn-complete", "workspace": {"cwd": "~/project/src", "project_dir": "~/project"}}
 
     with (
@@ -1565,7 +1573,9 @@ def test_emit_execution_notification_for_paused_state_without_resume_file_is_con
 def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    (workspace / "GPD").mkdir()
+    planning = workspace / "GPD"
+    planning.mkdir()
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
     barrier = threading.Barrier(2)
 
     class _SlowStderr:

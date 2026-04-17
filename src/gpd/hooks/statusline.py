@@ -215,27 +215,20 @@ def _read_workspace_label(
 
 
 def _statusline_project_root(workspace_dir: str) -> Path | None:
-    """Return the most durable project root visible from one workspace path."""
+    """Return the nearest verified project root visible from one workspace path."""
     normalized = normalize_workspace_hint(workspace_dir)
     if normalized is None:
         return None
 
-    bare_gpd_root: Path | None = None
-    for steps, candidate in enumerate((normalized, *normalized.parents)):
+    for candidate in (normalized, *normalized.parents):
         layout = ProjectLayout(candidate)
         if not layout.gpd.is_dir():
             continue
-        if (
-            layout.state_json.exists()
-            or layout.state_md.exists()
-            or layout.project_md.exists()
-            or layout.roadmap.exists()
-            or layout.phases_dir.is_dir()
-        ):
+        has_state_identity = layout.state_json.exists() or layout.state_md.exists()
+        has_project_docs = layout.project_md.exists() or layout.roadmap.exists()
+        if has_state_identity or (layout.phases_dir.is_dir() and has_project_docs):
             return candidate
-        if steps == 0 and bare_gpd_root is None:
-            bare_gpd_root = candidate
-    return bare_gpd_root
+    return None
 
 
 def _read_position(workspace_dir: str) -> str:

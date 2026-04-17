@@ -77,7 +77,9 @@ def test_validate_project_contract_command_stdin_prefers_project_root_warnings_i
     contract["context_intake"]["must_include_prior_outputs"] = ["missing/path.md"]
 
     with runner.isolated_filesystem():
-        Path("GPD").mkdir()
+        gpd_dir = Path("GPD")
+        gpd_dir.mkdir()
+        (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
         result = runner.invoke(
             app,
             ["--raw", "validate", "project-contract", "-"],

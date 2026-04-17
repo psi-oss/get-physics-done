@@ -44,6 +44,15 @@ class RootResolutionConfidence(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class _WalkedProjectRoot:
+    """Internal walk result that preserves whether the match was verified."""
+
+    path: Path
+    steps: int
+    verified: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectRootResolution:
     """Typed root-resolution result for workspace-aware callers."""
 
@@ -101,13 +110,13 @@ def _layout_has_verified_identity(layout: ProjectLayout) -> bool:
     return has_state_identity or (has_phases and has_project_docs)
 
 
-def _walk_project_root(candidate: Path | None) -> tuple[Path | None, int]:
+def _walk_project_root(candidate: Path | None) -> _WalkedProjectRoot | None:
     """Walk *candidate* and its ancestors until the best project root is found."""
 
     if candidate is None:
-        return None, 0
+        return None
 
-    nearest_stub: tuple[int, Path] | None = None
+    nearest_stub: _WalkedProjectRoot | None = None
 
     for steps, path in enumerate((candidate, *candidate.parents)):
         layout = ProjectLayout(path)
@@ -115,14 +124,12 @@ def _walk_project_root(candidate: Path | None) -> tuple[Path | None, int]:
             continue
 
         if nearest_stub is None:
-            nearest_stub = (steps, path)
+            nearest_stub = _WalkedProjectRoot(path=path, steps=steps, verified=False)
 
         if _layout_has_verified_identity(layout):
-            return path, steps
+            return _WalkedProjectRoot(path=path, steps=steps, verified=True)
 
-    if nearest_stub is not None:
-        return nearest_stub[1], nearest_stub[0]
-    return None, 0
+    return nearest_stub
 
 
 def resolve_project_roots(
@@ -143,28 +150,50 @@ def resolve_project_roots(
     workspace_root = normalize_workspace_hint(workspace)
     project_hint = normalize_workspace_hint(project_dir)
 
-    explicit_root, explicit_steps = _walk_project_root(project_hint)
+    explicit_root = _walk_project_root(project_hint)
+    if explicit_root is not None and explicit_root.verified:
+        return ProjectRootResolution(
+            workspace_root=workspace_root,
+            project_hint=project_hint,
+            project_root=explicit_root.path,
+            basis=RootResolutionBasis.PROJECT_DIR,
+            confidence=RootResolutionConfidence.HIGH,
+            has_project_layout=True,
+            walk_up_steps=explicit_root.steps,
+        )
+
+    workspace_project_root = _walk_project_root(workspace_root)
+    if workspace_project_root is not None and workspace_project_root.verified:
+        return ProjectRootResolution(
+            workspace_root=workspace_root,
+            project_hint=project_hint,
+            project_root=workspace_project_root.path,
+            basis=RootResolutionBasis.WORKSPACE,
+            confidence=RootResolutionConfidence.HIGH,
+            has_project_layout=True,
+            walk_up_steps=workspace_project_root.steps,
+        )
+
     if explicit_root is not None:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
-            project_root=explicit_root,
+            project_root=explicit_root.path,
             basis=RootResolutionBasis.PROJECT_DIR,
-            confidence=RootResolutionConfidence.HIGH,
-            has_project_layout=True,
-            walk_up_steps=explicit_steps,
+            confidence=RootResolutionConfidence.MEDIUM,
+            has_project_layout=False,
+            walk_up_steps=explicit_root.steps,
         )
 
-    workspace_project_root, workspace_steps = _walk_project_root(workspace_root)
     if workspace_project_root is not None:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
-            project_root=workspace_project_root,
+            project_root=workspace_project_root.path,
             basis=RootResolutionBasis.WORKSPACE,
-            confidence=RootResolutionConfidence.HIGH,
-            has_project_layout=True,
-            walk_up_steps=workspace_steps,
+            confidence=RootResolutionConfidence.LOW,
+            has_project_layout=False,
+            walk_up_steps=workspace_project_root.steps,
         )
 
     if project_hint is not None:

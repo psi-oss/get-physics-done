@@ -253,7 +253,7 @@ def _fake_cost_summary(workspace: Path, **overrides: object) -> SimpleNamespace:
 
 
 def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path: Path) -> None:
-    project = _bootstrap_project(tmp_path)
+    project = _bootstrap_recoverable_project(tmp_path)
     data_root = tmp_path / "data"
     session_id = "sess-001"
     resume_file = project / "GPD" / "phases" / "03" / ".continue-here.md"
@@ -305,10 +305,13 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
 
     assert len(payload.recovery["recent_projects"]) == 1
     assert payload.recovery["current_project"]["source"] == "current_workspace"
-    assert payload.recovery["current_project"]["resumable"] is True
-    assert payload.recovery["current_project"]["resume_file_available"] is True
+    assert payload.recovery["current_project"]["recoverable"] is True
+    assert payload.recovery["current_project"]["resumable"] is False
+    assert payload.recovery["current_project"]["resume_file_available"] is None
     assert payload.recovery["current_project_summary"] == payload.recovery["current_project"]["summary"]
-    assert "resume file ready" in payload.recovery["current_project_summary"]
+    assert payload.recovery["current_project_summary"] is None
+    assert payload.recovery["recent_projects"][0]["resumable"] is True
+    assert payload.recovery["recent_projects"][0]["resume_file_available"] is True
     assert "current_workspace" not in payload.recovery
     assert payload.orientation["resume_surface_schema_version"] == 1
     assert payload.orientation["mode"] == "current-workspace"
@@ -452,7 +455,7 @@ def test_build_runtime_hint_payload_reports_degraded_publication_presets_when_bi
 
 
 def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: Path) -> None:
-    project = _bootstrap_project(tmp_path)
+    project = _bootstrap_recoverable_project(tmp_path)
     data_root = tmp_path / "data"
     recent_project = tmp_path / "recent-project"
     recent_project.mkdir()
@@ -479,7 +482,7 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert len(payload.recovery["recent_projects"]) == 1
     assert payload.recovery["current_project"] is not None
     assert payload.recovery["current_project"]["source"] == "current_workspace"
-    assert payload.recovery["current_project"]["recoverable"] is False
+    assert payload.recovery["current_project"]["recoverable"] is True
     assert payload.recovery["current_project"]["resumable"] is False
     assert payload.recovery["current_project"]["summary"] is None
     assert payload.recovery["current_project_summary"] is None
@@ -1746,7 +1749,7 @@ def test_build_runtime_hint_payload_prefers_canonical_bounded_segment_over_confl
 def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_current_project(
     tmp_path: Path,
 ) -> None:
-    current_project = _bootstrap_project(tmp_path)
+    current_project = _bootstrap_recoverable_project(tmp_path)
     data_root = tmp_path / "data"
     missing_handoff = current_project / "GPD" / "phases" / "04" / ".continue-here.md"
     missing_handoff.parent.mkdir(parents=True, exist_ok=True)
@@ -1770,10 +1773,13 @@ def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_cur
 
     assert missing_handoff.exists() is False
     assert payload.recovery["current_project"] is not None
-    assert payload.recovery["current_project"]["resume_file"] == "GPD/phases/04/.continue-here.md"
+    assert payload.recovery["current_project"]["source"] == "current_workspace"
+    assert payload.recovery["current_project"]["resume_file"] is None
     assert payload.recovery["current_project"]["resumable"] is False
-    assert payload.recovery["current_project"]["resume_file_reason"] == "resume file missing"
-    assert payload.recovery["current_project_summary"] == "last seen 2026-03-27T12:05:00+00:00; stopped at Phase 04; resume file missing"
+    assert payload.recovery["current_project"]["resume_file_reason"] is None
+    assert payload.recovery["current_project_summary"] is None
+    assert payload.recovery["recent_projects"][0]["resume_file"] == "GPD/phases/04/.continue-here.md"
+    assert payload.recovery["recent_projects"][0]["resume_file_reason"] == "resume file missing"
     assert payload.recovery["project_reentry_summary"] == "GPD found recent projects on this machine, but none are ready to reopen automatically."
     assert payload.orientation["mode"] == "recent-projects"
     assert payload.orientation["primary_command"] == "gpd resume --recent"

@@ -327,7 +327,7 @@ def test_project_root_from_payload_prefers_explicit_project_dir_input(tmp_path) 
     workspace = tmp_path / "project" / "src" / "notes"
     project = tmp_path / "project"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
 
     result = project_root_from_payload(
         {"workspace": {"current_dir": str(workspace), "project_root": str(project)}},
@@ -393,7 +393,7 @@ def test_resolve_payload_roots_returns_canonical_workspace_and_project_root(tmp_
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(project)}},
@@ -411,7 +411,7 @@ def test_resolve_payload_roots_marks_untrusted_project_dir_when_workspace_walkup
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(tmp_path / "stale-project-dir")}},
@@ -430,7 +430,7 @@ def test_resolve_payload_roots_trusts_explicit_project_dir_when_it_is_the_select
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(project)}},
@@ -503,11 +503,11 @@ def test_resolve_payload_roots_rejects_unrelated_verified_project_dir_hint(tmp_p
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
 
     unrelated = tmp_path / "other-project"
     unrelated.mkdir()
-    (unrelated / "GPD").mkdir()
+    _make_full_project_root(unrelated)
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(unrelated)}},
@@ -526,7 +526,7 @@ def test_resolve_payload_roots_ignores_unrelated_verified_project_dir_when_works
 
     unrelated = tmp_path / "other-project"
     unrelated.mkdir()
-    (unrelated / "GPD").mkdir()
+    _make_full_project_root(unrelated)
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(unrelated)}},
@@ -543,7 +543,7 @@ def test_project_root_from_payload_prefers_policy_root_resolution_service(tmp_pa
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     project.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
     workspace.mkdir(parents=True, exist_ok=True)
     service = Mock(
         return_value={
@@ -570,7 +570,7 @@ def test_resolve_payload_roots_accepts_canonical_fields_from_shared_service(tmp_
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
     service = Mock(
         return_value=SimpleNamespace(
             workspace_dir=str(workspace),
@@ -597,7 +597,7 @@ def test_resolve_payload_roots_keeps_raw_workspace_when_service_only_returns_pro
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
-    (project / "GPD").mkdir()
+    _make_full_project_root(project)
     service = Mock(return_value=str(project))
 
     roots = resolve_payload_roots(

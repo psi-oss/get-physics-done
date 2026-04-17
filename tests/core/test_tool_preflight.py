@@ -729,6 +729,7 @@ def test_build_plan_tool_preflight_blocks_missing_repo_local_module_target(
     (project_root / "src" / "gpd").mkdir(parents=True, exist_ok=True)
     plan_path = project_root / "GPD" / "phases" / "01" / "01-11-PLAN.md"
     plan_path.parent.mkdir(parents=True, exist_ok=True)
+    (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     _write_tool_requirement_plan(plan_path, "python -m gpd.cli", plan_id="11")
 
     result = build_plan_tool_preflight(plan_path)
@@ -998,6 +999,7 @@ def test_build_plan_tool_preflight_uses_project_root_integrations_config_for_nes
     monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "secret-token")
     config_path = tmp_path / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
+    (config_path.parent / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
     plan_dir = tmp_path / "GPD" / "phases" / "01-test"
     plan_dir.mkdir(parents=True)

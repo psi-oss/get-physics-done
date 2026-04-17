@@ -516,6 +516,43 @@ class TestReadPosition:
 
         assert _statusline_project_root(str(workspace)) is None
 
+    def test_bare_current_workspace_gpd_does_not_capture_statusline_root(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "GPD").mkdir()
+
+        assert _statusline_project_root(str(workspace)) is None
+
+    def test_docs_only_layout_does_not_capture_statusline_root(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        planning = workspace / "GPD"
+        workspace.mkdir()
+        planning.mkdir()
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+        assert _statusline_project_root(str(workspace)) is None
+
+    def test_phases_only_layout_does_not_capture_statusline_root(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        planning = workspace / "GPD"
+        workspace.mkdir()
+        planning.mkdir()
+        (planning / "phases").mkdir()
+
+        assert _statusline_project_root(str(workspace)) is None
+
+    def test_phases_layout_with_project_marker_captures_statusline_root(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        nested = project / "notes"
+        planning = project / "GPD"
+        nested.mkdir(parents=True)
+        planning.mkdir()
+        (planning / "phases").mkdir()
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+
+        assert _statusline_project_root(str(nested)) == project.resolve(strict=False)
+
     def test_tilde_workspace_expands_before_project_root_lookup(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         project = home / "project"

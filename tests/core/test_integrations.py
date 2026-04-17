@@ -283,6 +283,7 @@ def test_wolfram_descriptor_resolves_project_local_config_from_nested_workspace(
     nested_workspace.mkdir(parents=True)
     config_path = project_root / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
+    (config_path.parent / "STATE.md").write_text("# State\n", encoding="utf-8")
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
 
     assert descriptor.project_config_path(nested_workspace) == config_path

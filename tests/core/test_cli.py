@@ -155,6 +155,12 @@ def _make_nested_verified_child_project(tmp_path: Path) -> tuple[Path, Path, Pat
     return parent_root, child_root, nested_cwd
 
 
+def _make_verified_project_root(project_root: Path) -> Path:
+    project_root.mkdir(parents=True, exist_ok=True)
+    save_state_json(project_root, default_state_dict())
+    return project_root
+
+
 # ─── version & help ─────────────────────────────────────────────────────────
 
 
@@ -298,9 +304,7 @@ def test_workflow_presets_surface_lists_catalog() -> None:
 
 
 def test_integrations_status_reports_effective_project_local_state_and_plan_readiness(tmp_path: Path) -> None:
-    project_root = tmp_path / "project"
-    project_root.mkdir()
-    (project_root / "GPD").mkdir()
+    project_root = _make_verified_project_root(tmp_path / "project")
 
     result = runner.invoke(app, ["--cwd", str(project_root), "--raw", "integrations", "status", "wolfram"])
     assert result.exit_code == 0
@@ -318,9 +322,7 @@ def test_integrations_status_reports_effective_project_local_state_and_plan_read
 
 
 def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tmp_path: Path) -> None:
-    project_root = tmp_path / "project"
-    project_root.mkdir()
-    (project_root / "GPD").mkdir()
+    project_root = _make_verified_project_root(tmp_path / "project")
 
     enable_result = runner.invoke(app, ["--cwd", str(project_root), "--raw", "integrations", "enable", "wolfram"])
     assert enable_result.exit_code == 0
@@ -346,21 +348,37 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
 
 
 @pytest.mark.parametrize("command", ("status", "enable", "disable"))
-def test_integrations_commands_fail_outside_real_project(tmp_path: Path, command: str) -> None:
-    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", command, "wolfram"])
+@pytest.mark.parametrize("workspace_kind", ("no-layout", "bare-stub", "phases-only-stub", "docs-only-stub"))
+def test_integrations_commands_fail_without_verified_project_layout(
+    tmp_path: Path,
+    command: str,
+    workspace_kind: str,
+) -> None:
+    workspace = tmp_path / workspace_kind
+    workspace.mkdir()
+    if workspace_kind == "bare-stub":
+        (workspace / "GPD").mkdir()
+    elif workspace_kind == "phases-only-stub":
+        (workspace / "GPD" / "phases").mkdir(parents=True)
+    elif workspace_kind == "docs-only-stub":
+        planning = workspace / "GPD"
+        planning.mkdir()
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "--raw", "integrations", command, "wolfram"])
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
     assert "real GPD project root" in payload["error"]
-    assert not (tmp_path / "GPD").exists()
+    assert not (workspace / "GPD" / "integrations.json").exists()
 
 
 def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp_path: Path) -> None:
-    project_root = tmp_path / "project"
+    project_root = _make_verified_project_root(tmp_path / "project")
     nested_workspace = project_root / "notes" / "scratch"
     nested_workspace.mkdir(parents=True)
     config_path = project_root / "GPD" / "integrations.json"
-    config_path.parent.mkdir(parents=True)
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
 
     status_result = runner.invoke(app, ["--cwd", str(nested_workspace), "--raw", "integrations", "status", "wolfram"])
@@ -379,8 +397,8 @@ def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp
 
 
 def test_integrations_status_rejects_legacy_api_key_env_field(tmp_path: Path) -> None:
+    _make_verified_project_root(tmp_path)
     config_path = tmp_path / "GPD" / "integrations.json"
-    config_path.parent.mkdir(parents=True)
     config_path.write_text(
         '{"wolfram":{"enabled":true,"api_key_env":"WOLFRAM_MCP_SERVICE_API_KEY"}}',
         encoding="utf-8",
@@ -404,8 +422,8 @@ def test_integrations_status_fails_closed_for_invalid_project_config(
     raw_config: str,
     expected_error: str,
 ) -> None:
+    _make_verified_project_root(tmp_path)
     config_path = tmp_path / "GPD" / "integrations.json"
-    config_path.parent.mkdir(parents=True)
     config_path.write_text(raw_config, encoding="utf-8")
 
     result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", "status", "wolfram"])
@@ -417,8 +435,8 @@ def test_integrations_status_fails_closed_for_invalid_project_config(
 
 @pytest.mark.parametrize("command", ("enable", "disable"))
 def test_integrations_toggle_fails_closed_for_invalid_project_config(tmp_path: Path, command: str) -> None:
+    _make_verified_project_root(tmp_path)
     config_path = tmp_path / "GPD" / "integrations.json"
-    config_path.parent.mkdir(parents=True)
     config_path.write_text('{"wolfram":{"enabled":"yes"}}', encoding="utf-8")
     before = config_path.read_text(encoding="utf-8")
 
@@ -2511,7 +2529,7 @@ def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _make_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
     contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
@@ -2818,7 +2836,7 @@ def test_state_load(mock_load):
 def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _make_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     mock_result = MagicMock()
@@ -2934,7 +2952,7 @@ def test_state_set_project_contract_uses_ancestor_project_root_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _make_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
     contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
@@ -5681,7 +5699,7 @@ def test_cli_invocation_does_not_write_observability_files_without_explicit_even
 def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_path: Path, monkeypatch) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _make_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     mock_result = MagicMock()
@@ -5699,7 +5717,7 @@ def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_pa
 def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _make_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     nested_cwd.rmdir()
 
@@ -5719,7 +5737,7 @@ def test_suggest_forwards_limit_and_serializes_raw_output_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _make_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -6102,7 +6120,7 @@ def test_init_resume(mock_init):
 def test_paper_build_uses_default_config_surface(tmp_path: Path):
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _make_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -7001,7 +7019,7 @@ def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path,
 def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(tmp_path: Path) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _make_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -7059,7 +7077,7 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
 def test_paper_build_ignores_legacy_research_citation_sources_without_literature(tmp_path: Path) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _make_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
