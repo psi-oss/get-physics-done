@@ -19,6 +19,7 @@ from scripts.release_workflow import (
     ReleaseError,
     bump_version,
     extract_release_notes,
+    main,
     prepare_release,
     stamp_publish_date,
 )
@@ -1025,3 +1026,19 @@ def test_stamp_publish_date_rejects_full_datetime_release_inputs(tmp_path: Path)
 
     with pytest.raises(ReleaseError, match="YYYY-MM-DD"):
         stamp_publish_date(tmp_path, release_date="2026-03-15T12:34:56Z")
+
+
+def test_verify_npm_pack_cli_normalizes_invalid_json_errors(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "tmp").mkdir()
+    manifest_path = tmp_path / "tmp" / "npm-pack-dry-run.json"
+    manifest_path.write_text("{invalid json", encoding="utf-8")
+
+    exit_code = main(["verify-npm-pack", "--repo", str(tmp_path), "--input", "tmp/npm-pack-dry-run.json"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == ""
+    assert captured.err == "ERROR: Could not parse npm pack manifest JSON.\n"

@@ -8,6 +8,7 @@ import pytest
 
 from scripts.release_workflow import (
     ReleaseError,
+    validate_npm_pack_manifest,
     validate_package_data_rules,
     validate_release_metadata_sources,
 )
@@ -49,6 +50,33 @@ artifacts = ["src/gpd/core/*.json"]
 
     with pytest.raises(ReleaseError, match='force-include" destinations must be unique'):
         validate_package_data_rules(pyproject_text, package_json_text)
+
+
+@pytest.mark.parametrize("entries", [1, True, "abc", {"files": []}])
+def test_validate_npm_pack_manifest_rejects_non_list_roots(entries: object) -> None:
+    with pytest.raises(ReleaseError, match="npm pack output root must be a list."):
+        validate_npm_pack_manifest(entries)
+
+
+@pytest.mark.parametrize("entries", [[1], ["x"], [None], [[]]])
+def test_validate_npm_pack_manifest_rejects_non_object_entries(entries: object) -> None:
+    with pytest.raises(ReleaseError, match="npm pack entry must be an object."):
+        validate_npm_pack_manifest(entries)
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [[{"files": [1]}], [{"files": ["x"]}], [{"files": [None]}], [{"files": [[1]]}]],
+)
+def test_validate_npm_pack_manifest_rejects_non_object_file_entries(entries: object) -> None:
+    with pytest.raises(ReleaseError, match='npm pack entry "files" must be a list of objects.'):
+        validate_npm_pack_manifest(entries)
+
+
+@pytest.mark.parametrize("entries", [[{"files": [{}]}], [{"files": [{"path": 3}]}]])
+def test_validate_npm_pack_manifest_preserves_missing_resource_errors_for_bad_paths(entries: object) -> None:
+    with pytest.raises(ReleaseError, match="npm pack is missing required resources:"):
+        validate_npm_pack_manifest(entries)
 
 
 def test_release_metadata_checks_accept_current_repo_configuration() -> None:

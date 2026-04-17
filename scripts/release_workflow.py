@@ -175,16 +175,22 @@ def validate_package_data_rules(pyproject_text: str, package_json_text: str) -> 
         )
 
 
-def validate_npm_pack_manifest(entries: list[dict[str, object]]) -> None:
+def validate_npm_pack_manifest(entries: object) -> None:
+    if not isinstance(entries, list):
+        raise ReleaseError("npm pack output root must be a list.")
     if not entries:
         raise ReleaseError("npm pack output did not describe any package entries.")
 
     file_paths: set[str] = set()
     for entry in entries:
+        if not isinstance(entry, dict):
+            raise ReleaseError("npm pack entry must be an object.")
         files = entry.get("files")
         if not isinstance(files, list):
             raise ReleaseError("npm pack entry is missing a files list.")
         for candidate in files:
+            if not isinstance(candidate, dict):
+                raise ReleaseError('npm pack entry "files" must be a list of objects.')
             path_value = candidate.get("path")
             if isinstance(path_value, str) and path_value:
                 file_paths.add(path_value)
@@ -477,7 +483,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "verify-npm-pack":
-            entries = json.loads(_read_text(repo_root / args.input))
+            try:
+                entries = json.loads(_read_text(repo_root / args.input))
+            except json.JSONDecodeError as exc:
+                raise ReleaseError("Could not parse npm pack manifest JSON.") from exc
             validate_npm_pack_manifest(entries)
             sys.stdout.write("npm pack manifest includes required runtime resources.\n")
             return 0

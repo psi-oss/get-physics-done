@@ -7,7 +7,9 @@ import os
 import subprocess
 from pathlib import Path
 
-from scripts.release_workflow import validate_npm_pack_manifest
+import pytest
+
+from scripts.release_workflow import main, validate_npm_pack_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,3 +41,35 @@ def _run_npm_pack_dry_run_json() -> list[dict[str, object]]:
 def test_npm_pack_dry_run_includes_catalog_and_contract() -> None:
     entries = _run_npm_pack_dry_run_json()
     validate_npm_pack_manifest(entries)
+
+
+def test_verify_npm_pack_cli_rejects_malformed_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / "npm-pack-dry-run.json"
+    input_path.write_text("{not valid json", encoding="utf-8")
+
+    exit_code = main(["verify-npm-pack", "--repo", str(REPO_ROOT), "--input", str(input_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert captured.err == "ERROR: Could not parse npm pack manifest JSON.\n"
+    assert "Traceback" not in captured.err
+
+
+def test_verify_npm_pack_cli_rejects_non_list_root(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / "npm-pack-dry-run.json"
+    input_path.write_text(json.dumps({"files": []}), encoding="utf-8")
+
+    exit_code = main(["verify-npm-pack", "--repo", str(REPO_ROOT), "--input", str(input_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert captured.err == "ERROR: npm pack output root must be a list.\n"
+    assert "Traceback" not in captured.err
