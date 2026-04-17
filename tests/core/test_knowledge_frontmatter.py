@@ -42,6 +42,35 @@ def _knowledge_content_sha256(content: str) -> str:
     raise AssertionError("expected a knowledge-doc content sha256 helper in gpd.core.knowledge_docs")
 
 
+def _knowledge_content_sha256_from_canonical_parse(content: str) -> str:
+    """Compute the reviewed-content hash from canonical frontmatter extraction only."""
+
+    meta, body = extract_frontmatter(content)
+    candidate_names = sorted(
+        (name for name in dir(knowledge_docs_module) if "sha256" in name.lower()),
+        key=lambda name: (
+            0 if any(token in name.lower() for token in ("knowledge", "review", "content")) else 1,
+            name,
+        ),
+    )
+    for name in candidate_names:
+        helper = getattr(knowledge_docs_module, name, None)
+        if not callable(helper):
+            continue
+        for args, kwargs in (
+            ((meta, body), {}),
+            (({},), {"meta": meta, "body": body}),
+            ((), {"meta": meta, "body": body}),
+        ):
+            try:
+                result = helper(*args, **kwargs)
+            except TypeError:
+                continue
+            if isinstance(result, str) and result.strip():
+                return result.strip()
+    raise AssertionError("expected a knowledge-doc content sha256 helper in gpd.core.knowledge_docs")
+
+
 def _review_block(
     *,
     reviewed_content_sha256: str | None,
@@ -168,6 +197,16 @@ coverage_summary:
     return "\n".join(lines)
 
 
+def _apply_frontmatter_variant(content: str, variant: str) -> str:
+    if variant == "leading_blank_lines":
+        return "\n\n" + content
+    if variant == "bom":
+        return "\ufeff" + content
+    if variant == "crlf":
+        return content.replace("\n", "\r\n")
+    raise AssertionError(f"unknown variant: {variant}")
+
+
 def _stable_reviewed_content_sha256() -> str:
     base_content = _knowledge_markdown(status="stable")
     return _knowledge_content_sha256(base_content)
@@ -235,6 +274,67 @@ def test_validate_frontmatter_accepts_stable_knowledge_doc_with_fresh_review(tmp
         ),
     )
     path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is True
+    assert result.errors == []
+
+
+@pytest.mark.parametrize("variant", ["leading_blank_lines", "bom", "crlf"])
+def test_validate_frontmatter_accepts_stable_knowledge_doc_with_fresh_review_on_tolerant_envelopes(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    base_content = _apply_frontmatter_variant(_knowledge_markdown(status="stable"), variant)
+    reviewed_content_sha256 = _knowledge_content_sha256(base_content)
+    content = _apply_frontmatter_variant(
+        _knowledge_markdown(
+            status="stable",
+            review=_review_block(
+                reviewed_content_sha256=reviewed_content_sha256,
+                stale=False,
+            ),
+        ),
+        variant,
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is True
+    assert result.errors == []
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        pytest.param("bom", id="bom"),
+        pytest.param("leading_blank_lines", id="leading-blank-lines"),
+        pytest.param("crlf", id="crlf"),
+    ],
+)
+def test_validate_frontmatter_accepts_stable_review_hash_for_tolerant_envelope_variants(
+    variant: str,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    base_content = _apply_frontmatter_variant(_knowledge_markdown(status="stable"), variant)
+    reviewed_content_sha256 = _knowledge_content_sha256_from_canonical_parse(base_content)
+    content = _apply_frontmatter_variant(
+        _knowledge_markdown(
+            status="stable",
+            review=_review_block(
+                reviewed_content_sha256=reviewed_content_sha256,
+                stale=False,
+            ),
+        ),
+        variant,
+    )
+    path.write_text(content, encoding="utf-8")
+
+    assert _knowledge_content_sha256_from_canonical_parse(content) == reviewed_content_sha256
 
     result = validate_frontmatter(content, "knowledge", source_path=path)
 

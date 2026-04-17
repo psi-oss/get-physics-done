@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from gpd.core.constants import (
@@ -42,6 +41,7 @@ _KNOWLEDGE_SOURCE_KIND_VALUES = ("paper", "dataset", "prior_artifact", "spec", "
 _KNOWLEDGE_REVIEWER_KIND_VALUES = ("human", "agent", "workflow")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _KNOWLEDGE_REVIEW_ARTIFACT_PREFIX = Path(PLANNING_DIR_NAME) / KNOWLEDGE_DIR_NAME / KNOWLEDGE_REVIEWS_DIR_NAME
+_FRONTMATTER_OPEN_RE = re.compile(r"^---[ \t]*\r?\n")
 
 
 def _normalize_required_text(value: object) -> str:
@@ -305,15 +305,25 @@ class KnowledgeDocData(BaseModel):
 
 
 def _extract_frontmatter(content: str) -> tuple[dict[str, object], str]:
-    if not content.startswith("---\n"):
-        raise ValueError("Missing frontmatter block")
-    end = content.find("\n---\n", 4)
-    if end == -1:
-        raise ValueError("Unclosed frontmatter block")
-    raw_meta = yaml.safe_load(content[4:end]) or {}
+    from gpd.core.frontmatter import (
+        LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE,
+        FrontmatterParseError,
+        extract_frontmatter,
+    )
+
+    clean = content.lstrip("\ufeff")
+    frontmatter_candidate = LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", clean, count=1)
+    try:
+        raw_meta, body = extract_frontmatter(content)
+    except FrontmatterParseError as exc:
+        raise ValueError(str(exc)) from exc
     if not isinstance(raw_meta, dict):
         raise ValueError("Frontmatter must be a mapping")
-    return raw_meta, content[end + 5 :]
+    if raw_meta or frontmatter_candidate != body:
+        return raw_meta, body
+    if _FRONTMATTER_OPEN_RE.match(frontmatter_candidate):
+        raise ValueError("Unclosed frontmatter block")
+    raise ValueError("Missing frontmatter block")
 
 
 def _normalize_review_projection_inputs(

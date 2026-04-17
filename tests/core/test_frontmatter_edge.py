@@ -61,6 +61,38 @@ class TestBOM:
 
 
 # ---------------------------------------------------------------------------
+# Leading blank lines before frontmatter
+# ---------------------------------------------------------------------------
+
+
+class TestLeadingBlankLines:
+    """Canonical parser should accept blank lines before the opening delimiter."""
+
+    def test_leading_blank_lines_before_frontmatter_are_ignored(self):
+        content = "\n  \n\t\n---\ntitle: Hello\n---\n\nBody."
+        meta, body = extract_frontmatter(content)
+        assert meta == {"title": "Hello"}
+        assert body == "\nBody."
+
+    def test_bom_and_leading_blank_lines_before_frontmatter(self):
+        content = "\ufeff\n\n---\ntitle: Hello\n---\n\nBody."
+        meta, body = extract_frontmatter(content)
+        assert meta == {"title": "Hello"}
+        assert body == "\nBody."
+
+    def test_leading_blank_lines_before_frontmatter_allow_eof_closing_delimiter(self):
+        content = "\r\n \r\n---\r\ntitle: Hello\r\n---"
+        meta, body = extract_frontmatter(content)
+        assert meta == {"title": "Hello"}
+        assert body == ""
+
+    def test_leading_blank_lines_do_not_bypass_duplicate_key_rejection(self):
+        content = "\n\n---\ntitle: First\ntitle: Second\n---\n\nBody."
+        with pytest.raises(FrontmatterParseError, match="duplicate key"):
+            extract_frontmatter(content)
+
+
+# ---------------------------------------------------------------------------
 # Windows line endings (\r\n)
 # ---------------------------------------------------------------------------
 

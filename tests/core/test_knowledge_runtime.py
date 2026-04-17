@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
+import pytest
+
+from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256, extract_frontmatter
 from gpd.core.knowledge_runtime import (
     discover_knowledge_docs,
     iter_knowledge_supersession_chain,
@@ -70,6 +72,97 @@ def _write_knowledge_doc(
     return path
 
 
+_TOLERANT_ENVELOPE_VARIANTS = (
+    "leading_blank_lines",
+    "bom",
+    "crlf",
+    "closing_delimiter_at_eof",
+)
+
+
+def _render_tolerant_stable_knowledge_doc(
+    *,
+    knowledge_id: str,
+    variant: str,
+    reviewed_content_sha256: str | None = None,
+) -> str:
+    newline = "\r\n" if variant == "crlf" else "\n"
+    prefix = ""
+    body = "Trusted knowledge body.\n"
+    if variant == "leading_blank_lines":
+        prefix = f"{newline}{newline}"
+    elif variant == "bom":
+        prefix = "\ufeff"
+    elif variant == "closing_delimiter_at_eof":
+        body = ""
+
+    lines = [
+        "---",
+        "knowledge_schema_version: 1",
+        f"knowledge_id: {knowledge_id}",
+        "title: Renormalization Group Fixed Points",
+        "topic: renormalization-group",
+        "status: stable",
+        "created_at: 2026-04-07T12:00:00Z",
+        "updated_at: 2026-04-07T12:00:00Z",
+        "sources:",
+        "  - source_id: source-main",
+        "    kind: paper",
+        "    locator: Author et al., 2024",
+        "    title: Benchmark Reference",
+        "    why_it_matters: Trusted source for the topic",
+        "coverage_summary:",
+        "  covered_topics: [fixed points]",
+        "  excluded_topics: [implementation]",
+        "  open_gaps: [none]",
+    ]
+    if reviewed_content_sha256 is not None:
+        lines.extend(
+            [
+                "review:",
+                "  reviewed_at: 2026-04-07T13:00:00Z",
+                "  review_round: 1",
+                "  reviewer_kind: workflow",
+                "  reviewer_id: gpd-review-knowledge",
+                "  decision: approved",
+                "  summary: Stable review approved.",
+                f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md",
+                f"  approval_artifact_sha256: {'a' * 64}",
+                f"  reviewed_content_sha256: {reviewed_content_sha256}",
+                "  stale: false",
+            ]
+        )
+
+    frontmatter = newline.join([*lines, "---"])
+    if variant == "closing_delimiter_at_eof":
+        return prefix + frontmatter
+    normalized_body = body.replace("\r\n", "\n").replace("\n", newline)
+    return prefix + frontmatter + newline + newline + normalized_body
+
+
+def _write_stable_knowledge_doc_with_tolerant_envelope(
+    tmp_path: Path,
+    *,
+    knowledge_id: str,
+    variant: str,
+) -> Path:
+    knowledge_dir = tmp_path / "GPD" / "knowledge"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    path = knowledge_dir / f"{knowledge_id}.md"
+    base_content = _render_tolerant_stable_knowledge_doc(knowledge_id=knowledge_id, variant=variant)
+    meta, body = extract_frontmatter(base_content)
+    reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(meta, body=body)
+    path.write_text(
+        _render_tolerant_stable_knowledge_doc(
+            knowledge_id=knowledge_id,
+            variant=variant,
+            reviewed_content_sha256=reviewed_content_sha256,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_load_knowledge_doc_inventory_surfaces_status_counts_and_fresh_approval(tmp_path: Path) -> None:
     _write_knowledge_doc(tmp_path, knowledge_id="K-active", status="stable")
     _write_knowledge_doc(tmp_path, knowledge_id="K-reviewing", status="in_review")
@@ -84,6 +177,28 @@ def test_load_knowledge_doc_inventory_surfaces_status_counts_and_fresh_approval(
     active = inventory.by_id()["K-active"]
     assert active.is_fresh_approved is True
     assert inventory.warnings == []
+
+
+@pytest.mark.parametrize("variant", _TOLERANT_ENVELOPE_VARIANTS)
+def test_discover_knowledge_docs_keeps_fresh_approved_state_for_tolerant_frontmatter_envelopes(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    knowledge_id = f"K-{variant.replace('_', '-')}"
+    _write_stable_knowledge_doc_with_tolerant_envelope(
+        tmp_path,
+        knowledge_id=knowledge_id,
+        variant=variant,
+    )
+
+    inventory = discover_knowledge_docs(tmp_path)
+
+    assert inventory.warnings == []
+    assert [record.knowledge_id for record in inventory.records] == [knowledge_id]
+    record = inventory.by_id()[knowledge_id]
+    assert record.review_fresh is True
+    assert record.runtime_active is True
+    assert record.is_fresh_approved is True
 
 
 def test_search_knowledge_docs_prefers_exact_path_and_id_matches(tmp_path: Path) -> None:

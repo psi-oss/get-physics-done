@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from gpd.core import knowledge_docs as knowledge_docs_module
 from gpd.core.frontmatter import extract_frontmatter, validate_frontmatter
 
@@ -103,6 +105,22 @@ coverage_summary:
     return "\n".join(lines)
 
 
+def _apply_frontmatter_variant(content: str, variant: str) -> str:
+    if variant == "plain":
+        return content
+    if variant == "leading_blank_lines":
+        return "\n\n" + content
+    if variant == "bom":
+        return "\ufeff" + content
+    if variant == "crlf":
+        return content.replace("\n", "\r\n")
+    if variant == "closing_delimiter_eof":
+        lines = content.splitlines()
+        closing_index = lines.index("---", 1)
+        return "\n".join(lines[: closing_index + 1])
+    raise AssertionError(f"unknown variant: {variant}")
+
+
 def test_stable_knowledge_doc_accepts_current_reviewed_content_hash(tmp_path: Path) -> None:
     base_content = _knowledge_markdown()
     reviewed_content_sha256 = _knowledge_content_sha256(base_content)
@@ -146,3 +164,65 @@ def test_stable_knowledge_doc_becomes_stale_after_trusted_metadata_edit(tmp_path
 
     assert result.valid is False
     assert any("reviewed_content_sha256" in error or "stale" in error for error in result.errors)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ["plain", "leading_blank_lines", "bom", "crlf", "closing_delimiter_eof"],
+)
+def test_knowledge_reviewed_content_projection_string_input_matches_meta_body_projection(variant: str) -> None:
+    content = _apply_frontmatter_variant(_knowledge_markdown(), variant)
+
+    meta, body = extract_frontmatter(content)
+
+    assert knowledge_docs_module.knowledge_reviewed_content_projection(content) == (
+        knowledge_docs_module.knowledge_reviewed_content_projection(meta, body=body)
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ["plain", "leading_blank_lines", "bom", "crlf", "closing_delimiter_eof"],
+)
+def test_knowledge_reviewed_content_hash_string_input_matches_meta_body_hash(variant: str) -> None:
+    content = _apply_frontmatter_variant(_knowledge_markdown(), variant)
+
+    meta, body = extract_frontmatter(content)
+
+    assert _knowledge_content_sha256(content) == knowledge_docs_module.compute_knowledge_reviewed_content_sha256(
+        meta,
+        body=body,
+    )
+
+
+def test_knowledge_reviewed_content_hash_rejects_duplicate_yaml_keys_fail_closed() -> None:
+    content = "\n".join(
+        [
+            "---",
+            "knowledge_schema_version: 1",
+            "knowledge_id: K-renormalization-group-fixed-points",
+            "title: First Title",
+            "title: Duplicate Title",
+            "topic: renormalization-group",
+            "status: stable",
+            "created_at: 2026-04-07T12:00:00Z",
+            "updated_at: 2026-04-07T12:00:00Z",
+            "sources:",
+            "  - source_id: source-main",
+            "    kind: paper",
+            "    locator: Doe et al., 2024",
+            "    title: Renormalization Group Fixed Points",
+            "    why_it_matters: Reviewed source that anchors the topic",
+            "coverage_summary:",
+            "  covered_topics: [fixed points, scaling]",
+            "  excluded_topics: [numerical implementation details]",
+            "  open_gaps: [none]",
+            "---",
+            "",
+            "Knowledge doc body.",
+            "",
+        ]
+    )
+
+    with pytest.raises(ValueError, match="duplicate key"):
+        knowledge_docs_module.compute_knowledge_reviewed_content_sha256(content)

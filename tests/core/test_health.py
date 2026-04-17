@@ -17,7 +17,7 @@ import gpd.core.health as health_module
 from gpd.core.constants import LEGACY_REPO_DATA_DIR_NAME, PLANNING_DIR_NAME, ProjectLayout
 from gpd.core.contract_validation import validate_project_contract
 from gpd.core.errors import ValidationError
-from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
+from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256, extract_frontmatter
 from gpd.core.health import (
     CheckStatus,
     DoctorReport,
@@ -70,6 +70,12 @@ _PRIMARY_PROMPT_FREE_MODE = runtime_prompt_free_mode_value(PRIMARY_RUNTIME)
 _PRIMARY_TARGET_DIR = runtime_target_dir(Path("/tmp/project"), PRIMARY_RUNTIME)
 _PRIMARY_LAUNCHER_PATH = f"/usr/bin/{runtime_launch_executable(PRIMARY_RUNTIME)}"
 _PRIMARY_RELAUNCH_STEP = f"Exit and relaunch {PRIMARY_RUNTIME} before treating unattended use as ready."
+_TOLERANT_KNOWLEDGE_ENVELOPE_VARIANTS = (
+    "leading_blank_lines",
+    "bom",
+    "crlf",
+    "closing_delimiter_at_eof",
+)
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
@@ -770,6 +776,34 @@ class TestCheckKnowledgeInventory:
         assert result.details["runtime_active_count"] == 0
         assert result.details["status_counts"] == {"draft": 0, "in_review": 0, "stable": 0, "superseded": 0}
         assert result.details["reason"] == "no_knowledge_dir"
+        assert result.warnings == []
+
+    @pytest.mark.parametrize("variant", _TOLERANT_KNOWLEDGE_ENVELOPE_VARIANTS)
+    def test_tolerant_frontmatter_envelopes_do_not_break_inventory_freshness(
+        self,
+        tmp_path: Path,
+        variant: str,
+    ) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        knowledge_dir = cwd / "GPD" / "knowledge"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+        knowledge_id = f"K-{variant.replace('_', '-')}"
+
+        _write_stable_knowledge_doc_with_tolerant_envelope(
+            knowledge_dir / f"{knowledge_id}.md",
+            knowledge_id=knowledge_id,
+            variant=variant,
+        )
+
+        result = check_knowledge_inventory(cwd)
+
+        assert result.status == CheckStatus.OK
+        assert result.details["knowledge_doc_count"] == 1
+        assert result.details["stable_knowledge_doc_count"] == 1
+        assert result.details["runtime_active_count"] == 1
+        assert result.details["discovery_warning_count"] == 0
+        assert result.details["stale_review_count"] == 0
+        assert result.details["stale_review_files"] == []
         assert result.warnings == []
 
     def test_reports_counts_staleness_supersession_and_skipped_docs(self, tmp_path: Path) -> None:
@@ -2481,6 +2515,85 @@ def _write_knowledge_doc(
         lines = [*lines[:insert_at], *review_lines, *lines[insert_at:]]
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _render_tolerant_stable_knowledge_doc(
+    *,
+    knowledge_id: str,
+    variant: str,
+    reviewed_content_sha256: str | None = None,
+) -> str:
+    newline = "\r\n" if variant == "crlf" else "\n"
+    prefix = ""
+    body = "Trusted knowledge body.\n"
+    if variant == "leading_blank_lines":
+        prefix = f"{newline}{newline}"
+    elif variant == "bom":
+        prefix = "\ufeff"
+    elif variant == "closing_delimiter_at_eof":
+        body = ""
+
+    lines = [
+        "---",
+        "knowledge_schema_version: 1",
+        f"knowledge_id: {knowledge_id}",
+        "title: Renormalization Group Fixed Points",
+        "topic: renormalization-group",
+        "status: stable",
+        "created_at: 2026-04-07T12:00:00Z",
+        "updated_at: 2026-04-07T12:00:00Z",
+        "sources:",
+        "  - source_id: source-main",
+        "    kind: paper",
+        "    locator: Doe et al., 2024",
+        "    title: Renormalization Group Fixed Points",
+        "    why_it_matters: Reviewed source that anchors the topic",
+        "coverage_summary:",
+        "  covered_topics: [fixed points, scaling]",
+        "  excluded_topics: [numerical implementation details]",
+        "  open_gaps: [none]",
+    ]
+    if reviewed_content_sha256 is not None:
+        lines.extend(
+            [
+                "review:",
+                "  reviewed_at: 2026-04-07T12:00:00Z",
+                "  review_round: 1",
+                "  reviewer_kind: human",
+                "  reviewer_id: gpd-reviewer",
+                "  decision: approved",
+                "  summary: Reviewed and accepted for downstream use",
+                f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md",
+                "  approval_artifact_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                f"  reviewed_content_sha256: {reviewed_content_sha256}",
+                "  stale: false",
+            ]
+        )
+
+    frontmatter = newline.join([*lines, "---"])
+    if variant == "closing_delimiter_at_eof":
+        return prefix + frontmatter
+    normalized_body = body.replace("\r\n", "\n").replace("\n", newline)
+    return prefix + frontmatter + newline + newline + normalized_body
+
+
+def _write_stable_knowledge_doc_with_tolerant_envelope(
+    path: Path,
+    *,
+    knowledge_id: str,
+    variant: str,
+) -> None:
+    base_content = _render_tolerant_stable_knowledge_doc(knowledge_id=knowledge_id, variant=variant)
+    meta, body = extract_frontmatter(base_content)
+    reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(meta, body=body)
+    path.write_text(
+        _render_tolerant_stable_knowledge_doc(
+            knowledge_id=knowledge_id,
+            variant=variant,
+            reviewed_content_sha256=reviewed_content_sha256,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _write_intent_recovery_state(
