@@ -398,6 +398,20 @@ def _drop_request_template_field(template: dict[str, object], dotted_path: str) 
         current.pop(parts[-1], None)
 
 
+def _set_request_template_field(template: dict[str, object], dotted_path: str, value: object) -> None:
+    """Assign a nested request-template field without disturbing sibling keys."""
+
+    parts = dotted_path.split(".")
+    current: dict[str, object] = template
+    for part in parts[:-1]:
+        next_value = current.get(part)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[part] = next_value
+        current = next_value
+    current[parts[-1]] = value
+
+
 class _ContractRequestBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1607,7 +1621,34 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         elif _contains_unreplaced_request_template_sentinel(metadata.get("declared_family")):
             metadata.pop("declared_family", None)
 
+    def _neutralize_verdict_bearing_starter_fields() -> None:
+        required_observed_placeholders = {
+            "contract.estimator_family_mismatch": {
+                "observed.bias_checked": _request_template_placeholder("bias-checked"),
+                "observed.calibration_checked": _request_template_placeholder("calibration-checked"),
+            },
+            "contract.proof_quantifier_domain": {
+                "observed.quantifier_status": _request_template_placeholder("quantifier-status"),
+                "observed.scope_status": _request_template_placeholder("scope-status"),
+            },
+            "contract.claim_to_proof_alignment": {
+                "observed.scope_status": _request_template_placeholder("scope-status"),
+            },
+            "contract.counterexample_search": {
+                "observed.counterexample_status": _request_template_placeholder("counterexample-status"),
+            },
+        }
+        for field_name, placeholder in required_observed_placeholders.get(check_key, {}).items():
+            _set_request_template_field(request_template, field_name, placeholder)
+
+        for field_name in {
+            "contract.fit_family_mismatch": ("observed.competing_family_checked",),
+        }.get(check_key, ()):
+            _drop_request_template_field(request_template, field_name)
+
     if contract is None:
+        _neutralize_verdict_bearing_starter_fields()
+        enriched_hint["request_template"] = _strip_null_request_template_values(request_template)
         return enriched_hint
 
     binding = request_template.setdefault("binding", {})
@@ -1782,6 +1823,8 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         # Keep the starter template runnable without pre-asserting a clause audit outcome.
         if metadata.get("conclusion_clause_ids") and observed.get("uncovered_conclusion_clause_ids") is None:
             metadata["conclusion_clause_ids"] = None
+
+    _neutralize_verdict_bearing_starter_fields()
 
     if check_key in _PROOF_CHECK_KEYS:
         if "contract" not in enriched_hint["required_request_fields"]:
@@ -4625,6 +4668,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     missing_inputs.append("metadata.declared_family")
                 if selected_family is None:
                     missing_inputs.append("observed.selected_family")
+                if isinstance(selected_family, str) and competing_checked is None:
+                    missing_inputs.append("observed.competing_family_checked")
                 metrics.update(
                     {
                         "declared_family": declared_family,
@@ -4647,7 +4692,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 elif isinstance(selected_family, str) and competing_checked is False:
                     automated_issues.append("Fit family was not compared against competing families")
                     status = "warning"
-                elif isinstance(selected_family, str) and declared_family:
+                elif isinstance(selected_family, str) and declared_family and not missing_inputs:
                     status = "pass"
 
             elif check_meta.check_key == "contract.estimator_family_mismatch":

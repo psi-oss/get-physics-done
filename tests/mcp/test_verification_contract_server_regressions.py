@@ -81,6 +81,10 @@ def _schema_error_messages(schema: dict[str, object], payload: dict[str, object]
     return [error.message for error in Draft202012Validator(schema).iter_errors(payload)]
 
 
+def _is_request_template_sentinel(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("<replace-with-") and value.endswith(">")
+
+
 def _benchmark_contract_check_request(contract: dict[str, object]) -> dict[str, object]:
     return {
         "check_key": "contract.benchmark_reproduction",
@@ -1574,7 +1578,7 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert fit["metadata"]["allowed_families"] == ["power_law"]
     assert fit["metadata"]["forbidden_families"] == ["polynomial"]
     assert fit["observed"]["selected_family"] == "<replace-with-selected-family>"
-    assert fit["observed"]["competing_family_checked"] is False
+    assert "competing_family_checked" not in fit["observed"]
     assert "artifact_content" not in fit
 
     estimator = checks["contract.estimator_family_mismatch"]["request_template"]
@@ -1585,8 +1589,8 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert estimator["metadata"]["allowed_families"] == ["bootstrap"]
     assert estimator["metadata"]["forbidden_families"] == ["jackknife"]
     assert estimator["observed"]["selected_family"] == "<replace-with-selected-estimator-family>"
-    assert estimator["observed"]["bias_checked"] is False
-    assert estimator["observed"]["calibration_checked"] is False
+    assert _is_request_template_sentinel(estimator["observed"]["bias_checked"])
+    assert _is_request_template_sentinel(estimator["observed"]["calibration_checked"])
     assert "artifact_content" not in estimator
     assert checks["contract.benchmark_reproduction"]["supported_binding_fields"] == [
         "binding.claim_ids",
@@ -1639,8 +1643,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
         "for all r_0 > 0",
         "for every admissible solution",
     ]
-    assert quantifier["request_template"]["observed"]["quantifier_status"] == "unclear"
-    assert quantifier["request_template"]["observed"]["scope_status"] == "unclear"
+    assert _is_request_template_sentinel(quantifier["request_template"]["observed"]["quantifier_status"])
+    assert _is_request_template_sentinel(quantifier["request_template"]["observed"]["scope_status"])
 
     alignment = checks["contract.claim_to_proof_alignment"]
     assert alignment["required_request_fields"] == ["contract", "observed.scope_status"]
@@ -1652,7 +1656,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert alignment["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
-    assert alignment["request_template"]["observed"]["scope_status"] == "unclear"
+    assert _is_request_template_sentinel(alignment["request_template"]["observed"]["scope_status"])
 
     counterexample = checks["contract.counterexample_search"]
     assert counterexample["required_request_fields"] == ["contract", "observed.counterexample_status"]
@@ -1660,7 +1664,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert counterexample["request_template"]["contract"]["schema_version"] == 1
     assert counterexample["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-counterexample"]
     assert counterexample["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert counterexample["request_template"]["observed"]["counterexample_status"] == "not_attempted"
+    assert _is_request_template_sentinel(counterexample["request_template"]["observed"]["counterexample_status"])
 
 
 def test_suggest_contract_checks_proof_quantifier_template_roundtrips() -> None:
@@ -1814,6 +1818,60 @@ def test_suggest_contract_checks_proof_templates_do_not_pass_when_reused_unchang
             assert "unreplaced request_template sentinel values" in run_result["error"], entry["check_key"]
         else:
             assert run_result["status"] in {"insufficient_evidence", "warning"}, entry["check_key"]
+
+
+def test_suggest_contract_checks_proof_quantifier_template_requires_explicit_audit_when_reused_unchanged() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _proof_contract()
+    checks = {entry["check_key"]: entry for entry in suggest_contract_checks(contract)["suggested_checks"]}
+
+    request = {
+        **copy.deepcopy(checks["contract.proof_quantifier_domain"]["request_template"]),
+        "check_key": "contract.proof_quantifier_domain",
+        "contract": contract,
+    }
+
+    run_result = run_contract_check(request)
+    assert run_result["status"] == "insufficient_evidence"
+    assert run_result["missing_inputs"] == ["observed.quantifier_status", "observed.scope_status"]
+    assert "Proof audit could not establish quantifier/domain fidelity decisively" not in run_result["automated_issues"]
+
+
+def test_suggest_contract_checks_claim_alignment_template_requires_explicit_scope_audit_when_reused_unchanged() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _proof_contract()
+    checks = {entry["check_key"]: entry for entry in suggest_contract_checks(contract)["suggested_checks"]}
+
+    request = {
+        **copy.deepcopy(checks["contract.claim_to_proof_alignment"]["request_template"]),
+        "check_key": "contract.claim_to_proof_alignment",
+        "contract": contract,
+    }
+
+    run_result = run_contract_check(request)
+    assert run_result["status"] == "insufficient_evidence"
+    assert run_result["missing_inputs"] == ["observed.scope_status"]
+    assert "Proof-to-claim alignment remains unclear" not in run_result["automated_issues"]
+
+
+def test_suggest_contract_checks_counterexample_template_requires_explicit_attempt_status_when_reused_unchanged() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _proof_contract()
+    checks = {entry["check_key"]: entry for entry in suggest_contract_checks(contract)["suggested_checks"]}
+
+    request = {
+        **copy.deepcopy(checks["contract.counterexample_search"]["request_template"]),
+        "check_key": "contract.counterexample_search",
+        "contract": contract,
+    }
+
+    run_result = run_contract_check(request)
+    assert run_result["status"] == "insufficient_evidence"
+    assert run_result["missing_inputs"] == ["observed.counterexample_status"]
+    assert "No adversarial counterexample attempt was recorded" not in run_result["automated_issues"]
 
 
 def test_run_contract_check_reuses_contract_derived_limit_and_family_defaults() -> None:
@@ -2129,6 +2187,58 @@ def test_run_contract_check_estimator_negative_diagnostics_are_not_treated_as_mi
     assert result["status"] == "warning"
     assert result["missing_inputs"] == []
     assert "Estimator family is missing bias or calibration diagnostics" in result["automated_issues"]
+
+
+def test_run_contract_check_fit_family_requires_explicit_competing_family_audit_when_selected_family_is_supplied() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": _derived_template_contract(),
+            "observed": {
+                "selected_family": "power_law",
+            },
+        }
+    )
+
+    assert result["status"] == "insufficient_evidence"
+    assert result["missing_inputs"] == ["observed.competing_family_checked"]
+
+
+def test_run_contract_check_claim_to_proof_alignment_warns_when_scope_status_is_explicitly_unclear() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.claim_to_proof_alignment",
+            "contract": _proof_contract(),
+            "observed": {
+                "scope_status": "unclear",
+            },
+        }
+    )
+
+    assert result["status"] == "warning"
+    assert "Proof-to-claim alignment remains unclear" in result["automated_issues"]
+
+
+def test_run_contract_check_counterexample_search_records_not_attempted_when_explicitly_supplied() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.counterexample_search",
+            "contract": _proof_contract(),
+            "observed": {
+                "counterexample_status": "not_attempted",
+            },
+        }
+    )
+
+    assert result["status"] == "insufficient_evidence"
+    assert result["missing_inputs"] == []
+    assert "No adversarial counterexample attempt was recorded" in result["automated_issues"]
 
 
 def test_suggest_contract_checks_leaves_ambiguous_metadata_placeholders_unresolved() -> None:

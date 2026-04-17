@@ -66,6 +66,7 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
 
 def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> None:
     verifier = _read_verifier_prompt()
+    verify_work = _read_verify_work_template()
     contract_results_schema = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
 
     assert "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required." in verifier
@@ -77,7 +78,8 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
     assert "`suggested_contract_checks` entries in `VERIFICATION.md` may only use `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in verifier
     assert "When the gap comes from `suggest_contract_checks(contract)`, `check` must copy the returned `check_key`." in verifier
     assert "If you bind a `suggested_contract_checks` entry to a known contract target, `suggested_subject_kind` and `suggested_subject_id` must appear together; otherwise omit both." in contract_results_schema
-    assert "For each suggested check, start from `request_template`" in verifier
+    assert "For each suggested check, start from `request_template`, replace every `<replace-with-...>` sentinel before execution" in verifier
+    assert "do not treat starter template values or omitted observed fields as evidence" in verifier
     assert "`schema_required_request_fields`" in verifier
     assert "`schema_required_request_anyof_fields`" in verifier
     assert "satisfy one full alternative from `schema_required_request_anyof_fields`" in verifier
@@ -86,6 +88,8 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
     assert "Execute `run_contract_check(request=..., project_dir=...)`." in verifier
     assert "required reference actions missing" in verifier
     assert "`suggested_contract_check`" not in verifier
+    assert "For each returned check, start from `request_template`, replace every `<replace-with-...>` sentinel before execution" in verify_work
+    assert "do not treat starter template values or omitted observed fields as evidence" in verify_work
 
 
 def test_verifier_prompt_keeps_reference_actions_within_the_canonical_enum() -> None:

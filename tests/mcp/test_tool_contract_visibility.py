@@ -241,6 +241,22 @@ def _assert_strict_required_schema_fragment(schema_fragment: dict[str, object], 
         assert schema_fragment["pattern"] == r"\S"
 
 
+def _lookup_template_field(template: dict[str, object], field_path: str) -> tuple[bool, object | None]:
+    current: object = template
+    parts = field_path.split(".")
+    for part in parts[:-1]:
+        if not isinstance(current, dict) or part not in current:
+            return False, None
+        current = current[part]
+    if not isinstance(current, dict) or parts[-1] not in current:
+        return False, None
+    return True, current[parts[-1]]
+
+
+def _is_request_placeholder(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("<replace-with-") and value.endswith(">")
+
+
 def test_strict_required_schema_fragment_rejects_permissive_anyof_array_branch() -> None:
     with pytest.raises(AssertionError, match="must not allow empty arrays when schema-required"):
         _assert_strict_required_schema_fragment(
@@ -1155,7 +1171,7 @@ def test_suggest_contract_checks_exposes_claim_alignment_branches() -> None:
     ]
     assert alignment["request_template"]["metadata"]["claim_statement"] == "For all r_0 > 0, the full theorem holds."
     assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
-    assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["request_template"].get("observed", {})
 
 
 def test_suggest_contract_templates_avoid_placeholder_contract() -> None:
@@ -1185,7 +1201,7 @@ def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_pre
     alignment = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment")
     request = copy.deepcopy(alignment["request_template"])
     request["contract"] = _proof_contract_fixture()
-    request["observed"]["scope_status"] = "matched"
+    request.setdefault("observed", {})["scope_status"] = "matched"
 
     verification = run_contract_check(request)
 
@@ -1196,22 +1212,68 @@ def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_pre
 def test_contract_request_templates_preserve_non_null_required_fields() -> None:
     from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS, _contract_check_request_hint
 
-    def _lookup(template: dict[str, object], field_path: str) -> object | None:
-        current: object | None = template
-        for part in field_path.split("."):
-            if not isinstance(current, dict):
-                return None
-            current = current.get(part)
-            if current is None:
-                return None
-        return current
+    required_neutral_placeholder_fields = {
+        ("contract.estimator_family_mismatch", "observed.bias_checked"),
+        ("contract.estimator_family_mismatch", "observed.calibration_checked"),
+        ("contract.proof_quantifier_domain", "observed.quantifier_status"),
+        ("contract.proof_quantifier_domain", "observed.scope_status"),
+        ("contract.claim_to_proof_alignment", "observed.scope_status"),
+        ("contract.counterexample_search", "observed.counterexample_status"),
+    }
 
     for check_key, hint in _CONTRACT_CHECK_REQUEST_HINTS.items():
         template = _contract_check_request_hint(check_key)["request_template"]
         for field_name in hint.get("required_request_fields", []):
             if field_name == "contract":
                 continue
-            assert _lookup(template, field_name) is not None
+            present, value = _lookup_template_field(template, field_name)
+            assert present
+            if (check_key, field_name) in required_neutral_placeholder_fields:
+                assert _is_request_placeholder(value)
+                continue
+            assert value is not None
+
+
+def test_contract_request_templates_publish_neutral_verdict_field_policy() -> None:
+    from gpd.mcp.servers.verification_server import _contract_check_request_hint
+
+    neutral_policy = {
+        "contract.fit_family_mismatch": {
+            "optional_omission": ["observed.competing_family_checked"],
+        },
+        "contract.estimator_family_mismatch": {
+            "required_placeholder": ["observed.bias_checked", "observed.calibration_checked"],
+        },
+        "contract.proof_quantifier_domain": {
+            "required_placeholder": ["observed.quantifier_status", "observed.scope_status"],
+        },
+        "contract.claim_to_proof_alignment": {
+            "required_placeholder": ["observed.scope_status"],
+        },
+        "contract.counterexample_search": {
+            "required_placeholder": ["observed.counterexample_status"],
+        },
+    }
+
+    concrete_verdict_literals = {False, "unclear", "not_attempted"}
+
+    for check_key, policy in neutral_policy.items():
+        hint = _contract_check_request_hint(check_key)
+        template = hint["request_template"]
+        required_fields = set(hint["required_request_fields"])
+
+        for field_name in policy.get("required_placeholder", []):
+            present, value = _lookup_template_field(template, field_name)
+            assert field_name in required_fields
+            assert present
+            assert _is_request_placeholder(value)
+            assert value not in concrete_verdict_literals
+
+        for field_name in policy.get("optional_omission", []):
+            present, value = _lookup_template_field(template, field_name)
+            assert field_name not in required_fields
+            assert not present
+            assert value is None
 
 
 def test_patterns_tools_expose_domain_category_and_severity_enums() -> None:

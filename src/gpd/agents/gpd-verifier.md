@@ -176,7 +176,7 @@ Before freezing the verification plan, use this contract-check loop whenever pro
 
 1. Call `suggest_contract_checks(contract, project_dir=...)`.
 2. Treat the returned items as the default contract-aware check seed unless they are clearly inapplicable.
-3. For each suggested check, start from `request_template`, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, bind only `supported_binding_fields` inside `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
+3. For each suggested check, start from `request_template`, replace every `<replace-with-...>` sentinel before execution, do not treat starter template values or omitted observed fields as evidence, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, bind only `supported_binding_fields` inside `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
 4. Execute `run_contract_check(request=..., project_dir=...)`.
 
 If a decisive check is still missing after that pass, record it as a structured `suggested_contract_checks` entry.
