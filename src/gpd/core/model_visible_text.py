@@ -16,6 +16,8 @@ __all__ = [
     "AGENT_ROLE_FAMILIES",
     "AGENT_SHARED_STATE_AUTHORITIES",
     "AGENT_SURFACES",
+    "COMMAND_POLICY_FRONTMATTER_KEY",
+    "COMMAND_POLICY_PROMPT_WRAPPER_KEY",
     "VALID_CONTEXT_MODES",
     "REVIEW_CONTRACT_CONDITIONAL_WHENS",
     "REVIEW_CONTRACT_FRONTMATTER_KEY",
@@ -42,6 +44,8 @@ AGENT_SURFACES = ("public", "internal")
 AGENT_ROLE_FAMILIES = ("worker", "analysis", "verification", "review", "coordination")
 AGENT_ARTIFACT_WRITE_AUTHORITIES = ("scoped_write", "read_only")
 AGENT_SHARED_STATE_AUTHORITIES = ("return_only", "direct")
+COMMAND_POLICY_FRONTMATTER_KEY = "command-policy"
+COMMAND_POLICY_PROMPT_WRAPPER_KEY = "command_policy"
 REVIEW_CONTRACT_MODES = ("publication", "review")
 REVIEW_CONTRACT_REQUIRED_STATES = ("phase_executed",)
 REVIEW_CONTRACT_CONDITIONAL_WHENS = (
@@ -121,6 +125,21 @@ def command_visibility_note() -> str:
     return render_model_visible_note(
         "Command YAML rules.",
         "Strict booleans only.",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper; "
+        f"its canonical frontmatter key is `{COMMAND_POLICY_FRONTMATTER_KEY}`;",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy`, and "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.output_policy` are closed mappings when present;",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
+        "are lists of strings when present;",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.project_context_mode` "
+        f"must be {_join_disjunction(VALID_CONTEXT_MODES)} when present;",
+        "Typed command policy is additive in Phase 1; keep legacy `context_mode`, `project_reentry_capable`, "
+        "and `requires.files` aligned because they remain visible for compatibility.",
         f"`context_mode` must be {_join_disjunction(VALID_CONTEXT_MODES)};",
         "`allowed_tools` is a list of tool names when present;",
         "`requires` is a closed mapping when present; only `files` is supported.",
@@ -144,13 +163,19 @@ def review_contract_visibility_note() -> str:
         "Empty optional fields may be omitted.",
         f"`review_mode` must be {review_modes};",
         f"`required_state` when present must be {required_states};",
-        "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, and `stage_artifacts` are lists when present;",
+        "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, `stage_artifacts`, "
+        "and `scope_variants` are lists when present;",
         f"`preflight_checks` entries must be {preflight_checks};",
         f"`conditional_requirements[].when` must be one of {conditional_whens};",
         "`conditional_requirements[].blocking_preflight_checks` is a list when present and its entries must also appear in the top-level `preflight_checks` list.",
         "Each `conditional_requirements[].when` value may appear at most once.",
         "List fields reject blank entries and duplicates.",
         "Each conditional requirement must declare at least one non-empty field.",
+        "`scope_variants[].scope` and `scope_variants[].activation` must be non-empty strings.",
+        "`scope_variants[].relaxed_preflight_checks` and `scope_variants[].optional_preflight_checks` are lists when present and their entries must also satisfy the top-level `preflight_checks` vocabulary.",
+        "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present.",
+        "Each `scope_variants[].scope` value may appear at most once.",
+        "Each scope variant must declare at least one non-empty override or preflight field.",
         "Missing required outputs or evidence must stay explicit; do not omit, invent, or replace them with proxies.",
         *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )

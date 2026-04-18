@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import posixpath
 import re
 import unicodedata
 from collections import Counter
@@ -59,6 +60,85 @@ def normalize_acknowledgments(value: str) -> str:
     if required_compact in normalized_compact:
         return normalized
     return f"{normalized}\n\n{REQUIRED_GPD_ACKNOWLEDGMENT}"
+
+
+def _normalize_publication_path_label(value: str) -> str:
+    normalized = value.strip().replace("\\", "/")
+    if not normalized:
+        return ""
+    compact = posixpath.normpath(normalized)
+    return "" if compact == "." else compact
+
+
+def _display_publication_path(project_root: Path, path: Path | None) -> str:
+    if path is None:
+        return ""
+    resolved_root = project_root.resolve(strict=False)
+    resolved_path = path.resolve(strict=False)
+    try:
+        return resolved_path.relative_to(resolved_root).as_posix()
+    except ValueError:
+        return resolved_path.as_posix()
+
+
+class PublicationPathSemantics(BaseModel):
+    """Typed path views for one resolved publication subject."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    subject_path: str = ""
+    artifact_base_path: str = ""
+    manuscript_root_path: str = ""
+    manuscript_entrypoint_path: str = ""
+    subject_relative_entrypoint_path: str = ""
+    artifact_manifest_path_kind: Literal["artifact_base_relative"] = "artifact_base_relative"
+    review_manuscript_path_kind: Literal["project_relative_or_absolute"] = "project_relative_or_absolute"
+
+    @field_validator(
+        "subject_path",
+        "artifact_base_path",
+        "manuscript_root_path",
+        "manuscript_entrypoint_path",
+        "subject_relative_entrypoint_path",
+    )
+    @classmethod
+    def _normalize_path_labels(cls, value: str) -> str:
+        return _normalize_publication_path_label(value)
+
+    @classmethod
+    def from_paths(
+        cls,
+        project_root: Path,
+        *,
+        subject_path: Path | None,
+        artifact_base_path: Path | None,
+        manuscript_root_path: Path | None,
+        manuscript_entrypoint_path: Path | None,
+    ) -> PublicationPathSemantics | None:
+        if (
+            subject_path is None
+            and artifact_base_path is None
+            and manuscript_root_path is None
+            and manuscript_entrypoint_path is None
+        ):
+            return None
+
+        subject_relative_entrypoint = ""
+        if artifact_base_path is not None and manuscript_entrypoint_path is not None:
+            resolved_base = artifact_base_path.resolve(strict=False)
+            resolved_entrypoint = manuscript_entrypoint_path.resolve(strict=False)
+            try:
+                subject_relative_entrypoint = resolved_entrypoint.relative_to(resolved_base).as_posix()
+            except ValueError:
+                subject_relative_entrypoint = resolved_entrypoint.name
+
+        return cls(
+            subject_path=_display_publication_path(project_root, subject_path),
+            artifact_base_path=_display_publication_path(project_root, artifact_base_path),
+            manuscript_root_path=_display_publication_path(project_root, manuscript_root_path),
+            manuscript_entrypoint_path=_display_publication_path(project_root, manuscript_entrypoint_path),
+            subject_relative_entrypoint_path=subject_relative_entrypoint,
+        )
 
 
 class Author(BaseModel):
@@ -269,9 +349,7 @@ class ProofAuditRecord(BaseModel):
         if not self.proof_locations:
             raise ValueError("aligned proof_audits must include proof_locations")
         if not self.theorem_assumptions_checked and not self.theorem_parameters_checked:
-            raise ValueError(
-                "aligned proof_audits must record at least one checked assumption or checked parameter"
-            )
+            raise ValueError("aligned proof_audits must record at least one checked assumption or checked parameter")
         if self.uncovered_assumptions or self.uncovered_parameters or self.coverage_gaps:
             raise ValueError(
                 "aligned proof_audits cannot list uncovered assumptions, uncovered parameters, or coverage gaps"
@@ -379,9 +457,7 @@ class StageReviewReport(BaseModel):
     @model_validator(mode="after")
     def _proof_audit_claim_ids_must_be_unique(self) -> StageReviewReport:
         proof_audit_claim_ids = [audit.claim_id for audit in self.proof_audits]
-        duplicates = sorted(
-            claim_id for claim_id, count in Counter(proof_audit_claim_ids).items() if count > 1
-        )
+        duplicates = sorted(claim_id for claim_id, count in Counter(proof_audit_claim_ids).items() if count > 1)
         if duplicates:
             raise ValueError("proof_audits must not repeat claim_id values: " + ", ".join(duplicates))
         return self
@@ -481,7 +557,11 @@ class PaperToolchainCapability(BaseModel):
         self.bibliography_support_available = compiler_available and bibtex_available
         self.paper_build_ready = compiler_available
         self.full_toolchain_available = (
-            compiler_available and bibtex_available and latexmk_available and kpsewhich_available and pdftotext_available
+            compiler_available
+            and bibtex_available
+            and latexmk_available
+            and kpsewhich_available
+            and pdftotext_available
         )
         self.arxiv_submission_ready = self.bibliography_support_available and kpsewhich_available
         self.pdf_review_ready = pdftotext_available
@@ -523,9 +603,7 @@ class PaperConfig(BaseModel):
         if not normalized:
             raise ValueError("bib_file must be a non-empty stem")
         if not _BIB_FILE_STEM_RE.fullmatch(normalized):
-            raise ValueError(
-                "bib_file must be a stem-safe filename without path separators or extensions"
-            )
+            raise ValueError("bib_file must be a stem-safe filename without path separators or extensions")
         return normalized
 
     @field_validator("output_filename")

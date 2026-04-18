@@ -9,18 +9,24 @@ from typing import Literal
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, derive_output_filename
+from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, PublicationPathSemantics, derive_output_filename
 
 __all__ = [
     "ManuscriptArtifacts",
     "ManuscriptResolution",
     "ManuscriptRootResolution",
+    "PublicationSubjectResolution",
+    "infer_publication_artifact_base",
     "locate_publication_artifact",
+    "resolve_current_publication_subject",
     "resolve_manuscript_entrypoint_from_root",
+    "resolve_explicit_publication_subject",
     "resolve_current_manuscript_artifacts",
     "resolve_current_manuscript_entrypoint",
     "resolve_current_manuscript_resolution",
     "resolve_current_manuscript_root",
+    "resolve_publication_subject",
+    "resolve_publication_subject_artifact",
 ]
 
 
@@ -41,6 +47,8 @@ class ManuscriptArtifacts:
 
 
 ManuscriptResolutionStatus = Literal["resolved", "missing", "ambiguous", "invalid"]
+PublicationSubjectStatus = Literal["resolved", "missing", "ambiguous", "invalid"]
+PublicationSubjectSource = Literal["current_project", "explicit_target"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +70,69 @@ class ManuscriptResolution:
     manuscript_entrypoint: Path | None
     detail: str
     root_resolutions: tuple[ManuscriptRootResolution, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationSubjectResolution:
+    """Resolved publication subject plus the artifact base and sidecars it owns."""
+
+    project_root: Path
+    status: PublicationSubjectStatus
+    source: PublicationSubjectSource
+    detail: str
+    target_path: Path | None = None
+    manuscript_root: Path | None = None
+    manuscript_entrypoint: Path | None = None
+    artifact_base: Path | None = None
+    artifact_manifest: Path | None = None
+    bibliography_audit: Path | None = None
+    reproducibility_manifest: Path | None = None
+    path_semantics: PublicationPathSemantics | None = None
+    root_resolutions: tuple[ManuscriptRootResolution, ...] = ()
+
+    @property
+    def resolved(self) -> bool:
+        return self.status == "resolved" and self.manuscript_entrypoint is not None
+
+    def as_manuscript_resolution(self) -> ManuscriptResolution:
+        """Return a compatibility manuscript-resolution view of this subject."""
+
+        return ManuscriptResolution(
+            status=self.status,
+            manuscript_root=self.manuscript_root,
+            manuscript_entrypoint=self.manuscript_entrypoint,
+            detail=self.detail,
+            root_resolutions=self.root_resolutions,
+        )
+
+    def as_manuscript_artifacts(self) -> ManuscriptArtifacts:
+        """Return a compatibility manuscript-artifacts view of this subject."""
+
+        return ManuscriptArtifacts(
+            project_root=self.project_root,
+            manuscript_root=self.manuscript_root,
+            manuscript_entrypoint=self.manuscript_entrypoint,
+            artifact_manifest=self.artifact_manifest,
+            bibliography_audit=self.bibliography_audit,
+            reproducibility_manifest=self.reproducibility_manifest,
+        )
+
+    def to_context_dict(self) -> dict[str, object]:
+        """Return a machine-readable summary of the resolved publication subject."""
+
+        return {
+            "status": self.status,
+            "source": self.source,
+            "detail": self.detail,
+            "target_path": _relative_path(self.project_root, self.target_path),
+            "artifact_base": _relative_path(self.project_root, self.artifact_base),
+            "manuscript_root": _relative_path(self.project_root, self.manuscript_root),
+            "manuscript_entrypoint": _relative_path(self.project_root, self.manuscript_entrypoint),
+            "artifact_manifest": _relative_path(self.project_root, self.artifact_manifest),
+            "bibliography_audit": _relative_path(self.project_root, self.bibliography_audit),
+            "reproducibility_manifest": _relative_path(self.project_root, self.reproducibility_manifest),
+            "path_semantics": None if self.path_semantics is None else self.path_semantics.model_dump(mode="python"),
+        }
 
 
 def _load_artifact_manifest(manuscript_root: Path) -> ArtifactManifest | None:
@@ -112,6 +183,17 @@ def _configured_entrypoints(manuscript_root: Path, *, allow_markdown: bool) -> t
     if allow_markdown:
         candidates.append(manuscript_root / f"{stem}.md")
     return tuple(candidate for candidate in candidates if candidate.exists())
+
+
+def _relative_path(project_root: Path, path: Path | None) -> str | None:
+    if path is None:
+        return None
+    resolved_root = project_root.resolve(strict=False)
+    resolved_path = path.resolve(strict=False)
+    try:
+        return resolved_path.relative_to(resolved_root).as_posix()
+    except ValueError:
+        return resolved_path.as_posix()
 
 
 def _resolve_manuscript_entrypoint_from_root_resolution(
@@ -221,6 +303,7 @@ def _resolve_manuscript_entrypoint_from_root_resolution(
         detail=f"{manuscript_root} does not contain manuscript metadata",
     )
 
+
 def resolve_manuscript_entrypoint_from_root(manuscript_root: Path, *, allow_markdown: bool = True) -> Path | None:
     """Resolve the manuscript entrypoint within one manuscript root directory."""
 
@@ -249,7 +332,9 @@ def resolve_current_manuscript_resolution(project_root: Path, *, allow_markdown:
         )
     if len(resolved) > 1:
         detail = "multiple manuscript roots resolve: " + ", ".join(
-            str(resolution.manuscript_entrypoint) for resolution in resolved if resolution.manuscript_entrypoint is not None
+            str(resolution.manuscript_entrypoint)
+            for resolution in resolved
+            if resolution.manuscript_entrypoint is not None
         )
         return ManuscriptResolution(
             status="ambiguous",
@@ -301,6 +386,289 @@ def _normalize_manuscript_base(manuscript_root: Path) -> Path:
     return candidate
 
 
+def _supported_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
+    try:
+        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+    if not relative.parts or relative.parts[0] not in _MANUSCRIPT_ROOTS:
+        return None
+    return project_root / relative.parts[0]
+
+
+def _resolve_publication_sidecars(
+    artifact_base: Path | None,
+) -> tuple[Path | None, Path | None, Path | None]:
+    if artifact_base is None:
+        return None, None, None
+    return (
+        locate_publication_artifact(artifact_base, "ARTIFACT-MANIFEST.json"),
+        locate_publication_artifact(artifact_base, "BIBLIOGRAPHY-AUDIT.json"),
+        locate_publication_artifact(artifact_base, _REPRODUCIBILITY_MANIFEST_FILENAME),
+    )
+
+
+def infer_publication_artifact_base(
+    project_root: Path,
+    *,
+    allow_markdown: bool = True,
+) -> Path | None:
+    """Infer a unique publication artifact base without defaulting to ``paper/``."""
+
+    resolved_project_root = Path(project_root).resolve(strict=False)
+    subject = resolve_current_publication_subject(
+        resolved_project_root,
+        allow_markdown=allow_markdown,
+    )
+    if subject.resolved and subject.artifact_base is not None:
+        return subject.artifact_base
+    if subject.status in {"ambiguous", "invalid"}:
+        return None
+
+    candidates: list[Path] = []
+    content_suffixes = {".tex"}
+    if allow_markdown:
+        content_suffixes.add(".md")
+    for root_name in _MANUSCRIPT_ROOTS:
+        candidate = resolved_project_root / root_name
+        if not candidate.exists() or not candidate.is_dir():
+            continue
+        has_publication_artifacts = any(
+            (candidate / artifact_name).exists()
+            for artifact_name in (
+                "PAPER-CONFIG.json",
+                "ARTIFACT-MANIFEST.json",
+                "BIBLIOGRAPHY-AUDIT.json",
+                "FIGURE_TRACKER.md",
+                _REPRODUCIBILITY_MANIFEST_FILENAME,
+            )
+        )
+        has_manuscript_content = any(
+            path.is_file() and path.suffix.lower() in content_suffixes for path in candidate.rglob("*")
+        )
+        if has_publication_artifacts or has_manuscript_content:
+            candidates.append(candidate)
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _publication_subject_from_resolution(
+    project_root: Path,
+    resolution: ManuscriptResolution,
+    *,
+    source: PublicationSubjectSource,
+    target_path: Path | None = None,
+) -> PublicationSubjectResolution:
+    if resolution.status != "resolved" or resolution.manuscript_entrypoint is None:
+        return PublicationSubjectResolution(
+            project_root=project_root,
+            status=resolution.status,
+            source=source,
+            detail=resolution.detail,
+            target_path=target_path,
+            manuscript_root=resolution.manuscript_root,
+            manuscript_entrypoint=resolution.manuscript_entrypoint,
+            root_resolutions=resolution.root_resolutions,
+        )
+
+    artifact_base = _normalize_manuscript_base(
+        target_path or resolution.manuscript_root or resolution.manuscript_entrypoint
+    )
+    artifact_manifest, bibliography_audit, reproducibility_manifest = _resolve_publication_sidecars(artifact_base)
+    return PublicationSubjectResolution(
+        project_root=project_root,
+        status="resolved",
+        source=source,
+        detail=resolution.detail,
+        target_path=target_path or resolution.manuscript_root or resolution.manuscript_entrypoint,
+        manuscript_root=resolution.manuscript_root,
+        manuscript_entrypoint=resolution.manuscript_entrypoint,
+        artifact_base=artifact_base,
+        artifact_manifest=artifact_manifest,
+        bibliography_audit=bibliography_audit,
+        reproducibility_manifest=reproducibility_manifest,
+        path_semantics=PublicationPathSemantics.from_paths(
+            project_root,
+            subject_path=target_path or resolution.manuscript_root or resolution.manuscript_entrypoint,
+            artifact_base_path=artifact_base,
+            manuscript_root_path=resolution.manuscript_root,
+            manuscript_entrypoint_path=resolution.manuscript_entrypoint,
+        ),
+        root_resolutions=resolution.root_resolutions,
+    )
+
+
+def resolve_current_publication_subject(
+    project_root: Path,
+    *,
+    allow_markdown: bool = True,
+) -> PublicationSubjectResolution:
+    """Resolve the current project-wide publication subject without guessing a root."""
+
+    resolved_root = Path(project_root).resolve(strict=False)
+    resolution = resolve_current_manuscript_resolution(resolved_root, allow_markdown=allow_markdown)
+    return _publication_subject_from_resolution(
+        resolved_root,
+        resolution,
+        source="current_project",
+    )
+
+
+def resolve_explicit_publication_subject(
+    project_root: Path,
+    target: str | Path,
+    *,
+    allow_markdown: bool = True,
+    subject_base: Path | None = None,
+) -> PublicationSubjectResolution:
+    """Resolve one explicit publication subject path into a typed subject envelope."""
+
+    resolved_project_root = Path(project_root).resolve(strict=False)
+    resolved_subject_base = (subject_base or resolved_project_root).resolve(strict=False)
+    explicit_target = Path(target)
+    if not explicit_target.is_absolute():
+        explicit_target = resolved_subject_base / explicit_target
+    explicit_target = explicit_target.resolve(strict=False)
+
+    if not explicit_target.exists():
+        return PublicationSubjectResolution(
+            project_root=resolved_project_root,
+            status="missing",
+            source="explicit_target",
+            detail=f"{explicit_target} does not exist",
+            target_path=explicit_target,
+        )
+
+    allowed_suffixes = {".tex"}
+    if allow_markdown:
+        allowed_suffixes.add(".md")
+
+    if explicit_target.is_file():
+        if explicit_target.suffix.lower() not in allowed_suffixes:
+            return PublicationSubjectResolution(
+                project_root=resolved_project_root,
+                status="invalid",
+                source="explicit_target",
+                detail=f"{explicit_target} is not a supported publication manuscript entrypoint",
+                target_path=explicit_target,
+            )
+
+        supported_root = _supported_manuscript_root_for_target(resolved_project_root, explicit_target)
+        if supported_root is not None:
+            root_resolution = _resolve_manuscript_entrypoint_from_root_resolution(
+                supported_root,
+                allow_markdown=allow_markdown,
+            )
+            if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
+                return PublicationSubjectResolution(
+                    project_root=resolved_project_root,
+                    status="invalid",
+                    source="explicit_target",
+                    detail=f"{supported_root} is ambiguous or inconsistent: {root_resolution.detail}",
+                    target_path=explicit_target,
+                )
+            if root_resolution.manuscript_entrypoint.resolve(strict=False) != explicit_target:
+                return PublicationSubjectResolution(
+                    project_root=resolved_project_root,
+                    status="invalid",
+                    source="explicit_target",
+                    detail=(
+                        f"{explicit_target} does not match the resolved manuscript entrypoint "
+                        f"{root_resolution.manuscript_entrypoint} under {supported_root}"
+                    ),
+                    target_path=explicit_target,
+                )
+            return _publication_subject_from_resolution(
+                resolved_project_root,
+                ManuscriptResolution(
+                    status="resolved",
+                    manuscript_root=supported_root,
+                    manuscript_entrypoint=explicit_target,
+                    detail=f"{explicit_target} present",
+                ),
+                source="explicit_target",
+                target_path=explicit_target,
+            )
+
+        return _publication_subject_from_resolution(
+            resolved_project_root,
+            ManuscriptResolution(
+                status="resolved",
+                manuscript_root=explicit_target.parent,
+                manuscript_entrypoint=explicit_target,
+                detail=f"{explicit_target} present",
+            ),
+            source="explicit_target",
+            target_path=explicit_target,
+        )
+
+    supported_root = _supported_manuscript_root_for_target(resolved_project_root, explicit_target)
+    manuscript_root = supported_root or explicit_target
+    root_resolution = _resolve_manuscript_entrypoint_from_root_resolution(
+        manuscript_root,
+        allow_markdown=allow_markdown,
+    )
+    if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
+        return PublicationSubjectResolution(
+            project_root=resolved_project_root,
+            status="missing" if root_resolution.status == "missing" else "invalid",
+            source="explicit_target",
+            detail=(
+                f"no publication manuscript entrypoint found under {explicit_target}"
+                if root_resolution.status == "missing"
+                else f"{explicit_target} is ambiguous or inconsistent: {root_resolution.detail}"
+            ),
+            target_path=explicit_target,
+        )
+
+    if supported_root is not None and supported_root != explicit_target:
+        try:
+            root_resolution.manuscript_entrypoint.resolve(strict=False).relative_to(
+                explicit_target.resolve(strict=False)
+            )
+        except ValueError:
+            return PublicationSubjectResolution(
+                project_root=resolved_project_root,
+                status="invalid",
+                source="explicit_target",
+                detail=(
+                    f"{explicit_target} does not contain the resolved manuscript entrypoint "
+                    f"{root_resolution.manuscript_entrypoint} under {supported_root}"
+                ),
+                target_path=explicit_target,
+            )
+
+    return _publication_subject_from_resolution(
+        resolved_project_root,
+        ManuscriptResolution(
+            status="resolved",
+            manuscript_root=manuscript_root,
+            manuscript_entrypoint=root_resolution.manuscript_entrypoint,
+            detail=f"{explicit_target} resolved to {root_resolution.manuscript_entrypoint}",
+        ),
+        source="explicit_target",
+        target_path=explicit_target,
+    )
+
+
+def resolve_publication_subject(
+    project_root: Path,
+    target: str | Path | None = None,
+    *,
+    allow_markdown: bool = True,
+    subject_base: Path | None = None,
+) -> PublicationSubjectResolution:
+    """Resolve the current or explicit publication subject into a public typed surface."""
+
+    if target is None:
+        return resolve_current_publication_subject(project_root, allow_markdown=allow_markdown)
+    return resolve_explicit_publication_subject(
+        project_root,
+        target,
+        allow_markdown=allow_markdown,
+        subject_base=subject_base,
+    )
+
+
 def locate_publication_artifact(manuscript_root: Path, *filenames: str) -> Path | None:
     """Return the first publication artifact found beside a manuscript root."""
 
@@ -312,6 +680,17 @@ def locate_publication_artifact(manuscript_root: Path, *filenames: str) -> Path 
     return None
 
 
+def resolve_publication_subject_artifact(
+    publication_subject: PublicationSubjectResolution,
+    *filenames: str,
+) -> Path | None:
+    """Resolve one sidecar artifact from a typed publication subject."""
+
+    if not publication_subject.resolved or publication_subject.artifact_base is None:
+        return None
+    return locate_publication_artifact(publication_subject.artifact_base, *filenames)
+
+
 def resolve_current_manuscript_artifacts(
     project_root: Path,
     *,
@@ -319,24 +698,7 @@ def resolve_current_manuscript_artifacts(
 ) -> ManuscriptArtifacts:
     """Resolve the active manuscript and the publication artifacts beside it."""
 
-    resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=allow_markdown)
-    entrypoint = resolution.manuscript_entrypoint
-    manuscript_root = resolution.manuscript_root
-    if manuscript_root is None:
-        return ManuscriptArtifacts(
-            project_root=project_root,
-            manuscript_root=None,
-            manuscript_entrypoint=None,
-            artifact_manifest=None,
-            bibliography_audit=None,
-            reproducibility_manifest=None,
-        )
-
-    return ManuscriptArtifacts(
-        project_root=project_root,
-        manuscript_root=manuscript_root,
-        manuscript_entrypoint=entrypoint,
-        artifact_manifest=locate_publication_artifact(manuscript_root, "ARTIFACT-MANIFEST.json"),
-        bibliography_audit=locate_publication_artifact(manuscript_root, "BIBLIOGRAPHY-AUDIT.json"),
-        reproducibility_manifest=locate_publication_artifact(manuscript_root, _REPRODUCIBILITY_MANIFEST_FILENAME),
-    )
+    return resolve_current_publication_subject(
+        project_root,
+        allow_markdown=allow_markdown,
+    ).as_manuscript_artifacts()

@@ -17,6 +17,8 @@ from gpd.core.model_visible_text import (
     AGENT_ROLE_FAMILIES,
     AGENT_SHARED_STATE_AUTHORITIES,
     AGENT_SURFACES,
+    COMMAND_POLICY_FRONTMATTER_KEY,
+    COMMAND_POLICY_PROMPT_WRAPPER_KEY,
     REVIEW_CONTRACT_CONDITIONAL_WHENS,
     REVIEW_CONTRACT_FRONTMATTER_KEY,
     REVIEW_CONTRACT_MODES,
@@ -94,6 +96,9 @@ def test_review_contract_registry_uses_the_shared_frontmatter_key_constants() ->
     assert REVIEW_CONTRACT_FRONTMATTER_KEY in registry._COMMAND_FRONTMATTER_KEYS
     assert REVIEW_CONTRACT_FRONTMATTER_KEY == "review-contract"
     assert REVIEW_CONTRACT_PROMPT_WRAPPER_KEY == "review_contract"
+    assert COMMAND_POLICY_FRONTMATTER_KEY in registry._COMMAND_FRONTMATTER_KEYS
+    assert COMMAND_POLICY_FRONTMATTER_KEY == "command-policy"
+    assert COMMAND_POLICY_PROMPT_WRAPPER_KEY == "command_policy"
 
 
 def test_peer_review_workflow_keeps_contract_gate_prose_concise() -> None:
@@ -168,6 +173,7 @@ def test_model_visible_section_renderers_share_one_canonical_wrapper_structure()
         agent="gpd-planner",
         allowed_tools=["git", "python"],
         requires={"files": ["PROJECT.md"]},
+        command_policy=None,
     )
     review_contract_payload_data = normalize_review_contract_payload(
         {
@@ -199,6 +205,14 @@ def test_model_visible_section_renderers_share_one_canonical_wrapper_structure()
             "agent": "gpd-planner",
             "allowed_tools": ["git", "python"],
             "requires": {"files": ["PROJECT.md"]},
+            COMMAND_POLICY_PROMPT_WRAPPER_KEY: {
+                "schema_version": 1,
+                "supporting_context_policy": {
+                    "project_context_mode": "project-required",
+                    "project_reentry_mode": "disallowed",
+                    "required_file_patterns": ["PROJECT.md"],
+                },
+            },
         },
     )
     assert review_section == _manual_model_visible_yaml_section(
@@ -239,10 +253,20 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert "Empty optional fields may be omitted." in note
     assert "strict booleans" in command_note.lower()
+    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper" in command_note
+    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;" in command_note
+    assert (
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
+        "are lists of strings when present;"
+    ) in command_note
     assert "`allowed_tools` is a list of tool names when present;" in command_note
     assert "`requires` is a closed mapping when present; only `files` is supported." in command_note
     assert "`requires.files` is a string or list of strings." in command_note
     assert "Empty optional fields may be omitted." in command_note
+    assert "Typed command policy is additive in Phase 1" in command_note
     for value in VALID_CONTEXT_MODES:
         assert value in command_note
     for value in command_agent_labels:
@@ -264,6 +288,10 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert "Each `conditional_requirements[].when` value may appear at most once." in note
     assert "List fields reject blank entries and duplicates." in note
     assert "Each conditional requirement must declare at least one non-empty field." in note
+    assert "`scope_variants[].scope` and `scope_variants[].activation` must be non-empty strings." in note
+    assert "`scope_variants[].relaxed_preflight_checks` and `scope_variants[].optional_preflight_checks`" in note
+    assert "Each `scope_variants[].scope` value may appear at most once." in note
+    assert "Each scope variant must declare at least one non-empty override or preflight field." in note
 
 
 @pytest.mark.parametrize(
@@ -415,12 +443,13 @@ def test_review_contract_visibility_note_surfaces_the_hard_constraints() -> None
     assert f"`conditional_requirements[].when` must be one of {conditional_whens};" in note
     assert "`required_state` when present must be" in note
     assert (
-        "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, and `stage_artifacts` "
-        "are lists when present;"
+        "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, `stage_artifacts`, "
+        "and `scope_variants` are lists when present;"
     ) in note
     assert f"`preflight_checks` entries must be {preflight_checks};" in note
     assert "`conditional_requirements[].blocking_preflight_checks` is a list when present" in note
     assert "appear in the top-level `preflight_checks` list." in note
+    assert "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present." in note
 
 
 @pytest.mark.parametrize(
@@ -825,10 +854,42 @@ def test_render_command_requires_section_normalizes_public_inputs() -> None:
         agent="gpd-planner",
         allowed_tools=["git", "git", "python"],
         requires={"files": ["PROJECT.md", "PROJECT.md"]},
+        command_policy=None,
     )
 
     assert "allowed_tools:\n- git\n- python" in section
     assert "files:\n  - PROJECT.md" in section
+    assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in section
+    assert "project_reentry_mode: disallowed" in section
+
+
+def test_render_command_requires_section_accepts_explicit_command_policy_mapping() -> None:
+    section = registry.render_command_requires_section(
+        context_mode="project-aware",
+        project_reentry_capable=False,
+        agent=None,
+        allowed_tools=[],
+        requires={},
+        command_policy={
+            "schema_version": 1,
+            "subject_policy": {
+                "subject_kind": "publication",
+                "resolution_mode": "explicit_or_project_manuscript",
+                "allow_external_subjects": True,
+            },
+            "output_policy": {
+                "output_mode": "managed",
+                "managed_root_kind": "gpd_managed_durable",
+            },
+        },
+    )
+
+    assert "context_mode: project-aware" in section
+    assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in section
+    assert "subject_kind: publication" in section
+    assert "allow_external_subjects: true" in section
+    assert "managed_root_kind: gpd_managed_durable" in section
+    assert "project_context_mode: project-aware" in section
 
 
 @pytest.mark.parametrize(
@@ -841,6 +902,7 @@ def test_render_command_requires_section_normalizes_public_inputs() -> None:
                 "agent": None,
                 "allowed_tools": [],
                 "requires": {},
+                "command_policy": None,
             },
             "requires context_mode 'project-required'",
         ),
@@ -851,6 +913,7 @@ def test_render_command_requires_section_normalizes_public_inputs() -> None:
                 "agent": "execute-phase",
                 "allowed_tools": [],
                 "requires": {},
+                "command_policy": None,
             },
             "Unknown agent",
         ),
@@ -861,6 +924,7 @@ def test_render_command_requires_section_normalizes_public_inputs() -> None:
                 "agent": None,
                 "allowed_tools": [],
                 "requires": {"artifact_manifest": "required"},
+                "command_policy": None,
             },
             "only supports files",
         ),
@@ -1003,6 +1067,56 @@ def test_review_contract_renderer_renders_conditional_requirements() -> None:
     assert "blocking_preflight_checks:" in section
     assert "stage_artifacts:" in section
     assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in section
+
+
+def test_review_contract_renderer_renders_scope_variants() -> None:
+    section = render_review_contract_prompt(
+        {
+            "schema_version": 1,
+            "review_mode": "publication",
+            "scope_variants": [
+                {
+                    "scope": "explicit_artifact",
+                    "activation": "explicit manuscript path was supplied",
+                    "relaxed_preflight_checks": ["manuscript"],
+                    "optional_preflight_checks": ["bibliography_audit"],
+                    "required_outputs_override": ["GPD/review/ARTIFACT-REPORT.md"],
+                }
+            ],
+        }
+    )
+
+    assert "scope_variants:" in section
+    assert "- scope: explicit_artifact" in section
+    assert "activation: explicit manuscript path was supplied" in section
+    assert "relaxed_preflight_checks:" in section
+    assert "optional_preflight_checks:" in section
+    assert "required_outputs_override:" in section
+
+
+def test_review_contract_renderer_rejects_duplicate_scope_variants() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"scope_variants\[1\]\.scope duplicates scope_variants\[0\]\.scope: explicit_artifact",
+    ):
+        render_review_contract_prompt(
+            {
+                "schema_version": 1,
+                "review_mode": "publication",
+                "scope_variants": [
+                    {
+                        "scope": "explicit_artifact",
+                        "activation": "explicit manuscript path was supplied",
+                        "required_outputs_override": ["GPD/review/ARTIFACT-REPORT.md"],
+                    },
+                    {
+                        "scope": "explicit_artifact",
+                        "activation": "same scope repeated",
+                        "optional_preflight_checks": ["bibliography_audit"],
+                    },
+                ],
+            }
+        )
 
 
 def test_peer_review_contract_surfaces_typed_conditional_proof_requirements() -> None:

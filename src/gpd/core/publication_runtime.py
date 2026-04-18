@@ -10,10 +10,9 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.manuscript_artifacts import (
-    ManuscriptArtifacts,
-    ManuscriptResolution,
-    resolve_current_manuscript_artifacts,
-    resolve_current_manuscript_resolution,
+    PublicationSubjectResolution,
+    resolve_current_publication_subject,
+    resolve_explicit_publication_subject,
 )
 from gpd.core.proof_review import ProofReviewStatus, resolve_manuscript_proof_review_status
 from gpd.core.publication_review_paths import (
@@ -161,17 +160,25 @@ class PublicationResponseArtifacts:
 class PublicationRuntimeSnapshot:
     """Shared publication state for manuscript-root, review-round, and response gating."""
 
-    manuscript_resolution: ManuscriptResolution
-    manuscript_artifacts: ManuscriptArtifacts
+    publication_subject: PublicationSubjectResolution
     manuscript_reference_status: ManuscriptReferenceStatusIngestion
     manuscript_proof_review_status: ProofReviewStatus
     latest_review_artifacts: PublicationReviewArtifacts | None
     latest_response_artifacts: PublicationResponseArtifacts | None
     publication_blockers: tuple[str, ...] = ()
 
+    @property
+    def manuscript_resolution(self):
+        return self.publication_subject.as_manuscript_resolution()
+
+    @property
+    def manuscript_artifacts(self):
+        return self.publication_subject.as_manuscript_artifacts()
+
     def to_context_dict(self, project_root: Path) -> dict[str, object]:
-        resolution = self.manuscript_resolution
-        artifacts = self.manuscript_artifacts
+        subject = self.publication_subject
+        resolution = subject.as_manuscript_resolution()
+        artifacts = subject.as_manuscript_artifacts()
         reference_status = self.manuscript_reference_status
         proof_status = self.manuscript_proof_review_status
         review_artifacts = self.latest_review_artifacts
@@ -182,6 +189,11 @@ class PublicationRuntimeSnapshot:
         }
 
         payload: dict[str, object] = {
+            "publication_subject": subject.to_context_dict(),
+            "publication_subject_status": subject.status,
+            "publication_subject_source": subject.source,
+            "publication_subject_detail": subject.detail,
+            "publication_artifact_base": _relative_path(project_root, subject.artifact_base),
             "manuscript_resolution_status": resolution.status,
             "manuscript_resolution_detail": resolution.detail,
             "manuscript_root": _relative_path(project_root, artifacts.manuscript_root),
@@ -194,6 +206,8 @@ class PublicationRuntimeSnapshot:
             "derived_manuscript_reference_status": derived_reference_status,
             "derived_manuscript_reference_status_count": len(derived_reference_status),
             "derived_manuscript_reference_status_warnings": list(reference_status.reference_status_warnings),
+            "manuscript_reference_subject_status": reference_status.subject_resolution_status,
+            "manuscript_reference_subject_detail": reference_status.subject_resolution_detail,
             "derived_manuscript_proof_review_status": proof_status.to_context_dict(project_root),
             "publication_blockers": list(self.publication_blockers),
             "publication_blocker_count": len(self.publication_blockers),
@@ -310,16 +324,43 @@ def _review_artifact_state(
             cwd=project_root,
         )
         if not ledger_matches or not decision_matches:
-            return "invalid", "review ledger or referee decision does not match the active manuscript", ()
+            return "mismatched", "review ledger or referee decision does not match the resolved publication subject", ()
 
     return "complete", "latest review round is complete for the active manuscript", ()
+
+
+def _coerce_publication_subject(
+    project_root: Path,
+    *,
+    manuscript_entrypoint: Path | None = None,
+    publication_subject: PublicationSubjectResolution | None = None,
+) -> PublicationSubjectResolution:
+    if publication_subject is not None:
+        return publication_subject
+    if manuscript_entrypoint is not None:
+        return resolve_explicit_publication_subject(
+            project_root,
+            manuscript_entrypoint,
+            allow_markdown=True,
+        )
+    return resolve_current_publication_subject(project_root, allow_markdown=True)
 
 
 def resolve_latest_publication_review_artifacts(
     project_root: Path,
     manuscript_entrypoint: Path | None = None,
+    *,
+    publication_subject: PublicationSubjectResolution | None = None,
 ) -> PublicationReviewArtifacts | None:
     """Resolve the latest review-round bundle for the current manuscript."""
+
+    subject = _coerce_publication_subject(
+        project_root,
+        manuscript_entrypoint=manuscript_entrypoint,
+        publication_subject=publication_subject,
+    )
+    if not subject.resolved or subject.manuscript_entrypoint is None:
+        return None
 
     review_dir = project_root / "GPD" / "review"
     if not review_dir.exists():
@@ -335,24 +376,24 @@ def resolve_latest_publication_review_artifacts(
         filename_pattern=_REFEREE_DECISION_FILENAME_RE,
         glob_pattern="REFEREE-DECISION*.json",
     )
-    round_number = _latest_round_number(ledger_by_round, decision_by_round)
-    if round_number is None:
-        return None
+    round_numbers = sorted({*ledger_by_round, *decision_by_round}, reverse=True)
+    for round_number in round_numbers:
+        round_suffix = review_round_suffix(round_number)
+        review_ledger = ledger_by_round.get(round_number)
+        referee_decision = decision_by_round.get(round_number)
+        referee_report_md = review_dir / f"REFEREE-REPORT{round_suffix}.md"
+        referee_report_tex = review_dir / f"REFEREE-REPORT{round_suffix}.tex"
+        proof_redteam = review_dir / f"PROOF-REDTEAM{round_suffix}.md"
 
-    round_suffix = review_round_suffix(round_number)
-    review_ledger = ledger_by_round.get(round_number)
-    referee_decision = decision_by_round.get(round_number)
-    referee_report_md = review_dir / f"REFEREE-REPORT{round_suffix}.md"
-    referee_report_tex = review_dir / f"REFEREE-REPORT{round_suffix}.tex"
-    proof_redteam = review_dir / f"PROOF-REDTEAM{round_suffix}.md"
+        state, detail, missing_artifacts = _review_artifact_state(
+            review_ledger=review_ledger,
+            referee_decision=referee_decision,
+            manuscript_entrypoint=subject.manuscript_entrypoint,
+            project_root=project_root,
+        )
+        if state == "mismatched":
+            continue
 
-    state, detail, missing_artifacts = _review_artifact_state(
-        review_ledger=review_ledger,
-        referee_decision=referee_decision,
-        manuscript_entrypoint=manuscript_entrypoint,
-        project_root=project_root,
-    )
-    if state != "complete":
         return PublicationReviewArtifacts(
             round_number=round_number,
             round_suffix=round_suffix,
@@ -365,25 +406,33 @@ def resolve_latest_publication_review_artifacts(
             detail=detail,
             missing_artifacts=missing_artifacts,
         )
-
-    return PublicationReviewArtifacts(
-        round_number=round_number,
-        round_suffix=round_suffix,
-        review_ledger=review_ledger,
-        referee_decision=referee_decision,
-        referee_report_md=referee_report_md if referee_report_md.exists() else None,
-        referee_report_tex=referee_report_tex if referee_report_tex.exists() else None,
-        proof_redteam=proof_redteam if proof_redteam.exists() else None,
-        state=state,
-        detail=detail,
-    )
+    return None
 
 
-def resolve_latest_publication_response_artifacts(project_root: Path) -> PublicationResponseArtifacts | None:
+def resolve_latest_publication_response_artifacts(
+    project_root: Path,
+    *,
+    publication_subject: PublicationSubjectResolution | None = None,
+    review_artifacts: PublicationReviewArtifacts | None = None,
+) -> PublicationResponseArtifacts | None:
     """Resolve the latest paired response artifacts for the current manuscript."""
+
+    subject = _coerce_publication_subject(
+        project_root,
+        publication_subject=publication_subject,
+    )
+    if not subject.resolved:
+        return None
 
     review_dir = project_root / "GPD" / "review"
     if not review_dir.exists():
+        return None
+
+    review_bundle = review_artifacts or resolve_latest_publication_review_artifacts(
+        project_root,
+        publication_subject=subject,
+    )
+    if review_bundle is None:
         return None
 
     author_by_round = _round_file_map(
@@ -396,10 +445,7 @@ def resolve_latest_publication_response_artifacts(project_root: Path) -> Publica
         filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
         glob_pattern="REFEREE_RESPONSE*.md",
     )
-    round_number = _latest_round_number(author_by_round, referee_by_round)
-    if round_number is None:
-        return None
-
+    round_number = review_bundle.round_number
     round_suffix = review_round_suffix(round_number)
     author_response = author_by_round.get(round_number)
     referee_response = referee_by_round.get(round_number)
@@ -432,27 +478,42 @@ def resolve_latest_publication_response_artifacts(project_root: Path) -> Publica
 def resolve_publication_runtime_snapshot(
     project_root: Path,
     *,
+    publication_subject: PublicationSubjectResolution | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> PublicationRuntimeSnapshot:
     """Resolve the publication runtime state needed for bootstrap and review gates."""
 
-    manuscript_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
-    manuscript_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
-    manuscript_reference_status = ingest_manuscript_reference_status(project_root)
-    manuscript_proof_review_status = resolve_manuscript_proof_review_status(
+    subject = publication_subject or resolve_current_publication_subject(project_root, allow_markdown=True)
+    manuscript_reference_status = ingest_manuscript_reference_status(
         project_root,
-        manuscript_artifacts.manuscript_entrypoint,
-        persist_manifest=persist_manuscript_proof_review_manifest,
+        publication_subject=subject,
+    )
+    manuscript_proof_review_status = (
+        resolve_manuscript_proof_review_status(
+            project_root,
+            subject.manuscript_entrypoint,
+            persist_manifest=persist_manuscript_proof_review_manifest,
+        )
+        if subject.manuscript_entrypoint is not None
+        else ProofReviewStatus(
+            scope="manuscript",
+            state="not_reviewed",
+            can_rely_on_prior_review=False,
+            detail="no resolved publication subject is available to anchor proof review freshness",
+        )
     )
     latest_review_artifacts = resolve_latest_publication_review_artifacts(
         project_root,
-        manuscript_artifacts.manuscript_entrypoint,
+        publication_subject=subject,
     )
-    latest_response_artifacts = resolve_latest_publication_response_artifacts(project_root)
+    latest_response_artifacts = resolve_latest_publication_response_artifacts(
+        project_root,
+        publication_subject=subject,
+        review_artifacts=latest_review_artifacts,
+    )
     publication_blockers = publication_blockers_for_project(project_root)
     return PublicationRuntimeSnapshot(
-        manuscript_resolution=manuscript_resolution,
-        manuscript_artifacts=manuscript_artifacts,
+        publication_subject=subject,
         manuscript_reference_status=manuscript_reference_status,
         manuscript_proof_review_status=manuscript_proof_review_status,
         latest_review_artifacts=latest_review_artifacts,
@@ -464,11 +525,13 @@ def resolve_publication_runtime_snapshot(
 def publication_runtime_snapshot_context(
     project_root: Path,
     *,
+    publication_subject: PublicationSubjectResolution | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Return the canonical publication runtime snapshot as a context payload."""
 
     return resolve_publication_runtime_snapshot(
         project_root,
+        publication_subject=publication_subject,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
     ).to_context_dict(project_root)

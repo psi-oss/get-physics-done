@@ -63,6 +63,18 @@ def test_help_workflow_paper_toolchain_doctor_row_is_single_sourced() -> None:
     assert len(re.findall(r"(?m)^\s*gpd doctor --runtime <runtime> --global\b.*$", help_workflow)) == 0
 
 
+def test_public_docs_frame_typed_review_surfaces_as_command_policy_specializations() -> None:
+    readme = _read("README.md")
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    assert "Typed command metadata is not review-only." in readme
+    assert "shared command applicability surface for public commands" in readme
+    assert "specialized typed surfaces for commands that expose review/publication contracts" in readme
+
+    assert "generic typed command-policy check for the public runtime surface" in help_workflow
+    assert "specialized typed surfaces for commands that expose review/publication contracts" in help_workflow
+
+
 def test_help_command_uses_one_shared_extract_warning() -> None:
     help_command = _read("src/gpd/commands/help.md")
 

@@ -13,6 +13,7 @@ import logging
 import re
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
@@ -85,7 +86,7 @@ from gpd.core.resume_surface import (
     resume_origin_for_handoff,
     resume_origin_for_interrupted_agent,
 )
-from gpd.core.root_resolution import resolve_project_root, resolve_project_roots
+from gpd.core.root_resolution import RootResolutionPolicy, resolve_project_root, resolve_project_roots
 from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
@@ -141,6 +142,14 @@ from gpd.core.workflow_staging import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class InitRootPolicy(StrEnum):
+    """High-level workspace/project policy for init payload assembly."""
+
+    WORKSPACE_LOCKED = "workspace_locked"
+    PROJECT_SCOPED = "project_scoped"
+    PROJECT_REENTRY_ALLOWED = "project_reentry_allowed"
 
 
 # Research file extensions for project detection.
@@ -844,8 +853,20 @@ def _state_exists(cwd: Path) -> bool:
 def _resolve_project_scoped_cwd(cwd: Path) -> Path:
     """Return the nearest verified current-workspace project root, else the normalized cwd."""
 
+    return _resolve_cwd_for_root_policy(cwd, policy=RootResolutionPolicy.PROJECT_SCOPED)
+
+
+def _resolve_workspace_locked_cwd(cwd: Path) -> Path:
+    """Return the requested workspace unless it is itself a verified GPD root."""
+
+    return _resolve_cwd_for_root_policy(cwd, policy=RootResolutionPolicy.WORKSPACE_LOCKED)
+
+
+def _resolve_cwd_for_root_policy(cwd: Path, *, policy: RootResolutionPolicy) -> Path:
+    """Resolve *cwd* according to one explicit root policy."""
+
     requested_cwd = cwd.expanduser().resolve(strict=False)
-    resolved = resolve_project_root(requested_cwd, require_layout=True)
+    resolved = resolve_project_root(requested_cwd, require_layout=True, policy=policy)
     return resolved if resolved is not None else requested_cwd
 
 
@@ -3433,6 +3454,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         "project_root": reentry_metadata["project_root"],
         "project_root_source": reentry_metadata["project_root_source"],
         "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
+        "init_root_policy": InitRootPolicy.PROJECT_REENTRY_ALLOWED.value,
         "project_reentry_mode": reentry_metadata["project_reentry_mode"],
         "project_reentry_requires_selection": reentry_metadata["project_reentry_requires_selection"],
         "project_reentry_selected_candidate": reentry_metadata.get("project_reentry_selected_candidate"),
@@ -3872,6 +3894,7 @@ def init_phase_op(
         # Models
         "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),
         "verifier_model": _resolve_model(effective_cwd, "gpd-verifier", config),
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4126,6 +4149,7 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     result = {
         # Models
         "mapper_model": _resolve_model(effective_cwd, "gpd-research-mapper", config),
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4185,14 +4209,16 @@ def init_progress(
             data_root=data_root,
             prefer_workspace_layout=True,
         )
+        init_root_policy = InitRootPolicy.PROJECT_REENTRY_ALLOWED.value
     else:
-        effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
+        effective_cwd = _resolve_workspace_locked_cwd(requested_cwd)
         reentry_metadata = {
             "workspace_root": requested_cwd.as_posix(),
             "project_root": effective_cwd.as_posix(),
             "project_root_source": "workspace",
             "project_root_auto_selected": False,
         }
+        init_root_policy = InitRootPolicy.WORKSPACE_LOCKED.value
     config = load_config(effective_cwd)
     milestone = _try_get_milestone_info(effective_cwd)
 
@@ -4263,6 +4289,7 @@ def init_progress(
         "project_root": reentry_metadata["project_root"],
         "project_root_source": reentry_metadata["project_root_source"],
         "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
+        "init_root_policy": init_root_policy,
         # Models
         "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),
         "planner_model": _resolve_model(effective_cwd, "gpd-planner", config),

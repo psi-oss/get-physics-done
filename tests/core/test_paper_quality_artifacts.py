@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from gpd.core.errors import GPDError
+from gpd.core.manuscript_artifacts import resolve_explicit_publication_subject
 from gpd.core.paper_quality import score_paper_quality
 from gpd.core.paper_quality_artifacts import build_paper_quality_input
 
@@ -518,7 +519,9 @@ def test_build_paper_quality_input_normalizes_empty_contract_results_reference_l
             "      pass_condition: Matches internal baseline within tolerance\n",
             1,
         )
-        .replace("      evidence_required: [deliv-figure, ref-benchmark]\n", "      evidence_required: [deliv-figure]\n", 1),
+        .replace(
+            "      evidence_required: [deliv-figure, ref-benchmark]\n", "      evidence_required: [deliv-figure]\n", 1
+        ),
     )
     _write(
         plan_dir / "01-SUMMARY.md",
@@ -650,6 +653,17 @@ def test_build_paper_quality_input_does_not_fall_back_to_paper_root_when_manuscr
         build_paper_quality_input(tmp_path)
 
 
+def test_build_paper_quality_input_rejects_an_explicit_unresolved_publication_subject(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/curvature_flow_bounds.tex")
+    with pytest.raises(GPDError, match="paper-quality artifact resolution requires an unambiguous manuscript root"):
+        build_paper_quality_input(tmp_path, publication_subject=subject)
+
+
 def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid(
     tmp_path: Path,
 ) -> None:
@@ -690,8 +704,8 @@ def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid
                     }
                 ],
             }
-            ),
-        )
+        ),
+    )
 
     result = build_paper_quality_input(tmp_path)
 
@@ -1055,6 +1069,57 @@ Done.
     assert result.journal == "jhep"
     assert result.citations.citation_keys_resolve.satisfied == 1
     assert result.citations.citation_keys_resolve.total == 1
+
+
+def test_build_paper_quality_input_accepts_an_explicit_publication_subject(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "draft" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Explicit subject test.
+\end{abstract}
+\section{Introduction}
+Intro.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "draft" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Explicit Subject Title",
+                "journal": "jhep",
+                "created_at": "2026-03-13T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "main-tex",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "paper-compiler",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+    )
+    _write(
+        tmp_path / "draft" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Explicit Subject Title", "jhep", output_filename="main")),
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, "draft/main.tex")
+    result = build_paper_quality_input(tmp_path, publication_subject=subject)
+
+    assert result.title == "Explicit Subject Title"
+    assert result.journal == "jhep"
 
 
 def test_build_paper_quality_input_uses_active_manuscript_root_and_canonical_config(tmp_path: Path) -> None:
@@ -1639,48 +1704,52 @@ def test_build_paper_quality_input_marks_explicit_null_contract_results_ledger_p
     plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
 
-    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
-        "contract_results:\n"
-        "  claims:\n"
-        "    claim-benchmark:\n"
-        "      status: passed\n"
-        "      summary: Benchmark claim verified against the decisive anchor.\n"
-        "      linked_ids: [deliv-figure, test-benchmark, ref-benchmark]\n"
-        "      evidence:\n"
-        "        - verifier: gpd-verifier\n"
-        "          method: benchmark reproduction\n"
-        "          confidence: high\n"
-        "          claim_id: claim-benchmark\n"
-        "          deliverable_id: deliv-figure\n"
-        "          acceptance_test_id: test-benchmark\n"
-        "          reference_id: ref-benchmark\n"
-        "          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md\n"
-        "  deliverables:\n"
-        "    deliv-figure:\n"
-        "      status: passed\n"
-        "      path: figures/benchmark.png\n"
-        "      summary: Figure produced with uncertainty band and benchmark overlay.\n"
-        "      linked_ids: [claim-benchmark, test-benchmark]\n"
-        "  acceptance_tests:\n"
-        "    test-benchmark:\n"
-        "      status: passed\n"
-        "      summary: Benchmark reproduced within the contracted tolerance.\n"
-        "      linked_ids: [claim-benchmark, deliv-figure, ref-benchmark]\n"
-        "  references:\n"
-        "    ref-benchmark:\n"
-        "      status: completed\n"
-        "      completed_actions: [read, compare, cite]\n"
-        "      missing_actions: []\n"
-        "      summary: Benchmark anchor surfaced in the comparison figure and manuscript text.\n"
-        "  forbidden_proxies:\n"
-        "    fp-benchmark:\n"
-        "      status: rejected\n"
-        "      notes: Qualitative trend agreement was not accepted without the numerical benchmark check.\n"
-        "  uncertainty_markers:\n"
-        "    weakest_anchors: [Reference tolerance interpretation]\n"
-        "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
-        "contract_results:\n",
-        1,
+    summary = (
+        (FIXTURES_DIR / "summary_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace(
+            "contract_results:\n"
+            "  claims:\n"
+            "    claim-benchmark:\n"
+            "      status: passed\n"
+            "      summary: Benchmark claim verified against the decisive anchor.\n"
+            "      linked_ids: [deliv-figure, test-benchmark, ref-benchmark]\n"
+            "      evidence:\n"
+            "        - verifier: gpd-verifier\n"
+            "          method: benchmark reproduction\n"
+            "          confidence: high\n"
+            "          claim_id: claim-benchmark\n"
+            "          deliverable_id: deliv-figure\n"
+            "          acceptance_test_id: test-benchmark\n"
+            "          reference_id: ref-benchmark\n"
+            "          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md\n"
+            "  deliverables:\n"
+            "    deliv-figure:\n"
+            "      status: passed\n"
+            "      path: figures/benchmark.png\n"
+            "      summary: Figure produced with uncertainty band and benchmark overlay.\n"
+            "      linked_ids: [claim-benchmark, test-benchmark]\n"
+            "  acceptance_tests:\n"
+            "    test-benchmark:\n"
+            "      status: passed\n"
+            "      summary: Benchmark reproduced within the contracted tolerance.\n"
+            "      linked_ids: [claim-benchmark, deliv-figure, ref-benchmark]\n"
+            "  references:\n"
+            "    ref-benchmark:\n"
+            "      status: completed\n"
+            "      completed_actions: [read, compare, cite]\n"
+            "      missing_actions: []\n"
+            "      summary: Benchmark anchor surfaced in the comparison figure and manuscript text.\n"
+            "  forbidden_proxies:\n"
+            "    fp-benchmark:\n"
+            "      status: rejected\n"
+            "      notes: Qualitative trend agreement was not accepted without the numerical benchmark check.\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
+            "contract_results:\n",
+            1,
+        )
     )
     _write(plan_dir / "01-SUMMARY.md", summary)
 
@@ -1847,9 +1916,7 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     write_paper = (repo_root / "src/gpd/specs/workflows/write-paper.md").read_text(encoding="utf-8")
     peer_review = (repo_root / "src/gpd/specs/workflows/peer-review.md").read_text(encoding="utf-8")
     respond = (repo_root / "src/gpd/specs/workflows/respond-to-referees.md").read_text(encoding="utf-8")
-    internal_template = (repo_root / "src/gpd/specs/templates/paper/internal-comparison.md").read_text(
-        encoding="utf-8"
-    )
+    internal_template = (repo_root / "src/gpd/specs/templates/paper/internal-comparison.md").read_text(encoding="utf-8")
     experimental_template = (repo_root / "src/gpd/specs/templates/paper/experimental-comparison.md").read_text(
         encoding="utf-8"
     )
@@ -1870,7 +1937,10 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     assert "protocol_bundle_context" in respond
     assert "missing decisive evidence we already owed" in respond
     assert "prefer fulfilling that existing obligation or narrowing the claim" in respond
-    assert "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap" in respond
+    assert (
+        "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap"
+        in respond
+    )
 
     assert "protocol_bundle_ids (optional):" not in internal_template
     assert "bundle_expectations (optional):" not in internal_template

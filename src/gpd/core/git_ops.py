@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
+from gpd.core.storage_paths import ManagedOutputPolicy, ProjectStorageLayout, StoragePathError
 
 __all__ = [
     "CommitResult",
@@ -356,11 +356,17 @@ def _check_json(content: str, detail: FileCheckDetail) -> None:
         _mark_nonfinite(detail)
 
 
-def _check_storage_path(layout: ProjectStorageLayout, full_path: Path, detail: FileCheckDetail) -> None:
+def _check_storage_path(
+    layout: ProjectStorageLayout,
+    full_path: Path,
+    detail: FileCheckDetail,
+    *,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
+) -> None:
     """Validate that the file path itself is safe to commit."""
     detail.storage_class = layout.classify(full_path).value
     try:
-        layout.validate_commit_target(full_path)
+        layout.validate_commit_target(full_path, managed_output_policies=managed_output_policies)
         detail.storage_valid = True
     except StoragePathError as exc:
         detail.storage_valid = False
@@ -431,6 +437,7 @@ def _check_single_file(
     *,
     layout: ProjectStorageLayout,
     convention_lock: object | None = None,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
 ) -> FileCheckDetail:
     """Run pre-commit checks on a single file."""
     detail = FileCheckDetail(file=file_path)
@@ -446,7 +453,12 @@ def _check_single_file(
         detail.warnings.append(f"Not a regular file: {file_path}")
         return detail
 
-    _check_storage_path(layout, full_path.resolve(strict=False), detail)
+    _check_storage_path(
+        layout,
+        full_path.resolve(strict=False),
+        detail,
+        managed_output_policies=managed_output_policies,
+    )
 
     try:
         content = full_path.read_text(encoding="utf-8")
@@ -483,7 +495,12 @@ def _check_single_file(
 
 
 @instrument_gpd_function("git_ops.pre_commit_check")
-def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
+def cmd_pre_commit_check(
+    cwd: Path,
+    files: list[str],
+    *,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
+) -> PreCommitCheckResult:
     """Run pre-commit validation checks on planning files.
 
     Checks:
@@ -497,6 +514,7 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
     - If *files* is empty, validates the currently staged files.
     - Directory inputs are expanded recursively to regular files.
     - Blocks scratch/internal artifact paths while allowing normal `GPD` docs.
+    - Optional managed-output policies may explicitly allow durable `GPD/` outputs.
     """
     resolved_files = _expand_check_inputs(cwd, files)
     if not resolved_files:
@@ -513,6 +531,7 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
             file_path,
             layout=layout,
             convention_lock=convention_lock if convention_lock_active else None,
+            managed_output_policies=managed_output_policies,
         )
         details.append(detail)
         all_warnings.extend(detail.warnings)

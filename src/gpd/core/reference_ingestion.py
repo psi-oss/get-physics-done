@@ -10,7 +10,12 @@ from pathlib import Path
 import yaml
 
 from gpd.core.knowledge_runtime import KnowledgeDocRuntimeRecord, discover_knowledge_docs
-from gpd.core.manuscript_artifacts import resolve_current_manuscript_artifacts
+from gpd.core.manuscript_artifacts import (
+    PublicationSubjectResolution,
+    infer_publication_artifact_base,
+    locate_publication_artifact,
+    resolve_current_publication_subject,
+)
 from gpd.mcp.paper.bibliography import CitationSource, parse_citation_source_payload
 
 __all__ = [
@@ -290,6 +295,8 @@ class ManuscriptReferenceStatusIngestion:
 
     manuscript_root: str = ""
     bibliography_audit_path: str = ""
+    subject_resolution_status: str = ""
+    subject_resolution_detail: str = ""
     reference_status: list[ManuscriptReferenceStatusRecord] = field(default_factory=list)
     reference_status_warnings: list[str] = field(default_factory=list)
 
@@ -335,20 +342,63 @@ def _relative_posix(root: Path, path: Path) -> str:
         return resolved_path.as_posix()
 
 
-def ingest_manuscript_reference_status(project_root: Path) -> ManuscriptReferenceStatusIngestion:
+def ingest_manuscript_reference_status(
+    project_root: Path,
+    *,
+    publication_subject: PublicationSubjectResolution | None = None,
+) -> ManuscriptReferenceStatusIngestion:
     """Parse the current manuscript's bibliography audit into a derived status view."""
     from gpd.mcp.paper.bibliography import BibliographyAudit
 
-    manuscript_artifacts = resolve_current_manuscript_artifacts(project_root)
-    manuscript_dir = manuscript_artifacts.manuscript_root or (project_root / "paper")
-    audit_path = manuscript_artifacts.bibliography_audit or (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json")
-    manuscript_root = _relative_posix(project_root, manuscript_dir)
-    bibliography_audit_path = _relative_posix(project_root, audit_path)
+    subject = publication_subject or resolve_current_publication_subject(project_root)
+    manuscript_dir = subject.manuscript_root or subject.artifact_base
+    audit_path = subject.bibliography_audit
+    subject_resolution_status = subject.status
+    subject_resolution_detail = subject.detail
+    if subject.status != "resolved" and publication_subject is None and manuscript_dir is None:
+        inferred_base = infer_publication_artifact_base(project_root, allow_markdown=True)
+        if inferred_base is not None:
+            manuscript_dir = inferred_base
+            subject_resolution_status = "inferred"
+            subject_resolution_detail = (
+                f"inferred publication artifact base from unique manuscript root "
+                f"{_relative_posix(project_root, inferred_base)}"
+            )
+    if audit_path is None and subject.artifact_base is not None:
+        audit_path = subject.artifact_base / "BIBLIOGRAPHY-AUDIT.json"
+    if audit_path is None and manuscript_dir is not None:
+        audit_path = locate_publication_artifact(manuscript_dir, "BIBLIOGRAPHY-AUDIT.json") or (
+            manuscript_dir / "BIBLIOGRAPHY-AUDIT.json"
+        )
+
+    manuscript_root = _relative_posix(project_root, manuscript_dir) if manuscript_dir is not None else ""
+    bibliography_audit_path = _relative_posix(project_root, audit_path) if audit_path is not None else ""
+
+    if subject.status != "resolved" and audit_path is None:
+        return ManuscriptReferenceStatusIngestion(
+            manuscript_root=manuscript_root,
+            bibliography_audit_path=bibliography_audit_path,
+            subject_resolution_status=subject_resolution_status,
+            subject_resolution_detail=subject_resolution_detail,
+            reference_status_warnings=[
+                "no resolved publication subject is available for bibliography audit ingestion: "
+                + subject_resolution_detail
+            ],
+        )
+    if audit_path is None:
+        return ManuscriptReferenceStatusIngestion(
+            manuscript_root=manuscript_root,
+            bibliography_audit_path=bibliography_audit_path,
+            subject_resolution_status=subject_resolution_status,
+            subject_resolution_detail=subject_resolution_detail,
+        )
 
     if not audit_path.exists():
         return ManuscriptReferenceStatusIngestion(
             manuscript_root=manuscript_root,
             bibliography_audit_path=bibliography_audit_path,
+            subject_resolution_status=subject_resolution_status,
+            subject_resolution_detail=subject_resolution_detail,
         )
 
     try:
@@ -357,6 +407,8 @@ def ingest_manuscript_reference_status(project_root: Path) -> ManuscriptReferenc
         return ManuscriptReferenceStatusIngestion(
             manuscript_root=manuscript_root,
             bibliography_audit_path=bibliography_audit_path,
+            subject_resolution_status=subject_resolution_status,
+            subject_resolution_detail=subject_resolution_detail,
             reference_status_warnings=[f"could not read bibliography audit {bibliography_audit_path}: {exc}"],
         )
 
@@ -366,6 +418,8 @@ def ingest_manuscript_reference_status(project_root: Path) -> ManuscriptReferenc
         return ManuscriptReferenceStatusIngestion(
             manuscript_root=manuscript_root,
             bibliography_audit_path=bibliography_audit_path,
+            subject_resolution_status=subject_resolution_status,
+            subject_resolution_detail=subject_resolution_detail,
             reference_status_warnings=[f"invalid bibliography audit {bibliography_audit_path}: {exc}"],
         )
 
@@ -391,6 +445,8 @@ def ingest_manuscript_reference_status(project_root: Path) -> ManuscriptReferenc
     return ManuscriptReferenceStatusIngestion(
         manuscript_root=manuscript_root,
         bibliography_audit_path=bibliography_audit_path,
+        subject_resolution_status=subject_resolution_status,
+        subject_resolution_detail=subject_resolution_detail,
         reference_status=reference_status,
     )
 
@@ -645,8 +701,7 @@ def _detail_mapping(details: object) -> dict[str, str]:
         if cleaned_value not in bucket:
             bucket.append(cleaned_value)
     mapping = {
-        key: (" / " if key in _DETAIL_SLASH_JOIN_KEYS else "; ").join(values)
-        for key, values in collected.items()
+        key: (" / " if key in _DETAIL_SLASH_JOIN_KEYS else "; ").join(values) for key, values in collected.items()
     }
     if freeform:
         mapping["freeform"] = "; ".join(freeform)
@@ -851,9 +906,13 @@ def _reference_from_active_anchor(
         if alias and alias not in {locator_value, _clean_text(anchor_id)}:
             alias_values.append(alias)
     explicit_must_surface = _normalize_optional_bool(must_surface_hint)
-    must_surface = explicit_must_surface if explicit_must_surface is not None else (
-        normalized_role in {"benchmark", "definition", "method", "must_consider"}
-        or bool({"use", "compare", "avoid"} & set(normalized_actions))
+    must_surface = (
+        explicit_must_surface
+        if explicit_must_surface is not None
+        else (
+            normalized_role in {"benchmark", "definition", "method", "must_consider"}
+            or bool({"use", "compare", "avoid"} & set(normalized_actions))
+        )
     )
     return ArtifactReference(
         id=_clean_text(anchor_id) or _reference_id(label, locator_value, prefix),
@@ -938,7 +997,9 @@ def _ingest_benchmark_section(section: str, result: ArtifactReferenceIngestion) 
                 lower = detail_text.lower()
                 if lower.startswith("source:"):
                     source = _clean_text(detail_text.split(":", 1)[1])
-                elif lower.startswith("compared in:") or lower.startswith("comparison in:") or lower.startswith("file:"):
+                elif (
+                    lower.startswith("compared in:") or lower.startswith("comparison in:") or lower.startswith("file:")
+                ):
                     compared_in = _clean_text(detail_text.split(":", 1)[1])
                 elif lower.startswith("status:"):
                     status = _clean_text(detail_text.split(":", 1)[1])
@@ -1003,9 +1064,7 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                     anchor_id=str(entry.get("anchor_id") or ""),
                     label=str(entry.get("anchor") or entry.get("label") or entry.get("locator") or "literature-anchor"),
                     locator=str(entry.get("locator") or entry.get("source") or entry.get("anchor") or ""),
-                    applies_to=entry.get("applies_to")
-                    or entry.get("contract_subject_ids")
-                    or entry.get("subject_ids"),
+                    applies_to=entry.get("applies_to") or entry.get("contract_subject_ids") or entry.get("subject_ids"),
                     kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),

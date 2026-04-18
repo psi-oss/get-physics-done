@@ -29,6 +29,7 @@ REVIEW_CONTRACT_FIELD_ORDER = (
     "preflight_checks",
     "stage_artifacts",
     "conditional_requirements",
+    "scope_variants",
     "required_state",
 )
 REVIEW_CONTRACT_CONDITIONAL_FIELD_ORDER = (
@@ -39,8 +40,18 @@ REVIEW_CONTRACT_CONDITIONAL_FIELD_ORDER = (
     "blocking_preflight_checks",
     "stage_artifacts",
 )
+REVIEW_CONTRACT_SCOPE_VARIANT_FIELD_ORDER = (
+    "scope",
+    "activation",
+    "relaxed_preflight_checks",
+    "optional_preflight_checks",
+    "required_outputs_override",
+    "required_evidence_override",
+    "blocking_conditions_override",
+)
 REVIEW_CONTRACT_KEYS = frozenset(REVIEW_CONTRACT_FIELD_ORDER)
 REVIEW_CONTRACT_CONDITIONAL_KEYS = frozenset(REVIEW_CONTRACT_CONDITIONAL_FIELD_ORDER)
+REVIEW_CONTRACT_SCOPE_VARIANT_KEYS = frozenset(REVIEW_CONTRACT_SCOPE_VARIANT_FIELD_ORDER)
 
 
 def _load_review_contract_payload(
@@ -130,6 +141,23 @@ def _render_review_contract_payload(payload: Mapping[str, object]) -> dict[str, 
                     conditional_requirements.append(rendered_requirement)
             if conditional_requirements:
                 rendered[field_name] = conditional_requirements
+            continue
+        if field_name == "scope_variants":
+            if not value:
+                continue
+            scope_variants: list[dict[str, object]] = []
+            for variant in value:
+                if not isinstance(variant, Mapping):
+                    continue
+                rendered_variant: dict[str, object] = {}
+                for scope_variant_field in REVIEW_CONTRACT_SCOPE_VARIANT_FIELD_ORDER:
+                    scope_variant_value = variant.get(scope_variant_field)
+                    if scope_variant_value:
+                        rendered_variant[scope_variant_field] = scope_variant_value
+                if rendered_variant:
+                    scope_variants.append(rendered_variant)
+            if scope_variants:
+                rendered[field_name] = scope_variants
             continue
         if isinstance(value, list):
             if value:
@@ -283,6 +311,89 @@ def _normalize_review_contract_conditional_requirements(value: object) -> list[d
     return normalized
 
 
+def _normalize_review_contract_scope_variants(value: object) -> list[dict[str, object]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("scope_variants must be a list of mappings")
+
+    normalized: list[dict[str, object]] = []
+    seen_scopes: dict[str, int] = {}
+    for index, item in enumerate(value):
+        field_name = f"scope_variants[{index}]"
+        if not isinstance(item, Mapping):
+            raise ValueError(f"{field_name} must be a mapping")
+        unknown_keys = sorted(str(key) for key in item if str(key) not in REVIEW_CONTRACT_SCOPE_VARIANT_KEYS)
+        if unknown_keys:
+            formatted = ", ".join(unknown_keys)
+            raise ValueError(f"Unknown review-contract field(s): {field_name}.{formatted}")
+        normalized_item = {
+            "scope": _normalize_review_contract_required_str(
+                item.get("scope"),
+                field_name=f"{field_name}.scope",
+            ),
+            "activation": _normalize_review_contract_required_str(
+                item.get("activation"),
+                field_name=f"{field_name}.activation",
+            ),
+            "relaxed_preflight_checks": _normalize_review_contract_choice_list(
+                item.get("relaxed_preflight_checks"),
+                field_name=f"{field_name}.relaxed_preflight_checks",
+                valid_values=REVIEW_CONTRACT_PREFLIGHT_CHECKS,
+            ),
+            "optional_preflight_checks": _normalize_review_contract_choice_list(
+                item.get("optional_preflight_checks"),
+                field_name=f"{field_name}.optional_preflight_checks",
+                valid_values=REVIEW_CONTRACT_PREFLIGHT_CHECKS,
+            ),
+            "required_outputs_override": _normalize_review_contract_string_list(
+                item.get("required_outputs_override"),
+                field_name=f"{field_name}.required_outputs_override",
+            ),
+            "required_evidence_override": _normalize_review_contract_string_list(
+                item.get("required_evidence_override"),
+                field_name=f"{field_name}.required_evidence_override",
+            ),
+            "blocking_conditions_override": _normalize_review_contract_string_list(
+                item.get("blocking_conditions_override"),
+                field_name=f"{field_name}.blocking_conditions_override",
+            ),
+        }
+        if set(normalized_item["relaxed_preflight_checks"]) & set(normalized_item["optional_preflight_checks"]):
+            overlap = sorted(
+                set(normalized_item["relaxed_preflight_checks"])
+                & set(normalized_item["optional_preflight_checks"])
+            )
+            formatted = ", ".join(overlap)
+            raise ValueError(
+                f"{field_name}.optional_preflight_checks must not duplicate relaxed_preflight_checks: {formatted}"
+            )
+        if not any(
+            normalized_item[key]
+            for key in (
+                "relaxed_preflight_checks",
+                "optional_preflight_checks",
+                "required_outputs_override",
+                "required_evidence_override",
+                "blocking_conditions_override",
+            )
+        ):
+            raise ValueError(
+                f"{field_name} must declare at least one of: "
+                "relaxed_preflight_checks, optional_preflight_checks, required_outputs_override, "
+                "required_evidence_override, blocking_conditions_override"
+            )
+        scope = normalized_item["scope"]
+        if scope in seen_scopes:
+            first_index = seen_scopes[scope]
+            raise ValueError(
+                f"{field_name}.scope duplicates scope_variants[{first_index}].scope: {scope}"
+            )
+        seen_scopes[scope] = index
+        normalized.append(normalized_item)
+    return normalized
+
+
 def _normalize_review_contract_payload(
     review_contract: object,
     *,
@@ -338,6 +449,7 @@ def _normalize_review_contract_payload(
     conditional_requirements = _normalize_review_contract_conditional_requirements(
         loaded.get("conditional_requirements")
     )
+    scope_variants = _normalize_review_contract_scope_variants(loaded.get("scope_variants"))
     declared_preflight_checks = set(preflight_checks)
     for index, requirement in enumerate(conditional_requirements):
         missing_checks = [
@@ -377,6 +489,7 @@ def _normalize_review_contract_payload(
             field_name="stage_artifacts",
         ),
         "conditional_requirements": conditional_requirements,
+        "scope_variants": scope_variants,
         "required_state": required_state,
     }
 

@@ -28,7 +28,12 @@ from gpd.core.frontmatter import (
     _validate_contract_mapping,
     extract_frontmatter,
 )
-from gpd.core.manuscript_artifacts import locate_publication_artifact, resolve_current_manuscript_resolution
+from gpd.core.manuscript_artifacts import (
+    PublicationSubjectResolution,
+    infer_publication_artifact_base,
+    locate_publication_artifact,
+    resolve_current_publication_subject,
+)
 from gpd.core.paper_quality import (
     _CITE_CMD_PREFIX,
     BinaryCheck,
@@ -259,37 +264,6 @@ def _load_manuscript_config(manuscript_dir: Path) -> dict[str, object]:
         return PaperConfig.model_validate(payload).model_dump(mode="python")
     except PydanticValidationError:
         return payload
-
-
-def _best_effort_manuscript_root(project_root: Path) -> Path | None:
-    resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
-    if resolution.status == "resolved" and resolution.manuscript_root is not None:
-        return resolution.manuscript_root
-    if resolution.status == "ambiguous":
-        return None
-
-    candidates: list[Path] = []
-    for root_name in ("paper", "manuscript", "draft"):
-        candidate = project_root / root_name
-        if not candidate.exists() or not candidate.is_dir():
-            continue
-        has_publication_artifacts = any(
-            (candidate / artifact_name).exists()
-            for artifact_name in (
-                "PAPER-CONFIG.json",
-                "ARTIFACT-MANIFEST.json",
-                "BIBLIOGRAPHY-AUDIT.json",
-                "FIGURE_TRACKER.md",
-                "reproducibility-manifest.json",
-            )
-        )
-        has_manuscript_content = any(
-            path.is_file() and path.suffix.lower() in _MANUSCRIPT_CONTENT_SUFFIXES for path in candidate.rglob("*")
-        )
-        if has_publication_artifacts or has_manuscript_content:
-            candidates.append(candidate)
-
-    return candidates[0] if len(candidates) == 1 else None
 
 
 def _derivation_artifacts(project_root: Path) -> list[Path]:
@@ -772,14 +746,14 @@ def _build_figures_input(
             else CoverageMetric(not_applicable=True)
         )
         decisive_artifact_roles_clear = (
-            _coverage_metric(sum(1 for entry in decisive_entries if entry.role and entry.role != "other"), len(decisive_entries))
+            _coverage_metric(
+                sum(1 for entry in decisive_entries if entry.role and entry.role != "other"), len(decisive_entries)
+            )
             if decisive_entries
             else CoverageMetric(not_applicable=True)
         )
         decisive_uncertainties_present = (
-            _coverage_metric(uncertainty_count, len(decisive_entries))
-            if decisive_entries
-            else CoverageMetric()
+            _coverage_metric(uncertainty_count, len(decisive_entries)) if decisive_entries else CoverageMetric()
         )
         decisive_artifacts_with_explicit_verdicts = (
             _coverage_metric(decisive_with_verdict, len(decisive_entries))
@@ -802,8 +776,12 @@ def _build_figures_input(
 
     figures = FiguresQualityInput(
         axes_labeled_with_units=_coverage_metric(sum(1 for entry in figure_registry if entry.has_units), total_figures),
-        error_bars_present=_coverage_metric(sum(1 for entry in figure_registry if entry.has_uncertainty), total_figures),
-        referenced_in_text=_coverage_metric(sum(1 for entry in figure_registry if entry.referenced_in_text), total_figures),
+        error_bars_present=_coverage_metric(
+            sum(1 for entry in figure_registry if entry.has_uncertainty), total_figures
+        ),
+        referenced_in_text=_coverage_metric(
+            sum(1 for entry in figure_registry if entry.referenced_in_text), total_figures
+        ),
         captions_self_contained=_coverage_metric(
             sum(1 for entry in figure_registry if entry.caption_self_contained),
             total_figures,
@@ -825,19 +803,33 @@ def _build_figures_input(
     return figures, results
 
 
-def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
+def build_paper_quality_input(
+    project_root: Path,
+    *,
+    publication_subject: PublicationSubjectResolution | None = None,
+) -> PaperQualityInput:
     """Build a conservative :class:`PaperQualityInput` from project artifacts."""
 
     root = Path(project_root)
-    manuscript_resolution = resolve_current_manuscript_resolution(root, allow_markdown=True)
+    subject = publication_subject or resolve_current_publication_subject(root, allow_markdown=True)
+    manuscript_resolution = subject.as_manuscript_resolution()
     if manuscript_resolution.status in {"ambiguous", "invalid"}:
         raise GPDError(
             "paper-quality artifact resolution requires an unambiguous manuscript root; "
             f"found {manuscript_resolution.status}: {manuscript_resolution.detail}"
         )
+    if manuscript_resolution.status == "resolved" and manuscript_resolution.manuscript_root is not None:
+        paper_dir = manuscript_resolution.manuscript_root
+        manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint
+    elif publication_subject is not None:
+        raise GPDError(
+            "paper-quality artifact resolution requires a resolved publication subject; "
+            f"found {manuscript_resolution.status}: {manuscript_resolution.detail}"
+        )
+    else:
+        paper_dir = infer_publication_artifact_base(root, allow_markdown=True)
+        manuscript_entrypoint = None
 
-    paper_dir = manuscript_resolution.manuscript_root or _best_effort_manuscript_root(root)
-    manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint
     artifact_manifest = None
     bibliography_audit = None
     paper_config: dict[str, object] = {}
@@ -845,10 +837,14 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     manuscript_content = ""
     if paper_dir is not None:
         artifact_manifest = _load_artifact_manifest(
-            locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
+            subject.artifact_manifest
+            if manuscript_resolution.status == "resolved"
+            else locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
         )
         bibliography_audit = _load_bibliography_audit(
-            locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
+            subject.bibliography_audit
+            if manuscript_resolution.status == "resolved"
+            else locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
         )
         paper_config = _load_manuscript_config(paper_dir)
         manuscript_files, manuscript_content = _collect_manuscript_content(
@@ -891,10 +887,7 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     empty_reference_commands = sum(1 for finding in draft_findings if finding.check == "empty_reference_command")
     cite_keys = list(
         dict.fromkeys(
-            part.strip()
-            for match in _CITE_RE.findall(manuscript_content)
-            for part in match.split(",")
-            if part.strip()
+            part.strip() for match in _CITE_RE.findall(manuscript_content) for part in match.split(",") if part.strip()
         )
     )
     required_sections = 3
@@ -911,7 +904,9 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     partial_sources = bibliography_audit.partial_sources if bibliography_audit is not None else 0
     unverified_sources = bibliography_audit.unverified_sources if bibliography_audit is not None else 0
     failed_sources = bibliography_audit.failed_sources if bibliography_audit is not None else 0
-    available_citation_keys = _available_citation_keys(paper_dir, bibliography_audit) if paper_dir is not None else set()
+    available_citation_keys = (
+        _available_citation_keys(paper_dir, bibliography_audit) if paper_dir is not None else set()
+    )
 
     if cite_keys:
         resolved_citations = sum(1 for key in cite_keys if key in available_citation_keys)
@@ -941,7 +936,9 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     if contract_coverage.contract_results_seen:
         journal_extra_checks["contract_results_parse_ok"] = contract_coverage.contract_results_parse_ok
         journal_extra_checks["contract_results_alignment_ok"] = contract_coverage.contract_results_alignment_ok
-    journal_extra_checks["comparison_verdicts_valid"] = verdicts_parse_ok and contract_coverage.comparison_verdicts_valid
+    journal_extra_checks["comparison_verdicts_valid"] = (
+        verdicts_parse_ok and contract_coverage.comparison_verdicts_valid
+    )
 
     citations = CitationsQualityInput(
         citation_keys_resolve=citation_key_coverage,

@@ -9,6 +9,7 @@ import pytest
 
 from gpd import registry
 from gpd.core.model_visible_text import (
+    COMMAND_POLICY_PROMPT_WRAPPER_KEY,
     agent_visibility_note,
     command_visibility_note,
     review_contract_visibility_note,
@@ -435,11 +436,20 @@ class TestParseCommandFile:
         assert cmd.project_reentry_capable is False
         assert cmd.requires == {"files": ["GPD/ROADMAP.md"]}
         assert cmd.allowed_tools == ["file_read", "shell"]
+        assert cmd.command_policy == registry.CommandPolicy(
+            schema_version=1,
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-required",
+                project_reentry_mode="disallowed",
+                required_file_patterns=["GPD/ROADMAP.md"],
+            ),
+        )
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
         assert "Strict booleans only." in cmd.content
         assert command_visibility_note() in cmd.content
         assert "GPD/ROADMAP.md" in cmd.content
+        assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in cmd.content
         assert skeptical_rigor_guardrails_section() in cmd.content
         assert cmd.content.endswith("Command body.")
 
@@ -488,6 +498,13 @@ class TestParseCommandFile:
         assert cmd.project_reentry_capable is False
         assert cmd.requires == {}
         assert cmd.allowed_tools == []
+        assert cmd.command_policy == registry.CommandPolicy(
+            schema_version=1,
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-required",
+                project_reentry_mode="disallowed",
+            ),
+        )
 
     def test_command_requires_non_dict_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "bad-requires.md"
@@ -559,6 +576,7 @@ class TestParseCommandFile:
 
         assert "agent: gpd-planner" in rendered
         assert "context_mode: project-required" in rendered
+        assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in rendered
 
     def test_render_command_visibility_sections_comment_only_frontmatter_keeps_default_constraints(self) -> None:
         rendered = render_command_visibility_sections_from_frontmatter(
@@ -569,6 +587,7 @@ class TestParseCommandFile:
         assert "## Command Requirements" in rendered
         assert "context_mode: project-required" in rendered
         assert "project_reentry_capable: false" in rendered
+        assert "project_reentry_mode: disallowed" in rendered
 
     def test_command_agent_frontmatter_key_is_explicitly_allowed(self, tmp_path: Path) -> None:
         f = tmp_path / "plan-phase.md"
@@ -580,6 +599,97 @@ class TestParseCommandFile:
         assert cmd.agent == "gpd-planner"
         assert "agent: gpd-planner" in cmd.content
         assert cmd.content.endswith("Body.")
+
+    def test_command_policy_frontmatter_is_parsed_and_merged_with_legacy_metadata(self, tmp_path: Path) -> None:
+        f = tmp_path / "peer-review.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:peer-review\n"
+            "context_mode: project-aware\n"
+            "requires:\n"
+            "  files:\n"
+            "    - PROJECT.md\n"
+            "command-policy:\n"
+            "  schema_version: 1\n"
+            "  subject_policy:\n"
+            "    subject_kind: publication\n"
+            "    resolution_mode: explicit_or_project_manuscript\n"
+            "    explicit_input_kinds:\n"
+            "      - manuscript_path\n"
+            "    allow_external_subjects: true\n"
+            "  output_policy:\n"
+            "    output_mode: managed\n"
+            "    managed_root_kind: gpd_managed_durable\n"
+            "    default_output_subtree: GPD/review\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.command_policy == registry.CommandPolicy(
+            schema_version=1,
+            subject_policy=registry.CommandSubjectPolicy(
+                subject_kind="publication",
+                resolution_mode="explicit_or_project_manuscript",
+                explicit_input_kinds=["manuscript_path"],
+                allow_external_subjects=True,
+            ),
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-aware",
+                project_reentry_mode="disallowed",
+                required_file_patterns=["PROJECT.md"],
+            ),
+            output_policy=registry.CommandOutputPolicy(
+                output_mode="managed",
+                managed_root_kind="gpd_managed_durable",
+                default_output_subtree="GPD/review",
+            ),
+        )
+        assert "context_mode: project-aware" in cmd.content
+        assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in cmd.content
+        assert "subject_kind: publication" in cmd.content
+        assert "default_output_subtree: GPD/review" in cmd.content
+
+    def test_command_policy_rejects_prompt_wrapper_alias_in_frontmatter(self, tmp_path: Path) -> None:
+        f = tmp_path / "write-paper.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:write-paper\n"
+            "command_policy:\n"
+            "  schema_version: 1\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid command-policy in .*write-paper\.md.*canonical frontmatter key 'command-policy'",
+        ):
+            _parse_command_file(f, source="commands")
+
+    def test_command_policy_rejects_conflicts_with_legacy_context_metadata(self, tmp_path: Path) -> None:
+        f = tmp_path / "peer-review.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:peer-review\n"
+            "context_mode: project-required\n"
+            "command-policy:\n"
+            "  schema_version: 1\n"
+            "  supporting_context_policy:\n"
+            "    project_context_mode: project-aware\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid command-policy in .*peer-review\.md.*must stay aligned with legacy command metadata",
+        ):
+            _parse_command_file(f, source="commands")
 
     def test_command_agent_validation_uses_canonical_inventory_not_patched_agents_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -969,6 +1079,34 @@ class TestParseCommandFile:
         assert requirement.required_evidence == []
         assert requirement.blocking_conditions == []
         assert requirement.stage_artifacts == ["GPD/review/PROOF-REDTEAM{round_suffix}.md"]
+
+    def test_command_review_contract_parses_scope_variants(self, tmp_path: Path) -> None:
+        f = _write_review_contract_command(
+            tmp_path,
+            "scope-variants.md",
+            "  scope_variants:\n"
+            "    - scope: explicit_artifact\n"
+            "      activation: explicit manuscript path was supplied\n"
+            "      relaxed_preflight_checks:\n"
+            "        - manuscript\n"
+            "      optional_preflight_checks:\n"
+            "        - bibliography_audit\n"
+            "      required_outputs_override:\n"
+            "        - GPD/review/ARTIFACT-REPORT.md\n",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.review_contract is not None
+        assert cmd.review_contract.scope_variants == [
+            registry.ReviewContractScopeVariant(
+                scope="explicit_artifact",
+                activation="explicit manuscript path was supplied",
+                relaxed_preflight_checks=["manuscript"],
+                optional_preflight_checks=["bibliography_audit"],
+                required_outputs_override=["GPD/review/ARTIFACT-REPORT.md"],
+            )
+        ]
 
     def test_command_review_contract_rejects_duplicate_conditional_requirement_when(
         self, tmp_path: Path

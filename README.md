@@ -444,17 +444,19 @@ Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no o
 
 The `gpd` CLI also includes machine-readable validation, observability, and tracing commands for automation, review-grade checks, and debugging.
 
+Typed command metadata is not review-only. `gpd validate command-context` exposes the shared command applicability surface for public commands, while `gpd validate review-contract` and `gpd validate review-preflight` are the current specialized typed surfaces for commands that expose review/publication contracts.
+
 <details>
 <summary><strong>Validation commands</strong></summary>
 
 | Command | What it does |
 |---------|--------------|
 | `gpd validate consistency` | Run cross-phase consistency and project health checks for the current workspace |
-| `gpd validate command-context <command> [arguments]` | Report whether a command is global, projectless, project-aware, or project-required in the current workspace |
+| `gpd validate command-context <command> [arguments]` | Show the shared typed command context policy: whether a command is global, projectless, project-aware, or project-required in the current workspace |
 | `gpd validate unattended-readiness --runtime <runtime> [--autonomy <mode>]` | Return the unattended or overnight verdict for runtime permission alignment without replacing `gpd doctor` or plan preflight |
 | `gpd validate project-contract <file.json or -> [--mode approved|draft]` | Validate a project-scoping contract before downstream artifact generation |
-| `gpd validate review-contract <command>` | Show the typed review contract for publication and review workflows |
-| `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript or artifact presence, and review prerequisites |
+| `gpd validate review-contract <command>` | Show the specialized typed review/publication contract for commands that expose one |
+| `gpd validate review-preflight <command> [subject] --strict` | Run the specialized review/publication preflight for commands that expose a typed review contract against a resolved subject |
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |
 | `gpd validate paper-quality --from-project .` | Build paper-quality input from project artifacts, then score it conservatively |
 | `gpd validate plan-contract <PLAN.md>` | Validate PLAN frontmatter, including the embedded contract block and ID cross-links |

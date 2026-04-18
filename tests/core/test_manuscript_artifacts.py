@@ -7,12 +7,16 @@ from gpd.core.manuscript_artifacts import (
     ManuscriptArtifacts,
     ManuscriptResolution,
     ManuscriptRootResolution,
+    PublicationSubjectResolution,
     locate_publication_artifact,
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_entrypoint,
     resolve_current_manuscript_resolution,
     resolve_current_manuscript_root,
+    resolve_current_publication_subject,
+    resolve_explicit_publication_subject,
     resolve_manuscript_entrypoint_from_root,
+    resolve_publication_subject_artifact,
 )
 
 
@@ -22,7 +26,9 @@ def _write(path: Path, content: str = "") -> None:
 
 
 def test_resolve_current_manuscript_artifacts_prefers_manifest_declared_entrypoint(tmp_path: Path) -> None:
-    _write(tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n"
+    )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -91,7 +97,10 @@ def test_resolve_current_manuscript_artifacts_supports_config_derived_markdown_a
 def test_resolve_current_manuscript_artifacts_keep_supported_root_for_nested_manifest_entrypoint(
     tmp_path: Path,
 ) -> None:
-    _write(tmp_path / "paper" / "sections" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "sections" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+    )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -126,10 +135,141 @@ def test_resolve_current_manuscript_artifacts_keep_supported_root_for_nested_man
     assert artifacts.bibliography_audit == tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json"
     assert artifacts.reproducibility_manifest == tmp_path / "paper" / "reproducibility-manifest.json"
     assert resolve_current_manuscript_root(tmp_path) == tmp_path / "paper"
-    assert locate_publication_artifact(
+    assert (
+        locate_publication_artifact(
+            tmp_path / "paper" / "sections" / "curvature_flow_bounds.tex",
+            "ARTIFACT-MANIFEST.json",
+        )
+        == tmp_path / "paper" / "ARTIFACT-MANIFEST.json"
+    )
+
+
+def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_semantics(tmp_path: Path) -> None:
+    _write(
         tmp_path / "paper" / "sections" / "curvature_flow_bounds.tex",
-        "ARTIFACT-MANIFEST.json",
-    ) == tmp_path / "paper" / "ARTIFACT-MANIFEST.json"
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "sections/curvature_flow_bounds.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+    _write(tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json", "{}\n")
+    _write(tmp_path / "paper" / "reproducibility-manifest.json", "{}\n")
+
+    subject = resolve_current_publication_subject(tmp_path)
+
+    assert isinstance(subject, PublicationSubjectResolution)
+    assert subject.status == "resolved"
+    assert subject.source == "current_project"
+    assert subject.manuscript_root == tmp_path / "paper"
+    assert subject.manuscript_entrypoint == tmp_path / "paper" / "sections" / "curvature_flow_bounds.tex"
+    assert subject.artifact_base == tmp_path / "paper"
+    assert subject.artifact_manifest == tmp_path / "paper" / "ARTIFACT-MANIFEST.json"
+    assert subject.path_semantics is not None
+    assert subject.path_semantics.artifact_base_path == "paper"
+    assert subject.path_semantics.manuscript_entrypoint_path == "paper/sections/curvature_flow_bounds.tex"
+    assert subject.path_semantics.subject_relative_entrypoint_path == "sections/curvature_flow_bounds.tex"
+    assert resolve_publication_subject_artifact(subject, "BIBLIOGRAPHY-AUDIT.json") == (
+        tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json"
+    )
+
+
+def test_resolve_explicit_publication_subject_accepts_explicit_entrypoint_and_uses_its_artifact_base(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "manuscript" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+    )
+    _write(
+        tmp_path / "manuscript" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "jhep",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-manuscript",
+                        "category": "tex",
+                        "path": "curvature_flow_bounds.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+    _write(tmp_path / "manuscript" / "BIBLIOGRAPHY-AUDIT.json", "{}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "manuscript/curvature_flow_bounds.tex")
+
+    assert subject.status == "resolved"
+    assert subject.source == "explicit_target"
+    assert subject.target_path == tmp_path / "manuscript" / "curvature_flow_bounds.tex"
+    assert subject.manuscript_root == tmp_path / "manuscript"
+    assert subject.manuscript_entrypoint == tmp_path / "manuscript" / "curvature_flow_bounds.tex"
+    assert subject.artifact_base == tmp_path / "manuscript"
+    assert subject.bibliography_audit == tmp_path / "manuscript" / "BIBLIOGRAPHY-AUDIT.json"
+
+
+def test_resolve_explicit_publication_subject_rejects_noncanonical_entrypoint_under_supported_root(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Main\\end{document}\n")
+    _write(tmp_path / "paper" / "appendix.tex", "\\documentclass{article}\\begin{document}Appendix\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "jhep",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, tmp_path / "paper" / "appendix.tex")
+
+    assert subject.status == "invalid"
+    assert subject.source == "explicit_target"
+    assert "does not match the resolved manuscript entrypoint" in subject.detail
 
 
 def test_resolve_current_manuscript_artifacts_ignores_uppercase_reproducibility_manifest_alias(
@@ -177,7 +317,10 @@ def test_resolve_current_manuscript_artifacts_ignores_uppercase_reproducibility_
 
 
 def test_resolve_current_manuscript_entrypoint_ignores_manifest_paths_outside_root(tmp_path: Path) -> None:
-    _write(tmp_path / "submission" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        tmp_path / "submission" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+    )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -213,7 +356,10 @@ def test_resolve_current_manuscript_entrypoint_ignores_manifest_paths_outside_ro
 def test_resolve_current_manuscript_entrypoint_fails_closed_when_multiple_roots_resolve(
     tmp_path: Path,
 ) -> None:
-    _write(tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Paper\\end{document}\n",
+    )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -237,7 +383,10 @@ def test_resolve_current_manuscript_entrypoint_fails_closed_when_multiple_roots_
         )
         + "\n",
     )
-    _write(tmp_path / "manuscript" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Manuscript\\end{document}\n")
+    _write(
+        tmp_path / "manuscript" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Manuscript\\end{document}\n",
+    )
     _write(
         tmp_path / "manuscript" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -267,7 +416,10 @@ def test_resolve_current_manuscript_entrypoint_fails_closed_when_multiple_roots_
 
 
 def test_resolve_current_manuscript_resolution_marks_multiple_roots_ambiguous(tmp_path: Path) -> None:
-    _write(tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Paper\\end{document}\n",
+    )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -291,7 +443,10 @@ def test_resolve_current_manuscript_resolution_marks_multiple_roots_ambiguous(tm
         )
         + "\n",
     )
-    _write(tmp_path / "manuscript" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Manuscript\\end{document}\n")
+    _write(
+        tmp_path / "manuscript" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}Manuscript\\end{document}\n",
+    )
     _write(
         tmp_path / "manuscript" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -327,7 +482,9 @@ def test_resolve_current_manuscript_resolution_marks_multiple_roots_ambiguous(tm
 
 
 def test_resolve_current_manuscript_resolution_marks_root_mismatch_invalid(tmp_path: Path) -> None:
-    _write(tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n"
+    )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -419,7 +576,8 @@ def test_resolve_current_manuscript_resolution_prefers_config_when_manifest_is_i
     assert resolution.status == "resolved"
     assert resolution.manuscript_entrypoint == tmp_path / "paper" / "config-entry.tex"
     assert any(
-        root_resolution.status == "resolved" and root_resolution.manuscript_entrypoint == tmp_path / "paper" / "config-entry.tex"
+        root_resolution.status == "resolved"
+        and root_resolution.manuscript_entrypoint == tmp_path / "paper" / "config-entry.tex"
         for root_resolution in resolution.root_resolutions
     )
     assert "resolved from paper config" in resolution.detail
@@ -628,7 +786,9 @@ def test_resolve_manuscript_entrypoint_from_root_returns_invalid_when_manifest_a
     tmp_path: Path,
 ) -> None:
     manuscript_root = tmp_path / "paper"
-    _write(manuscript_root / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        manuscript_root / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n"
+    )
     _write(
         manuscript_root / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -673,7 +833,10 @@ def test_locate_publication_artifact_accepts_named_entrypoint_path(tmp_path: Pat
     _write(manuscript, "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
     _write(tmp_path / "draft" / "ARTIFACT-MANIFEST.json", "{}\n")
 
-    assert locate_publication_artifact(manuscript, "ARTIFACT-MANIFEST.json") == tmp_path / "draft" / "ARTIFACT-MANIFEST.json"
+    assert (
+        locate_publication_artifact(manuscript, "ARTIFACT-MANIFEST.json")
+        == tmp_path / "draft" / "ARTIFACT-MANIFEST.json"
+    )
 
 
 def test_resolve_current_manuscript_artifacts_does_not_fall_back_to_legacy_main_entrypoint(
@@ -687,7 +850,9 @@ def test_resolve_current_manuscript_artifacts_does_not_fall_back_to_legacy_main_
 def test_resolve_current_manuscript_artifacts_requires_manifest_or_config_for_topic_stem_entrypoint(
     tmp_path: Path,
 ) -> None:
-    _write(tmp_path / "draft" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        tmp_path / "draft" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n"
+    )
     _write(
         tmp_path / "draft" / "ARTIFACT-MANIFEST.json",
         json.dumps(
@@ -715,7 +880,9 @@ def test_resolve_current_manuscript_artifacts_requires_manifest_or_config_for_to
 
 
 def test_resolve_current_manuscript_entrypoint_fails_closed_when_manifest_and_config_disagree(tmp_path: Path) -> None:
-    _write(tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n"
+    )
     _write(tmp_path / "paper" / "alternate_title.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",

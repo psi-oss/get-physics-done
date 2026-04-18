@@ -8,6 +8,8 @@ import pytest
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.storage_paths import (
     DurableOutputKind,
+    ManagedOutputClass,
+    ManagedOutputPolicy,
     ProjectStorageLayout,
     StorageClass,
     StoragePathError,
@@ -106,6 +108,20 @@ def test_classify_absolute_user_output_path(tmp_path: Path) -> None:
     output = layout.output_dir(DurableOutputKind.EXPORTS) / "report.json"
 
     assert layout.classify(output) == StorageClass.USER_DURABLE
+
+
+def test_assess_output_path_matches_explicit_gpd_managed_policy(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    policy = ManagedOutputPolicy.gpd_subtree("paper")
+
+    assessment = layout.assess_output_path(
+        "GPD/paper/main.tex",
+        managed_output_policies=(policy,),
+    )
+
+    assert assessment.classification == StorageClass.INTERNAL_DURABLE
+    assert assessment.managed_output_class == ManagedOutputClass.GPD_MANAGED_DURABLE
+    assert assessment.matched_policy == policy
 
 
 def test_temp_roots_uses_environment_overrides_and_deduplicates(
@@ -244,6 +260,19 @@ def test_validate_final_output_rejects_internal_project_scratch_temp_and_externa
         layout.validate_final_output(external_root / "final.json")
 
 
+def test_validate_final_output_accepts_policy_owned_gpd_managed_paths(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    policy = ManagedOutputPolicy.gpd_subtree("paper")
+
+    assert layout.validate_final_output(
+        "GPD/paper/main.tex",
+        managed_output_policies=(policy,),
+    ) == (layout.internal_root / "paper" / "main.tex")
+    assert layout.validate_managed_output("GPD/paper/main.tex", policy=policy) == (
+        layout.internal_root / "paper" / "main.tex"
+    )
+
+
 def test_validate_commit_target_allows_internal_docs_but_rejects_internal_artifacts_and_scratch_paths(
     tmp_path: Path,
 ) -> None:
@@ -265,6 +294,19 @@ def test_validate_commit_target_allows_internal_docs_but_rejects_internal_artifa
 
     with pytest.raises(StoragePathError, match="scratch directories"):
         layout.validate_commit_target("tmp/final.csv")
+
+
+def test_validate_commit_target_allows_policy_owned_gpd_managed_artifacts(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    target = layout.internal_root / "paper" / "main.tex"
+    target.parent.mkdir(parents=True)
+    target.write_text("\\documentclass{article}\n", encoding="utf-8")
+    policy = ManagedOutputPolicy.gpd_subtree("paper")
+
+    assert layout.validate_commit_target(
+        target,
+        managed_output_policies=(policy,),
+    ) == target
 
 
 def test_check_user_output_reports_warning_without_raising_for_off_policy_but_project_local_paths(tmp_path: Path) -> None:
@@ -335,6 +377,22 @@ def test_audit_storage_warnings_flags_hidden_results_and_scratch_outputs(tmp_pat
     assert any("tmp/final.csv" in warning for warning in warnings)
     assert any("notes/tmp/final.csv" in warning for warning in warnings)
     assert any("artifacts/tmp/final.csv" in warning for warning in warnings)
+
+
+def test_audit_storage_warnings_respects_explicit_managed_output_policy(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    paper_output = layout.internal_root / "paper" / "main.tex"
+    paper_output.parent.mkdir(parents=True, exist_ok=True)
+    paper_output.write_text("\\documentclass{article}\n", encoding="utf-8")
+    scratch_output = layout.scratch_dir / "final.csv"
+    scratch_output.parent.mkdir(parents=True, exist_ok=True)
+    scratch_output.write_text("x,y\n", encoding="utf-8")
+    policy = ManagedOutputPolicy.gpd_subtree("paper")
+
+    warnings = layout.audit_storage_warnings(managed_output_policies=(policy,))
+
+    assert not any("GPD/paper/main.tex" in warning for warning in warnings)
+    assert any("GPD/tmp/final.csv" in warning for warning in warnings)
 
 
 def test_resolve_anchors_relative_paths_at_project_root(tmp_path: Path) -> None:

@@ -20,6 +20,8 @@ class PayloadRoots:
     project_root: str
     project_dir_present: bool = False
     project_dir_trusted: bool = False
+    target_path: str | None = None
+    target_root: str | None = None
 
 
 def _object_value(value: object, key: str) -> object | None:
@@ -54,11 +56,51 @@ def normalize_workspace_text(value: str | None) -> str:
         return str(path)
 
 
+def normalize_optional_path_text(value: str | None, *, base_dir: str | None = None) -> str | None:
+    if not value:
+        return None
+    path = Path(value).expanduser()
+    if not path.is_absolute() and base_dir:
+        path = Path(base_dir).expanduser() / path
+    try:
+        return str(path.resolve(strict=False))
+    except OSError:
+        return str(path)
+
+
 def _project_dir_from_payload(data: dict[str, object], *, hook_payload: object) -> str:
     workspace_value = data.get("workspace")
     return _first_string(workspace_value, *hook_payload.project_dir_keys) or _first_string(
         data,
         *hook_payload.project_dir_keys,
+    )
+
+
+def _target_path_from_payload(
+    data: dict[str, object],
+    *,
+    hook_payload: object,
+    workspace_dir: str,
+) -> str | None:
+    workspace_value = data.get("workspace")
+    target_path_keys = tuple(getattr(hook_payload, "target_path_keys", ()) or ())
+    return normalize_optional_path_text(
+        _first_string(workspace_value, *target_path_keys) or _first_string(data, *target_path_keys),
+        base_dir=workspace_dir,
+    )
+
+
+def _target_root_from_payload(
+    data: dict[str, object],
+    *,
+    hook_payload: object,
+    workspace_dir: str,
+) -> str | None:
+    workspace_value = data.get("workspace")
+    target_root_keys = tuple(getattr(hook_payload, "target_root_keys", ()) or ())
+    return normalize_optional_path_text(
+        _first_string(workspace_value, *target_root_keys) or _first_string(data, *target_root_keys),
+        base_dir=workspace_dir,
     )
 
 
@@ -162,9 +204,9 @@ def _coerce_root_pair(
     project_root = ""
     project_dir_present = False
     project_dir_trusted = False
+    target_path: str | None = None
+    target_root: str | None = None
 
-    if isinstance(value, PayloadRoots):
-        return value
     if isinstance(value, str) and value:
         project_root = value
     elif isinstance(value, (tuple, list)) and len(value) >= 2:
@@ -173,6 +215,10 @@ def _coerce_root_pair(
             workspace_dir = workspace_candidate
         if isinstance(project_candidate, str) and project_candidate:
             project_root = project_candidate
+        if len(value) >= 3 and isinstance(value[2], str) and value[2]:
+            target_path = value[2]
+        if len(value) >= 4 and isinstance(value[3], str) and value[3]:
+            target_root = value[3]
     else:
         workspace_dir = _first_string(
             value,
@@ -188,6 +234,8 @@ def _coerce_root_pair(
         )
         project_dir_present = bool(_first_bool(value, "project_dir_present"))
         project_dir_trusted = bool(_first_bool(value, "project_dir_trusted"))
+        target_path = _first_string(value, "target_path") or None
+        target_root = _first_string(value, "target_root") or None
 
     if not project_root:
         return None
@@ -196,6 +244,8 @@ def _coerce_root_pair(
         project_root=normalize_workspace_text(project_root),
         project_dir_present=project_dir_present,
         project_dir_trusted=project_dir_trusted,
+        target_path=normalize_optional_path_text(target_path, base_dir=workspace_dir or fallback_workspace_dir),
+        target_root=normalize_optional_path_text(target_root, base_dir=workspace_dir or fallback_workspace_dir),
     )
 
 
@@ -204,6 +254,8 @@ def _resolve_with_shared_service(
     *,
     workspace_dir: str,
     project_dir: str,
+    target_path: str | None = None,
+    target_root: str | None = None,
     hook_payload: object,
     cwd: str | None = None,
 ) -> PayloadRoots | None:
@@ -212,11 +264,36 @@ def _resolve_with_shared_service(
         return None
 
     attempts = (
-        {"payload": data, "workspace_dir": workspace_dir, "project_dir": project_dir, "cwd": cwd},
-        {"data": data, "workspace_dir": workspace_dir, "project_dir": project_dir, "cwd": cwd},
-        {"workspace_dir": workspace_dir, "project_dir": project_dir, "cwd": cwd},
-        {"workspace_dir": workspace_dir, "project_dir": project_dir},
-        {"cwd": workspace_dir, "project_dir": project_dir},
+        {
+            "payload": data,
+            "workspace_dir": workspace_dir,
+            "project_dir": project_dir,
+            "target_path": target_path,
+            "target_root": target_root,
+            "cwd": cwd,
+        },
+        {
+            "data": data,
+            "workspace_dir": workspace_dir,
+            "project_dir": project_dir,
+            "target_path": target_path,
+            "target_root": target_root,
+            "cwd": cwd,
+        },
+        {
+            "workspace_dir": workspace_dir,
+            "project_dir": project_dir,
+            "target_path": target_path,
+            "target_root": target_root,
+            "cwd": cwd,
+        },
+        {
+            "workspace_dir": workspace_dir,
+            "project_dir": project_dir,
+            "target_path": target_path,
+            "target_root": target_root,
+        },
+        {"cwd": workspace_dir, "project_dir": project_dir, "target_path": target_path, "target_root": target_root},
         {"cwd": workspace_dir},
     )
     for kwargs in attempts:
@@ -264,12 +341,24 @@ def project_root_from_payload(
         data,
         hook_payload=hook_payload,
     )
+    target_path = _target_path_from_payload(
+        data,
+        hook_payload=hook_payload,
+        workspace_dir=workspace_dir,
+    )
+    target_root = _target_root_from_payload(
+        data,
+        hook_payload=hook_payload,
+        workspace_dir=workspace_dir,
+    )
     project_dir_present = bool(project_dir)
     project_dir_trusted = _project_dir_is_trusted(workspace_dir, project_dir)
     resolved_roots = _resolve_with_shared_service(
         data,
         workspace_dir=workspace_dir,
         project_dir=project_dir,
+        target_path=target_path,
+        target_root=target_root,
         hook_payload=hook_payload,
         cwd=cwd,
     )
@@ -309,12 +398,24 @@ def resolve_payload_roots(
         data,
         hook_payload=hook_payload,
     )
+    target_path = _target_path_from_payload(
+        data,
+        hook_payload=hook_payload,
+        workspace_dir=workspace_dir,
+    )
+    target_root = _target_root_from_payload(
+        data,
+        hook_payload=hook_payload,
+        workspace_dir=workspace_dir,
+    )
     project_dir_present = bool(project_dir)
     project_dir_trusted = _project_dir_is_trusted(workspace_dir, project_dir)
     resolved_roots = _resolve_with_shared_service(
         data,
         workspace_dir=workspace_dir,
         project_dir=project_dir,
+        target_path=target_path,
+        target_root=target_root,
         hook_payload=hook_payload,
         cwd=cwd,
     )
@@ -338,12 +439,16 @@ def resolve_payload_roots(
                 project_root=authoritative_project_root,
                 project_dir_present=shared_project_dir_present,
                 project_dir_trusted=shared_project_dir_trusted,
+                target_path=resolved_roots.target_path or target_path,
+                target_root=resolved_roots.target_root or target_root,
             )
         return PayloadRoots(
             workspace_dir=resolved_roots.workspace_dir,
             project_root=authoritative_project_root,
             project_dir_present=project_dir_present,
             project_dir_trusted=project_dir_trusted,
+            target_path=resolved_roots.target_path or target_path,
+            target_root=resolved_roots.target_root or target_root,
         )
     project_root = project_root_from_payload(
         data,
@@ -356,4 +461,6 @@ def resolve_payload_roots(
         project_root=project_root,
         project_dir_present=project_dir_present,
         project_dir_trusted=project_dir_trusted,
+        target_path=target_path,
+        target_root=target_root,
     )

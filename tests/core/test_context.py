@@ -59,7 +59,7 @@ _XDG_RUNTIME_DESCRIPTOR = next(
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
     planning = tmp_path / "GPD"
-    planning.mkdir()
+    planning.mkdir(parents=True, exist_ok=True)
     (planning / "phases").mkdir()
     return tmp_path
 
@@ -2857,6 +2857,7 @@ class TestInitResume:
         assert ctx["project_root"] == workspace.resolve().as_posix()
         assert ctx["project_root_source"] == "current_workspace"
         assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "project_reentry_allowed"
         assert ctx["project_reentry_mode"] == "current-workspace"
         assert ctx["project_reentry_selected_candidate"] is not None
         assert ctx["project_reentry_selected_candidate"]["source"] == "current_workspace"
@@ -3616,6 +3617,7 @@ class TestInitMapResearch:
 
         ctx = init_map_research(nested)
 
+        assert ctx["init_root_policy"] == "project_scoped"
         assert ctx["planning_exists"] is True
         assert ctx["research_map_dir_exists"] is True
         assert ctx["has_maps"] is True
@@ -3838,10 +3840,31 @@ class TestInitProgress:
         assert ctx["project_root"] == workspace.resolve().as_posix()
         assert ctx["project_root_source"] == "workspace"
         assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "workspace_locked"
         assert ctx["config_content"] is not None
         assert "project_reentry_mode" not in ctx
         assert "project_reentry_candidates" not in ctx
         assert "project_reentry_selected_candidate" not in ctx
+
+    def test_progress_without_project_reentry_stays_workspace_locked_under_ancestor_project(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+
+        project.mkdir()
+        _setup_project(project)
+        nested.mkdir(parents=True)
+
+        ctx = init_progress(nested, include_project_reentry=False)
+
+        assert ctx["workspace_root"] == nested.resolve().as_posix()
+        assert ctx["project_root"] == nested.resolve().as_posix()
+        assert ctx["project_root_source"] == "workspace"
+        assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "workspace_locked"
+        assert "project_reentry_mode" not in ctx
 
     def test_progress_rejects_legacy_autonomy_values(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -4304,6 +4327,7 @@ class TestInitPhaseOp:
         result = init_phase_op(nested, phase="1")
 
         assert isinstance(result, dict)
+        assert result["init_root_policy"] == "project_scoped"
         assert result["planning_exists"] is True
         assert result["phase_found"] is True
         assert result["phase_number"] == "01"

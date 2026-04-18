@@ -16,6 +16,7 @@ from gpd.core.git_ops import (
     cmd_commit,
     cmd_pre_commit_check,
 )
+from gpd.core.storage_paths import ManagedOutputPolicy
 
 runner = CliRunner()
 
@@ -193,6 +194,21 @@ class TestPreCommitCheck:
         assert result.details[0].storage_valid is False
         assert result.details[0].storage_class == "internal_durable"
         assert any("internal metadata directories" in warning for warning in result.warnings)
+
+    def test_policy_owned_gpd_managed_commit_target_passes_storage_validation(self, tmp_path: Path) -> None:
+        target = tmp_path / "GPD" / "paper" / "main.tex"
+        target.parent.mkdir(parents=True)
+        target.write_text("\\documentclass{article}\n", encoding="utf-8")
+
+        result = cmd_pre_commit_check(
+            tmp_path,
+            ["GPD/paper/main.tex"],
+            managed_output_policies=(ManagedOutputPolicy.gpd_subtree("paper"),),
+        )
+
+        assert result.passed is True
+        assert result.details[0].storage_valid is True
+        assert result.details[0].storage_class == "internal_durable"
 
     def test_derivation_markdown_with_matching_assertion_passes(self, tmp_path: Path) -> None:
         self._write_convention_lock(tmp_path, metric_signature="mostly-minus")
