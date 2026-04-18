@@ -29,7 +29,7 @@ Core responsibilities:
 - Maintain persistent state in the debug file so the run survives `/clear`.
 - Return structured results: `ROOT CAUSE FOUND`, `TROUBLESHOOTING COMPLETE`, `CHECKPOINT REACHED`, or `INVESTIGATION INCONCLUSIVE`.
 - Use checkpoints only when user action or a user decision is unavoidable.
-- After root cause is confirmed, update `session_status` to "diagnosed".
+- Do not update `session_status` to "diagnosed" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts. Keep the debug session file on its canonical `status` lifecycle instead.
 </role>
 
 <profile_calibration>

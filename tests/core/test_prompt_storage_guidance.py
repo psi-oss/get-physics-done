@@ -4,6 +4,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
+COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 
 
 def test_compare_branches_uses_in_memory_branch_summary_extraction() -> None:
@@ -15,15 +16,19 @@ def test_compare_branches_uses_in_memory_branch_summary_extraction() -> None:
     assert "do not use `GPD/tmp/`, `/tmp`, or another temp root for this step." in workflow_text
 
 
-def test_parameter_sweep_keeps_internal_docs_in_gpd_and_durable_data_in_artifacts() -> None:
+def test_parameter_sweep_uses_gpd_owned_sweep_roots_for_phase_and_current_workspace_modes() -> None:
+    command_text = (COMMANDS_DIR / "parameter-sweep.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "parameter-sweep.md").read_text(encoding="utf-8")
 
-    assert 'SWEEP_ARTIFACT_DIR="artifacts/phases/${SWEEP_PHASE_KEY}/sweeps/${SWEEP_SLUG}"' in workflow_text
-    assert "Keep plans and SUMMARY files in `${SWEEP_PHASE_DIR}`" in workflow_text
-    assert "Do not put point-result JSON under `GPD/phases/**`." in workflow_text
-    assert "${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json" in workflow_text
-    assert "${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md" in workflow_text
-    assert "${SWEEP_DIR}/results/point-{PADDED_INDEX}.json" not in workflow_text
+    assert "default_output_subtree: GPD/sweeps" in command_text
+    assert 'SWEEP_ROOT="GPD/sweeps/${SWEEP_PHASE_KEY}/${SWEEP_SLUG}"' in workflow_text
+    assert 'SWEEP_ROOT="GPD/sweeps/${SWEEP_SLUG}"' in workflow_text
+    assert 'SWEEP_RESULTS_DIR="${SWEEP_ROOT}/results"' in workflow_text
+    assert "${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json" in workflow_text
+    assert "${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md" in workflow_text
+    assert "Do not invent `GPD/phases/XX-sweep`." in workflow_text
+    assert "Do not write durable sweep datasets to `artifacts/`." in workflow_text
+    assert "artifacts/phases/${SWEEP_PHASE_KEY}/sweeps/${SWEEP_SLUG}" not in workflow_text
 
 
 def test_compare_experiment_uses_workspace_roots_for_inputs_and_gpd_roots_for_outputs() -> None:
@@ -51,6 +56,16 @@ def test_compare_results_creates_workspace_gpd_comparison_root() -> None:
     assert 'COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"' in workflow_text
     assert "mkdir -p GPD/comparisons" in workflow_text
     assert "same current-workspace `GPD/comparisons/` subtree" in workflow_text
+
+
+def test_error_propagation_keeps_a_single_phase_report_contract() -> None:
+    command_text = (COMMANDS_DIR / "error-propagation.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "error-propagation.md").read_text(encoding="utf-8")
+
+    assert "Phase target: `GPD/phases/XX-name/ERROR-BUDGET.md`" in command_text
+    assert "Project-wide: `GPD/analysis/error-budget-{target}.md`" not in command_text
+    assert 'Save to: `${target_phase_dir}/ERROR-BUDGET.md`.' in workflow_text
+    assert "Do not create a second per-target `GPD/analysis/error-budget-{target}.md` report for this workflow." in workflow_text
 
 
 def test_execute_phase_figure_tracker_scans_durable_figure_roots() -> None:

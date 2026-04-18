@@ -2764,6 +2764,11 @@ class TestReviewValidationCommands:
             ("dimensional-analysis", ["results.md"], ["phase number or file path"]),
             ("limiting-cases", ["results.md"], ["phase number or file path"]),
             ("numerical-convergence", ["results.csv"], ["phase number or file path"]),
+            (
+                "parameter-sweep",
+                ["results/mesh-study.py", "--param", "coupling", "--range", "0:1:20"],
+                ["computation anchor or file path", "--param name", "--range start:end:steps"],
+            ),
             ("sensitivity-analysis", ["--target", "energy-gap", "--params", "g,m"], ["--target quantity", "--params p1,p2,..."]),
         ],
     )
@@ -2819,6 +2824,11 @@ class TestReviewValidationCommands:
                 "Either provide phase number or file path explicitly",
             ),
             (
+                "parameter-sweep",
+                ["computation anchor or file path", "--param name", "--range start:end:steps"],
+                "Either provide computation anchor or file path, --param name, and --range start:end:steps explicitly",
+            ),
+            (
                 "sensitivity-analysis",
                 ["--target quantity", "--params p1,p2,..."],
                 "Either provide --target quantity and --params p1,p2,... explicitly",
@@ -2853,6 +2863,52 @@ class TestReviewValidationCommands:
         assert payload["guidance"] == (
             f"{guidance_prefix}, or initialize a project with `{dollar_command_prefix}new-project` "
             "in the runtime surface or `gpd init new-project` in the local CLI."
+        )
+
+    def test_command_context_parameter_sweep_rejects_bare_phase_anchor_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        dollar_command_prefix: str,
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-parameter-sweep-phase-only"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(outside_dir),
+                "validate",
+                "command-context",
+                "parameter-sweep",
+                "3",
+                "--param",
+                "coupling",
+                "--range",
+                "0:1:20",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:parameter-sweep"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == ["computation anchor or file path", "--param name", "--range start:end:steps"]
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["detail"] == (
+            "missing explicit standalone inputs (computation anchor or file path, --param name, --range start:end:steps)"
+        )
+        assert payload["guidance"] == (
+            f"Either provide computation anchor or file path, --param name, and --range start:end:steps explicitly, "
+            f"or initialize a project with `{dollar_command_prefix}new-project` in the runtime surface or "
+            "`gpd init new-project` in the local CLI."
         )
 
     @pytest.mark.parametrize(
@@ -2909,6 +2965,50 @@ class TestReviewValidationCommands:
         )
 
         assert managed_output_root == (project_root / "GPD" / "analysis").resolve(strict=False)
+
+    def test_command_context_parameter_sweep_managed_outputs_anchor_to_invoking_workspace_without_initialized_project(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        ancestor_root = tmp_path / "ancestor-root"
+        (ancestor_root / "GPD").mkdir(parents=True)
+        workspace = ancestor_root / "scratch" / "parameter-sweep"
+        workspace.mkdir(parents=True)
+        command = registry_module.get_command("parameter-sweep")
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=ancestor_root,
+            project_exists=False,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (workspace / "GPD" / "sweeps").resolve(strict=False)
+        assert managed_output_root != (ancestor_root / "GPD" / "sweeps").resolve(strict=False)
+
+    def test_command_context_parameter_sweep_managed_outputs_preserve_project_root_when_initialized_project_exists(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project_root = tmp_path / "project-root"
+        (project_root / "GPD").mkdir(parents=True)
+        (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        workspace = project_root / "notes" / "scratch"
+        workspace.mkdir(parents=True)
+        command = registry_module.get_command("parameter-sweep")
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=project_root,
+            project_exists=True,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (project_root / "GPD" / "sweeps").resolve(strict=False)
 
     @pytest.mark.parametrize(
         ("command_name", "args", "explicit_inputs"),

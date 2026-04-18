@@ -6615,6 +6615,30 @@ def _has_sensitivity_explicit_inputs(arguments: str | None) -> bool:
     return _has_flag_value(tokens, "--target") and _has_flag_value(tokens, "--params")
 
 
+def _looks_like_parameter_sweep_anchor_token(token: str) -> bool:
+    """Return True for a standalone/current-workspace parameter-sweep compute anchor."""
+    if not token or token.startswith("-"):
+        return False
+    if token.isdigit():
+        return False
+    if token.startswith(("./", "../", "~/", "/", "@")):
+        return True
+    if os.sep in token or (os.altsep is not None and os.altsep in token):
+        return True
+    if Path(token).suffix:
+        return True
+    return any(character.isalpha() for character in token)
+
+
+def _has_parameter_sweep_explicit_inputs(arguments: str | None) -> bool:
+    """Parameter-sweep standalone mode needs param/range flags plus a non-phase compute anchor."""
+    tokens = _split_command_arguments(arguments)
+    if not (_has_flag_value(tokens, "--param") and _has_flag_value(tokens, "--range")):
+        return False
+    positionals = _positional_tokens(arguments, flags_with_values=("--param", "--range"))
+    return any(_looks_like_parameter_sweep_anchor_token(token) for token in positionals)
+
+
 _DIGEST_KNOWLEDGE_PATH_SUFFIXES = {
     ".bib",
     ".csv",
@@ -6730,6 +6754,10 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
     "gpd:limiting-cases": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
     "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),
+    "gpd:parameter-sweep": (
+        ["computation anchor or file path", "--param name", "--range start:end:steps"],
+        _has_parameter_sweep_explicit_inputs,
+    ),
     "gpd:sensitivity-analysis": (["--target quantity", "--params p1,p2,..."], _has_sensitivity_explicit_inputs),
 }
 

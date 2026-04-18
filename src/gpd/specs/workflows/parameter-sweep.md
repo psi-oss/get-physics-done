@@ -13,17 +13,17 @@ A parameter sweep is the physicist's workhorse for mapping out how a system resp
 <process>
 
 <step name="initialize" priority="first">
-Load project context:
+Load current-workspace context with a workspace-locked bootstrap:
 
 ```bash
-INIT=$(gpd --raw init phase-op "${PHASE_ARG:-}")
+INIT=$(gpd --raw init progress --include state,roadmap,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `parallelization`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `state_exists`, `roadmap_exists`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `parallelization`, `project_exists`, `state_exists`, `roadmap_exists`.
 
 **Mode-aware behavior:**
 - `research_mode=explore`: Broad parameter ranges, fine grid resolution, include secondary parameters. Spawn experiment-designer agent to validate sweep design.
@@ -33,7 +33,17 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `
 - `autonomy=balanced` (default): Execute automatically unless the design exceeds context budget, has more than 100 grid points, or changes scope materially; only then pause for user approval.
 - `autonomy=yolo`: Execute the sweep without pausing.
 
-Read STATE.md for project conventions, unit system, and active approximations.
+Run centralized command-context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context parameter-sweep "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
+If `state_exists` is true, read `STATE.md` for project conventions, unit system, and active approximations. If `state_exists` is false, proceed in standalone/current-workspace mode with one explicit computation anchor plus explicit `--param` and `--range` inputs supplied by the user. Standalone/current-workspace runs still keep all GPD-authored outputs under `GPD/sweeps/` rooted at the invoking workspace.
 
 **Convention verification** (if project exists):
 
@@ -45,24 +55,20 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-**If `phase_found` is false and a phase was specified:** Error -- phase directory not found.
-**If `phase_found` is true:** Reuse the phase directory for internal sweep records:
+Resolve authoritative phase context only after the target computation anchor is known. If the resolved target is a current-workspace phase number, run:
 
 ```bash
-SWEEP_PHASE_DIR="${phase_dir}"
-SWEEP_PHASE_KEY="${phase_number}-${phase_slug}"
-mkdir -p "$SWEEP_PHASE_DIR"
+PHASE_INIT=$(gpd --raw init phase-op --include state,config "{phase_number}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: phase initialization failed: $PHASE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
 ```
 
-**If no phase specified:** Create a sweep-specific phase directory for internal records:
+Use that follow-up phase init only when the phase number is authoritative for this run. If the user supplied a bare phase number but no initialized current-workspace project owns it, stop and require a computation anchor instead of inventing `phase_dir` or `phase_slug`.
+When `PHASE_INIT` succeeds, parse `phase_found`, `phase_dir`, `phase_number`, and `phase_slug` from that payload and use them as the only authority for phase-backed writes.
 
-```bash
-SWEEP_PHASE_DIR="GPD/phases/XX-sweep"
-SWEEP_PHASE_KEY="XX-sweep"
-mkdir -p "$SWEEP_PHASE_DIR"
-```
-
-Where XX is the next available phase number.
+If no authoritative phase is resolved, keep `phase_found=false`, stay in current-workspace mode, and do not invent `GPD/phases/XX-sweep`.
 </step>
 
 <step name="define_sweep_parameters">
@@ -75,7 +81,7 @@ Parse command arguments for sweep definition. If arguments are incomplete, promp
 | Parameter name(s)    | `--param` flag or user prompt     | `temperature`, `coupling_constant`          |
 | Range                | `--range` flag or user prompt     | `0.1:10.0:20` (start:end:steps)             |
 | Observable           | User prompt                       | "ground state energy", "correlation length" |
-| Computation template | Existing plan or user description | Phase plan, script, or inline description   |
+| Computation anchor   | Existing phase plan, file path, notebook/script, or explicit description | `3`, `scripts/self_energy.py`, `mesh-study.ipynb`, or inline description |
 | Scale                | Linear or logarithmic             | `--log` for logarithmic spacing             |
 
 **1D sweep:**
@@ -134,11 +140,22 @@ Derive a durable artifact location for the sweep outputs:
 
 ```bash
 SWEEP_SLUG="{slug derived from parameter names and observable}"
-SWEEP_ARTIFACT_DIR="artifacts/phases/${SWEEP_PHASE_KEY}/sweeps/${SWEEP_SLUG}"
-mkdir -p "${SWEEP_ARTIFACT_DIR}/results"
+if [ "${phase_found}" = "true" ]; then
+  SWEEP_PHASE_DIR="${phase_dir}"
+  SWEEP_PHASE_KEY="${phase_number}-${phase_slug}"
+  SWEEP_DOC_DIR="${SWEEP_PHASE_DIR}"
+  SWEEP_ROOT="GPD/sweeps/${SWEEP_PHASE_KEY}/${SWEEP_SLUG}"
+else
+  SWEEP_PHASE_DIR=""
+  SWEEP_PHASE_KEY=""
+  SWEEP_DOC_DIR="GPD/sweeps/${SWEEP_SLUG}"
+  SWEEP_ROOT="GPD/sweeps/${SWEEP_SLUG}"
+fi
+SWEEP_RESULTS_DIR="${SWEEP_ROOT}/results"
+mkdir -p "${SWEEP_DOC_DIR}" "${SWEEP_RESULTS_DIR}"
 ```
 
-Keep plans and SUMMARY files in `${SWEEP_PHASE_DIR}` because they are internal execution records. Write machine-readable sweep datasets to `${SWEEP_ARTIFACT_DIR}`. Do not put point-result JSON under `GPD/phases/**`.
+Keep all GPD-authored sweep artifacts under `GPD/sweeps/`. For authoritative phase-backed runs, internal plan and SUMMARY docs may still live under `${SWEEP_PHASE_DIR}` while durable machine-readable outputs live under `${SWEEP_ROOT}`. For standalone/current-workspace runs, keep both docs and datasets under the same `${SWEEP_ROOT}` tree. Do not invent `GPD/phases/XX-sweep`. Do not write durable sweep datasets to `artifacts/`.
 </step>
 
 <step name="generate_sweep_plans">
@@ -152,7 +169,7 @@ For each parameter value (or combination in 2D), create a plan from the computat
 
 For each sweep point `i` with parameter value `p_i`:
 
-Write `${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-PLAN.md`:
+Write `${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-PLAN.md`:
 
 ```markdown
 ---
@@ -166,8 +183,8 @@ sweep_value: {p_i}
 sweep_param_2: {param_name_2}
 sweep_value_2: {p_i_2}
 files_modified:
-  - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
-  - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
+  - ${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+  - ${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json
 contract:
   schema_version: 1
   scope:
@@ -185,7 +202,7 @@ contract:
   deliverables:
     - id: deliv-sweep-point
       kind: dataset
-      path: ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
+      path: ${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json
       description: "Recorded sweep result for this parameter point"
       must_contain: ["{observable}", "{param_name}", "status"]
   references:
@@ -231,7 +248,7 @@ Record the computed value of {observable} with uncertainty if available.
 </task>
 
 <task id="3" name="record_result">
-Write results to `${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json`:
+Write results to `${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json`:
 
 {
 "sweep_index": {i},
@@ -282,8 +299,10 @@ Execute the sweep plans using wave-based parallel execution following the execut
 1. **Create wave checkpoint:**
 
    ```bash
-   WAVE_CHECKPOINT="gpd-checkpoint/sweep-${phase_number}-wave-${WAVE_NUM}-$(date +%s)"
-   git tag "${WAVE_CHECKPOINT}"
+   if [ "${phase_found}" = "true" ]; then
+     WAVE_CHECKPOINT="gpd-checkpoint/sweep-${phase_number}-wave-${WAVE_NUM}-$(date +%s)"
+     git tag "${WAVE_CHECKPOINT}"
+   fi
    ```
 
 2. **Spawn executor agents for all plans in the wave:**
@@ -300,7 +319,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
 
        <objective>
        Execute sweep plan {plan_number}: compute {observable} at {param_name} = {p_i}.
-       Write result to ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json.
+       Write result to ${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json.
        Create SUMMARY.md. Return state updates in your response -- do NOT write STATE.md directly.
        </objective>
 
@@ -308,11 +327,11 @@ Execute the sweep plans using wave-based parallel execution following the execut
        write_scope:
          mode: scoped_write
          allowed_paths:
-           - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
-           - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+           - ${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json
+           - ${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
        expected_artifacts:
-         - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
-         - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+         - ${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json
+         - ${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
        shared_state_policy: return_only
        </spawn_contract>
 
@@ -323,18 +342,18 @@ Execute the sweep plans using wave-based parallel execution following the execut
        Read these files at execution start using the file_read tool:
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
-       - Plan: ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-PLAN.md
-       - State: GPD/STATE.md
+       - Plan: ${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-PLAN.md
+       - State: GPD/STATE.md (only when `state_exists: true`)
        - Config: GPD/config.json (if exists)
        </files_to_read>
 
        <success_criteria>
        - [ ] Parameter set to specified value
        - [ ] Computation executed with identical methodology to other sweep points
-       - [ ] Result written to ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
+       - [ ] Result written to ${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json
        - [ ] Uncertainty estimated if applicable
        - [ ] SUMMARY.md created
-       - [ ] State updates returned (NOT written to STATE.md directly)
+       - [ ] State updates returned (NOT written to STATE.md directly) only when authoritative phase-backed persistence is actually in scope
        </success_criteria>
      "
    )
@@ -342,16 +361,16 @@ Execute the sweep plans using wave-based parallel execution following the execut
 
 3. **Wait for all agents in wave to complete.**
 
-   **If any executor agent fails to spawn or returns an error:** Record the sweep point as failed (null result) in `${SWEEP_ARTIFACT_DIR}/results/point-{INDEX}.json` with `"status": "agent_failed"`. Continue with remaining points in the wave. Report failed points in the wave summary. Do not abort the entire sweep for individual point failures.
+   **If any executor agent fails to spawn or returns an error:** Record the sweep point as failed (null result) in `${SWEEP_RESULTS_DIR}/point-{INDEX}.json` with `"status": "agent_failed"`. Continue with remaining points in the wave. Report failed points in the wave summary. Do not abort the entire sweep for individual point failures.
 
 4. **Spot-check results:**
 
    For each completed plan:
 
-   - Verify `${SWEEP_ARTIFACT_DIR}/results/point-{INDEX}.json` exists and contains valid JSON
+   - Verify `${SWEEP_RESULTS_DIR}/point-{INDEX}.json` exists and contains valid JSON
    - Check `status` field is `"completed"`
    - Verify the observable value is a finite number (not NaN, not Inf)
-   - Check `${SWEEP_PHASE_DIR}/sweep-{INDEX}-SUMMARY.md` exists
+   - Check `${SWEEP_DOC_DIR}/sweep-{INDEX}-SUMMARY.md` exists
 
    If any spot-check fails, follow the `wave_failure_handling` pattern from execute-phase.md.
 
@@ -372,7 +391,7 @@ After all waves complete, aggregate results from individual JSON files into a un
 **1. Read all result files:**
 
 ```bash
-ls "${SWEEP_ARTIFACT_DIR}/results/point-*.json" | sort -V
+ls "${SWEEP_RESULTS_DIR}/point-*.json" | sort -V
 ```
 
 For each file, parse the JSON and extract: parameter value(s), observable, uncertainty, status.
@@ -381,7 +400,7 @@ For each file, parse the JSON and extract: parameter value(s), observable, uncer
 
 ```python
 results = []
-for point_file in sorted(glob(f"{SWEEP_ARTIFACT_DIR}/results/point-*.json")):
+for point_file in sorted(glob(f"{SWEEP_RESULTS_DIR}/point-*.json")):
     with open(point_file) as f:
         data = json.load(f)
     if data["status"] == "completed":
@@ -393,7 +412,7 @@ for point_file in sorted(glob(f"{SWEEP_ARTIFACT_DIR}/results/point-*.json")):
 
 **3. Save aggregated results:**
 
-Write `${SWEEP_ARTIFACT_DIR}/sweep-results.json`:
+Write `${SWEEP_ROOT}/sweep-results.json`:
 
 ```json
 {
@@ -439,7 +458,7 @@ For 2D sweeps, include both parameter names and values in each data entry, plus:
 
 **4. Generate markdown summary table:**
 
-Write `${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md`:
+Write `${SWEEP_DOC_DIR}/SWEEP-SUMMARY.md`:
 
 ```markdown
 ---
@@ -502,8 +521,8 @@ status: completed | checkpoint | failed
 
 ## Data Files
 
-- `${SWEEP_ARTIFACT_DIR}/sweep-results.json` -- structured data (all points)
-- `${SWEEP_ARTIFACT_DIR}/results/point-NNN.json` -- individual point results
+- `${SWEEP_ROOT}/sweep-results.json` -- structured data (all points)
+- `${SWEEP_RESULTS_DIR}/point-NNN.json` -- individual point results
 ```
 
 </step>
@@ -581,7 +600,7 @@ Follow the same plan generation and execution pattern from `generate_sweep_plans
 
 ```python
 # Load original results
-with open(f"{SWEEP_ARTIFACT_DIR}/sweep-results.json") as f:
+with open(f"{SWEEP_ROOT}/sweep-results.json") as f:
     original = json.load(f)
 
 # Load refinement results
@@ -601,7 +620,7 @@ original["metadata"]["refinement_regions"] = K
 original["metadata"]["refinement_points_added"] = sum_new_points
 ```
 
-Write updated `${SWEEP_ARTIFACT_DIR}/sweep-results.json` and regenerate `${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md` with the merged data. Mark refined regions in the summary table:
+Write updated `${SWEEP_ROOT}/sweep-results.json` and regenerate `${SWEEP_DOC_DIR}/SWEEP-SUMMARY.md` with the merged data. Mark refined regions in the summary table:
 
 ```markdown
 | {param_name}  | {observable} | uncertainty | note      |
@@ -614,15 +633,23 @@ Re-run feature identification on the merged dataset.
 </step>
 
 <step name="commit_and_present">
-**Commit all sweep artifacts:**
+Apply project state updates and commits only when authoritative phase-backed persistence is actually in scope.
+
+- If `phase_found` is true and executor plans returned state updates, apply them through the canonical `gpd apply-return-updates` bridge before touching `GPD/STATE.md`.
+- If `phase_found` is false, do not mutate `STATE.md` or `state.json`, do not tag a checkpoint, and do not run a standalone docs commit. The workflow stops after writing the `GPD/sweeps/` artifacts.
+- Even in phase-backed mode, include `GPD/STATE.md` in commit/pre-commit file lists only when the state-update bridge actually changed it.
+
+**Phase-backed commit example:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" GPD/STATE.md 2>&1) || true
-echo "$PRE_CHECK"
+if [ "${phase_found}" = "true" ] && [ "${commit_docs}" = "true" ]; then
+  PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_ROOT}/sweep-results.json" "${SWEEP_DOC_DIR}/SWEEP-SUMMARY.md" "${SWEEP_RESULTS_DIR}" 2>&1) || true
+  echo "$PRE_CHECK"
 
-gpd commit \
-  "data(phase-${phase_number}): parameter sweep - ${OBSERVABLE} vs ${PARAM_NAME}" \
-  --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" "${SWEEP_ARTIFACT_DIR}/results" GPD/STATE.md
+  gpd commit \
+    "data(phase-${phase_number}): parameter sweep - ${OBSERVABLE} vs ${PARAM_NAME}" \
+    --files "${SWEEP_ROOT}/sweep-results.json" "${SWEEP_DOC_DIR}/SWEEP-SUMMARY.md" "${SWEEP_RESULTS_DIR}"
+fi
 ```
 
 **Present final results:**
@@ -645,9 +672,9 @@ Completed: {M}/{N}
 
 ### Output Files
 
-- `${SWEEP_ARTIFACT_DIR}/sweep-results.json` -- structured data
-- `${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md` -- internal sweep report with tables
-- `${SWEEP_ARTIFACT_DIR}/results/` -- individual point data
+- `${SWEEP_ROOT}/sweep-results.json` -- structured data
+- `${SWEEP_DOC_DIR}/SWEEP-SUMMARY.md` -- sweep report with tables
+- `${SWEEP_RESULTS_DIR}/` -- individual point data
 
 ---
 
@@ -688,7 +715,8 @@ Completed: {M}/{N}
 - [ ] Features identified (extrema, transitions, crossovers, asymptotic behavior)
 - [ ] Adaptive refinement executed if --adaptive (regions identified, refined, merged)
 - [ ] Failed points documented with reasons
-- [ ] Artifacts committed
+- [ ] Phase-backed runs apply returned state updates only through the canonical bridge
+- [ ] Standalone/current-workspace runs stop after writing GPD-owned sweep artifacts under `GPD/sweeps/`
 - [ ] User presented with key findings and next steps
 
 </success_criteria>

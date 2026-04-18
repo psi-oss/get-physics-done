@@ -1,8 +1,23 @@
 ---
 name: gpd:parameter-sweep
 description: Systematic parameter sweep with parallel execution and result aggregation
-argument-hint: "[phase] [--param name --range start:end:steps] [--adaptive] [--log]"
-context_mode: project-required
+argument-hint: "[phase | computation anchor] [--param name --range start:end:steps] [--adaptive] [--log]"
+context_mode: project-aware
+command-policy:
+  schema_version: 1
+  supporting_context_policy:
+    project_context_mode: project-aware
+    project_reentry_mode: disallowed
+    optional_file_patterns:
+      - GPD/STATE.md
+      - GPD/ROADMAP.md
+      - GPD/phases/*/README.md
+      - GPD/analysis/*.md
+  output_policy:
+    output_mode: managed
+    managed_root_kind: gpd_managed_durable
+    default_output_subtree: GPD/sweeps
+    stage_artifact_policy: gpd_owned_outputs_only
 allowed-tools:
   - file_read
   - file_write
@@ -18,6 +33,8 @@ allowed-tools:
 <objective>
 Execute a systematic parameter sweep: vary one or more parameters across a range, collect results, and produce summary tables and data. Uses wave-based parallelism for independent parameter values.
 
+This command can work from authoritative current-workspace project phase context or from one explicit current-workspace computation anchor such as a script, notebook, results file, or concrete computation description. Keep all GPD-authored sweep artifacts under the invoking workspace's `GPD/sweeps/` tree. Only authoritative phase-backed runs may additionally write sibling phase docs or persist project state.
+
 **Why a dedicated command:** Parameter sweeps are the workhorse of computational physics — mapping phase diagrams, finding critical points, checking universality, validating scaling laws. But sweeps done ad hoc lead to wasted compute (uniform grids in boring regions), missed features (phase transitions between grid points), and disorganized results (scattered output files). This command structures the sweep from design through execution to analysis.
 
 **The principle:** A well-designed sweep puts points where the physics is, not on a uniform grid. It monitors convergence during execution, refines near interesting features, and produces structured output that downstream analysis can consume.
@@ -32,12 +49,33 @@ Phase: $ARGUMENTS
 
 @GPD/ROADMAP.md
 @GPD/STATE.md
+
+Interpretation:
+
+- If the first positional token is a phase number and the current workspace owns that phase authoritatively, run phase-backed sweep records there.
+- If the first positional token is an explicit computation anchor (file path, notebook, script, results artifact, or concrete computation description), keep the run current-workspace-scoped and write durable outputs under `GPD/sweeps/`.
+- If the request is empty in a current-workspace project, ask one focused question to identify the phase or computation anchor before proceeding.
+- If the request is empty outside a project, command-context validation rejects it; standalone/current-workspace launches require one explicit computation anchor plus `--param` and `--range`.
+- Do not invent `GPD/phases/XX-sweep` for standalone/current-workspace runs.
 </context>
 
 <process>
-Execute the parameter-sweep workflow from @{GPD_INSTALL_DIR}/workflows/parameter-sweep.md end-to-end.
+## 0. Validate Context
 
-## 1. Define the Parameter Space
+```bash
+CONTEXT=$(gpd --raw validate command-context parameter-sweep "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
+## 1. Execute the Workflow
+
+Execute the parameter-sweep workflow from @{GPD_INSTALL_DIR}/workflows/parameter-sweep.md end-to-end.
+Preserve its workspace-locked bootstrap, explicit current-workspace target resolution, and the split between authoritative phase-backed docs and current-workspace-only sweep roots.
+
+## 2. Define the Parameter Space
 
 Specify what varies and what stays fixed:
 
@@ -79,7 +117,7 @@ param_pairs = list(zip(g_grid.ravel(), T_grid.ravel()))
 - Convergence studies: 5-8 points in geometric sequence (need Richardson extrapolation)
 - Quick survey: 5-10 points to find interesting region, then refine
 
-## 2. Parallelization Strategy
+## 3. Parallelization Strategy
 
 Group sweep points into independent waves for parallel execution:
 
@@ -97,7 +135,7 @@ Wave 3: [adaptive refinement near features found in waves 1-2]
 
 For multi-dimensional sweeps, each wave executes a slice or random subset of the full grid.
 
-## 3. Convergence Monitoring During Sweep
+## 4. Convergence Monitoring During Sweep
 
 After each wave completes, check whether the results are sufficiently resolved:
 
@@ -120,7 +158,7 @@ def needs_refinement(x_values, y_values, threshold=0.1):
 - **Discontinuities** — identify jump location, report as phase boundary
 - **Divergences** — identify divergence location, fit critical exponent, report pole
 
-## 4. Adaptive Refinement (--adaptive flag)
+## 5. Adaptive Refinement (--adaptive flag)
 
 When `--adaptive` is specified, the sweep automatically refines:
 
@@ -146,7 +184,7 @@ def adaptive_sweep(compute_f, x_range, initial_points=10, max_points=100, tol=0.
     return x, y
 ```
 
-## 5. Output Format
+## 6. Output Format
 
 Structured output for downstream analysis:
 
@@ -190,12 +228,13 @@ Fixed: {param} = {value}, {param} = {value}
 ```
 
 Save to:
-- Internal sweep docs: `GPD/phases/{phase-dir}/sweep-{PADDED_INDEX}-PLAN.md`, `GPD/phases/{phase-dir}/sweep-{PADDED_INDEX}-SUMMARY.md`, and `GPD/phases/{phase-dir}/SWEEP-SUMMARY.md`
-- Durable sweep artifacts: `artifacts/phases/{phase-dir}/sweeps/{sweep-slug}/`
+- Authoritative phase-backed internal docs: `GPD/phases/{phase-dir}/sweep-{PADDED_INDEX}-PLAN.md`, `GPD/phases/{phase-dir}/sweep-{PADDED_INDEX}-SUMMARY.md`, and `GPD/phases/{phase-dir}/SWEEP-SUMMARY.md`
+- Authoritative phase-backed durable sweep artifacts: `GPD/sweeps/{phase-dir}/{sweep-slug}/`
+- Standalone/current-workspace docs and durable sweep artifacts: `GPD/sweeps/{sweep-slug}/`
 
-Do not put machine-readable sweep datasets under `GPD/phases/**` or `GPD/analysis/**`. Keep the `GPD` documents as internal execution records and write the durable JSON/CSV outputs to `artifacts/`.
+Do not invent `GPD/phases/XX-sweep` for standalone/current-workspace mode. Do not write durable sweep datasets to `artifacts/` for this command.
 
-## 6. Common Pitfalls
+## 7. Common Pitfalls
 
 ### Uniform grids waste compute near phase transitions
 Phase transitions concentrate physics in narrow parameter regions. A uniform grid with 100 points may have 90 points in boring regions and 10 points near the transition — insufficient to resolve the critical behavior. Use adaptive refinement or prior knowledge to concentrate points.

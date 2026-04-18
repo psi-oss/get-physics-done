@@ -207,7 +207,8 @@ total_fractional_error: {value}
 
 Save to:
 - Phase target: `GPD/phases/XX-name/ERROR-BUDGET.md`
-- Project-wide: `GPD/analysis/error-budget-{target}.md`
+
+Project-wide tracking for this analysis remains in authoritative state (`propagated_uncertainties`) and any maintained `GPD/analysis/UNCERTAINTY-BUDGET.md` ledger, not in a second per-target report file.
 
 </process>
 

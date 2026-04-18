@@ -229,7 +229,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:validate-conventions [phase]` - Check notation and convention consistency
 - `gpd:regression-check [phase]` - Scan for regressions in recorded verification state
 - `gpd:health` - Run project health checks
-- `gpd:parameter-sweep [phase]` - Run a structured parameter sweep
+- `gpd:parameter-sweep [phase | computation anchor]` - Run a structured parameter sweep
 - `gpd:sensitivity-analysis` - Rank which inputs matter most from project context or explicit current-workspace flags
 - `gpd:error-propagation` - Track uncertainties through a calculation chain
 
@@ -444,7 +444,7 @@ Usage: `gpd:execute-phase 5`
 
 ### Derivation
 
-Project-aware technical-analysis lane: `gpd:derive-equation`, `gpd:dimensional-analysis`, `gpd:limiting-cases`, `gpd:numerical-convergence`, and `gpd:sensitivity-analysis` can run from explicit current-workspace inputs and keep durable outputs under the invoking workspace's `GPD/analysis/` tree. `gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane.
+Project-aware technical-analysis lane: `gpd:derive-equation`, `gpd:dimensional-analysis`, `gpd:limiting-cases`, `gpd:numerical-convergence`, and `gpd:sensitivity-analysis` can run from explicit current-workspace inputs and keep durable outputs under the invoking workspace's `GPD/analysis/` tree. `gpd:parameter-sweep` can also run from one explicit current-workspace computation anchor plus `--param` / `--range` and keeps durable outputs under the invoking workspace's `GPD/sweeps/` tree. `gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane.
 
 **`gpd:derive-equation`**
 Perform a rigorous physics derivation with systematic verification at each step.
@@ -744,15 +744,18 @@ Usage: `gpd:health --fix`
 
 ### Quantitative Analysis
 
-**`gpd:parameter-sweep [phase]`**
+**`gpd:parameter-sweep [phase | computation anchor]`**
 Systematic parameter sweep with parallel execution and result aggregation.
 
 - Varies one or more parameters across a specified range
 - Uses wave-based parallelism for independent parameter values
 - Collects results and produces summary tables
 - Supports adaptive refinement near interesting features
+- Can use authoritative current-workspace phase context or one explicit current-workspace computation anchor plus `--param` / `--range`
+- Current-workspace durable outputs stay under `GPD/sweeps/`; outside a project, rerun with one explicit computation anchor plus `--param` and `--range`
 
 Usage: `gpd:parameter-sweep 3 --param coupling --range 0:1:20`
+Usage: `gpd:parameter-sweep results/mesh-study.py --param coupling --range 0:1:20`
 Usage: `gpd:parameter-sweep 3 --adaptive`
 
 **`gpd:sensitivity-analysis`**

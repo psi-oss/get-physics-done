@@ -132,7 +132,7 @@ AGENT_REFERENCE_TOKENS = {
         "Agent surface: public writable production agent specialized for discrepancy investigation and bounded repair work.",
         "On demand only: shared protocols, verification core, physics subfields, agent infrastructure, and cross-project patterns.",
         "Keep work in `gpd-debugger` while the task is root-cause isolation, validation, or a bounded repair tied to that investigation.",
-        "After root cause is confirmed, update `session_status` to \"diagnosed\".",
+        "Do not update `session_status` to \"diagnosed\" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts.",
         "goal: find_root_cause_only",
         "goal: find_and_correct",
     ],
@@ -729,6 +729,7 @@ def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("slides").context_mode == "projectless"
     assert registry.get_command("discover").context_mode == "project-aware"
     assert registry.get_command("explain").context_mode == "project-aware"
+    assert registry.get_command("parameter-sweep").context_mode == "project-aware"
     assert registry.get_command("suggest-next").context_mode == "projectless"
     assert registry.get_command("peer-review").context_mode == "project-aware"
 
@@ -752,6 +753,7 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
         "gpd:discover",
         "gpd:digest-knowledge",
         "gpd:explain",
+        "gpd:parameter-sweep",
         "gpd:review-knowledge",
         "gpd:literature-review",
         "gpd:peer-review",
@@ -764,10 +766,12 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
         "gpd:dimensional-analysis",
         "gpd:limiting-cases",
         "gpd:numerical-convergence",
+        "gpd:parameter-sweep",
         "gpd:sensitivity-analysis",
     ):
         assert command_name in command_context
     assert "GPD/analysis/" in command_context
+    assert "GPD/sweeps/" in command_context
     assert "`gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane." in command_context
     assert "gpd:peer-review" not in project_required_line
     assert (
@@ -807,6 +811,7 @@ def test_representative_prompts_use_centralized_command_context_preflight() -> N
         COMMANDS_DIR / "limiting-cases.md": "gpd --raw validate command-context limiting-cases",
         COMMANDS_DIR / "literature-review.md": "gpd --raw validate command-context literature-review",
         COMMANDS_DIR / "numerical-convergence.md": "gpd --raw validate command-context numerical-convergence",
+        COMMANDS_DIR / "parameter-sweep.md": "gpd --raw validate command-context parameter-sweep",
         COMMANDS_DIR / "sensitivity-analysis.md": "gpd --raw validate command-context sensitivity-analysis",
         WORKFLOWS_DIR / "peer-review.md": "gpd --raw validate command-context peer-review",
         WORKFLOWS_DIR / "progress.md": "gpd --raw validate command-context progress",
@@ -869,6 +874,21 @@ def test_list_review_commands_contains_all_expected_commands() -> None:
     review_cmds = registry.list_review_commands()
     expected = {"gpd:peer-review", "gpd:write-paper", "gpd:respond-to-referees", "gpd:verify-work"}
     assert expected <= set(review_cmds), f"Missing review commands: {expected - set(review_cmds)}"
+
+
+def test_parameter_sweep_command_uses_project_aware_gpd_sweeps_output_policy() -> None:
+    command = registry.get_command("parameter-sweep")
+
+    assert command.context_mode == "project-aware"
+    assert command.command_policy is not None
+    assert command.command_policy.schema_version == 1
+    assert command.command_policy.supporting_context_policy is not None
+    assert command.command_policy.supporting_context_policy.project_context_mode == "project-aware"
+    assert command.command_policy.supporting_context_policy.project_reentry_mode == "disallowed"
+    assert command.command_policy.output_policy is not None
+    assert command.command_policy.output_policy.output_mode == "managed"
+    assert command.command_policy.output_policy.managed_root_kind == "gpd_managed_durable"
+    assert command.command_policy.output_policy.default_output_subtree == "GPD/sweeps"
 
 
 def test_list_review_commands_no_duplicates() -> None:
@@ -4223,6 +4243,7 @@ def test_help_surfaces_use_projectless_examples_that_satisfy_command_context_pre
     assert "Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`" in help_workflow
     assert "Usage: `gpd:limiting-cases results/01-SUMMARY.md`" in help_workflow
     assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_workflow
+    assert "Usage: `gpd:parameter-sweep results/mesh-study.py --param coupling --range 0:1:20`" in help_workflow
     assert "Usage: `gpd:compare-experiment predictions.csv experiment.csv`" in help_workflow
     assert "Usage: `gpd:compare-results results/01-SUMMARY.md`" in help_workflow
     assert 'Usage: `gpd:explain "Ward identity"`' in help_workflow
@@ -4243,9 +4264,11 @@ def test_help_surfaces_frame_relaxed_technical_analysis_lane_honestly() -> None:
 
     assert "Project-aware technical-analysis lane:" in help_workflow
     assert "GPD/analysis/" in help_workflow
+    assert "GPD/sweeps/" in help_workflow
     assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_workflow
     assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit derivation target" in help_workflow
     assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path" in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/sweeps/`; outside a project, rerun with one explicit computation anchor plus `--param` and `--range`" in help_workflow
     assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with explicit `--target` and `--params`" in help_workflow
 
 
