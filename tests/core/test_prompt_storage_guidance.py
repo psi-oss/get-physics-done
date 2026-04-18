@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
+TEMPLATES_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "templates" / "paper"
 
 
 def test_compare_branches_uses_in_memory_branch_summary_extraction() -> None:
@@ -83,3 +84,11 @@ def test_write_paper_uses_durable_figure_and_literature_roots() -> None:
     assert "ls GPD/literature/*-REVIEW.md 2>/dev/null" in workflow_text
     assert "GPD/phases/*/figures/" not in workflow_text
     assert "GPD/phases/*/LITERATURE-REVIEW.md" not in workflow_text
+
+
+def test_publication_manuscript_preflight_keeps_intake_out_of_manuscript_discovery() -> None:
+    template_text = (TEMPLATES_DIR / "publication-manuscript-root-preflight.md").read_text(encoding="utf-8")
+
+    assert "GPD/publication/{subject_slug}/intake/" in template_text
+    assert "GPD/publication/{subject_slug}/manuscript/" in template_text
+    assert "do not let `intake/` participate in manuscript-root discovery" in template_text

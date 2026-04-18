@@ -35,11 +35,26 @@ def test_write_paper_response_artifact_completion_requires_typed_status_files_wr
     assert "Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md`, `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate." in source
 
 
-def test_write_paper_bootstrap_contract_is_explicit_about_project_managed_manuscript_lane() -> None:
+def test_write_paper_bootstrap_contract_is_explicit_about_project_and_bounded_external_lanes() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
 
     assert "Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight" in source
     assert "The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`" in source
-    assert "The fresh bootstrap root may be the legacy `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`" in source
-    assert "a resolved `${PAPER_DIR}` under `GPD/publication/{subject_slug}/manuscript` is a project-managed manuscript lane" in source
-    assert "do not invent an external-manuscript `write-paper` flow or relax the project-required contract" in source
+    assert "If `publication_bootstrap_mode` is `fresh_external_authoring_bootstrap`" in source
+    assert "`GPD/publication/{subject_slug}/intake/` is intake/provenance state only; it must not participate in manuscript-root discovery" in source
+    assert "a resolved `${PAPER_DIR}` under `GPD/publication/{subject_slug}/manuscript` may be either the managed project lane or the bounded external-authoring lane" in source
+    assert "do not mine generic folders or widen into arbitrary external-manuscript discovery; the only non-project lane is explicit `--intake`" in source
+    assert "do not invent an external-manuscript `write-paper` flow or relax the project-required contract" not in source
+
+
+def test_write_paper_external_lane_stops_at_manuscript_root_handoff_and_routes_to_peer_review() -> None:
+    source = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "**External-authoring lane:** do **not** run the embedded staged panel here." in source
+    assert "Embedded `write-paper` review parity for the bounded external-authoring lane is deferred" in source
+    assert "`${PAPER_DIR}/PAPER-CONFIG.json`" in source
+    assert "`${PAPER_DIR}/ARTIFACT-MANIFEST.json`" in source
+    assert "`${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`" in source
+    assert "`${PAPER_DIR}/reproducibility-manifest.json`" in source
+    assert "route the user to standalone `gpd:peer-review`" in source
+    assert "do not recommend `gpd:arxiv-submission` directly from this lane" in source

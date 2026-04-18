@@ -15,7 +15,14 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 
-from gpd.core.constants import PLANNING_DIR_NAME, SCRATCH_DIR_NAME, ProjectLayout
+from gpd.core.constants import (
+    PLANNING_DIR_NAME,
+    PUBLICATION_DIR_NAME,
+    PUBLICATION_INTAKE_DIR_NAME,
+    PUBLICATION_MANUSCRIPT_DIR_NAME,
+    SCRATCH_DIR_NAME,
+    ProjectLayout,
+)
 from gpd.core.errors import GPDError
 
 __all__ = [
@@ -143,6 +150,40 @@ class ManagedOutputPolicy:
             default_output_subtree=_normalize_output_subtree(parts),
             match_mode=ManagedOutputMatchMode.EXACT,
             stage_artifact_policy=stage_artifact_policy,
+        )
+
+    @classmethod
+    def publication_intake_subtree(
+        cls,
+        subject_slug: str,
+        *parts: str,
+        stage_artifact_policy: StageArtifactPolicy = StageArtifactPolicy.DISALLOWED,
+        output_class: ManagedOutputClass = ManagedOutputClass.GPD_MANAGED_DURABLE,
+    ) -> ManagedOutputPolicy:
+        return cls.gpd_subtree(
+            PUBLICATION_DIR_NAME,
+            subject_slug,
+            PUBLICATION_INTAKE_DIR_NAME,
+            *parts,
+            stage_artifact_policy=stage_artifact_policy,
+            output_class=output_class,
+        )
+
+    @classmethod
+    def publication_manuscript_subtree(
+        cls,
+        subject_slug: str,
+        *parts: str,
+        stage_artifact_policy: StageArtifactPolicy = StageArtifactPolicy.DISALLOWED,
+        output_class: ManagedOutputClass = ManagedOutputClass.GPD_MANAGED_DURABLE,
+    ) -> ManagedOutputPolicy:
+        return cls.gpd_subtree(
+            PUBLICATION_DIR_NAME,
+            subject_slug,
+            PUBLICATION_MANUSCRIPT_DIR_NAME,
+            *parts,
+            stage_artifact_policy=stage_artifact_policy,
+            output_class=output_class,
         )
 
     @classmethod

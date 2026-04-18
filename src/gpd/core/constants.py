@@ -58,6 +58,7 @@ __all__ = [
     "PLAN_SUFFIX",
     "PUBLICATION_ARXIV_DIR_NAME",
     "PUBLICATION_DIR_NAME",
+    "PUBLICATION_INTAKE_DIR_NAME",
     "PUBLICATION_MANUSCRIPT_DIR_NAME",
     "PUBLICATION_REVIEW_DIR_NAME",
     "PUBLICATION_PROOF_REVIEW_DIR_NAME",
@@ -202,6 +203,9 @@ PUBLICATION_REVIEW_DIR_NAME = "review"
 
 PUBLICATION_PROOF_REVIEW_DIR_NAME = "proof-review"
 """Subdirectory under GPD/publication/<subject>/ for proof-review manifests."""
+
+PUBLICATION_INTAKE_DIR_NAME = "intake"
+"""Subdirectory under GPD/publication/<subject>/ for intake/provenance state."""
 
 PUBLICATION_MANUSCRIPT_DIR_NAME = "manuscript"
 """Subdirectory under GPD/publication/<subject>/ for project-managed manuscript roots."""
@@ -583,6 +587,11 @@ class ProjectLayout:
         """Return the managed proof-review root for one resolved subject slug."""
 
         return self.publication_subject_dir(subject_slug) / PUBLICATION_PROOF_REVIEW_DIR_NAME
+
+    def publication_intake_dir(self, subject_slug: str) -> Path:
+        """Return the managed intake/provenance root for one resolved subject slug."""
+
+        return self.publication_subject_dir(subject_slug) / PUBLICATION_INTAKE_DIR_NAME
 
     def publication_manuscript_dir(self, subject_slug: str) -> Path:
         """Return the managed manuscript root for one resolved subject slug."""

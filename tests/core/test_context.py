@@ -2522,8 +2522,12 @@ class TestInitNewProject:
         assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
         assert ctx["publication_lane_owner"] == "project_managed"
         assert ctx["publication_subject_slug"]
+        assert ctx["selected_publication_root"] == "GPD"
+        assert ctx["publication_intake_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/intake"
         assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
         assert ctx["managed_manuscript_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/manuscript"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
     def test_write_paper_stage_paper_bootstrap_filters_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2544,6 +2548,10 @@ class TestInitNewProject:
         assert ctx["publication_subject_status"] == "missing"
         assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
         assert ctx["publication_bootstrap_root"] == "paper"
+        assert ctx["selected_publication_root"] is None
+        assert ctx["publication_intake_root"] is None
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
     def test_write_paper_stage_outline_and_scaffold_loads_deferred_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2571,6 +2579,17 @@ class TestInitNewProject:
         assert ctx["derived_convention_lock_count"] == 2
         assert ctx["derived_intermediate_result_count"] == 1
         assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
+        assert ctx["selected_publication_root"] is None
+        assert ctx["publication_intake_root"] is None
+        assert ctx["contract_intake"] is None
+        assert ctx["effective_reference_intake"] == {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
 
     def test_write_paper_stage_paper_bootstrap_surfaces_resolved_publication_subject(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2615,6 +2634,14 @@ class TestInitNewProject:
         assert ctx["manuscript_root"] == "paper"
         assert ctx["manuscript_entrypoint"] == "paper/main.tex"
         assert ctx["artifact_manifest_path"] == "paper/ARTIFACT-MANIFEST.json"
+        assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["selected_publication_root"] == "GPD"
+        assert ctx["publication_intake_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/intake"
+        assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
+        assert ctx["managed_manuscript_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/manuscript"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
     def test_write_paper_bootstrap_surfaces_managed_publication_lane_without_stage(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2665,6 +2692,66 @@ class TestInitNewProject:
         assert ctx["publication_artifact_base"] == "GPD/publication/curvature-flow-bounds/manuscript"
         assert ctx["manuscript_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
         assert ctx["manuscript_entrypoint"] == "GPD/publication/curvature-flow-bounds/manuscript/main.tex"
+        assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["publication_intake_root"] == "GPD/publication/curvature-flow-bounds/intake"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
+
+    def test_write_paper_stage_bootstrap_surfaces_managed_lane_roots_without_project_backing(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "external-lane" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        intake_dir = manuscript_dir.parent / "intake"
+        intake_dir.mkdir(parents=True)
+        (intake_dir / "paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}External lane draft.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "External Lane",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
+
+        assert ctx["project_exists"] is False
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_subject_slug"] == "external-lane"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == "GPD/publication/external-lane"
+        assert ctx["managed_manuscript_root"] == "GPD/publication/external-lane/manuscript"
+        assert ctx["selected_publication_root"] == "GPD/publication/external-lane"
+        assert ctx["publication_intake_root"] == "GPD/publication/external-lane/intake"
+        assert ctx["contract_intake"] is None
+        assert ctx["effective_reference_intake"] == {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
 
     def test_write_paper_stage_rejects_unknown_stage(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

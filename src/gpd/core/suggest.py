@@ -37,6 +37,7 @@ from gpd.core.manuscript_artifacts import (
     locate_publication_artifact,
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_resolution,
+    resolve_current_publication_subject,
 )
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.proof_review import (
@@ -54,7 +55,9 @@ from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.utils import (
     is_phase_complete as _is_phase_complete,
 )
-from gpd.core.utils import matching_phase_artifact_count as _matching_phase_artifact_count
+from gpd.core.utils import (
+    matching_phase_artifact_count as _matching_phase_artifact_count,
+)
 from gpd.core.utils import (
     phase_sort_key as _phase_sort_key,
 )
@@ -536,8 +539,25 @@ def _format_missing_conventions_reason(missing: tuple[str, ...]) -> str:
     return f"{len(labels)} convention {plural} missing: {preview} — define before calculations"
 
 
+def _is_bounded_external_write_paper_lane(cwd: Path, manuscript_entrypoint: Path | None) -> bool:
+    """Return whether the active managed manuscript is the standalone external-authoring lane."""
+
+    if manuscript_entrypoint is None or _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"):
+        return False
+
+    publication_subject = resolve_current_publication_subject(cwd, allow_markdown=True)
+    if not publication_subject.resolved or publication_subject.manuscript_entrypoint is None:
+        return False
+    return (
+        publication_subject.publication_lane_kind == "managed_publication_manuscript"
+        and publication_subject.manuscript_entrypoint.resolve(strict=False) == manuscript_entrypoint.resolve(strict=False)
+    )
+
+
 def _publication_submission_is_strictly_ready(cwd: Path, manuscript_entrypoint: Path | None) -> bool:
     if manuscript_entrypoint is None:
+        return False
+    if _is_bounded_external_write_paper_lane(cwd, manuscript_entrypoint):
         return False
     if _current_publication_blockers(cwd):
         return False
@@ -947,6 +967,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     has_latex_manuscript = manuscript_entrypoint is not None and manuscript_entrypoint.suffix == ".tex"
     has_lit_review = _has_literature_review(cwd)
     has_referee = _has_referee_report(cwd)
+    bounded_external_write_paper_lane = _is_bounded_external_write_paper_lane(cwd, manuscript_entrypoint)
     submission_ready_review = _publication_submission_is_strictly_ready(cwd, manuscript_entrypoint)
 
     ctx_kwargs["has_paper"] = has_paper_flag
@@ -1005,7 +1026,11 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                     action="peer-review",
                     priority=4,
                     command=format_command("peer-review"),
-                    reason="Paper draft exists — run standalone peer review before submission packaging",
+                    reason=(
+                        "Managed external-authoring manuscript exists — route to standalone peer review next"
+                        if bounded_external_write_paper_lane
+                        else "Paper draft exists — run standalone peer review before submission packaging"
+                    ),
                 )
             )
     # ── 14. No phases at all → need to plan ─────────────────────────────

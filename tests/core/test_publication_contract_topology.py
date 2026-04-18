@@ -48,6 +48,9 @@ def test_publication_contract_files_use_canonical_names_without_compatibility_sh
     assert "gpd paper-build" in manuscript_preflight
     assert "bibliography_audit_clean" in manuscript_preflight
     assert "reproducibility_ready" in manuscript_preflight
+    assert "GPD/publication/{subject_slug}/intake/" in manuscript_preflight
+    assert "GPD/publication/{subject_slug}/manuscript/" in manuscript_preflight
+    assert "do not let `intake/` participate in manuscript-root discovery" in manuscript_preflight
     assert "publication-artifact-gates.md" not in manuscript_preflight
 
 

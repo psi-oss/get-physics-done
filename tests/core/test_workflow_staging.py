@@ -16,6 +16,7 @@ from gpd.core.workflow_staging import (
     PLAN_PHASE_STAGE_MANIFEST_PATH,
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
+    WRITE_PAPER_MANAGED_INTAKE_ROOT,
     WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     invalidate_workflow_stage_manifest_cache,
     known_init_fields_for_workflow,
@@ -346,6 +347,15 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
     assert "references/publication/peer-review-panel.md" in bootstrap.must_not_eager_load
     assert "templates/paper/paper-config-schema.md" in bootstrap.must_not_eager_load
     assert bootstrap.writes_allowed == ()
+    assert "contract_intake" in bootstrap.required_init_fields
+    assert "effective_reference_intake" in bootstrap.required_init_fields
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "publication_intake_root" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "managed_manuscript_root" in bootstrap.required_init_fields
     assert outline.loaded_authorities == (
         "workflows/write-paper.md",
         "references/publication/publication-pipeline-modes.md",
@@ -354,6 +364,7 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
     )
     assert outline.writes_allowed == (
         WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        WRITE_PAPER_MANAGED_INTAKE_ROOT,
         "GPD/PROJECT.md",
         "GPD/REQUIREMENTS.md",
         "GPD/ROADMAP.md",
@@ -416,9 +427,18 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
     assert "selected_protocol_bundle_ids" in known_init_fields
     assert "protocol_bundle_context" in known_init_fields
     assert "active_reference_context" in known_init_fields
+    assert "contract_intake" in known_init_fields
+    assert "effective_reference_intake" in known_init_fields
     assert "publication_subject_status" in known_init_fields
+    assert "publication_subject_slug" in known_init_fields
+    assert "publication_lane_kind" in known_init_fields
+    assert "publication_lane_owner" in known_init_fields
     assert "publication_bootstrap_mode" in known_init_fields
     assert "publication_bootstrap_root" in known_init_fields
+    assert "selected_publication_root" in known_init_fields
+    assert "publication_intake_root" in known_init_fields
+    assert "managed_publication_root" in known_init_fields
+    assert "managed_manuscript_root" in known_init_fields
     assert "reference_artifacts_content" in known_init_fields
     assert "state_content" in known_init_fields
     assert "requirements_content" in known_init_fields

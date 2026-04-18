@@ -155,6 +155,73 @@ def _bootstrap_publication_project(project_root: Path) -> None:
     (planning / "CONVENTIONS.md").write_text("# Conventions\n", encoding="utf-8")
 
 
+def _write_write_paper_authoring_input(
+    workspace: Path,
+    *,
+    file_name: str = "write-paper-authoring-input.json",
+    subject_slug: str = "external-authoring-test",
+) -> Path:
+    intake_path = workspace / file_name
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "External Authoring Bounds",
+                "authors": [{"name": "A. Researcher"}],
+                "target_journal": "prl",
+                "subject_slug": subject_slug,
+                "central_claim": "The controlled benchmark supports a stable external-authoring draft.",
+                "claims": [
+                    {
+                        "id": "CLM-main",
+                        "statement": "The benchmarked bound is stable across the resolved regime.",
+                        "evidence": {
+                            "source_note_ids": ["NOTE-main"],
+                            "result_ids": ["RES-main"],
+                            "figure_ids": ["FIG-main"],
+                            "citation_source_ids": ["cite-main"],
+                        },
+                    }
+                ],
+                "source_notes": [
+                    {
+                        "id": "NOTE-main",
+                        "path": "notes/main-result.md",
+                        "summary": "Summarizes the decisive benchmark and fit stability.",
+                    }
+                ],
+                "results": [
+                    {
+                        "id": "RES-main",
+                        "summary": "Main fitted bound with uncertainty band.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "figures": [
+                    {
+                        "id": "FIG-main",
+                        "path": "figures/main-bound.pdf",
+                        "caption": "Benchmark comparison supporting the main bound.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "citation_sources": [
+                    {
+                        "source_type": "paper",
+                        "reference_id": "cite-main",
+                        "title": "Benchmark Recovery in a Controlled Regime",
+                        "authors": ["A. Author"],
+                        "year": "2024",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return intake_path
+
+
 class _ExecutionSnapshot(SimpleNamespace):
     def model_dump(self, mode: str = "json") -> dict[str, object]:
         return dict(self.__dict__)
@@ -6343,6 +6410,72 @@ def test_command_managed_output_root_binds_subject_slug_for_managed_publication_
     )
 
     assert managed_output_root == (tmp_path / "GPD" / "publication" / "curvature-flow" / "arxiv").resolve(strict=False)
+
+
+def test_build_resolved_command_subject_write_paper_external_intake_bootstraps_managed_publication_lane(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "external-authoring"
+    workspace.mkdir()
+    intake_path = _write_write_paper_authoring_input(workspace)
+    command, _ = cli_module._resolve_registry_command("write-paper")
+
+    resolved_subject = cli_module._build_resolved_command_subject(
+        workspace,
+        command,
+        f"--intake {intake_path.name}",
+        workspace_cwd=workspace,
+        project_root_source=None,
+        project_root_auto_selected=False,
+        reentry_mode=None,
+    )
+
+    assert resolved_subject is not None
+    assert resolved_subject.status == "bootstrap"
+    assert resolved_subject.subject_kind == "publication"
+    assert resolved_subject.ownership_mode == "external_authoring_intake"
+    assert resolved_subject.explicit_input is True
+    assert resolved_subject.target_path == intake_path
+    assert resolved_subject.target_root == (
+        workspace / "GPD" / "publication" / "external-authoring-test" / "manuscript"
+    ).resolve(strict=False)
+
+
+def test_build_resolved_command_subject_write_paper_external_intake_reports_schema_errors(tmp_path: Path) -> None:
+    workspace = tmp_path / "external-authoring-invalid"
+    workspace.mkdir()
+    intake_path = workspace / "write-paper-authoring-input.json"
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "Broken intake",
+                "authors": [{"name": "A. Researcher"}],
+                "target_journal": "prl",
+                "claims": [],
+                "source_notes": [],
+                "citation_sources": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    command, _ = cli_module._resolve_registry_command("write-paper")
+
+    resolved_subject = cli_module._build_resolved_command_subject(
+        workspace,
+        command,
+        f"--intake {intake_path.name}",
+        workspace_cwd=workspace,
+        project_root_source=None,
+        project_root_auto_selected=False,
+        reentry_mode=None,
+    )
+
+    assert resolved_subject is not None
+    assert resolved_subject.status == "invalid"
+    assert resolved_subject.ownership_mode == "external_authoring_intake"
+    assert resolved_subject.target_path == intake_path
+    assert "write_paper_authoring_input.central_claim is required" in resolved_subject.detail
 
 
 def test_command_managed_output_root_normalizes_gpd_root_policy(tmp_path: Path) -> None:

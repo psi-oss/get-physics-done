@@ -14,14 +14,18 @@ from typing import Annotated, Literal, get_args
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationInfo, field_validator, model_validator
 
 from gpd.contracts import statement_looks_theorem_like
-from gpd.mcp.paper.bibliography import BibliographyAudit
+from gpd.mcp.paper.bibliography import BibliographyAudit, CitationSource
 
 Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 ClaimId = Annotated[str, Field(pattern=r"^CLM-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 ReviewIssueId = Annotated[str, Field(pattern=r"^REF-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 BuilderJournalKey = Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"]
+SourceNoteId = Annotated[str, Field(pattern=r"^NOTE-[A-Za-z0-9][A-Za-z0-9_-]*$")]
+ResultId = Annotated[str, Field(pattern=r"^RES-[A-Za-z0-9][A-Za-z0-9_-]*$")]
+FigureAssetId = Annotated[str, Field(pattern=r"^FIG-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 _LEGACY_LABEL_PREFIXES = ("sec:", "fig:", "app:")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_SUBJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 REQUIRED_GPD_ACKNOWLEDGMENT = (
     "This research made use of Get Physics Done (GPD) and was supported in part by a "
     "GPD Research Grant from Physical Superintelligence PBC (PSI)."
@@ -47,6 +51,29 @@ def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
                 f"label must omit the legacy {prefix!r} prefix; use the bare identifier because the renderer adds it"
             )
     return normalized
+
+
+def _normalize_nonempty_string_list(
+    values: list[str],
+    *,
+    field_name: str,
+    allow_empty: bool = True,
+) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        value = _require_nonempty_text(item, field_name=field_name)
+        if value in seen:
+            raise ValueError(f"{field_name} must not contain duplicate entries")
+        seen.add(value)
+        normalized.append(value)
+    if not allow_empty and not normalized:
+        raise ValueError(f"{field_name} must contain at least one entry")
+    return normalized
+
+
+def _duplicate_items(values: list[str]) -> list[str]:
+    return sorted(value for value, count in Counter(values).items() if count > 1)
 
 
 def normalize_acknowledgments(value: str) -> str:
@@ -196,6 +223,247 @@ class FigureRef(BaseModel):
     @classmethod
     def _normalize_label(cls, value: str) -> str:
         return _normalize_label_id(value, allow_blank=False)
+
+
+class WritePaperAuthoringSourceNote(BaseModel):
+    """One explicit external-authoring source note consumed by ``gpd:write-paper``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: SourceNoteId
+    path: str
+    summary: str
+
+    @field_validator("path", "summary")
+    @classmethod
+    def _validate_nonempty_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name)
+
+
+class WritePaperAuthoringResult(BaseModel):
+    """One optional result bundle with explicit upstream note bindings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: ResultId
+    summary: str
+    source_note_ids: list[SourceNoteId]
+
+    @field_validator("summary")
+    @classmethod
+    def _validate_nonempty_summary(cls, value: str) -> str:
+        return _require_nonempty_text(value, field_name="summary")
+
+    @field_validator("source_note_ids")
+    @classmethod
+    def _validate_source_note_ids(cls, value: list[str]) -> list[str]:
+        return _normalize_nonempty_string_list(value, field_name="source_note_ids", allow_empty=False)
+
+
+class WritePaperAuthoringFigure(BaseModel):
+    """One optional figure candidate with explicit upstream note bindings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: FigureAssetId
+    path: str
+    caption: str
+    source_note_ids: list[SourceNoteId]
+
+    @field_validator("path", "caption")
+    @classmethod
+    def _validate_nonempty_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name)
+
+    @field_validator("source_note_ids")
+    @classmethod
+    def _validate_source_note_ids(cls, value: list[str]) -> list[str]:
+        return _normalize_nonempty_string_list(value, field_name="source_note_ids", allow_empty=False)
+
+
+class WritePaperAuthoringClaimEvidence(BaseModel):
+    """Explicit claim-to-evidence bindings for bounded external authoring."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_note_ids: list[SourceNoteId] = Field(default_factory=list)
+    result_ids: list[ResultId] = Field(default_factory=list)
+    figure_ids: list[FigureAssetId] = Field(default_factory=list)
+    citation_source_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("source_note_ids", "result_ids", "figure_ids", "citation_source_ids")
+    @classmethod
+    def _validate_reference_ids(cls, value: list[str], info: ValidationInfo) -> list[str]:
+        return _normalize_nonempty_string_list(value, field_name=info.field_name)
+
+    @model_validator(mode="after")
+    def _require_at_least_one_binding(self) -> WritePaperAuthoringClaimEvidence:
+        if not any((self.source_note_ids, self.result_ids, self.figure_ids, self.citation_source_ids)):
+            raise ValueError(
+                "evidence must bind at least one source note, result, figure, or citation source"
+            )
+        return self
+
+
+class WritePaperAuthoringClaim(BaseModel):
+    """One publication claim backed by explicit external-authoring evidence links."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: ClaimId
+    statement: str
+    evidence: WritePaperAuthoringClaimEvidence
+
+    @field_validator("statement")
+    @classmethod
+    def _validate_nonempty_statement(cls, value: str) -> str:
+        return _require_nonempty_text(value, field_name="statement")
+
+
+class WritePaperAuthoringInput(BaseModel):
+    """Closed-schema intake manifest for bounded ``gpd:write-paper`` external authoring."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    title: str
+    authors: list[Author]
+    target_journal: BuilderJournalKey
+    subject_slug: str | None = None
+    central_claim: str
+    claims: list[WritePaperAuthoringClaim]
+    source_notes: list[WritePaperAuthoringSourceNote]
+    results: list[WritePaperAuthoringResult] = Field(default_factory=list)
+    figures: list[WritePaperAuthoringFigure] = Field(default_factory=list)
+    citation_sources: list[CitationSource]
+    notation_note: str = ""
+
+    @field_validator("title", "central_claim")
+    @classmethod
+    def _validate_nonempty_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name)
+
+    @field_validator("subject_slug")
+    @classmethod
+    def _validate_subject_slug(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if not _SUBJECT_SLUG_RE.fullmatch(normalized):
+            raise ValueError("subject_slug must be lowercase kebab-case like 'curvature-flow-bounds'")
+        return normalized
+
+    @field_validator("citation_sources")
+    @classmethod
+    def _validate_citation_sources(cls, value: list[CitationSource]) -> list[CitationSource]:
+        if not value:
+            raise ValueError("citation_sources must contain at least one entry")
+
+        seen_reference_ids: set[str] = set()
+        for index, source in enumerate(value):
+            reference_id = source.reference_id.strip() if isinstance(source.reference_id, str) else ""
+            if not reference_id:
+                raise ValueError(f"citation_sources[{index}].reference_id must be a non-empty string")
+            if reference_id in seen_reference_ids:
+                raise ValueError(f"citation_sources[{index}].reference_id duplicates {reference_id!r}")
+            seen_reference_ids.add(reference_id)
+            if not source.title.strip():
+                raise ValueError(f"citation_sources[{index}].title must be a non-empty string")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_reference_integrity(self) -> WritePaperAuthoringInput:
+        if not self.authors:
+            raise ValueError("authors must contain at least one entry")
+        if not self.claims:
+            raise ValueError("claims must contain at least one entry")
+        if not self.source_notes:
+            raise ValueError("source_notes must contain at least one entry")
+
+        note_ids = [note.id for note in self.source_notes]
+        duplicate_note_ids = _duplicate_items(note_ids)
+        if duplicate_note_ids:
+            raise ValueError(f"source_notes duplicate id(s): {', '.join(duplicate_note_ids)}")
+        note_id_set = set(note_ids)
+
+        result_ids = [result.id for result in self.results]
+        duplicate_result_ids = _duplicate_items(result_ids)
+        if duplicate_result_ids:
+            raise ValueError(f"results duplicate id(s): {', '.join(duplicate_result_ids)}")
+        result_id_set = set(result_ids)
+
+        figure_ids = [figure.id for figure in self.figures]
+        duplicate_figure_ids = _duplicate_items(figure_ids)
+        if duplicate_figure_ids:
+            raise ValueError(f"figures duplicate id(s): {', '.join(duplicate_figure_ids)}")
+        figure_id_set = set(figure_ids)
+
+        claim_ids = [claim.id for claim in self.claims]
+        duplicate_claim_ids = _duplicate_items(claim_ids)
+        if duplicate_claim_ids:
+            raise ValueError(f"claims duplicate id(s): {', '.join(duplicate_claim_ids)}")
+
+        citation_source_ids = [
+            source.reference_id.strip() for source in self.citation_sources if isinstance(source.reference_id, str)
+        ]
+        citation_source_id_set = set(citation_source_ids)
+
+        for result in self.results:
+            missing_source_notes = sorted(note_id for note_id in result.source_note_ids if note_id not in note_id_set)
+            if missing_source_notes:
+                raise ValueError(
+                    f"results[{result.id}].source_note_ids reference missing source note id(s): "
+                    + ", ".join(missing_source_notes)
+                )
+
+        for figure in self.figures:
+            missing_source_notes = sorted(note_id for note_id in figure.source_note_ids if note_id not in note_id_set)
+            if missing_source_notes:
+                raise ValueError(
+                    f"figures[{figure.id}].source_note_ids reference missing source note id(s): "
+                    + ", ".join(missing_source_notes)
+                )
+
+        for claim in self.claims:
+            missing_source_notes = sorted(
+                note_id for note_id in claim.evidence.source_note_ids if note_id not in note_id_set
+            )
+            if missing_source_notes:
+                raise ValueError(
+                    f"claims[{claim.id}].evidence.source_note_ids reference missing source note id(s): "
+                    + ", ".join(missing_source_notes)
+                )
+
+            missing_results = sorted(result_id for result_id in claim.evidence.result_ids if result_id not in result_id_set)
+            if missing_results:
+                raise ValueError(
+                    f"claims[{claim.id}].evidence.result_ids reference missing result id(s): "
+                    + ", ".join(missing_results)
+                )
+
+            missing_figures = sorted(
+                figure_id for figure_id in claim.evidence.figure_ids if figure_id not in figure_id_set
+            )
+            if missing_figures:
+                raise ValueError(
+                    f"claims[{claim.id}].evidence.figure_ids reference missing figure id(s): "
+                    + ", ".join(missing_figures)
+                )
+
+            missing_citation_sources = sorted(
+                citation_id
+                for citation_id in claim.evidence.citation_source_ids
+                if citation_id not in citation_source_id_set
+            )
+            if missing_citation_sources:
+                raise ValueError(
+                    f"claims[{claim.id}].evidence.citation_source_ids reference missing citation source id(s): "
+                    + ", ".join(missing_citation_sources)
+                )
+
+        return self
 
 
 class ArtifactSourceRef(BaseModel):

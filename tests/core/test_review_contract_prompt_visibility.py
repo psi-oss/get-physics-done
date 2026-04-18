@@ -1238,6 +1238,7 @@ def test_write_paper_review_contract_uses_round_suffixed_referee_outputs() -> No
     assert contract is not None
     assert contract.required_outputs == [
         "${PAPER_DIR}/{topic_specific_stem}.tex",
+        "${PAPER_DIR}/PAPER-CONFIG.json",
         "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
         "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
         "${PAPER_DIR}/reproducibility-manifest.json",

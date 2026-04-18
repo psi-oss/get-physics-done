@@ -31,6 +31,7 @@ from gpd.adapters.runtime_catalog import get_runtime_descriptor, get_shared_inst
 from gpd.adapters.tool_names import build_canonical_alias_map
 from gpd.core.public_surface_contract import local_cli_bridge_commands
 from gpd.registry import load_agents_from_dir
+from tests.doc_surface_contracts import assert_publication_lane_boundary_contract
 
 REPO_GPD_ROOT = Path(__file__).resolve().parents[2] / "src" / "gpd"
 RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter in iter_adapters())
@@ -716,6 +717,21 @@ def test_real_installed_help_prompt_keeps_relaxed_technical_analysis_contract(
     assert "Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`" in help_prompt
     assert "Usage: `gpd:limiting-cases results/01-SUMMARY.md`" in help_prompt
     assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_prompt
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_help_prompt_surfaces_bounded_write_paper_external_authoring_lane(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    help_prompt = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "help"),
+        runtime=runtime,
+    )
+
+    assert_publication_lane_boundary_contract(help_prompt)
+    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_prompt
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])

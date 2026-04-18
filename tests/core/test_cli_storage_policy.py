@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from gpd.cli import app
 from gpd.core.state import default_state_dict, generate_state_markdown
-from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
+from gpd.core.storage_paths import ManagedOutputPolicy, ProjectStorageLayout, StageArtifactPolicy, StoragePathError
 
 
 class _StableCliRunner(CliRunner):
@@ -213,6 +213,34 @@ def test_paper_build_managed_publication_manuscript_output_has_no_storage_warnin
     assert payload["output_dir"] == "./GPD/publication/curvature-flow/manuscript"
     assert payload["warnings"] == []
     assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
+
+
+def test_publication_intake_output_requires_an_explicit_managed_policy(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    (tmp_path / "GPD").mkdir()
+    layout = ProjectStorageLayout(tmp_path)
+    output_path = tmp_path / "GPD" / "publication" / "curvature-flow" / "intake" / "paper-authoring-input.json"
+    output_path.parent.mkdir(parents=True)
+
+    with pytest.raises(StoragePathError, match="GPD/"):
+        layout.validate_final_output(output_path)
+
+    policy = ManagedOutputPolicy.publication_intake_subtree("curvature-flow")
+
+    assert layout.managed_output_path(policy) == output_path.parent.resolve(strict=False)
+    assert layout.validate_final_output(output_path, managed_output_policies=(policy,)) == output_path.resolve(
+        strict=False
+    )
+
+
+def test_publication_manuscript_policy_can_opt_into_stage_artifacts() -> None:
+    policy = ManagedOutputPolicy.publication_manuscript_subtree(
+        "{subject_slug}",
+        stage_artifact_policy=StageArtifactPolicy.ALLOWED,
+    )
+
+    assert policy.default_output_subtree == ("publication", "{subject_slug}", "manuscript")
+    assert policy.stage_artifact_policy == StageArtifactPolicy.ALLOWED
 
 
 @pytest.mark.parametrize(

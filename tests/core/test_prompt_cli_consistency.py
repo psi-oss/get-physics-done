@@ -612,6 +612,17 @@ def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> Non
     assert "gpd:set-profile" in help_workflow
 
 
+def test_help_prompt_surfaces_bounded_write_paper_external_authoring_lane() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "bounded external-authoring lane driven by an explicit intake manifest only" in help_workflow
+    assert "GPD-authored outputs live under `GPD/publication/{subject_slug}/...`" in help_workflow
+    assert "`GPD/publication/{subject_slug}/intake/`" in help_workflow
+    assert "does not mine arbitrary folders" in help_workflow
+    assert "embedded external staged-review parity remains deferred" in help_workflow
+    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
+
+
 def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 

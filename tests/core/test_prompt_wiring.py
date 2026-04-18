@@ -557,7 +557,11 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in write_paper.review_contract.required_outputs
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper.review_contract.required_outputs
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in write_paper.review_contract.required_outputs
-    assert write_paper.review_contract.required_evidence == []
+    assert write_paper.review_contract.required_evidence == [
+        "project-backed lane: research artifacts and verification reports",
+        "external-authoring lane: explicit `--intake` manifest with claim-to-evidence bindings",
+        "bibliography / citation-source input",
+    ]
     assert "command_context" in write_paper.review_contract.preflight_checks
     assert "verification_reports" in write_paper.review_contract.preflight_checks
     assert "manuscript" in write_paper.review_contract.preflight_checks
@@ -734,7 +738,7 @@ def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("peer-review").context_mode == "project-aware"
 
 
-def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_peer_review() -> None:
+def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_publication_entrypoints() -> None:
     readme = README_PATH.read_text(encoding="utf-8")
     command_context = readme.split("### Command Context", 1)[1].split("The full in-runtime reference", 1)[0]
 
@@ -757,6 +761,7 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
         "gpd:review-knowledge",
         "gpd:literature-review",
         "gpd:peer-review",
+        "gpd:write-paper --intake intake/paper-authoring-input.json",
     ):
         assert command_name in project_aware_line
     assert "Project-aware commands stay rooted in the current workspace" in command_context
@@ -774,6 +779,7 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
     assert "GPD/sweeps/" in command_context
     assert "`gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane." in command_context
     assert "gpd:peer-review" not in project_required_line
+    assert "gpd:write-paper" not in project_required_line
     assert (
         "Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization."
         not in command_context
@@ -956,7 +962,8 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
-    assert "context_mode: project-required" in write_paper
+    assert "context_mode: project-aware" in write_paper
+    assert "--intake path/to/paper-authoring-input.json" in write_paper
     assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
     assert "GPD-owned review/response auxiliaries remain under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
@@ -2671,7 +2678,7 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "determine which source is more recent" not in sync_state
     assert (
         "Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, "
-        "and `active_reference_context` visible throughout the staged review" in write_paper
+        "and `active_reference_context` visible throughout that staged review" in write_paper
     )
     assert peer_review.count(contract_gate_note) >= 1
     assert "repair the blocked contract before retrying" in peer_review
@@ -3360,6 +3367,10 @@ def test_sync_state_and_write_paper_command_prompts_expand_required_schema_bodie
     assert "Reproducibility Manifest Template" in write_paper
     assert "bibliographer search breadth" in write_paper
     assert "paper-writer style by mode" in write_paper
+    assert "When a workflow exposes the bounded external-authoring lane, accept one explicit intake manifest only." in write_paper
+    assert "GPD/publication/{subject_slug}/intake/" in write_paper
+    assert "Do not mine arbitrary folders or infer claim/evidence bindings from loose notes." in write_paper
+    assert "Do not infer widened `gpd:arxiv-submission` scope" in write_paper
     assert '"execution_steps"' in write_paper
     assert "random_seeds[].computation" in write_paper
     assert "resource_requirements[].step" in write_paper

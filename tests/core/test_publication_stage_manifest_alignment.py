@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from gpd.core.workflow_staging import (
+    WRITE_PAPER_MANAGED_INTAKE_ROOT,
     WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     validate_workflow_stage_manifest_payload,
 )
@@ -42,7 +43,17 @@ def test_write_paper_stage_manifest_uses_canonical_publication_contracts() -> No
     assert "publication_bootstrap_root" in bootstrap.required_init_fields
     assert "artifact_manifest_path" in bootstrap.required_init_fields
     assert bootstrap.writes_allowed == ()
+    assert "contract_intake" in bootstrap.required_init_fields
+    assert "effective_reference_intake" in bootstrap.required_init_fields
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "publication_intake_root" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "managed_manuscript_root" in bootstrap.required_init_fields
     assert outline.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert WRITE_PAPER_MANAGED_INTAKE_ROOT in outline.writes_allowed
     assert authoring.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
     assert consistency.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
     assert publication_review.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT

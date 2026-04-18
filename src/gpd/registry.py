@@ -133,6 +133,36 @@ _COMMAND_POLICY_KEYS = frozenset(_COMMAND_POLICY_FIELD_ORDER)
 _COMMAND_POLICY_SUBJECT_KEYS = frozenset(_COMMAND_POLICY_SUBJECT_FIELD_ORDER)
 _COMMAND_POLICY_SUPPORTING_CONTEXT_KEYS = frozenset(_COMMAND_POLICY_SUPPORTING_CONTEXT_FIELD_ORDER)
 _COMMAND_POLICY_OUTPUT_KEYS = frozenset(_COMMAND_POLICY_OUTPUT_FIELD_ORDER)
+_WRITE_PAPER_EXTERNAL_AUTHORING_INPUT_KIND = "authoring_intake_manifest"
+_WRITE_PAPER_EXTERNAL_AUTHORING_SCOPE = "explicit_intake_manifest"
+_WRITE_PAPER_EXTERNAL_AUTHORING_REQUIRED_OUTPUTS = (
+    "${PAPER_DIR}/{topic_specific_stem}.tex",
+    "${PAPER_DIR}/PAPER-CONFIG.json",
+    "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+    "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+    "${PAPER_DIR}/reproducibility-manifest.json",
+)
+_WRITE_PAPER_EXTERNAL_AUTHORING_REQUIRED_EVIDENCE = (
+    "validated external authoring intake manifest with explicit claim-to-evidence bindings",
+)
+_WRITE_PAPER_EXTERNAL_AUTHORING_BLOCKING_CONDITIONS = (
+    "invalid or incomplete external authoring intake manifest",
+)
+_WRITE_PAPER_EXTERNAL_AUTHORING_RELAXED_PREFLIGHT_CHECKS = (
+    "project_state",
+    "roadmap",
+    "conventions",
+    "research_artifacts",
+    "verification_reports",
+    "manuscript_proof_review",
+)
+_WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_PREFLIGHT_CHECKS = (
+    "artifact_manifest",
+    "bibliography_audit",
+    "bibliography_audit_clean",
+    "reproducibility_manifest",
+    "reproducibility_ready",
+)
 
 
 def _validate_command_frontmatter_keys(meta: dict[object, object], *, command_name: str) -> None:
@@ -1743,6 +1773,101 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
     )
 
 
+def _apply_write_paper_external_authoring_registry_overrides(
+    path: Path,
+    *,
+    command_name: str,
+    context_mode: str,
+    command_policy: CommandPolicy | None,
+    review_contract: ReviewCommandContract | None,
+) -> tuple[str, CommandPolicy | None, ReviewCommandContract | None]:
+    """Project the bounded write-paper external-authoring lane into the canonical runtime surface."""
+
+    canonical_path = (COMMANDS_DIR / "write-paper.md").resolve(strict=False)
+    if command_name != "gpd:write-paper" or path.resolve(strict=False) != canonical_path:
+        return context_mode, command_policy, review_contract
+
+    existing_subject_policy = command_policy.subject_policy if command_policy is not None else None
+    existing_supporting_context = command_policy.supporting_context_policy if command_policy is not None else None
+    existing_output_policy = command_policy.output_policy if command_policy is not None else None
+
+    subject_policy = CommandSubjectPolicy(
+        subject_kind=(
+            existing_subject_policy.subject_kind
+            if existing_subject_policy is not None and existing_subject_policy.subject_kind is not None
+            else "publication"
+        ),
+        resolution_mode=(
+            existing_subject_policy.resolution_mode
+            if existing_subject_policy is not None and existing_subject_policy.resolution_mode is not None
+            else "project_manuscript_or_bootstrap"
+        ),
+        explicit_input_kinds=[_WRITE_PAPER_EXTERNAL_AUTHORING_INPUT_KIND],
+        allow_external_subjects=False,
+        allow_interactive_without_subject=False,
+        supported_roots=(
+            list(existing_subject_policy.supported_roots)
+            if existing_subject_policy is not None and existing_subject_policy.supported_roots
+            else ["paper", "manuscript", "draft"]
+        ),
+        allowed_suffixes=(
+            list(existing_subject_policy.allowed_suffixes)
+            if existing_subject_policy is not None
+            else []
+        ),
+        bootstrap_allowed=(
+            existing_subject_policy.bootstrap_allowed
+            if existing_subject_policy is not None and existing_subject_policy.bootstrap_allowed is not None
+            else True
+        ),
+    )
+    supporting_context_policy = CommandSupportingContextPolicy(
+        project_context_mode="project-aware",
+        project_reentry_mode=(
+            existing_supporting_context.project_reentry_mode
+            if existing_supporting_context is not None
+            and existing_supporting_context.project_reentry_mode is not None
+            else "disallowed"
+        ),
+        required_file_patterns=(
+            list(existing_supporting_context.required_file_patterns)
+            if existing_supporting_context is not None
+            else []
+        ),
+        optional_file_patterns=(
+            list(existing_supporting_context.optional_file_patterns)
+            if existing_supporting_context is not None
+            else []
+        ),
+    )
+    command_policy = CommandPolicy(
+        schema_version=command_policy.schema_version if command_policy is not None else 1,
+        subject_policy=subject_policy,
+        supporting_context_policy=supporting_context_policy,
+        output_policy=existing_output_policy,
+    )
+
+    if review_contract is not None:
+        existing_scope_variants = list(review_contract.scope_variants)
+        if not any(
+            str(variant.scope).strip() == _WRITE_PAPER_EXTERNAL_AUTHORING_SCOPE for variant in existing_scope_variants
+        ):
+            existing_scope_variants.append(
+                ReviewContractScopeVariant(
+                    scope=_WRITE_PAPER_EXTERNAL_AUTHORING_SCOPE,
+                    activation="validated explicit external authoring intake manifest was supplied outside a project",
+                    relaxed_preflight_checks=list(_WRITE_PAPER_EXTERNAL_AUTHORING_RELAXED_PREFLIGHT_CHECKS),
+                    optional_preflight_checks=list(_WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_PREFLIGHT_CHECKS),
+                    required_outputs_override=list(_WRITE_PAPER_EXTERNAL_AUTHORING_REQUIRED_OUTPUTS),
+                    required_evidence_override=list(_WRITE_PAPER_EXTERNAL_AUTHORING_REQUIRED_EVIDENCE),
+                    blocking_conditions_override=list(_WRITE_PAPER_EXTERNAL_AUTHORING_BLOCKING_CONDITIONS),
+                )
+            )
+        review_contract = dataclasses.replace(review_contract, scope_variants=existing_scope_variants)
+
+    return "project-aware", command_policy, review_contract
+
+
 def _parse_spawn_contracts(content: str, *, owner_name: str) -> tuple[dict[str, object], ...]:
     """Parse canonical spawn-contract blocks from rendered markdown content."""
 
@@ -1968,6 +2093,13 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         )
     except ValueError as exc:
         raise ValueError(f"Invalid command-policy in {path}: {exc}") from exc
+    context_mode, command_policy, review_contract = _apply_write_paper_external_authoring_registry_overrides(
+        path,
+        command_name=command_name,
+        context_mode=context_mode,
+        command_policy=command_policy,
+        review_contract=review_contract,
+    )
     staged_loading = _load_command_staged_loading(path, allowed_tools=allowed_tools)
     content = _command_model_content(
         body,

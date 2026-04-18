@@ -39,6 +39,23 @@ Read via: `gpd --raw init` includes both fields in the init JSON output.
 
 ---
 
+## Publication Boundary Across Modes
+
+Mode adaptation changes drafting, bibliography, and review behavior. It does not widen publication intake policy.
+
+For the bounded `gpd:write-paper` external-authoring lane:
+
+- accept one explicit intake manifest only
+- keep all GPD-authored durable outputs under `GPD/publication/{subject_slug}/...`
+- treat `GPD/publication/{subject_slug}/manuscript/` as the only manuscript/build root
+- treat `GPD/publication/{subject_slug}/intake/` as intake/provenance state only
+- do not mine arbitrary folders or infer claim/evidence bindings from loose notes
+- do not widen `gpd:arxiv-submission`, claim full publication-root migration, or claim embedded external staged-review parity; route authored-manuscript review to standalone `gpd:peer-review` when that bounded lane needs review
+
+The same autonomy and research-mode knobs still apply inside that bounded lane, but they cannot relax the manifest requirement or broaden the publication-root contract.
+
+---
+
 ## Bibliographer Mode Adaptation
 
 The bibliographer's search breadth, verification depth, and citation completeness expectations change with research mode.

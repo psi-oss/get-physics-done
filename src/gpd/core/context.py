@@ -364,6 +364,8 @@ _WRITE_PAPER_CONTRACT_GATE_FIELDS = frozenset(
 )
 _WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS = frozenset(
     {
+        "contract_intake",
+        "effective_reference_intake",
         "selected_protocol_bundle_ids",
         "protocol_bundle_context",
         "active_reference_context",
@@ -382,6 +384,8 @@ _WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS = frozenset(
         "publication_lane_kind",
         "publication_lane_owner",
         "publication_artifact_base",
+        "selected_publication_root",
+        "publication_intake_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",
@@ -1938,6 +1942,13 @@ def _build_publication_bootstrap_runtime_context(
         if isinstance(publication_context.get("managed_publication_root"), str)
         else None,
     )
+    surfaced_contract_intake = None
+    if project_contract_gate.get("visible") and visible_contract is not None:
+        surfaced_contract_intake = visible_contract.context_intake.model_dump(mode="json")
+    publication_intake_root = None
+    managed_publication_root = publication_context.get("managed_publication_root")
+    if isinstance(managed_publication_root, str) and managed_publication_root:
+        publication_intake_root = f"{managed_publication_root}/intake"
     return {
         "project_contract": visible_context_contract.model_dump(mode="json")
         if visible_context_contract is not None
@@ -1945,8 +1956,11 @@ def _build_publication_bootstrap_runtime_context(
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
+        "contract_intake": surfaced_contract_intake,
+        "effective_reference_intake": surfaced_effective_reference_intake,
         **publication_context,
         **selected_roots,
+        "publication_intake_root": publication_intake_root,
         "publication_bootstrap": publication_bootstrap_payload,
         "publication_bootstrap_mode": publication_bootstrap_payload["mode"],
         "publication_bootstrap_root": publication_bootstrap_payload["bootstrap_root"],

@@ -1870,6 +1870,53 @@ class TestRegistryPromptIncludeInlining:
             in command.staged_loading.stage("publication_review").loaded_authorities
         )
 
+    def test_write_paper_registry_surface_exposes_bounded_external_authoring_lane(self) -> None:
+        command = registry.get_command("gpd:write-paper")
+
+        assert command.context_mode == "project-aware"
+        assert command.command_policy is not None
+        assert command.command_policy.supporting_context_policy is not None
+        assert command.command_policy.supporting_context_policy.project_context_mode == "project-aware"
+        assert command.command_policy.subject_policy is not None
+        assert command.command_policy.subject_policy.explicit_input_kinds == ["authoring_intake_manifest"]
+        assert command.command_policy.subject_policy.allow_external_subjects is False
+        assert command.command_policy.subject_policy.allow_interactive_without_subject is False
+        assert "context_mode: project-aware" in command.content
+        assert "authoring_intake_manifest" in command.content
+        assert command.review_contract is not None
+        assert command.review_contract.scope_variants == [
+            registry.ReviewContractScopeVariant(
+                scope="explicit_intake_manifest",
+                activation="validated explicit external authoring intake manifest was supplied outside a project",
+                relaxed_preflight_checks=[
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "research_artifacts",
+                    "verification_reports",
+                    "manuscript_proof_review",
+                ],
+                optional_preflight_checks=[
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "bibliography_audit_clean",
+                    "reproducibility_manifest",
+                    "reproducibility_ready",
+                ],
+                required_outputs_override=[
+                    "${PAPER_DIR}/{topic_specific_stem}.tex",
+                    "${PAPER_DIR}/PAPER-CONFIG.json",
+                    "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                    "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                    "${PAPER_DIR}/reproducibility-manifest.json",
+                ],
+                required_evidence_override=[
+                    "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                ],
+                blocking_conditions_override=["invalid or incomplete external authoring intake manifest"],
+            )
+        ]
+
     def test_publication_review_skills_keep_the_needed_contract_references_visible(self) -> None:
         from gpd.mcp.servers.skills_server import get_skill
 

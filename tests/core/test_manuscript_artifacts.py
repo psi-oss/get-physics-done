@@ -193,6 +193,7 @@ def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_sem
     assert subject.publication_root == tmp_path / "GPD"
     assert subject.review_dir == tmp_path / "GPD" / "review"
     assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / subject.publication_subject_slug
+    assert subject.managed_intake_root == subject.managed_publication_root / "intake"
     assert subject.managed_manuscript_root == subject.managed_publication_root / "manuscript"
     assert publication_root_for_subject(subject) == subject.publication_root
     assert review_dir_for_subject(subject) == subject.review_dir
@@ -213,6 +214,7 @@ def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_sem
     assert bootstrap_context["review_dir"] == "GPD/review"
     assert bootstrap_context["manuscript_entrypoint"] == "paper/sections/curvature_flow_bounds.tex"
     assert bootstrap_context["managed_publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
+    assert bootstrap_context["managed_intake_root"] == f"GPD/publication/{subject.publication_subject_slug}/intake"
     assert bootstrap_context["managed_manuscript_root"] == (
         f"GPD/publication/{subject.publication_subject_slug}/manuscript"
     )
@@ -266,6 +268,7 @@ def test_resolve_current_publication_subject_supports_managed_project_manuscript
     assert subject.publication_root == tmp_path / "GPD"
     assert subject.review_dir == tmp_path / "GPD" / "review"
     assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / "curvature-flow-bounds"
+    assert subject.managed_intake_root == subject.managed_publication_root / "intake"
     assert subject.managed_manuscript_root == manuscript_root
     assert resolve_current_manuscript_root(tmp_path) == manuscript_root
     assert resolve_current_manuscript_entrypoint(tmp_path) == manuscript_root / "main.tex"
@@ -369,6 +372,7 @@ def test_resolve_publication_bootstrap_resolution_prefers_unique_managed_lane_ca
     assert bootstrap.publication_subject.status == "missing"
     assert bootstrap.publication_subject.publication_subject_slug == "curvature-flow-bounds"
     assert bootstrap.publication_subject.publication_lane_kind == "managed_publication_manuscript"
+    assert bootstrap.publication_subject.managed_intake_root == manuscript_root.parent / "intake"
     assert bootstrap.publication_subject.managed_manuscript_root == manuscript_root
     assert bootstrap.bootstrap_root == manuscript_root
     assert "managed manuscript lane" in bootstrap.detail
@@ -554,6 +558,7 @@ def test_resolve_explicit_external_publication_subject_exposes_subject_owned_pub
     assert subject.publication_lane_owner == "external_artifact"
     assert subject.publication_subject_slug is not None
     assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / subject.publication_subject_slug
+    assert subject.managed_intake_root == subject.managed_publication_root / "intake"
     assert subject.managed_manuscript_root is None
     assert subject.publication_root == subject.managed_publication_root
     assert subject.review_dir == subject.publication_root / "review"
@@ -563,7 +568,36 @@ def test_resolve_explicit_external_publication_subject_exposes_subject_owned_pub
     assert subject_context["publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
     assert subject_context["review_dir"] == f"GPD/publication/{subject.publication_subject_slug}/review"
     assert subject_context["managed_publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
+    assert subject_context["managed_intake_root"] == f"GPD/publication/{subject.publication_subject_slug}/intake"
     assert subject_context["managed_manuscript_root"] is None
+
+
+def test_resolve_current_manuscript_resolution_ignores_publication_intake_roots(tmp_path: Path) -> None:
+    intake_root = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "intake"
+    _write(
+        intake_root / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Curvature Flow Bounds",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"heading": "Intro", "content": "Hello."}],
+            }
+        )
+        + "\n",
+    )
+    _write(intake_root / "main.tex", "\\documentclass{article}\\begin{document}Intake\\end{document}\n")
+
+    resolution = resolve_current_manuscript_resolution(tmp_path)
+    bootstrap = resolve_publication_bootstrap_resolution(tmp_path)
+
+    assert resolution.status == "missing"
+    assert resolution.manuscript_root is None
+    assert resolution.manuscript_entrypoint is None
+    assert resolve_current_manuscript_entrypoint(tmp_path) is None
+    assert resolve_current_manuscript_root(tmp_path) is None
+    assert bootstrap.mode == "fresh_project_bootstrap"
+    assert bootstrap.bootstrap_root == tmp_path / "paper"
 
 
 def test_resolve_explicit_publication_subject_rejects_noncanonical_entrypoint_under_supported_root(

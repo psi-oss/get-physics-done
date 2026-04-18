@@ -178,6 +178,7 @@ def test_publication_runtime_snapshot_uses_subject_owned_roots_for_explicit_exte
 def test_publication_runtime_snapshot_reuses_managed_publication_subject_slug_for_manuscript_lane(
     tmp_path: Path,
 ) -> None:
+    _write(tmp_path / "GPD" / "PROJECT.md", "# Project\n")
     manuscript_root = tmp_path / "GPD" / "publication" / "ising-bootstrap" / "manuscript"
     _write(manuscript_root / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
     _write_artifact_manifest(manuscript_root, "main.tex")
@@ -207,5 +208,60 @@ def test_publication_runtime_snapshot_reuses_managed_publication_subject_slug_fo
     assert snapshot.latest_response_artifacts is not None
     assert context["publication_subject_slug"] == "ising-bootstrap"
     assert context["publication_artifact_base"] == "GPD/publication/ising-bootstrap/manuscript"
+    assert context["publication_lineage_mode"] == "global_gpd"
+    assert context["publication_lineage_root"] == "GPD"
+    assert context["publication_lineage_review_dir"] == "GPD/review"
     assert context["publication_subject"]["artifact_base"] == "GPD/publication/ising-bootstrap/manuscript"
     assert context["publication_subject"]["manuscript_entrypoint"] == "GPD/publication/ising-bootstrap/manuscript/main.tex"
+
+
+def test_publication_runtime_snapshot_uses_subject_owned_review_roots_for_standalone_managed_lane(
+    tmp_path: Path,
+) -> None:
+    manuscript_root = tmp_path / "GPD" / "publication" / "ising-bootstrap" / "manuscript"
+    _write(manuscript_root / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(manuscript_root, "main.tex")
+    _write(manuscript_root / "BIBLIOGRAPHY-AUDIT.json", "{}\n")
+    _write(manuscript_root / "reproducibility-manifest.json", "{}\n")
+
+    publication_root = tmp_path / "GPD" / "publication" / "ising-bootstrap"
+    review_dir = publication_root / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(
+        review_dir,
+        manuscript_path="GPD/publication/ising-bootstrap/manuscript/main.tex",
+        round_number=2,
+    )
+    _write(publication_root / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(publication_root / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    _write(publication_root / "AUTHOR-RESPONSE-R2.md", "# Author Response R2\n")
+    _write(review_dir / "REFEREE_RESPONSE-R2.md", "# Referee Response R2\n")
+
+    global_review_dir = tmp_path / "GPD" / "review"
+    global_review_dir.mkdir(parents=True, exist_ok=True)
+    _write_review_round(
+        global_review_dir,
+        manuscript_path="GPD/publication/ising-bootstrap/manuscript/main.tex",
+        round_number=4,
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R4.md", "# Referee Report R4\n")
+    _write(tmp_path / "GPD" / "AUTHOR-RESPONSE-R4.md", "# Author Response R4\n")
+    _write(global_review_dir / "REFEREE_RESPONSE-R4.md", "# Referee Response R4\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "GPD/publication/ising-bootstrap/manuscript/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_review_artifacts.review_ledger == review_dir / "REVIEW-LEDGER-R2.json"
+    assert snapshot.latest_review_artifacts.referee_report_md == publication_root / "REFEREE-REPORT-R2.md"
+    assert snapshot.latest_response_artifacts is not None
+    assert snapshot.latest_response_artifacts.round_number == 2
+    assert snapshot.latest_response_artifacts.author_response == publication_root / "AUTHOR-RESPONSE-R2.md"
+    assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"
+    assert context["publication_lineage_mode"] == "subject_owned"
+    assert context["publication_lineage_root"] == "GPD/publication/ising-bootstrap"
+    assert context["publication_lineage_review_dir"] == "GPD/publication/ising-bootstrap/review"
+    assert context["latest_referee_report_md"] == "GPD/publication/ising-bootstrap/REFEREE-REPORT-R2.md"
+    assert context["latest_author_response"] == "GPD/publication/ising-bootstrap/AUTHOR-RESPONSE-R2.md"

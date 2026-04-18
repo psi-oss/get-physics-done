@@ -15,7 +15,12 @@ from gpd.core.manuscript_artifacts import (
     resolve_current_publication_subject,
     resolve_explicit_publication_subject,
 )
-from gpd.core.proof_review import ProofReviewStatus, publication_lineage_roots, resolve_manuscript_proof_review_status
+from gpd.core.proof_review import (
+    ProofReviewStatus,
+    publication_lineage_mode,
+    publication_lineage_roots,
+    resolve_manuscript_proof_review_status,
+)
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
     review_artifact_round,
@@ -184,6 +189,15 @@ class PublicationRuntimeSnapshot:
         proof_status = self.manuscript_proof_review_status
         review_artifacts = self.latest_review_artifacts
         response_artifacts = self.latest_response_artifacts
+        publication_lineage_root = None
+        publication_lineage_review_dir = None
+        publication_lineage_mode_value = None
+        if subject.manuscript_entrypoint is not None:
+            publication_lineage_mode_value = publication_lineage_mode(project_root, subject.manuscript_entrypoint)
+            publication_lineage_root, publication_lineage_review_dir = _publication_lineage_roots_for_subject(
+                project_root,
+                subject,
+            )
 
         derived_reference_status = {
             record.reference_id: record.to_context_dict() for record in reference_status.reference_status
@@ -196,6 +210,9 @@ class PublicationRuntimeSnapshot:
             "publication_subject_source": subject.source,
             "publication_subject_detail": subject.detail,
             "publication_artifact_base": _relative_path(project_root, subject.artifact_base),
+            "publication_lineage_mode": publication_lineage_mode_value,
+            "publication_lineage_root": _relative_path(project_root, publication_lineage_root),
+            "publication_lineage_review_dir": _relative_path(project_root, publication_lineage_review_dir),
             "manuscript_resolution_status": resolution.status,
             "manuscript_resolution_detail": resolution.detail,
             "manuscript_root": _relative_path(project_root, artifacts.manuscript_root),

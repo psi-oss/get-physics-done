@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import PUBLICATION_MANUSCRIPT_DIR_NAME, ProjectLayout
 from gpd.core.utils import normalize_ascii_slug
 from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, PublicationPathSemantics, derive_output_filename
 
@@ -102,6 +102,7 @@ class PublicationSubjectResolution:
     publication_lane_kind: PublicationLaneKind | None = None
     publication_lane_owner: PublicationLaneOwner | None = None
     managed_publication_root: Path | None = None
+    managed_intake_root: Path | None = None
     managed_manuscript_root: Path | None = None
     root_resolutions: tuple[ManuscriptRootResolution, ...] = ()
 
@@ -160,6 +161,7 @@ class PublicationSubjectResolution:
             "publication_lane_kind": self.publication_lane_kind,
             "publication_lane_owner": self.publication_lane_owner,
             "managed_publication_root": _relative_path(self.project_root, self.managed_publication_root),
+            "managed_intake_root": _relative_path(self.project_root, self.managed_intake_root),
             "managed_manuscript_root": _relative_path(self.project_root, self.managed_manuscript_root),
             "path_semantics": None if self.path_semantics is None else self.path_semantics.model_dump(mode="python"),
         }
@@ -187,6 +189,7 @@ class PublicationSubjectResolution:
             "bibliography_audit_path": _relative_path(self.project_root, self.bibliography_audit),
             "reproducibility_manifest_path": _relative_path(self.project_root, self.reproducibility_manifest),
             "managed_publication_root": _relative_path(self.project_root, self.managed_publication_root),
+            "managed_intake_root": _relative_path(self.project_root, self.managed_intake_root),
             "managed_manuscript_root": _relative_path(self.project_root, self.managed_manuscript_root),
         }
 
@@ -294,10 +297,10 @@ def _managed_publication_manuscript_root_for_target(project_root: Path, target: 
         return None
 
     subject_root = publication_dir / relative.parts[0]
-    manuscript_root = subject_root / "manuscript"
+    manuscript_root = subject_root / PUBLICATION_MANUSCRIPT_DIR_NAME
     if len(relative.parts) == 1:
         return manuscript_root if manuscript_root.exists() and manuscript_root.is_dir() else None
-    if relative.parts[1] != "manuscript":
+    if relative.parts[1] != PUBLICATION_MANUSCRIPT_DIR_NAME:
         return None
     return manuscript_root
 
@@ -310,7 +313,7 @@ def _managed_publication_subject_slug_for_root(project_root: Path, manuscript_ro
         relative = resolved_root.relative_to(publication_dir)
     except ValueError:
         return None
-    if len(relative.parts) != 2 or relative.parts[1] != "manuscript":
+    if len(relative.parts) != 2 or relative.parts[1] != PUBLICATION_MANUSCRIPT_DIR_NAME:
         return None
     return relative.parts[0]
 
@@ -323,7 +326,11 @@ def _iter_managed_publication_manuscript_roots(project_root: Path) -> tuple[Path
         subject_dirs = sorted((path for path in publication_dir.iterdir() if path.is_dir()), key=lambda path: path.name)
     except OSError:
         return ()
-    return tuple(candidate for subject_dir in subject_dirs if (candidate := subject_dir / "manuscript").is_dir())
+    return tuple(
+        candidate
+        for subject_dir in subject_dirs
+        if (candidate := subject_dir / PUBLICATION_MANUSCRIPT_DIR_NAME).is_dir()
+    )
 
 
 def _publication_slug_label(project_root: Path, anchor_path: Path) -> str:
@@ -648,19 +655,20 @@ def _managed_publication_paths(
     *,
     publication_subject_slug: str | None,
     publication_lane_kind: PublicationLaneKind | None,
-) -> tuple[Path | None, Path | None]:
+) -> tuple[Path | None, Path | None, Path | None]:
     if publication_subject_slug is None:
-        return None, None
+        return None, None, None
     layout = ProjectLayout(project_root)
     publication_root = layout.publication_subject_dir(publication_subject_slug)
+    intake_root = layout.publication_intake_dir(publication_subject_slug)
     if publication_lane_kind == "external_artifact":
-        return publication_root, None
+        return publication_root, intake_root, None
     if publication_lane_kind in {
         "canonical_project_manuscript",
         "managed_publication_manuscript",
     }:
-        return publication_root, publication_root / "manuscript"
-    return None, None
+        return publication_root, intake_root, layout.publication_manuscript_dir(publication_subject_slug)
+    return None, None, None
 
 
 def _publication_output_paths(
@@ -803,7 +811,7 @@ def _publication_subject_from_resolution(
         publication_lane_owner = (
             "project_managed" if publication_lane_kind != "external_artifact" else "external_artifact"
         )
-    managed_publication_root, managed_manuscript_root = _managed_publication_paths(
+    managed_publication_root, managed_intake_root, managed_manuscript_root = _managed_publication_paths(
         project_root,
         publication_subject_slug=publication_subject_slug,
         publication_lane_kind=publication_lane_kind,
@@ -822,6 +830,7 @@ def _publication_subject_from_resolution(
             publication_lane_kind=publication_lane_kind,
             publication_lane_owner=publication_lane_owner,
             managed_publication_root=managed_publication_root,
+            managed_intake_root=managed_intake_root,
             managed_manuscript_root=managed_manuscript_root,
             root_resolutions=resolution.root_resolutions,
         )
@@ -847,7 +856,7 @@ def _publication_subject_from_resolution(
         root_resolutions=resolution.root_resolutions,
     )
     publication_lane_owner = "project_managed" if publication_lane_kind != "external_artifact" else "external_artifact"
-    managed_publication_root, managed_manuscript_root = _managed_publication_paths(
+    managed_publication_root, managed_intake_root, managed_manuscript_root = _managed_publication_paths(
         project_root,
         publication_subject_slug=publication_subject_slug,
         publication_lane_kind=publication_lane_kind,
@@ -875,6 +884,7 @@ def _publication_subject_from_resolution(
         publication_lane_kind=publication_lane_kind,
         publication_lane_owner=publication_lane_owner,
         managed_publication_root=managed_publication_root,
+        managed_intake_root=managed_intake_root,
         managed_manuscript_root=managed_manuscript_root,
         root_resolutions=resolution.root_resolutions,
     )

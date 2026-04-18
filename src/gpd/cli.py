@@ -110,7 +110,7 @@ from gpd.core.resume_surface import (
     resume_candidate_kind,
     resume_candidate_kind_from_source,
 )
-from gpd.core.root_resolution import resolve_project_root
+from gpd.core.root_resolution import RootResolutionPolicy, resolve_project_root
 from gpd.core.runtime_command_surfaces import (
     format_active_runtime_command,
     resolve_active_runtime_descriptor,
@@ -134,7 +134,7 @@ from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION
 if TYPE_CHECKING:
     from gpd.core.health import UnattendedReadinessResult
     from gpd.mcp.paper.bibliography import CitationSource
-    from gpd.mcp.paper.models import PaperConfig
+    from gpd.mcp.paper.models import PaperConfig, WritePaperAuthoringInput
     from gpd.registry import ReviewContractConditionalRequirement
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
@@ -273,6 +273,36 @@ def _project_scoped_cwd(cwd: Path | None = None) -> Path:
     _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
+
+
+def _workspace_locked_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the effective cwd without walking up to an ancestor project root."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    _migrate_planning_files(workspace_cwd)
+    resolved = resolve_project_root(
+        workspace_cwd,
+        require_layout=True,
+        policy=RootResolutionPolicy.WORKSPACE_LOCKED,
+    )
+    return resolved if resolved is not None else workspace_cwd
+
+
+def _command_preflight_cwd(
+    command: object,
+    *,
+    cwd: Path | None = None,
+    arguments: str | None = None,
+) -> Path:
+    """Resolve the authoritative preflight root for one command."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    if _command_supports_project_reentry(command):
+        return _status_command_cwd(workspace_cwd)
+
+    command_name = str(getattr(command, "name", "") or "")
+    if command_name == "gpd:write-paper":
+        return _workspace_locked_cwd(workspace_cwd)
+
+    return _project_scoped_cwd(workspace_cwd)
 
 
 def _split_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]]:
@@ -477,6 +507,19 @@ class ResolvedManuscriptTarget:
 
 
 @dataclasses.dataclass(frozen=True)
+class WritePaperExternalAuthoringIntakeResolution:
+    """Validated external-authoring intake details for bounded ``gpd:write-paper`` bootstrap."""
+
+    status: str
+    intake_path: Path | None
+    manuscript_root: Path | None
+    intake_root: Path | None
+    subject_slug: str | None
+    manifest: WritePaperAuthoringInput | None = None
+    detail: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
 class ManuscriptIntakePolicy:
     """Static manuscript-subject intake rules for one command."""
 
@@ -561,6 +604,38 @@ _EXTERNAL_ARTIFACT_OPTIONAL_DETAILS = {
     "manuscript_proof_review": (
         "prior staged manuscript proof review is optional in external artifact mode; "
         "theorem-bearing claims will be audited in this review round if detected"
+    ),
+}
+_WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS = ["--intake path/to/write-paper-authoring-input.json"]
+_WRITE_PAPER_EXTERNAL_AUTHORING_DETAIL = (
+    "external authoring outside a project requires `--intake path/to/write-paper-authoring-input.json`"
+)
+_WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_DETAILS = {
+    "project_state": "external authoring intake: project state is optional because the intake manifest is authoritative",
+    "roadmap": "external authoring intake: roadmap is optional because the intake manifest supplies the draft scope",
+    "conventions": "external authoring intake: project conventions are optional before the manuscript exists",
+    "research_artifacts": (
+        "external authoring intake: milestone digests and phase summaries are optional because claims and evidence "
+        "come from the intake manifest"
+    ),
+    "verification_reports": (
+        "external authoring intake: project verification reports are optional because claim-to-evidence bindings come "
+        "from the intake manifest"
+    ),
+    "artifact_manifest": (
+        "no ARTIFACT-MANIFEST.json found yet; the external authoring lane emits it after manuscript scaffolding"
+    ),
+    "bibliography_audit": (
+        "no BIBLIOGRAPHY-AUDIT.json found yet; the external authoring lane emits it after bibliography scaffolding"
+    ),
+    "bibliography_audit_clean": "bibliography audit cleanliness is optional before the first external-authoring draft",
+    "reproducibility_manifest": (
+        "no reproducibility manifest found yet; the external authoring lane emits it after manuscript scaffolding"
+    ),
+    "reproducibility_ready": "reproducibility readiness is optional before the first external-authoring draft",
+    "manuscript_proof_review": (
+        "prior staged manuscript proof review is optional before the first external-authoring draft; "
+        "proof review begins after the manuscript is authored"
     ),
 }
 
@@ -6805,6 +6880,135 @@ def _flag_values(arguments: str | None, *flags: str) -> list[str]:
     return values
 
 
+def _write_paper_external_authoring_intake_argument(arguments: str | None) -> str | None:
+    """Return the explicit ``--intake`` manifest path supplied to ``gpd:write-paper``."""
+
+    flagged = _flag_values(arguments, "--intake")
+    return flagged[-1] if flagged else None
+
+
+def _write_paper_external_authoring_subject_slug(manifest: WritePaperAuthoringInput) -> str:
+    """Return the managed publication subject slug for one external-authoring intake."""
+
+    explicit_slug = str(getattr(manifest, "subject_slug", "") or "").strip()
+    if explicit_slug:
+        return explicit_slug
+    derived_slug = normalize_ascii_slug(str(getattr(manifest, "title", "") or "")) or "paper"
+    return derived_slug[:48].rstrip("-") or "paper"
+
+
+def _resolve_write_paper_external_authoring_intake(
+    project_root: Path,
+    arguments: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> WritePaperExternalAuthoringIntakeResolution | None:
+    """Validate the bounded external-authoring intake manifest for ``gpd:write-paper``."""
+
+    from gpd.mcp.paper.models import WritePaperAuthoringInput
+
+    intake_argument = _write_paper_external_authoring_intake_argument(arguments)
+    if intake_argument is None:
+        return None
+
+    workspace_root = (workspace_cwd or project_root).resolve(strict=False)
+    intake_path = (_resolve_subject_path(intake_argument, base=workspace_root) or (workspace_root / intake_argument)).resolve(
+        strict=False
+    )
+    if intake_path.suffix.lower() != ".json":
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper `--intake` must point to a JSON file: {_format_display_path(intake_path)}",
+        )
+    if not intake_path.exists():
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="missing",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"missing write-paper intake manifest {_format_display_path(intake_path)}",
+        )
+    if intake_path.is_dir():
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper `--intake` must point to a JSON file, not a directory: {_format_display_path(intake_path)}",
+        )
+
+    try:
+        payload = _load_json_document(str(intake_path))
+    except GPDError as exc:
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"could not load write-paper intake manifest: {exc}",
+        )
+    if not isinstance(payload, dict):
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper intake manifest must be a JSON object: {_format_display_path(intake_path)}",
+        )
+
+    try:
+        manifest = WritePaperAuthoringInput.model_validate(payload)
+    except PydanticValidationError as exc:
+        details = "; ".join(
+            _format_pydantic_schema_error(error, root_label="write_paper_authoring_input")
+            for error in exc.errors()[:3]
+        )
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper intake manifest is invalid: {details}",
+        )
+
+    subject_slug = _write_paper_external_authoring_subject_slug(manifest)
+    publication_root = (
+        project_root.resolve(strict=False)
+        / PLANNING_DIR_NAME
+        / PUBLICATION_DIR_NAME
+        / subject_slug
+    )
+    manuscript_root = publication_root / PUBLICATION_MANUSCRIPT_DIR_NAME
+    intake_root = publication_root / "intake"
+    return WritePaperExternalAuthoringIntakeResolution(
+        status="resolved",
+        intake_path=intake_path,
+        manuscript_root=manuscript_root,
+        intake_root=intake_root,
+        subject_slug=subject_slug,
+        manifest=manifest,
+        detail=(
+            f"validated external authoring intake {_format_display_path(intake_path)}; "
+            f"managed manuscript bootstrap will use {_format_display_path(manuscript_root)}"
+        ),
+    )
+
+
+def _has_write_paper_external_authoring_intake(arguments: str | None) -> bool:
+    """Return whether ``gpd:write-paper`` received an explicit ``--intake`` flag."""
+
+    return _write_paper_external_authoring_intake_argument(arguments) is not None
+
+
 def _has_flag_value(tokens: list[str], flag: str) -> bool:
     """Return True when ``flag`` is present with a non-empty value."""
     for index, token in enumerate(tokens):
@@ -6981,14 +7185,20 @@ def _has_review_knowledge_explicit_inputs(arguments: str | None) -> bool:
 
 
 _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None], bool]]] = {
-    "gpd:compare-experiment": (["prediction, dataset path, or phase identifier"], _has_simple_positional_inputs),
-    "gpd:compare-results": (["phase, artifact, or comparison target"], _has_simple_positional_inputs),
+    "gpd:compare-experiment": (
+        ["prediction, dataset path, phase identifier, or comparison target"],
+        _has_simple_positional_inputs,
+    ),
+    "gpd:compare-results": (
+        ["comparison target, phase, artifact path, or source-a vs source-b"],
+        _has_simple_positional_inputs,
+    ),
     "gpd:derive-equation": (["equation or topic to derive"], _has_simple_positional_inputs),
     "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
     "gpd:explain": (["concept, result, method, notation, or paper"], _has_simple_positional_inputs),
     "gpd:digest-knowledge": (
-        ["knowledge file path, source file path, arXiv ID, or topic"],
+        ["knowledge document path", "source path", "arxiv id", "topic"],
         _has_digest_knowledge_explicit_inputs,
     ),
     "gpd:review-knowledge": (
@@ -7003,6 +7213,7 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
         _has_parameter_sweep_explicit_inputs,
     ),
     "gpd:sensitivity-analysis": (["--target quantity", "--params p1,p2,..."], _has_sensitivity_explicit_inputs),
+    "gpd:write-paper": (_WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS, _has_write_paper_external_authoring_intake),
 }
 
 
@@ -7157,6 +7368,7 @@ def _command_effective_project_reentry_mode(command: object) -> str:
 
 _PUBLICATION_INPUT_KIND_LABELS = {
     "artifact_path": ["external artifact path"],
+    "authoring_intake_manifest": _WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS,
     "manuscript_path": ["manuscript path"],
     "manuscript_root": ["paper directory or managed manuscript root"],
     "paste": ["`paste`"],
@@ -7934,6 +8146,79 @@ def _build_resolved_command_subject(
         project_root_source=resolved_project_root_source,
         project_root_auto_selected=project_root_auto_selected,
     )
+    if str(getattr(command, "name", "") or "") == "gpd:write-paper" and resolved_project_root is None:
+        intake_resolution = _resolve_write_paper_external_authoring_intake(
+            context_root,
+            subject,
+            workspace_cwd=workspace_root,
+        )
+        if intake_resolution is None:
+            return ResolvedCommandSubject(
+                command=str(getattr(command, "name", "") or ""),
+                workspace_root=workspace_root,
+                resolved_project_root=resolved_project_root,
+                context_root=context_root,
+                target_path=None,
+                target_root=None,
+                subject_kind="publication",
+                ownership_mode=base_ownership_mode,
+                status="missing",
+                exists=False,
+                explicit_input=False,
+                project_root_source=resolved_project_root_source,
+                project_root_auto_selected=project_root_auto_selected,
+                reentry_mode=reentry_mode,
+                ancestor_walked_up=ancestor_walked_up,
+                detail=_WRITE_PAPER_EXTERNAL_AUTHORING_DETAIL,
+            )
+
+        intake_target_root = (
+            intake_resolution.manuscript_root
+            or intake_resolution.intake_root
+            or (
+                intake_resolution.intake_path.parent
+                if intake_resolution.intake_path is not None
+                else None
+            )
+        )
+        if intake_resolution.status == "resolved":
+            return ResolvedCommandSubject(
+                command=str(getattr(command, "name", "") or ""),
+                workspace_root=workspace_root,
+                resolved_project_root=resolved_project_root,
+                context_root=context_root,
+                target_path=intake_resolution.intake_path,
+                target_root=intake_resolution.manuscript_root,
+                subject_kind="publication",
+                ownership_mode="external_authoring_intake",
+                status="bootstrap",
+                exists=intake_resolution.intake_path is not None and intake_resolution.intake_path.exists(),
+                explicit_input=True,
+                project_root_source=resolved_project_root_source,
+                project_root_auto_selected=project_root_auto_selected,
+                reentry_mode=reentry_mode,
+                ancestor_walked_up=ancestor_walked_up,
+                detail=intake_resolution.detail,
+            )
+
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=intake_resolution.intake_path,
+            target_root=intake_target_root,
+            subject_kind="publication",
+            ownership_mode="external_authoring_intake",
+            status=intake_resolution.status,
+            exists=intake_resolution.intake_path is not None and intake_resolution.intake_path.exists(),
+            explicit_input=True,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=intake_resolution.detail,
+        )
     manuscript_subject = _command_explicit_manuscript_argument(command, subject)
 
     if (
@@ -8125,6 +8410,14 @@ def _resolved_subject_scope_selectors(resolved_subject: ResolvedCommandSubject |
                 "external_artifact",
             }
         )
+    if resolved_subject.ownership_mode == "external_authoring_intake":
+        selectors.update(
+            {
+                "external_authoring_intake",
+                "explicit_intake_manifest",
+                "authoring_intake",
+            }
+        )
     if resolved_subject.status == "interactive":
         selectors.update({"interactive", "interactive_standalone"})
     return frozenset(selectors)
@@ -8187,6 +8480,11 @@ def _publication_subject_preflight_policy(
         relaxed_checks.update(list(getattr(variant, "relaxed_preflight_checks", []) or []))
         optional_checks.update(list(getattr(variant, "optional_preflight_checks", []) or []))
 
+    if active_scopes.intersection({"external_authoring_intake", "explicit_intake_manifest", "authoring_intake"}):
+        for check_name, detail in _WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_DETAILS.items():
+            if check_name in relaxed_checks or check_name in optional_checks:
+                detail_overrides.setdefault(check_name, detail)
+
     if active_scopes.intersection({"explicit_artifact", "external_artifact"}):
         for check_name, detail in _EXTERNAL_ARTIFACT_OPTIONAL_DETAILS.items():
             if check_name in relaxed_checks or check_name in optional_checks:
@@ -8244,7 +8542,7 @@ def _build_command_context_preflight(
             project_reentry_capable=False,
         )
         public_command_name = canonical_command_name
-    context_cwd = _status_command_cwd(cwd) if _command_supports_project_reentry(command) else _project_scoped_cwd(cwd)
+    context_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=arguments)
     layout = ProjectLayout(context_cwd)
     project_exists = layout.project_md.exists()
     dispatch_note = _runtime_surface_dispatch_note(cwd=cwd)
@@ -8547,7 +8845,10 @@ def _build_command_context_preflight(
 
     explicit_inputs = _command_explicit_input_labels_from_policy(command)
     predicate: Callable[[str | None], bool] = _has_simple_positional_inputs
-    if not explicit_inputs:
+    project_aware_override = _PROJECT_AWARE_EXPLICIT_INPUTS.get(str(getattr(command, "name", "") or ""))
+    if project_aware_override is not None:
+        explicit_inputs, predicate = project_aware_override
+    elif not explicit_inputs:
         explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
             command.name,
             (
@@ -8569,6 +8870,15 @@ def _build_command_context_preflight(
         interactive_intake_allowed = resolved_subject.status == "interactive"
     else:
         explicit_inputs_ok = predicate(arguments)
+        if (
+            str(getattr(command, "name", "") or "") == "gpd:write-paper"
+            and _has_write_paper_external_authoring_intake(arguments)
+        ):
+            explicit_inputs_ok = bool(
+                resolved_subject is not None
+                and resolved_subject.ownership_mode == "external_authoring_intake"
+                and resolved_subject.status in {"resolved", "bootstrap"}
+            )
         interactive_intake_allowed = (
             _command_allows_interactive_subject_intake(command)
             and not explicit_inputs_ok
@@ -8593,8 +8903,21 @@ def _build_command_context_preflight(
         "explicit_inputs",
         explicit_inputs_ok or interactive_intake_allowed,
         (
-            "explicit standalone inputs detected"
+            "validated external authoring intake manifest"
+            if (
+                explicit_inputs_ok
+                and str(getattr(command, "name", "") or "") == "gpd:write-paper"
+                and _has_write_paper_external_authoring_intake(arguments)
+            )
+            else "explicit standalone inputs detected"
             if explicit_inputs_ok
+            else resolved_subject.detail
+            if (
+                str(getattr(command, "name", "") or "") == "gpd:write-paper"
+                and _has_write_paper_external_authoring_intake(arguments)
+                and resolved_subject is not None
+                and resolved_subject.ownership_mode == "external_authoring_intake"
+            )
             else (
                 _command_interactive_subject_detail(command, explicit_inputs)
                 if interactive_intake_allowed
@@ -8650,9 +8973,9 @@ def _build_review_preflight(
     from gpd.core.state import state_validate
 
     cwd = _get_cwd()
-    project_cwd = _project_scoped_cwd(cwd)
-    layout = ProjectLayout(project_cwd)
     command, public_command_name = _resolve_registry_command(command_name)
+    project_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=subject)
+    layout = ProjectLayout(project_cwd)
     contract = command.review_contract
     if contract is None:
         raise GPDError(f"Command {public_command_name} does not expose a review contract")

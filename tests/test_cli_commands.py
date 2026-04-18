@@ -332,6 +332,80 @@ def _manuscript_entrypoint_relpath(
     return f"{root_name}/{CANONICAL_MANUSCRIPT_STEM}{suffix}"
 
 
+def _write_write_paper_authoring_input(
+    workspace: Path,
+    *,
+    file_name: str = "write-paper-authoring-input.json",
+    subject_slug: str = "external-authoring-test",
+) -> Path:
+    intake_path = workspace / file_name
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "External Authoring Bounds",
+                "authors": [
+                    {
+                        "name": "A. Researcher",
+                        "affiliation": "Example University",
+                    }
+                ],
+                "target_journal": "prl",
+                "subject_slug": subject_slug,
+                "central_claim": "The controlled benchmark supports a stable external-authoring draft.",
+                "claims": [
+                    {
+                        "id": "CLM-main",
+                        "statement": "The benchmarked bound is stable across the resolved regime.",
+                        "evidence": {
+                            "source_note_ids": ["NOTE-main"],
+                            "result_ids": ["RES-main"],
+                            "figure_ids": ["FIG-main"],
+                            "citation_source_ids": ["cite-main"],
+                        },
+                    }
+                ],
+                "source_notes": [
+                    {
+                        "id": "NOTE-main",
+                        "path": "notes/main-result.md",
+                        "summary": "Summarizes the decisive benchmark and fit stability.",
+                    }
+                ],
+                "results": [
+                    {
+                        "id": "RES-main",
+                        "summary": "Main fitted bound with uncertainty band.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "figures": [
+                    {
+                        "id": "FIG-main",
+                        "path": "figures/main-bound.pdf",
+                        "caption": "Benchmark comparison supporting the main bound.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "citation_sources": [
+                    {
+                        "source_type": "paper",
+                        "reference_id": "cite-main",
+                        "title": "Benchmark Recovery in a Controlled Regime",
+                        "authors": ["A. Author", "B. Author"],
+                        "year": "2024",
+                        "arxiv_id": "2401.12345",
+                    }
+                ],
+                "notation_note": "Use c = ħ = 1 throughout the draft.",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return intake_path
+
+
 def _write_review_stage_artifacts(
     project_root: Path,
     artifact_names: tuple[str, ...] | None = None,
@@ -1714,7 +1788,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:write-paper"
-        assert payload["context_mode"] == "project-required"
+        assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert "${PAPER_DIR}/ARTIFACT-MANIFEST.json" in payload["review_contract"]["required_outputs"]
         assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in payload["review_contract"]["required_outputs"]
@@ -1723,7 +1797,11 @@ class TestReviewValidationCommands:
         assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
-        assert payload["review_contract"]["required_evidence"] == []
+        assert payload["review_contract"]["required_evidence"] == [
+            "project-backed lane: research artifacts and verification reports",
+            "external-authoring lane: explicit `--intake` manifest with claim-to-evidence bindings",
+            "bibliography / citation-source input",
+        ]
         assert payload["review_contract"]["preflight_checks"] == [
             "command_context",
             "project_state",
@@ -1748,6 +1826,38 @@ class TestReviewValidationCommands:
                 "blocking_conditions": [],
                 "blocking_preflight_checks": [],
                 "stage_artifacts": [],
+            }
+        ]
+        assert payload["review_contract"]["scope_variants"] == [
+            {
+                "scope": "explicit_intake_manifest",
+                "activation": "validated explicit external authoring intake manifest was supplied outside a project",
+                "relaxed_preflight_checks": [
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "research_artifacts",
+                    "verification_reports",
+                    "manuscript_proof_review",
+                ],
+                "optional_preflight_checks": [
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "bibliography_audit_clean",
+                    "reproducibility_manifest",
+                    "reproducibility_ready",
+                ],
+                "required_outputs_override": [
+                    "${PAPER_DIR}/{topic_specific_stem}.tex",
+                    "${PAPER_DIR}/PAPER-CONFIG.json",
+                    "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                    "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                    "${PAPER_DIR}/reproducibility-manifest.json",
+                ],
+                "required_evidence_override": [
+                    "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                ],
+                "blocking_conditions_override": ["invalid or incomplete external authoring intake manifest"],
             }
         ]
 
@@ -3438,7 +3548,7 @@ class TestReviewValidationCommands:
         assert checks["knowledge_target"]["passed"] is False
         assert "GPD/knowledge/" in checks["knowledge_target"]["detail"]
 
-    def test_review_preflight_write_paper_strict(self) -> None:
+    def test_review_preflight_write_paper_strict(self, gpd_project: Path) -> None:
         result = runner.invoke(
             app,
             ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "write-paper", "--strict"],
@@ -3460,6 +3570,30 @@ class TestReviewValidationCommands:
         } <= check_names
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["reproducibility_ready"]["passed"] is True
+
+    def test_review_preflight_write_paper_fails_closed_from_nested_workspace_without_intake(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        workspace = gpd_project / "nested-write-paper"
+        workspace.mkdir()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "write-paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["passed"] is False
+        assert checks["command_context"]["passed"] is False
+        assert checks["project_state"]["passed"] is False
+        assert checks["manuscript"]["passed"] is False
+        assert payload["resolved_subject"]["status"] == "missing"
+        assert payload["resolved_subject"]["ancestor_walked_up"] is False
 
     def test_review_preflight_write_paper_bootstraps_manuscript_proof_review_manifest(
         self,
@@ -5292,6 +5426,123 @@ class TestReviewValidationCommands:
             "or use the current GPD project when available"
         )
 
+    def test_command_context_write_paper_fails_closed_outside_project_without_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper"
+        workspace.mkdir()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "write-paper"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == ["--intake path/to/write-paper-authoring-input.json"]
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["detail"] == (
+            "missing explicit standalone inputs (--intake path/to/write-paper-authoring-input.json)"
+        )
+        assert payload["resolved_subject"]["status"] == "missing"
+        assert payload["resolved_subject"]["detail"] == (
+            "external authoring outside a project requires `--intake path/to/write-paper-authoring-input.json`"
+        )
+
+    def test_command_context_write_paper_accepts_valid_external_authoring_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper-intake"
+        workspace.mkdir()
+        intake_path = _write_write_paper_authoring_input(workspace)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "command-context",
+                "write-paper",
+                f"--intake {intake_path.name}",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert payload["explicit_inputs"] == ["--intake path/to/write-paper-authoring-input.json"]
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == "validated external authoring intake manifest"
+        assert resolved_subject["status"] == "bootstrap"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert resolved_subject["explicit_input"] is True
+        assert resolved_subject["target_path"].endswith(intake_path.name)
+        assert resolved_subject["target_root"].endswith("GPD/publication/external-authoring-test/manuscript")
+        assert "managed manuscript bootstrap will use" in resolved_subject["detail"]
+
+    def test_command_context_write_paper_rejects_invalid_external_authoring_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper-invalid-intake"
+        workspace.mkdir()
+        intake_path = workspace / "write-paper-authoring-input.json"
+        intake_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "title": "Broken intake",
+                    "authors": [{"name": "A. Researcher"}],
+                    "target_journal": "prl",
+                    "claims": [],
+                    "source_notes": [],
+                    "citation_sources": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "command-context",
+                "write-paper",
+                f"--intake {intake_path.name}",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert "write-paper intake manifest is invalid" in checks["explicit_inputs"]["detail"]
+        assert resolved_subject["status"] == "invalid"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert "write_paper_authoring_input.central_claim is required" in resolved_subject["detail"]
+
     def test_command_context_respond_to_referees_flagged_intake_uses_canonical_input_labels(
         self,
         tmp_path: Path,
@@ -5343,34 +5594,86 @@ class TestReviewValidationCommands:
         assert resolved_subject["explicit_input"] is True
         assert resolved_subject["target_path"].endswith("notes.txt")
         assert checks["roadmap"]["blocking"] is False
+
+    def test_review_preflight_write_paper_accepts_external_authoring_intake_outside_project(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper-preflight"
+        workspace.mkdir()
+        intake_path = _write_write_paper_authoring_input(workspace)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "write-paper",
+                f"--intake {intake_path.name}",
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["passed"] is True
+        assert payload["required_outputs"] == [
+            "${PAPER_DIR}/{topic_specific_stem}.tex",
+            "${PAPER_DIR}/PAPER-CONFIG.json",
+            "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+            "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+            "${PAPER_DIR}/reproducibility-manifest.json",
+        ]
+        assert payload["required_evidence"] == [
+            "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+        ]
+        assert payload["blocking_conditions"] == ["invalid or incomplete external authoring intake manifest"]
+        assert checks["command_context"]["passed"] is True
+        assert checks["project_state"]["passed"] is True
+        assert checks["project_state"]["blocking"] is False
+        assert "intake manifest is authoritative" in checks["project_state"]["detail"]
+        assert checks["roadmap"]["passed"] is True
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["passed"] is True
+        assert checks["conventions"]["blocking"] is False
+        assert checks["research_artifacts"]["passed"] is True
+        assert checks["research_artifacts"]["blocking"] is False
+        assert checks["verification_reports"]["passed"] is True
+        assert checks["verification_reports"]["blocking"] is False
+        assert checks["manuscript"]["passed"] is True
+        assert "validated external authoring intake" in checks["manuscript"]["detail"]
+        assert "artifact_manifest" not in checks
+        assert "bibliography_audit" not in checks
+        assert "reproducibility_manifest" not in checks
+        assert "manuscript_proof_review" not in checks
+        assert resolved_subject["status"] == "bootstrap"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
         assert checks["conventions"]["blocking"] is False
         assert checks["research_artifacts"]["blocking"] is False
         assert checks["verification_reports"]["blocking"] is False
-        assert checks["artifact_manifest"]["blocking"] is False
-        assert checks["bibliography_audit"]["blocking"] is False
-        assert checks["reproducibility_manifest"]["blocking"] is False
-        assert checks["manuscript_proof_review"]["blocking"] is False
         assert checks["project_state"]["detail"] == (
-            "external artifact review: project state is optional and is not required to start review"
+            "external authoring intake: project state is optional because the intake manifest is authoritative"
         )
-        assert checks["roadmap"]["detail"] == "external artifact review: roadmap is optional"
-        assert checks["conventions"]["detail"] == "external artifact review: project conventions are optional"
+        assert checks["roadmap"]["detail"] == (
+            "external authoring intake: roadmap is optional because the intake manifest supplies the draft scope"
+        )
+        assert checks["conventions"]["detail"] == (
+            "external authoring intake: project conventions are optional before the manuscript exists"
+        )
         assert checks["research_artifacts"]["detail"] == (
-            "external artifact review: phase summaries or milestone digests are optional"
+            "external authoring intake: milestone digests and phase summaries are optional because claims and evidence "
+            "come from the intake manifest"
         )
-        assert checks["verification_reports"]["detail"] == "external artifact review: verification reports are optional"
-        assert checks["artifact_manifest"]["detail"] == (
-            "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
-        )
-        assert checks["bibliography_audit"]["detail"] == (
-            "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
-        )
-        assert checks["reproducibility_manifest"]["detail"] == (
-            "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
-        )
-        assert checks["manuscript_proof_review"]["detail"] == (
-            "prior staged manuscript proof review is optional in external artifact mode; "
-            "theorem-bearing claims will be audited in this review round if detected"
+        assert checks["verification_reports"]["detail"] == (
+            "external authoring intake: project verification reports are optional because claim-to-evidence bindings "
+            "come from the intake manifest"
         )
 
     @pytest.mark.parametrize(

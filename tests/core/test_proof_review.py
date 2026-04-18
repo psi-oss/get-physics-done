@@ -219,7 +219,7 @@ def _write_external_theorem_bearing_review_anchor(project_root: Path) -> tuple[P
     return manuscript_path, proof_redteam_path
 
 
-def _write_managed_manuscript_review_anchor(project_root: Path) -> Path:
+def _write_managed_manuscript_review_anchor(project_root: Path, *, project_backed: bool) -> Path:
     manuscript_path = project_root / "GPD" / "publication" / "ising-bootstrap" / "manuscript" / "main.tex"
     manuscript_path.parent.mkdir(parents=True, exist_ok=True)
     manuscript_path.write_text(
@@ -230,7 +230,11 @@ def _write_managed_manuscript_review_anchor(project_root: Path) -> Path:
     manuscript_rel = "GPD/publication/ising-bootstrap/manuscript/main.tex"
     manuscript_sha256 = compute_sha256(manuscript_path)
 
-    review_dir = project_root / "GPD" / "review"
+    if project_backed:
+        (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        review_dir = project_root / "GPD" / "review"
+    else:
+        review_dir = project_root / "GPD" / "publication" / "ising-bootstrap" / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     (review_dir / "CLAIMS.json").write_text(
         json.dumps(
@@ -711,7 +715,7 @@ def test_external_theorem_bearing_manuscript_proof_review_anchors_to_subject_own
 
 
 def test_managed_publication_manuscript_proof_review_reuses_existing_subject_slug(tmp_path: Path) -> None:
-    manuscript_path = _write_managed_manuscript_review_anchor(tmp_path)
+    manuscript_path = _write_managed_manuscript_review_anchor(tmp_path, project_backed=True)
 
     manifest_path = manuscript_proof_review_manifest_path(manuscript_path, project_root=tmp_path)
     fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
@@ -725,6 +729,18 @@ def test_managed_publication_manuscript_proof_review_reuses_existing_subject_slu
     assert fresh.manifest_path == manifest_path
     assert manifest_path.exists()
     assert not (manuscript_path.parent / "PROOF-REVIEW-MANIFEST.json").exists()
+
+
+def test_standalone_managed_publication_manuscript_proof_review_uses_subject_owned_review_roots(
+    tmp_path: Path,
+) -> None:
+    manuscript_path = _write_managed_manuscript_review_anchor(tmp_path, project_backed=False)
+
+    status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
+
+    assert status.state == "fresh"
+    assert status.can_rely_on_prior_review is True
+    assert status.anchor_artifact == tmp_path / "GPD" / "publication" / "ising-bootstrap" / "review" / "STAGE-math.json"
 
 
 def test_manuscript_proof_review_uses_latest_matching_round_specific_proof_redteam(tmp_path: Path) -> None:

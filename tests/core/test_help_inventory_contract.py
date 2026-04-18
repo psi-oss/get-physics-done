@@ -82,10 +82,12 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
 
     assert_publication_lane_boundary_contract(readme)
     assert_publication_lane_boundary_contract(help_workflow)
-    assert "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`" in readme
-    assert "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`" in help_workflow
-    assert "subject-owned publication root under `GPD/publication/{subject_slug}`" in readme
-    assert "subject-owned publication root under `GPD/publication/{subject_slug}`" in help_workflow
+    assert "bounded external-authoring lane driven by an explicit intake manifest only" in readme
+    assert "bounded external-authoring lane driven by an explicit intake manifest only" in help_workflow
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in readme
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in help_workflow
+    assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in readme
+    assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in help_workflow
     assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in readme
     assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in help_workflow
     assert "The later publication commands stay stricter:" in readme
@@ -93,8 +95,9 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert "**`gpd:arxiv-submission [GPD-owned manuscript root]`**" in help_workflow
     assert "Usage: `gpd:respond-to-referees paste`" in help_workflow
     assert "Usage: `gpd:arxiv-submission paper/`" in help_workflow
-    assert "`gpd:arxiv-submission` only packages a GPD-owned manuscript root" in readme
-    assert "`gpd:arxiv-submission` only packages a GPD-owned manuscript root" in help_workflow
+    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
+    assert "`gpd:arxiv-submission` still only packages a GPD-owned manuscript root" in readme
+    assert "`gpd:arxiv-submission` still only packages a GPD-owned manuscript root" in help_workflow
 
 
 def test_help_command_uses_one_shared_extract_warning() -> None:
