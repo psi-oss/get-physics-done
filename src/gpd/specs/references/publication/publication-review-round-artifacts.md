@@ -21,6 +21,8 @@ Canonical round-suffix and sibling-artifact contract for publication review roun
 
 ## Required Artifact Family
 
+The explicit `GPD/...` paths below are the current project-backed canonical layout.
+
 - Stage-review artifacts: `GPD/review/CLAIMS{round_suffix}.json`, `GPD/review/STAGE-reader{round_suffix}.json`, `GPD/review/STAGE-literature{round_suffix}.json`, `GPD/review/STAGE-math{round_suffix}.json`, `GPD/review/STAGE-physics{round_suffix}.json`, and `GPD/review/STAGE-interestingness{round_suffix}.json`.
 - Final adjudication artifacts: `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, `GPD/REFEREE-REPORT{round_suffix}.md`, and `GPD/REFEREE-REPORT{round_suffix}.tex`.
 - Response artifacts: `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.
@@ -28,7 +30,9 @@ Canonical round-suffix and sibling-artifact contract for publication review roun
 
 ## Ownership Boundary
 
-- GPD-authored auxiliary outputs for a review round live under `GPD/` or `GPD/review/` exactly as listed above.
+- In project-backed mode, GPD-authored auxiliary outputs for a review round live under `GPD/` or `GPD/review/` exactly as listed above.
+- For an explicit external publication subject, the same round-artifact family may instead bind under the subject-owned publication root `GPD/publication/{subject_slug}` while preserving the same filenames, shared `round_suffix`, and sibling relationships.
+- That subject-owned continuation path does not by itself promise a full relocation of manuscript drafts, manuscript-root manifests, or every publication artifact out of the global project tree.
 - These artifacts are siblings of, not replacements for, manuscript-local artifacts such as `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, `reproducibility-manifest.json`, or the compiled manuscript under the resolved manuscript root.
 - Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates.
 

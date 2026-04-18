@@ -19,6 +19,7 @@ from gpd.core.manuscript_artifacts import (
     resolve_publication_bootstrap_resolution,
     resolve_publication_subject_artifact,
 )
+from gpd.core.publication_review_paths import publication_root_for_subject, review_dir_for_subject
 
 
 def _write(path: Path, content: str = "") -> None:
@@ -189,11 +190,18 @@ def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_sem
     assert subject.publication_lane_kind == "canonical_project_manuscript"
     assert subject.publication_lane_owner == "project_managed"
     assert subject.publication_subject_slug is not None
+    assert subject.publication_root == tmp_path / "GPD"
+    assert subject.review_dir == tmp_path / "GPD" / "review"
     assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / subject.publication_subject_slug
     assert subject.managed_manuscript_root == subject.managed_publication_root / "manuscript"
+    assert publication_root_for_subject(subject) == subject.publication_root
+    assert review_dir_for_subject(subject) == subject.review_dir
     assert subject.path_semantics.artifact_base_path == "paper"
     assert subject.path_semantics.manuscript_entrypoint_path == "paper/sections/curvature_flow_bounds.tex"
     assert subject.path_semantics.subject_relative_entrypoint_path == "sections/curvature_flow_bounds.tex"
+    subject_context = subject.to_context_dict()
+    assert subject_context["publication_root"] == "GPD"
+    assert subject_context["review_dir"] == "GPD/review"
     bootstrap_context = subject.to_bootstrap_context_dict()
     assert bootstrap_context["publication_subject_status"] == "resolved"
     assert bootstrap_context["publication_subject_source"] == "current_project"
@@ -201,6 +209,8 @@ def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_sem
     assert bootstrap_context["publication_lane_kind"] == "canonical_project_manuscript"
     assert bootstrap_context["publication_lane_owner"] == "project_managed"
     assert bootstrap_context["publication_artifact_base"] == "paper"
+    assert bootstrap_context["publication_root"] == "GPD"
+    assert bootstrap_context["review_dir"] == "GPD/review"
     assert bootstrap_context["manuscript_entrypoint"] == "paper/sections/curvature_flow_bounds.tex"
     assert bootstrap_context["managed_publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
     assert bootstrap_context["managed_manuscript_root"] == (
@@ -253,6 +263,8 @@ def test_resolve_current_publication_subject_supports_managed_project_manuscript
     assert subject.publication_subject_slug == "curvature-flow-bounds"
     assert subject.publication_lane_kind == "managed_publication_manuscript"
     assert subject.publication_lane_owner == "project_managed"
+    assert subject.publication_root == tmp_path / "GPD"
+    assert subject.review_dir == tmp_path / "GPD" / "review"
     assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / "curvature-flow-bounds"
     assert subject.managed_manuscript_root == manuscript_root
     assert resolve_current_manuscript_root(tmp_path) == manuscript_root
@@ -493,6 +505,65 @@ def test_resolve_explicit_publication_subject_accepts_explicit_entrypoint_and_us
     assert subject.manuscript_entrypoint == tmp_path / "manuscript" / "curvature_flow_bounds.tex"
     assert subject.artifact_base == tmp_path / "manuscript"
     assert subject.bibliography_audit == tmp_path / "manuscript" / "BIBLIOGRAPHY-AUDIT.json"
+    assert subject.publication_root == tmp_path / "GPD"
+    assert subject.review_dir == tmp_path / "GPD" / "review"
+    assert publication_root_for_subject(subject) == tmp_path / "GPD"
+    assert review_dir_for_subject(subject) == tmp_path / "GPD" / "review"
+
+
+def test_resolve_explicit_external_publication_subject_exposes_subject_owned_publication_root_and_review_dir(
+    tmp_path: Path,
+) -> None:
+    external_root = tmp_path / "external-draft"
+    _write(
+        external_root / "main.tex",
+        "\\documentclass{article}\\begin{document}External\\end{document}\n",
+    )
+    _write(
+        external_root / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "External Draft",
+                "journal": "jhep",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-manuscript",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, external_root / "main.tex")
+
+    assert subject.status == "resolved"
+    assert subject.source == "explicit_target"
+    assert subject.manuscript_root == external_root
+    assert subject.manuscript_entrypoint == external_root / "main.tex"
+    assert subject.artifact_base == external_root
+    assert subject.publication_lane_kind == "external_artifact"
+    assert subject.publication_lane_owner == "external_artifact"
+    assert subject.publication_subject_slug is not None
+    assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / subject.publication_subject_slug
+    assert subject.managed_manuscript_root is None
+    assert subject.publication_root == subject.managed_publication_root
+    assert subject.review_dir == subject.publication_root / "review"
+    assert publication_root_for_subject(subject) == subject.publication_root
+    assert review_dir_for_subject(subject) == subject.review_dir
+    subject_context = subject.to_context_dict()
+    assert subject_context["publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
+    assert subject_context["review_dir"] == f"GPD/publication/{subject.publication_subject_slug}/review"
+    assert subject_context["managed_publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
+    assert subject_context["managed_manuscript_root"] is None
 
 
 def test_resolve_explicit_publication_subject_rejects_noncanonical_entrypoint_under_supported_root(

@@ -29,7 +29,10 @@ def test_arxiv_submission_command_stays_thin_and_only_eagerly_loads_the_workflow
     assert metrics.raw_include_count == 1
     assert "@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md" in command_text
     assert "Keep the wrapper thin and let the workflow own validation, packaging, and submission-gate details." in command_text
-    assert "Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the manuscript root)." in command_text
+    assert (
+        "Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the active GPD-owned manuscript root)."
+        in command_text
+    )
     assert "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" not in command_text

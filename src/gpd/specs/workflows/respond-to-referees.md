@@ -50,6 +50,7 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 - Preserve the legacy shorthand `gpd:respond-to-referees path/to/report.md` or `gpd:respond-to-referees paste` only when the manuscript subject still resolves from the current GPD project.
 - Treat a bare positional path as a referee-report source only. Do not reinterpret it as the manuscript subject for this workflow.
 - Keep all GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is external; manuscript edits still occur in place on the resolved manuscript subject.
+- Project-backed response rounds keep the current global `GPD/` / `GPD/review/` ownership. If centralized preflight resolves an explicit external publication subject with a managed subject-owned publication root at `GPD/publication/{subject_slug}`, keep the same round-artifact family inside that managed root instead of writing sidecars beside `${PAPER_DIR}`.
 - Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out. For the explicit `--manuscript ... --report ...` lane, keep the normalized manuscript/report payload in that single variable and do not explode it back into separate validator argv tokens.
 
 Run centralized context preflight before continuing:
@@ -241,6 +242,7 @@ Create both response artifacts for the current round:
 - `GPD/review/REFEREE_RESPONSE{round_suffix}.md` — journal-facing response letter built from the template
 
 Those two GPD-owned response artifacts stay canonical even when the manuscript subject is explicit or external. Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source.
+If centralized preflight has already resolved a subject-owned publication root at `GPD/publication/{subject_slug}` for an explicit external publication subject, place the canonical response pair under that managed root and keep the same round suffix / sibling relationships there. Do not duplicate the pair into both the subject-owned root and the global project root in one run.
 
 Populate `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with paper metadata, decision summaries, mirrored per-comment classification/status fields from the canonical response templates, blocking items from `REVIEW-LEDGER*.json` when available, and the progress tracking table. Leave response and changes-made fields empty until the later draft/revision step fills them.
 
@@ -475,6 +477,7 @@ Apply the shared publication response-writer handoff exactly before treating the
 
 Read the completed `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` (all comments should have status "Response drafted" or "Final"). Treat those files as complete only if the expected mirrored artifacts exist on disk and the orchestrator has aggregated every section handoff: the revised section file exists, both response artifacts exist, and the fresh child `gpd_return.files_written` for that section names all required outputs. Do not rely on stale pre-existing edits or prose completion alone.
 Those two Markdown artifacts under `GPD/` are the canonical required outputs for this workflow. `${PAPER_DIR}/response-letter.tex` or `${PAPER_DIR}/response-letter.md` is optional and should be generated only when the journal or user asked for a manuscript-local submission companion. If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under `GPD/` and do not write sidecars beside that external manuscript unless the main integration later exposes a subject-local export hook.
+If centralized preflight resolved a subject-owned publication root at `GPD/publication/{subject_slug}` for that explicit external subject, apply the same rule there: keep the canonical response pair under that managed root, not beside the manuscript, and do not infer a full publication-tree relocation from this bounded continuation path.
 
 **If any Group C items are still pending:** Warn the user before generating:
 

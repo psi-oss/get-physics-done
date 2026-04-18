@@ -90,10 +90,17 @@ def test_peer_review_stage_manifest_uses_canonical_publication_contracts() -> No
     bootstrap = manifest.stage("bootstrap")
     preflight = manifest.stage("preflight")
     artifact_discovery = manifest.stage("artifact_discovery")
+    panel_stages = manifest.stage("panel_stages")
     final_adjudication = manifest.stage("final_adjudication")
 
     assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
     assert "references/publication/publication-response-artifacts.md" in bootstrap.must_not_eager_load
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
 
     assert preflight.loaded_authorities[0] == "workflows/peer-review.md"
     assert "references/publication/peer-review-reliability.md" in preflight.loaded_authorities
@@ -106,9 +113,29 @@ def test_peer_review_stage_manifest_uses_canonical_publication_contracts() -> No
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
     )
+    assert "GPD/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/PROOF-REDTEAM{round_suffix}.md" in panel_stages.writes_allowed
     assert "references/publication/peer-review-panel.md" in final_adjudication.loaded_authorities
     assert "templates/paper/review-ledger-schema.md" in final_adjudication.loaded_authorities
     assert "templates/paper/referee-decision-schema.md" in final_adjudication.loaded_authorities
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
+    assert "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md" in final_adjudication.writes_allowed
+
+
+def test_arxiv_submission_stage_manifest_surfaces_publication_routing() -> None:
+    manifest = _load_manifest("arxiv-submission")
+    bootstrap = manifest.stage("bootstrap")
+    package = manifest.stage("package")
+
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
+    assert package.writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
 
 
 def test_publication_bootstrap_preflight_uses_canonical_publication_contracts() -> None:

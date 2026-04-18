@@ -842,6 +842,20 @@ def test_referee_report_in_canonical_gpd_root_suggests_response(tmp_path: Path) 
     assert "peer-review" not in actions
 
 
+def test_managed_publication_lane_global_referee_report_still_suggests_response(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _write_active_manuscript_entrypoint(root, root_name="GPD/publication/ising-bootstrap/manuscript")
+    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n", encoding="utf-8")
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "respond-to-referees" in actions
+    assert "peer-review" not in actions
+    assert "arxiv-submission" not in actions
+
+
 def test_markdown_referee_report_suggests_response_without_arxiv_submission(tmp_path: Path) -> None:
     root = _setup_project(tmp_path)
     _create_roadmap(root)

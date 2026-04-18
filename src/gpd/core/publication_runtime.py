@@ -9,12 +9,13 @@ from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.manuscript_artifacts import (
     PublicationSubjectResolution,
     resolve_current_publication_subject,
     resolve_explicit_publication_subject,
 )
-from gpd.core.proof_review import ProofReviewStatus, publication_subject_slug, resolve_manuscript_proof_review_status
+from gpd.core.proof_review import ProofReviewStatus, publication_lineage_roots, resolve_manuscript_proof_review_status
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
     review_artifact_round,
@@ -190,11 +191,7 @@ class PublicationRuntimeSnapshot:
 
         payload: dict[str, object] = {
             "publication_subject": subject.to_context_dict(),
-            "publication_subject_slug": (
-                publication_subject_slug(project_root, subject.manuscript_entrypoint)
-                if subject.manuscript_entrypoint is not None
-                else None
-            ),
+            "publication_subject_slug": subject.publication_subject_slug,
             "publication_subject_status": subject.status,
             "publication_subject_source": subject.source,
             "publication_subject_detail": subject.detail,
@@ -343,6 +340,16 @@ def _review_artifact_state(
     return "complete", "latest review round is complete for the active manuscript", ()
 
 
+def _publication_lineage_roots_for_subject(
+    project_root: Path,
+    subject: PublicationSubjectResolution,
+) -> tuple[Path, Path]:
+    layout = ProjectLayout(project_root)
+    if subject.manuscript_entrypoint is None:
+        return layout.gpd, layout.gpd / "review"
+    return publication_lineage_roots(project_root, subject.manuscript_entrypoint)
+
+
 def _coerce_publication_subject(
     project_root: Path,
     *,
@@ -376,8 +383,7 @@ def resolve_latest_publication_review_artifacts(
     if not subject.resolved or subject.manuscript_entrypoint is None:
         return None
 
-    planning_dir = project_root / "GPD"
-    review_dir = project_root / "GPD" / "review"
+    publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     if not review_dir.exists():
         return None
 
@@ -397,11 +403,11 @@ def resolve_latest_publication_review_artifacts(
         review_ledger = ledger_by_round.get(round_number)
         referee_decision = decision_by_round.get(round_number)
         referee_report_md = _first_existing_path(
-            planning_dir / f"REFEREE-REPORT{round_suffix}.md",
+            publication_root / f"REFEREE-REPORT{round_suffix}.md",
             review_dir / f"REFEREE-REPORT{round_suffix}.md",
         )
         referee_report_tex = _first_existing_path(
-            planning_dir / f"REFEREE-REPORT{round_suffix}.tex",
+            publication_root / f"REFEREE-REPORT{round_suffix}.tex",
             review_dir / f"REFEREE-REPORT{round_suffix}.tex",
         )
         proof_redteam = review_dir / f"PROOF-REDTEAM{round_suffix}.md"
@@ -445,8 +451,7 @@ def resolve_latest_publication_response_artifacts(
     if not subject.resolved:
         return None
 
-    planning_dir = project_root / "GPD"
-    review_dir = project_root / "GPD" / "review"
+    publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     if not review_dir.exists():
         return None
 
@@ -458,7 +463,7 @@ def resolve_latest_publication_response_artifacts(
         return None
 
     author_by_round = _round_file_map(
-        planning_dir,
+        publication_root,
         review_dir,
         filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
         glob_pattern="AUTHOR-RESPONSE*.md",

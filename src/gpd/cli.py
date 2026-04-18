@@ -97,7 +97,6 @@ from gpd.core.publication_review_paths import (
 )
 from gpd.core.publication_runtime import (
     publication_blockers_for_project,
-    resolve_latest_publication_review_artifacts,
 )
 from gpd.core.recovery_advice import (
     RecoveryAdvice,
@@ -5995,39 +5994,204 @@ class PublicationReviewRoundArtifacts:
     referee_decision: Path | None
 
 
+@dataclasses.dataclass(frozen=True)
+class PublicationResponseRoundArtifacts:
+    """Latest response-round artifacts without assuming fresh staged review exists."""
+
+    round_number: int
+    round_suffix: str
+    author_response: Path | None
+    referee_response: Path | None
+
+
 _REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
 _REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
+_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
+_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 
 
-def _resolve_latest_publication_review_round_artifacts(project_root: Path) -> PublicationReviewRoundArtifacts | None:
-    """Return the newest review-round pair without enforcing manuscript-path matching."""
+def _managed_publication_root_for_target(project_root: Path, target: Path) -> Path | None:
+    """Return the managed publication root for one target under ``GPD/publication/<slug>/manuscript``."""
 
-    review_dir = project_root / "GPD" / "review"
-    if not review_dir.exists():
+    from gpd.core.constants import ProjectLayout
+
+    manuscript_root = _supported_manuscript_root_for_target(project_root, target)
+    if manuscript_root is None:
         return None
-
-    ledger_by_round: dict[int, Path] = {}
-    decision_by_round: dict[int, Path] = {}
-    for ledger_path in review_dir.glob("REVIEW-LEDGER*.json"):
-        round_info = review_artifact_round(ledger_path, pattern=_REVIEW_LEDGER_FILENAME_RE)
-        if round_info is None:
-            continue
-        ledger_by_round[round_info[0]] = ledger_path
-    for decision_path in review_dir.glob("REFEREE-DECISION*.json"):
-        round_info = review_artifact_round(decision_path, pattern=_REFEREE_DECISION_FILENAME_RE)
-        if round_info is None:
-            continue
-        decision_by_round[round_info[0]] = decision_path
-
-    round_numbers = sorted({*ledger_by_round, *decision_by_round}, reverse=True)
-    if not round_numbers:
+    try:
+        relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
         return None
-    round_number = round_numbers[0]
+    if (
+        len(relative_root.parts) >= 4
+        and relative_root.parts[0] == PLANNING_DIR_NAME
+        and relative_root.parts[1] == PUBLICATION_DIR_NAME
+        and relative_root.parts[2]
+        and relative_root.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
+        return ProjectLayout(project_root).publication_subject_dir(relative_root.parts[2])
+    return None
+
+
+def _publication_lineage_search_roots(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    """Return candidate publication-root and review-root search paths for one manuscript subject."""
+
+    planning_dir = project_root / PLANNING_DIR_NAME
+    publication_roots: list[Path] = [planning_dir]
+    review_roots: list[Path] = [planning_dir / "review"]
+
+    if manuscript is None:
+        return tuple(publication_roots), tuple(review_roots)
+
+    managed_publication_root = _managed_publication_root_for_target(project_root, manuscript)
+    if managed_publication_root is not None:
+        publication_roots.append(managed_publication_root)
+        review_roots.append(managed_publication_root / "review")
+        return tuple(dict.fromkeys(publication_roots)), tuple(dict.fromkeys(review_roots))
+
+    if _supported_manuscript_root_for_target(project_root, manuscript) is None:
+        from gpd.core.constants import ProjectLayout
+
+        subject_root = ProjectLayout(project_root).publication_subject_dir(
+            _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript)
+        )
+        publication_roots.insert(0, subject_root)
+        review_roots.insert(0, subject_root / "review")
+
+    return tuple(dict.fromkeys(publication_roots)), tuple(dict.fromkeys(review_roots))
+
+
+def _round_file_map(
+    *search_roots: Path,
+    filename_pattern: re.Pattern[str],
+    glob_pattern: str,
+) -> dict[int, Path]:
+    """Return one round-number-to-path map across ordered search roots."""
+
+    round_map: dict[int, Path] = {}
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.glob(glob_pattern)):
+            round_info = review_artifact_round(path, pattern=filename_pattern)
+            if round_info is None:
+                continue
+            round_number, _round_suffix = round_info
+            round_map.setdefault(round_number, path)
+    return round_map
+
+
+def _latest_round_number(*round_maps: dict[int, Path]) -> int | None:
+    """Return the latest round number present across one or more artifact maps."""
+
+    round_numbers = {round_number for round_map in round_maps for round_number in round_map}
+    return max(round_numbers) if round_numbers else None
+
+
+def _publication_review_round_path_maps(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> tuple[dict[int, Path], dict[int, Path]]:
+    """Return staged review-artifact maps rooted at the manuscript's publication lineage."""
+
+    _publication_roots, review_roots = _publication_lineage_search_roots(project_root, manuscript=manuscript)
+    return (
+        _round_file_map(
+            *review_roots,
+            filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
+            glob_pattern="REVIEW-LEDGER*.json",
+        ),
+        _round_file_map(
+            *review_roots,
+            filename_pattern=_REFEREE_DECISION_FILENAME_RE,
+            glob_pattern="REFEREE-DECISION*.json",
+        ),
+    )
+
+
+def _publication_response_round_path_maps(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> tuple[dict[int, Path], dict[int, Path]]:
+    """Return paired response-artifact maps rooted at the manuscript's publication lineage."""
+
+    publication_roots, review_roots = _publication_lineage_search_roots(project_root, manuscript=manuscript)
+    return (
+        _round_file_map(
+            *publication_roots,
+            filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
+            glob_pattern="AUTHOR-RESPONSE*.md",
+        ),
+        _round_file_map(
+            *review_roots,
+            filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
+            glob_pattern="REFEREE_RESPONSE*.md",
+        ),
+    )
+
+
+def _publication_review_round_artifacts(
+    round_number: int,
+    *,
+    review_ledger_by_round: dict[int, Path],
+    referee_decision_by_round: dict[int, Path],
+) -> PublicationReviewRoundArtifacts:
+    """Return one staged review round bundle from precomputed round maps."""
+
     return PublicationReviewRoundArtifacts(
         round_number=round_number,
         round_suffix=review_round_suffix(round_number),
-        review_ledger=ledger_by_round.get(round_number),
-        referee_decision=decision_by_round.get(round_number),
+        review_ledger=review_ledger_by_round.get(round_number),
+        referee_decision=referee_decision_by_round.get(round_number),
+    )
+
+
+def _resolve_latest_publication_review_round_artifacts(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> PublicationReviewRoundArtifacts | None:
+    """Return the newest staged review round without enforcing manuscript-path matching."""
+
+    review_ledger_by_round, referee_decision_by_round = _publication_review_round_path_maps(
+        project_root,
+        manuscript=manuscript,
+    )
+    round_number = _latest_round_number(review_ledger_by_round, referee_decision_by_round)
+    if round_number is None:
+        return None
+    return _publication_review_round_artifacts(
+        round_number,
+        review_ledger_by_round=review_ledger_by_round,
+        referee_decision_by_round=referee_decision_by_round,
+    )
+
+
+def _resolve_latest_publication_response_round_artifacts(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> PublicationResponseRoundArtifacts | None:
+    """Return the newest paired-response round without assuming fresh review clearance exists."""
+
+    author_response_by_round, referee_response_by_round = _publication_response_round_path_maps(
+        project_root,
+        manuscript=manuscript,
+    )
+    round_number = _latest_round_number(author_response_by_round, referee_response_by_round)
+    if round_number is None:
+        return None
+    return PublicationResponseRoundArtifacts(
+        round_number=round_number,
+        round_suffix=review_round_suffix(round_number),
+        author_response=author_response_by_round.get(round_number),
+        referee_response=referee_response_by_round.get(round_number),
     )
 
 
@@ -8983,14 +9147,32 @@ def _build_review_preflight(
                     }
                 )
                 if review_checks_requested:
-                    latest_review_artifacts = resolve_latest_publication_review_artifacts(
+                    review_ledger_by_round, referee_decision_by_round = _publication_review_round_path_maps(
                         project_cwd,
-                        manuscript,
+                        manuscript=manuscript,
                     )
-                    latest_review_round = latest_review_artifacts or _resolve_latest_publication_review_round_artifacts(
-                        project_cwd
+                    latest_review_round = _resolve_latest_publication_review_round_artifacts(
+                        project_cwd,
+                        manuscript=manuscript,
                     )
-                    if latest_review_round is None:
+                    latest_response_round = _resolve_latest_publication_response_round_artifacts(
+                        project_cwd,
+                        manuscript=manuscript,
+                    )
+                    required_review_round = latest_review_round
+                    response_round_requires_fresh_review = False
+                    if latest_response_round is not None and (
+                        required_review_round is None
+                        or latest_response_round.round_number > required_review_round.round_number
+                    ):
+                        required_review_round = _publication_review_round_artifacts(
+                            latest_response_round.round_number,
+                            review_ledger_by_round=review_ledger_by_round,
+                            referee_decision_by_round=referee_decision_by_round,
+                        )
+                        response_round_requires_fresh_review = True
+
+                    if required_review_round is None:
                         if "review_ledger" in review_checks_requested:
                             add_check(
                                 "review_ledger",
@@ -9006,12 +9188,17 @@ def _build_review_preflight(
                                 blocking=True,
                             )
                     else:
-                        ledger_path = latest_review_round.review_ledger
-                        decision_path = latest_review_round.referee_decision
+                        ledger_path = required_review_round.review_ledger
+                        decision_path = required_review_round.referee_decision
                         round_label = (
-                            f"round {latest_review_round.round_number}"
-                            if latest_review_round.round_number > 1
+                            f"round {required_review_round.round_number}"
+                            if required_review_round.round_number > 1
                             else "round 1"
+                        )
+                        response_round_detail = (
+                            f"; latest response artifacts already reached {round_label}"
+                            if response_round_requires_fresh_review
+                            else ""
                         )
                         if "review_ledger" in review_checks_requested:
                             add_check(
@@ -9020,7 +9207,10 @@ def _build_review_preflight(
                                 (
                                     f"{_format_display_path(ledger_path)} present for latest staged review {round_label}"
                                     if ledger_path is not None
-                                    else f"missing REVIEW-LEDGER{latest_review_round.round_suffix}.json for latest staged review {round_label}"
+                                    else (
+                                        f"missing REVIEW-LEDGER{required_review_round.round_suffix}.json "
+                                        f"for latest staged review {round_label}{response_round_detail}"
+                                    )
                                 ),
                                 blocking=True,
                             )
@@ -9031,7 +9221,10 @@ def _build_review_preflight(
                                 (
                                     f"{_format_display_path(decision_path)} present for latest staged review {round_label}"
                                     if decision_path is not None
-                                    else f"missing REFEREE-DECISION{latest_review_round.round_suffix}.json for latest staged review {round_label}"
+                                    else (
+                                        f"missing REFEREE-DECISION{required_review_round.round_suffix}.json "
+                                        f"for latest staged review {round_label}{response_round_detail}"
+                                    )
                                 ),
                                 blocking=True,
                             )

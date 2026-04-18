@@ -68,6 +68,8 @@ def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_r
 
     assert "current GPD project or an explicit external artifact" in command
     assert "standalone external artifact review" in command
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command
+    assert "do not infer a full publication-tree migration from that one continuation path" in command
     assert "standalone skeptical peer review" not in workflow
     assert "current GPD project manuscript" in workflow
     assert "explicit external artifact" in workflow
@@ -97,9 +99,14 @@ def test_publication_reference_docs_keep_gpd_aux_outputs_separate_from_manuscrip
     assert "Keep GPD-authored auxiliary review, response, and packaging outputs under `GPD/`" in preflight
     assert "It does not decide whether a command may accept a standalone external manuscript/artifact" in bootstrap
     assert "Do not infer standalone external-artifact support from this pack alone." in bootstrap
+    assert "current project-backed canonical layout" in round_artifacts
     assert "GPD-authored auxiliary outputs for a review round live under `GPD/` or `GPD/review/`" in round_artifacts
+    assert "subject-owned publication root `GPD/publication/{subject_slug}`" in round_artifacts
+    assert "does not by itself promise a full relocation" in round_artifacts
     assert "Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates." in round_artifacts
     assert "optional manuscript-local response-letter companion such as `response-letter.tex` is additive only" in response_artifacts
+    assert "same paired response artifacts may instead bind under the subject-owned publication root" in response_artifacts
+    assert "does not imply a full relocation" in response_artifacts
     assert "That output policy does not relocate the manuscript draft or manuscript-root manifests" in reliability
     assert "copied stand-ins under `GPD/` do not satisfy strict gates" in reliability
     assert "Do not imply full external-subject support or manuscript-root migration unless the workflow/runtime actually provides it." in wrapper_guidance

@@ -28,6 +28,7 @@ __all__ = [
     "manuscript_has_theorem_bearing_language",
     "manuscript_has_theorem_bearing_review_anchor",
     "manuscript_requires_theorem_bearing_review",
+    "publication_lineage_roots",
     "manuscript_proof_review_manifest_path",
     "phase_proof_review_manifest_path",
     "publication_subject_slug",
@@ -176,6 +177,39 @@ def _managed_publication_proof_review_manifest_path(project_root: Path, manuscri
     )
 
 
+def _is_project_managed_publication_lane(relative: Path | None) -> bool:
+    return (
+        relative is not None
+        and len(relative.parts) >= 4
+        and relative.parts[0] == PLANNING_DIR_NAME
+        and relative.parts[1] == PUBLICATION_DIR_NAME
+        and relative.parts[3] == "manuscript"
+    )
+
+
+def _uses_global_publication_lineage(project_root: Path, manuscript_entrypoint: Path) -> bool:
+    """Return whether review/response lineage should remain on the global GPD roots."""
+
+    try:
+        relative = manuscript_entrypoint.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return False
+    return bool(relative.parts) and (
+        relative.parts[0] in {"paper", "manuscript", "draft"} or _is_project_managed_publication_lane(relative)
+    )
+
+
+def publication_lineage_roots(project_root: Path, manuscript_entrypoint: Path) -> tuple[Path, Path]:
+    """Return the publication root and review root for one manuscript subject."""
+
+    layout = ProjectLayout(project_root)
+    if _uses_global_publication_lineage(project_root, manuscript_entrypoint):
+        publication_root = layout.gpd
+    else:
+        publication_root = layout.publication_subject_dir(publication_subject_slug(project_root, manuscript_entrypoint))
+    return publication_root, publication_root / "review"
+
+
 def publication_subject_slug(project_root: Path, manuscript_entrypoint: Path) -> str:
     """Return the managed publication subject slug for one resolved manuscript subject."""
 
@@ -185,13 +219,7 @@ def publication_subject_slug(project_root: Path, manuscript_entrypoint: Path) ->
         relative = resolved_entrypoint.relative_to(resolved_root)
     except ValueError:
         relative = None
-    if (
-        relative is not None
-        and len(relative.parts) >= 5
-        and relative.parts[0] == PLANNING_DIR_NAME
-        and relative.parts[1] == PUBLICATION_DIR_NAME
-        and relative.parts[3] == "manuscript"
-    ):
+    if _is_project_managed_publication_lane(relative):
         return relative.parts[2]
     label = relative.as_posix() if relative is not None else resolved_entrypoint.as_posix()
     slug_source = label[: -len(resolved_entrypoint.suffix)] if resolved_entrypoint.suffix else label
@@ -224,7 +252,7 @@ def manuscript_has_theorem_bearing_claim_inventory(
     if entrypoint is None:
         return False
 
-    review_dir = project_root / "GPD" / "review"
+    _publication_root, review_dir = publication_lineage_roots(project_root, entrypoint)
     if not review_dir.exists():
         return False
 
@@ -401,7 +429,8 @@ def resolve_manuscript_proof_review_status(
         _resolve_review_artifacts(project_root, review_anchor.proof_artifact_paths),
     )
     if review_anchor.proof_bearing:
-        proof_redteam_path = project_root / "GPD" / "review" / f"PROOF-REDTEAM{review_anchor.round_suffix}.md"
+        _publication_root, review_dir = publication_lineage_roots(project_root, entrypoint)
+        proof_redteam_path = review_dir / f"PROOF-REDTEAM{review_anchor.round_suffix}.md"
         watched_files = _with_extra_watched_files(watched_files, proof_redteam_path)
         if not proof_redteam_path.exists():
             return ProofReviewStatus(
@@ -664,7 +693,7 @@ def _with_extra_watched_files(*groups: tuple[Path, ...] | Path) -> tuple[Path, .
 
 
 def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoint: Path) -> _MathReviewAnchor | None:
-    review_dir = project_root / "GPD" / "review"
+    _publication_root, review_dir = publication_lineage_roots(project_root, manuscript_entrypoint)
     if not review_dir.exists():
         return None
 

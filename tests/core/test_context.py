@@ -22,12 +22,14 @@ from gpd.core.context import (
     _render_active_reference_context,
     _should_skip_research_scan_entry,
     _state_exists,
+    init_arxiv_submission,
     init_execute_phase,
     init_literature_review,
     init_map_research,
     init_milestone_op,
     init_new_milestone,
     init_new_project,
+    init_peer_review,
     init_phase_op,
     init_plan_phase,
     init_progress,
@@ -2669,6 +2671,100 @@ class TestInitNewProject:
 
         with pytest.raises(ValueError, match="Unknown write-paper stage 'bogus'"):
             init_write_paper(tmp_path, stage="bogus")
+
+    def test_peer_review_stage_bootstrap_surfaces_selected_project_review_roots(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPeer review target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        manifest = load_workflow_stage_manifest("peer-review")
+        stage = manifest.get_stage("bootstrap")
+        ctx = init_peer_review(tmp_path, stage="bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["publication_subject_slug"]
+        assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
+        assert ctx["selected_publication_root"] == "GPD"
+        assert ctx["selected_review_root"] == "GPD/review"
+
+    def test_arxiv_submission_stage_bootstrap_surfaces_subject_owned_publication_roots(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nSubmission target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        manifest = load_workflow_stage_manifest("arxiv-submission")
+        stage = manifest.get_stage("bootstrap")
+        ctx = init_arxiv_submission(tmp_path, stage="bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["publication_subject_slug"] == "curvature-flow-bounds"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["selected_review_root"] == "GPD/publication/curvature-flow-bounds/review"
 
 
 # ─── init_new_milestone ───────────────────────────────────────────────────────

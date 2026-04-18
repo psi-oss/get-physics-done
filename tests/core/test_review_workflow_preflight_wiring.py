@@ -64,6 +64,8 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "default_output_subtree: GPD" in command
     assert "scope_variants:" in command
     assert "scope: explicit_external_manuscript" in command
+    assert "Project-backed response rounds keep the current global `GPD/` / `GPD/review/` ownership." in command
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command
     assert "Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out." in workflow
     assert 'gpd --raw validate command-context respond-to-referees -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
@@ -85,6 +87,8 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "import or normalize it into `GPD/REFEREE-REPORT{round_suffix}.md` before parsing comments" in workflow
     assert "Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source." in workflow
     assert "keep auxiliary response outputs under `GPD/`" in workflow
+    assert "managed subject-owned publication root at `GPD/publication/{subject_slug}`" in workflow
+    assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in workflow
     assert "${PAPER_DIR}/response-letter.tex" in workflow
     assert "${PAPER_DIR}/{section}.tex" in workflow
 
@@ -110,19 +114,19 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point." in workflow
-    assert "Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input." in workflow
+    assert "Strict preflight also requires the latest round-specific staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair as authoritative submission-gate input." in workflow
     assert "latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues" in workflow
     assert "`manuscript_proof_review` must also already be cleared" in workflow
     assert "The same resolved manuscript root is also the strict preflight source of truth" in workflow
     assert "If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file" in workflow
-    assert "If that file lives outside `paper/`, `manuscript/`, or `draft/`, treat it as an explicit external publication subject." in workflow
-    assert "canonical manuscript `.tex` entrypoint under that directory" in workflow
-    assert "Do not prompt for standalone intake when no explicit target is supplied." in workflow
+    assert "That file must already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
+    assert "canonical manuscript `.tex` entrypoint under that supported root" in workflow
+    assert "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots." in workflow
     assert 'MAIN_SOURCE="${resolved_main_tex}"' in workflow
     assert 'PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"' in workflow
     assert 'SUBMISSION_DIR="${PACKAGE_ROOT}/submission"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
-    assert "Do not write proof-review manifests, package staging trees, or tarballs beside an explicit external manuscript subject." in workflow
+    assert "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself." in workflow
 
 
 def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_arguments() -> None:

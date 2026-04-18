@@ -481,6 +481,12 @@ _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS = frozenset(
 )
 _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS = frozenset(
     {
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",
@@ -1920,6 +1926,18 @@ def _build_publication_bootstrap_runtime_context(
         record.reference_id: record.to_context_dict() for record in manuscript_reference_status.reference_status
     }
     publication_bootstrap_payload = publication_bootstrap.to_context_dict()
+    publication_context = publication_subject.to_bootstrap_context_dict()
+    selected_roots = _selected_publication_stage_roots(
+        publication_subject_slug=publication_context.get("publication_subject_slug")
+        if isinstance(publication_context.get("publication_subject_slug"), str)
+        else None,
+        publication_lane_kind=publication_context.get("publication_lane_kind")
+        if isinstance(publication_context.get("publication_lane_kind"), str)
+        else None,
+        managed_publication_root=publication_context.get("managed_publication_root")
+        if isinstance(publication_context.get("managed_publication_root"), str)
+        else None,
+    )
     return {
         "project_contract": visible_context_contract.model_dump(mode="json")
         if visible_context_contract is not None
@@ -1927,7 +1945,8 @@ def _build_publication_bootstrap_runtime_context(
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
-        **publication_subject.to_bootstrap_context_dict(),
+        **publication_context,
+        **selected_roots,
         "publication_bootstrap": publication_bootstrap_payload,
         "publication_bootstrap_mode": publication_bootstrap_payload["mode"],
         "publication_bootstrap_root": publication_bootstrap_payload["bootstrap_root"],
@@ -1950,6 +1969,36 @@ def _build_publication_bootstrap_runtime_context(
     }
 
 
+def _selected_publication_stage_roots(
+    *,
+    publication_subject_slug: str | None,
+    publication_lane_kind: str | None,
+    managed_publication_root: str | None,
+) -> dict[str, str | None]:
+    """Return the active publication and review roots for staged publication work."""
+
+    if publication_lane_kind == "canonical_project_manuscript":
+        selected_publication_root = PLANNING_DIR_NAME
+    elif publication_subject_slug:
+        selected_publication_root = managed_publication_root or (
+            f"{PLANNING_DIR_NAME}/publication/{publication_subject_slug}"
+        )
+    else:
+        selected_publication_root = None
+
+    if selected_publication_root is None:
+        selected_review_root = None
+    elif selected_publication_root == PLANNING_DIR_NAME:
+        selected_review_root = f"{PLANNING_DIR_NAME}/review"
+    else:
+        selected_review_root = f"{selected_publication_root}/review"
+
+    return {
+        "selected_publication_root": selected_publication_root,
+        "selected_review_root": selected_review_root,
+    }
+
+
 def _build_publication_runtime_snapshot_context(
     cwd: Path,
     *,
@@ -1957,10 +2006,42 @@ def _build_publication_runtime_snapshot_context(
 ) -> dict[str, object]:
     """Build the canonical publication snapshot payload used by publication commands."""
 
-    return publication_runtime_snapshot_context(
+    snapshot = publication_runtime_snapshot_context(
         cwd,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
     )
+    publication_subject = snapshot.get("publication_subject")
+    subject_context = publication_subject if isinstance(publication_subject, Mapping) else {}
+    publication_lane_kind = (
+        subject_context.get("publication_lane_kind")
+        if isinstance(subject_context.get("publication_lane_kind"), str)
+        else None
+    )
+    publication_lane_owner = (
+        subject_context.get("publication_lane_owner")
+        if isinstance(subject_context.get("publication_lane_owner"), str)
+        else None
+    )
+    managed_publication_root = (
+        subject_context.get("managed_publication_root")
+        if isinstance(subject_context.get("managed_publication_root"), str)
+        else None
+    )
+    snapshot.update(
+        {
+            "publication_lane_kind": publication_lane_kind,
+            "publication_lane_owner": publication_lane_owner,
+            "managed_publication_root": managed_publication_root,
+            **_selected_publication_stage_roots(
+                publication_subject_slug=snapshot.get("publication_subject_slug")
+                if isinstance(snapshot.get("publication_subject_slug"), str)
+                else None,
+                publication_lane_kind=publication_lane_kind,
+                managed_publication_root=managed_publication_root,
+            ),
+        }
+    )
+    return snapshot
 
 
 def _build_peer_review_runtime_context(

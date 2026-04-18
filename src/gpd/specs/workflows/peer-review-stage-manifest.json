@@ -27,6 +27,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "platform"
       ],
       "loaded_authorities": [
@@ -103,6 +109,12 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "platform"
       ],
       "loaded_authorities": [
@@ -178,6 +190,12 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "platform"
       ],
       "loaded_authorities": [
@@ -257,6 +275,12 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "platform"
       ],
       "loaded_authorities": [
@@ -291,7 +315,14 @@
         "GPD/review/STAGE-math{round_suffix}.json",
         "GPD/review/PROOF-REDTEAM{round_suffix}.md",
         "GPD/review/STAGE-physics{round_suffix}.json",
-        "GPD/review/STAGE-interestingness{round_suffix}.json"
+        "GPD/review/STAGE-interestingness{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/CLAIMS{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/STAGE-reader{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/STAGE-literature{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/STAGE-math{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/PROOF-REDTEAM{round_suffix}.md",
+        "GPD/publication/{subject_slug}/review/STAGE-physics{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/STAGE-interestingness{round_suffix}.json"
       ],
       "produced_state": [
         "claim index",
@@ -343,6 +374,12 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "platform"
       ],
       "loaded_authorities": [
@@ -372,6 +409,10 @@
         "GPD/review/REFEREE-DECISION{round_suffix}.json",
         "GPD/REFEREE-REPORT{round_suffix}.md",
         "GPD/REFEREE-REPORT{round_suffix}.tex",
+        "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json",
+        "GPD/publication/{subject_slug}/review/REFEREE-DECISION{round_suffix}.json",
+        "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md",
+        "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.tex",
         "GPD/CONSISTENCY-REPORT.md"
       ],
       "produced_state": [
@@ -412,6 +453,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "platform"
       ],
       "loaded_authorities": [

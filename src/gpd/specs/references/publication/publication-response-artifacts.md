@@ -18,6 +18,9 @@ Canonical paired response-artifact and one-shot child-return contract for refere
 - `GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the journal-facing sibling and must mirror the same `REF-*` issue IDs, classifications, statuses, and new-calculation tracking, including source-phase linkage when present.
 - An optional manuscript-local response-letter companion such as `response-letter.tex` is additive only. It does not replace the canonical GPD response pair.
 - Treat the two files as one success gate: do not mark the round complete when only one of them is current.
+- Project-backed response rounds use the exact global paths above.
+- For an explicit external publication subject, the same paired response artifacts may instead bind under the subject-owned publication root `GPD/publication/{subject_slug}` while preserving the same filenames, issue IDs, and round-suffix alignment.
+- That bounded subject-owned continuation path does not imply a full relocation of manuscript drafts, manuscript-root manifests, or every publication artifact into the subject-owned tree.
 
 ## Delegation Rule
 

@@ -41,6 +41,7 @@ from gpd.core.manuscript_artifacts import (
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.proof_review import (
     manuscript_requires_theorem_bearing_review,
+    publication_lineage_roots,
     resolve_manuscript_proof_review_status,
 )
 from gpd.core.public_surface_contract import recovery_local_snapshot_command
@@ -571,14 +572,13 @@ def _has_referee_report(cwd: Path) -> bool:
     if manuscript_entrypoint is None:
         return False
 
-    planning_dir = _planning_dir(cwd)
-    review_dir = planning_dir / "review"
+    publication_root, review_dir = publication_lineage_roots(cwd, manuscript_entrypoint)
     review_artifacts = resolve_latest_publication_review_artifacts(
         cwd,
         manuscript_entrypoint=manuscript_entrypoint,
     )
     if review_artifacts is None or review_artifacts.referee_report_md is None:
-        return any(path.is_file() for path in planning_dir.glob("REFEREE-REPORT*.md")) or any(
+        return any(path.is_file() for path in publication_root.glob("REFEREE-REPORT*.md")) or any(
             path.is_file() for path in review_dir.glob("REFEREE-REPORT*.md")
         )
 

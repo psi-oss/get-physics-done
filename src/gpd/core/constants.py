@@ -59,6 +59,7 @@ __all__ = [
     "PUBLICATION_ARXIV_DIR_NAME",
     "PUBLICATION_DIR_NAME",
     "PUBLICATION_MANUSCRIPT_DIR_NAME",
+    "PUBLICATION_REVIEW_DIR_NAME",
     "PUBLICATION_PROOF_REVIEW_DIR_NAME",
     "PROJECT_FILENAME",
     "ProjectLayout",
@@ -195,6 +196,9 @@ RESEARCH_MAP_DIR_NAME = "research-map"
 
 PUBLICATION_DIR_NAME = "publication"
 """Subdirectory under GPD/ for publication-owned outputs keyed by manuscript subject."""
+
+PUBLICATION_REVIEW_DIR_NAME = "review"
+"""Subdirectory under a canonical publication root for review/response lineage artifacts."""
 
 PUBLICATION_PROOF_REVIEW_DIR_NAME = "proof-review"
 """Subdirectory under GPD/publication/<subject>/ for proof-review manifests."""
@@ -543,6 +547,10 @@ class ProjectLayout:
         return self.gpd / PUBLICATION_DIR_NAME
 
     @property
+    def review_dir(self) -> Path:
+        return self.gpd / PUBLICATION_REVIEW_DIR_NAME
+
+    @property
     def scratch_dir(self) -> Path:
         return self.gpd / SCRATCH_DIR_NAME
 
@@ -565,6 +573,11 @@ class ProjectLayout:
         """Return the managed publication root for one resolved subject slug."""
 
         return self.publication_dir / subject_slug
+
+    def publication_review_dir(self, subject_slug: str) -> Path:
+        """Return the subject-owned review root for one resolved publication slug."""
+
+        return self.publication_subject_dir(subject_slug) / PUBLICATION_REVIEW_DIR_NAME
 
     def publication_proof_review_dir(self, subject_slug: str) -> Path:
         """Return the managed proof-review root for one resolved subject slug."""

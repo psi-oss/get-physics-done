@@ -6241,6 +6241,57 @@ def test_resolve_review_preflight_publication_artifacts_bundle(tmp_path: Path) -
     assert bundle.reproducibility_manifest == manuscript_dir / "reproducibility-manifest.json"
 
 
+def test_resolve_latest_publication_review_round_artifacts_uses_subject_owned_review_root_for_managed_manuscript(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "GPD" / "review").mkdir(parents=True)
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    (tmp_path / "GPD" / "review" / "REVIEW-LEDGER.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "GPD" / "review" / "REFEREE-DECISION.json").write_text("{}", encoding="utf-8")
+    subject_review_dir = tmp_path / "GPD" / "publication" / "curvature-flow" / "review"
+    subject_review_dir.mkdir(parents=True, exist_ok=True)
+    (subject_review_dir / "REVIEW-LEDGER-R2.json").write_text("{}", encoding="utf-8")
+    (subject_review_dir / "REFEREE-DECISION-R2.json").write_text("{}", encoding="utf-8")
+
+    round_bundle = cli_module._resolve_latest_publication_review_round_artifacts(
+        tmp_path,
+        manuscript=manuscript,
+    )
+
+    assert round_bundle is not None
+    assert round_bundle.round_number == 2
+    assert round_bundle.review_ledger == subject_review_dir / "REVIEW-LEDGER-R2.json"
+    assert round_bundle.referee_decision == subject_review_dir / "REFEREE-DECISION-R2.json"
+
+
+def test_resolve_latest_publication_response_round_artifacts_uses_subject_owned_publication_root_for_managed_manuscript(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "GPD").mkdir(parents=True)
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    (tmp_path / "GPD" / "AUTHOR-RESPONSE.md").write_text("# Round 1 author response\n", encoding="utf-8")
+    (tmp_path / "GPD" / "review").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "GPD" / "review" / "REFEREE_RESPONSE.md").write_text(
+        "# Round 1 referee response\n",
+        encoding="utf-8",
+    )
+    subject_root = tmp_path / "GPD" / "publication" / "curvature-flow"
+    subject_review_dir = subject_root / "review"
+    subject_review_dir.mkdir(parents=True, exist_ok=True)
+    (subject_root / "AUTHOR-RESPONSE-R2.md").write_text("# Round 2 author response\n", encoding="utf-8")
+    (subject_review_dir / "REFEREE_RESPONSE-R2.md").write_text("# Round 2 referee response\n", encoding="utf-8")
+
+    round_bundle = cli_module._resolve_latest_publication_response_round_artifacts(
+        tmp_path,
+        manuscript=manuscript,
+    )
+
+    assert round_bundle is not None
+    assert round_bundle.round_number == 2
+    assert round_bundle.author_response == subject_root / "AUTHOR-RESPONSE-R2.md"
+    assert round_bundle.referee_response == subject_review_dir / "REFEREE_RESPONSE-R2.md"
+
+
 def test_build_resolved_command_subject_treats_managed_publication_manuscript_lane_as_project_backed(
     tmp_path: Path,
 ) -> None:

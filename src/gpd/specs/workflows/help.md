@@ -59,7 +59,7 @@ Phase {N} complete:
 ```
 Publication workflow:
   gpd:peer-review         — Run manuscript peer review on the current project manuscript or one explicit artifact
-  gpd:arxiv-submission    — Package the resolved manuscript root only after review passes and the paper-build contract succeeds
+  gpd:arxiv-submission    — Package only the resolved GPD-owned manuscript root after review passes and the paper-build contract succeeds
   gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
@@ -67,7 +67,7 @@ Publication workflow:
 **Referee report exists:**
 ```
 Revision workflow:
-  gpd:respond-to-referees [path to referee report or 'paste'] — Draft responses, keep the canonical GPD response pair synchronized, and revise the resolved manuscript root
+  gpd:respond-to-referees [path to referee report or 'paste'] — Draft responses, keep project-backed outputs on their current GPD paths, and revise the resolved manuscript root
   gpd:peer-review         — Re-run peer review after revision
 ```
 
@@ -95,10 +95,10 @@ Project ─── the overall research goal
 4. `gpd:execute-phase N` — Run all plans (derivations, simulations, analysis)
 5. `gpd:verify-work` — Verify physics correctness
 6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
-7. `gpd:write-paper` — Generate publication from results and manage the manuscript lane
+7. `gpd:write-paper` — Generate publication from results into the current project's manuscript lane
 8. `gpd:peer-review` — Run manuscript review before submission on the current project manuscript or one explicit artifact
 9. `gpd:respond-to-referees` — Address reviewer comments by revising the resolved manuscript root and synchronized response artifacts
-10. `gpd:arxiv-submission` — Package the approved built manuscript after the latest staged review gates pass
+10. `gpd:arxiv-submission` — Package the approved built GPD-owned manuscript after the latest staged review gates pass
 
 **Example:** Studying the 3D Ising critical exponent:
 - Phase 1: Set up Wolff cluster MC algorithm
@@ -241,10 +241,10 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 ### Writing and publication
 
 - `gpd:literature-review [topic or research question]` - Create a structured literature review under `GPD/literature/` in the current workspace
-- `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results into the resolved manuscript lane
+- `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results into the current project's manuscript lane
 - `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow on the current project manuscript or one explicit artifact
 - `gpd:respond-to-referees [path to referee report or 'paste']` - Draft referee responses and revise the resolved manuscript root
-- `gpd:arxiv-submission [paper directory path]` - Package a built manuscript for arXiv from the resolved manuscript root
+- `gpd:arxiv-submission [GPD-owned manuscript root]` - Package a built manuscript for arXiv from the resolved GPD-owned manuscript root
 - `gpd:slides [topic, audience, or source path]` - Create presentation slides
 
 ### Tangents, memory, and exports
@@ -784,7 +784,7 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` now manages one project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript` when the current project resolves that subject. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target. `gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root and its staged review/manuscript-root artifacts. GPD-authored auxiliary review/response/package outputs stay under `GPD/`; this is still not a full publication-root migration or arbitrary external `write-paper` flow.
+Publication lane boundary: `gpd:write-paper` only manages project-owned manuscript roots. That includes the legacy current-project manuscript roots and, when the current project resolves a publication subject, the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`; it is not a general external-authoring flow. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target. If an explicit external manuscript becomes a continued GPD publication subject, that continuation can use a subject-owned publication root under `GPD/publication/{subject_slug}`. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` only packages a GPD-owned manuscript root. This is still not a full publication-root migration or arbitrary external `write-paper` flow.
 
 **`gpd:write-paper [title or topic] [--from-phases 1,2,3]`**
 Structure and write a physics paper from research results.
@@ -793,7 +793,8 @@ Structure and write a physics paper from research results.
 - Runs paper-readiness audit (conventions, verification, figures, citations)
 - Spawns gpd-paper-writer agents for each section (Results first, Abstract last)
 - Drafts the manuscript and uses `gpd paper-build` for the canonical scaffold/build contract
-- When the subject has already been resolved, uses the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript` while leaving GPD-authored auxiliary review/response/package artifacts on the workflow-owned `GPD/` paths
+- Uses the current project's GPD-owned manuscript root: legacy `paper/`, `manuscript/`, and `draft/` roots stay valid, and resolved publication subjects use the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
+- Keeps project-backed auxiliary review/response/package artifacts on the workflow-owned `GPD/` paths instead of claiming a full publication-root migration
 - Spawns gpd-bibliographer to verify all references
 - Runs the staged peer-review panel with gpd-referee as final adjudicator
 - Supports revision mode for referee responses (bounded 3-iteration loop)
@@ -808,8 +809,9 @@ Run skeptical peer review on an existing manuscript or explicit review artifact.
 - Loads manuscript files or explicit artifact text, plus project summaries and verification context when present
 - Bare PDF intake requires either `pdftotext` on PATH or a same-directory `.txt` companion file
 - Spawns a six-agent review panel plus the auxiliary `gpd-check-proof` critic when theorem-bearing claims are present
-- Produces stage artifacts under `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex`
-- Keeps GPD-authored auxiliary review outputs under `GPD/`; manuscript-local publication artifacts stay rooted at the resolved manuscript directory
+- Project-backed review artifacts stay on the current `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` paths
+- If an explicit external manuscript becomes a continued GPD publication subject, the GPD-owned continuation lineage can anchor under `GPD/publication/{subject_slug}/...`
+- Manuscript-local publication artifacts stay rooted at the resolved manuscript directory
 - Routes the result to `gpd:respond-to-referees` or `gpd:arxiv-submission`
 - If no argument is supplied, the command asks whether to review an explicit artifact or the current GPD project's active manuscript when available
 
@@ -821,11 +823,12 @@ Usage: `gpd:peer-review notes.txt`
 **`gpd:respond-to-referees [path to referee report or 'paste']`**
 Structure point-by-point response to referee reports and revise the manuscript.
 - Parses referee comments into structured items with severity levels
-- Drafts both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with REF-xxx issue tracking (fixed/rebutted/acknowledged/needs-calculation)
+- Project-backed continuation keeps `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with REF-xxx issue tracking (fixed/rebutted/acknowledged/needs-calculation)
+- Explicit external-manuscript continuation uses a subject-owned publication root under `GPD/publication/{subject_slug}/...`
 - Consumes `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
 - Spawns paper-writer agents for targeted section revisions
 - Tracks new calculations required by referees as revision tasks
-- Keeps `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` as the authoritative GPD-owned response pair; any manuscript-local response letter is an optional companion only
+- Keeps the authoritative GPD-owned response artifacts synchronized with the resolved manuscript root; any manuscript-local response letter is an optional companion only
 - Produces response letter from `templates/paper/referee-response.md`
 - Bounded revision loop (max 3 iterations with re-review)
 
@@ -833,8 +836,8 @@ Usage: `gpd:respond-to-referees`
 Usage: `gpd:respond-to-referees reports/referee-report.md`
 Usage: `gpd:respond-to-referees paste`
 
-**`gpd:arxiv-submission [paper directory path]`**
-Prepare a completed paper for arXiv submission with validation and packaging.
+**`gpd:arxiv-submission [GPD-owned manuscript root]`**
+Prepare a completed GPD-owned manuscript for arXiv submission with validation and packaging.
 
 - Requires a successful `gpd paper-build` before packaging
 - Optional local compiler smoke check if available
@@ -844,7 +847,7 @@ Prepare a completed paper for arXiv submission with validation and packaging.
 - Metadata verification (title, authors, abstract)
 - Ancillary file packaging
 - Generates submission-ready `.tar.gz`
-- Uses `gpd paper-build` and the resolved manuscript root as the build/package contract; does not relocate the manuscript draft into `GPD/`
+- Uses `gpd paper-build` and the resolved GPD-owned manuscript root as the build/package contract; it does not package arbitrary external manuscript directories
 - Requires the latest staged `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` pair for the active manuscript
 - Produces checklist of remaining manual steps
 

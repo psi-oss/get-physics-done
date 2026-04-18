@@ -1294,6 +1294,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`gpd:write-paper` only manages project-owned manuscript roots.",
             "`gpd:write-paper` now manages one project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`",
             "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`",
         ),
@@ -1318,6 +1319,24 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "subject-owned publication root under `GPD/publication/{subject_slug}`",
+            "subject-owned publication root under `GPD/publication/{subject_slug}/...`",
+        ),
+        label="subject-owned external continuation boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths.",
+            "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths",
+            "project-backed outputs on their current GPD paths",
+        ),
+        label="project-backed publication outputs stay put",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:respond-to-referees` stays tied to the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root",
             "The later publication commands stay stricter:",
@@ -1327,17 +1346,18 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "GPD-authored auxiliary review/response outputs live under `GPD/`",
-            "GPD-authored auxiliary review/response/package outputs stay under `GPD/`",
-            "GPD-authored auxiliary review outputs under `GPD/`",
+            "`gpd:arxiv-submission` only packages a GPD-owned manuscript root",
+            "resolved GPD-owned manuscript root",
+            "optional GPD-owned manuscript-root target",
         ),
-        label="GPD-authored publication auxiliary outputs",
+        label="arxiv GPD-owned manuscript-root boundary",
     )
     _assert_contains_any(
         content,
         (
             "this does not relocate the manuscript draft itself out of `paper/`, `manuscript/`, or `draft/`",
             "this is not a full manuscript-root migration",
+            "This is still not a full publication-root migration or arbitrary external `write-paper` flow",
             "this is still not a full publication-root migration or arbitrary external `write-paper` flow",
         ),
         label="manuscript-root migration boundary",

@@ -905,6 +905,7 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "argument-hint: \"[path to referee report or 'paste']\"" in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-wrapper-guidance.md" in command_text
     assert "Referee report source: $ARGUMENTS (file path or `paste`)." in command_text
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command_text
     assert "Use the literal `paste` sentinel" in workflow_text
     assert "REVIEW-LEDGER*.json" in workflow_text
     assert "REFEREE-DECISION*.json" in workflow_text
@@ -938,6 +939,8 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in respond
     assert "templates/paper/author-response.md" in respond
     assert "needs-calculation" in respond
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in respond
+    assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in respond
 
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper
     assert "REVIEW-LEDGER{round_suffix}.json" in write_paper_expanded
@@ -957,8 +960,11 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
     assert "GPD-owned review/response auxiliaries remain under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in peer_review
+    assert "current global `GPD/` / `GPD/review/` round-artifact layout" in peer_review
     assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]' in respond
-    assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in arxiv
+    assert "bounded continuation path, not a full relocation of manuscript-local publication artifacts." in respond
+    assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex", "GPD/publication/*/manuscript/*.tex"]' in arxiv
 
     assert "conditional_requirements:" in peer_review
     assert "when: theorem-bearing claims are present" in peer_review
@@ -4051,6 +4057,7 @@ def test_publication_workflows_keep_manuscript_local_reference_status_rooted_at_
     )
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in respond
     assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in respond
+    assert "do not infer a full publication-tree relocation from this bounded continuation path." in respond
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in arxiv_submission
     assert (
         "Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself."

@@ -84,6 +84,7 @@ Conduct a skeptical peer review of a completed manuscript from the current GPD p
 Keep the wrapper focused on the manuscript target, review prerequisites, and final routing. When announcing the panel to the user, say what each stage does in one concise sentence: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-bearing claims also trigger the auxiliary gpd-check-proof critic; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.
 Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace. The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory.
 If the current project has already moved onto the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`, keep that resolved manuscript root intact and continue to write staged review artifacts on the workflow-owned `GPD/` paths.
+Project-backed review continues to own the current global `GPD/` / `GPD/review/` round-artifact layout. For an explicit external publication subject, centralized preflight may instead resolve a subject-owned publication root at `GPD/publication/{subject_slug}` for the same review lineage; treat that as a bounded continuation path, not as permission to relocate manuscript-local artifacts or current-project review state wholesale.
 
 **Why subagent:** Staged manuscript review burns context fast. Fresh context keeps the orchestrator lean.
 </objective>
@@ -97,6 +98,7 @@ Review target: $ARGUMENTS (optional paper directory, manuscript path, or explici
 
 If the current folder is a GPD project, treat `GPD/STATE.md` and `GPD/ROADMAP.md` as optional project context. Do not require them for standalone external artifact review.
 Interpret the review contract in two modes: project-backed review requires project state, roadmap, conventions, research artifacts, verification reports, and manuscript-root publication artifacts; explicit external-artifact review still requires the resolved manuscript target but treats those project/manuscript-local artifacts as optional supporting context when present.
+If centralized preflight exposes a subject-owned publication root for an explicit external publication subject, keep the round-artifact family bound there and do not infer a full publication-tree migration from that one continuation path.
 
 The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
 Compatibility note: centralized preflight may also hand you a resolved project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`. Treat that as the active current-project manuscript subject, but do not relocate the staged review outputs beside the manuscript.

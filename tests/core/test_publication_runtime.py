@@ -124,6 +124,57 @@ def test_publication_runtime_snapshot_accepts_legacy_review_dir_report_and_autho
     assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"
 
 
+def test_publication_runtime_snapshot_uses_subject_owned_roots_for_explicit_external_subject(
+    tmp_path: Path,
+) -> None:
+    manuscript_root = tmp_path / "submission"
+    _write(manuscript_root / "external-subject.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(manuscript_root, "external-subject.tex")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "submission/external-subject.tex")
+    assert subject.publication_subject_slug is not None
+
+    publication_root = tmp_path / "GPD" / "publication" / subject.publication_subject_slug
+    review_dir = publication_root / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="submission/external-subject.tex", round_number=2)
+    _write(publication_root / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(publication_root / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    _write(publication_root / "AUTHOR-RESPONSE-R2.md", "# Author Response R2\n")
+    _write(review_dir / "REFEREE_RESPONSE-R2.md", "# Referee Response R2\n")
+    _write(review_dir / "PROOF-REDTEAM-R2.md", "# Proof Redteam R2\n")
+
+    global_review_dir = tmp_path / "GPD" / "review"
+    global_review_dir.mkdir(parents=True, exist_ok=True)
+    _write_review_round(global_review_dir, manuscript_path="submission/external-subject.tex", round_number=4)
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R4.md", "# Referee Report R4\n")
+    _write(tmp_path / "GPD" / "AUTHOR-RESPONSE-R4.md", "# Author Response R4\n")
+    _write(global_review_dir / "REFEREE_RESPONSE-R4.md", "# Referee Response R4\n")
+
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_review_artifacts.review_ledger == review_dir / "REVIEW-LEDGER-R2.json"
+    assert snapshot.latest_review_artifacts.referee_report_md == publication_root / "REFEREE-REPORT-R2.md"
+    assert snapshot.latest_review_artifacts.referee_report_tex == publication_root / "REFEREE-REPORT-R2.tex"
+    assert snapshot.latest_review_artifacts.proof_redteam == review_dir / "PROOF-REDTEAM-R2.md"
+    assert snapshot.latest_response_artifacts is not None
+    assert snapshot.latest_response_artifacts.round_number == 2
+    assert snapshot.latest_response_artifacts.author_response == publication_root / "AUTHOR-RESPONSE-R2.md"
+    assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"
+    assert context["latest_referee_report_md"] == (
+        f"GPD/publication/{subject.publication_subject_slug}/REFEREE-REPORT-R2.md"
+    )
+    assert context["latest_author_response"] == (
+        f"GPD/publication/{subject.publication_subject_slug}/AUTHOR-RESPONSE-R2.md"
+    )
+    assert context["latest_referee_response"] == (
+        f"GPD/publication/{subject.publication_subject_slug}/review/REFEREE_RESPONSE-R2.md"
+    )
+
+
 def test_publication_runtime_snapshot_reuses_managed_publication_subject_slug_for_manuscript_lane(
     tmp_path: Path,
 ) -> None:

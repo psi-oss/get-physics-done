@@ -1,10 +1,10 @@
 ---
 name: gpd:arxiv-submission
-description: Prepare a paper for arXiv submission with validation and packaging
-argument-hint: "[paper directory path]"
+description: Prepare a GPD-owned manuscript for arXiv submission with validation and packaging
+argument-hint: "[manuscript root or .tex entrypoint]"
 context_mode: project-aware
 requires:
-  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
+  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex", "GPD/publication/*/manuscript/*.tex"]
 command-policy:
   schema_version: 1
   subject_policy:
@@ -13,7 +13,7 @@ command-policy:
     explicit_input_kinds:
       - manuscript_path
       - manuscript_root
-    allow_external_subjects: true
+    allow_external_subjects: false
     allow_interactive_without_subject: false
     supported_roots:
       - paper
@@ -68,28 +68,6 @@ review-contract:
     - referee_decision_valid
     - publication_review_outcome
     - manuscript_proof_review
-  scope_variants:
-    - scope: explicit_external_subject
-      activation: resolved manuscript subject comes from an explicit .tex target outside supported manuscript roots
-      relaxed_preflight_checks:
-        - project_state
-        - conventions
-        - publication_blockers
-      optional_preflight_checks:
-        - artifact_manifest
-        - bibliography_audit
-        - reproducibility_manifest
-      required_evidence_override:
-        - resolved explicit LaTeX manuscript subject
-        - compiled manuscript beside the explicit subject
-        - latest peer-review review ledger matched to the explicit subject
-        - latest peer-review referee decision matched to the explicit subject
-      blocking_conditions_override:
-        - missing explicit LaTeX manuscript subject
-        - missing compiled manuscript beside the explicit subject
-        - missing or invalid latest staged peer-review decision evidence for the explicit subject
-        - degraded review integrity
-        - latest staged peer-review recommendation blocks submission packaging
   conditional_requirements:
     - when: theorem-bearing manuscripts are present
       required_evidence:
@@ -124,10 +102,10 @@ Output: A submission-ready tarball and checklist of manual steps remaining.
 </execution_context>
 
 <context>
-Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the manuscript root).
+Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the active GPD-owned manuscript root).
 
-Explicit external subjects are allowed only for `.tex` entrypoints or manuscript directories that resolve to one.
-When `$ARGUMENTS` is omitted, use the current GPD project's resolved manuscript subject only; do not switch to standalone interactive intake.
+Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`.
+When `$ARGUMENTS` is omitted, use the current GPD project's resolved manuscript subject only; do not switch to standalone interactive intake or arbitrary external directories.
 </context>
 
 <process>

@@ -19,19 +19,21 @@ def test_arxiv_submission_command_declares_manuscript_root_gates_without_first_m
 
     assert "context_mode: project-aware" in command
     assert "command-policy:" in command
-    assert "allow_external_subjects: true" in command
+    assert "allow_external_subjects: false" in command
     assert "allow_interactive_without_subject: false" in command
     assert "bootstrap_allowed: false" in command
     assert "default_output_subtree: GPD/publication/{subject_slug}/arxiv" in command
+    assert "GPD/publication/*/manuscript/*.tex" in command
     assert "manuscript-root artifact manifest" in command
     assert "manuscript-root bibliography audit" in command
     assert "Follow `@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md` exactly." in command
     assert "artifact_manifest" in command
     assert "bibliography_audit" in command
     assert "bibliography_audit_clean" in command
-    assert "Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the manuscript root)." in command
-    assert "Explicit external subjects are allowed only for `.tex` entrypoints" in command
-    assert "do not switch to standalone interactive intake" in command
+    assert "Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the active GPD-owned manuscript root)." in command
+    assert "Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`." in command
+    assert "do not switch to standalone interactive intake or arbitrary external directories" in command
+    assert "scope_variants:" not in command
     assert "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" not in command
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" not in command
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" not in command
@@ -53,11 +55,14 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
     assert "gpd paper-build" in workflow
     assert "STOP and require an explicit manuscript path or a repaired manuscript-root state" in workflow
     assert "Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots." in workflow
-    assert "If that file lives outside `paper/`, `manuscript/`, or `draft/`, treat it as an explicit external publication subject." in workflow
-    assert "Do not prompt for standalone intake when no explicit target is supplied." in workflow
+    assert "That file must already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
+    assert "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots." in workflow
     assert 'PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
-    assert "Do not write proof-review manifests, package staging trees, or tarballs beside an explicit external manuscript subject." in workflow
+    assert "latest-response discovery" in workflow
+    assert "latest response artifacts already reached" not in workflow
+    assert "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself." in workflow
+    assert "Even for an explicit external manuscript subject" not in workflow
     assert 'ls "${DIR}"/*.tex' not in workflow
 
 

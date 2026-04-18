@@ -812,6 +812,12 @@ PEER_REVIEW_INIT_FIELDS = frozenset(
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",
@@ -859,6 +865,12 @@ ARXIV_SUBMISSION_BOOTSTRAP_FIELDS = frozenset(
 )
 ARXIV_SUBMISSION_SNAPSHOT_FIELDS = frozenset(
     {
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",

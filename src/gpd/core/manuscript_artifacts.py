@@ -22,6 +22,8 @@ __all__ = [
     "PublicationSubjectResolution",
     "infer_publication_artifact_base",
     "locate_publication_artifact",
+    "publication_root_for_subject",
+    "review_dir_for_subject",
     "resolve_current_publication_subject",
     "resolve_manuscript_entrypoint_from_root",
     "resolve_explicit_publication_subject",
@@ -107,6 +109,14 @@ class PublicationSubjectResolution:
     def resolved(self) -> bool:
         return self.status == "resolved" and self.manuscript_entrypoint is not None
 
+    @property
+    def publication_root(self) -> Path | None:
+        return publication_root_for_subject(self)
+
+    @property
+    def review_dir(self) -> Path | None:
+        return review_dir_for_subject(self)
+
     def as_manuscript_resolution(self) -> ManuscriptResolution:
         """Return a compatibility manuscript-resolution view of this subject."""
 
@@ -139,6 +149,8 @@ class PublicationSubjectResolution:
             "detail": self.detail,
             "target_path": _relative_path(self.project_root, self.target_path),
             "artifact_base": _relative_path(self.project_root, self.artifact_base),
+            "publication_root": _relative_path(self.project_root, self.publication_root),
+            "review_dir": _relative_path(self.project_root, self.review_dir),
             "manuscript_root": _relative_path(self.project_root, self.manuscript_root),
             "manuscript_entrypoint": _relative_path(self.project_root, self.manuscript_entrypoint),
             "artifact_manifest": _relative_path(self.project_root, self.artifact_manifest),
@@ -165,6 +177,8 @@ class PublicationSubjectResolution:
             "publication_lane_kind": self.publication_lane_kind,
             "publication_lane_owner": self.publication_lane_owner,
             "publication_artifact_base": _relative_path(self.project_root, self.artifact_base),
+            "publication_root": _relative_path(self.project_root, self.publication_root),
+            "review_dir": _relative_path(self.project_root, self.review_dir),
             "manuscript_resolution_status": manuscript_resolution.status,
             "manuscript_resolution_detail": manuscript_resolution.detail,
             "manuscript_root": _relative_path(self.project_root, self.manuscript_root),
@@ -635,14 +649,60 @@ def _managed_publication_paths(
     publication_subject_slug: str | None,
     publication_lane_kind: PublicationLaneKind | None,
 ) -> tuple[Path | None, Path | None]:
-    if publication_subject_slug is None or publication_lane_kind not in {
-        "canonical_project_manuscript",
-        "managed_publication_manuscript",
-    }:
+    if publication_subject_slug is None:
         return None, None
     layout = ProjectLayout(project_root)
     publication_root = layout.publication_subject_dir(publication_subject_slug)
-    return publication_root, publication_root / "manuscript"
+    if publication_lane_kind == "external_artifact":
+        return publication_root, None
+    if publication_lane_kind in {
+        "canonical_project_manuscript",
+        "managed_publication_manuscript",
+    }:
+        return publication_root, publication_root / "manuscript"
+    return None, None
+
+
+def _publication_output_paths(
+    project_root: Path,
+    *,
+    source: PublicationSubjectSource,
+    publication_subject_slug: str | None,
+    publication_lane_owner: PublicationLaneOwner | None,
+) -> tuple[Path | None, Path | None]:
+    layout = ProjectLayout(project_root)
+    if source == "current_project" or publication_lane_owner == "project_managed":
+        return layout.gpd, layout.review_dir
+    if publication_lane_owner == "external_artifact" and publication_subject_slug is not None:
+        return (
+            layout.publication_subject_dir(publication_subject_slug),
+            layout.publication_review_dir(publication_subject_slug),
+        )
+    return None, None
+
+
+def publication_root_for_subject(publication_subject: PublicationSubjectResolution) -> Path | None:
+    """Return the canonical GPD publication root for one scoped publication subject."""
+
+    publication_root, _review_dir = _publication_output_paths(
+        publication_subject.project_root,
+        source=publication_subject.source,
+        publication_subject_slug=publication_subject.publication_subject_slug,
+        publication_lane_owner=publication_subject.publication_lane_owner,
+    )
+    return publication_root
+
+
+def review_dir_for_subject(publication_subject: PublicationSubjectResolution) -> Path | None:
+    """Return the canonical review directory for one scoped publication subject."""
+
+    _publication_root, review_dir = _publication_output_paths(
+        publication_subject.project_root,
+        source=publication_subject.source,
+        publication_subject_slug=publication_subject.publication_subject_slug,
+        publication_lane_owner=publication_subject.publication_lane_owner,
+    )
+    return review_dir
 
 
 def _bootstrap_candidate_root(project_root: Path, manuscript_root: Path) -> bool:
