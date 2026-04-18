@@ -26,7 +26,7 @@ The peer review phase activates **after a complete manuscript draft exists** and
 
 ### Precondition Checklist
 
-- Either the active manuscript exists under `paper/`, `manuscript/`, or `draft/`, or the user supplies one explicit `.tex`, `.md`, `.txt`, or `.pdf` review target
+- Either the active manuscript exists under `paper/`, `manuscript/`, or `draft/`, or the user supplies one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` review target
 - `GPD/STATE.md` and `GPD/ROADMAP.md` are present when reviewing the current GPD project manuscript
 - Phase summaries and verification reports are available under `GPD/phases/` when reviewing the current GPD project manuscript
 - `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are required in strict project-backed mode and additive when present for explicit external artifact review

@@ -22,7 +22,11 @@ def _write_model(model: BaseModel, output_path: Path) -> None:
 
 
 def _read_model(model_cls: type[_T], input_path: Path) -> _T:
-    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    try:
+        raw = input_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise OSError(f"{input_path.as_posix()} is not valid UTF-8") from exc
+    payload = json.loads(raw)
     return model_cls.model_validate(payload)
 
 

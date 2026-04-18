@@ -54,11 +54,11 @@ Use ask_user:
 - question: `Review the current GPD project manuscript, or point at a specific manuscript artifact?`
 - options:
   - `Use current project` -- Review the active manuscript resolved from the current GPD project. Recommended when the folder is already a GPD project.
-  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, or manuscript directory path instead.
+  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path instead.
 
 If the user chooses `Pick artifact path`, ask for one explicit path and store it in `REVIEW_TARGET`.
 
-If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
+If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
 
 Run centralized context preflight before continuing:
 
@@ -73,11 +73,13 @@ fi
 **Resolve manuscript target:**
 
 1. If `$REVIEW_TARGET` names a directory, use it as the candidate paper directory.
-2. If `$REVIEW_TARGET` names a `.tex`, `.md`, `.txt`, or `.pdf` file, use that file and its parent directory as the review root.
+2. If `$REVIEW_TARGET` names a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` file, use that file and its parent directory as the review root.
 3. Otherwise search, in order:
    - the resolved manuscript entrypoint under `paper/`
    - the resolved manuscript entrypoint under `manuscript/`
    - the resolved manuscript entrypoint under `draft/`
+
+When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
 
 After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:
 
@@ -93,7 +95,8 @@ Prepare a reader-friendly manuscript surface for the staged reviewers:
 
 - For `.tex` or `.md`, keep the resolved main file plus any nearby section `.tex` / `.md` files under the same manuscript root.
 - For `.txt`, use the `.txt` file directly as the manuscript review surface.
-- For `.pdf`, first look for a nearby text companion such as the same basename with `.txt`. If none exists and `pdftotext` is available, create `GPD/review/` if needed, extract a text copy to `GPD/review/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original PDF as the canonical `RESOLVED_MANUSCRIPT`. If neither a nearby text companion nor `pdftotext` is available, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, or a PDF with an extractable text companion.
+- For `.csv` or `.tsv`, use the file directly as the explicit-artifact review surface.
+- For `.pdf`, `.docx`, or `.xlsx`, first look for a nearby text companion such as the same basename with `.txt`. If none exists, create `GPD/review/` if needed, run `gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output GPD/review/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`. If extraction fails, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, `.csv`, `.tsv`, or a matching extracted `.txt` companion file.
 
 Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 
@@ -102,7 +105,7 @@ Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 ```
 No manuscript found. Searched: paper/, manuscript/, draft/
 
-Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, or manuscript directory path to gpd:peer-review.
+Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path to gpd:peer-review.
 ```
 
 Exit.

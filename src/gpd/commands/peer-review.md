@@ -95,7 +95,7 @@ Review target: $ARGUMENTS (optional paper directory, manuscript path, or explici
 If the current folder is a GPD project, treat `GPD/STATE.md` and `GPD/ROADMAP.md` as optional project context. Do not require them for standalone external artifact review.
 
 The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
-Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Do not use ad hoc wildcard discovery.
+Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx`. Keep canonical in-project manuscript-root discovery on the manifest/config-resolved `.tex` / `.md` entrypoint path for those roots. Do not use ad hoc wildcard discovery.
 If no explicit target is supplied, the workflow may either use the current GPD project manuscript when available or ask the user to point at a specific artifact path.
 
 ```bash

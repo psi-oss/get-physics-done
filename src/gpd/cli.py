@@ -36,6 +36,13 @@ from rich.text import Text
 
 from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.command_labels import canonical_command_label, validated_public_command_prefix
+from gpd.core.artifact_text import (
+    DIGEST_KNOWLEDGE_SOURCE_SUFFIXES,
+    PEER_REVIEW_ARTIFACT_SUFFIXES,
+    ArtifactTextError,
+    materialize_artifact_text_surface,
+    probe_artifact_text_surface,
+)
 from gpd.core.arxiv_source_download import normalize_arxiv_id
 from gpd.core.cli_args import (
     normalize_root_global_cli_options as _normalize_root_global_cli_options,
@@ -3358,7 +3365,9 @@ def doctor(
         else "local"
     )
     if target_dir is None and not global_install and not local_install:
-        resolved_target = _get_adapter_or_error(normalized_runtime, action="doctor").resolve_target_dir(False, _get_cwd())
+        resolved_target = _get_adapter_or_error(normalized_runtime, action="doctor").resolve_target_dir(
+            False, _get_cwd()
+        )
     _output(
         run_doctor(
             specs_dir=SPECS_DIR,
@@ -4827,10 +4836,7 @@ def question_resolve(
         joined = " ".join(text)
         res = question_resolve(state, joined, answer=answer)
         if res == 0:
-            _error(
-                f'No open question matching "{joined}". '
-                "Pass the question text (or a unique substring), not an ID."
-            )
+            _error(f'No open question matching "{joined}". Pass the question text (or a unique substring), not an ID.')
         save_state_json_locked(cwd, state)
     _output(res)
 
@@ -5545,17 +5551,16 @@ def _resolve_review_preflight_manuscript(
     normalized_allowed_suffixes = {
         suffix.lower()
         for suffix in (
-            allowed_suffixes
-            if allowed_suffixes is not None
-            else ({".tex", ".md"} if allow_markdown else {".tex"})
+            allowed_suffixes if allowed_suffixes is not None else ({".tex", ".md"} if allow_markdown else {".tex"})
         )
     }
     if not normalized_allowed_suffixes:
         normalized_allowed_suffixes = {".tex"}
 
     def _allowed_suffix_message() -> str:
-        ordered_suffixes = [suffix for suffix in (".tex", ".md", ".txt", ".pdf") if suffix in normalized_allowed_suffixes]
-        extras = sorted(suffix for suffix in normalized_allowed_suffixes if suffix not in {".tex", ".md", ".txt", ".pdf"})
+        preferred_order = (".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx", ".xlsm")
+        ordered_suffixes = [suffix for suffix in preferred_order if suffix in normalized_allowed_suffixes]
+        extras = sorted(suffix for suffix in normalized_allowed_suffixes if suffix not in set(preferred_order))
         ordered_suffixes.extend(extras)
         if ordered_suffixes == [".tex"]:
             return ".tex file"
@@ -5707,6 +5712,8 @@ def _validate_bibliography_audit_semantics(bibliography_audit: Path) -> tuple[bo
         audit_payload = json.loads(bibliography_audit.read_text(encoding="utf-8"))
     except OSError as exc:
         return False, f"could not read bibliography audit: {exc}"
+    except UnicodeDecodeError as exc:
+        return False, f"bibliography audit is not valid UTF-8: {exc}"
     except json.JSONDecodeError as exc:
         return False, f"could not parse bibliography audit: {exc}"
 
@@ -5933,6 +5940,8 @@ def _load_json_document(input_path: str) -> object:
             raw = target.read_text(encoding="utf-8")
         except FileNotFoundError as exc:
             raise GPDError(f"JSON input not found: {source}") from exc
+        except UnicodeDecodeError as exc:
+            raise GPDError(f"JSON input is not valid UTF-8: {source}: {exc}") from exc
         except OSError as exc:
             raise GPDError(f"Failed to read JSON input from {source}: {exc}") from exc
 
@@ -5953,8 +5962,28 @@ def _load_text_document(input_path: str) -> tuple[Path, str]:
         return target, target.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise GPDError(f"Text input not found: {source}") from exc
+    except UnicodeDecodeError as exc:
+        raise GPDError(f"Text input is not valid UTF-8: {source}: {exc}") from exc
     except OSError as exc:
         raise GPDError(f"Failed to read text input from {source}: {exc}") from exc
+
+
+def _load_json_document_or_error(input_path: str) -> object:
+    """Load JSON input and emit the standard CLI error envelope on failure."""
+
+    try:
+        return _load_json_document(input_path)
+    except GPDError as exc:
+        _error(str(exc))
+
+
+def _load_text_document_or_error(input_path: str) -> tuple[Path, str]:
+    """Load text input and emit the standard CLI error envelope on failure."""
+
+    try:
+        return _load_text_document(input_path)
+    except GPDError as exc:
+        _error(str(exc))
 
 
 def _project_root_for_json_input(input_path: str) -> Path:
@@ -6292,22 +6321,7 @@ def _has_sensitivity_explicit_inputs(arguments: str | None) -> bool:
     return _has_flag_value(tokens, "--target") and _has_flag_value(tokens, "--params")
 
 
-_DIGEST_KNOWLEDGE_PATH_SUFFIXES = {
-    ".bib",
-    ".csv",
-    ".ipynb",
-    ".json",
-    ".markdown",
-    ".md",
-    ".pdf",
-    ".py",
-    ".rst",
-    ".tex",
-    ".txt",
-    ".tsv",
-    ".yaml",
-    ".yml",
-}
+_DIGEST_KNOWLEDGE_PATH_SUFFIXES = DIGEST_KNOWLEDGE_SOURCE_SUFFIXES
 
 
 def _looks_like_digest_knowledge_topic_token(token: str) -> bool:
@@ -6573,7 +6587,7 @@ def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
     if not _command_requires_compiled_manuscript(command):
         allowed_suffixes.add(".md")
     if getattr(command, "name", "") == "gpd:peer-review":
-        allowed_suffixes.update({".txt", ".pdf"})
+        return PEER_REVIEW_ARTIFACT_SUFFIXES
     return frozenset(allowed_suffixes)
 
 
@@ -6745,19 +6759,21 @@ def _peer_review_external_mode_requested(
     return not _path_is_within_supported_manuscript_root(project_root, target.resolve(strict=False))
 
 
-def _peer_review_pdf_intake_ready(manuscript: Path) -> tuple[bool, str]:
-    """Return whether a PDF manuscript target can be converted into review text."""
-    companion_text = manuscript.with_suffix(".txt")
-    if companion_text.exists():
-        return True, f"PDF intake can use companion text file {_format_display_path(companion_text)}"
+def _peer_review_artifact_text_surface_ready(manuscript: Path, *, probe: object | None = None) -> tuple[bool, str]:
+    """Return whether one peer-review artifact can be converted into review text."""
 
-    from gpd.mcp.paper.compiler import find_latex_compiler
+    try:
+        readiness_probe = probe if probe is not None else probe_artifact_text_surface(manuscript)
+    except ArtifactTextError as exc:
+        return False, str(exc)
 
-    pdftotext_path = find_latex_compiler("pdftotext")
-    if pdftotext_path is not None:
-        return True, f"pdftotext available at {_format_display_path(pdftotext_path)} for PDF review intake"
-
-    return False, "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
+    detail = readiness_probe.detail
+    for path in (readiness_probe.surface_path, readiness_probe.helper_path):
+        if path is None:
+            continue
+        display_path = _format_display_path(path)
+        detail = detail.replace(path.as_posix(), display_path).replace(str(path), display_path)
+    return readiness_probe.ready, detail
 
 
 def _build_command_context_preflight(
@@ -7311,13 +7327,25 @@ def _build_review_preflight(
             manuscript_passed = resolution.status == "resolved"
         else:
             manuscript_passed = manuscript is not None
-        if manuscript is not None and command.name == "gpd:peer-review" and manuscript.suffix.lower() == ".pdf":
-            pdf_ready, pdf_detail = _peer_review_pdf_intake_ready(manuscript)
-            manuscript_passed = manuscript_passed and pdf_ready
-            if pdf_ready:
-                manuscript_detail = f"{_format_display_path(manuscript)} present; {pdf_detail}"
+        if (
+            manuscript is not None
+            and command.name == "gpd:peer-review"
+            and manuscript.suffix.lower()
+            in {
+                ".pdf",
+                ".docx",
+                ".csv",
+                ".tsv",
+                ".xlsx",
+                ".xlsm",
+            }
+        ):
+            intake_ready, intake_detail = _peer_review_artifact_text_surface_ready(manuscript)
+            manuscript_passed = manuscript_passed and intake_ready
+            if intake_ready:
+                manuscript_detail = f"{_format_display_path(manuscript)} present; {intake_detail}"
             else:
-                manuscript_detail = pdf_detail
+                manuscript_detail = intake_detail
         add_check(
             "manuscript",
             manuscript_passed,
@@ -7392,6 +7420,9 @@ def _build_review_preflight(
                         except OSError as exc:
                             artifact_manifest_passed = False
                             artifact_manifest_detail = f"could not read artifact manifest: {exc}"
+                        except UnicodeDecodeError as exc:
+                            artifact_manifest_passed = False
+                            artifact_manifest_detail = f"artifact manifest is not valid UTF-8: {exc}"
                         except json.JSONDecodeError as exc:
                             artifact_manifest_passed = False
                             artifact_manifest_detail = f"could not parse artifact manifest: {exc}"
@@ -7922,6 +7953,67 @@ def validate_review_preflight(
         raise typer.Exit(code=1)
 
 
+@validate_app.command("artifact-text")
+def validate_artifact_text_cmd(
+    input_path: str = typer.Argument(..., help="Path to an artifact that should expose a readable text surface"),
+    output_path: str | None = typer.Option(
+        None,
+        "--output",
+        help="Optional path for the materialized UTF-8 text surface",
+    ),
+) -> None:
+    """Validate or materialize a readable text surface for one external artifact."""
+
+    source_path = Path(input_path)
+    if not source_path.is_absolute():
+        source_path = _get_cwd() / source_path
+    source_path = source_path.resolve(strict=False)
+    if not source_path.exists():
+        _error(f"Artifact input not found: {_format_display_path(source_path)}")
+    if not source_path.is_file():
+        _error(f"Artifact input must be a file: {_format_display_path(source_path)}")
+
+    try:
+        probe = probe_artifact_text_surface(source_path)
+    except ArtifactTextError as exc:
+        _error(str(exc))
+    if not probe.ready:
+        _error(probe.detail)
+
+    if output_path is None:
+        _output(
+            {
+                "input_path": str(source_path),
+                "ready": probe.ready,
+                "detail": _peer_review_artifact_text_surface_ready(source_path, probe=probe)[1],
+                "surface_kind": probe.surface_kind,
+            }
+        )
+        return
+
+    materialized_output = Path(output_path)
+    if not materialized_output.is_absolute():
+        materialized_output = _get_cwd() / materialized_output
+    materialized_output = materialized_output.resolve(strict=False)
+    if materialized_output == source_path:
+        _error("--output must differ from the source artifact path")
+
+    try:
+        result = materialize_artifact_text_surface(source_path, materialized_output)
+    except ArtifactTextError as exc:
+        _error(str(exc))
+
+    _output(
+        {
+            "input_path": str(result.source_path),
+            "output_path": str(result.output_path),
+            "detail": _peer_review_artifact_text_surface_ready(source_path, probe=probe)[1],
+            "surface_kind": result.surface_kind,
+            "text_length": result.text_length,
+        }
+    )
+
+
 @validate_app.command("paper-quality")
 def validate_paper_quality(
     input_path: str | None = typer.Argument(None, help="Path to a paper-quality JSON file, or '-' for stdin"),
@@ -7947,7 +8039,7 @@ def validate_paper_quality(
     else:
         if not input_path:
             _error("Provide a PaperQualityInput path or use --from-project <root>")
-        payload = _load_json_document(input_path)
+        payload = _load_json_document_or_error(input_path)
         try:
             paper_quality_input = PaperQualityInput.model_validate(payload)
         except PydanticValidationError as exc:
@@ -7975,7 +8067,7 @@ def validate_project_contract_cmd(
     if normalized_mode not in {"draft", "approved"}:
         raise GPDError(f"Invalid --mode {mode!r}. Expected 'draft' or 'approved'.")
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     if input_path == "-":
         workspace_cwd = _state_command_cwd()
         stdin_inside_project = (workspace_cwd / "GPD").is_dir()
@@ -8060,7 +8152,7 @@ def validate_plan_preflight_cmd(
 
     from gpd.core.tool_preflight import build_plan_tool_preflight
 
-    file_path, _ = _load_text_document(input_path)
+    file_path, _ = _load_text_document_or_error(input_path)
     result = build_plan_tool_preflight(file_path)
     _output(result)
     if not result.passed:
@@ -8092,7 +8184,7 @@ def validate_review_claim_index_cmd(
     """Validate a staged peer-review claim index."""
     from gpd.mcp.paper.models import ClaimIndex
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         claim_index = ClaimIndex.model_validate(payload)
     except PydanticValidationError as exc:
@@ -8115,7 +8207,7 @@ def validate_review_stage_report_cmd(
     )
     from gpd.mcp.paper.models import StageReviewReport
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         stage_report = StageReviewReport.model_validate(payload)
     except PydanticValidationError as exc:
@@ -8153,7 +8245,7 @@ def validate_review_ledger_cmd(
     """Validate a staged peer-review issue ledger."""
     from gpd.mcp.paper.models import ReviewLedger
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         ledger = ReviewLedger.model_validate(payload)
     except PydanticValidationError as exc:
@@ -8188,7 +8280,7 @@ def validate_referee_decision(
     if strict and ledger_path is None:
         _error("Strict referee-decision validation requires --ledger with the matching review-ledger JSON.")
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         decision = RefereeDecisionInput.model_validate(payload)
     except PydanticValidationError as exc:
@@ -8200,7 +8292,7 @@ def validate_referee_decision(
 
     review_ledger = None
     if ledger_path is not None:
-        ledger_payload = _load_json_document(ledger_path)
+        ledger_payload = _load_json_document_or_error(ledger_path)
         try:
             review_ledger = ReviewLedger.model_validate(ledger_payload)
         except PydanticValidationError as exc:
@@ -8244,7 +8336,7 @@ def validate_reproducibility_manifest_cmd(
         validate_reproducibility_manifest,
     )
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     result = validate_reproducibility_manifest(payload)
     result_payload = result.model_dump(mode="json")
     result_payload["reproducibility_ready"] = result_payload.pop("ready_for_review")
@@ -9415,7 +9507,9 @@ def install(
     global_install: bool = typer.Option(False, "--global", help="Install into the global runtime config dir"),
     target_dir: str | None = typer.Option(None, "--target-dir", help="Override target config directory"),
     force_statusline: bool = typer.Option(False, "--force-statusline", help="Overwrite existing statusline config"),
-    skip_readiness_check: bool = typer.Option(False, "--skip-readiness-check", help="Skip runtime readiness preflight (for embedded/sidecar use)"),
+    skip_readiness_check: bool = typer.Option(
+        False, "--skip-readiness-check", help="Skip runtime readiness preflight (for embedded/sidecar use)"
+    ),
 ) -> None:
     """Install GPD skills, agents, and hooks into runtime config directories."""
     from rich.progress import Progress, SpinnerColumn, TextColumn

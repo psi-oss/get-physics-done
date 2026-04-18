@@ -241,7 +241,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 
 - `gpd:literature-review [topic]` - Create a structured literature review
 - `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results
-- `gpd:peer-review [paper directory | manuscript path | .pdf/.txt artifact path]` - Run the staged review workflow
+- `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow
 - `gpd:respond-to-referees` - Draft referee responses and revise the paper
 - `gpd:arxiv-submission` - Package a built manuscript for arXiv
 - `gpd:slides [topic, audience, or source path]` - Create presentation slides
@@ -781,12 +781,13 @@ Structure and write a physics paper from research results.
 Usage: `gpd:write-paper "Critical exponents via RG"`
 Usage: `gpd:write-paper --from-phases 1,3,5` (subset of phases)
 
-**`gpd:peer-review [paper directory | manuscript path | .pdf/.txt artifact path]`**
+**`gpd:peer-review [paper directory | manuscript path | explicit artifact path]`**
 Run skeptical peer review on an existing manuscript or explicit review artifact.
 
 - Runs strict review preflight checks against the resolved review target and available supporting artifacts
 - Loads manuscript files or explicit artifact text, plus project summaries and verification context when present
-- Bare PDF intake requires either `pdftotext` on PATH or a same-directory `.txt` companion file
+- Explicit artifact intake accepts `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`; canonical in-project manuscript discovery still stays on the resolved `.tex` / `.md` entrypoint under `paper/`, `manuscript/`, or `draft/`
+- Non-plain-text artifact intake (`.pdf`, `.docx`, `.xlsx`) uses `gpd validate artifact-text <path> --output <txt-path>` or a same-directory `.txt` companion file
 - Spawns a six-agent review panel plus the auxiliary `gpd-check-proof` critic when theorem-bearing claims are present
 - Produces stage artifacts under `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex`
 - Routes the result to `gpd:respond-to-referees` or `gpd:arxiv-submission`
@@ -795,7 +796,9 @@ Run skeptical peer review on an existing manuscript or explicit review artifact.
 Usage: `gpd:peer-review`
 Usage: `gpd:peer-review paper/`
 Usage: `gpd:peer-review draft.pdf`
+Usage: `gpd:peer-review draft.docx`
 Usage: `gpd:peer-review notes.txt`
+Usage: `gpd:peer-review data/observables.csv`
 
 **`gpd:respond-to-referees`**
 Structure point-by-point response to referee reports and revise the manuscript.
@@ -858,6 +861,8 @@ Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 Create or update a knowledge document draft from a topic, paper, source file, or explicit knowledge path.
 
 - Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Source-file intake accepts `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied explicitly
+- Non-plain-text source intake (`.pdf`, `.docx`, `.xlsx`) is normalized through `gpd validate artifact-text <path> --output <txt-path>` before drafting; keep the original artifact path as the canonical source reference
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
 - Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
@@ -869,6 +874,8 @@ Create or update a knowledge document draft from a topic, paper, source file, or
 - Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
 - Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
 - Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
+- Example document source: `gpd:digest-knowledge ./drafts/review-notes.docx`
+- Example tabular source: `gpd:digest-knowledge ./data/critical-exponents.csv`
 - Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`
 
 Usage: `gpd:digest-knowledge "renormalization group fixed points"`

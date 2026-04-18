@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,44 @@ from gpd.core.proof_review import (
     resolve_phase_proof_review_status,
 )
 from tests.manuscript_test_support import CANONICAL_MANUSCRIPT_STEM, write_proof_review_package
+
+
+def _write_binary_pdf(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(
+        b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n"
+        b"1 0 obj\n<< /Type /Catalog >>\nendobj\n"
+        b"2 0 obj\n<< /Length 5 >>\nstream\n\x80\x81\xff\x00\xfe\nendstream\nendobj\n"
+        b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+    )
+    return path
+
+
+def _fake_pdftotext_run(extracted_text: str):
+    def _run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+        output_arg = next(
+            (
+                Path(str(argument))
+                for argument in command[1:]
+                if isinstance(argument, str) and argument not in {"-"} and str(argument).endswith(".txt")
+            ),
+            None,
+        )
+        if output_arg is not None:
+            output_arg.parent.mkdir(parents=True, exist_ok=True)
+            output_arg.write_text(extracted_text, encoding="utf-8")
+
+        text_mode = bool(kwargs.get("text"))
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout=extracted_text if text_mode else extracted_text.encode("utf-8"),
+            stderr="" if text_mode else b"",
+        )
+
+    return _run
 
 
 def test_phase_proof_review_bootstraps_manifest_and_turns_stale_after_edit(tmp_path: Path) -> None:
@@ -60,7 +99,9 @@ def test_manuscript_proof_review_bootstraps_manifest_and_turns_stale_after_edit(
 
 
 def test_manuscript_proof_review_requires_proof_redteam_artifact_for_proof_bearing_manuscript(tmp_path: Path) -> None:
-    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=False, proof_redteam_status=None).manuscript_path
+    manuscript_path = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=False, proof_redteam_status=None
+    ).manuscript_path
 
     status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
 
@@ -72,10 +113,7 @@ def test_manuscript_proof_review_requires_proof_redteam_artifact_for_proof_beari
 def test_manuscript_theorem_language_scan_follows_nested_section_files(tmp_path: Path) -> None:
     manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=False, review_report=False).manuscript_path
     manuscript_path.write_text(
-        "\\documentclass{article}\n"
-        "\\begin{document}\n"
-        "\\input{sections/results}\n"
-        "\\end{document}\n",
+        "\\documentclass{article}\n\\begin{document}\n\\input{sections/results}\n\\end{document}\n",
         encoding="utf-8",
     )
     section_path = tmp_path / "paper" / "sections" / "results.tex"
@@ -90,8 +128,53 @@ def test_manuscript_theorem_language_scan_follows_nested_section_files(tmp_path:
     assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is True
 
 
+def test_manuscript_theorem_language_scan_reads_binary_pdf_companion_text(tmp_path: Path) -> None:
+    (tmp_path / "GPD" / "review").mkdir(parents=True, exist_ok=True)
+    manuscript_path = _write_binary_pdf(tmp_path / "paper" / f"{CANONICAL_MANUSCRIPT_STEM}.pdf")
+    manuscript_path.with_suffix(".txt").write_text(
+        "Theorem. For every r_0 > 0, the orbit intersects the target annulus.\n"
+        "Proof. The companion text preserves the theorem statement.\n",
+        encoding="utf-8",
+    )
+
+    assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is True
+
+
+def test_manuscript_theorem_language_scan_uses_pdftotext_for_binary_pdf(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "GPD" / "review").mkdir(parents=True, exist_ok=True)
+    manuscript_path = _write_binary_pdf(tmp_path / "paper" / f"{CANONICAL_MANUSCRIPT_STEM}.pdf")
+    extracted_text = (
+        "Theorem. Every admissible orbit reaches the annulus.\nProof. The extractor preserves the proof body.\n"
+    )
+
+    monkeypatch.setattr(
+        "gpd.mcp.paper.compiler.find_latex_compiler",
+        lambda compiler: "/usr/bin/pdftotext" if compiler == "pdftotext" else None,
+    )
+    monkeypatch.setattr(subprocess, "run", _fake_pdftotext_run(extracted_text))
+
+    assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is True
+
+
+def test_manuscript_theorem_language_scan_returns_false_for_binary_pdf_without_text_support(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "GPD" / "review").mkdir(parents=True, exist_ok=True)
+    manuscript_path = _write_binary_pdf(tmp_path / "paper" / f"{CANONICAL_MANUSCRIPT_STEM}.pdf")
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", lambda compiler: None)
+
+    assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is False
+
+
 def test_manuscript_proof_review_rejects_nonpassing_proof_redteam_artifact(tmp_path: Path) -> None:
-    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="gaps_found").manuscript_path
+    manuscript_path = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="gaps_found"
+    ).manuscript_path
 
     status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
 
@@ -133,7 +216,9 @@ def test_manuscript_proof_review_rejects_mismatched_proof_redteam_snapshot(tmp_p
 
 
 def test_manuscript_proof_review_rejects_incomplete_proof_redteam_body(tmp_path: Path) -> None:
-    package = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed")
+    package = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    )
     manuscript_path = package.manuscript_path
     (tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md").write_text(
         (
@@ -169,7 +254,9 @@ def test_manuscript_proof_review_rejects_incomplete_proof_redteam_body(tmp_path:
 def test_manuscript_proof_review_rejects_passed_artifact_missing_structured_audit_fields(
     tmp_path: Path,
 ) -> None:
-    package = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed")
+    package = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    )
     proof_redteam_path = tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
     proof_redteam_path.write_text(
         (
@@ -236,7 +323,9 @@ def test_manuscript_proof_review_rejects_passed_artifact_missing_structured_audi
 
 
 def test_manuscript_proof_review_trusts_structured_audit_over_prose_hints(tmp_path: Path) -> None:
-    package = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed")
+    package = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    )
     proof_redteam_path = tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
     proof_redteam_path.write_text(
         (
@@ -325,7 +414,9 @@ def test_manuscript_proof_review_rejects_passed_artifact_with_structured_gap(
     field_value: object,
     expected_fragment: str,
 ) -> None:
-    package = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed")
+    package = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    )
     proof_redteam_path = tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
 
     structured_fields = {
@@ -408,7 +499,9 @@ def test_manuscript_proof_review_rejects_passed_artifact_with_structured_gap(
 
 
 def test_manuscript_proof_review_anchors_to_passed_proof_redteam_artifact(tmp_path: Path) -> None:
-    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed").manuscript_path
+    manuscript_path = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    ).manuscript_path
 
     status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
 
@@ -492,7 +585,9 @@ def test_manuscript_proof_review_rejects_unreadable_latest_stage_math_without_fa
 
 
 def test_manuscript_proof_review_turns_stale_after_bibliography_edit(tmp_path: Path) -> None:
-    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed").manuscript_path
+    manuscript_path = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    ).manuscript_path
     bibliography_path = tmp_path / "paper" / "references.bib"
 
     fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
@@ -509,14 +604,18 @@ def test_manuscript_proof_review_turns_stale_after_bibliography_edit(tmp_path: P
 
 
 def test_manuscript_proof_review_turns_stale_after_proof_redteam_edit(tmp_path: Path) -> None:
-    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed").manuscript_path
+    manuscript_path = write_proof_review_package(
+        tmp_path, theorem_bearing=True, review_report=True, proof_redteam_status="passed"
+    ).manuscript_path
     proof_redteam_path = tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
 
     fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
 
     assert fresh.state == "fresh"
 
-    proof_redteam_path.write_text(proof_redteam_path.read_text(encoding="utf-8") + "\n<!-- drift -->\n", encoding="utf-8")
+    proof_redteam_path.write_text(
+        proof_redteam_path.read_text(encoding="utf-8") + "\n<!-- drift -->\n", encoding="utf-8"
+    )
 
     stale = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
 
