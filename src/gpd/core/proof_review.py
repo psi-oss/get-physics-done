@@ -692,6 +692,7 @@ def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoin
                     artifact_path=path,
                     claim_index=claim_index,
                     expected_manuscript_path=expected_manuscript_path,
+                    expected_manuscript_label="active manuscript",
                 )
             )
             if theorem_claim_ids:

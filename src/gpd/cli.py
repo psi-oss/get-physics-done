@@ -210,6 +210,16 @@ def _output(data: object) -> None:
             console.print(str(data), highlight=False)
 
 
+def _stdout_is_interactive() -> bool:
+    stream = getattr(sys, "stdout", None)
+    if stream is None:
+        return False
+    try:
+        return bool(stream.isatty())
+    except Exception:
+        return False
+
+
 def _pretty_print(d: dict) -> None:
     """Render a dict as a rich table."""
     table = Table(show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
@@ -8787,13 +8797,21 @@ def resolve_model_cmd(
         "--runtime",
         help=_runtime_override_help(),
     ),
+    explain: bool = typer.Option(
+        False,
+        "--explain",
+        help="Explain the resolved tier/runtime and why the command may print nothing.",
+    ),
 ) -> None:
     """Resolve the runtime-specific model override for an agent.
 
     Prints nothing when no override is configured so callers can omit the
-    runtime model parameter and let the platform use its default model.
+    runtime model parameter and let the platform use its default model. Use
+    --explain for a human-readable explanation without changing shell-safe
+    default stdout behavior.
     """
-    from gpd.core.config import resolve_model, validate_agent_name
+    from gpd.core.config import resolve_model, resolve_tier, validate_agent_name
+    from gpd.core.context import _detect_platform as detect_context_runtime
     from gpd.core.context import _resolve_model as resolve_context_model
 
     supported_runtimes = _supported_runtime_names()
@@ -8814,6 +8832,44 @@ def resolve_model_cmd(
             if runtime is not None
             else resolve_context_model(_get_cwd(), agent_name)
         )
+        if explain:
+            effective_runtime = runtime if runtime is not None else normalize_runtime_name(detect_context_runtime(_get_cwd()))
+            tier = resolve_tier(_get_cwd(), agent_name).value
+            if resolved_model is not None:
+                detail = (
+                    f"Resolved explicit model override for runtime {effective_runtime!r} at {tier}; "
+                    f"the command emits {resolved_model!r}."
+                )
+            elif effective_runtime is None:
+                detail = (
+                    "No active runtime could be resolved, so no runtime-specific override can be selected. "
+                    "Omit the model parameter and let the platform use its default model."
+                )
+            else:
+                detail = (
+                    f"No explicit model override is configured for runtime {effective_runtime!r} at {tier}. "
+                    "The command stays silent by default so shell wrappers can omit the model parameter "
+                    "and use the platform default."
+                )
+            _output(
+                {
+                    "agent_name": agent_name,
+                    "tier": tier,
+                    "runtime": effective_runtime,
+                    "runtime_source": "explicit" if runtime is not None else "detected",
+                    "resolved_model": resolved_model,
+                    "override_configured": resolved_model is not None,
+                    "uses_runtime_default": resolved_model is None,
+                    "detail": detail,
+                }
+            )
+            return
+        if resolved_model is None and _stdout_is_interactive():
+            console.print(
+                "[dim]No explicit model override is configured. Use `gpd resolve-model "
+                f"{agent_name} --explain` for details.[/dim]"
+            )
+            return
         _output(resolved_model)
     except ConfigError as exc:
         _error(str(exc))
