@@ -1276,6 +1276,49 @@ def test_resume_recent_human_output_surfaces_command_and_missing_projects(tmp_pa
     assert "project root missing" in result.output or "project unavailable on this machine" in result.output
 
 
+def test_resume_recent_human_output_tolerates_path_resolution_permission_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resumable_root = tmp_path / "projects" / "gamma"
+    resumable_root.mkdir(parents=True, exist_ok=True)
+    (resumable_root / "GPD" / "phases" / "04").mkdir(parents=True, exist_ok=True)
+    (resumable_root / "GPD" / "phases" / "04" / ".continue-here.md").write_text("resume\n", encoding="utf-8")
+    missing_root = tmp_path / "projects" / "delta-missing"
+    monkeypatch.setattr(
+        "gpd.core.recent_projects.list_recent_projects",
+        lambda store_root=None, last=None: [
+            {
+                "project_root": str(resumable_root),
+                "last_session_at": "2026-03-21T11:00:00+00:00",
+                "stopped_at": "Phase 1",
+                "resume_file": "GPD/phases/04/.continue-here.md",
+                "resumable": True,
+            },
+            {
+                "project_root": str(missing_root),
+                "last_session_at": "2026-03-19T08:00:00+00:00",
+                "stopped_at": "Phase 3",
+                "resumable": False,
+            },
+        ],
+    )
+    original_resolve = cli_module.Path.resolve
+
+    def _patched_resolve(self: Path, strict: bool = False) -> Path:
+        if self == missing_root:
+            raise PermissionError(1, "Operation not permitted")
+        return original_resolve(self, strict=strict)
+
+    monkeypatch.setattr(cli_module.Path, "resolve", _patched_resolve)
+
+    result = runner.invoke(app, ["resume", "--recent"])
+
+    assert result.exit_code == 0
+    assert "project unavailable on this machine" in result.output
+    assert "gpd --cwd" in result.output
+
+
 def test_resume_recent_raw_downgrades_missing_handoff_rows_to_non_resumable(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "home"
     recent_index_dir = home / ".gpd" / "recent-projects"

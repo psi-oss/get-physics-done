@@ -342,9 +342,18 @@ def _format_display_path(target: str | Path | None) -> str:
     if not target_path.is_absolute():
         target_path = _get_cwd() / target_path
 
-    resolved_target = target_path.resolve(strict=False)
-    resolved_cwd = _get_cwd().expanduser().resolve(strict=False)
-    resolved_home = Path.home().expanduser().resolve(strict=False)
+    try:
+        resolved_target = target_path.resolve(strict=False)
+    except OSError:
+        return target_path.as_posix()
+    try:
+        resolved_cwd = _get_cwd().expanduser().resolve(strict=False)
+    except OSError:
+        resolved_cwd = _get_cwd().expanduser()
+    try:
+        resolved_home = Path.home().expanduser().resolve(strict=False)
+    except OSError:
+        return resolved_target.as_posix()
 
     try:
         relative_to_cwd = resolved_target.relative_to(resolved_cwd)
@@ -376,8 +385,14 @@ def _format_display_path_from_cwd(target: str | Path | None, *, cwd: Path) -> st
     if not target_path.is_absolute():
         target_path = cwd.expanduser() / target_path
 
-    resolved_target = target_path.resolve(strict=False)
-    resolved_cwd = cwd.expanduser().resolve(strict=False)
+    try:
+        resolved_target = target_path.resolve(strict=False)
+    except OSError:
+        return target_path.as_posix()
+    try:
+        resolved_cwd = cwd.expanduser().resolve(strict=False)
+    except OSError:
+        resolved_cwd = cwd.expanduser()
 
     try:
         relative = resolved_target.relative_to(resolved_cwd)
@@ -1870,21 +1885,37 @@ def _recent_project_resume_file_state(project_root: object, resume_file: object)
         return None, None
 
     project_path = Path(project_root).expanduser()
-    if not project_path.exists() or not project_path.is_dir():
+    try:
+        project_exists = project_path.exists()
+        project_is_dir = project_path.is_dir()
+    except OSError:
+        return False, "project unavailable on this machine"
+    if not project_exists or not project_is_dir:
         return None, None
 
-    resolved_project = project_path.resolve(strict=False)
+    try:
+        resolved_project = project_path.resolve(strict=False)
+    except OSError:
+        return False, "project unavailable on this machine"
     candidate = Path(resume_file).expanduser()
-    resolved_target = (
-        candidate.resolve(strict=False) if candidate.is_absolute() else (project_path / candidate).resolve(strict=False)
-    )
+    try:
+        resolved_target = (
+            candidate.resolve(strict=False) if candidate.is_absolute() else (project_path / candidate).resolve(strict=False)
+        )
+    except OSError:
+        return False, "resume file unavailable"
     try:
         resolved_target.relative_to(resolved_project)
     except ValueError:
         return False, "resume file outside project root"
-    if not resolved_target.exists():
+    try:
+        target_exists = resolved_target.exists()
+        target_is_file = resolved_target.is_file()
+    except OSError:
+        return False, "resume file unavailable"
+    if not target_exists:
         return False, "resume file missing"
-    if not resolved_target.is_file():
+    if not target_is_file:
         return False, "resume file is not a file"
     return True, None
 
@@ -1927,8 +1958,23 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
     available_value = row.get("available")
     if isinstance(available_value, bool):
         available = available_value
+        derived_availability_reason = None
     else:
-        available = project_path.is_dir()
+        try:
+            available = project_path.is_dir()
+        except OSError:
+            available = False
+            derived_availability_reason = "project unavailable on this machine"
+        else:
+            if available:
+                derived_availability_reason = None
+            else:
+                try:
+                    project_exists = project_path.exists()
+                except OSError:
+                    derived_availability_reason = "project unavailable on this machine"
+                else:
+                    derived_availability_reason = "project root is not a directory" if project_exists else "project root missing"
     normalized: dict[str, object] = {
         "project_root": project_root,
         "workspace": _format_display_path(project_path),
@@ -1938,7 +1984,12 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
     if not available:
         normalized["command"] = "unavailable"
     elif project_path.is_absolute():
-        normalized["command"] = f"gpd --cwd {shlex.quote(str(project_path.resolve(strict=False)))} resume"
+        try:
+            resolved_project_path = project_path.resolve(strict=False)
+        except OSError:
+            normalized["command"] = "unavailable"
+        else:
+            normalized["command"] = f"gpd --cwd {shlex.quote(str(resolved_project_path))} resume"
     else:
         normalized["command"] = None
 
@@ -1969,6 +2020,8 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
     ):
         if key in row:
             normalized[key] = row[key]
+    if derived_availability_reason is not None and not normalized.get("availability_reason"):
+        normalized["availability_reason"] = derived_availability_reason
 
     resume_file_available, resume_file_reason = _recent_project_resume_file_state(
         normalized.get("project_root"),
@@ -2038,7 +2091,10 @@ def _resume_recent_project_command(row: dict[str, object]) -> str:
         return "unavailable"
     if row.get("available") is not True:
         return "unavailable"
-    project_path = Path(project_root).expanduser().resolve(strict=False)
+    try:
+        project_path = Path(project_root).expanduser().resolve(strict=False)
+    except OSError:
+        return "unavailable"
     return f"gpd --cwd {shlex.quote(str(project_path))} resume"
 
 
@@ -2066,15 +2122,29 @@ def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, object] |
     if not isinstance(project_root, str) or not project_root.strip():
         return None
 
-    project_path = Path(project_root).expanduser().resolve(strict=False)
-    if not project_path.exists() or not project_path.is_dir():
+    try:
+        project_path = Path(project_root).expanduser().resolve(strict=False)
+        project_exists = project_path.exists()
+        project_is_dir = project_path.is_dir()
+    except OSError:
+        project_path = Path(project_root).expanduser()
+        project_exists = False
+        project_is_dir = False
+    if not project_exists or not project_is_dir:
         return {
             "recovery_status": "no-recovery",
             "recovery_status_label": "Unavailable checkout",
             "recovery_note": "project unavailable on this machine",
         }
 
-    state_exists, roadmap_exists, project_exists = recoverable_project_context(project_path)
+    try:
+        state_exists, roadmap_exists, project_exists = recoverable_project_context(project_path)
+    except OSError:
+        return {
+            "recovery_status": "no-recovery",
+            "recovery_status_label": "Unavailable checkout",
+            "recovery_note": "project unavailable on this machine",
+        }
     if not (state_exists or roadmap_exists or project_exists):
         return None
 

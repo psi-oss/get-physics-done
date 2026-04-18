@@ -2395,9 +2395,10 @@ class TestReviewValidationCommands:
         )
 
         assert result.exit_code == 0, result.output
-        assert "[SUBJECT]" in result.output
-        assert "Optional explicit review target path" in result.output
-        assert "--stage" in result.output
+        output = _normalize_cli_output(result.output)
+        assert "[SUBJECT]" in output
+        assert "Optional explicit review target path" in output
+        assert "--stage" in output
 
     def test_init_peer_review_accepts_explicit_standalone_target_and_surfaces_mode(
         self,
