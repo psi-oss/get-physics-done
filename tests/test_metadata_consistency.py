@@ -425,13 +425,14 @@ def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
 def test_referee_response_round_suffix_convention_is_consistent() -> None:
     write_paper = _read("src/gpd/specs/workflows/write-paper.md")
     peer_review = _read("src/gpd/specs/workflows/peer-review.md")
+    referee = _read("src/gpd/agents/gpd-referee.md")
     respond = _read("src/gpd/specs/workflows/respond-to-referees.md")
     arxiv = _read("src/gpd/specs/workflows/arxiv-submission.md")
+    reliability = _read("src/gpd/specs/references/publication/peer-review-reliability.md")
     author_response = _read("src/gpd/specs/templates/paper/author-response.md")
     template = _read("src/gpd/specs/templates/paper/referee-response.md")
 
-    assert 'ROUND_SUFFIX="-R2"' in peer_review
-    assert 'ROUND_SUFFIX="-R3"' in peer_review
+    assert 'ROUND_SUFFIX="-R${ROUND}"' in peer_review
     assert '`GPD/review/REFEREE_RESPONSE{round_suffix}.md`' in respond
     assert '`GPD/AUTHOR-RESPONSE{round_suffix}.md`' in respond
     assert "GPD/paper" not in respond
@@ -443,6 +444,25 @@ def test_referee_response_round_suffix_convention_is_consistent() -> None:
     assert "REFEREE_RESPONSE_R2.md" not in respond
     assert "REFEREE_RESPONSE_R2.md" not in template
     assert "paper/referee-reports" not in respond
+    for content in (peer_review, referee):
+        assert "ls GPD/REFEREE-REPORT*.md 2>/dev/null" not in content
+        assert "ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null" not in content
+    assert "ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null" not in referee
+    assert "ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null" not in respond
+    assert "ls GPD/review/REVIEW-LEDGER*.json 2>/dev/null" not in respond
+    assert "ls GPD/review/REFEREE-DECISION*.json 2>/dev/null" not in respond
+    assert "GPD/AUTHOR-RESPONSE{ROUND_SUFFIX}.md" in peer_review
+    assert "GPD/review/REFEREE_RESPONSE{ROUND_SUFFIX}.md" in peer_review
+    assert "matching paired response package exists for the same round" in referee
+    assert re.search(
+        r"If one response artifact is missing[\s\S]{0,140}stop fail-closed and report the incomplete response package",
+        referee,
+    )
+    assert "canonical paired response artifacts are present" in reliability
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE_RESPONSE\*\.md['\"]", respond)
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]AUTHOR-RESPONSE\*\.md['\"]", respond)
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REVIEW-LEDGER\*\.json['\"]", respond)
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE-DECISION\*\.json['\"]", respond)
     assert "publication-manuscript-root-preflight.md" in peer_review
     assert "${MANUSCRIPT_ROOT}/REFEREE_RESPONSE" not in peer_review
     assert "publication-bootstrap-preflight.md" in write_paper

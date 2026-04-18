@@ -47,3 +47,14 @@ def test_real_review_command_sources_compile_across_runtime_wrappers_without_los
     assert extract_review_contract_section(compiled) == expected_section
     assert review_contract_visibility_note() in expected_section
     assert compiled.count("## Review Contract") == 1
+
+
+@pytest.mark.parametrize("runtime", RUNTIMES)
+def test_peer_review_runtime_compilation_preserves_split_contract_branches(runtime: str) -> None:
+    section = extract_review_contract_section(compile_review_contract_command_for_runtime("peer-review", runtime))
+
+    assert "existing manuscript or explicit external artifact target" in section
+    assert "when: project-backed manuscript review" in section
+    assert "missing project state" in section
+    assert "reproducibility_ready" in section
+    assert "when: theorem-bearing claims are present" in section

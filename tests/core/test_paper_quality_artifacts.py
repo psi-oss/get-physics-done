@@ -1865,7 +1865,7 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     assert "${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md" in peer_review
     assert "GPD/comparisons/*-COMPARISON.md" in peer_review
     assert "Treat bundle guidance as additive skepticism only" in peer_review
-    assert "review-support artifacts are scaffolding, not substitutes for contract-backed evidence" in peer_review
+    assert "review-support artifacts are scaffolding, not substitutes for authoritative evidence" in peer_review
 
     assert "protocol_bundle_context" in respond
     assert "missing decisive evidence we already owed" in respond

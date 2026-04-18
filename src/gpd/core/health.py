@@ -235,14 +235,10 @@ def check_knowledge_inventory(cwd: Path) -> HealthCheck:
     stable_records = [record for record in discovery.records if record.status == "stable"]
     active_records = [record for record in discovery.records if record.runtime_active]
     stale_review_records = [
-        record
-        for record in stable_records
-        if record.review_fresh is False or record.runtime_active is False
+        record for record in stable_records if record.review_fresh is False or record.runtime_active is False
     ]
     broken_supersession_records = [
-        record
-        for record in discovery.records
-        if record.status == "superseded" and record.superseded_by not in by_id
+        record for record in discovery.records if record.status == "superseded" and record.superseded_by not in by_id
     ]
     plans_with_knowledge_deps: list[str] = []
     plan_knowledge_issue_files: list[str] = []
@@ -252,9 +248,13 @@ def check_knowledge_inventory(cwd: Path) -> HealthCheck:
     plan_dependency_warnings: list[str] = []
 
     if layout.phases_dir.is_dir():
-        phase_dirs = sorted((d for d in layout.phases_dir.iterdir() if d.is_dir()), key=lambda d: phase_sort_key(d.name))
+        phase_dirs = sorted(
+            (d for d in layout.phases_dir.iterdir() if d.is_dir()), key=lambda d: phase_sort_key(d.name)
+        )
         for phase_dir in phase_dirs:
-            plan_files = sorted((f for f in phase_dir.iterdir() if f.is_file() and layout.is_plan_file(f.name)), key=lambda f: f.name)
+            plan_files = sorted(
+                (f for f in phase_dir.iterdir() if f.is_file() and layout.is_plan_file(f.name)), key=lambda f: f.name
+            )
             for plan_path in plan_files:
                 preflight = build_plan_tool_preflight(plan_path)
                 if not preflight.knowledge_deps and preflight.knowledge_gate == "off":
@@ -694,11 +694,7 @@ def _latest_summary_file(cwd: Path) -> tuple[Path, str] | None:
         key=lambda entry: phase_sort_key(entry.name),
     ):
         for summary in sorted(
-            (
-                entry
-                for entry in phase_dir.iterdir()
-                if entry.is_file() and layout.is_summary_file(entry.name)
-            ),
+            (entry for entry in phase_dir.iterdir() if entry.is_file() and layout.is_summary_file(entry.name)),
             key=lambda entry: entry.name,
         ):
             try:
@@ -840,9 +836,7 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
 
         details["stale_tags"] = stale_tags
         if stale_tags:
-            warnings.append(
-                f"{len(stale_tags)} checkpoint tag(s) older than {STALE_CHECKPOINT_TAG_MAX_AGE_DAYS} days"
-            )
+            warnings.append(f"{len(stale_tags)} checkpoint tag(s) older than {STALE_CHECKPOINT_TAG_MAX_AGE_DAYS} days")
     except (FileNotFoundError, subprocess.TimeoutExpired):
         details["repo_detected"] = False
         warnings.append("git tag check failed")
@@ -895,9 +889,7 @@ def check_result_consistency(cwd: Path) -> HealthCheck:
             status=CheckStatus.WARN,
             label="Result Consistency",
             details={"error": "malformed_state_results"},
-            warnings=[
-                f"Cannot parse intermediate_results from state.json: {exc}"
-            ],
+            warnings=[f"Cannot parse intermediate_results from state.json: {exc}"],
         )
     details["state_result_count"] = len(results)
 
@@ -941,11 +933,7 @@ def check_result_consistency(cwd: Path) -> HealthCheck:
             state_only.append(f"{result.id}: {desc}")
 
     # 4. Compare: SUMMARY provides with no corresponding state result
-    result_descriptions_lower = [
-        (r.description or "").lower()
-        for r in results
-        if r.description
-    ]
+    result_descriptions_lower = [(r.description or "").lower() for r in results if r.description]
     summary_only: list[str] = []
     for provides_text in all_provides:
         prov_lower = provides_text.lower()
@@ -1024,8 +1012,7 @@ def _apply_fixes(
     # Fix 2: Create config.json if missing or malformed
     config_check = next((c for c in checks if c.label == "Config"), None)
     if config_check and (
-        any("not found" in w for w in config_check.warnings)
-        or any("parse error" in i for i in config_check.issues)
+        any("not found" in w for w in config_check.warnings) or any("parse error" in i for i in config_check.issues)
     ):
         config_path = layout.config_json
         try:
@@ -1048,6 +1035,7 @@ def _apply_fixes(
             config_path.parent.mkdir(parents=True, exist_ok=True)
             if config_path.exists():
                 import shutil
+
                 shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
             atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
             fixes.append("Created default config.json")
@@ -1525,18 +1513,20 @@ def normalize_permissions_readiness_payload(
             readiness_message = "Runtime permissions are ready for unattended use."
         elif bool(normalized.get("requires_relaunch", False)):
             readiness = "relaunch-required"
-            readiness_message = "Runtime permissions are aligned, but the runtime must be relaunched before unattended use."
+            readiness_message = (
+                "Runtime permissions are aligned, but the runtime must be relaunched before unattended use."
+            )
         elif more_permissive_than_requested:
             readiness = "not-ready"
-            readiness_message = (
-                "Runtime permissions are more permissive than the requested autonomy, so unattended readiness is not confirmed."
-            )
+            readiness_message = "Runtime permissions are more permissive than the requested autonomy, so unattended readiness is not confirmed."
         elif "config_aligned" in normalized:
             readiness = "not-ready"
             readiness_message = "Runtime permissions are not ready for unattended use under the requested autonomy."
         else:
             readiness = "unresolved"
-            readiness_message = str(normalized.get("message") or "Runtime permissions are not ready for unattended use.")
+            readiness_message = str(
+                normalized.get("message") or "Runtime permissions are not ready for unattended use."
+            )
 
         next_step = normalized.get("next_step")
         if not isinstance(next_step, str) or not next_step.strip():
@@ -1611,7 +1601,9 @@ def _doctor_check_python_runtime() -> HealthCheck:
     }
 
     if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
-        issues.append(f"Python {sys.version_info.major}.{sys.version_info.minor} < {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR}")
+        issues.append(
+            f"Python {sys.version_info.major}.{sys.version_info.minor} < {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR}"
+        )
     elif sys.version_info < RECOMMENDED_PYTHON_VERSION:
         warnings.append(f"Python >= {RECOMMENDED_PYTHON_VERSION[0]}.{RECOMMENDED_PYTHON_VERSION[1]} recommended")
 
@@ -2002,7 +1994,9 @@ def _doctor_check_latex_toolchain() -> HealthCheck:
     if compiler_available and not pdftotext_available:
         missing_components.append("pdftotext")
 
-    warnings = list(capability_details.get("warnings", [])) if isinstance(capability_details.get("warnings"), list) else []
+    warnings = (
+        list(capability_details.get("warnings", [])) if isinstance(capability_details.get("warnings"), list) else []
+    )
     if compiler_available and missing_components:
         missing_text = ", ".join(f"`{component}`" for component in missing_components)
         warnings.append(
@@ -2063,8 +2057,9 @@ def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool
     elif not bool(capability_details.get("pdf_review_ready", False)):
         warnings.append(
             "Publication / manuscript and full research presets are degraded without pdftotext: "
-            "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, but PDF-backed `peer-review` intake "
-            "requires `pdftotext` or a nearby `.txt` companion file."
+            "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, and `peer-review` still accepts "
+            "TeX/Markdown/TXT/CSV/TSV plus built-in DOCX/XLSX intake, but PDF-backed `peer-review` intake requires "
+            "`pdftotext` or a nearby `.txt` companion file."
         )
 
     status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN
@@ -2089,9 +2084,7 @@ def resolve_doctor_runtime_readiness(
     normalized_runtime = _doctor_normalize_runtime(runtime)
     normalized_scope_input = install_scope.lower() if isinstance(install_scope, str) else None
     if normalized_scope_input not in {None, "local", "global"}:
-        raise ValidationError(
-            f"Unsupported install_scope {install_scope!r}; expected 'local' or 'global'."
-        )
+        raise ValidationError(f"Unsupported install_scope {install_scope!r}; expected 'local' or 'global'.")
 
     adapter = get_adapter(normalized_runtime)
     workspace_root = cwd or Path.cwd()
@@ -2219,7 +2212,9 @@ def build_unattended_readiness_result(
         target = str(target_dir) if target_dir is not None else getattr(doctor_report, "target", None)
 
     resolved_autonomy = normalized_permissions.get("autonomy")
-    autonomy_value = str(resolved_autonomy) if isinstance(resolved_autonomy, str) and resolved_autonomy else (autonomy or "")
+    autonomy_value = (
+        str(resolved_autonomy) if isinstance(resolved_autonomy, str) and resolved_autonomy else (autonomy or "")
+    )
     passed = permissions_ready and not blocker_messages
     return UnattendedReadinessResult(
         runtime=runtime,

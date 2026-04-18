@@ -53,6 +53,7 @@ Keep the wrapper focused on referee triage, revision routing, and synchronized r
 Referee report source: $ARGUMENTS (file path or `paste`).
 
 The workflow resolves the manuscript root, staged review artifacts, and revision targets.
+The referee report source may be explicit, but manuscript edits always apply to the resolved project-backed manuscript root under `paper/`, `manuscript/`, or `draft/`.
 </context>
 
 <process>

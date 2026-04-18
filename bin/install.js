@@ -2470,7 +2470,8 @@ async function main() {
   if (!isUninstall) {
     const readinessOk = runInstallReadinessPreflight(managedEnv.python, selectedRuntimes, scope, targetDir);
     if (!readinessOk) {
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
   }
 

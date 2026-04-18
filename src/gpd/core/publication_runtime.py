@@ -12,8 +12,16 @@ from pydantic import ValidationError as PydanticValidationError
 from gpd.core.manuscript_artifacts import (
     ManuscriptArtifacts,
     ManuscriptResolution,
+    locate_publication_artifact,
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_resolution,
+)
+from gpd.core.peer_review_mode import (
+    PEER_REVIEW_INTERACTIVE_MODE,
+    PEER_REVIEW_INVALID_SUBJECT_MODE,
+    PEER_REVIEW_PROJECT_BACKED_MODE,
+    PEER_REVIEW_STANDALONE_MODE,
+    resolve_peer_review_mode_details,
 )
 from gpd.core.proof_review import ProofReviewStatus, resolve_manuscript_proof_review_status
 from gpd.core.publication_review_paths import (
@@ -21,8 +29,13 @@ from gpd.core.publication_review_paths import (
     review_artifact_round,
     review_round_suffix,
 )
-from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
+from gpd.core.reference_ingestion import (
+    ManuscriptReferenceStatusIngestion,
+    ManuscriptReferenceStatusRecord,
+    ingest_manuscript_reference_status,
+)
 from gpd.core.state import load_state_json
+from gpd.mcp.paper.bibliography import BibliographyAudit
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
 __all__ = [
@@ -94,6 +107,18 @@ def publication_blockers_for_project(cwd: Path) -> tuple[str, ...]:
 
 
 @dataclass(frozen=True, slots=True)
+class PublicationRuntimeTarget:
+    """Resolved publication/peer-review target used for runtime snapshots."""
+
+    mode: str
+    detail: str
+    project_context_role: str
+    subject_path: Path | None = None
+    target_path: Path | None = None
+    target_root: Path | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PublicationReviewArtifacts:
     """Latest review-round artifacts for one manuscript snapshot."""
 
@@ -161,6 +186,7 @@ class PublicationResponseArtifacts:
 class PublicationRuntimeSnapshot:
     """Shared publication state for manuscript-root, review-round, and response gating."""
 
+    target: PublicationRuntimeTarget
     manuscript_resolution: ManuscriptResolution
     manuscript_artifacts: ManuscriptArtifacts
     manuscript_reference_status: ManuscriptReferenceStatusIngestion
@@ -182,6 +208,11 @@ class PublicationRuntimeSnapshot:
         }
 
         payload: dict[str, object] = {
+            "publication_target_mode": self.target.mode,
+            "publication_target_detail": self.target.detail,
+            "publication_target_project_context_role": self.target.project_context_role,
+            "publication_target_path": _relative_path(project_root, self.target.target_path),
+            "publication_target_root": _relative_path(project_root, self.target.target_root),
             "manuscript_resolution_status": resolution.status,
             "manuscript_resolution_detail": resolution.detail,
             "manuscript_root": _relative_path(project_root, artifacts.manuscript_root),
@@ -247,6 +278,210 @@ class PublicationRuntimeSnapshot:
                 }
             )
         return payload
+
+
+def _project_backed_target_mode(target: PublicationRuntimeTarget) -> bool:
+    return target.mode in {"project_manuscript", "project_explicit_manuscript"}
+
+
+def _resolve_publication_runtime_target(project_root: Path, subject: str | None) -> PublicationRuntimeTarget:
+    mode_resolution = resolve_peer_review_mode_details(
+        project_root,
+        subject,
+        workspace_cwd=project_root,
+        display_cwd=project_root,
+    )
+    current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
+
+    if mode_resolution.resolved_mode == PEER_REVIEW_PROJECT_BACKED_MODE:
+        return PublicationRuntimeTarget(
+            mode="project_explicit_manuscript" if mode_resolution.subject else "project_manuscript",
+            detail=mode_resolution.mode_reason,
+            project_context_role="authoritative",
+            subject_path=mode_resolution.subject_path,
+            target_path=mode_resolution.resolved_target or current_artifacts.manuscript_entrypoint,
+            target_root=current_artifacts.manuscript_root,
+        )
+
+    if mode_resolution.resolved_mode == PEER_REVIEW_STANDALONE_MODE:
+        target_root: Path | None = None
+        if mode_resolution.subject_path is not None and mode_resolution.subject_path.exists():
+            if mode_resolution.subject_path.is_dir():
+                target_root = mode_resolution.subject_path
+            else:
+                target_root = mode_resolution.subject_path.parent
+        elif mode_resolution.resolved_target is not None:
+            target_root = mode_resolution.resolved_target.parent
+        elif mode_resolution.subject_path is not None:
+            target_root = mode_resolution.subject_path.parent
+        return PublicationRuntimeTarget(
+            mode="external_artifact",
+            detail=mode_resolution.mode_reason,
+            project_context_role="carry_forward_only",
+            subject_path=mode_resolution.subject_path,
+            target_path=mode_resolution.resolved_target,
+            target_root=target_root,
+        )
+
+    fallback_root = mode_resolution.subject_path.parent if mode_resolution.subject_path is not None else None
+    if mode_resolution.resolved_mode == PEER_REVIEW_INTERACTIVE_MODE:
+        return PublicationRuntimeTarget(
+            mode="interactive_intake",
+            detail=mode_resolution.mode_reason,
+            project_context_role="carry_forward_only",
+            subject_path=mode_resolution.subject_path,
+            target_root=fallback_root,
+        )
+    if mode_resolution.resolved_mode == PEER_REVIEW_INVALID_SUBJECT_MODE:
+        return PublicationRuntimeTarget(
+            mode="invalid_explicit_target",
+            detail=mode_resolution.mode_reason,
+            project_context_role="carry_forward_only",
+            subject_path=mode_resolution.subject_path,
+            target_root=fallback_root,
+        )
+    return PublicationRuntimeTarget(
+        mode="project_manuscript",
+        detail=mode_resolution.mode_reason,
+        project_context_role="authoritative",
+        subject_path=mode_resolution.subject_path,
+        target_path=current_artifacts.manuscript_entrypoint,
+        target_root=current_artifacts.manuscript_root,
+    )
+
+
+def _resolve_target_manuscript_artifacts(
+    project_root: Path,
+    target: PublicationRuntimeTarget,
+    current_artifacts: ManuscriptArtifacts,
+) -> ManuscriptArtifacts:
+    if _project_backed_target_mode(target):
+        return current_artifacts
+
+    manuscript_root = target.target_root
+    return ManuscriptArtifacts(
+        project_root=project_root,
+        manuscript_root=manuscript_root,
+        manuscript_entrypoint=target.target_path,
+        artifact_manifest=(
+            locate_publication_artifact(manuscript_root, "ARTIFACT-MANIFEST.json")
+            if manuscript_root is not None
+            else None
+        ),
+        bibliography_audit=(
+            locate_publication_artifact(manuscript_root, "BIBLIOGRAPHY-AUDIT.json")
+            if manuscript_root is not None
+            else None
+        ),
+        reproducibility_manifest=(
+            locate_publication_artifact(manuscript_root, "reproducibility-manifest.json")
+            if manuscript_root is not None
+            else None
+        ),
+    )
+
+
+def _resolve_target_manuscript_resolution(
+    target: PublicationRuntimeTarget,
+    current_resolution: ManuscriptResolution,
+    artifacts: ManuscriptArtifacts,
+) -> ManuscriptResolution:
+    if _project_backed_target_mode(target):
+        return current_resolution
+    if target.target_path is not None:
+        return ManuscriptResolution(
+            status="resolved",
+            manuscript_root=artifacts.manuscript_root,
+            manuscript_entrypoint=target.target_path,
+            detail=target.detail,
+        )
+    if target.mode == "invalid_explicit_target":
+        return ManuscriptResolution(
+            status="invalid",
+            manuscript_root=artifacts.manuscript_root,
+            manuscript_entrypoint=None,
+            detail=target.detail,
+        )
+    return ManuscriptResolution(
+        status="missing",
+        manuscript_root=artifacts.manuscript_root,
+        manuscript_entrypoint=None,
+        detail=target.detail,
+    )
+
+
+def _resolve_target_manuscript_reference_status(
+    project_root: Path,
+    artifacts: ManuscriptArtifacts,
+    *,
+    allow_project_fallback: bool,
+) -> ManuscriptReferenceStatusIngestion:
+    if artifacts.manuscript_root is None:
+        if allow_project_fallback:
+            return ingest_manuscript_reference_status(project_root)
+        return ManuscriptReferenceStatusIngestion()
+
+    audit_path = artifacts.bibliography_audit or (artifacts.manuscript_root / "BIBLIOGRAPHY-AUDIT.json")
+    manuscript_root_label = _relative_path(project_root, artifacts.manuscript_root) or ""
+    bibliography_audit_label = _relative_path(project_root, audit_path) or ""
+
+    if not audit_path.exists():
+        return ManuscriptReferenceStatusIngestion(
+            manuscript_root=manuscript_root_label,
+            bibliography_audit_path=bibliography_audit_label,
+        )
+
+    try:
+        raw_audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ManuscriptReferenceStatusIngestion(
+            manuscript_root=manuscript_root_label,
+            bibliography_audit_path=bibliography_audit_label,
+            reference_status_warnings=[f"could not read bibliography audit {bibliography_audit_label}: {exc}"],
+        )
+
+    try:
+        audit = BibliographyAudit.model_validate(raw_audit)
+    except Exception as exc:  # noqa: BLE001
+        return ManuscriptReferenceStatusIngestion(
+            manuscript_root=manuscript_root_label,
+            bibliography_audit_path=bibliography_audit_label,
+            reference_status_warnings=[f"invalid bibliography audit {bibliography_audit_label}: {exc}"],
+        )
+
+    reference_status: list[ManuscriptReferenceStatusRecord] = []
+    for entry in audit.entries:
+        reference_id = str(entry.reference_id or "").strip()
+        bibtex_key = str(entry.key or "").strip()
+        if not reference_id or not bibtex_key:
+            continue
+        reference_status.append(
+            ManuscriptReferenceStatusRecord(
+                reference_id=reference_id,
+                bibtex_key=bibtex_key,
+                title=str(entry.title or "").strip(),
+                resolution_status=str(entry.resolution_status or "").strip(),
+                verification_status=str(entry.verification_status or "").strip(),
+                source_artifacts=[bibliography_audit_label],
+                manuscript_root=manuscript_root_label,
+                bibliography_audit_path=bibliography_audit_label,
+            )
+        )
+
+    return ManuscriptReferenceStatusIngestion(
+        manuscript_root=manuscript_root_label,
+        bibliography_audit_path=bibliography_audit_label,
+        reference_status=reference_status,
+    )
+
+
+def _target_not_reviewed_status(detail: str) -> ProofReviewStatus:
+    return ProofReviewStatus(
+        scope="manuscript",
+        state="not_reviewed",
+        can_rely_on_prior_review=False,
+        detail=detail,
+    )
 
 
 def _latest_round_number(*round_maps: dict[int, Path | None]) -> int | None:
@@ -315,11 +550,43 @@ def _review_artifact_state(
     return "complete", "latest review round is complete for the active manuscript", ()
 
 
+def _review_round_matches_manuscript(
+    *,
+    review_ledger: Path | None,
+    referee_decision: Path | None,
+    manuscript_entrypoint: Path,
+    project_root: Path,
+) -> bool:
+    if review_ledger is not None:
+        try:
+            ledger = read_review_ledger(review_ledger)
+        except (OSError, json.JSONDecodeError, PydanticValidationError):
+            ledger = None
+        if ledger is not None and manuscript_matches_review_artifact_path(
+            ledger.manuscript_path,
+            manuscript_entrypoint,
+            cwd=project_root,
+        ):
+            return True
+    if referee_decision is not None:
+        try:
+            decision = read_referee_decision(referee_decision)
+        except (OSError, json.JSONDecodeError, PydanticValidationError):
+            decision = None
+        if decision is not None and manuscript_matches_review_artifact_path(
+            decision.manuscript_path,
+            manuscript_entrypoint,
+            cwd=project_root,
+        ):
+            return True
+    return False
+
+
 def resolve_latest_publication_review_artifacts(
     project_root: Path,
     manuscript_entrypoint: Path | None = None,
 ) -> PublicationReviewArtifacts | None:
-    """Resolve the latest review-round bundle for the current manuscript."""
+    """Resolve the latest review-round bundle for one manuscript snapshot."""
 
     review_dir = project_root / "GPD" / "review"
     if not review_dir.exists():
@@ -335,7 +602,19 @@ def resolve_latest_publication_review_artifacts(
         filename_pattern=_REFEREE_DECISION_FILENAME_RE,
         glob_pattern="REFEREE-DECISION*.json",
     )
-    round_number = _latest_round_number(ledger_by_round, decision_by_round)
+    if manuscript_entrypoint is not None:
+        round_number = None
+        for candidate_round in sorted({*ledger_by_round, *decision_by_round}, reverse=True):
+            if _review_round_matches_manuscript(
+                review_ledger=ledger_by_round.get(candidate_round),
+                referee_decision=decision_by_round.get(candidate_round),
+                manuscript_entrypoint=manuscript_entrypoint,
+                project_root=project_root,
+            ):
+                round_number = candidate_round
+                break
+    else:
+        round_number = _latest_round_number(ledger_by_round, decision_by_round)
     if round_number is None:
         return None
 
@@ -432,25 +711,51 @@ def resolve_latest_publication_response_artifacts(project_root: Path) -> Publica
 def resolve_publication_runtime_snapshot(
     project_root: Path,
     *,
+    subject: str | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> PublicationRuntimeSnapshot:
     """Resolve the publication runtime state needed for bootstrap and review gates."""
 
-    manuscript_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
-    manuscript_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
-    manuscript_reference_status = ingest_manuscript_reference_status(project_root)
-    manuscript_proof_review_status = resolve_manuscript_proof_review_status(
+    target = _resolve_publication_runtime_target(project_root, subject)
+    current_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
+    current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
+    manuscript_artifacts = _resolve_target_manuscript_artifacts(project_root, target, current_artifacts)
+    manuscript_resolution = _resolve_target_manuscript_resolution(target, current_resolution, manuscript_artifacts)
+    allow_project_fallback = _project_backed_target_mode(target)
+    manuscript_reference_status = _resolve_target_manuscript_reference_status(
         project_root,
-        manuscript_artifacts.manuscript_entrypoint,
-        persist_manifest=persist_manuscript_proof_review_manifest,
+        manuscript_artifacts,
+        allow_project_fallback=allow_project_fallback,
     )
-    latest_review_artifacts = resolve_latest_publication_review_artifacts(
-        project_root,
-        manuscript_artifacts.manuscript_entrypoint,
+    if manuscript_artifacts.manuscript_entrypoint is not None:
+        manuscript_proof_review_status = resolve_manuscript_proof_review_status(
+            project_root,
+            manuscript_artifacts.manuscript_entrypoint,
+            persist_manifest=persist_manuscript_proof_review_manifest,
+        )
+        latest_review_artifacts = resolve_latest_publication_review_artifacts(
+            project_root,
+            manuscript_artifacts.manuscript_entrypoint,
+        )
+    elif allow_project_fallback:
+        manuscript_proof_review_status = resolve_manuscript_proof_review_status(
+            project_root,
+            persist_manifest=persist_manuscript_proof_review_manifest,
+        )
+        latest_review_artifacts = resolve_latest_publication_review_artifacts(project_root, None)
+    else:
+        manuscript_proof_review_status = _target_not_reviewed_status(
+            "no resolved explicit peer-review target is available to anchor proof review freshness"
+        )
+        latest_review_artifacts = None
+    latest_response_artifacts = (
+        resolve_latest_publication_response_artifacts(project_root)
+        if allow_project_fallback
+        else None
     )
-    latest_response_artifacts = resolve_latest_publication_response_artifacts(project_root)
-    publication_blockers = publication_blockers_for_project(project_root)
+    publication_blockers = publication_blockers_for_project(project_root) if allow_project_fallback else ()
     return PublicationRuntimeSnapshot(
+        target=target,
         manuscript_resolution=manuscript_resolution,
         manuscript_artifacts=manuscript_artifacts,
         manuscript_reference_status=manuscript_reference_status,
@@ -464,11 +769,13 @@ def resolve_publication_runtime_snapshot(
 def publication_runtime_snapshot_context(
     project_root: Path,
     *,
+    subject: str | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Return the canonical publication runtime snapshot as a context payload."""
 
     return resolve_publication_runtime_snapshot(
         project_root,
+        subject=subject,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
     ).to_context_dict(project_root)

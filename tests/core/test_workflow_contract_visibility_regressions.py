@@ -35,7 +35,7 @@ def _workflow_text(name: str) -> str:
         ("resume-work.md", "- **Availability and contract authority:**", "project_contract_gate"),
         ("write-paper.md", "Parse JSON for:", "project_contract_gate"),
         ("respond-to-referees.md", "Parse JSON for:", "project_contract_gate"),
-        ("peer-review.md", "Parse JSON for:", "project_contract_gate"),
+        ("peer-review.md", "Parse bootstrap JSON for:", "project_contract_gate"),
     ],
 )
 def test_contract_gate_is_visible_before_authoritative_use(

@@ -82,6 +82,7 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
 
+
 _COST_TEST_RUNTIME = "runtime-under-test"
 _COST_TEST_MODEL = "model-under-test"
 _CONFIG_FILE_RUNTIME = runtime_with_permissions_surface("config-file")
@@ -672,7 +673,10 @@ def test_cost_raw_outputs_summary_payload(tmp_path: Path) -> None:
     assert "nearing budget" in payload["budget_thresholds"][0]["message"]
     assert payload["advisory"]["state"] == "near_budget"
     assert payload["advisory"]["scope"] == "project"
-    assert payload["advisory"]["next_action"] == "Run `gpd cost` for the local usage/cost summary and any USD budget warnings."
+    assert (
+        payload["advisory"]["next_action"]
+        == "Run `gpd cost` for the local usage/cost summary and any USD budget warnings."
+    )
     assert payload["project"]["usage_status"] == "measured"
     assert payload["project"]["cost_status"] == "unavailable"
     assert payload["project"]["interpretation"] == "tokens measured; USD unavailable"
@@ -680,6 +684,7 @@ def test_cost_raw_outputs_summary_payload(tmp_path: Path) -> None:
     assert payload["project"]["cost_usd"] is None
     assert payload["recent_sessions"][0]["session_id"] == "session-123"
     assert payload["recent_sessions"][0]["total_tokens"] == 1000
+
 
 def test_cost_human_output_stays_read_only_and_advisory(tmp_path: Path) -> None:
     summary = _sample_cost_summary(tmp_path)
@@ -795,7 +800,9 @@ def test_permissions_sync_help_surfaces_guided_runtime_changes() -> None:
     assert "--target-dir" in normalized_output
 
 
-def test_active_runtime_settings_command_falls_back_to_runtime_neutral_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_active_runtime_settings_command_falls_back_to_runtime_neutral_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: None)
 
     assert cli_module._active_runtime_settings_command(cwd=Path("/tmp")) == "the active runtime's `settings` command"
@@ -940,7 +947,9 @@ def test_runtime_permissions_sync_payload_surfaces_launch_wrapper_scope() -> Non
     assert payload["current_session_verified"] is False
 
 
-def _write_install_manifest(config_dir: Path, *, runtime: str, install_scope: str = "local", raw: str | None = None) -> None:
+def _write_install_manifest(
+    config_dir: Path, *, runtime: str, install_scope: str = "local", raw: str | None = None
+) -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = config_dir / "gpd-file-manifest.json"
     if raw is not None:
@@ -1017,7 +1026,9 @@ def test_permissions_status_reports_incomplete_owned_install_instead_of_generic_
         patch("gpd.hooks.runtime_detect.detect_install_scope", return_value=None),
         patch("gpd.adapters.get_adapter", return_value=adapter),
     ):
-        result = runner.invoke(app, ["--raw", "permissions", "status", "--runtime", PRIMARY_RUNTIME, "--autonomy", "balanced"])
+        result = runner.invoke(
+            app, ["--raw", "permissions", "status", "--runtime", PRIMARY_RUNTIME, "--autonomy", "balanced"]
+        )
 
     assert result.exit_code == 1
     parsed = json.loads(result.output)
@@ -1038,7 +1049,17 @@ def test_permissions_status_reports_foreign_install_explicitly(tmp_path: Path) -
     ):
         result = runner.invoke(
             app,
-            ["--raw", "permissions", "status", "--runtime", PRIMARY_RUNTIME, "--target-dir", str(target), "--autonomy", "balanced"],
+            [
+                "--raw",
+                "permissions",
+                "status",
+                "--runtime",
+                PRIMARY_RUNTIME,
+                "--target-dir",
+                str(target),
+                "--autonomy",
+                "balanced",
+            ],
         )
 
     assert result.exit_code == 1
@@ -1059,7 +1080,17 @@ def test_permissions_sync_reports_untrusted_manifest_explicitly(tmp_path: Path) 
     ):
         result = runner.invoke(
             app,
-            ["--raw", "permissions", "sync", "--runtime", PRIMARY_RUNTIME, "--target-dir", str(target), "--autonomy", "balanced"],
+            [
+                "--raw",
+                "permissions",
+                "sync",
+                "--runtime",
+                PRIMARY_RUNTIME,
+                "--target-dir",
+                str(target),
+                "--autonomy",
+                "balanced",
+            ],
         )
 
     assert result.exit_code == 1
@@ -1154,9 +1185,7 @@ def test_resume_origin_label_no_longer_exposes_legacy_session_alias() -> None:
     assert cli_module._resume_origin_label("legacy_session") == "Unknown"
 
 
-def test_resume_recent_raw_surfaces_machine_local_recent_projects(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_resume_recent_raw_surfaces_machine_local_recent_projects(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "home"
     recent_index_dir = home / ".gpd" / "recent-projects"
     recent_index_dir.mkdir(parents=True, exist_ok=True)
@@ -1204,9 +1233,7 @@ def test_resume_recent_raw_surfaces_machine_local_recent_projects(
     assert parsed["projects"][1]["status"] == "unavailable"
 
 
-def test_resume_recent_human_output_surfaces_command_and_missing_projects(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_resume_recent_human_output_surfaces_command_and_missing_projects(tmp_path: Path, monkeypatch) -> None:
     resumable_root = tmp_path / "projects" / "gamma"
     resumable_root.mkdir(parents=True, exist_ok=True)
     (resumable_root / "GPD" / "phases" / "04").mkdir(parents=True, exist_ok=True)
@@ -1249,9 +1276,50 @@ def test_resume_recent_human_output_surfaces_command_and_missing_projects(
     assert "project root missing" in result.output or "project unavailable on this machine" in result.output
 
 
-def test_resume_recent_raw_downgrades_missing_handoff_rows_to_non_resumable(
-    tmp_path: Path, monkeypatch
+def test_resume_recent_human_output_tolerates_path_resolution_permission_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    resumable_root = tmp_path / "projects" / "gamma"
+    resumable_root.mkdir(parents=True, exist_ok=True)
+    (resumable_root / "GPD" / "phases" / "04").mkdir(parents=True, exist_ok=True)
+    (resumable_root / "GPD" / "phases" / "04" / ".continue-here.md").write_text("resume\n", encoding="utf-8")
+    missing_root = tmp_path / "projects" / "delta-missing"
+    monkeypatch.setattr(
+        "gpd.core.recent_projects.list_recent_projects",
+        lambda store_root=None, last=None: [
+            {
+                "project_root": str(resumable_root),
+                "last_session_at": "2026-03-21T11:00:00+00:00",
+                "stopped_at": "Phase 1",
+                "resume_file": "GPD/phases/04/.continue-here.md",
+                "resumable": True,
+            },
+            {
+                "project_root": str(missing_root),
+                "last_session_at": "2026-03-19T08:00:00+00:00",
+                "stopped_at": "Phase 3",
+                "resumable": False,
+            },
+        ],
+    )
+    original_resolve = cli_module.Path.resolve
+
+    def _patched_resolve(self: Path, strict: bool = False) -> Path:
+        if self == missing_root:
+            raise PermissionError(1, "Operation not permitted")
+        return original_resolve(self, strict=strict)
+
+    monkeypatch.setattr(cli_module.Path, "resolve", _patched_resolve)
+
+    result = runner.invoke(app, ["resume", "--recent"])
+
+    assert result.exit_code == 0
+    assert "project unavailable on this machine" in result.output
+    assert "gpd --cwd" in result.output
+
+
+def test_resume_recent_raw_downgrades_missing_handoff_rows_to_non_resumable(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "home"
     recent_index_dir = home / ".gpd" / "recent-projects"
     recent_index_dir.mkdir(parents=True, exist_ok=True)
@@ -1459,7 +1527,9 @@ def test_load_recent_projects_rows_returns_canonical_display_rows(tmp_path: Path
             "resumable": True,
         }
     )
-    monkeypatch.setattr("gpd.core.recent_projects.list_recent_projects", lambda store_root=None, last=None: [canonical_row])
+    monkeypatch.setattr(
+        "gpd.core.recent_projects.list_recent_projects", lambda store_root=None, last=None: [canonical_row]
+    )
 
     rows = cli_module._load_recent_projects_rows()
 
@@ -1486,7 +1556,9 @@ def test_load_recent_projects_rows_rejects_malformed_helper_rows(tmp_path: Path,
             "last_event_at": "2026-03-28T12:00:00+00:00",
         }
     )
-    monkeypatch.setattr("gpd.core.recent_projects.list_recent_projects", lambda store_root=None, last=None: [canonical_row])
+    monkeypatch.setattr(
+        "gpd.core.recent_projects.list_recent_projects", lambda store_root=None, last=None: [canonical_row]
+    )
 
     with pytest.raises(cli_module.GPDError, match="unexpected field"):
         cli_module._load_recent_projects_rows()
@@ -2234,9 +2306,7 @@ def test_resume_raw_keeps_derived_execution_head_origin_when_active_bounded_segm
     assert payload["primary_recovery_target"]["origin"] == "derived_execution_head"
 
 
-def test_resume_raw_drops_malformed_resume_candidates_from_public_output(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_resume_raw_drops_malformed_resume_candidates_from_public_output(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     resume_file = "GPD/phases/01/.continue-here.md"
     monkeypatch.setattr(
@@ -2401,7 +2471,9 @@ def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
 
 def test_validate_project_contract_accepts_proof_obligation_observable_fixture(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-    contract["scope"]["question"] = "Does the reviewed proof establish the theorem for every named parameter, including r_0?"
+    contract["scope"]["question"] = (
+        "Does the reviewed proof establish the theorem for every named parameter, including r_0?"
+    )
     contract["observables"][0] = {
         "id": "obs-proof",
         "name": "full theorem proof obligation",
@@ -2409,16 +2481,14 @@ def test_validate_project_contract_accepts_proof_obligation_observable_fixture(t
         "definition": "Prove the theorem for the full stated hypothesis set and every named parameter, including r_0.",
         "regime": "all stated parameter regimes",
     }
-    contract["claims"][0]["statement"] = "The theorem is proved for all stated hypotheses and named parameters, including nonzero r_0."
+    contract["claims"][0]["statement"] = (
+        "The theorem is proved for all stated hypotheses and named parameters, including nonzero r_0."
+    )
     contract["claims"][0]["claim_kind"] = "theorem"
     contract["claims"][0]["observables"] = ["obs-proof"]
     contract["claims"][0]["proof_deliverables"] = ["deliv-figure"]
-    contract["claims"][0]["parameters"] = [
-        {"symbol": "r_0", "domain_or_type": "nonnegative real"}
-    ]
-    contract["claims"][0]["hypotheses"] = [
-        {"id": "hyp-r0", "text": "r_0 >= 0", "symbols": ["r_0"]}
-    ]
+    contract["claims"][0]["parameters"] = [{"symbol": "r_0", "domain_or_type": "nonnegative real"}]
+    contract["claims"][0]["hypotheses"] = [{"id": "hyp-r0", "text": "r_0 >= 0", "symbols": ["r_0"]}]
     contract["claims"][0]["conclusion_clauses"] = [
         {
             "id": "concl-proof",
@@ -2488,13 +2558,15 @@ def test_validate_project_contract_raw_failure_surfaces_schema_reference(tmp_pat
     payload = json.loads(result.output)
     assert payload["valid"] is False
     assert payload["schema_reference"].endswith("project-contract-schema.md")
-    assert any("approved project contract requires at least one concrete anchor" in error for error in payload["errors"])
+    assert any(
+        "approved project contract requires at least one concrete anchor" in error for error in payload["errors"]
+    )
 
 
 def _plan_with_tool_requirements(tool_requirements_block: str) -> str:
-    fixture = (
-        Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md"
-    ).read_text(encoding="utf-8")
+    fixture = (Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md").read_text(
+        encoding="utf-8"
+    )
     return fixture.replace("interactive: false\n", f"interactive: false\n{tool_requirements_block}", 1)
 
 
@@ -2503,9 +2575,9 @@ def _plan_with_knowledge_controls(
     knowledge_gate: str | None = None,
     knowledge_deps: list[str] | None = None,
 ) -> str:
-    fixture = (
-        Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md"
-    ).read_text(encoding="utf-8")
+    fixture = (Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md").read_text(
+        encoding="utf-8"
+    )
     metadata_block = ""
     if knowledge_gate is not None:
         metadata_block += f"knowledge_gate: {knowledge_gate}\n"
@@ -2730,7 +2802,7 @@ def test_state_active_hypothesis(mock_get):
 def test_state_active_hypothesis_missing_section(mock_get):
     mock_result = MagicMock()
     mock_result.value = None
-    mock_result.error = "Section or field \"Active Hypothesis\" not found"
+    mock_result.error = 'Section or field "Active Hypothesis" not found'
     mock_get.return_value = mock_result
 
     result = runner.invoke(app, ["--raw", "state", "active-hypothesis"])
@@ -4439,9 +4511,7 @@ def test_doctor_target_dir_stays_local_when_target_is_not_global(mock_doctor, tm
 
 
 @patch("gpd.core.health.run_doctor")
-def test_doctor_runtime_mode_defaults_to_local_target_when_scope_is_unspecified(
-    mock_doctor, tmp_path: Path
-) -> None:
+def test_doctor_runtime_mode_defaults_to_local_target_when_scope_is_unspecified(mock_doctor, tmp_path: Path) -> None:
     from gpd.specs import SPECS_DIR
 
     mock_result = MagicMock()
@@ -4567,7 +4637,9 @@ def test_validate_unattended_readiness_wires_local_runtime_scope_through_health_
         }
         return doctor_report
 
-    def fake_permissions_status_payload(*, runtime: str | None, autonomy: str | None, target_dir: str | None) -> dict[str, object]:
+    def fake_permissions_status_payload(
+        *, runtime: str | None, autonomy: str | None, target_dir: str | None
+    ) -> dict[str, object]:
         captured["permissions_kwargs"] = {
             "runtime": runtime,
             "autonomy": autonomy,
@@ -4720,7 +4792,9 @@ def test_validate_unattended_readiness_uses_detected_installed_target_when_scope
         }
         return doctor_report
 
-    def fake_permissions_status_payload(*, runtime: str | None, autonomy: str | None, target_dir: str | None) -> dict[str, object]:
+    def fake_permissions_status_payload(
+        *, runtime: str | None, autonomy: str | None, target_dir: str | None
+    ) -> dict[str, object]:
         captured["permissions_kwargs"] = {
             "runtime": runtime,
             "autonomy": autonomy,
@@ -4817,7 +4891,9 @@ def test_validate_unattended_readiness_infers_global_target_scope_and_propagates
         live_executable_probes=True,
         summary=HealthSummary(ok=0, warn=1, fail=1, total=2),
         checks=[
-            HealthCheck(status=CheckStatus.FAIL, label="Runtime Launcher", issues=["Runtime launcher not found on PATH"]),
+            HealthCheck(
+                status=CheckStatus.FAIL, label="Runtime Launcher", issues=["Runtime launcher not found on PATH"]
+            ),
             HealthCheck(status=CheckStatus.WARN, label="LaTeX Toolchain", warnings=["LaTeX toolchain is partial."]),
         ],
     )
@@ -4879,7 +4955,9 @@ def test_validate_unattended_readiness_infers_global_target_scope_and_propagates
         }
         return doctor_report
 
-    def fake_permissions_status_payload(*, runtime: str | None, autonomy: str | None, target_dir: str | None) -> dict[str, object]:
+    def fake_permissions_status_payload(
+        *, runtime: str | None, autonomy: str | None, target_dir: str | None
+    ) -> dict[str, object]:
         captured["permissions_kwargs"] = {
             "runtime": runtime,
             "autonomy": autonomy,
@@ -5480,9 +5558,7 @@ def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_p
 
 
 @patch("gpd.core.suggest.suggest_next")
-def test_suggest_forwards_limit_and_serializes_raw_output_from_nested_cwd(
-    mock_suggest, tmp_path: Path
-) -> None:
+def test_suggest_forwards_limit_and_serializes_raw_output_from_nested_cwd(mock_suggest, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
     (project_root / "GPD").mkdir(parents=True, exist_ok=True)
@@ -5811,7 +5887,9 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert payload["output_dir"] == "../paper"
     assert payload["tex_path"] == "../paper/configured_paper.tex"
     assert payload["bibliography_source"] == "../references/references.bib"
-    assert payload["reference_bibtex_bridge"] == [{"reference_id": "lit-ref-einstein-1905", "bibtex_key": "einstein1905"}]
+    assert payload["reference_bibtex_bridge"] == [
+        {"reference_id": "lit-ref-einstein-1905", "bibtex_key": "einstein1905"}
+    ]
     assert payload["manifest_path"] == "../paper/ARTIFACT-MANIFEST.json"
     assert payload["pdf_path"] == "../paper/configured_paper.pdf"
     assert payload["toolchain"] == {
@@ -5943,7 +6021,9 @@ def test_validate_paper_quality_from_project_rejects_ambiguous_manuscript_roots(
     def write_manuscript_root(root_name: str, stem: str) -> None:
         manuscript_dir = tmp_path / root_name
         manuscript_dir.mkdir()
-        (manuscript_dir / f"{stem}.tex").write_text("\\documentclass{article}\\begin{document}Hi\\end{document}\n", encoding="utf-8")
+        (manuscript_dir / f"{stem}.tex").write_text(
+            "\\documentclass{article}\\begin{document}Hi\\end{document}\n", encoding="utf-8"
+        )
         (manuscript_dir / "PAPER-CONFIG.json").write_text(
             json.dumps(
                 {
@@ -6519,7 +6599,10 @@ def test_resolve_review_preflight_manuscript_rejects_missing_out_of_root_target_
     )
 
     assert resolved is None
-    assert detail == "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project"
+    assert (
+        detail
+        == "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project"
+    )
 
 
 def test_resolve_review_preflight_manuscript_reports_inconsistent_project_state(tmp_path: Path) -> None:
@@ -6615,6 +6698,67 @@ def test_resolve_review_preflight_manuscript_rejects_unsupported_explicit_target
     assert "must stay under `paper/`, `manuscript/`, or `draft/`" in detail
 
 
+@pytest.mark.parametrize("suffix", [".docx", ".csv", ".tsv", ".xlsx"])
+def test_resolve_review_preflight_manuscript_accepts_peer_review_only_external_suffixes(
+    tmp_path: Path,
+    suffix: str,
+) -> None:
+    peer_review_command, _ = cli_module._resolve_registry_command("peer-review")
+    allowed_suffixes = cli_module._command_explicit_manuscript_suffixes(peer_review_command)
+    artifact = tmp_path / f"standalone{suffix}"
+    if suffix in {".docx", ".xlsx"}:
+        artifact.write_bytes(b"PK\x03\x04\x14\x00\x00\x00binary-ooxml")
+    else:
+        artifact.write_text("column_a,column_b\n1,2\n", encoding="utf-8")
+
+    assert suffix in allowed_suffixes
+
+    resolved, detail = cli_module._resolve_review_preflight_manuscript(
+        tmp_path,
+        artifact.name,
+        allow_markdown=True,
+        allowed_suffixes=allowed_suffixes,
+        workspace_cwd=tmp_path,
+    )
+
+    assert resolved == artifact
+    assert artifact.name in detail
+    assert detail.endswith("present")
+
+
+@pytest.mark.parametrize("suffix", [".docx", ".csv", ".tsv", ".xlsx"])
+def test_resolve_review_preflight_manuscript_rejects_peer_review_only_external_suffixes_for_non_peer_review_commands(
+    tmp_path: Path,
+    suffix: str,
+) -> None:
+    arxiv_submission_command, _ = cli_module._resolve_registry_command("arxiv-submission")
+    allowed_suffixes = cli_module._command_explicit_manuscript_suffixes(arxiv_submission_command)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    artifact = paper_dir / f"submission{suffix}"
+    if suffix in {".docx", ".xlsx"}:
+        artifact.write_bytes(b"PK\x03\x04\x14\x00\x00\x00binary-ooxml")
+    else:
+        artifact.write_text("column_a\tcolumn_b\n1\t2\n", encoding="utf-8")
+
+    assert suffix not in allowed_suffixes
+
+    resolved, detail = cli_module._resolve_review_preflight_manuscript(
+        tmp_path,
+        artifact.relative_to(tmp_path).as_posix(),
+        allow_markdown=not cli_module._command_requires_compiled_manuscript(arxiv_submission_command),
+        restrict_to_supported_roots=cli_module._command_explicit_manuscript_subject_uses_supported_roots(
+            arxiv_submission_command
+        ),
+        allowed_suffixes=allowed_suffixes,
+        workspace_cwd=tmp_path,
+    )
+
+    assert resolved is None
+    assert artifact.name in detail
+    assert "explicit manuscript target must be a " in detail
+
+
 def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path, monkeypatch) -> None:
     import gpd.mcp.paper.compiler  # noqa: F401
 
@@ -6682,14 +6826,14 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
     literature_dir.mkdir(parents=True)
     (literature_dir / "topic-CITATION-SOURCES.json").write_text(
         json.dumps(
-                [
-                    {
-                        "reference_id": "ref-auto",
-                        "source_type": "paper",
-                        "title": "Auto Reference",
-                        "authors": ["A. Author"],
-                        "year": "2024",
-                    }
+            [
+                {
+                    "reference_id": "ref-auto",
+                    "source_type": "paper",
+                    "title": "Auto Reference",
+                    "authors": ["A. Author"],
+                    "year": "2024",
+                }
             ]
         ),
         encoding="utf-8",
@@ -6826,7 +6970,9 @@ def test_paper_build_warns_when_multiple_literature_citation_sidecars_exist(tmp_
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["citation_sources_path"] == ""
-    assert any("Multiple literature-review citation-source sidecars found" in warning for warning in payload["warnings"])
+    assert any(
+        "Multiple literature-review citation-source sidecars found" in warning for warning in payload["warnings"]
+    )
     assert mock_build.await_args.kwargs["citation_sources"] is None
 
 
@@ -6983,7 +7129,9 @@ def test_paper_build_surfaces_toolchain_failure_details(tmp_path: Path) -> None:
     assert payload["toolchain"]["arxiv_submission_ready"] is False
     assert payload["toolchain"]["warnings"] == ["Install a LaTeX distribution to enable paper compilation."]
     assert any("temporary directory" in warning for warning in payload["warnings"])
-    assert any(warning == "Install a LaTeX distribution to enable paper compilation." for warning in payload["warnings"])
+    assert any(
+        warning == "Install a LaTeX distribution to enable paper compilation." for warning in payload["warnings"]
+    )
 
 
 def test_paper_build_surfaces_partial_toolchain_warnings(tmp_path: Path) -> None:
@@ -7035,8 +7183,7 @@ def test_paper_build_surfaces_partial_toolchain_warnings(tmp_path: Path) -> None
         "kpsewhich not found; TeX resource checks may be best-effort only.",
     ]
     assert any(
-        warning == "latexmk not found; repeated LaTeX passes may be degraded."
-        for warning in payload["warnings"]
+        warning == "latexmk not found; repeated LaTeX passes may be degraded." for warning in payload["warnings"]
     )
     assert any(
         warning == "kpsewhich not found; TeX resource checks may be best-effort only."

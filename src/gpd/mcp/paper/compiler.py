@@ -135,7 +135,10 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
         if not kpsewhich_available:
             warnings.append("kpsewhich not found; TeX resource checks will assume installed resources.")
     if not pdftotext_available:
-        warnings.append("pdftotext not found; PDF peer-review intake will require a nearby `.txt` companion file.")
+        warnings.append(
+            "pdftotext not found; PDF peer-review intake will require a nearby `.txt` companion file, "
+            "but TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX intake remain available."
+        )
     if not compiler_available:
         warnings.append("Install a LaTeX distribution to enable paper compilation.")
 
@@ -380,19 +383,13 @@ def check_citation_bib_coherence(
         sorted_keys = sorted(unreferenced)
         preview = ", ".join(sorted_keys[:5])
         suffix = f" (+{len(sorted_keys) - 5} more)" if len(sorted_keys) > 5 else ""
-        warnings.append(
-            f"{len(unreferenced)} bibliography entries are never cited: "
-            f"{preview}{suffix}"
-        )
+        warnings.append(f"{len(unreferenced)} bibliography entries are never cited: {preview}{suffix}")
 
     if unresolved:
         sorted_keys = sorted(unresolved)
         preview = ", ".join(sorted_keys[:5])
         suffix = f" (+{len(sorted_keys) - 5} more)" if len(sorted_keys) > 5 else ""
-        warnings.append(
-            f"{len(unresolved)} \\cite{{}} keys have no matching bibliography "
-            f"entry: {preview}{suffix}"
-        )
+        warnings.append(f"{len(unresolved)} \\cite{{}} keys have no matching bibliography entry: {preview}{suffix}")
 
     return CitationCoherenceResult(
         tex_cite_keys=tex_cite_keys,
@@ -569,9 +566,8 @@ async def _compile_with_latexmk(
 
         # Freshness check: PDF must exist and differ from the pre-run snapshot.
         current_signature = _pdf_signature()
-        pdf_is_fresh = (
-            current_signature is not None
-            and (initial_signature is None or current_signature != initial_signature)
+        pdf_is_fresh = current_signature is not None and (
+            initial_signature is None or current_signature != initial_signature
         )
 
         if pdf_is_fresh:

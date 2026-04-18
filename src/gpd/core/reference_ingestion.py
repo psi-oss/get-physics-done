@@ -69,7 +69,7 @@ _KIND_MAP = {
     "user_anchor": "user_anchor",
 }
 _PATH_HINT_RE = re.compile(
-    r"(?P<path>(?:GPD/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|ya?ml|tex|ipynb|py|bib))",
+    r"(?P<path>(?:GPD/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|tsv|json|ya?ml|tex|ipynb|py|bib|docx|xlsx|xlsm))",
 )
 _ACTIVE_REFERENCE_REGISTRY_HEADINGS = (
     "Active Anchor Registry",
@@ -645,8 +645,7 @@ def _detail_mapping(details: object) -> dict[str, str]:
         if cleaned_value not in bucket:
             bucket.append(cleaned_value)
     mapping = {
-        key: (" / " if key in _DETAIL_SLASH_JOIN_KEYS else "; ").join(values)
-        for key, values in collected.items()
+        key: (" / " if key in _DETAIL_SLASH_JOIN_KEYS else "; ").join(values) for key, values in collected.items()
     }
     if freeform:
         mapping["freeform"] = "; ".join(freeform)
@@ -851,9 +850,13 @@ def _reference_from_active_anchor(
         if alias and alias not in {locator_value, _clean_text(anchor_id)}:
             alias_values.append(alias)
     explicit_must_surface = _normalize_optional_bool(must_surface_hint)
-    must_surface = explicit_must_surface if explicit_must_surface is not None else (
-        normalized_role in {"benchmark", "definition", "method", "must_consider"}
-        or bool({"use", "compare", "avoid"} & set(normalized_actions))
+    must_surface = (
+        explicit_must_surface
+        if explicit_must_surface is not None
+        else (
+            normalized_role in {"benchmark", "definition", "method", "must_consider"}
+            or bool({"use", "compare", "avoid"} & set(normalized_actions))
+        )
     )
     return ArtifactReference(
         id=_clean_text(anchor_id) or _reference_id(label, locator_value, prefix),
@@ -938,7 +941,9 @@ def _ingest_benchmark_section(section: str, result: ArtifactReferenceIngestion) 
                 lower = detail_text.lower()
                 if lower.startswith("source:"):
                     source = _clean_text(detail_text.split(":", 1)[1])
-                elif lower.startswith("compared in:") or lower.startswith("comparison in:") or lower.startswith("file:"):
+                elif (
+                    lower.startswith("compared in:") or lower.startswith("comparison in:") or lower.startswith("file:")
+                ):
                     compared_in = _clean_text(detail_text.split(":", 1)[1])
                 elif lower.startswith("status:"):
                     status = _clean_text(detail_text.split(":", 1)[1])
@@ -1003,9 +1008,7 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                     anchor_id=str(entry.get("anchor_id") or ""),
                     label=str(entry.get("anchor") or entry.get("label") or entry.get("locator") or "literature-anchor"),
                     locator=str(entry.get("locator") or entry.get("source") or entry.get("anchor") or ""),
-                    applies_to=entry.get("applies_to")
-                    or entry.get("contract_subject_ids")
-                    or entry.get("subject_ids"),
+                    applies_to=entry.get("applies_to") or entry.get("contract_subject_ids") or entry.get("subject_ids"),
                     kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),

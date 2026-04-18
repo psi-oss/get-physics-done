@@ -1,7 +1,7 @@
 ---
 name: gpd:arxiv-submission
 description: Prepare a paper for arXiv submission with validation and packaging
-argument-hint: "[paper directory path]"
+argument-hint: "[manuscript root or .tex path]"
 context_mode: project-required
 requires:
   files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
@@ -78,6 +78,7 @@ Output: A submission-ready tarball and checklist of manual steps remaining.
 
 <context>
 Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the manuscript root).
+This remains a project-backed manuscript workflow: package the resolved built manuscript root or its `.tex` entrypoint, not a standalone peer-review artifact such as `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx`.
 </context>
 
 <process>

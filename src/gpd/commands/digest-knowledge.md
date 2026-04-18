@@ -68,6 +68,8 @@ Interpret `$ARGUMENTS` as one of:
 3. arXiv identifier
 4. free-form topic or question
 
+Treat explicit source-file intake as including `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied directly. If the source is non-plain-text (`.pdf`, `.docx`, `.xlsx`), keep any text extraction inside the workflow via `gpd validate artifact-text <path> --output <txt-path>` rather than inventing ad hoc conversion here.
+
 If the request is materially ambiguous, stop and ask one focused clarification question instead of guessing.
 If the user is asking to promote a doc to `stable`, approve it, or mutate an existing stable target, route them to `gpd:review-knowledge` instead of pretending `digest-knowledge` can own that lifecycle step.
 

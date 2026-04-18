@@ -36,6 +36,7 @@ REVIEW_CONTRACT_CONDITIONAL_FIELD_ORDER = (
     "required_outputs",
     "required_evidence",
     "blocking_conditions",
+    "preflight_checks",
     "blocking_preflight_checks",
     "stage_artifacts",
 )
@@ -247,6 +248,11 @@ def _normalize_review_contract_conditional_requirements(value: object) -> list[d
                 item.get("blocking_conditions"),
                 field_name=f"{field_name}.blocking_conditions",
             ),
+            "preflight_checks": _normalize_review_contract_choice_list(
+                item.get("preflight_checks"),
+                field_name=f"{field_name}.preflight_checks",
+                valid_values=REVIEW_CONTRACT_PREFLIGHT_CHECKS,
+            ),
             "blocking_preflight_checks": _normalize_review_contract_choice_list(
                 item.get("blocking_preflight_checks"),
                 field_name=f"{field_name}.blocking_preflight_checks",
@@ -263,6 +269,7 @@ def _normalize_review_contract_conditional_requirements(value: object) -> list[d
                 "required_outputs",
                 "required_evidence",
                 "blocking_conditions",
+                "preflight_checks",
                 "blocking_preflight_checks",
                 "stage_artifacts",
             )
@@ -270,7 +277,7 @@ def _normalize_review_contract_conditional_requirements(value: object) -> list[d
             raise ValueError(
                 f"{field_name} must declare at least one of: "
                 "required_outputs, required_evidence, blocking_conditions, "
-                "blocking_preflight_checks, stage_artifacts"
+                "preflight_checks, blocking_preflight_checks, stage_artifacts"
             )
         when = normalized_item["when"]
         if when in seen_whens:
@@ -338,20 +345,6 @@ def _normalize_review_contract_payload(
     conditional_requirements = _normalize_review_contract_conditional_requirements(
         loaded.get("conditional_requirements")
     )
-    declared_preflight_checks = set(preflight_checks)
-    for index, requirement in enumerate(conditional_requirements):
-        missing_checks = [
-            check_name
-            for check_name in requirement["blocking_preflight_checks"]
-            if check_name not in declared_preflight_checks
-        ]
-        if missing_checks:
-            formatted = ", ".join(missing_checks)
-            raise ValueError(
-                f"conditional_requirements[{index}].blocking_preflight_checks must also appear in preflight_checks: "
-                f"{formatted}"
-            )
-
     return {
         "schema_version": schema_version,
         "review_mode": _normalize_review_contract_choice(
