@@ -754,6 +754,19 @@ def _write_publication_review_outcome(
     )
 
 
+def _update_claim_index_claim(
+    project_root: Path,
+    *,
+    round_number: int = 1,
+    **overrides: object,
+) -> None:
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    claims_path = project_root / "GPD" / "review" / f"CLAIMS{round_suffix}.json"
+    claims_payload = json.loads(claims_path.read_text(encoding="utf-8"))
+    claims_payload["claims"][0].update(overrides)
+    claims_path.write_text(json.dumps(claims_payload), encoding="utf-8")
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Convention commands — the original bug class
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2792,6 +2805,30 @@ class TestReviewValidationCommands:
             }
         ]
 
+    def test_review_preflight_peer_review_ignores_generic_claim_kind_without_theorem_metadata(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        write_proof_review_package(gpd_project, theorem_bearing=False, review_report=False)
+        _update_claim_index_claim(
+            gpd_project,
+            claim_kind="claim",
+            text="The manuscript reports a descriptive result.",
+            theorem_assumptions=[],
+            theorem_parameters=[],
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "peer-review"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["passed"] is True
+        assert payload["active_conditional_requirements"] == []
+
     def test_review_preflight_write_paper_reports_theorem_bearing_claim_inventory_without_blocking(
         self,
         gpd_project: Path,
@@ -3954,6 +3991,105 @@ class TestReviewValidationCommands:
         assert checks["manuscript_proof_review"]["passed"] is True
         assert checks["manuscript_proof_review"]["blocking"] is False
         assert "PROOF-REDTEAM" not in checks["manuscript_proof_review"]["detail"]
+
+    def test_review_preflight_arxiv_submission_bypasses_auxiliary_proof_review_for_generic_claim_kind_without_theorem_metadata(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            proof_bearing=False,
+            write_proof_redteam=False,
+        )
+        _update_claim_index_claim(
+            gpd_project,
+            claim_kind="claim",
+            text="The manuscript reports a descriptive result.",
+            theorem_assumptions=[],
+            theorem_parameters=[],
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger"]["passed"] is True
+        assert checks["referee_decision"]["passed"] is True
+        assert checks["manuscript_proof_review"]["passed"] is True
+        assert checks["manuscript_proof_review"]["blocking"] is False
+        assert "PROOF-REDTEAM" not in checks["manuscript_proof_review"]["detail"]
+
+    def test_review_preflight_arxiv_submission_uses_theorem_metadata_from_generic_claim_kind(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            proof_bearing=False,
+            write_proof_redteam=False,
+        )
+        _update_claim_index_claim(
+            gpd_project,
+            claim_kind="claim",
+            text="The manuscript reports a descriptive result.",
+            theorem_assumptions=["chi > 0"],
+            theorem_parameters=["r_0"],
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger"]["passed"] is True
+        assert checks["referee_decision"]["passed"] is True
+        assert checks["manuscript_proof_review"]["passed"] is False
+        assert checks["manuscript_proof_review"]["blocking"] is True
+        assert "not required" not in checks["manuscript_proof_review"]["detail"]
+
+    def test_review_preflight_arxiv_submission_uses_theorem_like_text_from_generic_claim_kind(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            proof_bearing=False,
+            write_proof_redteam=False,
+        )
+        _update_claim_index_claim(
+            gpd_project,
+            claim_kind="claim",
+            text="For every r_0 > 0, the orbit intersects the target annulus.",
+            theorem_assumptions=[],
+            theorem_parameters=[],
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger"]["passed"] is True
+        assert checks["referee_decision"]["passed"] is True
+        assert checks["manuscript_proof_review"]["passed"] is False
+        assert checks["manuscript_proof_review"]["blocking"] is True
+        assert "not required" not in checks["manuscript_proof_review"]["detail"]
 
     def test_review_preflight_arxiv_submission_uses_theorem_bearing_claim_inventory_when_math_anchor_is_not_theorem_bearing(
         self,

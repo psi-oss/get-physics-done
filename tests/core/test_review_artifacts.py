@@ -37,6 +37,69 @@ from gpd.mcp.paper.review_artifacts import (
 MANUSCRIPT_PATH = "paper/curvature_flow_bounds.tex"
 
 
+def test_claim_record_claim_kind_is_not_theorem_bearing_without_theorem_signals() -> None:
+    claim = ClaimRecord(
+        claim_id="CLM-001",
+        claim_type=ClaimType.method,
+        claim_kind="claim",
+        text="We introduce a practical numerical workflow for the benchmark problem.",
+        artifact_path=MANUSCRIPT_PATH,
+        section="Methods",
+    )
+
+    assert claim.theorem_bearing is False
+
+
+@pytest.mark.parametrize("claim_kind", ["theorem", "lemma", "corollary", "proposition"])
+def test_claim_record_theorem_style_claim_kinds_remain_theorem_bearing(claim_kind: str) -> None:
+    claim = ClaimRecord(
+        claim_id="CLM-001",
+        claim_type=ClaimType.main_result,
+        claim_kind=claim_kind,
+        text="The bound closes under the stated hypotheses.",
+        artifact_path=MANUSCRIPT_PATH,
+        section="Results",
+    )
+
+    assert claim.theorem_bearing is True
+
+
+def test_claim_record_theorem_like_text_still_counts_for_generic_claim_kind() -> None:
+    claim = ClaimRecord(
+        claim_id="CLM-001",
+        claim_type=ClaimType.generality,
+        claim_kind="claim",
+        text="For every smooth initial datum, there exists a unique continuation.",
+        artifact_path=MANUSCRIPT_PATH,
+        section="Results",
+    )
+
+    assert claim.theorem_bearing is True
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    [
+        ("theorem_assumptions", ["The initial data are smooth."]),
+        ("theorem_parameters", ["epsilon"]),
+    ],
+)
+def test_claim_record_theorem_metadata_still_counts_for_generic_claim_kind(
+    field_name: str, field_value: list[str]
+) -> None:
+    claim = ClaimRecord(
+        claim_id="CLM-001",
+        claim_type=ClaimType.main_result,
+        claim_kind="claim",
+        text="The construction improves the previous estimate in the tested regime.",
+        artifact_path=MANUSCRIPT_PATH,
+        section="Results",
+        **{field_name: field_value},
+    )
+
+    assert claim.theorem_bearing is True
+
+
 def test_review_artifact_round_trip(tmp_path: Path) -> None:
     claim_index = ClaimIndex(
         manuscript_path=MANUSCRIPT_PATH,

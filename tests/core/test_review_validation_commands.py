@@ -258,6 +258,50 @@ def test_validate_review_stage_report_accepts_canonical_payload(tmp_path: Path) 
     assert payload["recommendation_ceiling"] == "major_revision"
 
 
+def test_validate_review_stage_report_accepts_generic_claim_kind_without_math_proof_audit(tmp_path: Path) -> None:
+    stage_report_path = tmp_path / "STAGE-math.json"
+    claim_index = ClaimIndex(
+        manuscript_path=MANUSCRIPT_PATH,
+        manuscript_sha256="a" * 64,
+        claims=[
+            ClaimRecord(
+                claim_id="CLM-001",
+                claim_type=ClaimType.main_result,
+                claim_kind="claim",
+                text="The calibration recipe improves reviewer throughput.",
+                artifact_path=MANUSCRIPT_PATH,
+                section="Methods",
+            )
+        ],
+    )
+    _write_json(tmp_path / "CLAIMS.json", claim_index.model_dump(mode="json"))
+    stage_report = StageReviewReport(
+        version=1,
+        round=1,
+        stage_id=ReviewStageKind.math.value,
+        stage_kind=ReviewStageKind.math,
+        manuscript_path=MANUSCRIPT_PATH,
+        manuscript_sha256="a" * 64,
+        claims_reviewed=["CLM-001"],
+        summary="The math review did not need theorem-to-proof auditing for this prose claim.",
+        strengths=[],
+        findings=[],
+        proof_audits=[],
+        confidence=ReviewConfidence.medium,
+        recommendation_ceiling=ReviewRecommendation.major_revision,
+    )
+    _write_json(stage_report_path, stage_report.model_dump(mode="json"))
+
+    result = runner.invoke(
+        app, ["--raw", "validate", "review-stage-report", str(stage_report_path)], catch_exceptions=False
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["stage_id"] == ReviewStageKind.math.value
+    assert payload["proof_audits"] == []
+
+
 def test_validate_review_stage_report_rejects_missing_math_proof_audit_for_theorem_claim(tmp_path: Path) -> None:
     stage_report_path = tmp_path / "STAGE-math.json"
     claim_index = ClaimIndex(
@@ -267,6 +311,7 @@ def test_validate_review_stage_report_rejects_missing_math_proof_audit_for_theor
             ClaimRecord(
                 claim_id="CLM-001",
                 claim_type=ClaimType.main_result,
+                claim_kind="claim",
                 text="For every r_0 > 0, the orbit intersects the target annulus.",
                 artifact_path=MANUSCRIPT_PATH,
                 section="Main Result",
@@ -300,6 +345,50 @@ def test_validate_review_stage_report_rejects_missing_math_proof_audit_for_theor
     assert result.exit_code == 1, result.output
     payload = json.loads(result.output)
     assert "theorem-bearing claims must have proof_audits" in payload["error"]
+
+
+def test_validate_review_stage_report_allows_generic_claim_kind_without_theorem_signals(tmp_path: Path) -> None:
+    stage_report_path = tmp_path / "STAGE-math.json"
+    claim_index = ClaimIndex(
+        manuscript_path=MANUSCRIPT_PATH,
+        manuscript_sha256="a" * 64,
+        claims=[
+            ClaimRecord(
+                claim_id="CLM-001",
+                claim_type=ClaimType.novelty,
+                claim_kind="claim",
+                text="The manuscript introduces a new computational workflow for the benchmark problem.",
+                artifact_path=MANUSCRIPT_PATH,
+                section="Introduction",
+            )
+        ],
+    )
+    _write_json(tmp_path / "CLAIMS.json", claim_index.model_dump(mode="json"))
+    stage_report = StageReviewReport(
+        version=1,
+        round=1,
+        stage_id=ReviewStageKind.math.value,
+        stage_kind=ReviewStageKind.math,
+        manuscript_path=MANUSCRIPT_PATH,
+        manuscript_sha256="a" * 64,
+        claims_reviewed=[],
+        summary="No theorem-bearing claims require proof-audit coverage.",
+        strengths=[],
+        findings=[],
+        proof_audits=[],
+        confidence=ReviewConfidence.medium,
+        recommendation_ceiling=ReviewRecommendation.major_revision,
+    )
+    _write_json(stage_report_path, stage_report.model_dump(mode="json"))
+
+    result = runner.invoke(
+        app, ["--raw", "validate", "review-stage-report", str(stage_report_path)], catch_exceptions=False
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["stage_kind"] == "math"
+    assert payload["manuscript_path"] == MANUSCRIPT_PATH
 
 
 def test_validate_review_stage_report_stdin_uses_workspace_semantic_alignment(
@@ -344,6 +433,7 @@ def test_validate_review_stage_report_rejects_unreviewed_theorem_bearing_claim(t
             ClaimRecord(
                 claim_id="CLM-001",
                 claim_type=ClaimType.main_result,
+                claim_kind="claim",
                 text="For every r_0 > 0, the orbit intersects the target annulus.",
                 artifact_path=MANUSCRIPT_PATH,
                 section="Main Result",
@@ -388,6 +478,7 @@ def test_validate_review_stage_report_rejects_proof_audit_claim_not_in_claims_re
             ClaimRecord(
                 claim_id="CLM-001",
                 claim_type=ClaimType.main_result,
+                claim_kind="claim",
                 text="The manuscript makes one theorem claim.",
                 artifact_path=MANUSCRIPT_PATH,
                 section="Result",

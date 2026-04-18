@@ -61,3 +61,18 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "`REFEREE-DECISION.json`" not in reliability
     assert "`REVIEW-LEDGER.json`" not in reliability
     assert ".gpd/" not in reliability
+
+
+def test_peer_review_references_keep_generic_claim_kind_out_of_default_theorem_bearing_classification() -> None:
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+    panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
+    referee = (REPO_ROOT / "src" / "gpd" / "agents" / "gpd-referee.md").read_text(encoding="utf-8")
+
+    assert "theorem-bearing claims in the claim record" in reliability
+    assert "The runtime determines theorem-bearing coverage from the claim record itself" in reliability
+    assert "claim_kind:" not in reliability
+
+    assert "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`." in panel
+    assert "Do not treat `claim_kind: claim` as theorem-bearing by default." in panel
+    assert "non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only" in referee
+    assert "including a generic `claim_kind: claim`" in referee

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -7,8 +8,11 @@ import pytest
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER
 from gpd.core.proof_review import (
+    manuscript_has_theorem_bearing_claim_inventory,
     manuscript_has_theorem_bearing_language,
+    manuscript_has_theorem_bearing_review_anchor,
     manuscript_proof_review_manifest_path,
+    manuscript_requires_theorem_bearing_review,
     phase_proof_review_manifest_path,
     resolve_manuscript_proof_review_status,
     resolve_phase_proof_review_status,
@@ -52,6 +56,12 @@ def _fake_pdftotext_run(extracted_text: str):
         )
 
     return _run
+
+
+def _rewrite_claim_index_claim(path: Path, **claim_updates: object) -> None:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["claims"][0].update(claim_updates)
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_phase_proof_review_bootstraps_manifest_and_turns_stale_after_edit(tmp_path: Path) -> None:
@@ -108,6 +118,50 @@ def test_manuscript_proof_review_requires_proof_redteam_artifact_for_proof_beari
     assert status.state == "missing_required_artifact"
     assert status.can_rely_on_prior_review is False
     assert status.anchor_artifact == tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
+
+
+def test_manuscript_theorem_claim_inventory_ignores_generic_claim_kind_without_theorem_markers(
+    tmp_path: Path,
+) -> None:
+    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=False, review_report=False).manuscript_path
+    claim_index_path = tmp_path / "GPD" / "review" / "CLAIMS.json"
+    _rewrite_claim_index_claim(claim_index_path, claim_kind="claim")
+
+    assert manuscript_has_theorem_bearing_claim_inventory(tmp_path, manuscript_path) is False
+    assert manuscript_has_theorem_bearing_review_anchor(tmp_path, manuscript_path) is False
+    assert manuscript_requires_theorem_bearing_review(tmp_path, manuscript_path) is False
+
+
+def test_manuscript_theorem_claim_inventory_accepts_theorem_like_text_for_generic_claim_kind(
+    tmp_path: Path,
+) -> None:
+    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=False, review_report=False).manuscript_path
+    claim_index_path = tmp_path / "GPD" / "review" / "CLAIMS.json"
+    _rewrite_claim_index_claim(
+        claim_index_path,
+        claim_kind="claim",
+        text="For every r_0 > 0, the orbit intersects the target annulus.",
+    )
+
+    assert manuscript_has_theorem_bearing_claim_inventory(tmp_path, manuscript_path) is True
+    assert manuscript_has_theorem_bearing_review_anchor(tmp_path, manuscript_path) is True
+    assert manuscript_requires_theorem_bearing_review(tmp_path, manuscript_path) is True
+
+
+def test_manuscript_theorem_claim_inventory_accepts_theorem_metadata_for_generic_claim_kind(
+    tmp_path: Path,
+) -> None:
+    manuscript_path = write_proof_review_package(tmp_path, theorem_bearing=False, review_report=False).manuscript_path
+    claim_index_path = tmp_path / "GPD" / "review" / "CLAIMS.json"
+    _rewrite_claim_index_claim(
+        claim_index_path,
+        claim_kind="claim",
+        theorem_parameters=["r_0"],
+    )
+
+    assert manuscript_has_theorem_bearing_claim_inventory(tmp_path, manuscript_path) is True
+    assert manuscript_has_theorem_bearing_review_anchor(tmp_path, manuscript_path) is True
+    assert manuscript_requires_theorem_bearing_review(tmp_path, manuscript_path) is True
 
 
 def test_manuscript_theorem_language_scan_follows_nested_section_files(tmp_path: Path) -> None:

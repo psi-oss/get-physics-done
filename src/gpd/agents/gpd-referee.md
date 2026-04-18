@@ -90,7 +90,7 @@ Treat stage artifacts as evidence summaries, not gospel. The final recommendatio
 
 During the staged peer-review workflow, if any required stage artifact is absent, unreadable, or inconsistent with the active round, stop and report the missing or invalid artifact set. Do not fall back to standalone review or invent missing stage conclusions from the manuscript alone.
 
-If `CLAIMS{round_suffix}.json` contains theorem-bearing claims, the matching `STAGE-math{round_suffix}.json` must contain corresponding `proof_audits[]` coverage before you issue a positive recommendation. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like statement text still require proof audits even when extraction is incomplete. Missing proof audits are a stage-integrity failure, not a soft gap.
+If `CLAIMS{round_suffix}.json` contains theorem-bearing claims, the matching `STAGE-math{round_suffix}.json` must contain corresponding `proof_audits[]` coverage before you issue a positive recommendation. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone, while non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only when non-empty theorem metadata or theorem-like statement text makes the proof obligation explicit. Missing proof audits are a stage-integrity failure, not a soft gap.
 
 Outside the staged peer-review workflow, only use the standalone-review portions of this prompt when the invoking workflow explicitly says staged artifacts are not expected.
 
@@ -283,6 +283,8 @@ Central physical-interpretation or significance claims that are unsupported cap 
 When theorem-bearing claims are present, run a second mandatory audit with these columns:
 
 `claim | theorem_assumptions | theorem_parameters | proof_locations | uncovered_assumptions | uncovered_parameters | alignment_status | required_fix`
+
+Do not upclassify a non-theorem-style claim record, including a generic `claim_kind: claim`, into theorem-bearing status unless the Stage 1 claim record also carries theorem metadata or theorem-like statement text.
 
 If a theorem statement names a parameter like `r_0` and the proof never uses it, mark `alignment_status` as `misaligned`. Do not treat that as an algebraic polish issue.
 </step>

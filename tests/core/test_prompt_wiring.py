@@ -940,6 +940,42 @@ def test_proof_contract_prompts_surface_explicit_theorem_fields_and_review_bindi
     assert "`peer-review` owns manuscript binding" in proof_protocol
 
 
+def test_peer_review_prompt_surfaces_generic_claim_kind_as_non_theorem_bearing_by_default() -> None:
+    panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    _assert_contains_fragments(
+        panel,
+        "only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone",
+        "`claim_kind: claim | result | other` becomes theorem-bearing only when non-empty theorem metadata "
+        "or theorem-like statement text makes the proof obligation explicit.",
+        "The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`.",
+        "Do not treat `claim_kind: claim` as theorem-bearing by default.",
+    )
+    assert (
+        "Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty "
+        "`theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like "
+        "statement text still require proof audits even when extraction is incomplete."
+        not in panel
+    )
+
+    _assert_contains_fragments(
+        referee,
+        "only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone",
+        "while non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only when "
+        "non-empty theorem metadata or theorem-like statement text makes the proof obligation explicit.",
+        "Do not upclassify a non-theorem-style claim record, including a generic `claim_kind: claim`, into "
+        "theorem-bearing status unless the Stage 1 claim record also carries theorem metadata or theorem-like "
+        "statement text.",
+    )
+    assert (
+        "Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty "
+        "`theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like "
+        "statement text still require proof audits even when extraction is incomplete."
+        not in referee
+    )
+
+
 def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> None:
     write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
     arxiv = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
