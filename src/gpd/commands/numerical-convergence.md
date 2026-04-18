@@ -15,7 +15,7 @@ allowed-tools:
 
 
 <objective>
-Perform systematic convergence tests on numerical computations in a physics project. Identifies all numerical parameters, varies them systematically, determines convergence rates, applies Richardson extrapolation where applicable, and assesses numerical trustworthiness.
+Perform systematic convergence tests on numerical computations in the active physics project or on an explicit standalone target. Identifies all numerical parameters, varies them systematically, determines convergence rates, applies Richardson extrapolation where applicable, and assesses numerical trustworthiness.
 
 **Why a dedicated command:** Numerical physics results are only meaningful if they are converged. A ground-state energy computed on a 10-point grid might differ from the converged value by 50%. Without systematic convergence testing, numerical results are uncontrolled approximations masquerading as answers.
 
@@ -33,10 +33,21 @@ Interpretation:
 
 - If a number (e.g., "3"): test convergence for all numerical results in phase 3
 - If a file path: test convergence for computations in that file
-- If empty: prompt for target
+- If empty and project context exists: prompt for target
+- If empty outside a project: command-context validation rejects the request; require an explicit phase number or file path
   </context>
 
 <process>
+
+## 0. Validate Context
+
+```bash
+CONTEXT=$(gpd --raw validate command-context numerical-convergence "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
 
 ## 1. Identify Numerical Computations
 

@@ -883,6 +883,55 @@ class TestInitCommands:
         assert payload["roadmap_exists"] is True
         assert payload["state_exists"] is True
 
+    def test_init_phase_op_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "phase-op", "1"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["planning_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+        assert payload["phase_found"] is True
+        assert payload["phase_number"] == "01"
+        assert str(payload["phase_dir"]).startswith("GPD/phases/01-")
+
+    def test_init_map_research_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        map_dir = gpd_project / "GPD" / "research-map"
+        map_dir.mkdir(parents=True)
+        (map_dir / "theory.md").write_text("# Theory Map\n", encoding="utf-8")
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "map-research"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["planning_exists"] is True
+        assert payload["research_map_dir_exists"] is True
+        assert payload["has_maps"] is True
+        assert "theory.md" in payload["existing_maps"]
+
     def test_init_progress_can_skip_recent_project_reentry_for_projectless_config_bootstrap(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -1497,13 +1546,24 @@ class TestReviewValidationCommands:
             "manuscript_proof_review",
         ]
         assert payload["review_contract"]["required_evidence"] == [
-            "existing manuscript",
-            "phase summaries or milestone digest",
-            "verification reports",
-            "manuscript-root bibliography audit",
-            "manuscript-root artifact manifest",
-            "manuscript-root reproducibility manifest",
-            "manuscript-root publication artifacts",
+            "resolved manuscript target",
+            "project-backed review: phase summaries or milestone digest",
+            "project-backed review: verification reports",
+            "project-backed review: manuscript-root bibliography audit",
+            "project-backed review: manuscript-root artifact manifest",
+            "project-backed review: manuscript-root reproducibility manifest",
+            "explicit external-artifact review: manuscript-local publication artifacts when present",
+        ]
+        assert payload["review_contract"]["blocking_conditions"] == [
+            "missing manuscript",
+            "project-backed review missing project state",
+            "project-backed review missing roadmap",
+            "project-backed review missing conventions",
+            "project-backed review missing research artifacts or verification reports",
+            "project-backed review missing required manuscript-root publication artifacts",
+            "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
         ]
         assert payload["review_contract"]["stage_artifacts"] == [
             "GPD/review/CLAIMS{round_suffix}.json",
@@ -1588,6 +1648,8 @@ class TestReviewValidationCommands:
             "artifact_manifest",
             "bibliography_audit",
             "bibliography_audit_clean",
+            "reproducibility_manifest",
+            "reproducibility_ready",
             "compiled_manuscript",
             "conventions",
             "publication_blockers",
@@ -2260,6 +2322,78 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:discover"
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is True
+
+    @pytest.mark.parametrize(
+        ("command_name", "explicit_argument", "explicit_inputs"),
+        [
+            ("derive-equation", "derive the one-loop beta function", ["equation or topic to derive"]),
+            ("numerical-convergence", "results.csv", ["phase number or file path"]),
+        ],
+    )
+    def test_command_context_project_aware_analysis_wrappers_accept_explicit_inputs_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_name: str,
+        explicit_argument: str,
+        explicit_inputs: list[str],
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-explicit"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name, explicit_argument],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == f"gpd:{command_name}"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert payload["explicit_inputs"] == explicit_inputs
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+
+    @pytest.mark.parametrize(
+        ("command_name", "explicit_inputs", "guidance_prefix"),
+        [
+            ("derive-equation", ["equation or topic to derive"], "Either provide equation or topic to derive explicitly"),
+            ("numerical-convergence", ["phase number or file path"], "Either provide phase number or file path explicitly"),
+        ],
+    )
+    def test_command_context_project_aware_analysis_wrappers_require_explicit_inputs_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        dollar_command_prefix: str,
+        command_name: str,
+        explicit_inputs: list[str],
+        guidance_prefix: str,
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-missing"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == f"gpd:{command_name}"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == explicit_inputs
+        assert payload["guidance"] == (
+            f"{guidance_prefix}, or initialize a project with `{dollar_command_prefix}new-project` "
+            "in the runtime surface or `gpd init new-project` in the local CLI."
+        )
 
     def test_command_context_project_aware_rejects_short_flag_without_topic(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -4334,6 +4468,129 @@ class TestReviewValidationCommands:
         assert checks["project_state"]["blocking"] is False
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == "./notes.txt present"
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["blocking"] is False
+        assert checks["research_artifacts"]["blocking"] is False
+        assert checks["verification_reports"]["blocking"] is False
+        assert checks["artifact_manifest"]["blocking"] is False
+        assert checks["bibliography_audit"]["blocking"] is False
+        assert checks["reproducibility_manifest"]["blocking"] is False
+        assert checks["manuscript_proof_review"]["blocking"] is False
+        assert checks["project_state"]["detail"] == (
+            "external artifact review: project state is optional and is not required to start review"
+        )
+        assert checks["roadmap"]["detail"] == "external artifact review: roadmap is optional"
+        assert checks["conventions"]["detail"] == "external artifact review: project conventions are optional"
+        assert checks["research_artifacts"]["detail"] == (
+            "external artifact review: phase summaries or milestone digests are optional"
+        )
+        assert checks["verification_reports"]["detail"] == "external artifact review: verification reports are optional"
+        assert checks["artifact_manifest"]["detail"] == (
+            "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+        )
+        assert checks["bibliography_audit"]["detail"] == (
+            "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
+        )
+        assert checks["reproducibility_manifest"]["detail"] == (
+            "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
+        )
+        assert checks["manuscript_proof_review"]["detail"] == (
+            "prior staged manuscript proof review is optional in external artifact mode; "
+            "theorem-bearing claims will be audited in this review round if detected"
+        )
+
+    @pytest.mark.parametrize(
+        ("artifact_name", "content"),
+        [
+            ("draft.tex", "\\documentclass{article}\n\\begin{document}\nStandalone draft.\n\\end{document}\n"),
+            ("draft.md", "# Standalone draft\n"),
+        ],
+    )
+    def test_review_preflight_peer_review_accepts_external_tex_and_markdown_artifacts(
+        self,
+        tmp_path: Path,
+        artifact_name: str,
+        content: str,
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        (workspace / artifact_name).write_text(content, encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", artifact_name, "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"./{artifact_name} present"
+        assert checks["project_state"]["blocking"] is False
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["blocking"] is False
+        assert checks["research_artifacts"]["blocking"] is False
+        assert checks["verification_reports"]["blocking"] is False
+        assert checks["artifact_manifest"]["blocking"] is False
+        assert checks["bibliography_audit"]["blocking"] is False
+        assert checks["reproducibility_manifest"]["blocking"] is False
+        assert checks["manuscript_proof_review"]["blocking"] is False
+
+    def test_review_preflight_peer_review_accepts_external_manuscript_directory_with_manifest(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "standalone-review"
+        manuscript_root = workspace / "submission"
+        manuscript_root.mkdir(parents=True)
+        manuscript = manuscript_root / _CANONICAL_MANUSCRIPT_BASENAME
+        manuscript.write_text(
+            "\\documentclass{article}\n\\begin{document}\nStandalone directory manuscript.\n\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_root / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Standalone directory review",
+                    "journal": "jhep",
+                    "created_at": "2026-03-10T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "manuscript",
+                            "category": "tex",
+                            "path": _CANONICAL_MANUSCRIPT_BASENAME,
+                            "sha256": compute_sha256(manuscript),
+                            "produced_by": "tests.test_cli_commands",
+                            "sources": [],
+                            "metadata": {"role": "manuscript"},
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"./submission resolved to ./submission/{_CANONICAL_MANUSCRIPT_BASENAME}"
+        assert checks["artifact_manifest"]["detail"] == "./submission/ARTIFACT-MANIFEST.json present"
+        assert checks["project_state"]["blocking"] is False
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["blocking"] is False
+        assert checks["research_artifacts"]["blocking"] is False
+        assert checks["verification_reports"]["blocking"] is False
+        assert checks["bibliography_audit"]["blocking"] is False
+        assert checks["reproducibility_manifest"]["blocking"] is False
+        assert checks["manuscript_proof_review"]["blocking"] is False
 
     def test_review_preflight_peer_review_accepts_external_pdf_artifact_with_companion_text(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"

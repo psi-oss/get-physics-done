@@ -527,6 +527,7 @@ class TestSkillsServerIntegration:
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-peer-review")
+        contract_documents = {Path(entry["path"]).name: entry for entry in result["contract_documents"]}
 
         assert "error" not in result
         assert any(path.endswith("review-ledger-schema.md") for path in result["schema_references"])
@@ -534,6 +535,26 @@ class TestSkillsServerIntegration:
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
         assert "required_state" not in result["review_contract"]
+        assert result["review_contract"]["required_evidence"] == [
+            "resolved manuscript target",
+            "project-backed review: phase summaries or milestone digest",
+            "project-backed review: verification reports",
+            "project-backed review: manuscript-root bibliography audit",
+            "project-backed review: manuscript-root artifact manifest",
+            "project-backed review: manuscript-root reproducibility manifest",
+            "explicit external-artifact review: manuscript-local publication artifacts when present",
+        ]
+        assert result["review_contract"]["blocking_conditions"] == [
+            "missing manuscript",
+            "project-backed review missing project state",
+            "project-backed review missing roadmap",
+            "project-backed review missing conventions",
+            "project-backed review missing research artifacts or verification reports",
+            "project-backed review missing required manuscript-root publication artifacts",
+            "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
+        ]
         assert result["review_contract"]["conditional_requirements"] == [
             {
                 "when": "theorem-bearing claims are present",
@@ -549,6 +570,8 @@ class TestSkillsServerIntegration:
         assert "## Review Contract" in result["content"]
         assert "review_contract:" in result["content"]
         assert "review-contract:" not in result["content"]
+        assert "peer-review-reliability.md" in contract_documents
+        assert "explicit external artifact review" in contract_documents["peer-review-reliability.md"]["body"]
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
         assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
         assert "It already embeds the model-visible `Command Requirements` section." in result["loading_hint"]

@@ -20,19 +20,20 @@ review-contract:
     - "GPD/REFEREE-REPORT{round_suffix}.md"
     - "GPD/REFEREE-REPORT{round_suffix}.tex"
   required_evidence:
-    - "existing manuscript"
-    - "phase summaries or milestone digest"
-    - "verification reports"
-    - "manuscript-root bibliography audit"
-    - "manuscript-root artifact manifest"
-    - "manuscript-root reproducibility manifest"
-    - "manuscript-root publication artifacts"
+    - "resolved manuscript target"
+    - "project-backed review: phase summaries or milestone digest"
+    - "project-backed review: verification reports"
+    - "project-backed review: manuscript-root bibliography audit"
+    - "project-backed review: manuscript-root artifact manifest"
+    - "project-backed review: manuscript-root reproducibility manifest"
+    - "explicit external-artifact review: manuscript-local publication artifacts when present"
   blocking_conditions:
-    - "missing project state"
-    - "missing roadmap"
-    - "missing conventions"
     - "missing manuscript"
-    - "no research artifacts"
+    - "project-backed review missing project state"
+    - "project-backed review missing roadmap"
+    - "project-backed review missing conventions"
+    - "project-backed review missing research artifacts or verification reports"
+    - "project-backed review missing required manuscript-root publication artifacts"
     - "degraded review integrity"
     - "unsupported physical significance claims"
     - "collapsed novelty or venue fit"
@@ -78,7 +79,7 @@ allowed-tools:
 
 
 <objective>
-Conduct a skeptical peer review of a completed manuscript and its supporting research artifacts.
+Conduct a skeptical peer review of a completed manuscript from the current GPD project or an explicit external artifact, using whatever supporting research artifacts are actually available.
 
 Keep the wrapper focused on the manuscript target, review prerequisites, and final routing. When announcing the panel to the user, say what each stage does in one concise sentence: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-bearing claims also trigger the auxiliary gpd-check-proof critic; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.
 
@@ -93,6 +94,7 @@ Keep the wrapper focused on the manuscript target, review prerequisites, and fin
 Review target: $ARGUMENTS (optional paper directory, manuscript path, or explicit artifact path). If no argument is provided, first ask whether to review an explicit artifact or the current GPD project's active manuscript when available.
 
 If the current folder is a GPD project, treat `GPD/STATE.md` and `GPD/ROADMAP.md` as optional project context. Do not require them for standalone external artifact review.
+Interpret the review contract in two modes: project-backed review requires project state, roadmap, conventions, research artifacts, verification reports, and manuscript-root publication artifacts; explicit external-artifact review still requires the resolved manuscript target but treats those project/manuscript-local artifacts as optional supporting context when present.
 
 The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
 Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Do not use ad hoc wildcard discovery.

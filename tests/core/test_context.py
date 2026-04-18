@@ -3606,6 +3606,21 @@ class TestInitMapResearch:
         assert ctx["has_maps"] is False
         assert ctx["existing_maps"] == []
 
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        map_dir = tmp_path / "GPD" / "research-map"
+        map_dir.mkdir()
+        (map_dir / "theory.md").write_text("# Theory Map", encoding="utf-8")
+
+        ctx = init_map_research(nested)
+
+        assert ctx["planning_exists"] is True
+        assert ctx["research_map_dir_exists"] is True
+        assert ctx["has_maps"] is True
+        assert "theory.md" in ctx["existing_maps"]
+
     def test_existing_maps(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         map_dir = tmp_path / "GPD" / "research-map"
@@ -4279,6 +4294,20 @@ class TestInitPhaseOp:
         # Phase should be found since we created the directory
         if result.get("phase_found"):
             assert "01" in str(result.get("phase_number", ""))
+
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-test")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        result = init_phase_op(nested, phase="1")
+
+        assert isinstance(result, dict)
+        assert result["planning_exists"] is True
+        assert result["phase_found"] is True
+        assert result["phase_number"] == "01"
+        assert str(result["phase_dir"]).startswith("GPD/phases/01-")
 
     def test_includes_structured_state_context_when_state_is_requested(self, tmp_path):
         """init_phase_op should surface canonical state slices when state is included."""

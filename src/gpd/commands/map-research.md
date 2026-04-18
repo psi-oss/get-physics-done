@@ -16,7 +16,7 @@ allowed-tools:
 <objective>
 Map an existing physics research project using parallel gpd-research-mapper agents.
 
-Orchestrator role: validate the focus area, then hand off to the workflow-owned staged init, mapper fanout, and artifact gating.
+Orchestrator role: validate the focus area, then hand off to the workflow-owned staged init, mapper fanout, and artifact gating. The workflow init stays bound to the current workspace: if the user is inside a nested verified GPD project, it walks up to that nearest project root; it does not auto-reenter a different recent project.
 </objective>
 
 <execution_context>
@@ -26,7 +26,7 @@ Orchestrator role: validate the focus area, then hand off to the workflow-owned 
 <context>
 Focus area: $ARGUMENTS (optional - if provided, tells the workflow which subsystem, theory sector, or computational domain to emphasize)
 
-Project state is loaded by the workflow if it already exists; this wrapper does not duplicate discovery logic.
+Project state is loaded by the workflow from the current workspace or its nearest verified ancestor project root if one exists; this wrapper does not duplicate discovery logic or recent-project recovery.
 </context>
 
 <process>

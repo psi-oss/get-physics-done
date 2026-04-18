@@ -14,6 +14,7 @@ review-contract:
     - compiled manuscript
     - manuscript-root bibliography audit
     - manuscript-root artifact manifest
+    - manuscript-root reproducibility manifest
     - latest peer-review review ledger
     - latest peer-review referee decision
   blocking_conditions:
@@ -21,9 +22,11 @@ review-contract:
     - missing manuscript
     - missing manuscript-root artifact manifest
     - missing manuscript-root bibliography audit
+    - missing manuscript-root reproducibility manifest
     - missing compiled manuscript
     - missing conventions
     - missing latest staged peer-review decision evidence
+    - manuscript-root reproducibility state is not ready for submission
     - unresolved publication blockers
     - latest staged peer-review recommendation blocks submission packaging
     - degraded review integrity
@@ -34,6 +37,8 @@ review-contract:
     - artifact_manifest
     - bibliography_audit
     - bibliography_audit_clean
+    - reproducibility_manifest
+    - reproducibility_ready
     - compiled_manuscript
     - conventions
     - publication_blockers
@@ -88,5 +93,5 @@ Follow `@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md` exactly.
 - [ ] Workflow ran end to end
 - [ ] `arxiv-submission.tar.gz` was created
 - [ ] The submission checklist was presented
-- [ ] The resolved manuscript root and its build artifacts satisfied the workflow gates
+- [ ] The resolved manuscript root and its build, reproducibility, and staged-review artifacts satisfied the workflow gates
 </success_criteria>

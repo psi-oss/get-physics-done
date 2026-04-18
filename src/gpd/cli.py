@@ -436,6 +436,77 @@ class CommandContextPreflightResult:
     dispatch_note: str = ""
 
 
+@dataclasses.dataclass(frozen=True)
+class ManuscriptIntakePolicy:
+    """Static manuscript-subject intake rules for one command."""
+
+    allowed_suffixes: frozenset[str]
+    allow_external_targets: bool = False
+    allow_interactive_standalone_intake: bool = False
+    interactive_standalone_detail: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class PeerReviewPreflightPolicy:
+    """Peer-review-only preflight relaxations for explicit external artifacts."""
+
+    external_artifact: bool = False
+
+    def relaxes(self, check_name: str) -> bool:
+        return self.external_artifact and check_name in _PEER_REVIEW_EXTERNAL_OPTIONAL_CHECKS
+
+    def detail(self, check_name: str) -> str | None:
+        if not self.external_artifact:
+            return None
+        return _PEER_REVIEW_EXTERNAL_OPTIONAL_DETAILS.get(check_name)
+
+    def blocking(self, check_name: str, *, default: bool = True) -> bool:
+        return False if self.relaxes(check_name) else default
+
+    def missing_detail(self, check_name: str, *, default: str) -> str:
+        detail = self.detail(check_name)
+        return detail if detail is not None else default
+
+
+_SUPPORTED_MANUSCRIPT_ROOT_NAMES = frozenset({"paper", "manuscript", "draft"})
+_PEER_REVIEW_EXTRA_MANUSCRIPT_SUFFIXES = frozenset({".txt", ".pdf"})
+_PEER_REVIEW_INTERACTIVE_STANDALONE_DETAIL = (
+    "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
+    "or use the current GPD project when available"
+)
+_PEER_REVIEW_EXTERNAL_OPTIONAL_CHECKS = frozenset(
+    {
+        "project_state",
+        "roadmap",
+        "conventions",
+        "research_artifacts",
+        "verification_reports",
+        "artifact_manifest",
+        "bibliography_audit",
+        "bibliography_audit_clean",
+        "reproducibility_manifest",
+        "reproducibility_ready",
+        "manuscript_proof_review",
+    }
+)
+_PEER_REVIEW_EXTERNAL_OPTIONAL_DETAILS = {
+    "project_state": "external artifact review: project state is optional and is not required to start review",
+    "roadmap": "external artifact review: roadmap is optional",
+    "conventions": "external artifact review: project conventions are optional",
+    "research_artifacts": "external artifact review: phase summaries or milestone digests are optional",
+    "verification_reports": "external artifact review: verification reports are optional",
+    "artifact_manifest": "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it",
+    "bibliography_audit": "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it",
+    "reproducibility_manifest": (
+        "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
+    ),
+    "manuscript_proof_review": (
+        "prior staged manuscript proof review is optional in external artifact mode; "
+        "theorem-bearing claims will be audited in this review round if detected"
+    ),
+}
+
+
 def _format_runtime_list(runtime_names: list[str]) -> str:
     """Render runtime identifiers as human-friendly names."""
     display_names = [
@@ -5568,14 +5639,14 @@ def _resolve_review_preflight_manuscript(
             relative = target.resolve(strict=False).relative_to(project_root)
         except ValueError:
             return False
-        return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
+        return bool(relative.parts) and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES
 
     def _supported_root_resolution_for_target(target: Path) -> tuple[Path, object] | tuple[None, None]:
         try:
             relative = target.resolve(strict=False).relative_to(project_root)
         except ValueError:
             return None, None
-        if not relative.parts or relative.parts[0] not in {"paper", "manuscript", "draft"}:
+        if not relative.parts or relative.parts[0] not in _SUPPORTED_MANUSCRIPT_ROOT_NAMES:
             return None, None
         manuscript_root = project_root / relative.parts[0]
         return manuscript_root, resolve_manuscript_entrypoint_from_root_resolution(
@@ -6567,24 +6638,35 @@ def _command_requires_compiled_manuscript(command: object) -> bool:
     return _review_contract_requests_check(contract, "compiled_manuscript")
 
 
-def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
-    """Return the allowed explicit manuscript suffixes for one command."""
+def _command_manuscript_intake_policy(command: object) -> ManuscriptIntakePolicy:
+    """Return manuscript-target intake rules derived from command metadata."""
     allowed_suffixes = {".tex"}
     if not _command_requires_compiled_manuscript(command):
         allowed_suffixes.add(".md")
     if getattr(command, "name", "") == "gpd:peer-review":
-        allowed_suffixes.update({".txt", ".pdf"})
-    return frozenset(allowed_suffixes)
+        allowed_suffixes.update(_PEER_REVIEW_EXTRA_MANUSCRIPT_SUFFIXES)
+        return ManuscriptIntakePolicy(
+            allowed_suffixes=frozenset(allowed_suffixes),
+            allow_external_targets=True,
+            allow_interactive_standalone_intake=True,
+            interactive_standalone_detail=_PEER_REVIEW_INTERACTIVE_STANDALONE_DETAIL,
+        )
+    return ManuscriptIntakePolicy(allowed_suffixes=frozenset(allowed_suffixes))
+
+
+def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
+    """Return the allowed explicit manuscript suffixes for one command."""
+    return _command_manuscript_intake_policy(command).allowed_suffixes
 
 
 def _command_allows_external_manuscript_targets(command: object) -> bool:
     """Return whether a command may accept explicit manuscript targets outside supported roots."""
-    return getattr(command, "name", "") == "gpd:peer-review"
+    return _command_manuscript_intake_policy(command).allow_external_targets
 
 
 def _command_allows_interactive_standalone_intake(command: object) -> bool:
     """Return whether a project-aware command may prompt for standalone inputs after launch."""
-    return getattr(command, "name", "") == "gpd:peer-review"
+    return _command_manuscript_intake_policy(command).allow_interactive_standalone_intake
 
 
 def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -> bool:
@@ -6594,9 +6676,8 @@ def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -
     if _command_allows_external_manuscript_targets(command):
         return False
 
-    supported_roots = {"paper", "manuscript", "draft"}
     roots = {Path(pattern).parts[0] for pattern in _command_required_file_patterns(command) if Path(pattern).parts}
-    return bool(roots) and roots <= supported_roots
+    return bool(roots) and roots <= _SUPPORTED_MANUSCRIPT_ROOT_NAMES
 
 
 def _command_supports_explicit_manuscript_subject(command: object) -> bool:
@@ -6721,7 +6802,26 @@ def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) 
         relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
     except ValueError:
         return False
-    return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
+    return bool(relative.parts) and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES
+
+
+def _peer_review_preflight_policy(
+    command: object,
+    *,
+    project_root: Path,
+    subject: str | None,
+    workspace_cwd: Path | None = None,
+) -> PeerReviewPreflightPolicy:
+    """Return peer-review-only preflight policy for the current review target."""
+    if getattr(command, "name", "") != "gpd:peer-review":
+        return PeerReviewPreflightPolicy()
+    return PeerReviewPreflightPolicy(
+        external_artifact=_peer_review_external_mode_requested(
+            project_root,
+            subject,
+            workspace_cwd=workspace_cwd,
+        )
+    )
 
 
 def _peer_review_external_mode_requested(
@@ -7065,9 +7165,10 @@ def _build_command_context_preflight(
             _has_simple_positional_inputs,
         ),
     )
+    manuscript_intake_policy = _command_manuscript_intake_policy(command)
     explicit_inputs_ok = predicate(arguments)
     interactive_intake_allowed = (
-        _command_allows_interactive_standalone_intake(command)
+        manuscript_intake_policy.allow_interactive_standalone_intake
         and not explicit_inputs_ok
         and not _has_simple_positional_inputs(arguments)
     )
@@ -7088,8 +7189,7 @@ def _build_command_context_preflight(
             "explicit standalone inputs detected"
             if explicit_inputs_ok
             else (
-                "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
-                "or use the current GPD project when available"
+                manuscript_intake_policy.interactive_standalone_detail
                 if interactive_intake_allowed
                 else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
             )
@@ -7130,7 +7230,13 @@ def _build_review_preflight(
     contract = command.review_contract
     if contract is None:
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
-    external_peer_review_mode = _peer_review_external_mode_requested(project_cwd, subject, workspace_cwd=cwd)
+    manuscript_intake_policy = _command_manuscript_intake_policy(command)
+    peer_review_policy = _peer_review_preflight_policy(
+        command,
+        project_root=project_cwd,
+        subject=subject,
+        workspace_cwd=cwd,
+    )
 
     checks: list[ReviewPreflightCheck] = []
     phase_subject = subject
@@ -7176,11 +7282,12 @@ def _build_review_preflight(
     )
 
     if "project_state" in contract.preflight_checks:
-        if external_peer_review_mode:
+        optional_detail = peer_review_policy.detail("project_state")
+        if optional_detail is not None:
             add_check(
                 "project_state",
                 True,
-                "external artifact review: project state is optional and is not required to start review",
+                optional_detail,
                 blocking=False,
             )
         else:
@@ -7202,8 +7309,9 @@ def _build_review_preflight(
                 add_check("state_integrity", validation.valid, detail, blocking=True)
 
     if "roadmap" in contract.preflight_checks:
-        if external_peer_review_mode:
-            add_check("roadmap", True, "external artifact review: roadmap is optional", blocking=False)
+        optional_detail = peer_review_policy.detail("roadmap")
+        if optional_detail is not None:
+            add_check("roadmap", True, optional_detail, blocking=False)
         else:
             add_check(
                 "roadmap",
@@ -7216,8 +7324,9 @@ def _build_review_preflight(
             )
 
     if "conventions" in contract.preflight_checks:
-        if external_peer_review_mode:
-            add_check("conventions", True, "external artifact review: project conventions are optional", blocking=False)
+        optional_detail = peer_review_policy.detail("conventions")
+        if optional_detail is not None:
+            add_check("conventions", True, optional_detail, blocking=False)
         else:
             add_check(
                 "conventions",
@@ -7230,18 +7339,19 @@ def _build_review_preflight(
             )
 
     if "research_artifacts" in contract.preflight_checks:
-        if external_peer_review_mode:
+        optional_detail = peer_review_policy.detail("research_artifacts")
+        if optional_detail is not None:
             add_check(
                 "research_artifacts",
                 True,
-                "external artifact review: phase summaries or milestone digests are optional",
+                optional_detail,
                 blocking=False,
             )
             if _review_contract_requests_check(contract, "verification_reports"):
                 add_check(
                     "verification_reports",
                     True,
-                    "external artifact review: verification reports are optional",
+                    peer_review_policy.detail("verification_reports") or "verification reports are optional",
                     blocking=False,
                 )
         else:
@@ -7311,7 +7421,7 @@ def _build_review_preflight(
             manuscript_passed = resolution.status == "resolved"
         else:
             manuscript_passed = manuscript is not None
-        if manuscript is not None and command.name == "gpd:peer-review" and manuscript.suffix.lower() == ".pdf":
+        if manuscript is not None and manuscript.suffix.lower() == ".pdf" and ".pdf" in manuscript_intake_policy.allowed_suffixes:
             pdf_ready, pdf_detail = _peer_review_pdf_intake_ready(manuscript)
             manuscript_passed = manuscript_passed and pdf_ready
             if pdf_ready:
@@ -7376,12 +7486,13 @@ def _build_review_preflight(
                 reproducibility_manifest = publication_artifacts.reproducibility_manifest
 
                 if "artifact_manifest" in requested_publication_checks:
-                    artifact_manifest_detail = (
-                        "no ARTIFACT-MANIFEST.json found near the manuscript"
-                        if not external_peer_review_mode
-                        else "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+                    artifact_manifest_detail = peer_review_policy.missing_detail(
+                        "artifact_manifest",
+                        default="no ARTIFACT-MANIFEST.json found near the manuscript",
                     )
-                    artifact_manifest_passed = artifact_manifest is not None or external_peer_review_mode
+                    artifact_manifest_passed = artifact_manifest is not None or peer_review_policy.relaxes(
+                        "artifact_manifest"
+                    )
                     if artifact_manifest is not None:
                         artifact_manifest_detail = f"{_format_display_path(artifact_manifest)} present"
                         from gpd.mcp.paper.models import ArtifactManifest
@@ -7405,23 +7516,23 @@ def _build_review_preflight(
                         "artifact_manifest",
                         artifact_manifest_passed,
                         artifact_manifest_detail,
-                        blocking=not external_peer_review_mode,
+                        blocking=peer_review_policy.blocking("artifact_manifest"),
                     )
 
                 if "bibliography_audit" in requested_publication_checks:
+                    bibliography_missing_detail = peer_review_policy.missing_detail(
+                        "bibliography_audit",
+                        default="no BIBLIOGRAPHY-AUDIT.json found near the manuscript",
+                    )
                     add_check(
                         "bibliography_audit",
-                        bibliography_audit is not None or external_peer_review_mode,
+                        bibliography_audit is not None or peer_review_policy.relaxes("bibliography_audit"),
                         (
                             f"{_format_display_path(bibliography_audit)} present"
                             if bibliography_audit is not None
-                            else (
-                                "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
-                                if not external_peer_review_mode
-                                else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
-                            )
+                            else bibliography_missing_detail
                         ),
-                        blocking=not external_peer_review_mode,
+                        blocking=peer_review_policy.blocking("bibliography_audit"),
                     )
 
                 if "compiled_manuscript" in requested_publication_checks:
@@ -7645,28 +7756,28 @@ def _build_review_preflight(
                                     )
 
                 if "reproducibility_manifest" in requested_publication_checks:
+                    reproducibility_missing_detail = peer_review_policy.missing_detail(
+                        "reproducibility_manifest",
+                        default="no reproducibility manifest found near the manuscript",
+                    )
                     add_check(
                         "reproducibility_manifest",
-                        reproducibility_manifest is not None or external_peer_review_mode,
+                        reproducibility_manifest is not None or peer_review_policy.relaxes("reproducibility_manifest"),
                         (
                             f"{_format_display_path(reproducibility_manifest)} present"
                             if reproducibility_manifest is not None
-                            else (
-                                "no reproducibility manifest found near the manuscript"
-                                if not external_peer_review_mode
-                                else "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
-                            )
+                            else reproducibility_missing_detail
                         ),
-                        blocking=not external_peer_review_mode,
+                        blocking=peer_review_policy.blocking("reproducibility_manifest"),
                     )
 
                 if "manuscript_proof_review" in requested_publication_checks:
-                    if external_peer_review_mode:
+                    if peer_review_policy.relaxes("manuscript_proof_review"):
                         manuscript_proof_review_passed = True
                         manuscript_proof_review_blocking = False
-                        manuscript_proof_review_detail = (
-                            "prior staged manuscript proof review is optional in external artifact mode; "
-                            "theorem-bearing claims will be audited in this review round if detected"
+                        manuscript_proof_review_detail = peer_review_policy.missing_detail(
+                            "manuscript_proof_review",
+                            default="prior staged manuscript proof review is optional for this intake",
                         )
                     else:
                         manuscript_proof_review = resolve_manuscript_proof_review_status(
@@ -7714,7 +7825,7 @@ def _build_review_preflight(
                         "bibliography_audit_clean",
                         clean,
                         detail,
-                        blocking=not external_peer_review_mode,
+                        blocking=peer_review_policy.blocking("bibliography_audit_clean"),
                     )
                 if (
                     strict
@@ -7731,7 +7842,7 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             False,
                             f"could not validate reproducibility manifest: {exc}",
-                            blocking=not external_peer_review_mode,
+                            blocking=peer_review_policy.blocking("reproducibility_ready"),
                         )
                     else:
                         ready = (
@@ -7751,7 +7862,7 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             ready,
                             detail,
-                            blocking=not external_peer_review_mode,
+                            blocking=peer_review_policy.blocking("reproducibility_ready"),
                         )
 
     if "phase_artifacts" in contract.preflight_checks:

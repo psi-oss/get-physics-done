@@ -333,11 +333,12 @@ Not every GPD command needs the same amount of project state.
 
 | Command type | Meaning | Examples |
 |--------------|---------|----------|
+| `Global` | Does not depend on the current workspace or project state | `gpd:help`, `gpd:update` |
 | `Projectless` | Can run before `GPD/PROJECT.md` exists | `gpd:start`, `gpd:tour`, `gpd:new-project`, `gpd:map-research`, `gpd:add-todo` |
-| `Project-aware` | Uses project context when present, but can also run from explicit standalone inputs | `gpd:discover "finite-temperature RG flow"`, `gpd:explain "Ward identity"`, `gpd:literature-review "axion monodromy"` |
-| `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:write-paper`, `gpd:peer-review` |
+| `Project-aware` | Uses project context when present, but can also run from explicit standalone inputs in the current workspace | `gpd:discover "finite-temperature RG flow"`, `gpd:explain "Ward identity"`, `gpd:literature-review "axion monodromy"`, `gpd:peer-review draft.pdf` |
+| `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:write-paper` |
 
-Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization.
+For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
 
 The full in-runtime reference uses Claude Code / Gemini CLI syntax. Codex uses `$gpd-...` and OpenCode uses `/gpd-...`.
 

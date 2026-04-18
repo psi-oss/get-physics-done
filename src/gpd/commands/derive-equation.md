@@ -18,7 +18,7 @@ allowed-tools:
 <objective>
 Perform a rigorous physics derivation with systematic verification at each step.
 
-Provide the equation or topic to derive as an argument (e.g., `gpd:derive-equation "effective mass from self-energy"`). If no argument is given, you will be asked what to derive.
+Provide the equation or topic to derive as an argument (e.g., `gpd:derive-equation "effective mass from self-energy"`). If project context already exists and the request is omitted or ambiguous, ask one focused clarification question. Outside a project, an explicit derivation target is required.
 
 - States assumptions explicitly, establishes notation and conventions
 - Performs step-by-step derivation with dimensional analysis at each stage
@@ -37,6 +37,18 @@ Provide the equation or topic to derive as an argument (e.g., `gpd:derive-equati
 </execution_context>
 
 <process>
+## 0. Validate Context
+
+```bash
+CONTEXT=$(gpd --raw validate command-context derive-equation "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
+## 1. Execute the Derivation Workflow
+
 Execute the derive-equation workflow from @{GPD_INSTALL_DIR}/workflows/derive-equation.md end-to-end.
 Preserve all workflow gates (assumption statement, notation, step-by-step derivation, verification, documentation).
 

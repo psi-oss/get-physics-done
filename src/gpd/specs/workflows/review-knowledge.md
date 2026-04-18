@@ -24,9 +24,10 @@ Review is explicit, typed, and freshness-bound. A review artifact without a matc
 
 <step name="load_context" priority="first">
 Load the project and command context before choosing a target:
+Keep this init bound to the workspace the user invoked from. `review-knowledge` must review the explicit current-workspace target, so do not auto-reenter a different recent project here.
 
 ```bash
-INIT=$(gpd --raw init progress --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.

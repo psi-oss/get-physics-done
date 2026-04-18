@@ -54,6 +54,7 @@ Use the shared publication bootstrap reference as the source of truth for manusc
 If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, or stale theorem-proof review state, STOP and fix those blockers before packaging.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof review artifacts authoritative for strict packaging decisions.
 Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging.
+If the latest completed `gpd:respond-to-referees` round changed manuscript text, equations, figures, citations, or reproducibility evidence, do not treat older staged review artifacts as packaging clearance. That revised manuscript must go back through `gpd:peer-review` before `gpd:arxiv-submission` can continue.
 
 Resolve the manuscript target from `$ARGUMENTS`:
 
@@ -101,6 +102,7 @@ Load the shared latest-round publication contract:
 
 Require the latest `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` pair for the active manuscript. Packaging may continue only when the latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues.
 Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input.
+If the newest publication-round artifacts are `GPD/AUTHOR-RESPONSE*.md` / `GPD/review/REFEREE_RESPONSE*.md` for a manuscript-changing revision, but there is no newer staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair for that revised manuscript, STOP and route back to `gpd:peer-review`. Response artifacts are required revision records, not a substitute for fresh staged review clearance.
 
 If the manuscript is theorem-bearing, `manuscript_proof_review` must also already be cleared. Require a current `PROOF-REDTEAM*.md` artifact. A stale or missing proof review is a hard stop.
 

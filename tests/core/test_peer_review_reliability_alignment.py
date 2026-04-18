@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 
@@ -58,3 +59,17 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "`REFEREE-DECISION.json`" not in reliability
     assert "`REVIEW-LEDGER.json`" not in reliability
     assert ".gpd/" not in reliability
+
+
+def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_review() -> None:
+    command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+
+    assert "current GPD project or an explicit external artifact" in command
+    assert "standalone external artifact review" in command
+    assert "standalone skeptical peer review" not in workflow
+    assert "current GPD project manuscript" in workflow
+    assert "explicit external artifact" in workflow
+    assert "reviewing the current GPD project manuscript" in reliability
+    assert "explicit external artifact review" in reliability

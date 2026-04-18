@@ -32,11 +32,8 @@ fi
 
 Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelization`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `state_exists`, `roadmap_exists`.
 
-Read STATE.md for project conventions, unit system, and active approximations.
-Extract `convention_lock` for unit conventions and parameter definitions.
-Extract `intermediate_results` for previously computed parameter values and their uncertainties.
-If `GPD/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
-If no project context exists (standalone usage), proceed with explicit parameter declarations required from user.
+- If `state_exists` is true: Read `STATE.md` for project conventions, unit system, and active approximations. Extract `convention_lock` for unit conventions and parameter definitions. Extract `intermediate_results` for previously computed parameter values and their uncertainties. If `GPD/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
+- If `state_exists` is false: Proceed in standalone mode with explicit parameter declarations required from user. Standalone outputs still live under `GPD/analysis/` in the current workspace, but do not mutate `STATE.md` or `state.json`.
 
 **Convention verification** (if project exists):
 
@@ -49,7 +46,7 @@ fi
 ```
 
 **If `phase_found` is false and a phase was specified:** Error -- phase directory not found.
-**If no phase specified:** Create an analysis-specific directory:
+**If no phase is resolved:** Create an analysis-specific directory and treat the run as analysis-only for persistence:
 
 ```bash
 ANALYSIS_DIR="GPD/analysis"
@@ -89,7 +86,7 @@ Identify all input parameters that f depends on:
 3. **Approximation controls:** expansion orders, truncation levels, regime boundaries
 4. **Measured inputs:** experimental values used in the calculation
 
-Read from `GPD/STATE.md` to identify active approximations and their controlling parameters. Where structured data is needed, load via `gpd --raw init progress --include state,config`.
+If project state exists, read from `GPD/STATE.md` to identify active approximations and their controlling parameters. Where structured data is needed, load via `gpd --raw init progress --include state,config`. In standalone mode, require the user to declare any approximations or validity bounds that should be analyzed.
 
 ```markdown
 ## Parameters
@@ -357,7 +354,7 @@ for i in range(len(ranked)):
 <step name="approximation_sensitivity">
 **Step 5: Analyze Approximation Sensitivity**
 
-For each active approximation in the project (read from `GPD/STATE.md`; load structured data via `gpd --raw init progress --include state,config` if needed):
+If project state exists, analyze each active approximation in the project (read from `GPD/STATE.md`; load structured data via `gpd --raw init progress --include state,config` if needed). In standalone mode, analyze only the approximations or regime boundaries explicitly supplied for the current target:
 
 ### 5a. Identify controlling parameters
 
@@ -517,16 +514,16 @@ status: completed
 Save to:
 
 - If phase-scoped: `${phase_dir}/SENSITIVITY-REPORT.md`
-- If standalone: `GPD/analysis/sensitivity-{slug}.md`
+- If not phase-scoped (standalone or analysis-only): `GPD/analysis/sensitivity-{slug}.md`
 
-### 6b. Update state
+### 6b. Update state (phase-scoped project mode only)
 
-Update `propagated_uncertainties` via the CLI (which properly syncs STATE.md and state.json):
+Only when both `state_exists` and `phase_found` are true should this workflow update `propagated_uncertainties` via the CLI (which properly syncs `STATE.md` and `state.json`):
 
 ```bash
 gpd uncertainty add "{target quantity}" \
   --value "{nominal_value}" \
-  --uncertainty "{total_uncertainty}" --phase "{phase}" --method "sensitivity-analysis"
+  --uncertainty "{total_uncertainty}" --phase "{phase_number}" --method "sensitivity-analysis"
 ```
 
 Run this for the target quantity and for each parameter whose sensitivity-derived uncertainty is significant. For example, if the analysis covers multiple intermediate quantities:
@@ -543,12 +540,14 @@ gpd uncertainty add "{symbol}_from_{dominant_param}" \
   --uncertainty "{delta_f_dominant}" --phase "${phase_number}" --method "sensitivity-analysis"
 ```
 
-Record the sensitivity ranking and dominant source in STATE.md as a research artifact.
+Record the sensitivity ranking and dominant source in `STATE.md` as a research artifact only in that phase-scoped project mode.
+
+If no phase-scoped project context exists, skip all `gpd uncertainty add` calls. The run ends after writing `GPD/analysis/sensitivity-{slug}.md` and presenting the results directly.
 
 </step>
 
 <step name="commit_and_present">
-**Commit all sensitivity analysis artifacts:**
+**Commit all sensitivity analysis artifacts only when phase-scoped project context exists:**
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files "${REPORT_PATH}" GPD/STATE.md 2>&1) || true
@@ -559,7 +558,9 @@ gpd commit \
   --files "${REPORT_PATH}" GPD/STATE.md
 ```
 
-Where `${REPORT_PATH}` is `${phase_dir}/SENSITIVITY-REPORT.md` or `GPD/analysis/sensitivity-{slug}.md` depending on scope.
+Where `${REPORT_PATH}` is `${phase_dir}/SENSITIVITY-REPORT.md` when phase-scoped, or `GPD/analysis/sensitivity-{slug}.md` otherwise.
+
+If the run is not phase-scoped, do not run `gpd pre-commit-check` or `gpd commit`. Leave the standalone or analysis-only artifact in the working tree and present the findings directly.
 
 **Present final results:**
 
@@ -583,7 +584,7 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 ### Output Files
 
 - `${REPORT_PATH}` -- full sensitivity report
-- `GPD/STATE.md` -- updated with uncertainty estimates
+- `GPD/STATE.md` -- updated with uncertainty estimates only when `state_exists=true` and `phase_found=true`
 
 ---
 
@@ -604,7 +605,7 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 <failure_handling>
 
 - **Divergent sensitivity:** |S_i| exceeds threshold for one or more parameters. This may indicate a critical point, resonance, or ill-conditioned formulation. Flag prominently in the report and recommend non-perturbative treatment or reformulation near the divergence.
-- **Missing parameters:** A parameter required for the analysis cannot be found in STATE.md or phase summaries. Prompt the user for its nominal value and uncertainty. Do not guess values.
+- **Missing parameters:** A parameter required for the analysis cannot be found in `STATE.md`, prior artifacts, or phase summaries. Prompt the user for its nominal value and uncertainty. Do not guess values.
 - **Numerical instability:** Finite-difference derivatives give inconsistent results at different step sizes. Reduce perturbation fraction, switch to analytical derivatives if possible, or flag the parameter as requiring special treatment.
 - **All-zero sensitivities:** Every |S_i| is effectively zero. Either the output does not depend on any of the analyzed parameters (check the dependency chain for errors), or the perturbation is too small to register (increase delta_frac). Investigate before reporting.
 
@@ -625,8 +626,8 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 - [ ] Active approximations analyzed for systematic error contribution
 - [ ] Complete uncertainty budget constructed with dominant source identified
 - [ ] SENSITIVITY-REPORT.md generated with ranked parameter table and recommendations
-- [ ] propagated_uncertainties updated via `gpd uncertainty add`
-- [ ] Artifacts committed via `gpd commit`
+- [ ] `propagated_uncertainties` updated via `gpd uncertainty add` when `state_exists=true` and `phase_found=true`
+- [ ] Phase-scoped artifacts committed via `gpd commit`; standalone or analysis-only runs present results directly without `STATE.md` mutations
 - [ ] User presented with key findings and next steps
 
 </success_criteria>

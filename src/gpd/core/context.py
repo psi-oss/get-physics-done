@@ -841,6 +841,14 @@ def _state_exists(cwd: Path) -> bool:
     return isinstance(state, dict)
 
 
+def _resolve_project_scoped_cwd(cwd: Path) -> Path:
+    """Return the nearest verified current-workspace project root, else the normalized cwd."""
+
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    resolved = resolve_project_root(requested_cwd, require_layout=True)
+    return resolved if resolved is not None else requested_cwd
+
+
 def _structured_state_objects(value: object) -> list[dict[str, object]]:
     """Return only structured mapping entries from a state section."""
     if not isinstance(value, list):
@@ -3856,13 +3864,14 @@ def init_phase_op(
             "gpd init phase-op does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
-    phase_info = _try_find_phase(cwd, phase) if phase else None
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
+    phase_info = _try_find_phase(effective_cwd, phase) if phase else None
 
     result: dict[str, object] = {
         # Models
-        "executor_model": _resolve_model(cwd, "gpd-executor", config),
-        "verifier_model": _resolve_model(cwd, "gpd-verifier", config),
+        "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),
+        "verifier_model": _resolve_model(effective_cwd, "gpd-verifier", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -3889,20 +3898,20 @@ def init_phase_op(
         "has_validation": phase_info.get("has_validation", False) if phase_info else False,
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # File existence
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _state_exists(cwd),
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-    result.update(_build_state_memory_runtime_context(cwd))
-    result.update(_build_execution_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
+    result.update(_build_state_memory_runtime_context(effective_cwd))
+    result.update(_build_execution_runtime_context(effective_cwd))
 
-    planning = cwd / PLANNING_DIR_NAME
+    planning = effective_cwd / PLANNING_DIR_NAME
     if "state" in includes:
         result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
-        result.update(_build_structured_state_runtime_context(cwd))
+        result.update(_build_structured_state_runtime_context(effective_cwd))
     if "config" in includes:
         result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
     if "roadmap" in includes:
@@ -4103,10 +4112,11 @@ def init_milestone_op(cwd: Path) -> dict:
 
 def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
-    config = load_config(cwd)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
 
     # Check for existing research maps
-    research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
+    research_map_dir = effective_cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
     existing_maps: list[str] = []
     try:
         existing_maps = sorted(f.name for f in research_map_dir.iterdir() if f.is_file() and f.name.endswith(".md"))
@@ -4115,7 +4125,7 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
 
     result = {
         # Models
-        "mapper_model": _resolve_model(cwd, "gpd-research-mapper", config),
+        "mapper_model": _resolve_model(effective_cwd, "gpd-research-mapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4127,12 +4137,12 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
         "existing_maps": existing_maps,
         "has_maps": len(existing_maps) > 0,
         # File existence
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "research_map_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
+        "research_map_dir_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
 
     if stage is None:
         return result
@@ -4176,7 +4186,7 @@ def init_progress(
             prefer_workspace_layout=True,
         )
     else:
-        effective_cwd = resolve_project_root(requested_cwd, require_layout=True) or requested_cwd
+        effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
         reentry_metadata = {
             "workspace_root": requested_cwd.as_posix(),
             "project_root": effective_cwd.as_posix(),

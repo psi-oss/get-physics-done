@@ -2589,6 +2589,16 @@ class TestPublicAPI:
         assert quick.context_mode == "project-required"
         assert quick.project_reentry_capable is False
 
+    def test_real_project_aware_commands_do_not_ship_unenforced_requires_files_metadata(self) -> None:
+        """Project-aware commands should not advertise requires.files until command-context enforcement uses it."""
+        registry.invalidate_cache()
+
+        for command_name in ("discover", "compare-experiment"):
+            command = registry.get_command(command_name)
+
+            assert command.context_mode == "project-aware"
+            assert command.requires == {}
+
     def test_real_slides_skill_uses_output_category(self) -> None:
         registry.invalidate_cache()
 

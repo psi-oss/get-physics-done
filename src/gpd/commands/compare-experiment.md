@@ -3,8 +3,6 @@ name: gpd:compare-experiment
 description: Systematically compare theoretical predictions with experimental or observational data
 argument-hint: "[prediction or dataset to compare]"
 context_mode: project-aware
-requires:
-  files: ["GPD/ROADMAP.md"]
 allowed-tools:
   - file_read
   - file_write

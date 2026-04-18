@@ -12,12 +12,14 @@ WORKFLOW_DOC = REPO_ROOT / "src/gpd/specs/workflows/derive-equation.md"
 def test_derive_equation_command_doc_promises_registry_writeback() -> None:
     text = COMMAND_DOC.read_text(encoding="utf-8")
 
+    assert 'gpd --raw validate command-context derive-equation "$ARGUMENTS"' in text
     assert "canonical result lookup via `gpd result search`" in text
     assert 'direct stored-result inspection via `gpd result show "{result_id}"`' in text
     assert "Record the derived equation in the project's `intermediate_results` registry through the executable `gpd result persist-derived` bridge" in text
     assert "the workflow reuses or carries forward a stable `result_id` request on reruns" in text
     assert "actual canonical `result_id`" in text
     assert "seeds continuity automatically through the canonical continuation path when an active continuation context exists" in text
+    assert "If no argument is given, you will be asked what to derive." not in text
     assert "`--carry-forward-last-result`" not in text
     assert "standalone runs stop after writing the derivation document" in text
     assert "do not write project registry state" in text

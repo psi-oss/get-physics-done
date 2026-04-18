@@ -1117,8 +1117,8 @@ Options:
 - [ ] Every citation present in bibliography
 - [ ] All citations verified via gpd-bibliographer (no hallucinated references)
 - [ ] BibTeX formatting matches target journal requirements
-- [ ] Pre-submission mock peer review completed via gpd-referee
-- [ ] Major referee issues addressed or acknowledged before finalization
+- [ ] Pre-submission staged peer-review round completed, including final `gpd-referee` adjudication and proof-redteam artifacts when required
+- [ ] Major staged-review issues addressed or acknowledged before finalization
 - [ ] Internal consistency verified (notation, cross-references, conventions)
 - [ ] Notation audit includes NOTATION_GLOSSARY.md cross-reference (if glossary exists)
 - [ ] Narrative arc flows from motivation through result to significance

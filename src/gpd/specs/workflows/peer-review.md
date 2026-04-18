@@ -1,5 +1,5 @@
 <purpose>
-Conduct a standalone skeptical peer review of a manuscript and supporting artifacts through a staged six-agent panel. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
+Conduct a staged skeptical peer review of either the current GPD project manuscript or an explicit manuscript artifact through a six-agent panel. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
 </purpose>
 
 <core_principle>
@@ -41,6 +41,7 @@ Treat `project_contract_gate` as authoritative. Use `project_contract` and `cont
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
+This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target supplied in the current workspace. In both modes, write the review artifacts under `GPD/` in the invoking workspace.
 
 Set `REVIEW_TARGET="$ARGUMENTS"` unless interactive intake overrides it.
 
@@ -140,9 +141,9 @@ Apply the shared manuscript-root bootstrap contract exactly:
 gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict
 ```
 
-If preflight exits nonzero because of missing project state, missing manuscript, degraded review integrity, or missing review-grade paper artifacts, STOP and show the blocking issues.
+If preflight exits nonzero, STOP and show the blocking issues.
 If preflight reports blocked contract/state integrity, surface `project_contract_gate`, `project_contract_load_info`, and `project_contract_validation` details in the stop message and repair the blocked contract before retrying.
-
+Treat the blocking reasons as mode-dependent. In project-backed review, missing project state, roadmap, conventions, research artifacts, or review-grade manuscript publication artifacts can legitimately block entry. In explicit external-artifact review, missing project state by itself must not block intake; only the explicit manuscript target, review-integrity checks, and the chosen mode's required manuscript-local artifacts may block.
 In strict project-backed peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. Strict preflight also enforces the semantic gates `bibliography_audit_clean` and `reproducibility_ready`; those artifacts must be review-ready, not merely present. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts. For explicit external artifact review, these manuscript-root publication artifacts become optional supporting context when present and must not block intake by themselves.
 Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent contract-backed evidence.
 </step>

@@ -42,6 +42,7 @@ def _clean_registry_cache():
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+README_PATH = REPO_ROOT / "README.md"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -731,6 +732,27 @@ def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("peer-review").context_mode == "project-aware"
 
 
+def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_peer_review() -> None:
+    readme = README_PATH.read_text(encoding="utf-8")
+    command_context = readme.split("### Command Context", 1)[1].split("The full in-runtime reference", 1)[0]
+
+    assert "| `Global` |" in command_context
+    assert "| `Projectless` |" in command_context
+    assert "| `Project-aware` |" in command_context
+    assert "| `Project-required` |" in command_context
+    project_aware_line = next(line for line in command_context.splitlines() if line.startswith("| `Project-aware` |"))
+    project_required_line = next(
+        line for line in command_context.splitlines() if line.startswith("| `Project-required` |")
+    )
+    assert "gpd:peer-review" in command_context
+    assert "gpd:peer-review" in project_aware_line
+    assert "gpd:peer-review" not in project_required_line
+    assert (
+        "Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization."
+        not in command_context
+    )
+
+
 def test_slides_workflow_references_templates_and_existing_output_policy() -> None:
     workflow = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
 
@@ -748,10 +770,12 @@ def test_representative_prompts_use_centralized_command_context_preflight() -> N
     expected = {
         COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
         COMMANDS_DIR / "compare-results.md": "gpd --raw validate command-context compare-results",
+        COMMANDS_DIR / "derive-equation.md": "gpd --raw validate command-context derive-equation",
         COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
         COMMANDS_DIR / "explain.md": "gpd --raw validate command-context explain",
         COMMANDS_DIR / "limiting-cases.md": "gpd --raw validate command-context limiting-cases",
         COMMANDS_DIR / "literature-review.md": "gpd --raw validate command-context literature-review",
+        COMMANDS_DIR / "numerical-convergence.md": "gpd --raw validate command-context numerical-convergence",
         COMMANDS_DIR / "sensitivity-analysis.md": "gpd --raw validate command-context sensitivity-analysis",
         WORKFLOWS_DIR / "peer-review.md": "gpd --raw validate command-context peer-review",
         WORKFLOWS_DIR / "progress.md": "gpd --raw validate command-context progress",
@@ -759,6 +783,18 @@ def test_representative_prompts_use_centralized_command_context_preflight() -> N
 
     for path, token in expected.items():
         assert token in path.read_text(encoding="utf-8"), path
+
+
+def test_current_workspace_project_aware_workflows_disable_recent_project_reentry() -> None:
+    compare_experiment = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
+    compare_results = (WORKFLOWS_DIR / "compare-results.md").read_text(encoding="utf-8")
+    digest_knowledge = (WORKFLOWS_DIR / "digest-knowledge.md").read_text(encoding="utf-8")
+    review_knowledge = (WORKFLOWS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
+
+    assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_experiment
+    assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_results
+    assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in digest_knowledge
+    assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in review_knowledge
 
 
 def test_list_review_commands_contains_all_expected_commands() -> None:
@@ -811,7 +847,7 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
 
     assert "resolved section file within the manuscript tree rooted at `${PAPER_DIR}`" in respond
     assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in respond
-    assert "${PAPER_DIR}/response-letter.tex" in respond
+    assert "optional manuscript-local response-letter companion" in respond
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in respond
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in respond
     assert "templates/paper/author-response.md" in respond
@@ -831,11 +867,8 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
-    for content in (peer_review, respond):
-        assert (
-            'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]'
-            in content
-        )
+    assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
+    assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]' in respond
     assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in arxiv
 
     assert "conditional_requirements:" in peer_review
@@ -848,7 +881,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "latest peer-review review ledger" in arxiv
     assert "latest peer-review referee decision" in arxiv
     assert "missing latest staged peer-review decision evidence" in arxiv
-    assert "The resolved manuscript root and its build artifacts satisfied the workflow gates" in arxiv
+    assert "The resolved manuscript root and its build, reproducibility, and staged-review artifacts satisfied the workflow gates" in arxiv
     assert "Keep the wrapper thin and let the workflow own validation, packaging, and submission-gate details." in arxiv
     assert 'find . -name "main.tex"' not in arxiv
     assert 'find . -name "*.tex"' not in write_paper

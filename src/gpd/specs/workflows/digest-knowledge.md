@@ -24,9 +24,10 @@ If the input does not clearly map to a single knowledge-doc target, the workflow
 
 <step name="load_context" priority="first">
 Load the project and command context before choosing a target:
+Keep this init bound to the workspace the user invoked from. `digest-knowledge` may create or update `GPD/knowledge/` in the current workspace, so do not auto-reenter a different recent project here.
 
 ```bash
-INIT=$(gpd --raw init progress --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.

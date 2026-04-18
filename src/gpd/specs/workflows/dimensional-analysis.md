@@ -22,8 +22,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+- A nonzero init exit is a hard stop, not standalone mode.
 - **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `derived_convention_lock`, especially `units` and `natural_units` settings. Extract `derived_intermediate_results` as the canonical equation registry for the current phase or project, and `derived_approximations` for context on what dimensions are independent.
-- **If init fails or `state_exists` is false** (standalone usage): Proceed — the unit system will be established explicitly in Step 1 via ask_user.
+- **If init succeeds** (non-empty JSON with `state_exists: false`): Proceed in standalone mode — the unit system will be established explicitly in Step 1 via ask_user.
 
 The `derived_convention_lock` unit system setting (natural units, SI, CGS, etc.) directly determines which dimensions are independent and what the dimensional assignments table looks like.
 

@@ -3,8 +3,6 @@ name: gpd:discover
 description: Run discovery phase to investigate methods, literature, and approaches before planning
 argument-hint: "[phase or topic] [--depth quick|medium|deep]"
 context_mode: project-aware
-requires:
-  files: ["GPD/ROADMAP.md"]
 allowed-tools:
   - file_read
   - shell
@@ -16,7 +14,7 @@ allowed-tools:
 
 
 <objective>
-Run a standalone discovery investigation for a research phase. Surveys the physics landscape: what is known, what methods exist, what approximations are valid, what data is available.
+Run a discovery investigation for a research phase or standalone topic. Surveys the physics landscape: what is known, what methods exist, what approximations are valid, what data is available.
 
 `--depth quick` (`depth: quick`) is verification-only and returns without writing `RESEARCH.md`. Produces RESEARCH.md for `--depth medium` or `--depth deep`, which informs subsequent planning via gpd:plan-phase.
 
