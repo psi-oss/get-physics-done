@@ -7206,6 +7206,16 @@ def _command_managed_output_root(command: object, *, project_root: Path) -> Path
     return ProjectStorageLayout(project_root).managed_output_path(policy)
 
 
+def _command_managed_output_context_root(
+    *,
+    workspace_root: Path,
+    context_root: Path,
+    project_exists: bool,
+) -> Path:
+    """Choose the root that owns managed outputs for one command-context preflight."""
+    return context_root if project_exists else workspace_root
+
+
 def _command_manuscript_bootstrap_detail() -> str:
     """Return the canonical bootstrap detail for manuscript-scaffolding commands."""
     return (
@@ -8190,7 +8200,12 @@ def _build_command_context_preflight(
         ),
         blocking=not project_exists and not interactive_intake_allowed,
     )
-    managed_output_root = _command_managed_output_root(command, project_root=context_cwd)
+    managed_output_context_root = _command_managed_output_context_root(
+        workspace_root=cwd,
+        context_root=context_cwd,
+        project_exists=project_exists,
+    )
+    managed_output_root = _command_managed_output_root(command, project_root=managed_output_context_root)
     if managed_output_root is not None:
         add_check(
             "managed_output_root",

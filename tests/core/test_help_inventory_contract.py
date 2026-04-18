@@ -148,3 +148,15 @@ def test_help_workflow_current_workspace_helpers_and_discover_quick_mode_wording
     assert "- Writes a deterministic review artifact under `GPD/knowledge/reviews/` in the current workspace" in help_workflow
     assert "Structured literature review for a physics research topic from the current project or one explicit topic or research question." in help_workflow
     assert "- Writes the review and citation-source sidecar under `GPD/literature/` in the current workspace" in help_workflow
+
+
+def test_help_workflow_relaxed_technical_analysis_lane_stays_honest() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    assert "Project-aware technical-analysis lane:" in help_workflow
+    assert (
+        "`gpd:derive-equation`, `gpd:dimensional-analysis`, `gpd:limiting-cases`, "
+        "`gpd:numerical-convergence`, and `gpd:sensitivity-analysis`"
+    ) in help_workflow
+    assert "durable outputs under the invoking workspace's `GPD/analysis/` tree" in help_workflow
+    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_workflow

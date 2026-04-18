@@ -700,6 +700,25 @@ def test_help_like_skills_keep_canonical_local_cli_language(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_help_prompt_keeps_relaxed_technical_analysis_contract(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    help_prompt = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "help"),
+        runtime=runtime,
+    )
+
+    assert "Project-aware technical-analysis lane:" in help_prompt
+    assert "GPD/analysis/" in help_prompt
+    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_prompt
+    assert "Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`" in help_prompt
+    assert "Usage: `gpd:limiting-cases results/01-SUMMARY.md`" in help_prompt
+    assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_prompt
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
 def test_installed_prompt_contract_visibility_survives_adapter_projection(
     real_installed_repo_factory,
     runtime: str,

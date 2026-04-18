@@ -342,6 +342,8 @@ Not every GPD command needs the same amount of project state.
 
 Project-aware commands stay rooted in the current workspace: explicit inputs can define the subject, but GPD-authored outputs still land under that workspace's `GPD/` tree. Use the runtime help for the per-command target and output rules.
 
+The relaxed technical-analysis lane lives here too: `gpd:derive-equation`, `gpd:dimensional-analysis`, `gpd:limiting-cases`, `gpd:numerical-convergence`, and `gpd:sensitivity-analysis` can run from explicit current-workspace targets or flags and still write GPD-authored durable outputs under that workspace's `GPD/analysis/` tree. Phase-number shortcuts remain project-backed, so standalone/current-workspace runs still need honest explicit subjects. `gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane.
+
 For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
 
 The later publication commands stay stricter: `gpd:respond-to-referees` works from the active project's resolved manuscript root plus a referee report source, and `gpd:arxiv-submission` can take an optional in-project manuscript-root target but still requires project state, `gpd paper-build`, and the latest staged review clearance for that manuscript.

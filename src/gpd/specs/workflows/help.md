@@ -205,7 +205,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
 - `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
-- `gpd:derive-equation` - Run a rigorous derivation workflow
+- `gpd:derive-equation` - Run a rigorous derivation workflow from project context or one explicit current-workspace target
 
 ### Roadmap and milestones
 
@@ -221,16 +221,16 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 
 - `gpd:verify-work [phase]` - Run physics verification checks
 - `gpd:debug [issue description]` - Start a persistent debug session
-- `gpd:dimensional-analysis` - Check dimensional consistency
-- `gpd:limiting-cases` - Check known limits
-- `gpd:numerical-convergence` - Run convergence checks for numerical work
+- `gpd:dimensional-analysis` - Check dimensional consistency for a project phase or one explicit current-workspace file
+- `gpd:limiting-cases` - Check known limits for a project phase or one explicit current-workspace file
+- `gpd:numerical-convergence` - Run convergence checks for a project phase or one explicit current-workspace artifact
 - `gpd:compare-experiment` - Compare results against external data
 - `gpd:compare-results` - Compare internal results or baselines and write the verdict under `GPD/comparisons/`
 - `gpd:validate-conventions [phase]` - Check notation and convention consistency
 - `gpd:regression-check [phase]` - Scan for regressions in recorded verification state
 - `gpd:health` - Run project health checks
 - `gpd:parameter-sweep [phase]` - Run a structured parameter sweep
-- `gpd:sensitivity-analysis` - Rank which inputs matter most
+- `gpd:sensitivity-analysis` - Rank which inputs matter most from project context or explicit current-workspace flags
 - `gpd:error-propagation` - Track uncertainties through a calculation chain
 
 ### Knowledge authoring
@@ -444,6 +444,8 @@ Usage: `gpd:execute-phase 5`
 
 ### Derivation
 
+Project-aware technical-analysis lane: `gpd:derive-equation`, `gpd:dimensional-analysis`, `gpd:limiting-cases`, `gpd:numerical-convergence`, and `gpd:sensitivity-analysis` can run from explicit current-workspace inputs and keep durable outputs under the invoking workspace's `GPD/analysis/` tree. `gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane.
+
 **`gpd:derive-equation`**
 Perform a rigorous physics derivation with systematic verification at each step.
 
@@ -452,6 +454,8 @@ Perform a rigorous physics derivation with systematic verification at each step.
 - Verifies intermediate results against known limits and symmetry properties
 - Justifies and bounds all approximations with error estimates
 - For theorem-bearing work, spawns `gpd-check-proof` and blocks completion until the proof audit passes
+- With one explicit derivation target, it can also run from the current workspace without silently reentering another project
+- Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit derivation target
 - Produces a complete, self-contained derivation document with boxed final result
 
 Usage: `gpd:derive-equation "derive the one-loop beta function"`
@@ -654,9 +658,11 @@ Check dimensional consistency of equations and expressions.
 - Verifies all terms have consistent units
 - Checks final results have correct dimensions
 - Flags dimensionless ratios and magic numbers
+- Works on a project phase or one explicit current-workspace file
+- Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path
 
-Usage: `gpd:dimensional-analysis 3`
 Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`
+Usage: `gpd:dimensional-analysis 3` (project-backed phase target)
 
 **`gpd:limiting-cases`**
 Verify results reduce correctly in known limiting cases.
@@ -664,9 +670,11 @@ Verify results reduce correctly in known limiting cases.
 - Tests classical, non-relativistic, weak-coupling, thermodynamic limits
 - Compares against textbook expressions in each limit
 - Flags limits that are not recovered
+- Works on a project phase or one explicit current-workspace file
+- Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path
 
-Usage: `gpd:limiting-cases 3`
 Usage: `gpd:limiting-cases results/01-SUMMARY.md`
+Usage: `gpd:limiting-cases 3` (project-backed phase target)
 
 **`gpd:numerical-convergence`**
 Run systematic convergence tests on numerical computations.
@@ -674,9 +682,11 @@ Run systematic convergence tests on numerical computations.
 - Tests convergence with grid refinement, time step, basis size
 - Estimates convergence order via Richardson extrapolation
 - Constructs error budgets for computed quantities
+- Works on a project phase or one explicit current-workspace numerical artifact
+- Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path
 
-Usage: `gpd:numerical-convergence 3`
 Usage: `gpd:numerical-convergence results/mesh-study.csv`
+Usage: `gpd:numerical-convergence 3` (project-backed phase target)
 
 **`gpd:compare-experiment`**
 Compare theoretical/numerical results against experimental data.
@@ -752,6 +762,8 @@ Determine which input parameters most strongly affect output quantities.
 - Ranks parameters by sensitivity
 - Identifies which measurements or calculations would most improve results
 - Supports analytical and numerical methods
+- Can use active project state or one explicit current-workspace `--target` / `--params` specification
+- Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with explicit `--target` and `--params`
 
 Usage: `gpd:sensitivity-analysis --target cross_section --params g,m,Lambda`
 Usage: `gpd:sensitivity-analysis --target cross_section --params g,m,Lambda --method numerical`

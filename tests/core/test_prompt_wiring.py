@@ -758,6 +758,17 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
     ):
         assert command_name in project_aware_line
     assert "Project-aware commands stay rooted in the current workspace" in command_context
+    assert "The relaxed technical-analysis lane lives here too" in command_context
+    for command_name in (
+        "gpd:derive-equation",
+        "gpd:dimensional-analysis",
+        "gpd:limiting-cases",
+        "gpd:numerical-convergence",
+        "gpd:sensitivity-analysis",
+    ):
+        assert command_name in command_context
+    assert "GPD/analysis/" in command_context
+    assert "`gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane." in command_context
     assert "gpd:peer-review" not in project_required_line
     assert (
         "Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization."
@@ -4209,9 +4220,9 @@ def test_help_surfaces_use_projectless_examples_that_satisfy_command_context_pre
 
     assert 'Usage: `gpd:derive-equation "derive the one-loop beta function"`' in help_workflow
     assert 'Usage: `gpd:discover "finite-temperature RG flow" --depth deep`' in help_workflow
-    assert "Usage: `gpd:dimensional-analysis 3`" in help_workflow
-    assert "Usage: `gpd:limiting-cases 3`" in help_workflow
-    assert "Usage: `gpd:numerical-convergence 3`" in help_workflow
+    assert "Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`" in help_workflow
+    assert "Usage: `gpd:limiting-cases results/01-SUMMARY.md`" in help_workflow
+    assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_workflow
     assert "Usage: `gpd:compare-experiment predictions.csv experiment.csv`" in help_workflow
     assert "Usage: `gpd:compare-results results/01-SUMMARY.md`" in help_workflow
     assert 'Usage: `gpd:explain "Ward identity"`' in help_workflow
@@ -4225,6 +4236,17 @@ def test_help_surfaces_use_projectless_examples_that_satisfy_command_context_pre
         "Usage: `gpd:sensitivity-analysis --target cross_section --params g,m,Lambda --method numerical`"
         in help_workflow
     )
+
+
+def test_help_surfaces_frame_relaxed_technical_analysis_lane_honestly() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "Project-aware technical-analysis lane:" in help_workflow
+    assert "GPD/analysis/" in help_workflow
+    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit derivation target" in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path" in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with explicit `--target` and `--params`" in help_workflow
 
 
 def test_verification_and_publication_prompts_keep_decisive_contract_targets_reader_visible() -> None:

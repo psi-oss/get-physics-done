@@ -57,23 +57,28 @@ A derivation is a chain of logical steps from assumptions to conclusion. Every l
 <step name="load_context">
 **Pre-Step: Load Project Context**
 
-Load project state and conventions before beginning any derivation:
+Load current-workspace state and conventions before beginning any derivation.
+
+Keep this bootstrap bound to the invoking workspace. `derive-equation` can run as a current-workspace standalone derivation, so do not auto-reenter an ancestor or recent project here.
 
 - Run:
 
 ```bash
-INIT=$(gpd --raw init phase-op --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
+- Parse JSON for: `workspace_root`, `project_root`, `state_exists`, `current_phase`, `convention_lock`, `derived_convention_lock`, and any continuation/runtime fields that pin this run to a concrete phase directory.
+- Treat phase context as authoritative only when the bootstrap surfaces a concrete phase number and phase directory (for example via `current_phase.number` plus `current_phase.directory`, or an equivalent canonical continuation field). Do not invent `phase_dir` from an ancestor project, a guessed numeric phase, or prose alone.
 - A nonzero init exit is a hard stop, not standalone mode.
 - **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for metric signature, Fourier transform convention, and index ranges. Extract active approximations and their validity ranges. Load any previously established notation from STATE.md.
 - If project state exists, inspect `intermediate_results` before re-deriving. Capture any existing canonical equation/result entries related to the target, including `id`, `equation`, `description`, `phase`, `depends_on`, and `verified`, so you can reuse the authoritative result instead of restating it.
 - Use `gpd result search` to locate the canonical result first when the target equation or derived quantity may already exist in the registry. Prefer `--equation` for exact formula lookup and `--text` for descriptive or shorthand matching. Once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before deciding whether a fresh derivation is still warranted.
 - **If init succeeds** (non-empty JSON with `state_exists: false`): Proceed in standalone mode with explicit convention declarations required from user in Step 1. All conventions must be stated explicitly before any derivation begins.
+- **If init succeeds** with `state_exists: true` but no authoritative phase context: Keep the project conventions and prior results visible as supporting context, but keep durable outputs under `GPD/analysis/` and skip phase-local persistence later.
 
 **This is the most critical workflow to have convention context.** Derivations without locked conventions risk sign errors, missing factors of 2pi, and metric signature inconsistencies that propagate silently through all subsequent steps.
 
@@ -461,19 +466,20 @@ verified_limits: [list of limits checked]
 
 Save to:
 
-- **Phase-scoped:** `${phase_dir}/DERIVATION-{slug}.md` (where `{slug}` is derived from the derivation goal, e.g., `dispersion-relation`)
-- **Standalone (no phase):**
+- **Phase-scoped (authoritative phase context only):** `${phase_dir}/DERIVATION-{slug}.md` (where `{slug}` is derived from the derivation goal, e.g., `dispersion-relation`)
+- **Current-workspace fallback (standalone or no authoritative phase context):**
 
 ```bash
 mkdir -p GPD/analysis
 ```
 
 Write to `GPD/analysis/derivation-{slug}.md`.
+Do not synthesize a phase-local output path from an ancestor project root or an unverified phase guess.
 
 If the derivation is proof-bearing, reserve the sibling proof-redteam artifact path for the independent proof critic:
 
-- **Phase-scoped:** `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md`
-- **Standalone:** `GPD/analysis/derivation-{slug}-proof-redteam.md`
+- **Phase-scoped (authoritative phase context only):** `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md`
+- **Current-workspace fallback:** `GPD/analysis/derivation-{slug}-proof-redteam.md`
 
 Required contents of the proof-redteam artifact that `gpd-check-proof` owns:
 
@@ -509,8 +515,8 @@ Operate in proof-redteam mode with a fresh context.
 If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
 
 Write to:
-- `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md` when phase-scoped
-- `GPD/analysis/derivation-{slug}-proof-redteam.md` when standalone
+- `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md` when authoritative phase context is phase-scoped
+- `GPD/analysis/derivation-{slug}-proof-redteam.md` when operating in the current-workspace fallback branch
 
 Files to read:
 - The newly written derivation artifact
@@ -527,12 +533,12 @@ Audit the exact theorem text, not a paraphrase. Fail closed on missing parameter
 <step name="persist_result">
 **Step 6: Persist Canonical Result**
 
-Persist the final derived equation through the executable `gpd result persist-derived` bridge when project state is available.
+Persist the final derived equation through the executable `gpd result persist-derived` bridge only when project state is available and the phase context is authoritative.
 
-- If `state_exists` is true:
-  1. Resolve a stable `result_id` request. On reruns, prefer the `result_id` already associated with the derivation record or invocation context if one is available. Otherwise derive a deterministic ID from the derivation slug and phase.
+- If `state_exists` is true **and** authoritative phase context exists:
+  1. Resolve a stable `result_id` request. On reruns, prefer the `result_id` already associated with the derivation record or invocation context if one is available. Otherwise derive a deterministic ID from the derivation slug and authoritative phase.
   2. Re-check `state.json.intermediate_results` for the same preferred `result_id` or an existing canonical equation for the same target. If a matching entry already exists, reuse its actual canonical `result_id` instead of creating a duplicate.
-  3. Persist the final result with the bridge:
+  3. Persist the final result with the bridge, using the authoritative phase identifier from the bootstrap context:
 
 ```bash
 gpd result persist-derived --id "{result_id}" --derivation-slug "{derivation_slug}" --equation "{final_equation}" --description "{short description}" --phase "{phase}" --validity "{validity}" [--depends-on "{comma-separated ids}"]
@@ -556,13 +562,17 @@ If `gpd result persist-derived` reports multiple matches for the same equation o
   5. If an active continuation context exists, the canonical path seeds continuity automatically from the actual `result_id` so later reruns can target the same registry entry without rediscovering it from prose.
   6. Keep `verified=false` unless the derivation also produced verification evidence that should be recorded separately. For proof-bearing derivations, a passed proof-redteam artifact is part of that evidence; without it, the result may be recorded as derived but not as established.
   7. For proof-bearing derivations, `gpd-check-proof` is the canonical owner of the proof audit whenever subagent spawning is available. If it cannot run, keep the derivation recorded as derived but not established and checkpoint for follow-up instead of self-certifying the proof.
+- If `state_exists` is true but authoritative phase context is missing:
+  - Skip registry write-back entirely.
+  - Keep the derivation document self-contained under `GPD/analysis/`.
+  - Do not synthesize `--phase` from `current_phase` prose, an ancestor project, or a guessed numeric label.
 - If `state_exists` is false:
   - Skip registry write-back entirely.
   - Keep the derivation document self-contained under `GPD/analysis/` and do not invent a project result entry.
 
 If the bridge returns `status=skipped` with `reason=no_recoverable_project_state`, treat that as the standalone branch above. Do not reconstruct project registry state from the derivation text alone.
 
-This keeps standalone derivations safe while making project-mode derivations reusable as canonical structured memory.
+This keeps standalone/current-workspace derivations safe while making phase-backed project derivations reusable as canonical structured memory.
 </step>
 
 </process>
@@ -610,7 +620,7 @@ This keeps standalone derivations safe while making project-mode derivations reu
 - [ ] The theorem is not treated as established unless `gpd-check-proof` writes that sibling artifact with `status: passed`
 - [ ] Proof-bearing derivations fail closed when a named parameter, hypothesis, quantifier, or conclusion clause is uncovered
 - [ ] Final derived equation persisted through the executable `gpd result persist-derived` bridge in project mode, with the actual persisted canonical `result_id` retained for later reruns and carried into canonical continuation for later pause/resume continuity
-- [ ] Standalone mode skipped registry write-back and stayed self-contained
+- [ ] Runs without authoritative phase context skipped registry write-back and stayed self-contained under `GPD/analysis/`
 - [ ] Complete derivation document written
 
 </success_criteria>

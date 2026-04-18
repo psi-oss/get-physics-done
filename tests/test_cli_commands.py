@@ -25,6 +25,7 @@ import pytest
 from typer.testing import CliRunner
 
 import gpd.cli as cli_module
+import gpd.registry as registry_module
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors, list_runtime_names
 from gpd.cli import app
 from gpd.core.recent_projects import record_recent_project
@@ -58,6 +59,23 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
+
+
+def _command_with_analysis_output_policy(command_name: str):
+    command = registry_module.get_command(command_name)
+    command_policy = command.command_policy or registry_module.CommandPolicy()
+    return dataclasses.replace(
+        command,
+        command_policy=dataclasses.replace(
+            command_policy,
+            output_policy=registry_module.CommandOutputPolicy(
+                output_mode="subtree",
+                managed_root_kind="gpd_managed_durable",
+                default_output_subtree="GPD/analysis",
+                stage_artifact_policy="disallowed",
+            ),
+        ),
+    )
 
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "stage0"
@@ -2740,10 +2758,13 @@ class TestReviewValidationCommands:
         assert checks["explicit_inputs"]["detail"] == "explicit standalone inputs detected"
 
     @pytest.mark.parametrize(
-        ("command_name", "explicit_argument", "explicit_inputs"),
+        ("command_name", "args", "explicit_inputs"),
         [
-            ("derive-equation", "derive the one-loop beta function", ["equation or topic to derive"]),
-            ("numerical-convergence", "results.csv", ["phase number or file path"]),
+            ("derive-equation", ["derive the one-loop beta function"], ["equation or topic to derive"]),
+            ("dimensional-analysis", ["results.md"], ["phase number or file path"]),
+            ("limiting-cases", ["results.md"], ["phase number or file path"]),
+            ("numerical-convergence", ["results.csv"], ["phase number or file path"]),
+            ("sensitivity-analysis", ["--target", "energy-gap", "--params", "g,m"], ["--target quantity", "--params p1,p2,..."]),
         ],
     )
     def test_command_context_project_aware_analysis_wrappers_accept_explicit_inputs_without_project(
@@ -2751,7 +2772,7 @@ class TestReviewValidationCommands:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         command_name: str,
-        explicit_argument: str,
+        args: list[str],
         explicit_inputs: list[str],
     ) -> None:
         outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-explicit"
@@ -2760,7 +2781,7 @@ class TestReviewValidationCommands:
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name, explicit_argument],
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name, *args],
             catch_exceptions=False,
         )
 
@@ -2783,9 +2804,24 @@ class TestReviewValidationCommands:
                 "Either provide equation or topic to derive explicitly",
             ),
             (
+                "dimensional-analysis",
+                ["phase number or file path"],
+                "Either provide phase number or file path explicitly",
+            ),
+            (
+                "limiting-cases",
+                ["phase number or file path"],
+                "Either provide phase number or file path explicitly",
+            ),
+            (
                 "numerical-convergence",
                 ["phase number or file path"],
                 "Either provide phase number or file path explicitly",
+            ),
+            (
+                "sensitivity-analysis",
+                ["--target quantity", "--params p1,p2,..."],
+                "Either provide --target quantity and --params p1,p2,... explicitly",
             ),
         ],
     )
@@ -2818,6 +2854,61 @@ class TestReviewValidationCommands:
             f"{guidance_prefix}, or initialize a project with `{dollar_command_prefix}new-project` "
             "in the runtime surface or `gpd init new-project` in the local CLI."
         )
+
+    @pytest.mark.parametrize(
+        "command_name",
+        [
+            "derive-equation",
+            "dimensional-analysis",
+            "limiting-cases",
+            "numerical-convergence",
+            "sensitivity-analysis",
+        ],
+    )
+    def test_command_context_phase4_analysis_managed_outputs_anchor_to_invoking_workspace_without_initialized_project(
+        self,
+        tmp_path: Path,
+        command_name: str,
+    ) -> None:
+        ancestor_root = tmp_path / "ancestor-root"
+        (ancestor_root / "GPD").mkdir(parents=True)
+        workspace = ancestor_root / "scratch" / command_name
+        workspace.mkdir(parents=True)
+        patched_command = _command_with_analysis_output_policy(command_name)
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=ancestor_root,
+            project_exists=False,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            patched_command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (workspace / "GPD" / "analysis").resolve(strict=False)
+        assert managed_output_root != (ancestor_root / "GPD" / "analysis").resolve(strict=False)
+
+    def test_command_context_phase4_analysis_managed_outputs_preserve_project_root_when_initialized_project_exists(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project_root = tmp_path / "project-root"
+        (project_root / "GPD").mkdir(parents=True)
+        (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        workspace = project_root / "notes" / "scratch"
+        workspace.mkdir(parents=True)
+        patched_command = _command_with_analysis_output_policy("derive-equation")
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=project_root,
+            project_exists=True,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            patched_command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (project_root / "GPD" / "analysis").resolve(strict=False)
 
     @pytest.mark.parametrize(
         ("command_name", "args", "explicit_inputs"),
