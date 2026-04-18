@@ -82,6 +82,7 @@ allowed-tools:
 Conduct a skeptical peer review of a completed manuscript from the current GPD project or an explicit external artifact, using whatever supporting research artifacts are actually available.
 
 Keep the wrapper focused on the manuscript target, review prerequisites, and final routing. When announcing the panel to the user, say what each stage does in one concise sentence: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-bearing claims also trigger the auxiliary gpd-check-proof critic; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.
+Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace. The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory.
 
 **Why subagent:** Staged manuscript review burns context fast. Fresh context keeps the orchestrator lean.
 </objective>

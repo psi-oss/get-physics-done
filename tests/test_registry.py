@@ -326,21 +326,21 @@ class TestParseAgentFile:
 
     def test_agent_file_tools_list_rejects_blank_members(self, tmp_path: Path) -> None:
         f = tmp_path / "bad-tools-list-blank.md"
-        f.write_text("---\nname: bad-agent\ntools:\n  - file_read\n  - \"  \"\n---\nBody.", encoding="utf-8")
+        f.write_text('---\nname: bad-agent\ntools:\n  - file_read\n  - "  "\n---\nBody.', encoding="utf-8")
 
         with pytest.raises(ValueError, match="tools for bad-agent must not contain blank entries"):
             _parse_agent_file(f, source="agents")
 
     def test_agent_file_allowed_tools_list_rejects_blank_members(self, tmp_path: Path) -> None:
         f = tmp_path / "bad-allowed-tools-list-blank.md"
-        f.write_text("---\nname: bad-agent\nallowed-tools:\n  - file_read\n  - \"\"\n---\nBody.", encoding="utf-8")
+        f.write_text('---\nname: bad-agent\nallowed-tools:\n  - file_read\n  - ""\n---\nBody.', encoding="utf-8")
 
         with pytest.raises(ValueError, match="allowed-tools for bad-agent must not contain blank entries"):
             _parse_agent_file(f, source="agents")
 
     def test_agent_file_blank_commit_authority_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "blank-authority.md"
-        f.write_text("---\nname: bad\ncommit_authority: \"  \"\n---\nPrompt.", encoding="utf-8")
+        f.write_text('---\nname: bad\ncommit_authority: "  "\n---\nPrompt.', encoding="utf-8")
 
         with pytest.raises(ValueError, match="commit_authority for bad must be a non-empty string"):
             _parse_agent_file(f, source="agents")
@@ -368,7 +368,7 @@ class TestParseAgentFile:
         expected_error: str,
     ) -> None:
         f = tmp_path / "bad-metadata-blank.md"
-        f.write_text(f"---\nname: bad\n{field_name}: \"  \"\n---\nPrompt.", encoding="utf-8")
+        f.write_text(f'---\nname: bad\n{field_name}: "  "\n---\nPrompt.', encoding="utf-8")
 
         with pytest.raises(ValueError, match=expected_error):
             _parse_agent_file(f, source="agents")
@@ -453,9 +453,7 @@ class TestParseCommandFile:
         assert skeptical_rigor_guardrails_section() in cmd.content
         assert cmd.content.endswith("Command body.")
 
-    def test_command_file_with_requires_and_review_contract_renders_requirements_first(
-        self, tmp_path: Path
-    ) -> None:
+    def test_command_file_with_requires_and_review_contract_renders_requirements_first(self, tmp_path: Path) -> None:
         f = tmp_path / "review.md"
         f.write_text(
             "---\n"
@@ -550,7 +548,7 @@ class TestParseCommandFile:
 
     def test_command_allowed_tools_list_rejects_blank_members(self, tmp_path: Path) -> None:
         f = tmp_path / "bad-tools-members-blank.md"
-        f.write_text("---\nname: bad\nallowed-tools:\n  - file_read\n  - \"\"\n---\nBody.", encoding="utf-8")
+        f.write_text('---\nname: bad\nallowed-tools:\n  - file_read\n  - ""\n---\nBody.', encoding="utf-8")
 
         with pytest.raises(ValueError, match="allowed-tools for bad must not contain blank entries"):
             _parse_command_file(f, source="commands")
@@ -655,12 +653,7 @@ class TestParseCommandFile:
     def test_command_policy_rejects_prompt_wrapper_alias_in_frontmatter(self, tmp_path: Path) -> None:
         f = tmp_path / "write-paper.md"
         f.write_text(
-            "---\n"
-            "name: gpd:write-paper\n"
-            "command_policy:\n"
-            "  schema_version: 1\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:write-paper\ncommand_policy:\n  schema_version: 1\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -691,6 +684,59 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
+    def test_publication_command_policy_can_override_legacy_supporting_context_metadata(self, tmp_path: Path) -> None:
+        f = tmp_path / "arxiv-submission.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:arxiv-submission\n"
+            "context_mode: project-required\n"
+            "requires:\n"
+            "  files:\n"
+            "    - paper/*.tex\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            "  schema_version: 1\n"
+            "  preflight_checks:\n"
+            "    - command_context\n"
+            "    - manuscript\n"
+            "command-policy:\n"
+            "  schema_version: 1\n"
+            "  supporting_context_policy:\n"
+            "    project_context_mode: project-aware\n"
+            "    required_file_patterns: []\n"
+            "  subject_policy:\n"
+            "    explicit_input_kinds:\n"
+            "      - manuscript_root\n"
+            "      - manuscript_path\n"
+            "    allowed_suffixes:\n"
+            "      - .tex\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.context_mode == "project-required"
+        assert cmd.command_policy == registry.CommandPolicy(
+            schema_version=1,
+            subject_policy=registry.CommandSubjectPolicy(
+                subject_kind="publication",
+                resolution_mode="explicit_or_project_manuscript",
+                explicit_input_kinds=["manuscript_root", "manuscript_path"],
+                supported_roots=["paper"],
+                allowed_suffixes=[".tex"],
+            ),
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-aware",
+                project_reentry_mode="disallowed",
+                required_file_patterns=[],
+            ),
+        )
+        assert "context_mode: project-required" in cmd.content
+        assert "project_context_mode: project-aware" in cmd.content
+        assert "allowed_suffixes:" in cmd.content
+
     def test_command_agent_validation_uses_canonical_inventory_not_patched_agents_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -717,12 +763,7 @@ class TestParseCommandFile:
     def test_command_parses_project_reentry_capable_for_project_required_commands(self, tmp_path: Path) -> None:
         f = tmp_path / "resume-work.md"
         f.write_text(
-            "---\n"
-            "name: gpd:resume-work\n"
-            "context_mode: project-required\n"
-            "project_reentry_capable: true\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:resume-work\ncontext_mode: project-required\nproject_reentry_capable: true\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -730,7 +771,6 @@ class TestParseCommandFile:
 
         assert cmd.context_mode == "project-required"
         assert cmd.project_reentry_capable is True
-
 
     def test_new_project_command_source_uses_narrow_contract_schema_without_include_markers(self) -> None:
         command_text = NEW_PROJECT_COMMAND_PATH.read_text(encoding="utf-8")
@@ -752,11 +792,7 @@ class TestParseCommandFile:
     def test_command_project_reentry_capable_rejects_non_boolean_values(self, tmp_path: Path) -> None:
         f = tmp_path / "resume-work.md"
         f.write_text(
-            "---\n"
-            "name: gpd:resume-work\n"
-            "project_reentry_capable: maybe\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:resume-work\nproject_reentry_capable: maybe\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -771,11 +807,7 @@ class TestParseCommandFile:
     ) -> None:
         f = tmp_path / "resume-work.md"
         f.write_text(
-            "---\n"
-            "name: gpd:resume-work\n"
-            f"project_reentry_capable: {raw_value}\n"
-            "---\n"
-            "Body.",
+            f"---\nname: gpd:resume-work\nproject_reentry_capable: {raw_value}\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -812,11 +844,7 @@ class TestParseCommandFile:
     ) -> None:
         f = tmp_path / "resume-work.md"
         f.write_text(
-            "---\n"
-            "name: gpd:resume-work\n"
-            f"{frontmatter_line}\n"
-            "---\n"
-            "Body.",
+            f"---\nname: gpd:resume-work\n{frontmatter_line}\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -826,12 +854,7 @@ class TestParseCommandFile:
     def test_command_project_reentry_capable_requires_project_required_context_mode(self, tmp_path: Path) -> None:
         f = tmp_path / "start.md"
         f.write_text(
-            "---\n"
-            "name: gpd:start\n"
-            "context_mode: projectless\n"
-            "project_reentry_capable: true\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:start\ncontext_mode: projectless\nproject_reentry_capable: true\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -850,7 +873,7 @@ class TestParseCommandFile:
 
     def test_command_blank_context_mode_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "help.md"
-        f.write_text("---\nname: gpd:help\ncontext_mode: \"  \"\n---\nBody.", encoding="utf-8")
+        f.write_text('---\nname: gpd:help\ncontext_mode: "  "\n---\nBody.', encoding="utf-8")
 
         with pytest.raises(ValueError, match="context_mode for gpd:help must be a non-empty string"):
             _parse_command_file(f, source="commands")
@@ -936,7 +959,7 @@ class TestParseCommandFile:
     def test_command_without_review_contract_has_no_hidden_default_contract(self, tmp_path: Path) -> None:
         f = tmp_path / "peer-review.md"
         f.write_text(
-            "---\nname: gpd:peer-review\ndescription: Peer review\nrequires:\n  files: [\"paper/*.tex\"]\n---\nBody.",
+            '---\nname: gpd:peer-review\ndescription: Peer review\nrequires:\n  files: ["paper/*.tex"]\n---\nBody.',
             encoding="utf-8",
         )
         cmd = _parse_command_file(f, source="commands")
@@ -961,12 +984,12 @@ class TestParseCommandFile:
         f = _write_review_contract_command(
             tmp_path,
             f"{field_name}-non-string-member.md",
-            f"  {field_name}:\n"
-            "    - valid\n"
-            "    - true\n",
+            f"  {field_name}:\n    - valid\n    - true\n",
         )
 
-        with pytest.raises(ValueError, match=rf"Invalid review-contract in .*{field_name}-non-string-member\.md.*{field_name}"):
+        with pytest.raises(
+            ValueError, match=rf"Invalid review-contract in .*{field_name}-non-string-member\.md.*{field_name}"
+        ):
             _parse_command_file(f, source="commands")
 
     @pytest.mark.parametrize(
@@ -988,7 +1011,9 @@ class TestParseCommandFile:
             f"  {field_name}: 7\n",
         )
 
-        with pytest.raises(ValueError, match=rf"Invalid review-contract in .*{field_name}-invalid-scalar\.md.*{field_name}"):
+        with pytest.raises(
+            ValueError, match=rf"Invalid review-contract in .*{field_name}-invalid-scalar\.md.*{field_name}"
+        ):
             _parse_command_file(f, source="commands")
 
     def test_command_review_contract_list_fields_reject_singleton_string_scalars(self, tmp_path: Path) -> None:
@@ -1024,9 +1049,7 @@ class TestParseCommandFile:
         f = _write_review_contract_command(
             tmp_path,
             f"{field_name}-blank-member.md",
-            f"  {field_name}:\n"
-            "    - valid\n"
-            '    - "   "\n',
+            f'  {field_name}:\n    - valid\n    - "   "\n',
         )
 
         with pytest.raises(
@@ -1035,7 +1058,9 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_command_review_contract_conditional_list_fields_reject_singleton_string_scalars(self, tmp_path: Path) -> None:
+    def test_command_review_contract_conditional_list_fields_reject_singleton_string_scalars(
+        self, tmp_path: Path
+    ) -> None:
         f = _write_review_contract_command(
             tmp_path,
             "singleton-list-scalars.md",
@@ -1108,9 +1133,48 @@ class TestParseCommandFile:
             )
         ]
 
-    def test_command_review_contract_rejects_duplicate_conditional_requirement_when(
-        self, tmp_path: Path
-    ) -> None:
+    def test_peer_review_registry_exposes_compat_publication_subject_policy(self) -> None:
+        command = registry.get_command("peer-review")
+
+        assert command.command_policy is not None
+        assert command.command_policy.subject_policy == registry.CommandSubjectPolicy(
+            subject_kind="publication",
+            resolution_mode="explicit_or_project_manuscript",
+            explicit_input_kinds=["manuscript_root", "manuscript_path", "publication_artifact_path"],
+            allow_external_subjects=True,
+            allow_interactive_without_subject=True,
+            supported_roots=["paper", "manuscript", "draft"],
+            allowed_suffixes=[".tex", ".md", ".txt", ".pdf"],
+        )
+
+    def test_peer_review_registry_exposes_compat_explicit_artifact_scope_variant(self) -> None:
+        command = registry.get_command("peer-review")
+
+        assert command.review_contract is not None
+        assert (
+            registry.ReviewContractScopeVariant(
+                scope="explicit_artifact",
+                activation="explicit external artifact subject was supplied",
+                relaxed_preflight_checks=[
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "research_artifacts",
+                    "verification_reports",
+                    "manuscript_proof_review",
+                ],
+                optional_preflight_checks=[
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "bibliography_audit_clean",
+                    "reproducibility_manifest",
+                    "reproducibility_ready",
+                ],
+            )
+            in command.review_contract.scope_variants
+        )
+
+    def test_command_review_contract_rejects_duplicate_conditional_requirement_when(self, tmp_path: Path) -> None:
         f = _write_review_contract_command(
             tmp_path,
             "duplicate-conditional-requirements.md",
@@ -1150,8 +1214,7 @@ class TestParseCommandFile:
         f = _write_review_contract_command(
             tmp_path,
             "conditional-requirements-non-mapping-item.md",
-            "  conditional_requirements:\n"
-            "    - oops\n",
+            "  conditional_requirements:\n    - oops\n",
         )
 
         with pytest.raises(
@@ -1160,13 +1223,13 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_command_review_contract_conditional_requirements_reject_unknown_nested_fields(self, tmp_path: Path) -> None:
+    def test_command_review_contract_conditional_requirements_reject_unknown_nested_fields(
+        self, tmp_path: Path
+    ) -> None:
         f = _write_review_contract_command(
             tmp_path,
             "conditional-requirements-unknown-field.md",
-            "  conditional_requirements:\n"
-            "    - when: theorem-bearing claims are present\n"
-            "      legacy_note: stale\n",
+            "  conditional_requirements:\n    - when: theorem-bearing claims are present\n      legacy_note: stale\n",
         )
 
         with pytest.raises(
@@ -1225,8 +1288,7 @@ class TestParseCommandFile:
         f = _write_review_contract_command(
             tmp_path,
             "conditional-requirements-empty.md",
-            "  conditional_requirements:\n"
-            "    - when: theorem-bearing claims are present\n",
+            "  conditional_requirements:\n    - when: theorem-bearing claims are present\n",
         )
 
         with pytest.raises(
@@ -1263,12 +1325,7 @@ class TestParseCommandFile:
     def test_command_review_contract_review_mode_requires_string(self, tmp_path: Path, raw_value: str) -> None:
         f = tmp_path / f"review-mode-{raw_value}.md"
         f.write_text(
-            "---\n"
-            "name: gpd:review-mode-invalid\n"
-            "review-contract:\n"
-            f"  review_mode: {raw_value}\n"
-            "---\n"
-            "Body.",
+            f"---\nname: gpd:review-mode-invalid\nreview-contract:\n  review_mode: {raw_value}\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -1278,12 +1335,7 @@ class TestParseCommandFile:
     def test_command_review_contract_review_mode_rejects_unsupported_value(self, tmp_path: Path) -> None:
         f = tmp_path / "review-mode-unsupported.md"
         f.write_text(
-            "---\n"
-            "name: gpd:review-mode-unsupported\n"
-            "review-contract:\n"
-            "  review_mode: draft\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:review-mode-unsupported\nreview-contract:\n  review_mode: draft\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -1297,9 +1349,7 @@ class TestParseCommandFile:
         f = _write_review_contract_command(
             tmp_path,
             "preflight-checks-unsupported.md",
-            "  preflight_checks:\n"
-            "    - project_state\n"
-            "    - review_queue\n",
+            "  preflight_checks:\n    - project_state\n    - review_queue\n",
         )
 
         with pytest.raises(
@@ -1342,12 +1392,7 @@ class TestParseCommandFile:
     def test_command_review_contract_requires_explicit_schema_version(self, tmp_path: Path) -> None:
         f = tmp_path / "missing-schema-version.md"
         f.write_text(
-            "---\n"
-            "name: gpd:missing-schema-version\n"
-            "review-contract:\n"
-            "  review_mode: publication\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:missing-schema-version\nreview-contract:\n  review_mode: publication\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -1360,11 +1405,7 @@ class TestParseCommandFile:
     def test_command_review_contract_rejects_explicit_null_block(self, tmp_path: Path) -> None:
         f = tmp_path / "null-review-contract.md"
         f.write_text(
-            "---\n"
-            "name: gpd:null-review-contract\n"
-            "review-contract:\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:null-review-contract\nreview-contract:\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -1396,12 +1437,7 @@ class TestParseCommandFile:
     def test_command_review_contract_unknown_keys_raise(self, tmp_path: Path) -> None:
         f = tmp_path / "write-paper.md"
         f.write_text(
-            "---\n"
-            "name: gpd:write-paper\n"
-            "review-contract:\n"
-            "  approval_gate: strict\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:write-paper\nreview-contract:\n  approval_gate: strict\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -1569,7 +1605,9 @@ class TestDiscovery:
         assert debugger_skill.name == "gpd-debugger"
         assert debugger_agent.surface == "public"
         assert debugger_agent.role_family == "worker"
-        assert "public writable production agent specialized for discrepancy investigation" in debugger_agent.system_prompt
+        assert (
+            "public writable production agent specialized for discrepancy investigation" in debugger_agent.system_prompt
+        )
         assert {"gpd-debug", "gpd-debugger"}.issubset(registry.list_skills())
 
     def test_consistency_checker_remains_registry_discoverable(self) -> None:
@@ -1620,12 +1658,11 @@ class TestDiscovery:
         assert reviewer_skill.category == "research"
         assert {"gpd-literature-review", "gpd-literature-reviewer"}.issubset(registry.list_skills())
 
+
 class TestSkillDiscovery:
     """Tests for canonical skills derived from primary commands and agents."""
 
-    def test_skills_use_primary_commands_and_agents_only(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_skills_use_primary_commands_and_agents_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         (commands_dir / "help.md").write_text(
@@ -1681,7 +1718,9 @@ class TestRegistryPromptIncludeInlining:
             assert lightweight in skill.content
             assert eager not in skill.content
 
-    def test_registry_projection_strips_generic_html_comments(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_registry_projection_strips_generic_html_comments(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         (commands_dir / "commented.md").write_text(
@@ -1782,7 +1821,10 @@ class TestRegistryPromptIncludeInlining:
         assert skill.source_kind == "agent"
         assert skill.path.endswith("gpd-plan-checker.md")
         assert "{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in skill.content
-        assert "This is a one-shot handoff. If user input is needed, return `status: checkpoint`; do not wait inside the same run." in skill.content
+        assert (
+            "This is a one-shot handoff. If user input is needed, return `status: checkpoint`; do not wait inside the same run."
+            in skill.content
+        )
         assert "approved_plans: [list of plan IDs that passed]" in skill.content
         assert "blocked_plans: [list of plan IDs needing revision or escalation]" in skill.content
 
@@ -1793,18 +1835,22 @@ class TestRegistryPromptIncludeInlining:
         assert "Paper Config Schema" not in command.content
         assert "Review Ledger Schema" not in command.content
         assert "Referee Decision Schema" not in command.content
-        assert "templates/paper/paper-config-schema.md" in command.staged_loading.stage(
-            "outline_and_scaffold"
-        ).loaded_authorities
-        assert "references/publication/peer-review-panel.md" in command.staged_loading.stage(
-            "publication_review"
-        ).loaded_authorities
-        assert "templates/paper/review-ledger-schema.md" in command.staged_loading.stage(
-            "publication_review"
-        ).loaded_authorities
-        assert "templates/paper/referee-decision-schema.md" in command.staged_loading.stage(
-            "publication_review"
-        ).loaded_authorities
+        assert (
+            "templates/paper/paper-config-schema.md"
+            in command.staged_loading.stage("outline_and_scaffold").loaded_authorities
+        )
+        assert (
+            "references/publication/peer-review-panel.md"
+            in command.staged_loading.stage("publication_review").loaded_authorities
+        )
+        assert (
+            "templates/paper/review-ledger-schema.md"
+            in command.staged_loading.stage("publication_review").loaded_authorities
+        )
+        assert (
+            "templates/paper/referee-decision-schema.md"
+            in command.staged_loading.stage("publication_review").loaded_authorities
+        )
 
     def test_publication_review_skills_keep_the_needed_contract_references_visible(self) -> None:
         from gpd.mcp.servers.skills_server import get_skill
@@ -1817,9 +1863,7 @@ class TestRegistryPromptIncludeInlining:
         assert any(
             entry["path"].endswith("publication-review-round-artifacts.md") for entry in referee["referenced_files"]
         )
-        assert any(
-            entry["path"].endswith("publication-response-artifacts.md") for entry in referee["referenced_files"]
-        )
+        assert any(entry["path"].endswith("publication-response-artifacts.md") for entry in referee["referenced_files"])
         assert any(path.endswith("review-ledger-schema.md") for path in referee["schema_references"])
         assert any(path.endswith("referee-decision-schema.md") for path in referee["schema_references"])
 
@@ -1827,7 +1871,9 @@ class TestRegistryPromptIncludeInlining:
         assert any(path.endswith("peer-review-panel.md") for path in review_reader["contract_references"])
         assert review_reader["schema_references"] == []
         assert any(path.endswith("review-ledger-schema.md") for path in review_reader["transitive_schema_references"])
-        assert any(path.endswith("referee-decision-schema.md") for path in review_reader["transitive_schema_references"])
+        assert any(
+            path.endswith("referee-decision-schema.md") for path in review_reader["transitive_schema_references"]
+        )
 
     def test_check_proof_registry_surface_preserves_lightweight_path_mentions(self) -> None:
         skill = registry.get_skill("gpd-check-proof")
@@ -2020,6 +2066,7 @@ class TestPublicAPI:
     def _clean_cache(self):
         """Ensure registry cache is invalidated before and after each test."""
         from gpd import registry
+
         registry.invalidate_cache()
         yield
         registry.invalidate_cache()
@@ -2058,7 +2105,9 @@ class TestPublicAPI:
 
         assert registry.list_agents() == ["alpha", "bravo", "charlie"]
 
-    def test_canonical_agent_names_follows_monkeypatched_agent_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_canonical_agent_names_follows_monkeypatched_agent_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         agents_dir = tmp_path / "patched-agents"
         agents_dir.mkdir()
         (agents_dir / "zeta.md").write_text("---\nname: zeta\n---\nPrompt.", encoding="utf-8")
@@ -2113,7 +2162,9 @@ class TestPublicAPI:
 
         assert registry.list_skills() == ["gpd-debugger", "gpd-plan-phase"]
 
-    def test_list_review_commands_returns_only_review_commands(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_list_review_commands_returns_only_review_commands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         (commands_dir / "peer-review.md").write_text(
@@ -2279,9 +2330,9 @@ class TestPublicAPI:
         monkeypatch.setattr(
             registry,
             "resolve_workflow_stage_manifest_path",
-            lambda workflow_id: manifest_path
-            if workflow_id == "new-milestone"
-            else original_resolve_manifest_path(workflow_id),
+            lambda workflow_id: (
+                manifest_path if workflow_id == "new-milestone" else original_resolve_manifest_path(workflow_id)
+            ),
         )
         registry.invalidate_cache()
 
@@ -2325,13 +2376,7 @@ class TestPublicAPI:
             commands_dir = Path(tmp) / "commands"
             commands_dir.mkdir()
             (commands_dir / "plan-phase.md").write_text(
-                "---\n"
-                "name: gpd:plan-phase\n"
-                "description: Plan phase\n"
-                "allowed-tools:\n"
-                "  - file_read\n"
-                "---\n"
-                "Body.",
+                "---\nname: gpd:plan-phase\ndescription: Plan phase\nallowed-tools:\n  - file_read\n---\nBody.",
                 encoding="utf-8",
             )
 
@@ -2387,7 +2432,9 @@ class TestPublicAPI:
             monkeypatch.setattr(
                 registry,
                 "resolve_workflow_stage_manifest_path",
-                lambda workflow_id: manifest_path if workflow_id == "plan-phase" else original_resolve_manifest_path(workflow_id),
+                lambda workflow_id: (
+                    manifest_path if workflow_id == "plan-phase" else original_resolve_manifest_path(workflow_id)
+                ),
             )
             try:
                 registry.invalidate_cache()
@@ -2412,9 +2459,9 @@ class TestPublicAPI:
         monkeypatch.setattr(
             registry,
             "resolve_workflow_stage_manifest_path",
-            lambda workflow_id: manifest_path
-            if workflow_id == "verify-work"
-            else original_resolve_manifest_path(workflow_id),
+            lambda workflow_id: (
+                manifest_path if workflow_id == "verify-work" else original_resolve_manifest_path(workflow_id)
+            ),
         )
         registry.invalidate_cache()
 
@@ -2488,13 +2535,7 @@ class TestPublicAPI:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         (commands_dir / "execute-phase.md").write_text(
-            "---\n"
-            "name: gpd:execute-phase\n"
-            "description: Execute phase\n"
-            "allowed-tools:\n"
-            "  - file_read\n"
-            "---\n"
-            "Body.",
+            "---\nname: gpd:execute-phase\ndescription: Execute phase\nallowed-tools:\n  - file_read\n---\nBody.",
             encoding="utf-8",
         )
 
@@ -2531,7 +2572,9 @@ class TestPublicAPI:
         monkeypatch.setattr(
             registry,
             "resolve_workflow_stage_manifest_path",
-            lambda workflow_id: manifest_path if workflow_id == "execute-phase" else original_resolve_manifest_path(workflow_id),
+            lambda workflow_id: (
+                manifest_path if workflow_id == "execute-phase" else original_resolve_manifest_path(workflow_id)
+            ),
         )
         registry.invalidate_cache()
 
@@ -2549,9 +2592,9 @@ class TestPublicAPI:
         monkeypatch.setattr(
             registry,
             "resolve_workflow_stage_manifest_path",
-            lambda workflow_id: manifest_path
-            if workflow_id == "research-phase"
-            else original_resolve_manifest_path(workflow_id),
+            lambda workflow_id: (
+                manifest_path if workflow_id == "research-phase" else original_resolve_manifest_path(workflow_id)
+            ),
         )
         registry.invalidate_cache()
 
@@ -2613,10 +2656,14 @@ class TestPublicAPI:
         assert cmd.name == "gpd:peer-review"
         assert cmd.description == "Peer review"
 
-    def test_get_command_rejects_foreign_bare_slash_command(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_command_rejects_foreign_bare_slash_command(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "help.md").write_text("---\nname: gpd:help\ndescription: Help\n---\nHelp body.", encoding="utf-8")
+        (commands_dir / "help.md").write_text(
+            "---\nname: gpd:help\ndescription: Help\n---\nHelp body.", encoding="utf-8"
+        )
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
         registry.invalidate_cache()
@@ -2680,7 +2727,9 @@ class TestPublicAPI:
         assert skill.name == "gpd-execute-phase"
         assert skill.registry_name == "execute-phase"
 
-    def test_get_skill_rejects_foreign_bare_slash_command(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_skill_rejects_foreign_bare_slash_command(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         (commands_dir / "execute-phase.md").write_text(
@@ -2758,6 +2807,7 @@ class TestPublicAPI:
         registry.invalidate_cache()
 
         assert registry.list_agents() == ["new"]
+
 
 class TestDataclasses:
     """Tests for AgentDef, CommandDef, and SkillDef dataclass properties."""
@@ -2896,7 +2946,6 @@ class TestSkillCategoryMap:
         """
         import ast
         import inspect
-
 
         source = inspect.getsource(registry)
         tree = ast.parse(source)

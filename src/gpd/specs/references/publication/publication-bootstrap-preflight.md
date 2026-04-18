@@ -14,6 +14,7 @@ context_cost: low
 Canonical workflow-facing bootstrap and preflight reference for publication tasks.
 
 Use this pack when a workflow needs to establish the manuscript-root gate, the latest review-round context, or the submission preflight path before any packaging or response drafting begins.
+This pack standardizes manuscript-root resolution and publication gating. It does not decide whether a command may accept a standalone external manuscript/artifact; workflow-specific intake policy remains authoritative.
 
 ## Canonical Sources
 
@@ -27,4 +28,6 @@ Use this pack when a workflow needs to establish the manuscript-root gate, the l
 - Use the round-artifact contract for latest-round suffixing and sibling artifact naming.
 - Use the response-artifact contract for paired response completion and fail-closed child-return semantics.
 - Keep the workflow explicit about on-disk verification. A completed child return is provisional until the required artifacts exist in the workspace.
+- Keep GPD-authored auxiliary publication outputs under `GPD/`, but do not imply the manuscript draft or manuscript-root manifests have moved out of the resolved manuscript directory.
+- Do not infer standalone external-artifact support from this pack alone.
 - Do not restate the publication pipeline in wrappers or downstream agent prompts when this reference is already loaded.

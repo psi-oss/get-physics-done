@@ -56,6 +56,9 @@ __all__ = [
     "LINEAGE_DIR_NAME",
     "PLANNING_DIR_NAME",
     "PLAN_SUFFIX",
+    "PUBLICATION_ARXIV_DIR_NAME",
+    "PUBLICATION_DIR_NAME",
+    "PUBLICATION_PROOF_REVIEW_DIR_NAME",
     "PROJECT_FILENAME",
     "ProjectLayout",
     "RECOMMENDED_PYTHON_VERSION",
@@ -188,6 +191,15 @@ KNOWLEDGE_DIR_NAME = "knowledge"
 
 RESEARCH_MAP_DIR_NAME = "research-map"
 """Subdirectory under GPD/ for theory/research map files."""
+
+PUBLICATION_DIR_NAME = "publication"
+"""Subdirectory under GPD/ for publication-owned outputs keyed by manuscript subject."""
+
+PUBLICATION_PROOF_REVIEW_DIR_NAME = "proof-review"
+"""Subdirectory under GPD/publication/<subject>/ for proof-review manifests."""
+
+PUBLICATION_ARXIV_DIR_NAME = "arxiv"
+"""Subdirectory under GPD/publication/<subject>/ for arXiv packaging outputs."""
 
 RECENT_PROJECTS_DIR_NAME = "recent-projects"
 """Subdirectory under the home GPD data root for recent-project discovery state."""
@@ -523,6 +535,10 @@ class ProjectLayout:
         return self.gpd / RESEARCH_MAP_DIR_NAME
 
     @property
+    def publication_dir(self) -> Path:
+        return self.gpd / PUBLICATION_DIR_NAME
+
+    @property
     def scratch_dir(self) -> Path:
         return self.gpd / SCRATCH_DIR_NAME
 
@@ -540,6 +556,21 @@ class ProjectLayout:
     def phase_dir(self, phase_name: str) -> Path:
         """Return path to a specific phase directory."""
         return self.phases_dir / phase_name
+
+    def publication_subject_dir(self, subject_slug: str) -> Path:
+        """Return the managed publication root for one resolved subject slug."""
+
+        return self.publication_dir / subject_slug
+
+    def publication_proof_review_dir(self, subject_slug: str) -> Path:
+        """Return the managed proof-review root for one resolved subject slug."""
+
+        return self.publication_subject_dir(subject_slug) / PUBLICATION_PROOF_REVIEW_DIR_NAME
+
+    def publication_arxiv_dir(self, subject_slug: str) -> Path:
+        """Return the managed arXiv packaging root for one resolved subject slug."""
+
+        return self.publication_subject_dir(subject_slug) / PUBLICATION_ARXIV_DIR_NAME
 
     def phase_checkpoint_file(self, phase_name: str) -> Path:
         """Return the generated checkpoint note path for a phase directory."""

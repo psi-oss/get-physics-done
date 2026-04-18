@@ -26,6 +26,12 @@ Canonical round-suffix and sibling-artifact contract for publication review roun
 - Response artifacts: `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.
 - Proof artifact when theorem review requires it: `GPD/review/PROOF-REDTEAM{round_suffix}.md`.
 
+## Ownership Boundary
+
+- GPD-authored auxiliary outputs for a review round live under `GPD/` or `GPD/review/` exactly as listed above.
+- These artifacts are siblings of, not replacements for, manuscript-local artifacts such as `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, `reproducibility-manifest.json`, or the compiled manuscript under the resolved manuscript root.
+- Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates.
+
 ## Consistency Rules
 
 - `GPD/REFEREE-REPORT{round_suffix}.md` is the canonical source for round-scoped `REF-*` issue IDs.

@@ -15,6 +15,7 @@ context_cost: low
 Guidance for reliable execution of the staged peer-review pipeline, whether `gpd:peer-review` is reviewing the current GPD project manuscript or one explicit manuscript artifact. This covers when the workflow triggers, how stages recover from failure, how to distinguish internal from external review, and how review findings feed back into manuscript revisions.
 
 This is the canonical reliability reference for the peer-review skill surface. Follow the path and round-suffix conventions here when the workflow, report, and response artifacts need a stable source of truth. `gpd:peer-review` is project-aware: it can review the active manuscript in the current GPD project or an explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target, while still writing review artifacts under `GPD/` in the invoking workspace.
+That output policy does not relocate the manuscript draft or manuscript-root manifests; those stay rooted at the resolved manuscript directory and must not be copied into `GPD/` to satisfy strict gates.
 
 ## When Peer Review Triggers
 
@@ -31,6 +32,7 @@ The peer review phase activates **after a complete manuscript draft exists** and
 - `GPD/STATE.md` and `GPD/ROADMAP.md` are present when reviewing the current GPD project manuscript
 - Phase summaries and verification reports are available under `GPD/phases/` when reviewing the current GPD project manuscript
 - `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are required in strict project-backed mode and additive when present for explicit external artifact review
+- Manuscript-root publication artifacts must be read from the resolved manuscript directory itself; copied stand-ins under `GPD/` do not satisfy strict gates
 - Strict preflight semantic gates pass for any manuscript-root publication artifacts that are present
 
 If any precondition fails, the review preflight blocks entry and reports the missing items. The blocking set is mode-dependent: project-backed review may require project state and phase artifacts, while explicit external-artifact review may proceed without them.

@@ -1,5 +1,5 @@
 <purpose>
-Structure a point-by-point response to referee reports and revise the manuscript accordingly. Handles the full revision pipeline: parsing referee comments, drafting responses, spawning revision agents for manuscript changes, tracking new calculations, and producing the canonical GPD response artifacts, with an optional manuscript-local response letter companion when the journal still needs one. Integrates with the GPD research workflow for any new calculations requested by referees.
+Structure a point-by-point response to referee reports and revise the manuscript accordingly. Handles the full revision pipeline: parsing referee comments, drafting responses, spawning revision agents for manuscript changes, tracking new calculations, and producing the canonical GPD response artifacts, with an optional manuscript-local response letter companion when the journal still needs one. This workflow is project-aware: it may revise the active manuscript from the current GPD project or an explicit manuscript subject, but the canonical GPD-authored response artifacts still live under `GPD/`. Integrates with the GPD research workflow for any new calculations requested by referees.
 
 Called from gpd:respond-to-referees command. Section revisions are performed by gpd-paper-writer agents.
 </purpose>
@@ -43,6 +43,14 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 - `autonomy=balanced` (default): Draft the full response and apply routine manuscript changes. Do not force a parse-confirmation pause; pause only if the referee report is ambiguous, the response needs claim-level changes, new calculations, or unresolved referee disagreements. Any spawned agent that needs user input must return `status: checkpoint` and stop; the orchestrator presents the checkpoint and spawns a fresh continuation handoff after the user responds.
 - `autonomy=yolo`: Draft response and apply manuscript changes without pausing.
 
+**Normalize command intake into one manuscript subject plus one or more report sources before preflight:**
+
+- Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`
+- Accept the literal `paste` sentinel as an explicit report source.
+- Preserve the legacy shorthand `gpd:respond-to-referees path/to/report.md` or `gpd:respond-to-referees paste` only when the manuscript subject still resolves from the current GPD project.
+- Treat a bare positional path as a referee-report source only. Do not reinterpret it as the manuscript subject for this workflow.
+- Keep all GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is external; manuscript edits still occur in place on the resolved manuscript subject.
+
 Run centralized context preflight before continuing:
 
 ```bash
@@ -70,6 +78,7 @@ fi
 Use the literal `paste` sentinel when collecting inline report text. Do not pass the raw pasted referee report body as `$ARGUMENTS` to the strict preflight command.
 
 If review preflight exits nonzero because of missing project state, missing manuscript, missing referee report source when provided as a path, degraded review integrity, or missing required conventions, STOP and show the blocking issues before drafting responses.
+In explicit external-manuscript mode, `project_state` and `conventions` are advisory only. The hard intake blockers remain the resolved manuscript subject, the report-source set, and review-integrity failures.
 Apply the shared publication bootstrap preflight exactly:
 
 @{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md
@@ -80,7 +89,7 @@ If `derived_manuscript_proof_review_status` is present, use it as the first-pass
 
 **Locate paper directory:**
 
-Bind `PAPER_DIR` to the manuscript root resolved by the shared preflight and manuscript-root contract above, keep every manuscript-local path rooted there, and do not re-derive a second manuscript root later in this workflow. Set `MANUSCRIPT_BASENAME` from the resolved manuscript entrypoint for later rebuild and smoke-check steps.
+Bind `PAPER_DIR` to the manuscript root resolved either from explicit `--manuscript` intake or by the shared preflight and manuscript-root contract above, keep every manuscript-local path rooted there, and do not re-derive a second manuscript root later in this workflow. Set `MANUSCRIPT_BASENAME` from the resolved manuscript entrypoint for later rebuild and smoke-check steps.
 
 **If no paper found:**
 
@@ -146,9 +155,12 @@ Use `protocol_bundle_context` from init JSON as additive revision guidance.
 
 Ask the user to provide referee reports via one of:
 
-1. **Paste directly** -- user pastes report text into the conversation
-2. **File path** -- user provides a path to the report file(s)
+1. **Explicit report paths** -- one or more `--report PATH` inputs or equivalent wrapper-provided file paths
+2. **Paste directly** -- user pastes report text into the conversation
 3. **Existing file** -- use canonical `GPD/REFEREE-REPORT{round_suffix}.md` only
+4. **Legacy shorthand** -- one positional report path only when the manuscript subject resolved from the current GPD project
+
+If the active report source is external to the canonical round artifact set, import or normalize it into `GPD/REFEREE-REPORT{round_suffix}.md` before parsing comments. Use that canonical Markdown file as the durable issue-ID source for the rest of the workflow. Do not keep manuscript-local or external `AUTHOR-RESPONSE*` / `REFEREE_RESPONSE*` sidecars beside the source report.
 
 **Parse each referee's comments into structured items:**
 
@@ -218,6 +230,8 @@ Create both response artifacts for the current round:
 
 - `GPD/AUTHOR-RESPONSE{round_suffix}.md` — structured internal tracker keyed by `REF-*` issues, change locations, staged review outcomes, and new-calculation status
 - `GPD/review/REFEREE_RESPONSE{round_suffix}.md` — journal-facing response letter built from the template
+
+Those two GPD-owned response artifacts stay canonical even when the manuscript subject is explicit or external. Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source.
 
 Populate `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with paper metadata, decision summaries, mirrored per-comment classification/status fields from the canonical response templates, blocking items from `REVIEW-LEDGER*.json` when available, and the progress tracking table. Leave response and changes-made fields empty until the later draft/revision step fills them.
 
@@ -451,7 +465,7 @@ Apply the shared publication response-writer handoff exactly before treating the
 @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
 Read the completed `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` (all comments should have status "Response drafted" or "Final"). Treat those files as complete only if the expected mirrored artifacts exist on disk and the orchestrator has aggregated every section handoff: the revised section file exists, both response artifacts exist, and the fresh child `gpd_return.files_written` for that section names all required outputs. Do not rely on stale pre-existing edits or prose completion alone.
-Those two Markdown artifacts under `GPD/` are the canonical required outputs for this workflow. `${PAPER_DIR}/response-letter.tex` or `${PAPER_DIR}/response-letter.md` is optional and should be generated only when the journal or user asked for a manuscript-local submission companion.
+Those two Markdown artifacts under `GPD/` are the canonical required outputs for this workflow. `${PAPER_DIR}/response-letter.tex` or `${PAPER_DIR}/response-letter.md` is optional and should be generated only when the journal or user asked for a manuscript-local submission companion. If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under `GPD/` and do not write sidecars beside that external manuscript unless the main integration later exposes a subject-local export hook.
 
 **If any Group C items are still pending:** Warn the user before generating:
 
@@ -460,7 +474,7 @@ Those two Markdown artifacts under `GPD/` are the canonical required outputs for
 "work in progress." Complete them with gpd:execute-phase before resubmission.
 ```
 
-If a manuscript-local response letter companion is required, write `${PAPER_DIR}/response-letter.tex` (or `.md` depending on journal requirements):
+If a manuscript-local response letter companion is required for a project-backed manuscript, write `${PAPER_DIR}/response-letter.tex` (or `.md` depending on journal requirements):
 
 ```latex
 \documentclass[12pt]{article}

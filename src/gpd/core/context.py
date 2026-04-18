@@ -61,7 +61,11 @@ from gpd.core.conventions import is_bogus_value
 from gpd.core.errors import ValidationError
 from gpd.core.extras import approximation_list
 from gpd.core.knowledge_runtime import discover_knowledge_docs
-from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
+from gpd.core.manuscript_artifacts import (
+    resolve_current_manuscript_entrypoint,
+    resolve_current_publication_subject,
+    resolve_publication_bootstrap_resolution,
+)
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.project_reentry import (
     ProjectReentryCandidate,
@@ -368,6 +372,26 @@ _WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS = frozenset(
         "derived_manuscript_proof_review_status",
     }
 )
+_WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS = frozenset(
+    {
+        "publication_subject",
+        "publication_subject_status",
+        "publication_subject_source",
+        "publication_subject_detail",
+        "publication_artifact_base",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "publication_bootstrap",
+        "publication_bootstrap_mode",
+        "publication_bootstrap_root",
+        "publication_bootstrap_detail",
+    }
+)
 _WRITE_PAPER_REFERENCE_RUNTIME_FIELDS = frozenset(
     {
         *_WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS,
@@ -406,6 +430,7 @@ _WRITE_PAPER_INIT_FIELDS = frozenset(
         *_WRITE_PAPER_BASE_INIT_FIELDS,
         *_WRITE_PAPER_CONTRACT_GATE_FIELDS,
         *_WRITE_PAPER_REFERENCE_RUNTIME_FIELDS,
+        *_WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS,
         *_WRITE_PAPER_STATE_MEMORY_FIELDS,
         *_WRITE_PAPER_FILE_CONTENT_FIELDS,
     }
@@ -1840,6 +1865,8 @@ def _build_publication_bootstrap_runtime_context(
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Build the lightweight contract/bundle/manuscript-status payload for publication bootstrap."""
+    publication_subject = resolve_current_publication_subject(cwd, allow_markdown=True)
+    publication_bootstrap = resolve_publication_bootstrap_resolution(cwd, allow_markdown=True)
     contract, project_contract_load_info = _load_project_contract(cwd)
     derived_references = _serialize_active_references(contract)
     effective_reference_intake = _merge_reference_intake(contract, {}, derived_references)
@@ -1878,14 +1905,16 @@ def _build_publication_bootstrap_runtime_context(
     )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     selected_protocol_bundles = select_protocol_bundles(project_text, authoritative_contract)
-    manuscript_reference_status = ingest_manuscript_reference_status(cwd)
+    manuscript_reference_status = ingest_manuscript_reference_status(cwd, publication_subject=publication_subject)
     manuscript_proof_review_status = resolve_manuscript_proof_review_status(
         cwd,
+        publication_subject.manuscript_entrypoint,
         persist_manifest=persist_manuscript_proof_review_manifest,
     )
     derived_manuscript_reference_status = {
         record.reference_id: record.to_context_dict() for record in manuscript_reference_status.reference_status
     }
+    publication_bootstrap_payload = publication_bootstrap.to_context_dict()
     return {
         "project_contract": visible_context_contract.model_dump(mode="json")
         if visible_context_contract is not None
@@ -1893,6 +1922,11 @@ def _build_publication_bootstrap_runtime_context(
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
+        **publication_subject.to_bootstrap_context_dict(),
+        "publication_bootstrap": publication_bootstrap_payload,
+        "publication_bootstrap_mode": publication_bootstrap_payload["mode"],
+        "publication_bootstrap_root": publication_bootstrap_payload["bootstrap_root"],
+        "publication_bootstrap_detail": publication_bootstrap_payload["detail"],
         "selected_protocol_bundle_ids": [bundle.bundle_id for bundle in selected_protocol_bundles],
         "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles),
         "active_reference_context": _render_active_reference_context(
@@ -3753,10 +3787,13 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     needs_full_reference_context = bool(required_fields & _WRITE_PAPER_REFERENCE_RUNTIME_FIELDS)
     needs_bootstrap_reference_context = bool(required_fields & _WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS)
     needs_contract_gate_context = bool(required_fields & _WRITE_PAPER_CONTRACT_GATE_FIELDS)
+    needs_publication_bootstrap_context = bool(required_fields & _WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS)
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    elif needs_bootstrap_reference_context or needs_contract_gate_context:
+    elif needs_bootstrap_reference_context or needs_contract_gate_context or needs_publication_bootstrap_context:
+        staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
+    if needs_full_reference_context and needs_publication_bootstrap_context:
         staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
 
     if required_fields & _WRITE_PAPER_STATE_MEMORY_FIELDS:

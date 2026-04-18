@@ -253,10 +253,14 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert "Empty optional fields may be omitted." in note
     assert "strict booleans" in command_note.lower()
-    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper" in command_note
+    assert (
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper"
+        in command_note
+    )
     assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;" in command_note
     assert (
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
@@ -266,7 +270,11 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert "`requires` is a closed mapping when present; only `files` is supported." in command_note
     assert "`requires.files` is a string or list of strings." in command_note
     assert "Empty optional fields may be omitted." in command_note
-    assert "Typed command policy is additive in Phase 1" in command_note
+    assert "Typed command policy is runtime-authoritative for publication-command intake in Phase 2" in command_note
+    assert (
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes"
+        in command_note
+    )
     for value in VALID_CONTEXT_MODES:
         assert value in command_note
     for value in command_agent_labels:
@@ -292,6 +300,7 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert "`scope_variants[].relaxed_preflight_checks` and `scope_variants[].optional_preflight_checks`" in note
     assert "Each `scope_variants[].scope` value may appear at most once." in note
     assert "Each scope variant must declare at least one non-empty override or preflight field." in note
+    assert "Runtime applies active scope variants additively" in note
 
 
 @pytest.mark.parametrize(
@@ -375,7 +384,9 @@ def test_review_contract_renderer_rejects_frontmatter_wrapper_alias() -> None:
 
 
 def test_review_contract_renderer_rejects_unknown_nested_conditional_keys() -> None:
-    with pytest.raises(ValueError, match=r"Unknown review-contract field\(s\): conditional_requirements\[0\]\.legacy_note"):
+    with pytest.raises(
+        ValueError, match=r"Unknown review-contract field\(s\): conditional_requirements\[0\]\.legacy_note"
+    ):
         render_review_contract_prompt(
             {
                 "schema_version": 1,
@@ -449,7 +460,10 @@ def test_review_contract_visibility_note_surfaces_the_hard_constraints() -> None
     assert f"`preflight_checks` entries must be {preflight_checks};" in note
     assert "`conditional_requirements[].blocking_preflight_checks` is a list when present" in note
     assert "appear in the top-level `preflight_checks` list." in note
-    assert "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present." in note
+    assert (
+        "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present."
+        in note
+    )
 
 
 @pytest.mark.parametrize(
@@ -520,7 +534,10 @@ def test_review_contract_payload_elides_blank_required_state() -> None:
             {
                 "schema_version": 1,
                 "review_mode": "publication",
-                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md", "GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "required_outputs": [
+                    "GPD/review/PROOF-REDTEAM{round_suffix}.md",
+                    "GPD/review/PROOF-REDTEAM{round_suffix}.md",
+                ],
             },
             "required_outputs must not contain duplicates",
         ),
@@ -530,7 +547,10 @@ def test_review_contract_payload_elides_blank_required_state() -> None:
                 "review-contract": {
                     "schema_version": 1,
                     "review_mode": "publication",
-                    "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md", "GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                    "required_outputs": [
+                        "GPD/review/PROOF-REDTEAM{round_suffix}.md",
+                        "GPD/review/PROOF-REDTEAM{round_suffix}.md",
+                    ],
                 }
             },
             "required_outputs must not contain duplicates",
@@ -1151,12 +1171,61 @@ def test_respond_to_referees_review_contract_uses_round_suffixed_output_paths() 
         "GPD/review/REFEREE_RESPONSE{round_suffix}.md",
         "GPD/AUTHOR-RESPONSE{round_suffix}.md",
     ]
+    assert contract.scope_variants == [
+        registry.ReviewContractScopeVariant(
+            scope="explicit_external_manuscript",
+            activation="explicit `--manuscript` subject outside the current project's canonical manuscript roots",
+            relaxed_preflight_checks=["project_state", "conventions"],
+            required_evidence_override=["explicit manuscript subject", "one or more referee report sources"],
+            blocking_conditions_override=[
+                "missing manuscript subject",
+                "missing referee report source",
+                "degraded review integrity",
+            ],
+        )
+    ]
     respond_command = _read_command("respond-to-referees")
     respond_workflow = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in respond_command
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in respond_command
+    assert "scope_variants:" in respond_command
+    assert "scope: explicit_external_manuscript" in respond_command
     assert "templates/paper/author-response.md" in respond_workflow
     assert "needs-calculation" in respond_workflow
+
+
+def test_respond_to_referees_command_policy_surfaces_explicit_manuscript_and_report_inputs() -> None:
+    command = registry.get_command("respond-to-referees")
+
+    assert command.context_mode == "project-aware"
+    assert command.command_policy == registry.CommandPolicy(
+        schema_version=1,
+        subject_policy=registry.CommandSubjectPolicy(
+            subject_kind="publication",
+            resolution_mode="explicit_or_project_manuscript",
+            explicit_input_kinds=["manuscript_path", "referee_report_path", "pasted_referee_report"],
+            allow_external_subjects=True,
+            supported_roots=["paper", "manuscript", "draft"],
+            allowed_suffixes=[".tex", ".md"],
+        ),
+        supporting_context_policy=registry.CommandSupportingContextPolicy(
+            project_context_mode="project-aware",
+            project_reentry_mode="disallowed",
+            required_file_patterns=[
+                "paper/*.tex",
+                "paper/*.md",
+                "manuscript/*.tex",
+                "manuscript/*.md",
+                "draft/*.tex",
+                "draft/*.md",
+            ],
+        ),
+        output_policy=registry.CommandOutputPolicy(
+            output_mode="managed",
+            managed_root_kind="gpd_managed_durable",
+            default_output_subtree="GPD",
+        ),
+    )
 
 
 def test_write_paper_review_contract_uses_round_suffixed_referee_outputs() -> None:
@@ -1248,8 +1317,14 @@ def test_verification_template_surfaces_strict_passed_and_blocked_semantics() ->
 
     assert "status: passed` is strict" in verification_template
     assert "every required decisive comparison is decisive" in verification_template
-    assert "If decisive work remains open, use `partial`, `gaps_found`, `expert_needed`, or `human_needed`" in verification_template
-    assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally." in verification_template
+    assert (
+        "If decisive work remains open, use `partial`, `gaps_found`, `expert_needed`, or `human_needed`"
+        in verification_template
+    )
+    assert (
+        "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally."
+        in verification_template
+    )
     assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
     assert "Proof-backed claims follow the proof-audit rules in the canonical schema" in verification_template
 
@@ -1257,16 +1332,34 @@ def test_verification_template_surfaces_strict_passed_and_blocked_semantics() ->
 def test_research_verification_template_surfaces_non_empty_uncertainty_markers() -> None:
     research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
 
-    assert "Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract." in research_verification
-    assert "verification-side `suggested_contract_checks` entries are part of the same canonical schema surface" in research_verification
+    assert (
+        "Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract."
+        in research_verification
+    )
+    assert (
+        "verification-side `suggested_contract_checks` entries are part of the same canonical schema surface"
+        in research_verification
+    )
     assert "comparison_kind: benchmark" in research_verification
     assert "Allowed body enum values:" in research_verification
     assert "`comparison_kind`: benchmark|prior_work|experiment|cross_method|baseline|other" in research_verification
-    assert "comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | other]" not in research_verification
-    assert "comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | other | \"\"]" not in research_verification
+    assert (
+        "comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | other]"
+        not in research_verification
+    )
+    assert (
+        'comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | other | ""]'
+        not in research_verification
+    )
     assert 'comparison_kind: "benchmark"' in research_verification
-    assert 'comparison_kind: "benchmark | prior_work | experiment | cross_method | baseline | other"' not in research_verification
-    assert "omit both `comparison_kind` and `comparison_reference_id` instead of leaving blank placeholders" in research_verification
+    assert (
+        'comparison_kind: "benchmark | prior_work | experiment | cross_method | baseline | other"'
+        not in research_verification
+    )
+    assert (
+        "omit both `comparison_kind` and `comparison_reference_id` instead of leaving blank placeholders"
+        in research_verification
+    )
     assert "uncertainty_markers:" in research_verification
     assert "weakest_anchors: [anchor-1]" in research_verification
     assert "disconfirming_observations: [observation-1]" in research_verification
@@ -1354,7 +1447,10 @@ def test_comparison_templates_match_full_comparison_verdict_subject_kind_enum() 
     assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Only `subject_role: decisive` closes a decisive requirement" in internal
     assert "Only `subject_role: decisive` closes a decisive requirement" in experimental
-    assert "Must be the canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
+    assert (
+        "Must be the canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path"
+        in contract_results
+    )
 
 
 def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggested_check_keys() -> None:
@@ -1373,7 +1469,10 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
     assert "weakest_anchors: [anchor-1]" in contract_results
     assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Invented keys such as `check_id` fail validation." in contract_results
-    assert "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field" in contract_results
+    assert (
+        "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field"
+        in contract_results
+    )
     assert "comparison_verdicts" in verification_template
     assert "suggested_contract_checks" in verification_template
 
@@ -1399,7 +1498,10 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
         "`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root."
         in state_schema
     )
-    assert "If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root." in state_schema
+    assert (
+        "If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root."
+        in state_schema
+    )
     assert '"must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"]' in state_schema
     assert "`GPD/phases/.../*-SUMMARY.md`" not in state_schema
     assert "`GPD/phases/.../SUMMARY.md`" not in state_schema
@@ -1411,11 +1513,11 @@ def test_prompt_visible_contracts_surface_literal_boolean_requirements() -> None
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
 
     assert "`required_in_proof` must be a literal JSON boolean (`true` or `false`)" in plan_schema
-    assert "not a quoted string or synonym such as `\"yes\"` / `\"no\"`" in plan_schema
+    assert 'not a quoted string or synonym such as `"yes"` / `"no"`' in plan_schema
     assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in review_reader
     assert "shared source of truth for the full `ClaimIndex` and `StageReviewReport` contracts" in review_reader
     assert "`blocking` in each finding must be a literal JSON boolean (`true` or `false`)" in panel
-    assert "not a quoted string or synonym such as `\"yes\"` / `\"no\"`" in panel
+    assert 'not a quoted string or synonym such as `"yes"` / `"no"`' in panel
 
 
 def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round_suffix_rules() -> None:
@@ -1440,7 +1542,10 @@ def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round
     assert "proof_audits" in panel
     assert "theorem_assumptions" in panel
     assert "theorem_parameters" in panel
-    assert "Strict-stage specialist artifacts must use canonical names `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, `STAGE-interestingness`." in panel
+    assert (
+        "Strict-stage specialist artifacts must use canonical names `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, `STAGE-interestingness`."
+        in panel
+    )
     assert "all five must share the same optional `-R<round>` suffix." in panel
     assert "every theorem-bearing Stage 1 claim must be reviewed and proof-audited" in panel
     assert "every theorem-bearing Stage 1 claim must be reviewed and proof-audited" in review_math

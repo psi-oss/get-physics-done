@@ -258,6 +258,57 @@ def _write_submission_review_package(
     return root
 
 
+def _write_review_round(
+    project_root: Path,
+    *,
+    manuscript_path: str,
+    round_number: int = 1,
+    final_recommendation: str = "major_revision",
+    blocking_issue_ids: list[str] | None = None,
+) -> None:
+    review_dir = project_root / "GPD" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    (review_dir / f"REVIEW-LEDGER{round_suffix}.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": round_number,
+                "manuscript_path": manuscript_path,
+                "issues": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / f"REFEREE-DECISION{round_suffix}.json").write_text(
+        json.dumps(
+            {
+                "manuscript_path": manuscript_path,
+                "target_journal": "jhep",
+                "final_recommendation": final_recommendation,
+                "final_confidence": "medium",
+                "stage_artifacts": [],
+                "central_claims_supported": True,
+                "claim_scope_proportionate_to_evidence": True,
+                "physical_assumptions_justified": True,
+                "proof_audit_coverage_complete": True,
+                "theorem_proof_alignment_adequate": True,
+                "unsupported_claims_are_central": False,
+                "reframing_possible_without_new_results": True,
+                "mathematical_correctness": "adequate",
+                "novelty": "adequate",
+                "significance": "adequate",
+                "venue_fit": "adequate",
+                "literature_positioning": "adequate",
+                "unresolved_major_issues": 0,
+                "unresolved_minor_issues": 0,
+                "blocking_issue_ids": blocking_issue_ids or [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 # ─── No Project ────────────────────────────────────────────────────────────────
 
 
@@ -334,7 +385,9 @@ def test_format_command_matches_shared_runtime_surface_helper_for_suggest_next(t
     assert result == format_active_runtime_command("suggest-next", cwd=workspace, fallback=None)
 
 
-def test_format_command_falls_back_to_local_cli_for_unknown_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_format_command_falls_back_to_local_cli_for_unknown_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Unknown runtime detection should preserve the local CLI fallback surface."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -803,6 +856,25 @@ def test_markdown_referee_report_suggests_response_without_arxiv_submission(tmp_
     assert "arxiv-submission" not in actions
 
 
+def test_legacy_review_dir_referee_report_still_suggests_response_during_migration(tmp_path: Path) -> None:
+    root = _write_submission_review_package(tmp_path, theorem_bearing=False, review_report=False)
+    _create_roadmap(root)
+    review_dir = root / "GPD" / "review"
+    _write_review_round(
+        root,
+        manuscript_path=manuscript_relpath(),
+        final_recommendation="major_revision",
+    )
+    (review_dir / "REFEREE-REPORT.md").write_text("Major revision needed.\n", encoding="utf-8")
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "respond-to-referees" in actions
+    assert "peer-review" not in actions
+    assert "arxiv-submission" not in actions
+
+
 def test_author_response_and_accepted_decision_clear_referee_response_suggestion(tmp_path: Path) -> None:
     root = _write_submission_review_package(tmp_path, theorem_bearing=False, review_report=True)
     _create_roadmap(root)
@@ -827,7 +899,10 @@ def test_blocking_accepted_decision_does_not_suggest_arxiv_submission(tmp_path: 
                 "target_journal": "jhep",
                 "final_recommendation": "accept",
                 "final_confidence": "high",
-                "stage_artifacts": [f"GPD/review/STAGE-{stage}.json" for stage in ("reader", "literature", "math", "physics", "interestingness")],
+                "stage_artifacts": [
+                    f"GPD/review/STAGE-{stage}.json"
+                    for stage in ("reader", "literature", "math", "physics", "interestingness")
+                ],
                 "central_claims_supported": True,
                 "claim_scope_proportionate_to_evidence": True,
                 "physical_assumptions_justified": True,
@@ -894,6 +969,23 @@ def test_review_package_for_different_active_manuscript_does_not_suggest_arxiv_s
     actions = [s.action for s in result.suggestions]
 
     assert "arxiv-submission" not in actions
+
+
+def test_newer_review_round_for_different_manuscript_does_not_block_submission_suggestion(tmp_path: Path) -> None:
+    root = _write_submission_review_package(tmp_path, theorem_bearing=False, review_report=False)
+    _create_roadmap(root)
+    _write_review_round(
+        root,
+        manuscript_path="submission/other.tex",
+        round_number=2,
+        final_recommendation="major_revision",
+    )
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "arxiv-submission" in actions
+    assert "respond-to-referees" not in actions
 
 
 def test_missing_submission_support_artifacts_do_not_suggest_arxiv_submission(tmp_path: Path) -> None:

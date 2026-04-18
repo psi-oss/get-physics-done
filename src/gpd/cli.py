@@ -485,20 +485,34 @@ class ManuscriptIntakePolicy:
 
 @dataclasses.dataclass(frozen=True)
 class PublicationSubjectPreflightPolicy:
-    """Publication preflight relaxations for commands reviewing external artifacts."""
+    """Publication preflight relaxations and scope overrides derived from the active subject."""
 
-    external_artifact: bool = False
+    active_scopes: frozenset[str] = frozenset()
+    relaxed_checks: frozenset[str] = frozenset()
+    optional_checks: frozenset[str] = frozenset()
+    detail_overrides: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    required_outputs: tuple[str, ...] = ()
+    required_evidence: tuple[str, ...] = ()
+    blocking_conditions: tuple[str, ...] = ()
 
     def relaxes(self, check_name: str) -> bool:
-        return self.external_artifact and check_name in _PEER_REVIEW_EXTERNAL_OPTIONAL_CHECKS
+        return check_name in self.relaxed_checks
+
+    def makes_missing_optional(self, check_name: str) -> bool:
+        return check_name in self.optional_checks
+
+    def passes_when_missing(self, check_name: str) -> bool:
+        return self.relaxes(check_name) or self.makes_missing_optional(check_name)
 
     def detail(self, check_name: str) -> str | None:
-        if not self.external_artifact:
-            return None
-        return _PEER_REVIEW_EXTERNAL_OPTIONAL_DETAILS.get(check_name)
+        return self.detail_overrides.get(check_name)
 
-    def blocking(self, check_name: str, *, default: bool = True) -> bool:
-        return False if self.relaxes(check_name) else default
+    def blocking(self, check_name: str, *, missing: bool = False, default: bool = True) -> bool:
+        if self.relaxes(check_name):
+            return False
+        if missing and self.makes_missing_optional(check_name):
+            return False
+        return default
 
     def missing_detail(self, check_name: str, *, default: str) -> str:
         detail = self.detail(check_name)
@@ -506,27 +520,31 @@ class PublicationSubjectPreflightPolicy:
 
 
 _SUPPORTED_MANUSCRIPT_ROOT_NAMES = frozenset({"paper", "manuscript", "draft"})
-_PEER_REVIEW_EXTRA_MANUSCRIPT_SUFFIXES = frozenset({".txt", ".pdf"})
-_PEER_REVIEW_INTERACTIVE_STANDALONE_DETAIL = (
+_DEFAULT_PUBLICATION_EXTERNAL_SUFFIXES = frozenset({".txt", ".pdf"})
+_PUBLICATION_INTERACTIVE_STANDALONE_DETAIL = (
     "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
     "or use the current GPD project when available"
 )
-_PEER_REVIEW_EXTERNAL_OPTIONAL_CHECKS = frozenset(
+_EXTERNAL_ARTIFACT_RELAXED_CHECKS = frozenset(
     {
         "project_state",
         "roadmap",
         "conventions",
         "research_artifacts",
         "verification_reports",
+        "manuscript_proof_review",
+    }
+)
+_EXTERNAL_ARTIFACT_OPTIONAL_CHECKS = frozenset(
+    {
         "artifact_manifest",
         "bibliography_audit",
         "bibliography_audit_clean",
         "reproducibility_manifest",
         "reproducibility_ready",
-        "manuscript_proof_review",
     }
 )
-_PEER_REVIEW_EXTERNAL_OPTIONAL_DETAILS = {
+_EXTERNAL_ARTIFACT_OPTIONAL_DETAILS = {
     "project_state": "external artifact review: project state is optional and is not required to start review",
     "roadmap": "external artifact review: roadmap is optional",
     "conventions": "external artifact review: project conventions are optional",
@@ -6699,7 +6717,6 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
         ["knowledge file path, source file path, arXiv ID, or topic"],
         _has_digest_knowledge_explicit_inputs,
     ),
-    "gpd:peer-review": (["paper directory, manuscript path, or external artifact path"], _has_simple_positional_inputs),
     "gpd:review-knowledge": (
         ["knowledge document path or canonical K-* knowledge id"],
         _has_review_knowledge_explicit_inputs,
@@ -6775,8 +6792,107 @@ def _active_runtime_settings_command(*, cwd: Path | None = None) -> str:
     )
 
 
+def _command_review_contract(command: object) -> object | None:
+    return getattr(command, "review_contract", None)
+
+
+def _command_review_mode(command: object) -> str:
+    return str(getattr(_command_review_contract(command), "review_mode", "") or "").strip()
+
+
+def _command_subject_policy(command: object) -> object | None:
+    command_policy = getattr(command, "command_policy", None)
+    return getattr(command_policy, "subject_policy", None)
+
+
+def _command_supporting_context_policy(command: object) -> object | None:
+    command_policy = getattr(command, "command_policy", None)
+    return getattr(command_policy, "supporting_context_policy", None)
+
+
+def _command_policy_string_list(policy: object | None, field_name: str) -> list[str]:
+    if policy is None:
+        return []
+    raw_value = getattr(policy, field_name, None)
+    if not isinstance(raw_value, tuple | list):
+        return []
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for item in raw_value:
+        value = str(item or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _command_policy_bool(policy: object | None, field_name: str) -> bool | None:
+    if policy is None:
+        return None
+    value = getattr(policy, field_name, None)
+    return value if isinstance(value, bool) else None
+
+
+def _command_effective_context_mode(command: object) -> str:
+    """Return the runtime-authoritative context mode for one command."""
+    if _command_review_mode(command) == "publication":
+        supporting_context_policy = _command_supporting_context_policy(command)
+        project_context_mode = str(getattr(supporting_context_policy, "project_context_mode", "") or "").strip()
+        if project_context_mode:
+            return project_context_mode
+    return str(getattr(command, "context_mode", "project-required") or "project-required")
+
+
+def _command_effective_project_reentry_mode(command: object) -> str:
+    """Return the runtime-authoritative project re-entry mode for one command."""
+    if _command_review_mode(command) == "publication":
+        supporting_context_policy = _command_supporting_context_policy(command)
+        project_reentry_mode = str(getattr(supporting_context_policy, "project_reentry_mode", "") or "").strip()
+        if project_reentry_mode:
+            return project_reentry_mode
+    return "allowed" if bool(getattr(command, "project_reentry_capable", False)) else "disallowed"
+
+
+_PUBLICATION_INPUT_KIND_LABELS = {
+    "artifact_path": ["external artifact path"],
+    "manuscript_path": ["manuscript path"],
+    "manuscript_root": ["paper directory"],
+    "paste": ["`paste`"],
+    "paste_referee_report": ["`paste`"],
+    "publication_artifact_path": ["external artifact path"],
+    "referee_report_path": ["path to referee report"],
+    "referee_report_source": ["path to referee report"],
+}
+
+
+def _publication_input_kind_labels(input_kind: str) -> list[str]:
+    canonical = re.sub(r"[^a-z0-9]+", "_", input_kind.casefold()).strip("_")
+    labels = _PUBLICATION_INPUT_KIND_LABELS.get(canonical)
+    if labels is not None:
+        return labels
+    return [input_kind.replace("_", " ")]
+
+
+def _command_explicit_input_labels_from_policy(command: object) -> list[str]:
+    subject_policy = _command_subject_policy(command)
+    labels: list[str] = []
+    seen: set[str] = set()
+    for input_kind in _command_policy_string_list(subject_policy, "explicit_input_kinds"):
+        for label in _publication_input_kind_labels(input_kind):
+            if label in seen:
+                continue
+            seen.add(label)
+            labels.append(label)
+    return labels
+
+
 def _command_required_file_patterns(command: object) -> list[str]:
-    """Return normalized ``requires.files`` patterns from command metadata."""
+    """Return runtime-authoritative required file patterns for one command."""
+    if _command_review_mode(command) == "publication":
+        supporting_context_policy = _command_supporting_context_policy(command)
+        if supporting_context_policy is not None:
+            return _command_policy_string_list(supporting_context_policy, "required_file_patterns")
     requires = getattr(command, "requires", None)
     if not isinstance(requires, Mapping):
         return []
@@ -6889,18 +7005,25 @@ def _command_requires_compiled_manuscript(command: object) -> bool:
 
 def _command_manuscript_intake_policy(command: object) -> ManuscriptIntakePolicy:
     """Return manuscript-target intake rules derived from command metadata."""
-    allowed_suffixes = {".tex"}
-    if not _command_requires_compiled_manuscript(command):
-        allowed_suffixes.add(".md")
-    if getattr(command, "name", "") == "gpd:peer-review":
-        allowed_suffixes.update(_PEER_REVIEW_EXTRA_MANUSCRIPT_SUFFIXES)
-        return ManuscriptIntakePolicy(
-            allowed_suffixes=frozenset(allowed_suffixes),
-            allow_external_targets=True,
-            allow_interactive_standalone_intake=True,
-            interactive_standalone_detail=_PEER_REVIEW_INTERACTIVE_STANDALONE_DETAIL,
-        )
-    return ManuscriptIntakePolicy(allowed_suffixes=frozenset(allowed_suffixes))
+    subject_policy = _command_subject_policy(command)
+    allowed_suffixes = set(_command_policy_string_list(subject_policy, "allowed_suffixes"))
+    if not allowed_suffixes:
+        allowed_suffixes = {".tex"}
+        if not _command_requires_compiled_manuscript(command):
+            allowed_suffixes.add(".md")
+    allow_external_targets = _command_policy_bool(subject_policy, "allow_external_subjects")
+    allow_interactive_without_subject = _command_policy_bool(
+        subject_policy,
+        "allow_interactive_without_subject",
+    )
+    return ManuscriptIntakePolicy(
+        allowed_suffixes=frozenset(allowed_suffixes),
+        allow_external_targets=bool(allow_external_targets),
+        allow_interactive_standalone_intake=bool(allow_interactive_without_subject),
+        interactive_standalone_detail=(
+            _PUBLICATION_INTERACTIVE_STANDALONE_DETAIL if allow_interactive_without_subject else ""
+        ),
+    )
 
 
 def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
@@ -6924,9 +7047,13 @@ def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -
         return False
     if _command_allows_external_manuscript_targets(command):
         return False
-
-    roots = {Path(pattern).parts[0] for pattern in _command_required_file_patterns(command) if Path(pattern).parts}
-    return bool(roots) and roots <= _SUPPORTED_MANUSCRIPT_ROOT_NAMES
+    subject_policy = _command_subject_policy(command)
+    supported_roots = {root for root in _command_policy_string_list(subject_policy, "supported_roots") if root}
+    if not supported_roots:
+        supported_roots = {
+            Path(pattern).parts[0] for pattern in _command_required_file_patterns(command) if Path(pattern).parts
+        }
+    return bool(supported_roots) and supported_roots <= _SUPPORTED_MANUSCRIPT_ROOT_NAMES
 
 
 def _command_supports_explicit_manuscript_subject(command: object) -> bool:
@@ -6936,11 +7063,19 @@ def _command_supports_explicit_manuscript_subject(command: object) -> bool:
         return False
     if _review_contract_requests_check(contract, "referee_report_source"):
         return False
+    subject_policy = _command_subject_policy(command)
+    input_kinds = set(_command_policy_string_list(subject_policy, "explicit_input_kinds"))
+    if input_kinds.intersection({"artifact_path", "manuscript_path", "manuscript_root", "publication_artifact_path"}):
+        return True
     return bool(_command_required_file_patterns(command))
 
 
 def _command_allows_manuscript_bootstrap(command: object) -> bool:
     """Return whether missing manuscript roots are expected to be bootstrapped."""
+    subject_policy = _command_subject_policy(command)
+    bootstrap_allowed = _command_policy_bool(subject_policy, "bootstrap_allowed")
+    if bootstrap_allowed is not None:
+        return bootstrap_allowed
     contract = getattr(command, "review_contract", None)
     return (
         _command_requires_manuscript_context(command)
@@ -7155,10 +7290,8 @@ def _canonical_command_name(command_name: str) -> str:
 
 def _command_supports_project_reentry(command: object) -> bool:
     """Return whether one registry command can recover a project root before execution."""
-    explicit = getattr(command, "project_reentry_capable", None)
-    if isinstance(explicit, bool):
-        return explicit
-    return False
+    project_reentry_mode = _command_effective_project_reentry_mode(command).casefold()
+    return project_reentry_mode not in {"", "disallowed", "false", "none"}
 
 
 def _resolve_registry_command(command_name: str) -> tuple[object, str]:
@@ -7178,20 +7311,117 @@ def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) 
     return bool(relative.parts) and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES
 
 
+def _normalize_review_scope_selector(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
+
+
+def _resolved_subject_scope_selectors(resolved_subject: ResolvedCommandSubject | None) -> frozenset[str]:
+    if resolved_subject is None:
+        return frozenset()
+
+    selectors: set[str] = set()
+    ownership_mode = _normalize_review_scope_selector(resolved_subject.ownership_mode)
+    if ownership_mode:
+        selectors.add(ownership_mode)
+    status = _normalize_review_scope_selector(resolved_subject.status)
+    if status:
+        selectors.add(status)
+    if resolved_subject.explicit_input:
+        selectors.add("explicit_input")
+        if resolved_subject.subject_kind == "manuscript":
+            selectors.add("explicit_manuscript")
+    if resolved_subject.ancestor_walked_up:
+        selectors.add("ancestor_project")
+    if resolved_subject.ownership_mode in {"project_backed", "project_reentry_selected"}:
+        selectors.add("project_backed")
+    if resolved_subject.ownership_mode == "external_artifact":
+        selectors.update(
+            {
+                "explicit_artifact",
+                "explicit_external_manuscript",
+                "explicit_external_subject",
+                "external_artifact",
+            }
+        )
+    if resolved_subject.status == "interactive":
+        selectors.update({"interactive", "interactive_standalone"})
+    return frozenset(selectors)
+
+
+def _active_review_contract_scope_variants(
+    contract: object,
+    *,
+    resolved_subject: ResolvedCommandSubject | None,
+) -> list[object]:
+    active_selectors = _resolved_subject_scope_selectors(resolved_subject)
+    active_variants: list[object] = []
+    for variant in list(getattr(contract, "scope_variants", []) or []):
+        scope = _normalize_review_scope_selector(str(getattr(variant, "scope", "") or ""))
+        if scope and scope in active_selectors:
+            active_variants.append(variant)
+    return active_variants
+
+
+def _effective_review_contract_scope_overrides(
+    contract: object,
+    *,
+    active_scope_variants: list[object],
+) -> tuple[list[str], list[str], list[str]]:
+    required_outputs = list(getattr(contract, "required_outputs", []) or [])
+    required_evidence = list(getattr(contract, "required_evidence", []) or [])
+    blocking_conditions = list(getattr(contract, "blocking_conditions", []) or [])
+    for variant in active_scope_variants:
+        outputs_override = list(getattr(variant, "required_outputs_override", []) or [])
+        if outputs_override:
+            required_outputs = outputs_override
+        evidence_override = list(getattr(variant, "required_evidence_override", []) or [])
+        if evidence_override:
+            required_evidence = evidence_override
+        blocking_override = list(getattr(variant, "blocking_conditions_override", []) or [])
+        if blocking_override:
+            blocking_conditions = blocking_override
+    return required_outputs, required_evidence, blocking_conditions
+
+
 def _publication_subject_preflight_policy(
     command: object,
     *,
     resolved_subject: ResolvedCommandSubject | None,
 ) -> PublicationSubjectPreflightPolicy:
     """Return publication preflight relaxations derived from the shared subject envelope."""
-    if getattr(command, "name", "") != "gpd:peer-review":
+    contract = _command_review_contract(command)
+    if _command_review_mode(command) != "publication":
         return PublicationSubjectPreflightPolicy()
+
+    active_scopes = _resolved_subject_scope_selectors(resolved_subject)
+    active_scope_variants = _active_review_contract_scope_variants(
+        contract,
+        resolved_subject=resolved_subject,
+    )
+    relaxed_checks: set[str] = set()
+    optional_checks: set[str] = set()
+    detail_overrides: dict[str, str] = {}
+    for variant in active_scope_variants:
+        relaxed_checks.update(list(getattr(variant, "relaxed_preflight_checks", []) or []))
+        optional_checks.update(list(getattr(variant, "optional_preflight_checks", []) or []))
+
+    if active_scopes.intersection({"explicit_artifact", "external_artifact"}):
+        for check_name, detail in _EXTERNAL_ARTIFACT_OPTIONAL_DETAILS.items():
+            if check_name in relaxed_checks or check_name in optional_checks:
+                detail_overrides.setdefault(check_name, detail)
+
+    required_outputs, required_evidence, blocking_conditions = _effective_review_contract_scope_overrides(
+        contract,
+        active_scope_variants=active_scope_variants,
+    )
     return PublicationSubjectPreflightPolicy(
-        external_artifact=(
-            resolved_subject is not None
-            and resolved_subject.subject_kind == "manuscript"
-            and resolved_subject.ownership_mode == "external_artifact"
-        )
+        active_scopes=active_scopes,
+        relaxed_checks=frozenset(relaxed_checks),
+        optional_checks=frozenset(optional_checks),
+        detail_overrides=detail_overrides,
+        required_outputs=tuple(required_outputs),
+        required_evidence=tuple(required_evidence),
+        blocking_conditions=tuple(blocking_conditions),
     )
 
 
@@ -7237,19 +7467,20 @@ def _build_command_context_preflight(
     project_exists = layout.project_md.exists()
     dispatch_note = _runtime_surface_dispatch_note(cwd=cwd)
     init_command = _active_runtime_new_project_command(cwd=cwd)
+    effective_context_mode = _command_effective_context_mode(command)
 
     checks: list[CommandContextCheck] = []
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool = True) -> None:
         checks.append(CommandContextCheck(name=name, passed=passed, detail=detail, blocking=blocking))
 
-    add_check("context_mode", True, f"context_mode={command.context_mode}", blocking=False)
+    add_check("context_mode", True, f"context_mode={effective_context_mode}", blocking=False)
 
-    if command.context_mode == "global":
+    if effective_context_mode == "global":
         add_check("project_context", True, "command runs without project context", blocking=False)
         return CommandContextPreflightResult(
             command=public_command_name,
-            context_mode=command.context_mode,
+            context_mode=effective_context_mode,
             passed=True,
             project_exists=project_exists,
             explicit_inputs=[],
@@ -7260,7 +7491,7 @@ def _build_command_context_preflight(
             dispatch_note=dispatch_note,
         )
 
-    if command.context_mode == "projectless":
+    if effective_context_mode == "projectless":
         add_check(
             "project_context",
             True,
@@ -7269,7 +7500,7 @@ def _build_command_context_preflight(
         )
         return CommandContextPreflightResult(
             command=public_command_name,
-            context_mode=command.context_mode,
+            context_mode=effective_context_mode,
             passed=True,
             project_exists=project_exists,
             explicit_inputs=[],
@@ -7280,7 +7511,7 @@ def _build_command_context_preflight(
             dispatch_note=dispatch_note,
         )
 
-    if command.context_mode == "project-required":
+    if effective_context_mode == "project-required":
         required_file_patterns = _command_required_file_patterns(command)
         if _command_supports_project_reentry(command):
             reentry = _status_command_reentry(cwd)
@@ -7429,7 +7660,7 @@ def _build_command_context_preflight(
             )
             return CommandContextPreflightResult(
                 command=public_command_name,
-                context_mode=command.context_mode,
+                context_mode=effective_context_mode,
                 passed=recoverable,
                 project_exists=project_exists,
                 explicit_inputs=[],
@@ -7520,7 +7751,7 @@ def _build_command_context_preflight(
         )
         return CommandContextPreflightResult(
             command=public_command_name,
-            context_mode=command.context_mode,
+            context_mode=effective_context_mode,
             passed=passed,
             project_exists=project_exists,
             explicit_inputs=[],
@@ -7532,13 +7763,16 @@ def _build_command_context_preflight(
             resolved_subject=resolved_subject,
         )
 
-    explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
-        command.name,
-        (
-            [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"],
-            _has_simple_positional_inputs,
-        ),
-    )
+    explicit_inputs = _command_explicit_input_labels_from_policy(command)
+    predicate: Callable[[str | None], bool] = _has_simple_positional_inputs
+    if not explicit_inputs:
+        explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
+            command.name,
+            (
+                [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"],
+                _has_simple_positional_inputs,
+            ),
+        )
     manuscript_intake_policy = _command_manuscript_intake_policy(command)
     resolved_subject = _build_resolved_command_subject(
         context_cwd,
@@ -7583,7 +7817,7 @@ def _build_command_context_preflight(
     guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
     return CommandContextPreflightResult(
         command=public_command_name,
-        context_mode=command.context_mode,
+        context_mode=effective_context_mode,
         passed=passed,
         project_exists=project_exists,
         explicit_inputs=explicit_inputs,
@@ -7658,11 +7892,26 @@ def _build_review_preflight(
         project_root_auto_selected=False,
         reentry_mode="current-workspace" if layout.project_md.exists() else None,
     )
-    peer_review_policy = _publication_subject_preflight_policy(
+    subject_preflight_policy = _publication_subject_preflight_policy(
         command,
         resolved_subject=resolved_subject,
     )
-    context_detail = context_preflight.guidance or f"context_mode={command.context_mode}"
+    effective_required_outputs = (
+        list(subject_preflight_policy.required_outputs)
+        if subject_preflight_policy.required_outputs
+        else list(contract.required_outputs)
+    )
+    effective_required_evidence = (
+        list(subject_preflight_policy.required_evidence)
+        if subject_preflight_policy.required_evidence
+        else list(contract.required_evidence)
+    )
+    effective_blocking_conditions = (
+        list(subject_preflight_policy.blocking_conditions)
+        if subject_preflight_policy.blocking_conditions
+        else list(contract.blocking_conditions)
+    )
+    context_detail = context_preflight.guidance or f"context_mode={_command_effective_context_mode(command)}"
     if context_preflight.dispatch_note:
         context_detail = f"{context_detail}; {context_preflight.dispatch_note}"
     add_check(
@@ -7673,7 +7922,7 @@ def _build_review_preflight(
     )
 
     if "project_state" in contract.preflight_checks:
-        optional_detail = peer_review_policy.detail("project_state")
+        optional_detail = subject_preflight_policy.detail("project_state")
         if optional_detail is not None:
             add_check(
                 "project_state",
@@ -7700,7 +7949,7 @@ def _build_review_preflight(
                 add_check("state_integrity", validation.valid, detail, blocking=True)
 
     if "roadmap" in contract.preflight_checks:
-        optional_detail = peer_review_policy.detail("roadmap")
+        optional_detail = subject_preflight_policy.detail("roadmap")
         if optional_detail is not None:
             add_check("roadmap", True, optional_detail, blocking=False)
         else:
@@ -7715,7 +7964,7 @@ def _build_review_preflight(
             )
 
     if "conventions" in contract.preflight_checks:
-        optional_detail = peer_review_policy.detail("conventions")
+        optional_detail = subject_preflight_policy.detail("conventions")
         if optional_detail is not None:
             add_check("conventions", True, optional_detail, blocking=False)
         else:
@@ -7730,7 +7979,7 @@ def _build_review_preflight(
             )
 
     if "research_artifacts" in contract.preflight_checks:
-        optional_detail = peer_review_policy.detail("research_artifacts")
+        optional_detail = subject_preflight_policy.detail("research_artifacts")
         if optional_detail is not None:
             add_check(
                 "research_artifacts",
@@ -7742,7 +7991,7 @@ def _build_review_preflight(
                 add_check(
                     "verification_reports",
                     True,
-                    peer_review_policy.detail("verification_reports") or "verification reports are optional",
+                    subject_preflight_policy.detail("verification_reports") or "verification reports are optional",
                     blocking=False,
                 )
         else:
@@ -7865,12 +8114,14 @@ def _build_review_preflight(
                 reproducibility_manifest = publication_artifacts.reproducibility_manifest
 
                 if "artifact_manifest" in requested_publication_checks:
-                    artifact_manifest_detail = peer_review_policy.missing_detail(
+                    artifact_manifest_missing = artifact_manifest is None
+                    artifact_manifest_detail = subject_preflight_policy.missing_detail(
                         "artifact_manifest",
                         default="no ARTIFACT-MANIFEST.json found near the manuscript",
                     )
-                    artifact_manifest_passed = artifact_manifest is not None or peer_review_policy.relaxes(
-                        "artifact_manifest"
+                    artifact_manifest_passed = (
+                        artifact_manifest is not None
+                        or subject_preflight_policy.passes_when_missing("artifact_manifest")
                     )
                     if artifact_manifest is not None:
                         artifact_manifest_detail = f"{_format_display_path(artifact_manifest)} present"
@@ -7895,51 +8146,76 @@ def _build_review_preflight(
                         "artifact_manifest",
                         artifact_manifest_passed,
                         artifact_manifest_detail,
-                        blocking=peer_review_policy.blocking("artifact_manifest"),
+                        blocking=subject_preflight_policy.blocking(
+                            "artifact_manifest",
+                            missing=artifact_manifest_missing,
+                        ),
                     )
 
                 if "bibliography_audit" in requested_publication_checks:
-                    bibliography_missing_detail = peer_review_policy.missing_detail(
+                    bibliography_missing = bibliography_audit is None
+                    bibliography_missing_detail = subject_preflight_policy.missing_detail(
                         "bibliography_audit",
                         default="no BIBLIOGRAPHY-AUDIT.json found near the manuscript",
                     )
                     add_check(
                         "bibliography_audit",
-                        bibliography_audit is not None or peer_review_policy.relaxes("bibliography_audit"),
+                        bibliography_audit is not None
+                        or subject_preflight_policy.passes_when_missing("bibliography_audit"),
                         (
                             f"{_format_display_path(bibliography_audit)} present"
                             if bibliography_audit is not None
                             else bibliography_missing_detail
                         ),
-                        blocking=peer_review_policy.blocking("bibliography_audit"),
+                        blocking=subject_preflight_policy.blocking(
+                            "bibliography_audit",
+                            missing=bibliography_missing,
+                        ),
                     )
 
                 if "compiled_manuscript" in requested_publication_checks:
                     compiled_manuscript = manuscript.with_suffix(".pdf")
+                    compiled_manuscript_missing = not compiled_manuscript.exists()
                     add_check(
                         "compiled_manuscript",
-                        compiled_manuscript.exists(),
+                        compiled_manuscript.exists()
+                        or subject_preflight_policy.passes_when_missing("compiled_manuscript"),
                         (
                             f"{_format_display_path(compiled_manuscript)} present"
                             if compiled_manuscript.exists()
                             else f"missing compiled manuscript {_format_display_path(compiled_manuscript)}"
                         ),
-                        blocking=True,
+                        blocking=subject_preflight_policy.blocking(
+                            "compiled_manuscript",
+                            missing=compiled_manuscript_missing,
+                            default=True,
+                        ),
                     )
 
                 if "publication_blockers" in requested_publication_checks:
-                    publication_blockers = publication_blockers_for_project(project_cwd)
-                    add_check(
-                        "publication_blockers",
-                        not publication_blockers,
-                        (
-                            "no unresolved publication blockers"
-                            if not publication_blockers
-                            else f"{len(publication_blockers)} unresolved publication blocker(s): "
-                            + "; ".join(publication_blockers[:3])
-                        ),
-                        blocking=True,
-                    )
+                    if subject_preflight_policy.relaxes("publication_blockers"):
+                        add_check(
+                            "publication_blockers",
+                            True,
+                            subject_preflight_policy.missing_detail(
+                                "publication_blockers",
+                                default="publication blockers are optional for this intake",
+                            ),
+                            blocking=False,
+                        )
+                    else:
+                        publication_blockers = publication_blockers_for_project(project_cwd)
+                        add_check(
+                            "publication_blockers",
+                            not publication_blockers,
+                            (
+                                "no unresolved publication blockers"
+                                if not publication_blockers
+                                else f"{len(publication_blockers)} unresolved publication blocker(s): "
+                                + "; ".join(publication_blockers[:3])
+                            ),
+                            blocking=True,
+                        )
 
                 review_ledger = None
                 review_checks_requested = requested_publication_checks.intersection(
@@ -8138,26 +8414,31 @@ def _build_review_preflight(
                                     )
 
                 if "reproducibility_manifest" in requested_publication_checks:
-                    reproducibility_missing_detail = peer_review_policy.missing_detail(
+                    reproducibility_missing = reproducibility_manifest is None
+                    reproducibility_missing_detail = subject_preflight_policy.missing_detail(
                         "reproducibility_manifest",
                         default="no reproducibility manifest found near the manuscript",
                     )
                     add_check(
                         "reproducibility_manifest",
-                        reproducibility_manifest is not None or peer_review_policy.relaxes("reproducibility_manifest"),
+                        reproducibility_manifest is not None
+                        or subject_preflight_policy.passes_when_missing("reproducibility_manifest"),
                         (
                             f"{_format_display_path(reproducibility_manifest)} present"
                             if reproducibility_manifest is not None
                             else reproducibility_missing_detail
                         ),
-                        blocking=peer_review_policy.blocking("reproducibility_manifest"),
+                        blocking=subject_preflight_policy.blocking(
+                            "reproducibility_manifest",
+                            missing=reproducibility_missing,
+                        ),
                     )
 
                 if "manuscript_proof_review" in requested_publication_checks:
-                    if peer_review_policy.relaxes("manuscript_proof_review"):
+                    if subject_preflight_policy.relaxes("manuscript_proof_review"):
                         manuscript_proof_review_passed = True
                         manuscript_proof_review_blocking = False
-                        manuscript_proof_review_detail = peer_review_policy.missing_detail(
+                        manuscript_proof_review_detail = subject_preflight_policy.missing_detail(
                             "manuscript_proof_review",
                             default="prior staged manuscript proof review is optional for this intake",
                         )
@@ -8207,7 +8488,7 @@ def _build_review_preflight(
                         "bibliography_audit_clean",
                         clean,
                         detail,
-                        blocking=peer_review_policy.blocking("bibliography_audit_clean"),
+                        blocking=subject_preflight_policy.blocking("bibliography_audit_clean"),
                     )
                 if (
                     strict
@@ -8224,7 +8505,7 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             False,
                             f"could not validate reproducibility manifest: {exc}",
-                            blocking=peer_review_policy.blocking("reproducibility_ready"),
+                            blocking=subject_preflight_policy.blocking("reproducibility_ready"),
                         )
                     else:
                         ready = (
@@ -8244,7 +8525,7 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             ready,
                             detail,
-                            blocking=peer_review_policy.blocking("reproducibility_ready"),
+                            blocking=subject_preflight_policy.blocking("reproducibility_ready"),
                         )
 
     if "phase_artifacts" in contract.preflight_checks:
@@ -8315,9 +8596,9 @@ def _build_review_preflight(
         strict=strict,
         passed=passed,
         checks=checks,
-        required_outputs=contract.required_outputs,
-        required_evidence=contract.required_evidence,
-        blocking_conditions=contract.blocking_conditions,
+        required_outputs=effective_required_outputs,
+        required_evidence=effective_required_evidence,
+        blocking_conditions=effective_blocking_conditions,
         conditional_requirements=list(contract.conditional_requirements),
         active_conditional_requirements=active_conditional_requirements,
         validated_surface=context_preflight.validated_surface,
@@ -8394,7 +8675,7 @@ def validate_review_contract(
     _output(
         {
             "command": public_command_name,
-            "context_mode": command.context_mode,
+            "context_mode": _command_effective_context_mode(command),
             "review_contract": dataclasses.asdict(command.review_contract),
         }
     )

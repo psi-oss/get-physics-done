@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,69 @@ from gpd.core.proof_review import (
     resolve_manuscript_proof_review_status,
     resolve_phase_proof_review_status,
 )
+from gpd.core.reproducibility import compute_sha256
 from tests.manuscript_test_support import CANONICAL_MANUSCRIPT_STEM, write_proof_review_package
+
+
+def _write_external_manuscript_review_anchor(project_root: Path) -> Path:
+    manuscript_path = project_root / "submission" / "external-subject.tex"
+    manuscript_path.parent.mkdir(parents=True, exist_ok=True)
+    manuscript_path.write_text(
+        "\\documentclass{article}\n\\begin{document}\nExternal submission draft.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (manuscript_path.parent / "references.bib").write_text("@article{demo,title={External Demo}}\n", encoding="utf-8")
+    manuscript_rel = "submission/external-subject.tex"
+    manuscript_sha256 = compute_sha256(manuscript_path)
+
+    review_dir = project_root / "GPD" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "CLAIMS.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims": [
+                    {
+                        "claim_id": "CLM-EXT-001",
+                        "claim_type": "main_result",
+                        "claim_kind": "other",
+                        "text": "The manuscript reports a descriptive external result.",
+                        "artifact_path": manuscript_rel,
+                        "section": "Main Result",
+                        "equation_refs": [],
+                        "figure_refs": [],
+                        "supporting_artifacts": [],
+                        "theorem_assumptions": [],
+                        "theorem_parameters": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "STAGE-math.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "math",
+                "stage_kind": "math",
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims_reviewed": [],
+                "summary": "math review",
+                "strengths": ["checked manuscript"],
+                "findings": [],
+                "proof_audits": [],
+                "confidence": "high",
+                "recommendation_ceiling": "minor_revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript_path
 
 
 def test_phase_proof_review_bootstraps_manifest_and_turns_stale_after_edit(tmp_path: Path) -> None:
@@ -416,6 +479,20 @@ def test_manuscript_proof_review_anchors_to_passed_proof_redteam_artifact(tmp_pa
     assert status.can_rely_on_prior_review is True
     assert status.anchor_artifact == tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
     assert manuscript_proof_review_manifest_path(manuscript_path).exists()
+
+
+def test_external_manuscript_proof_review_bootstraps_manifest_under_gpd_publication_root(tmp_path: Path) -> None:
+    manuscript_path = _write_external_manuscript_review_anchor(tmp_path)
+
+    manifest_path = manuscript_proof_review_manifest_path(manuscript_path, project_root=tmp_path)
+    fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
+
+    assert fresh.state == "fresh"
+    assert fresh.manifest_bootstrapped is True
+    assert fresh.manifest_path == manifest_path
+    assert manifest_path.exists()
+    assert manifest_path.is_relative_to(tmp_path / "GPD" / "publication")
+    assert not (manuscript_path.parent / "PROOF-REVIEW-MANIFEST.json").exists()
 
 
 def test_manuscript_proof_review_uses_latest_matching_round_specific_proof_redteam(tmp_path: Path) -> None:

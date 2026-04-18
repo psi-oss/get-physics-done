@@ -273,19 +273,28 @@ def _latest_round_number(*round_maps: dict[int, Path | None]) -> int | None:
 
 
 def _round_file_map(
-    review_dir: Path,
-    *,
+    *search_roots: Path,
     filename_pattern: re.Pattern[str],
     glob_pattern: str,
 ) -> dict[int, Path]:
     round_map: dict[int, Path] = {}
-    for path in sorted(review_dir.glob(glob_pattern)):
-        details = review_artifact_round(path, pattern=filename_pattern)
-        if details is None:
+    for root in search_roots:
+        if not root.is_dir():
             continue
-        round_number, _round_suffix = details
-        round_map[round_number] = path
+        for path in sorted(root.glob(glob_pattern)):
+            details = review_artifact_round(path, pattern=filename_pattern)
+            if details is None:
+                continue
+            round_number, _round_suffix = details
+            round_map.setdefault(round_number, path)
     return round_map
+
+
+def _first_existing_path(*candidates: Path) -> Path | None:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def _review_artifact_state(
@@ -362,6 +371,7 @@ def resolve_latest_publication_review_artifacts(
     if not subject.resolved or subject.manuscript_entrypoint is None:
         return None
 
+    planning_dir = project_root / "GPD"
     review_dir = project_root / "GPD" / "review"
     if not review_dir.exists():
         return None
@@ -381,8 +391,14 @@ def resolve_latest_publication_review_artifacts(
         round_suffix = review_round_suffix(round_number)
         review_ledger = ledger_by_round.get(round_number)
         referee_decision = decision_by_round.get(round_number)
-        referee_report_md = review_dir / f"REFEREE-REPORT{round_suffix}.md"
-        referee_report_tex = review_dir / f"REFEREE-REPORT{round_suffix}.tex"
+        referee_report_md = _first_existing_path(
+            planning_dir / f"REFEREE-REPORT{round_suffix}.md",
+            review_dir / f"REFEREE-REPORT{round_suffix}.md",
+        )
+        referee_report_tex = _first_existing_path(
+            planning_dir / f"REFEREE-REPORT{round_suffix}.tex",
+            review_dir / f"REFEREE-REPORT{round_suffix}.tex",
+        )
         proof_redteam = review_dir / f"PROOF-REDTEAM{round_suffix}.md"
 
         state, detail, missing_artifacts = _review_artifact_state(
@@ -399,8 +415,8 @@ def resolve_latest_publication_review_artifacts(
             round_suffix=round_suffix,
             review_ledger=review_ledger,
             referee_decision=referee_decision,
-            referee_report_md=referee_report_md if referee_report_md.exists() else None,
-            referee_report_tex=referee_report_tex if referee_report_tex.exists() else None,
+            referee_report_md=referee_report_md,
+            referee_report_tex=referee_report_tex,
             proof_redteam=proof_redteam if proof_redteam.exists() else None,
             state=state,
             detail=detail,
@@ -424,6 +440,7 @@ def resolve_latest_publication_response_artifacts(
     if not subject.resolved:
         return None
 
+    planning_dir = project_root / "GPD"
     review_dir = project_root / "GPD" / "review"
     if not review_dir.exists():
         return None
@@ -436,6 +453,7 @@ def resolve_latest_publication_response_artifacts(
         return None
 
     author_by_round = _round_file_map(
+        planning_dir,
         review_dir,
         filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
         glob_pattern="AUTHOR-RESPONSE*.md",

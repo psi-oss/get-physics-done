@@ -10,6 +10,7 @@ import pytest
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.constants import ProjectLayout
 from gpd.core.context import (
+    _WRITE_PAPER_INIT_FIELDS,
     _extract_frontmatter_field,
     _generate_slug,
     _is_phase_complete,
@@ -2500,13 +2501,16 @@ class TestInitNewProject:
         assert "derived_manuscript_reference_status" in ctx
         assert "derived_manuscript_proof_review_status" in ctx
         assert "protocol_bundle_context" in ctx
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert ctx["publication_bootstrap_root"] == "paper"
 
     def test_write_paper_stage_paper_bootstrap_filters_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
         _write_project_contract_state(tmp_path)
 
-        manifest = load_workflow_stage_manifest("write-paper")
+        manifest = load_workflow_stage_manifest("write-paper", known_init_fields=_WRITE_PAPER_INIT_FIELDS)
         stage = manifest.get_stage("paper_bootstrap")
 
         ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
@@ -2517,6 +2521,9 @@ class TestInitNewProject:
         assert "reference_artifacts_content" not in ctx
         assert "state_content" not in ctx
         assert "derived_convention_lock" not in ctx
+        assert ctx["publication_subject_status"] == "missing"
+        assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
+        assert ctx["publication_bootstrap_root"] == "paper"
 
     def test_write_paper_stage_outline_and_scaffold_loads_deferred_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2530,7 +2537,7 @@ class TestInitNewProject:
         _write_research_map_anchor_files(tmp_path)
         _write_structured_state_memory(tmp_path)
 
-        manifest = load_workflow_stage_manifest("write-paper")
+        manifest = load_workflow_stage_manifest("write-paper", known_init_fields=_WRITE_PAPER_INIT_FIELDS)
         stage = manifest.get_stage("outline_and_scaffold")
 
         ctx = init_write_paper(tmp_path, stage="outline_and_scaffold")
@@ -2543,6 +2550,51 @@ class TestInitNewProject:
         assert "Verified evidence" in ctx["requirements_content"]
         assert ctx["derived_convention_lock_count"] == 2
         assert ctx["derived_intermediate_result_count"] == 1
+        assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
+
+    def test_write_paper_stage_paper_bootstrap_surfaces_resolved_publication_subject(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
+
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert ctx["publication_bootstrap_root"] == "paper"
+        assert ctx["publication_artifact_base"] == "paper"
+        assert ctx["manuscript_root"] == "paper"
+        assert ctx["manuscript_entrypoint"] == "paper/main.tex"
+        assert ctx["artifact_manifest_path"] == "paper/ARTIFACT-MANIFEST.json"
 
     def test_write_paper_stage_rejects_unknown_stage(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

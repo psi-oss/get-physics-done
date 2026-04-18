@@ -16,6 +16,7 @@ Canonical paired response-artifact and one-shot child-return contract for refere
 
 - `GPD/AUTHOR-RESPONSE{round_suffix}.md` is the canonical internal tracker.
 - `GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the journal-facing sibling and must mirror the same `REF-*` issue IDs, classifications, statuses, and new-calculation tracking, including source-phase linkage when present.
+- An optional manuscript-local response-letter companion such as `response-letter.tex` is additive only. It does not replace the canonical GPD response pair.
 - Treat the two files as one success gate: do not mark the round complete when only one of them is current.
 
 ## Delegation Rule

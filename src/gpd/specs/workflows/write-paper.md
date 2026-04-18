@@ -51,7 +51,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `publication_subject`, `publication_subject_status`, `publication_subject_source`, `publication_subject_detail`, `publication_artifact_base`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_bootstrap`, `publication_bootstrap_mode`, `publication_bootstrap_root`, `publication_bootstrap_detail`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
 
 **Load mode settings:**
 
@@ -94,14 +94,26 @@ Keep the current `project_contract`, `project_contract_gate`, `project_contract_
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of proof-review freshness for theorem-bearing results; keep passed proof-redteam artifacts authoritative for strict drafting decisions.
 If the manuscript depends on any theorem-style or `proof_obligation` result, treat passed proof-redteam artifacts from the source phases as mandatory review inputs. Missing or open proof audits are CRITICAL blockers, not polish issues.
 
-**Resolve paper directory (if resuming):**
+**Resolve manuscript bootstrap and output roots explicitly:**
 
-If strict preflight or init already resolved an active manuscript under `paper/`, `manuscript/`, or `draft/`, keep that manuscript root as `PAPER_DIR`.
-Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`; do not satisfy that gate with legacy publication artifacts from a different manuscript directory.
-When strict preflight resolves a manuscript root, bind it explicitly as `PAPER_DIR="$DIR"` where `$DIR` is that resolved manuscript directory, and treat `${PAPER_DIR}/{topic_specific_stem}.tex` as the canonical emitted manuscript path recorded by `${PAPER_DIR}/ARTIFACT-MANIFEST.json`.
+Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight as the authoritative Phase 2 bootstrap surface.
 
-If a manuscript root was resolved, the workflow is resuming or revising that manuscript directory. Keep every strict-review dependency rooted there.
-If no manuscript root was resolved, set `PAPER_DIR="paper"` and bootstrap a fresh scaffold there.
+- If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only.
+- If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` (currently `paper/`) and bootstrap a fresh manuscript scaffold there. This is the explicit current behavior; do **not** present it as a completed `GPD/publication/...` manuscript-root migration.
+- If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
+
+For compatibility with the longstanding shell-oriented workflow contract, keep the resolved manuscript-root binding visible in the legacy form when writing shell snippets:
+
+```bash
+PAPER_DIR="$DIR"
+PAPER_DIR="paper"
+```
+
+Current Phase 2 split:
+
+- manuscript scaffold files and manuscript-root builder artifacts stay in `${PAPER_DIR}/`
+- GPD-authored staged review artifacts stay under `GPD/` / `GPD/review/`
+- do not invent an external-manuscript `write-paper` flow or a broader managed publication root that the runtime and storage policy do not implement yet
 
 **Check optional local LaTeX compiler availability for smoke tests (cross-platform):**
 
@@ -371,7 +383,7 @@ find artifacts/phases figures "${PAPER_DIR}/figures" -maxdepth 3 \( -type f -o -
 ls "${PAPER_DIR}/FIGURE_TRACKER.md" 2>/dev/null
 ```
 
-Default bootstrap example:
+Current fresh-bootstrap example:
 
 ```bash
 find artifacts/phases figures "${PAPER_DIR}/figures" -maxdepth 3
@@ -545,6 +557,12 @@ gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
 
 This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. `gpd paper-build` defines the build truth for the manuscript; local compiler runs are only smoke checks. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, set `output_filename` to a short topic-specific 2-3 word underscore stem, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require the emitted manuscript `.tex` file to exist.
+
+Keep this split explicit while bootstrapping:
+
+- `${PAPER_DIR}` is the manuscript-local scaffold root for the current subject or the current fresh-bootstrap root
+- builder-owned manuscript artifacts remain beside that manuscript root in Phase 2
+- GPD-owned review and response auxiliaries remain under `GPD/` / `GPD/review/`; do not silently relocate them beside the manuscript
 
 After `gpd paper-build` runs, treat the `.tex` artifact recorded in `${PAPER_DIR}/ARTIFACT-MANIFEST.json` as the canonical manuscript entrypoint and refer to its basename as `MANUSCRIPT_BASENAME` in later smoke checks.
 
@@ -944,7 +962,7 @@ Validate it before entering strict review:
 gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
 ```
 
-For the default bootstrap path, the validation command is:
+For the current fresh-bootstrap path, the validation command is:
 
 ```bash
 gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict

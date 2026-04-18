@@ -372,6 +372,9 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
     assert "selected_protocol_bundle_ids" in known_init_fields
     assert "protocol_bundle_context" in known_init_fields
     assert "active_reference_context" in known_init_fields
+    assert "publication_subject_status" in known_init_fields
+    assert "publication_bootstrap_mode" in known_init_fields
+    assert "publication_bootstrap_root" in known_init_fields
     assert "reference_artifacts_content" in known_init_fields
     assert "state_content" in known_init_fields
     assert "requirements_content" in known_init_fields

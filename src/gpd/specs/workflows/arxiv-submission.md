@@ -11,7 +11,7 @@ This workflow is staged:
 
 Keep only arXiv-specific rules inline. Use the shared publication bootstrap reference for manuscript-root resolution, latest-review gating, and fail-closed paired artifact handling.
 
-Output: a submission-ready `arxiv-submission.tar.gz` and a manual submission checklist.
+Output: a submission-ready `arxiv-submission.tar.gz` under `GPD/publication/<subject_slug>/arxiv/` and a manual submission checklist.
 </purpose>
 
 <required_reading>
@@ -52,19 +52,21 @@ fi
 
 Use the shared publication bootstrap reference as the source of truth for manuscript-root resolution, latest-review discovery, and paired response gating. Do not duplicate those contracts here.
 If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, or stale theorem-proof review state, STOP and fix those blockers before packaging.
+For explicit external `.tex` subjects, keep manuscript resolution, compiled-manuscript freshness, staged-review alignment, recommendation-floor checks, degraded review integrity, and theorem-proof freshness fail-closed. Treat project-global gaps like missing project state, missing conventions, and generic publication blockers as advisory context unless they are anchored to the resolved subject.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof review artifacts authoritative for strict packaging decisions.
 Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging.
 If the latest completed `gpd:respond-to-referees` round changed manuscript text, equations, figures, citations, or reproducibility evidence, do not treat older staged review artifacts as packaging clearance. That revised manuscript must go back through `gpd:peer-review` before `gpd:arxiv-submission` can continue.
 
 Resolve the manuscript target from `$ARGUMENTS`:
 
-1. If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file and `resolved_dir` to its parent directory.
+1. If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file and `resolved_dir` to its parent directory. If that file lives outside `paper/`, `manuscript/`, or `draft/`, treat it as an explicit external publication subject.
 2. If `$ARGUMENTS` specifies a directory, resolve the canonical manuscript `.tex` entrypoint under that directory from `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json` if needed.
-3. Otherwise inspect only the documented manuscript roots `paper/`, `manuscript/`, and `draft/` in that order.
+3. Otherwise inspect only the documented manuscript roots `paper/`, `manuscript/`, and `draft/` in that order. Do not prompt for standalone intake when no explicit target is supplied.
 4. If the manuscript root is ambiguous or missing, STOP and require an explicit manuscript path or a repaired manuscript-root state.
 5. Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots.
 
 Then run the centralized publication preflight and review preflight checks. If the latest review artifacts are missing, incomplete, stale, or blocked, or if the manuscript-root gates fail, stop before any packaging work starts.
+Derive a stable ASCII `subject_slug` from the resolved manuscript entrypoint path and keep all GPD-authored package outputs rooted at `GPD/publication/${subject_slug}/arxiv/`. Do not write proof-review manifests, package staging trees, or tarballs beside an explicit external manuscript subject.
 
 Set:
 
@@ -73,7 +75,9 @@ PAPER_DIR="${resolved_dir}"
 MAIN_SOURCE="${resolved_main_tex}"
 MAIN_BASENAME="$(basename "${MAIN_SOURCE}")"
 MAIN_STEM="${MAIN_BASENAME%.*}"
-SUBMISSION_DIR="arxiv-submission"
+PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"
+SUBMISSION_DIR="${PACKAGE_ROOT}/submission"
+PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"
 ```
 </step>
 
@@ -122,6 +126,8 @@ Keep the packaging rules arXiv-specific and deterministic:
 6. Remove LaTeX auxiliary files, editor backups, and metadata noise from the submission tree.
 7. Generate `00README.XXX` only when the submission contains more than one file.
 
+Keep the submission tree itself under `${SUBMISSION_DIR}`. Even for an explicit external manuscript subject, do not create a sibling `arxiv-submission/` directory beside the manuscript or place GPD-authored package manifests there.
+
 Use these arXiv-specific checks:
 
 | Issue | Action |
@@ -133,13 +139,13 @@ Use these arXiv-specific checks:
 | Total package size | Fail if the package exceeds the arXiv limit |
 | Missing bibliography flattening | Fail closed |
 
-If the manuscript root is not already `paper/`, stage the package in a temporary submission tree that preserves the resolved manuscript root as the upload entrypoint and keeps the root-level file layout flat.
+If the manuscript root is not already `paper/`, stage the package in a temporary submission tree that preserves the resolved manuscript root as the upload entrypoint and keeps the root-level file layout flat. The managed package root still remains `${PACKAGE_ROOT}` under `GPD/`.
 </step>
 
 <step name="finalize">
 **Create the tarball and present the submission checklist.**
 
-Create `arxiv-submission.tar.gz`, verify that the main manuscript file is at the tarball root, and present a final checklist with:
+Create `${PACKAGE_TARBALL}` (filename `arxiv-submission.tar.gz`), verify that the main manuscript file is at the tarball root, and present a final checklist with:
 
 - package path and size
 - figure count
@@ -151,7 +157,7 @@ Create `arxiv-submission.tar.gz`, verify that the main manuscript file is at the
 - `\pdfoutput=1` status
 - manual submission steps still required
 
-Do not treat prose-only success as complete. The tarball must exist on disk and the manuscript-root / latest-review gates must still be satisfied.
+Do not treat prose-only success as complete. The tarball must exist on disk under `GPD/publication/${subject_slug}/arxiv/`, and the manuscript-root / latest-review gates must still be satisfied.
 </step>
 
 <community_contribution>

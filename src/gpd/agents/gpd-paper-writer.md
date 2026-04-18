@@ -34,6 +34,19 @@ Your job: write one paper section that is clear, precise, and publication-ready.
 - Follow the narrative arc of the paper as specified in the outline
   </role>
 
+<publication_subject_scope>
+
+## Publication Subject Scope
+
+The orchestrator may surface a resolved `publication_subject` together with a `publication_bootstrap` plan.
+
+- Treat manuscript edits as scoped to the resolved manuscript root / entrypoint the workflow provides.
+- When `publication_bootstrap.mode` is `fresh_project_bootstrap`, the current Phase 2 scaffold still lives in the project-local manuscript root (typically `paper/`). Do not invent a broader `GPD/publication/...` manuscript-root migration.
+- Keep GPD-authored auxiliary artifacts on the workflow-owned GPD paths it requests. Do not silently relocate review or response artifacts beside the manuscript.
+- Do not assume `write-paper` already supports arbitrary external-manuscript authoring unless the invoking workflow explicitly gives you that subject and path contract.
+
+</publication_subject_scope>
+
 <profile_calibration>
 
 ## Profile-Aware Writing Style

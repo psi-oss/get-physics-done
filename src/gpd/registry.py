@@ -114,6 +114,7 @@ _COMMAND_POLICY_SUBJECT_FIELD_ORDER = (
     "allow_external_subjects",
     "allow_interactive_without_subject",
     "supported_roots",
+    "allowed_suffixes",
     "bootstrap_allowed",
 )
 _COMMAND_POLICY_SUPPORTING_CONTEXT_FIELD_ORDER = (
@@ -270,6 +271,7 @@ class CommandSubjectPolicy:
     allow_external_subjects: bool | None = None
     allow_interactive_without_subject: bool | None = None
     supported_roots: list[str] = field(default_factory=list)
+    allowed_suffixes: list[str] = field(default_factory=list)
     bootstrap_allowed: bool | None = None
 
 
@@ -364,7 +366,7 @@ class SkillDef:
 def _frontmatter_parts(text: str) -> tuple[str | None, str]:
     """Return raw frontmatter YAML and body from markdown text when present."""
 
-    text = text.lstrip('﻿')
+    text = text.lstrip("﻿")
     frontmatter_candidate = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
     frontmatter_parts = _split_frontmatter_block(frontmatter_candidate)
     if frontmatter_parts is None:
@@ -427,9 +429,7 @@ def _raw_scalar_frontmatter_value(frontmatter: str | None, *, field_name: str) -
     if not frontmatter:
         return None
 
-    pattern = re.compile(
-        rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$"
-    )
+    pattern = re.compile(rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$")
     match = pattern.search(frontmatter)
     if match is None:
         return None
@@ -660,12 +660,132 @@ def _command_policy_supporting_context_from_legacy(
     return payload
 
 
+def _command_policy_requests_check(
+    review_contract: ReviewCommandContract | None,
+    check_name: str,
+) -> bool:
+    if review_contract is None:
+        return False
+    return check_name in list(getattr(review_contract, "preflight_checks", []) or [])
+
+
+def _command_policy_is_publication_contract(review_contract: ReviewCommandContract | None) -> bool:
+    return str(getattr(review_contract, "review_mode", "") or "").strip() == "publication"
+
+
+def _command_policy_supported_roots_from_patterns(patterns: list[str]) -> list[str]:
+    supported_roots: list[str] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        parts = Path(pattern).parts
+        if not parts:
+            continue
+        root = parts[0].strip()
+        if not root or root in seen:
+            continue
+        seen.add(root)
+        supported_roots.append(root)
+    return supported_roots
+
+
+def _publication_contract_mentions_external_artifact(review_contract: ReviewCommandContract | None) -> bool:
+    if review_contract is None:
+        return False
+    textual_cues = [
+        *(str(item) for item in list(getattr(review_contract, "required_evidence", []) or [])),
+        *(str(item) for item in list(getattr(review_contract, "blocking_conditions", []) or [])),
+    ]
+    return any("external-artifact review" in cue.casefold() for cue in textual_cues)
+
+
+def _publication_compat_subject_policy(
+    *,
+    review_contract: ReviewCommandContract | None,
+    legacy_supporting_context: dict[str, object],
+) -> dict[str, object] | None:
+    if not _command_policy_is_publication_contract(review_contract):
+        return None
+    if not _command_policy_requests_check(review_contract, "manuscript"):
+        return None
+
+    required_patterns = [
+        str(pattern).strip()
+        for pattern in list(legacy_supporting_context.get("required_file_patterns", []) or [])
+        if str(pattern).strip()
+    ]
+    supported_roots = _command_policy_supported_roots_from_patterns(required_patterns)
+    allow_external_subjects = _publication_contract_mentions_external_artifact(review_contract)
+    bootstrap_allowed = (
+        not required_patterns
+        and not _command_policy_requests_check(review_contract, "compiled_manuscript")
+        and not _command_policy_requests_check(review_contract, "referee_report_source")
+    )
+
+    explicit_input_kinds: list[str] = []
+    if _command_policy_requests_check(review_contract, "referee_report_source"):
+        explicit_input_kinds.extend(["referee_report_path", "paste_referee_report"])
+    elif supported_roots:
+        explicit_input_kinds.extend(["manuscript_root", "manuscript_path"])
+    if allow_external_subjects:
+        explicit_input_kinds.append("publication_artifact_path")
+
+    allowed_suffixes = [".tex"]
+    if not _command_policy_requests_check(review_contract, "compiled_manuscript"):
+        allowed_suffixes.append(".md")
+    if allow_external_subjects:
+        for suffix in (".txt", ".pdf"):
+            if suffix not in allowed_suffixes:
+                allowed_suffixes.append(suffix)
+
+    resolution_mode = "project_manuscript"
+    if bootstrap_allowed:
+        resolution_mode = "project_manuscript_or_bootstrap"
+    elif _command_policy_requests_check(review_contract, "referee_report_source"):
+        resolution_mode = "project_manuscript_with_report_source"
+    elif explicit_input_kinds:
+        resolution_mode = "explicit_or_project_manuscript"
+
+    payload: dict[str, object] = {
+        "subject_kind": "publication",
+        "resolution_mode": resolution_mode,
+        "allowed_suffixes": allowed_suffixes,
+    }
+    if explicit_input_kinds:
+        payload["explicit_input_kinds"] = explicit_input_kinds
+    if supported_roots:
+        payload["supported_roots"] = supported_roots
+    if allow_external_subjects:
+        payload["allow_external_subjects"] = True
+    if (
+        allow_external_subjects
+        and str(legacy_supporting_context.get("project_context_mode", "")).strip() == "project-aware"
+    ):
+        payload["allow_interactive_without_subject"] = True
+    if bootstrap_allowed:
+        payload["bootstrap_allowed"] = True
+    return payload
+
+
+def _merge_command_policy_defaults(
+    explicit_mapping: dict[str, object] | None,
+    default_mapping: dict[str, object] | None,
+) -> dict[str, object] | None:
+    if default_mapping is None:
+        return dict(explicit_mapping) if explicit_mapping is not None else None
+    if explicit_mapping is None:
+        return dict(default_mapping)
+    merged = dict(default_mapping)
+    merged.update(explicit_mapping)
+    return merged
+
+
 def _merge_command_policy_submapping(
     explicit_mapping: dict[str, object] | None,
     legacy_mapping: dict[str, object] | None,
     *,
     field_name: str,
     command_name: str,
+    allow_explicit_override: bool = False,
 ) -> dict[str, object] | None:
     if explicit_mapping is None:
         if legacy_mapping:
@@ -680,10 +800,11 @@ def _merge_command_policy_submapping(
         if legacy_value is None or legacy_value == []:
             merged[key] = value
             continue
+        if allow_explicit_override:
+            merged[key] = value
+            continue
         if value != legacy_value:
-            raise ValueError(
-                f"{field_name}.{key} for {command_name} must stay aligned with legacy command metadata"
-            )
+            raise ValueError(f"{field_name}.{key} for {command_name} must stay aligned with legacy command metadata")
     return merged
 
 
@@ -717,12 +838,21 @@ def _normalize_command_subject_policy(
                 field_name=f"command_policy.subject_policy.{field_name}",
                 command_name=command_name,
             )
-    for field_name in ("explicit_input_kinds", "supported_roots"):
+    for field_name in ("explicit_input_kinds", "supported_roots", "allowed_suffixes"):
         if field_name in raw_mapping:
             normalized[field_name] = _normalize_command_policy_string_list(
                 raw_mapping.get(field_name),
                 field_name=f"command_policy.subject_policy.{field_name}",
                 command_name=command_name,
+            )
+    allowed_suffixes = normalized.get("allowed_suffixes")
+    if isinstance(allowed_suffixes, list):
+        invalid_suffixes = [suffix for suffix in allowed_suffixes if not suffix.startswith(".")]
+        if invalid_suffixes:
+            formatted = ", ".join(repr(item) for item in invalid_suffixes)
+            raise ValueError(
+                f"command_policy.subject_policy.allowed_suffixes for {command_name} "
+                f"must contain dotted suffixes like '.tex'; got {formatted}"
             )
     return normalized or None
 
@@ -737,9 +867,7 @@ def _normalize_command_supporting_context_policy(
     if not isinstance(raw, Mapping):
         raise ValueError(f"command_policy.supporting_context_policy for {command_name} must be a mapping")
     raw_mapping = dict(raw)
-    unknown_keys = sorted(
-        str(key) for key in raw_mapping if str(key) not in _COMMAND_POLICY_SUPPORTING_CONTEXT_KEYS
-    )
+    unknown_keys = sorted(str(key) for key in raw_mapping if str(key) not in _COMMAND_POLICY_SUPPORTING_CONTEXT_KEYS)
     if unknown_keys:
         formatted = ", ".join(unknown_keys)
         raise ValueError(f"Unknown command-policy field(s): supporting_context_policy.{formatted}")
@@ -796,11 +924,7 @@ def _normalize_command_output_policy(
 def _command_policy_payload(command_policy: object) -> dict[str, object] | None:
     def _strip_none_fields(value: object) -> object:
         if isinstance(value, dict):
-            return {
-                key: _strip_none_fields(item)
-                for key, item in value.items()
-                if item is not None
-            }
+            return {key: _strip_none_fields(item) for key, item in value.items() if item is not None}
         if isinstance(value, list):
             return [_strip_none_fields(item) for item in value]
         return value
@@ -822,6 +946,7 @@ def _normalize_command_policy_payload(
     context_mode: str,
     project_reentry_capable: bool,
     requires: dict[str, object],
+    review_contract: ReviewCommandContract | None = None,
     explicit: bool = False,
 ) -> dict[str, object]:
     legacy_supporting_context = _command_policy_supporting_context_from_legacy(
@@ -829,8 +954,13 @@ def _normalize_command_policy_payload(
         project_reentry_capable=project_reentry_capable,
         requires=requires,
     )
+    compat_subject_policy = _publication_compat_subject_policy(
+        review_contract=review_contract,
+        legacy_supporting_context=legacy_supporting_context,
+    )
     legacy_payload: dict[str, object] = {
         "schema_version": 1,
+        "subject_policy": compat_subject_policy,
         "supporting_context_policy": legacy_supporting_context,
     }
 
@@ -855,7 +985,10 @@ def _normalize_command_policy_payload(
     if schema_version != 1:
         raise ValueError("command policy schema_version must be 1")
 
-    subject_policy = _normalize_command_subject_policy(payload.get("subject_policy"), command_name=command_name)
+    subject_policy = _merge_command_policy_defaults(
+        _normalize_command_subject_policy(payload.get("subject_policy"), command_name=command_name),
+        compat_subject_policy,
+    )
     supporting_context_policy = _normalize_command_supporting_context_policy(
         payload.get("supporting_context_policy"),
         command_name=command_name,
@@ -870,6 +1003,7 @@ def _normalize_command_policy_payload(
             legacy_supporting_context,
             field_name="command_policy.supporting_context_policy",
             command_name=command_name,
+            allow_explicit_override=_command_policy_is_publication_contract(review_contract),
         ),
         "output_policy": output_policy,
     }
@@ -899,7 +1033,9 @@ def _render_command_policy_submapping(
     return rendered or None
 
 
-def _render_command_policy_payload(command_policy: CommandPolicy | dict[str, object] | None) -> dict[str, object] | None:
+def _render_command_policy_payload(
+    command_policy: CommandPolicy | dict[str, object] | None,
+) -> dict[str, object] | None:
     payload = _command_policy_payload(command_policy)
     if not payload:
         return None
@@ -939,6 +1075,7 @@ def _parse_command_policy(
     context_mode: str,
     project_reentry_capable: bool,
     requires: dict[str, object],
+    review_contract: ReviewCommandContract | None = None,
     explicit: bool = False,
 ) -> CommandPolicy:
     if isinstance(raw, CommandPolicy):
@@ -950,6 +1087,7 @@ def _parse_command_policy(
             context_mode=context_mode,
             project_reentry_capable=project_reentry_capable,
             requires=requires,
+            review_contract=review_contract,
             explicit=explicit,
         )
     except ValueError as exc:
@@ -961,9 +1099,7 @@ def _parse_command_policy(
     return CommandPolicy(
         schema_version=int(payload["schema_version"]),
         subject_policy=(
-            CommandSubjectPolicy(**subject_policy_payload)
-            if isinstance(subject_policy_payload, dict)
-            else None
+            CommandSubjectPolicy(**subject_policy_payload) if isinstance(subject_policy_payload, dict) else None
         ),
         supporting_context_policy=(
             CommandSupportingContextPolicy(**supporting_context_payload)
@@ -971,9 +1107,7 @@ def _parse_command_policy(
             else None
         ),
         output_policy=(
-            CommandOutputPolicy(**output_policy_payload)
-            if isinstance(output_policy_payload, dict)
-            else None
+            CommandOutputPolicy(**output_policy_payload) if isinstance(output_policy_payload, dict) else None
         ),
     )
 
@@ -1089,9 +1223,7 @@ def _parse_project_reentry_capable(raw: object, *, command_name: str, context_mo
         default=False,
     )
     if value and context_mode != "project-required":
-        raise ValueError(
-            f"project_reentry_capable for {command_name} requires context_mode 'project-required'"
-    )
+        raise ValueError(f"project_reentry_capable for {command_name} requires context_mode 'project-required'")
     return value
 
 
@@ -1465,6 +1597,7 @@ def render_command_visibility_sections_from_frontmatter(frontmatter: str, *, com
         context_mode=context_mode,
         project_reentry_capable=project_reentry_capable,
         requires=requires,
+        review_contract=review_contract,
         explicit=command_policy_explicit,
     )
     return render_command_visibility_sections(
@@ -1549,6 +1682,32 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
     if not payload:
         return None
 
+    scope_variants_payload = list(payload["scope_variants"])
+    if str(payload["review_mode"]) == "publication" and not scope_variants_payload:
+        required_evidence = [str(item) for item in payload["required_evidence"]]
+        if any("external-artifact review" in item.casefold() for item in required_evidence):
+            scope_variants_payload = [
+                {
+                    "scope": "explicit_artifact",
+                    "activation": "explicit external artifact subject was supplied",
+                    "relaxed_preflight_checks": [
+                        "project_state",
+                        "roadmap",
+                        "conventions",
+                        "research_artifacts",
+                        "verification_reports",
+                        "manuscript_proof_review",
+                    ],
+                    "optional_preflight_checks": [
+                        "artifact_manifest",
+                        "bibliography_audit",
+                        "bibliography_audit_clean",
+                        "reproducibility_manifest",
+                        "reproducibility_ready",
+                    ],
+                }
+            ]
+
     return ReviewCommandContract(
         review_mode=str(payload["review_mode"]),
         required_outputs=list(payload["required_outputs"]),
@@ -1577,7 +1736,7 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
                 required_evidence_override=list(variant.get("required_evidence_override", [])),
                 blocking_conditions_override=list(variant.get("blocking_conditions_override", [])),
             )
-            for variant in payload["scope_variants"]
+            for variant in scope_variants_payload
         ],
         required_state=str(payload["required_state"]),
         schema_version=int(payload["schema_version"]),
@@ -1656,7 +1815,10 @@ def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> Wor
         return None
     canonical_manifest_path = (SPECS_DIR / "workflows" / f"{path.stem}-stage-manifest.json").resolve(strict=False)
     canonical_command_path = (_PKG_ROOT / "commands" / path.name).resolve(strict=False)
-    if path.resolve(strict=False) != canonical_command_path and manifest_path.resolve(strict=False) == canonical_manifest_path:
+    if (
+        path.resolve(strict=False) != canonical_command_path
+        and manifest_path.resolve(strict=False) == canonical_manifest_path
+    ):
         return None
     return load_workflow_stage_manifest_from_path(
         manifest_path,
@@ -1801,6 +1963,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
             context_mode=context_mode,
             project_reentry_capable=project_reentry_capable,
             requires=requires,
+            review_contract=review_contract,
             explicit=command_policy_explicit,
         )
     except ValueError as exc:
@@ -1861,8 +2024,7 @@ def _validate_agent_name(path: Path, agent: AgentDef) -> None:
     expected_name = path.stem
     if agent.name != expected_name:
         raise ValueError(
-            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; "
-            f"expected {expected_name!r}"
+            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; expected {expected_name!r}"
         )
 
 

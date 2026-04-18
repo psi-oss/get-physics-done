@@ -19,16 +19,27 @@ def test_publication_contract_files_use_canonical_names_without_compatibility_sh
 
     assert "Canonical round-suffix and sibling-artifact contract for publication review rounds." in round_contract
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in round_contract
+    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in round_contract
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in round_contract
+    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in round_contract
+    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in round_contract
     assert "review-round-artifact-contract.md" not in round_contract
 
-    assert "Canonical paired response-artifact and one-shot child-return contract for referee-response work." in response_contract
+    assert (
+        "Canonical paired response-artifact and one-shot child-return contract for referee-response work."
+        in response_contract
+    )
     assert "gpd_return.files_written" in response_contract
+    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in response_contract
+    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in response_contract
     assert "response-artifact-contract.md" not in response_contract
 
     assert "Canonical workflow-facing bootstrap and preflight reference for publication tasks." in bootstrap_preflight
     assert "publication-artifact-gates.md" not in bootstrap_preflight
-    assert "Canonical workflow-facing handoff and completion reference for spawned response-writing work." in response_handoff
+    assert (
+        "Canonical workflow-facing handoff and completion reference for spawned response-writing work."
+        in response_handoff
+    )
     assert "publication-artifact-gates.md" not in response_handoff
     assert "publication-bootstrap-preflight.md" in wrapper_guidance
     assert "publication-response-writer-handoff.md" in wrapper_guidance
@@ -64,7 +75,9 @@ def test_publication_workflows_and_agents_reference_only_the_canonical_publicati
     assert "publication-response-artifacts.md" in referee
 
 
-def test_publication_workflow_prompt_surfaces_surface_the_shared_manuscript_root_contract_before_round_or_response_policy() -> None:
+def test_publication_workflow_prompt_surfaces_surface_the_shared_manuscript_root_contract_before_round_or_response_policy() -> (
+    None
+):
     write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
     respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")

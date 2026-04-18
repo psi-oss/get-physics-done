@@ -16,6 +16,7 @@ from gpd.core.manuscript_artifacts import (
     resolve_current_publication_subject,
     resolve_explicit_publication_subject,
     resolve_manuscript_entrypoint_from_root,
+    resolve_publication_bootstrap_resolution,
     resolve_publication_subject_artifact,
 )
 
@@ -188,9 +189,80 @@ def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_sem
     assert subject.path_semantics.artifact_base_path == "paper"
     assert subject.path_semantics.manuscript_entrypoint_path == "paper/sections/curvature_flow_bounds.tex"
     assert subject.path_semantics.subject_relative_entrypoint_path == "sections/curvature_flow_bounds.tex"
+    bootstrap_context = subject.to_bootstrap_context_dict()
+    assert bootstrap_context["publication_subject_status"] == "resolved"
+    assert bootstrap_context["publication_subject_source"] == "current_project"
+    assert bootstrap_context["publication_artifact_base"] == "paper"
+    assert bootstrap_context["manuscript_entrypoint"] == "paper/sections/curvature_flow_bounds.tex"
     assert resolve_publication_subject_artifact(subject, "BIBLIOGRAPHY-AUDIT.json") == (
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json"
     )
+
+
+def test_resolve_publication_bootstrap_resolution_defaults_to_fresh_project_bootstrap(tmp_path: Path) -> None:
+    bootstrap = resolve_publication_bootstrap_resolution(tmp_path)
+
+    assert bootstrap.mode == "fresh_project_bootstrap"
+    assert bootstrap.bootstrap_root == tmp_path / "paper"
+    assert "current write-paper bootstrap remains at" in bootstrap.detail
+    assert bootstrap.to_context_dict()["bootstrap_root"] == "paper"
+
+
+def test_resolve_publication_bootstrap_resolution_blocks_on_ambiguous_manuscript_state(tmp_path: Path) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Main\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Paper A",
+                "journal": "jhep",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+    _write(tmp_path / "manuscript" / "main.tex", "\\documentclass{article}\\begin{document}Other\\end{document}\n")
+    _write(
+        tmp_path / "manuscript" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Paper B",
+                "journal": "jhep",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-manuscript",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "1" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+
+    bootstrap = resolve_publication_bootstrap_resolution(tmp_path)
+
+    assert bootstrap.mode == "blocked"
+    assert bootstrap.bootstrap_root is None
+    assert "publication bootstrap is blocked" in bootstrap.detail
 
 
 def test_resolve_explicit_publication_subject_accepts_explicit_entrypoint_and_uses_its_artifact_base(

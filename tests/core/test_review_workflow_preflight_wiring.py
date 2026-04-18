@@ -49,13 +49,26 @@ def test_write_paper_workflow_runs_centralized_review_preflight() -> None:
 
 def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> None:
     workflow = _workflow_text("respond-to-referees.md")
+    command = _command_text("respond-to-referees.md")
     shared_preflight = (
         REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md"
     ).read_text(encoding="utf-8")
 
+    assert "context_mode: project-aware" in command
+    assert "command-policy:" in command
+    assert "subject_kind: publication" in command
+    assert "explicit_input_kinds:" in command
+    assert "- manuscript_path" in command
+    assert "- referee_report_path" in command
+    assert "default_output_subtree: GPD" in command
+    assert "scope_variants:" in command
+    assert "scope: explicit_external_manuscript" in command
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
     assert "gpd validate review-preflight respond-to-referees --strict" in workflow
+    assert "Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`" in workflow
+    assert "Treat a bare positional path as a referee-report source only." in workflow
     assert "missing referee report source when provided as a path" in workflow
+    assert "In explicit external-manuscript mode, `project_state` and `conventions` are advisory only." in workflow
     assert "Any spawned agent that needs user input must return `status: checkpoint` and stop" in workflow
     assert "Do not ask the child agent to wait inside the same run" in workflow
     assert "Apply the shared publication bootstrap preflight exactly:" in workflow
@@ -64,6 +77,9 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "Treat those files as complete only if the expected mirrored artifacts exist on disk" in workflow
+    assert "import or normalize it into `GPD/REFEREE-REPORT{round_suffix}.md` before parsing comments" in workflow
+    assert "Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source." in workflow
+    assert "keep auxiliary response outputs under `GPD/`" in workflow
     assert "${PAPER_DIR}/response-letter.tex" in workflow
     assert "${PAPER_DIR}/{section}.tex" in workflow
 
@@ -94,8 +110,14 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert "`manuscript_proof_review` must also already be cleared" in workflow
     assert "The same resolved manuscript root is also the strict preflight source of truth" in workflow
     assert "If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file" in workflow
+    assert "If that file lives outside `paper/`, `manuscript/`, or `draft/`, treat it as an explicit external publication subject." in workflow
     assert "canonical manuscript `.tex` entrypoint under that directory" in workflow
+    assert "Do not prompt for standalone intake when no explicit target is supplied." in workflow
     assert 'MAIN_SOURCE="${resolved_main_tex}"' in workflow
+    assert 'PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"' in workflow
+    assert 'SUBMISSION_DIR="${PACKAGE_ROOT}/submission"' in workflow
+    assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
+    assert "Do not write proof-review manifests, package staging trees, or tarballs beside an explicit external manuscript subject." in workflow
 
 
 def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_arguments() -> None:

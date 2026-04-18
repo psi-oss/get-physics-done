@@ -425,6 +425,7 @@ def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
 def test_referee_response_round_suffix_convention_is_consistent() -> None:
     write_paper = _read("src/gpd/specs/workflows/write-paper.md")
     peer_review = _read("src/gpd/specs/workflows/peer-review.md")
+    respond_command = _read("src/gpd/commands/respond-to-referees.md")
     respond = _read("src/gpd/specs/workflows/respond-to-referees.md")
     arxiv = _read("src/gpd/specs/workflows/arxiv-submission.md")
     author_response = _read("src/gpd/specs/templates/paper/author-response.md")
@@ -434,6 +435,10 @@ def test_referee_response_round_suffix_convention_is_consistent() -> None:
     assert 'ROUND_SUFFIX="-R3"' in peer_review
     assert '`GPD/review/REFEREE_RESPONSE{round_suffix}.md`' in respond
     assert '`GPD/AUTHOR-RESPONSE{round_suffix}.md`' in respond
+    assert "context_mode: project-aware" in respond_command
+    assert "command-policy:" in respond_command
+    assert "explicit_input_kinds:" in respond_command
+    assert "default_output_subtree: GPD" in respond_command
     assert "GPD/paper" not in respond
     assert "needs-calculation" in respond
     assert "issues_needing_calculation" in author_response
@@ -443,6 +448,7 @@ def test_referee_response_round_suffix_convention_is_consistent() -> None:
     assert "REFEREE_RESPONSE_R2.md" not in respond
     assert "REFEREE_RESPONSE_R2.md" not in template
     assert "paper/referee-reports" not in respond
+    assert "Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source." in respond
     assert "publication-manuscript-root-preflight.md" in peer_review
     assert "${MANUSCRIPT_ROOT}/REFEREE_RESPONSE" not in peer_review
     assert "publication-bootstrap-preflight.md" in write_paper

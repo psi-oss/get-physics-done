@@ -12,6 +12,7 @@ they verify the CLI → core function argument wiring works.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import json
 import re
@@ -29,6 +30,7 @@ from gpd.cli import app
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import StateUpdateResult, default_state_dict, generate_state_markdown
+from gpd.registry import _parse_command_file
 from tests.manuscript_test_support import (
     CANONICAL_MANUSCRIPT_STEM,
     write_proof_review_package,
@@ -1249,6 +1251,9 @@ review_summary:
         assert "reference_artifacts_content" not in payload
         assert "state_content" not in payload
         assert "derived_manuscript_reference_status" in payload
+        assert payload["publication_subject_status"] == "resolved"
+        assert payload["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert payload["publication_bootstrap_root"] == "paper"
 
 
 class TestRoadmapCommands:
@@ -1641,7 +1646,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:respond-to-referees"
-        assert payload["context_mode"] == "project-required"
+        assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
@@ -1652,17 +1657,40 @@ class TestReviewValidationCommands:
         )
         assert "command_context" in payload["review_contract"]["preflight_checks"]
         assert "referee_report_source" in payload["review_contract"]["preflight_checks"]
+        scope_variants = {variant["scope"]: variant for variant in payload["review_contract"]["scope_variants"]}
+        assert "explicit_external_manuscript" in scope_variants
+        explicit_external = scope_variants["explicit_external_manuscript"]
+        assert (
+            explicit_external["activation"]
+            == "explicit `--manuscript` subject outside the current project's canonical manuscript roots"
+        )
+        assert explicit_external["relaxed_preflight_checks"] == ["project_state", "conventions"]
+        assert explicit_external["required_evidence_override"] == [
+            "explicit manuscript subject",
+            "one or more referee report sources",
+        ]
+        assert explicit_external["blocking_conditions_override"] == [
+            "missing manuscript subject",
+            "missing referee report source",
+            "degraded review integrity",
+        ]
 
     def test_review_contract_arxiv_submission_surfaces_latest_review_outcome_gate(self) -> None:
-        result = runner.invoke(
-            app,
-            ["--raw", "validate", "review-contract", "arxiv-submission"],
-            catch_exceptions=False,
-        )
+        command_path = Path(__file__).resolve().parents[1] / "src/gpd/commands/arxiv-submission.md"
+        command = _parse_command_file(command_path, source="commands")
+        assert command.review_contract is not None
 
-        assert result.exit_code == 0, result.output
-        payload = json.loads(result.output)
+        payload = {
+            "command": command.name,
+            "context_mode": command.context_mode,
+            "review_contract": dataclasses.asdict(command.review_contract),
+        }
         assert payload["command"] == "gpd:arxiv-submission"
+        assert payload["context_mode"] == "project-aware"
+        assert (
+            "GPD/publication/{subject_slug}/arxiv/arxiv-submission.tar.gz"
+            in payload["review_contract"]["required_outputs"]
+        )
         assert "manuscript-root artifact manifest" in payload["review_contract"]["required_evidence"]
         assert "manuscript-root bibliography audit" in payload["review_contract"]["required_evidence"]
         assert "latest peer-review review ledger" in payload["review_contract"]["required_evidence"]
@@ -1695,6 +1723,38 @@ class TestReviewValidationCommands:
             "referee_decision_valid",
             "publication_review_outcome",
             "manuscript_proof_review",
+        ]
+        assert payload["review_contract"]["scope_variants"] == [
+            {
+                "scope": "explicit_external_subject",
+                "activation": (
+                    "resolved manuscript subject comes from an explicit .tex target outside supported manuscript roots"
+                ),
+                "relaxed_preflight_checks": [
+                    "project_state",
+                    "conventions",
+                    "publication_blockers",
+                ],
+                "optional_preflight_checks": [
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "reproducibility_manifest",
+                ],
+                "required_outputs_override": [],
+                "required_evidence_override": [
+                    "resolved explicit LaTeX manuscript subject",
+                    "compiled manuscript beside the explicit subject",
+                    "latest peer-review review ledger matched to the explicit subject",
+                    "latest peer-review referee decision matched to the explicit subject",
+                ],
+                "blocking_conditions_override": [
+                    "missing explicit LaTeX manuscript subject",
+                    "missing compiled manuscript beside the explicit subject",
+                    "missing or invalid latest staged peer-review decision evidence for the explicit subject",
+                    "degraded review integrity",
+                    "latest staged peer-review recommendation blocks submission packaging",
+                ],
+            }
         ]
         assert payload["review_contract"]["conditional_requirements"] == [
             {
@@ -2327,6 +2387,169 @@ class TestReviewValidationCommands:
         passed, detail = result
         assert passed is True
         assert "fresh bootstrap is allowed" in detail
+
+    def test_command_context_publication_policy_overrides_legacy_required_context_and_suffixes(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path / "publication-policy"
+        workspace.mkdir()
+        (workspace / "notes.txt").write_text("Standalone publication artifact.\n", encoding="utf-8")
+        monkeypatch.chdir(workspace)
+
+        command = SimpleNamespace(
+            name="gpd:custom-publication-review",
+            context_mode="project-required",
+            argument_hint="",
+            project_reentry_capable=False,
+            requires={"files": ["paper/*.tex"]},
+            command_policy=SimpleNamespace(
+                subject_policy=SimpleNamespace(
+                    subject_kind="publication",
+                    resolution_mode="explicit_or_project_manuscript",
+                    explicit_input_kinds=["publication_artifact_path"],
+                    allow_external_subjects=True,
+                    allowed_suffixes=[".txt"],
+                ),
+                supporting_context_policy=SimpleNamespace(
+                    project_context_mode="project-aware",
+                    project_reentry_mode="disallowed",
+                    required_file_patterns=[],
+                ),
+            ),
+            review_contract=SimpleNamespace(
+                review_mode="publication",
+                preflight_checks=["command_context", "manuscript"],
+                required_outputs=[],
+                required_evidence=[],
+                blocking_conditions=[],
+                conditional_requirements=[],
+                scope_variants=[],
+            ),
+        )
+
+        monkeypatch.setattr(
+            cli_module,
+            "_resolve_registry_command",
+            lambda command_name: (command, "gpd:custom-publication-review"),
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "custom-publication-review", "notes.txt"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:custom-publication-review"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+        assert payload["resolved_subject"]["status"] == "resolved"
+        assert payload["resolved_subject"]["ownership_mode"] == "external_artifact"
+        assert payload["resolved_subject"]["target_path"].endswith("notes.txt")
+
+    def test_review_preflight_publication_scope_variants_drive_runtime_overrides(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path / "publication-scope-variant"
+        workspace.mkdir()
+        (workspace / "notes.txt").write_text("Standalone publication artifact.\n", encoding="utf-8")
+        monkeypatch.chdir(workspace)
+
+        command = SimpleNamespace(
+            name="gpd:custom-publication-review",
+            context_mode="project-required",
+            argument_hint="",
+            project_reentry_capable=False,
+            requires={"files": ["paper/*.tex"]},
+            command_policy=SimpleNamespace(
+                subject_policy=SimpleNamespace(
+                    subject_kind="publication",
+                    resolution_mode="explicit_or_project_manuscript",
+                    explicit_input_kinds=["publication_artifact_path"],
+                    allow_external_subjects=True,
+                    allowed_suffixes=[".txt"],
+                ),
+                supporting_context_policy=SimpleNamespace(
+                    project_context_mode="project-aware",
+                    project_reentry_mode="disallowed",
+                    required_file_patterns=[],
+                ),
+            ),
+            review_contract=SimpleNamespace(
+                review_mode="publication",
+                required_outputs=["GPD/review/DEFAULT-REPORT.md"],
+                required_evidence=["project-backed review evidence"],
+                blocking_conditions=["missing project state"],
+                preflight_checks=[
+                    "command_context",
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "manuscript",
+                    "artifact_manifest",
+                    "bibliography_audit",
+                ],
+                stage_artifacts=[],
+                conditional_requirements=[],
+                scope_variants=[
+                    SimpleNamespace(
+                        scope="explicit_artifact",
+                        activation="explicit external artifact subject was supplied",
+                        relaxed_preflight_checks=["project_state", "roadmap", "conventions"],
+                        optional_preflight_checks=["artifact_manifest", "bibliography_audit"],
+                        required_outputs_override=["GPD/review/ARTIFACT-REPORT.md"],
+                        required_evidence_override=["resolved explicit artifact subject"],
+                        blocking_conditions_override=["missing manuscript"],
+                    )
+                ],
+            ),
+        )
+
+        monkeypatch.setattr(
+            cli_module,
+            "_resolve_registry_command",
+            lambda command_name: (command, "gpd:custom-publication-review"),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "custom-publication-review",
+                "notes.txt",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:custom-publication-review"
+        assert payload["passed"] is True
+        assert payload["required_outputs"] == ["GPD/review/ARTIFACT-REPORT.md"]
+        assert payload["required_evidence"] == ["resolved explicit artifact subject"]
+        assert payload["blocking_conditions"] == ["missing manuscript"]
+        assert checks["project_state"]["passed"] is True
+        assert checks["project_state"]["blocking"] is False
+        assert checks["roadmap"]["passed"] is True
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["passed"] is True
+        assert checks["conventions"]["blocking"] is False
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["artifact_manifest"]["blocking"] is False
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["bibliography_audit"]["blocking"] is False
 
     def test_review_preflight_falls_back_when_runtime_resolution_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", lambda cwd=None: None)
@@ -3571,12 +3794,10 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:respond-to-referees"
         assert payload["passed"] is False
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["command_context"]["passed"] is False
+        assert checks["command_context"]["passed"] is True
         assert checks["referee_report_source"]["passed"] is True
         assert checks["manuscript"]["passed"] is False
-        assert (
-            "no manuscript entrypoint found under paper/, manuscript/, or draft/" in checks["command_context"]["detail"]
-        )
+        assert "context_mode=project-aware" in checks["command_context"]["detail"]
 
     def test_review_preflight_peer_review_resolves_ancestor_project_root_for_nested_workspace(
         self,
@@ -4329,7 +4550,7 @@ class TestReviewValidationCommands:
         assert checks["review_ledger"]["passed"] is False
         assert checks["referee_decision"]["passed"] is False
 
-    def test_review_preflight_arxiv_submission_rejects_explicit_non_default_paper_directory(
+    def test_review_preflight_arxiv_submission_accepts_explicit_non_default_paper_directory_subject(
         self,
         gpd_project: Path,
     ) -> None:
@@ -4358,10 +4579,17 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["passed"] is True
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["reproducibility_manifest"]["passed"] is True
+        assert checks["review_ledger"]["passed"] is False
+        assert checks["referee_decision"]["passed"] is False
+        assert "submission" in checks["manuscript"]["detail"]
 
-    def test_review_preflight_arxiv_submission_rejects_explicit_manuscript_file(self, gpd_project: Path) -> None:
+    def test_review_preflight_arxiv_submission_accepts_explicit_manuscript_file_subject(
+        self, gpd_project: Path
+    ) -> None:
         paper_dir = gpd_project / "paper"
         (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
 
@@ -4394,10 +4622,12 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["passed"] is True
+        assert checks["review_ledger"]["passed"] is False
+        assert checks["referee_decision"]["passed"] is False
+        assert checks["manuscript"]["detail"] == f"./submission/{_CANONICAL_MANUSCRIPT_BASENAME} present"
 
-    def test_command_context_arxiv_submission_rejects_explicit_target_outside_supported_roots(
+    def test_command_context_arxiv_submission_accepts_explicit_target_outside_supported_roots(
         self,
         gpd_project: Path,
     ) -> None:
@@ -4438,11 +4668,15 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["required_files"]["passed"] is False
-        assert "explicit manuscript target satisfies command context" not in checks["required_files"]["detail"]
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+        assert payload["resolved_subject"]["ownership_mode"] == "external_artifact"
+        assert payload["resolved_subject"]["explicit_input"] is True
+        assert payload["resolved_subject"]["target_path"].endswith(f"submission/{_CANONICAL_MANUSCRIPT_BASENAME}")
 
     def test_command_context_peer_review_resolves_relative_manuscript_from_nested_workspace(
         self,
@@ -4820,8 +5054,14 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["passed"] is True
+        assert checks["artifact_manifest"]["detail"].startswith("no ARTIFACT-MANIFEST.json found near the manuscript")
+        assert checks["artifact_manifest"]["blocking"] is False
+        assert checks["bibliography_audit"]["detail"].startswith("no BIBLIOGRAPHY-AUDIT.json found near the manuscript")
+        assert checks["bibliography_audit"]["blocking"] is False
+        assert checks["reproducibility_manifest"]["blocking"] is False
+        assert checks["review_ledger"]["passed"] is False
+        assert checks["referee_decision"]["passed"] is False
 
     def test_review_preflight_arxiv_submission_rejects_explicit_markdown_manuscript_file(
         self,
@@ -4851,7 +5091,10 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert (
+            checks["manuscript"]["detail"]
+            == f"explicit manuscript target must be a .tex file: ./submission/{_CANONICAL_MARKDOWN_BASENAME}"
+        )
 
     def test_review_preflight_arxiv_submission_rejects_directory_with_markdown_entrypoint(
         self,
@@ -4874,7 +5117,7 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["detail"] == "no manuscript entry point found under ./submission"
 
     def test_review_preflight_arxiv_submission_rejects_explicit_directory_without_main_entrypoint(
         self,
@@ -4904,7 +5147,7 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["detail"] == "no manuscript entry point found under ./submission"
 
     def test_review_preflight_arxiv_submission_default_markdown_only_project_fails_manuscript_check(
         self,

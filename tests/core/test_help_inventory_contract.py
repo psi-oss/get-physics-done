@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from gpd import registry as content_registry
+from tests.doc_surface_contracts import assert_publication_lane_boundary_contract
 
 
 def _repo_root():
@@ -73,6 +74,19 @@ def test_public_docs_frame_typed_review_surfaces_as_command_policy_specializatio
 
     assert "generic typed command-policy check for the public runtime surface" in help_workflow
     assert "specialized typed surfaces for commands that expose review/publication contracts" in help_workflow
+
+
+def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_args() -> None:
+    readme = _read("README.md")
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    assert_publication_lane_boundary_contract(readme)
+    assert_publication_lane_boundary_contract(help_workflow)
+    assert "The later publication commands stay stricter:" in readme
+    assert "**`gpd:respond-to-referees [path to referee report or 'paste']`**" in help_workflow
+    assert "**`gpd:arxiv-submission [paper directory path]`**" in help_workflow
+    assert "Usage: `gpd:respond-to-referees paste`" in help_workflow
+    assert "Usage: `gpd:arxiv-submission paper/`" in help_workflow
 
 
 def test_help_command_uses_one_shared_extract_warning() -> None:

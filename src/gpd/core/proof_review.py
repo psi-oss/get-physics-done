@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -11,11 +12,13 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
+from gpd.core.constants import ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
 from gpd.core.referee_policy import validate_stage_review_artifact_alignment
 from gpd.core.reproducibility import compute_sha256
+from gpd.core.utils import normalize_ascii_slug
 from gpd.mcp.paper.review_artifacts import read_claim_index, read_stage_review_report
 
 __all__ = [
@@ -140,10 +143,52 @@ def phase_proof_review_manifest_path(verification_path: Path) -> Path:
     return verification_path.with_name(MANUSCRIPT_PROOF_REVIEW_MANIFEST_NAME)
 
 
-def manuscript_proof_review_manifest_path(manuscript_entrypoint: Path) -> Path:
-    """Return the manuscript-local proof-review manifest path."""
+def manuscript_proof_review_manifest_path(
+    manuscript_entrypoint: Path,
+    *,
+    project_root: Path | None = None,
+) -> Path:
+    """Return the canonical proof-review manifest path for one manuscript subject."""
 
-    return manuscript_entrypoint.parent / MANUSCRIPT_PROOF_REVIEW_MANIFEST_NAME
+    if project_root is None or _uses_project_local_manuscript_manifest(project_root, manuscript_entrypoint):
+        return manuscript_entrypoint.parent / MANUSCRIPT_PROOF_REVIEW_MANIFEST_NAME
+    return _managed_publication_proof_review_manifest_path(project_root, manuscript_entrypoint)
+
+
+def _uses_project_local_manuscript_manifest(project_root: Path, manuscript_entrypoint: Path) -> bool:
+    """Return whether one manuscript subject should keep its proof manifest beside the manuscript."""
+
+    try:
+        relative = manuscript_entrypoint.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return False
+    return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
+
+
+def _managed_publication_proof_review_manifest_path(project_root: Path, manuscript_entrypoint: Path) -> Path:
+    """Return the managed proof-review manifest path for an explicit external manuscript subject."""
+
+    layout = ProjectLayout(project_root)
+    return (
+        layout.publication_proof_review_dir(_publication_subject_slug(project_root, manuscript_entrypoint))
+        / MANUSCRIPT_PROOF_REVIEW_MANIFEST_NAME
+    )
+
+
+def _publication_subject_slug(project_root: Path, manuscript_entrypoint: Path) -> str:
+    """Return a stable managed-output slug for one resolved manuscript subject."""
+
+    resolved_root = project_root.resolve(strict=False)
+    resolved_entrypoint = manuscript_entrypoint.resolve(strict=False)
+    try:
+        label = resolved_entrypoint.relative_to(resolved_root).as_posix()
+    except ValueError:
+        label = resolved_entrypoint.as_posix()
+    slug_source = label[: -len(resolved_entrypoint.suffix)] if resolved_entrypoint.suffix else label
+    slug = normalize_ascii_slug(slug_source.replace("/", "-")) or "manuscript"
+    slug = slug[:48].rstrip("-") or "manuscript"
+    digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:12]
+    return f"{slug}-{digest}"
 
 
 def manuscript_has_theorem_bearing_review_anchor(
@@ -307,7 +352,7 @@ def resolve_manuscript_proof_review_status(
     review_anchor = _latest_matching_math_review_anchor(project_root, entrypoint)
     actual_manuscript_sha256 = compute_sha256(entrypoint)
     watched_files = _collect_manuscript_watched_files(entrypoint.parent)
-    manifest_path = manuscript_proof_review_manifest_path(entrypoint)
+    manifest_path = manuscript_proof_review_manifest_path(entrypoint, project_root=project_root)
     if review_anchor is None:
         return ProofReviewStatus(
             scope="manuscript",

@@ -12,6 +12,7 @@ from pydantic import ValidationError as PydanticValidationError
 from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, PublicationPathSemantics, derive_output_filename
 
 __all__ = [
+    "PublicationBootstrapResolution",
     "ManuscriptArtifacts",
     "ManuscriptResolution",
     "ManuscriptRootResolution",
@@ -25,6 +26,7 @@ __all__ = [
     "resolve_current_manuscript_entrypoint",
     "resolve_current_manuscript_resolution",
     "resolve_current_manuscript_root",
+    "resolve_publication_bootstrap_resolution",
     "resolve_publication_subject",
     "resolve_publication_subject_artifact",
 ]
@@ -49,6 +51,7 @@ class ManuscriptArtifacts:
 ManuscriptResolutionStatus = Literal["resolved", "missing", "ambiguous", "invalid"]
 PublicationSubjectStatus = Literal["resolved", "missing", "ambiguous", "invalid"]
 PublicationSubjectSource = Literal["current_project", "explicit_target"]
+PublicationBootstrapMode = Literal["resume_existing_manuscript", "fresh_project_bootstrap", "blocked"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +135,45 @@ class PublicationSubjectResolution:
             "bibliography_audit": _relative_path(self.project_root, self.bibliography_audit),
             "reproducibility_manifest": _relative_path(self.project_root, self.reproducibility_manifest),
             "path_semantics": None if self.path_semantics is None else self.path_semantics.model_dump(mode="python"),
+        }
+
+    def to_bootstrap_context_dict(self) -> dict[str, object]:
+        """Return the compact publication-subject payload used during bootstrap."""
+
+        manuscript_resolution = self.as_manuscript_resolution()
+        return {
+            "publication_subject": self.to_context_dict(),
+            "publication_subject_status": self.status,
+            "publication_subject_source": self.source,
+            "publication_subject_detail": self.detail,
+            "publication_artifact_base": _relative_path(self.project_root, self.artifact_base),
+            "manuscript_resolution_status": manuscript_resolution.status,
+            "manuscript_resolution_detail": manuscript_resolution.detail,
+            "manuscript_root": _relative_path(self.project_root, self.manuscript_root),
+            "manuscript_entrypoint": _relative_path(self.project_root, self.manuscript_entrypoint),
+            "artifact_manifest_path": _relative_path(self.project_root, self.artifact_manifest),
+            "bibliography_audit_path": _relative_path(self.project_root, self.bibliography_audit),
+            "reproducibility_manifest_path": _relative_path(self.project_root, self.reproducibility_manifest),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationBootstrapResolution:
+    """Resolved bootstrap intent for publication-aware authoring commands."""
+
+    project_root: Path
+    publication_subject: PublicationSubjectResolution
+    mode: PublicationBootstrapMode
+    detail: str
+    bootstrap_root: Path | None = None
+
+    def to_context_dict(self) -> dict[str, object]:
+        """Return a machine-readable summary of the bootstrap plan."""
+
+        return {
+            "mode": self.mode,
+            "detail": self.detail,
+            "bootstrap_root": _relative_path(self.project_root, self.bootstrap_root),
         }
 
 
@@ -666,6 +708,63 @@ def resolve_publication_subject(
         target,
         allow_markdown=allow_markdown,
         subject_base=subject_base,
+    )
+
+
+def resolve_publication_bootstrap_resolution(
+    project_root: Path,
+    *,
+    allow_markdown: bool = True,
+    default_bootstrap_root: str | Path = "paper",
+) -> PublicationBootstrapResolution:
+    """Return the current bootstrap plan for publication-aware authoring."""
+
+    resolved_project_root = Path(project_root).resolve(strict=False)
+    subject = resolve_current_publication_subject(
+        resolved_project_root,
+        allow_markdown=allow_markdown,
+    )
+    bootstrap_candidate = Path(default_bootstrap_root)
+    if not bootstrap_candidate.is_absolute():
+        bootstrap_candidate = resolved_project_root / bootstrap_candidate
+    bootstrap_candidate = bootstrap_candidate.resolve(strict=False)
+
+    if subject.resolved:
+        bootstrap_root = (
+            subject.artifact_base
+            or subject.manuscript_root
+            or (subject.manuscript_entrypoint.parent if subject.manuscript_entrypoint is not None else None)
+        )
+        return PublicationBootstrapResolution(
+            project_root=resolved_project_root,
+            publication_subject=subject,
+            mode="resume_existing_manuscript",
+            detail=(
+                f"resume the resolved manuscript root at {bootstrap_root}"
+                if bootstrap_root is not None
+                else "resume the resolved manuscript subject"
+            ),
+            bootstrap_root=bootstrap_root,
+        )
+
+    if subject.status == "missing":
+        return PublicationBootstrapResolution(
+            project_root=resolved_project_root,
+            publication_subject=subject,
+            mode="fresh_project_bootstrap",
+            detail=(
+                f"no publication subject is resolved; current write-paper bootstrap remains at {bootstrap_candidate} "
+                "until manuscript-root migration is implemented end-to-end"
+            ),
+            bootstrap_root=bootstrap_candidate,
+        )
+
+    return PublicationBootstrapResolution(
+        project_root=resolved_project_root,
+        publication_subject=subject,
+        mode="blocked",
+        detail=f"publication bootstrap is blocked: {subject.detail}",
+        bootstrap_root=None,
     )
 
 

@@ -819,7 +819,7 @@ def build_paper_quality_input(
             f"found {manuscript_resolution.status}: {manuscript_resolution.detail}"
         )
     if manuscript_resolution.status == "resolved" and manuscript_resolution.manuscript_root is not None:
-        paper_dir = manuscript_resolution.manuscript_root
+        paper_dir = subject.artifact_base or manuscript_resolution.manuscript_root
         manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint
     elif publication_subject is not None:
         raise GPDError(

@@ -297,9 +297,9 @@ Once the relevant phases are complete and verified, continue toward write-up wit
 
 ```text
 gpd:write-paper "3D Ising bootstrap bounds"
-gpd:arxiv-submission
 gpd:peer-review
 gpd:respond-to-referees
+gpd:arxiv-submission
 ```
 
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
@@ -325,6 +325,8 @@ Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase
 
 Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
 
+Publication boundary: `gpd:peer-review` can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target. `gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root and its staged review/manuscript-root artifacts. GPD-authored auxiliary review/response outputs live under `GPD/`; this does not relocate the manuscript draft itself out of `paper/`, `manuscript/`, or `draft/`.
+
 Leave / return path: `gpd:pause-work` before leaving mid-phase, `gpd:resume-work` when you return in-runtime, `gpd:suggest-next` when you only need the next action, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue inside that workspace with the runtime `resume-work` command.
 
 ### Command Context
@@ -339,6 +341,8 @@ Not every GPD command needs the same amount of project state.
 | `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:write-paper` |
 
 For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
+
+The later publication commands stay stricter: `gpd:respond-to-referees` works from the active project's resolved manuscript root plus a referee report source, and `gpd:arxiv-submission` can take an optional in-project manuscript-root target but still requires project state, `gpd paper-build`, and the latest staged review clearance for that manuscript.
 
 The full in-runtime reference uses Claude Code / Gemini CLI syntax. Codex uses `$gpd-...` and OpenCode uses `/gpd-...`.
 

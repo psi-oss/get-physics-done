@@ -5,7 +5,7 @@
     {
       "id": "bootstrap",
       "order": 1,
-      "purpose": "publication bootstrap, manuscript target resolution, and fail-closed latest-review gating",
+      "purpose": "project-aware publication bootstrap, explicit manuscript target resolution, and fail-closed latest-review gating",
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
@@ -55,14 +55,16 @@
       "writes_allowed": [],
       "produced_state": [
         "bootstrap routing state",
-        "manuscript target state"
+        "manuscript target state",
+        "managed publication output root state"
       ],
       "next_stages": [
         "manuscript_preflight"
       ],
       "checkpoints": [
         "manuscript target resolved",
-        "latest review gate visible"
+        "latest review gate visible",
+        "managed publication output root identified"
       ]
     },
     {
@@ -229,17 +231,21 @@
         "shell",
         "task"
       ],
-      "writes_allowed": [],
+      "writes_allowed": [
+        "GPD/publication/{subject_slug}/arxiv"
+      ],
       "produced_state": [
         "submission package state",
-        "submission artifact state"
+        "submission artifact state",
+        "managed arxiv package state"
       ],
       "next_stages": [
         "finalize"
       ],
       "checkpoints": [
         "submission tree assembled",
-        "tarball verifiable at root"
+        "tarball verifiable at root",
+        "managed tarball written under GPD/publication"
       ]
     },
     {
@@ -282,10 +288,13 @@
         "shell",
         "task"
       ],
-      "writes_allowed": [],
+      "writes_allowed": [
+        "GPD/publication/{subject_slug}/arxiv"
+      ],
       "produced_state": [
         "submission checklist state",
-        "final submission state"
+        "final submission state",
+        "managed publication handoff state"
       ],
       "next_stages": [],
       "checkpoints": [

@@ -17,3 +17,4 @@ Canonical sources:
 - `@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`
 
 The manuscript-root contract owns root resolution, manuscript-local artifact rooting, and `gpd paper-build` authority. The round and response contracts own latest-round gating, paired response completion, and fail-closed child-return semantics.
+This compatibility bridge does not change the publication-lane boundary: GPD-owned auxiliary outputs stay under `GPD/`, while manuscript-local artifacts remain at the resolved manuscript root.

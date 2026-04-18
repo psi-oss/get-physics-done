@@ -335,6 +335,22 @@ def _assert_installed_contract_visibility(
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_installed_peer_review_prompt_keeps_publication_lane_boundary(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    peer_review = _read_runtime_command_prompt(target.parent, target, runtime, "peer-review")
+    peer_review = _canonicalize_runtime_markdown(peer_review, runtime=runtime)
+
+    assert "Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace." in peer_review
+    assert (
+        "The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory."
+        in peer_review
+    )
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
 def test_installed_verifier_prompt_surface_keeps_one_wrapper_and_stays_within_budget(
     real_installed_repo_factory,
     runtime: str,

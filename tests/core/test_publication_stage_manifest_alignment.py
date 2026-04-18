@@ -32,6 +32,14 @@ def test_write_paper_stage_manifest_uses_canonical_publication_contracts() -> No
     consistency = manifest.stage("consistency_and_references")
     publication_review = manifest.stage("publication_review")
 
+    assert "publication_subject_status" in bootstrap.required_init_fields
+    assert "publication_bootstrap_mode" in bootstrap.required_init_fields
+    assert "publication_bootstrap_root" in bootstrap.required_init_fields
+    assert "artifact_manifest_path" in bootstrap.required_init_fields
+    assert "GPD/references-status.json" in consistency.writes_allowed
+    assert "GPD/AUTHOR-RESPONSE.md" in publication_review.writes_allowed
+    assert "GPD/REFEREE-REPORT.tex" in publication_review.writes_allowed
+
     assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
     assert "references/publication/publication-response-artifacts.md" in bootstrap.must_not_eager_load
 

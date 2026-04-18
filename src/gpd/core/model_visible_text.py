@@ -132,14 +132,17 @@ def command_visibility_note() -> str:
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy`, and "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.output_policy` are closed mappings when present;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
         "are lists of strings when present;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.project_context_mode` "
         f"must be {_join_disjunction(VALID_CONTEXT_MODES)} when present;",
-        "Typed command policy is additive in Phase 1; keep legacy `context_mode`, `project_reentry_capable`, "
-        "and `requires.files` aligned because they remain visible for compatibility.",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes like `.tex` or `.md` when present;",
+        "Typed command policy is runtime-authoritative for publication-command intake in Phase 2. "
+        "Keep legacy `context_mode`, `project_reentry_capable`, and `requires.files` present as compatibility metadata "
+        "even when publication policy refines runtime routing.",
         f"`context_mode` must be {_join_disjunction(VALID_CONTEXT_MODES)};",
         "`allowed_tools` is a list of tool names when present;",
         "`requires` is a closed mapping when present; only `files` is supported.",
@@ -176,6 +179,9 @@ def review_contract_visibility_note() -> str:
         "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present.",
         "Each `scope_variants[].scope` value may appear at most once.",
         "Each scope variant must declare at least one non-empty override or preflight field.",
+        "Runtime applies active scope variants additively: `relaxed_preflight_checks` make checks non-blocking, "
+        "`optional_preflight_checks` make missing inputs advisory while still validating present artifacts, and "
+        "non-empty `*_override` lists replace the top-level list for the active scope.",
         "Missing required outputs or evidence must stay explicit; do not omit, invent, or replace them with proxies.",
         *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )

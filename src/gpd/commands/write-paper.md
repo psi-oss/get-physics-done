@@ -3,6 +3,26 @@ name: gpd:write-paper
 description: Structure and write a physics paper from research results
 argument-hint: "[paper title or topic] [--from-phases 1,2,3]"
 context_mode: project-required
+command-policy:
+  schema_version: 1
+  subject_policy:
+    subject_kind: publication
+    resolution_mode: project_manuscript_or_bootstrap
+    explicit_input_kinds:
+      - paper_title_or_topic
+      - from_phases_flag
+    allow_external_subjects: false
+    allow_interactive_without_subject: true
+    supported_roots:
+      - paper
+      - manuscript
+      - draft
+    bootstrap_allowed: true
+  output_policy:
+    output_mode: manuscript_local_plus_gpd_auxiliary
+    managed_root_kind: gpd_managed_durable
+    default_output_subtree: GPD/review
+    stage_artifact_policy: allowed
 review-contract:
   review_mode: publication
   schema_version: 1
@@ -66,6 +86,8 @@ Keep the wrapper thin and let the workflow own the full pipeline.
 
 <context>
 Paper topic: $ARGUMENTS
+
+The workflow resolves whether this run resumes an existing manuscript root or bootstraps a fresh project-local manuscript scaffold.
 </context>
 
 <process>

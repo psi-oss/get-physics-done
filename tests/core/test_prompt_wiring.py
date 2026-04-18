@@ -25,6 +25,7 @@ from tests.doc_surface_contracts import (
     assert_help_command_single_command_extract_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
+    assert_publication_lane_boundary_contract,
     assert_recovery_ladder_contract,
     assert_resume_authority_contract,
     assert_runtime_reset_rediscovery_contract,
@@ -751,6 +752,14 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
         "Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization."
         not in command_context
     )
+
+
+def test_readme_and_help_workflow_surface_publication_lane_boundary_without_claiming_root_migration() -> None:
+    readme = README_PATH.read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert_publication_lane_boundary_contract(readme)
+    assert_publication_lane_boundary_contract(help_workflow)
 
 
 def test_slides_workflow_references_templates_and_existing_output_policy() -> None:

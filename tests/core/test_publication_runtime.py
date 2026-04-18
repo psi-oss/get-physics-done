@@ -62,12 +62,16 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     _write(tmp_path / "draft" / "other.tex", "\\documentclass{article}\\begin{document}Other\\end{document}\n")
 
     review_dir = tmp_path / "GPD" / "review"
+    planning_dir = tmp_path / "GPD"
     review_dir.mkdir(parents=True)
     _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
     _write_review_round(review_dir, manuscript_path="draft/other.tex", round_number=3)
-    _write(review_dir / "AUTHOR-RESPONSE-R2.md", "# Author Response R2\n")
+    _write(planning_dir / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(planning_dir / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    _write(planning_dir / "AUTHOR-RESPONSE-R2.md", "# Author Response R2\n")
     _write(review_dir / "REFEREE_RESPONSE-R2.md", "# Referee Response R2\n")
-    _write(review_dir / "AUTHOR-RESPONSE-R3.md", "# Author Response R3\n")
+    _write(review_dir / "REFEREE-REPORT-R3.md", "# Legacy Referee Report R3\n")
+    _write(review_dir / "AUTHOR-RESPONSE-R3.md", "# Legacy Author Response R3\n")
     _write(review_dir / "REFEREE_RESPONSE-R3.md", "# Referee Response R3\n")
 
     subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
@@ -77,9 +81,63 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert snapshot.publication_subject.source == "explicit_target"
     assert snapshot.latest_review_artifacts is not None
     assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_review_artifacts.referee_report_md == planning_dir / "REFEREE-REPORT-R2.md"
+    assert snapshot.latest_review_artifacts.referee_report_tex == planning_dir / "REFEREE-REPORT-R2.tex"
     assert snapshot.latest_response_artifacts is not None
     assert snapshot.latest_response_artifacts.round_number == 2
+    assert snapshot.latest_response_artifacts.author_response == planning_dir / "AUTHOR-RESPONSE-R2.md"
+    assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"
     assert context["publication_subject_source"] == "explicit_target"
     assert context["latest_review_round"] == 2
     assert context["latest_response_round"] == 2
+    assert context["latest_referee_report_md"] == "GPD/REFEREE-REPORT-R2.md"
+    assert context["latest_author_response"] == "GPD/AUTHOR-RESPONSE-R2.md"
     assert context["publication_subject"]["manuscript_entrypoint"] == "paper/main.tex"
+
+
+def test_publication_runtime_snapshot_accepts_legacy_review_dir_report_and_author_response_during_migration(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Main Paper",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(review_dir / "REFEREE-REPORT-R2.md", "# Legacy Referee Report R2\n")
+    _write(review_dir / "REFEREE-REPORT-R2.tex", "\\section*{Legacy Referee Report R2}\n")
+    _write(review_dir / "AUTHOR-RESPONSE-R2.md", "# Legacy Author Response R2\n")
+    _write(review_dir / "REFEREE_RESPONSE-R2.md", "# Referee Response R2\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.referee_report_md == review_dir / "REFEREE-REPORT-R2.md"
+    assert snapshot.latest_review_artifacts.referee_report_tex == review_dir / "REFEREE-REPORT-R2.tex"
+    assert snapshot.latest_response_artifacts is not None
+    assert snapshot.latest_response_artifacts.author_response == review_dir / "AUTHOR-RESPONSE-R2.md"
+    assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"

@@ -131,6 +131,7 @@ __all__ = [
     "assert_beginner_hub_preflight_contract",
     "assert_beginner_router_bridge_contract",
     "assert_beginner_startup_routing_contract",
+    "assert_publication_lane_boundary_contract",
     "assert_recovery_ladder_contract",
     "assert_runtime_reset_rediscovery_contract",
     "assert_resume_authority_contract",
@@ -1287,6 +1288,52 @@ def assert_optional_paper_workflow_guidance_contract(content: str) -> None:
         ),
         label="optional paper workflow degradation guidance",
     )
+
+
+def assert_publication_lane_boundary_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "Publication boundary:",
+            "Publication lane boundary:",
+        ),
+        label="publication lane boundary framing",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:peer-review` can review the current project manuscript or one explicit",
+            "`gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit",
+        ),
+        label="peer-review explicit artifact intake boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root",
+            "`gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root",
+            "The later publication commands stay stricter:",
+        ),
+        label="resolved manuscript-root publication boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "GPD-authored auxiliary review/response outputs live under `GPD/`",
+            "GPD-authored auxiliary review/response/package outputs stay under `GPD/`",
+            "GPD-authored auxiliary review outputs under `GPD/`",
+        ),
+        label="GPD-authored publication auxiliary outputs",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "this does not relocate the manuscript draft itself out of `paper/`, `manuscript/`, or `draft/`",
+            "this is not a full manuscript-root migration",
+        ),
+        label="manuscript-root migration boundary",
+    )
+
 
 def assert_publication_toolchain_boundary_contract(content: str) -> None:
     _assert_contains_any(

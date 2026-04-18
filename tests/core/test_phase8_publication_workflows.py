@@ -35,6 +35,12 @@ def test_respond_to_referees_balanced_mode_does_not_force_parse_confirmation() -
     assert "research_mode" in workflow
     assert "RESEARCH_MODE=$(echo \"$INIT\" | gpd json get .research_mode --default balanced)" in workflow
     assert (
+        "This workflow is project-aware: it may revise the active manuscript from the current GPD project or an explicit manuscript subject"
+        in workflow
+    )
+    assert "Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`" in workflow
+    assert "Treat a bare positional path as a referee-report source only." in workflow
+    assert (
         "Present the parsed structure. Ask for explicit user confirmation only in supervised mode or when the report source is ambiguous; "
         "balanced mode should treat the parse as working context"
     ) in workflow
@@ -44,6 +50,7 @@ def test_respond_to_referees_balanced_mode_does_not_force_parse_confirmation() -
     assert "Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` as the response success gate." in workflow
     assert "fresh `gpd_return.files_written`" in workflow
     assert "Confirm the refreshed JSON artifact exists before treating the round as complete." in workflow
+    assert "If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under `GPD/`" in workflow
 
 
 def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_context() -> None:
