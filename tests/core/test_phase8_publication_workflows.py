@@ -57,3 +57,31 @@ def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_contex
     assert "confirm `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete." in workflow
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in workflow
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in workflow
+
+
+def test_peer_review_stage_six_limits_writes_to_stage6_owned_artifacts() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "Your writable scope is limited to Stage 6-owned adjudication artifacts for this round:" in workflow
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in workflow
+    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in workflow
+    assert "GPD/CONSISTENCY-REPORT.md" in workflow
+    assert "Do not modify `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`." in workflow
+    assert "Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff" in workflow
+    assert "Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist:" in workflow
+    assert (
+        "Treat the Stage 6 return as incomplete if the fresh `gpd_return.files_written` set omits a Stage 6 artifact written in this run or lists any upstream staged-review artifact path."
+        in workflow
+    )
+
+
+def test_peer_review_stage_six_fails_back_to_earliest_upstream_stage_on_inconsistent_inputs() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage" in workflow
+    assert "Do not retry Stage 6 as an upstream repair step." in workflow
+    assert "Use this upstream fail-back routing:" in workflow
+    assert "`CLAIMS{round_suffix}.json` or `STAGE-reader{round_suffix}.json` -> rerun Stage 1" in workflow
+    assert "`STAGE-math{round_suffix}.json` or `PROOF-REDTEAM{round_suffix}.md` -> rerun Stage 3" in workflow
+    assert "`STAGE-interestingness{round_suffix}.json` -> rerun Stage 5" in workflow
+    assert "If multiple upstream artifacts disagree, rerun the earliest stage in that list." in workflow

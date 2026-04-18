@@ -2809,6 +2809,7 @@ def test_peer_review_command_limits_default_manuscript_targets_to_canonical_root
 def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
     reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
 
     assert (
@@ -2824,6 +2825,16 @@ def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:
     assert "A blank `manuscript_path` in the review ledger or referee decision is a contract failure" in reliability
     assert "bibliography_audit_clean" in reliability
     assert "reproducibility_ready" in reliability
+    _assert_contains_fragments(
+        panel,
+        "Stage 6 may write only the adjudication artifacts listed under Output.",
+        "Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and "
+        "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence.",
+        "If any upstream artifact is missing, malformed, stale, or mutually inconsistent, Stage 6 must fail "
+        "closed and route the inconsistency back to the earliest failing upstream stage",
+        "`GPD/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar.",
+        "Do not repair upstream stage artifacts during final adjudication.",
+    )
 
 
 def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:

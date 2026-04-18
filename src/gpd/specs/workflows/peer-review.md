@@ -699,7 +699,10 @@ Recommendation guardrails:
 7. Keep `manuscript_path` non-empty and identical across `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and the staged-review artifacts for this round.
 8. Run `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`.
 9. Run `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
-10. If either validator fails, STOP and fix the JSON artifacts before presenting or relying on the final recommendation.
+10. If either validator fails, STOP and classify whether the failure is in Stage 6-owned artifacts or in upstream staged-review inputs before retrying anything.
+11. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when applicable.
+12. Do not modify `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`. If any of those upstream artifacts are missing, malformed, stale, or inconsistent, return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage instead of repairing it inside Stage 6.
+13. Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff, not as a successful adjudication.
 
 Write `GPD/REFEREE-REPORT{round_suffix}.md` and the matching `GPD/REFEREE-REPORT{round_suffix}.tex`.
 Treat the referee report files as required final-stage artifacts. If either report file is missing after adjudication, the stage is incomplete even if the JSON validators passed.
@@ -713,6 +716,7 @@ Return REVIEW COMPLETE with recommendation, confidence, issue counts, and whethe
 If the referee agent fails to spawn or returns an error, STOP and report the failure. Do not silently skip final adjudication.
 Do not trust the referee's success text until the ledger, decision, and report files all exist on disk and validate. A returned recommendation without the files is incomplete.
 Do not trust the referee's success text until that typed return, the on-disk files, and the validators all agree.
+Treat the Stage 6 return as incomplete if the fresh `gpd_return.files_written` set omits a Stage 6 artifact written in this run or lists any upstream staged-review artifact path.
 </step>
 
 <step name="stage_recovery_6">
@@ -720,6 +724,7 @@ Do not trust the referee's success text until that typed return, the on-disk fil
 
 Check that both `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` exist and parse as valid JSON.
 Also confirm `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete.
+Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist: `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when applicable. Treat any upstream staged-review path in `gpd_return.files_written` as a failed handoff.
 
 Then run the built-in validators. These are the authoritative fail-closed schema and consistency checks for every final recommendation:
 
@@ -730,8 +735,20 @@ gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --s
 
 If validation fails:
 
-1. **Retry once.** Re-run the Stage 6 referee subagent with the same inputs and an explicit reminder to satisfy `review-ledger-schema.md` and `referee-decision-schema.md` by passing the built-in validators above.
-2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, validation errors, and any partial output. Do not proceed to report summarization.
+1. **Classify the failure first.** Distinguish Stage 6-owned artifact failures from upstream staged-review artifact failures.
+2. **Only retry Stage 6 for Stage 6-owned artifacts.** If the failure is limited to `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, or `GPD/CONSISTENCY-REPORT.md`, re-run the Stage 6 referee subagent once with an explicit reminder to satisfy `review-ledger-schema.md` and `referee-decision-schema.md` by passing the built-in validators above.
+3. **Do not retry Stage 6 as an upstream repair step.** If validation or consistency errors point at `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`, STOP fail-closed and rerun the earliest failing upstream stage instead of letting Stage 6 repair those inputs.
+4. **If the eligible Stage 6 retry also fails,** STOP the pipeline and report the failure: stage name, validation errors, and any partial output. Do not proceed to report summarization.
+
+Use this upstream fail-back routing:
+
+- `CLAIMS{round_suffix}.json` or `STAGE-reader{round_suffix}.json` -> rerun Stage 1
+- `STAGE-literature{round_suffix}.json` -> rerun Stage 2
+- `STAGE-math{round_suffix}.json` or `PROOF-REDTEAM{round_suffix}.md` -> rerun Stage 3 and the proof-critique pass when applicable
+- `STAGE-physics{round_suffix}.json` -> rerun Stage 4
+- `STAGE-interestingness{round_suffix}.json` -> rerun Stage 5
+
+If multiple upstream artifacts disagree, rerun the earliest stage in that list.
 
 Treat blank `manuscript_path` values in either `GPD/review/REVIEW-LEDGER{round_suffix}.json` or `GPD/review/REFEREE-DECISION{round_suffix}.json` as validation failures, not as optional bookkeeping.
 

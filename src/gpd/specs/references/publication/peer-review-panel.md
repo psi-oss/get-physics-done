@@ -105,13 +105,16 @@ Goal:
 - Read all stage artifacts.
 - Spot-check the manuscript where the stage artifacts disagree or feel under-evidenced.
 - Issue the final recommendation.
+- Stage 6 may write only the adjudication artifacts listed under Output.
+- Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and `GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence. Do not repair, rewrite, replace, or backfill them inside Stage 6.
+- If any upstream artifact is missing, malformed, stale, or mutually inconsistent, Stage 6 must fail closed and route the inconsistency back to the earliest failing upstream stage instead of patching those artifacts during adjudication.
 
 Output:
 - `GPD/review/REVIEW-LEDGER{round_suffix}.json`
 - `GPD/review/REFEREE-DECISION{round_suffix}.json`
 - `GPD/REFEREE-REPORT{round_suffix}.md`
 - `GPD/REFEREE-REPORT{round_suffix}.tex`
-- `GPD/CONSISTENCY-REPORT.md` when applicable
+- `GPD/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar. It does not authorize Stage 6 to mutate upstream stage artifacts.
 
 ## Fresh-Context Rule
 
@@ -131,6 +134,7 @@ Do not pass the entire orchestration transcript into later stages. The stage art
 - Stage 4 should read Stage 1 and Stage 3, and Stage 2 when literature overlap affects physical interpretation.
 - Stage 5 should read Stages 1, 2, and 4.
 - Stage 6 reads all prior stage artifacts and spot-checks the manuscript as needed. When theorem-bearing claims exist, `PROOF-REDTEAM{round_suffix}.md` is mandatory Stage 6 input rather than optional context.
+- If Stage 6 detects a missing, malformed, stale, or inconsistent upstream artifact, route that failure back to the earliest failing upstream stage. Do not repair upstream stage artifacts during final adjudication.
 - For theorem-bearing review, a missing, invalid, or non-passing `PROOF-REDTEAM{round_suffix}.md` artifact is itself a blocking stage-integrity failure.
 - `blocking` in each finding must be a literal JSON boolean (`true` or `false`), not a quoted string or synonym such as `"yes"` / `"no"`.
 

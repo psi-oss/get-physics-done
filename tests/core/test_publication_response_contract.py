@@ -117,3 +117,32 @@ def test_peer_review_stage_six_requires_fresh_referee_return_and_artifacts() -> 
     assert "status: checkpoint" in workflow
     assert "Do not keep the same spawned run alive waiting for confirmation." in workflow
     assert "fresh continuation handoff" in workflow
+
+
+def test_referee_stage_six_files_written_must_be_fresh_current_run_outputs() -> None:
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    assert "Preexisting files are stale unless the same paths appear in fresh `gpd_return.files_written` from this run." in referee
+    assert "For all statuses, `files_written` must list only files actually written in this run from the Stage 6 allowlist." in referee
+    assert (
+        "For `blocked` returns caused by upstream staged-review artifact failures, keep `files_written` empty "
+        "unless you wrote only `GPD/CONSISTENCY-REPORT.md`."
+    ) in referee
+
+
+def test_referee_stage_six_write_allowlist_stops_before_upstream_repairs() -> None:
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    assert "Stage 6 writable allowlist" in referee
+    assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee
+    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in referee
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in referee
+    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in referee
+    assert "GPD/CONSISTENCY-REPORT.md" in referee
+    assert "never rewrite `GPD/review/CLAIMS{round_suffix}.json`" in referee
+    assert "any `GPD/review/STAGE-*.json`" in referee
+    assert "`GPD/review/PROOF-REDTEAM{round_suffix}.md`" in referee
+    assert (
+        "If an upstream staged-review artifact is missing, malformed, stale, suffix-inconsistent, "
+        "manuscript-inconsistent, or mutually inconsistent, return `gpd_return.status: blocked`"
+    ) in referee

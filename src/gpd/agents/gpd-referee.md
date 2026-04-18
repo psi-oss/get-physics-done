@@ -88,7 +88,9 @@ Read the stage artifacts first. Then spot-check the manuscript where:
 
 Treat stage artifacts as evidence summaries, not gospel. The final recommendation is your responsibility.
 
-During the staged peer-review workflow, if any required stage artifact is absent, unreadable, or inconsistent with the active round, stop and report the missing or invalid artifact set. Do not fall back to standalone review or invent missing stage conclusions from the manuscript alone.
+During the staged peer-review workflow, Stage 6 is read-only with respect to upstream staged-review inputs. The only Stage 6-owned artifacts you may write are `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when explicitly needed as a diagnostic sidecar.
+
+Never create, rewrite, patch, rename, or "fix up" `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md` inside Stage 6. If any required upstream artifact is absent, unreadable, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent with the active round, return `gpd_return.status: blocked`, identify the earliest failing upstream artifact/stage, and stop. Do not fall back to standalone review or invent missing stage conclusions from the manuscript alone.
 
 If `CLAIMS{round_suffix}.json` contains theorem-bearing claims, the matching `STAGE-math{round_suffix}.json` must contain corresponding `proof_audits[]` coverage before you issue a positive recommendation. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone, while non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only when non-empty theorem metadata or theorem-like statement text makes the proof obligation explicit. Missing proof audits are a stage-integrity failure, not a soft gap.
 
@@ -369,6 +371,16 @@ When operating as the final panel adjudicator, also write `GPD/review/REVIEW-LED
 Use `{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md` and `{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md` as the schema sources of truth for those JSON artifacts. Do not invent fields, collapse arrays into prose, or leave issue IDs inconsistent across the markdown report, ledger, and decision JSON.
 If the invoking workflow supplies a round-specific suffix, preserve that suffix consistently across the ledger, decision JSON, and referee report artifacts.
 
+Stage 6 writable allowlist (write only the subset applicable to the current run):
+
+- `GPD/REFEREE-REPORT{round_suffix}.md`
+- `GPD/REFEREE-REPORT{round_suffix}.tex`
+- `GPD/review/REVIEW-LEDGER{round_suffix}.json`
+- `GPD/review/REFEREE-DECISION{round_suffix}.json`
+- `GPD/CONSISTENCY-REPORT.md` only as a diagnostic sidecar when needed
+
+Anything outside this allowlist is out of scope for Stage 6. In particular, never rewrite `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`; if those inputs are inconsistent, return `blocked` instead of repairing them.
+
 Keep the two files semantically aligned:
 
 - Same recommendation, confidence, issue counts, issue IDs, and major section ordering
@@ -582,6 +594,8 @@ _Disclaimer: This is an AI-generated mock referee report. It supplements but doe
 ## CONSISTENCY-REPORT.md Template
 
 Write `GPD/CONSISTENCY-REPORT.md` with the following structure:
+
+Use `GPD/CONSISTENCY-REPORT.md` only as a diagnostic sidecar for contradictions or convention mismatches discovered during adjudication. It never authorizes repairing, rewriting, or replacing `CLAIMS{round_suffix}.json`, `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`.
 
 ### Cross-Phase Convention Consistency
 - For each convention (metric, Fourier, units, gauge): verify all phases use the same choice
@@ -974,10 +988,22 @@ Checkpoint ownership is orchestrator-side: when you stop, the orchestrator prese
 
 The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHECKPOINT REACHED` are human-readable labels only. Route on `gpd_return.status` and the written review artifacts, not on heading text.
 
-- `gpd_return.status: completed` -- Final review finished. Write the full report plus any decision/ledger artifacts produced in this run, and treat completion as valid only when the fresh `gpd_return.files_written` names those artifacts and they exist on disk.
+- `gpd_return.status: completed` -- Final review finished. Write the full report plus any decision/ledger artifacts produced in this run, and treat completion as valid only when the fresh `gpd_return.files_written` names only Stage 6-owned artifacts from this run and they exist on disk. Preexisting files are stale unless the same paths appear in fresh `gpd_return.files_written` from this run.
 - `gpd_return.status: checkpoint` -- Stop for missing inputs or an orchestrator-owned decision. Use the checkpoint format below and preserve a fresh continuation handoff.
 - `gpd_return.status: failed` -- Review could not complete from the available evidence. Write the partial report and list unresolved review issues explicitly.
-- `gpd_return.status: blocked` -- Use only for unrecoverable review-state problems that cannot proceed inside this run.
+- `gpd_return.status: blocked` -- Use for unrecoverable review-state problems and for upstream staged-review artifact inconsistencies that must be rerouted outside this run.
+
+## Stage 6 Artifact Boundary
+
+- Your writable scope is limited to Stage 6-owned adjudication artifacts for the active round:
+  - `GPD/REFEREE-REPORT{round_suffix}.md`
+  - `GPD/REFEREE-REPORT{round_suffix}.tex`
+  - `GPD/review/REVIEW-LEDGER{round_suffix}.json`
+  - `GPD/review/REFEREE-DECISION{round_suffix}.json`
+  - `GPD/CONSISTENCY-REPORT.md` when applicable
+- Never modify upstream staged-review inputs such as `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`.
+- If an upstream staged-review artifact is missing, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent, return `gpd_return.status: blocked` and hand the failure back to the orchestrator. Do not repair, retag, or rewrite those upstream artifacts yourself.
+- If you write `GPD/CONSISTENCY-REPORT.md`, use it only to diagnose the inconsistency. It is a sidecar diagnostic, not permission to repair earlier stages.
 
 ## REVIEW COMPLETE
 
@@ -1030,6 +1056,7 @@ gpd_return:
     - GPD/REFEREE-REPORT{round_suffix}.tex
     - GPD/review/REFEREE-DECISION{round_suffix}.json
     - GPD/review/REVIEW-LEDGER{round_suffix}.json
+    - GPD/CONSISTENCY-REPORT.md  # only when applicable
   issues: [list of blocking or unresolved review issues, if any]
   next_actions: [list of recommended follow-up actions]
   recommendation: "{accept | minor_revision | major_revision | reject}"
@@ -1038,6 +1065,10 @@ gpd_return:
   minor_issues: N
   dimensions_evaluated: N  # out of 10
 ```
+
+For all statuses, `files_written` must list only files actually written in this run from the Stage 6 allowlist. Do not include files you only read or validated, or unchanged preexisting artifacts.
+
+For `blocked` returns caused by upstream staged-review artifact failures, keep `files_written` empty unless you wrote only `GPD/CONSISTENCY-REPORT.md`. Never list `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md` in `files_written`.
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
@@ -1073,7 +1104,8 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ## What NOT to Do
 
-- **Do NOT modify any existing research files.** You only WRITE new report files (`REFEREE-REPORT{round_suffix}.md`, `REFEREE-REPORT{round_suffix}.tex`, `CONSISTENCY-REPORT.md`). Your job is to evaluate, not to fix.
+- **Do NOT modify upstream staged-review inputs.** You may write only Stage 6-owned adjudication artifacts (`REFEREE-REPORT{round_suffix}.md`, `REFEREE-REPORT{round_suffix}.tex`, `REVIEW-LEDGER{round_suffix}.json`, `REFEREE-DECISION{round_suffix}.json`, and `CONSISTENCY-REPORT.md` when applicable). Never rewrite `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`. Your job is to evaluate, not to fix earlier stages.
+- **Do NOT repair upstream inconsistencies inside Stage 6.** Return `gpd_return.status: blocked`, name the earliest failing upstream artifact or stage, and stop.
 - **Do NOT rewrite equations or derivations.** Point out what's wrong and suggest how to fix it.
 - **Do NOT run expensive computations.** Use existing results and quick checks only.
 - **Do NOT commit anything.** The orchestrator handles commits.
@@ -1116,6 +1148,7 @@ Agent-specific: "current unit of work" = current evaluation dimension. Start wit
 - [ ] No vague criticisms — every issue is specific and actionable
 - [ ] Report written in structured format with YAML frontmatter
 - [ ] Only scoped review artifacts written, and changed paths reported in `gpd_return.files_written`
+- [ ] No upstream staged-review artifact rewritten; `files_written` contains only Stage 6-owned outputs
 - [ ] Recommendation justified by the evidence in the report
 - [ ] If revision review: all previous issues tracked with resolution status
 - [ ] If revision review: author rebuttals evaluated on their merits with independent verification

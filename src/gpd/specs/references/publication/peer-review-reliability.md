@@ -74,6 +74,16 @@ The review phase is complete when:
 If the recommendation is `accept` or `minor_revision` with no unresolved blockers, the manuscript may proceed to submission packaging. If the recommendation is `major_revision` or `reject`, the manuscript must return to revision before re-entering peer review.
 When strict submission preflight sees `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json`, it treats the latest round-specific pair as authoritative and blocks packaging unless that condition is satisfied for the active manuscript.
 
+### Stage 6 Artifact Boundary
+
+The workflow boundary and the referee-prompt boundary are the same for final adjudication:
+
+- Stage 6 may write only `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when applicable.
+- Treat the fresh `gpd_return.files_written` set as the prompt-level ownership gate for the current adjudication run. It may name only Stage 6-owned artifacts written in this run.
+- Treat `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, and `GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream artifacts during Stage 6.
+- If any upstream staged-review artifact is missing, malformed, stale, or mutually inconsistent, Stage 6 must return `gpd_return.status: blocked` (or the equivalent workflow stop) and route the failure back to the earliest failing upstream stage instead of repairing the artifact inside Stage 6.
+- `GPD/CONSISTENCY-REPORT.md` is a diagnostic sidecar only. It does not authorize Stage 6 to mutate earlier stage artifacts.
+
 ## Stage Failure Modes and Recovery
 
 Each of the six review stages can fail. The pipeline is **fail-closed**: a failed stage blocks all downstream stages that depend on it.
@@ -89,6 +99,7 @@ Each of the six review stages can fail. The pipeline is **fail-closed**: a faile
 | Timeout or resource limit | Any | Stage does not complete | Retry once; if persistent, reduce manuscript scope or run stages sequentially |
 | Claim index missing | Stages 2-6 | `CLAIMS{round_suffix}.json` absent after Stage 1 | Re-run Stage 1 before proceeding |
 | Theorem-proof audit missing or stale | Stages 3, 6 | The claim record contains theorem-bearing claims but `STAGE-math{round_suffix}.json` omits `proof_audits[]` for them, `PROOF-REDTEAM{round_suffix}.md` is missing or malformed, or central audits use `not_applicable` / leave explicit parameters uncovered | Re-run `gpd-check-proof` and Stage 3 with an explicit theorem-to-proof coverage checklist before allowing Stage 6 to adjudicate |
+| Stage 6 repaired upstream artifacts | Stage 6 | The adjudicator rewrites `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`, or lists those upstream paths in the fresh `gpd_return.files_written` set | Treat it as a Stage 6 boundary violation. Reject the adjudication handoff, rerun the earliest failing upstream stage, and rerun Stage 6 only for its own adjudication artifacts |
 
 ### Recovery Protocol
 
@@ -111,6 +122,7 @@ After each stage writes its artifact, confirm:
 - Do not reimplement the schema checks manually in the workflow prose. The validators are the source of truth for required keys and cross-artifact consistency.
 - A blank `manuscript_path` in the review ledger or referee decision is a contract failure, not a recoverable omission.
 - For theorem-bearing claims, Stage 1 should preserve explicit theorem hypotheses and parameters in `CLAIMS{round_suffix}.json`, and Stage 3 should preserve the corresponding theorem-to-proof audit in `proof_audits[]`. The runtime determines theorem-bearing coverage from the claim record itself, not from a single proxy field. If that chain breaks, treat it as a stage failure rather than proceeding with a stale or inferred review.
+- For Stage 6, validate the fresh `gpd_return.files_written` set against the artifact boundary above. If it names an upstream staged-review artifact, treat the adjudication handoff as failed even if the ledger and decision JSON happen to validate.
 
 If validation fails, treat it as a stage failure and apply the retry protocol above.
 

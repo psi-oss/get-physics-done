@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
+AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 
 
 def test_peer_review_workflow_references_canonical_reliability_doc_and_round_suffixed_artifacts() -> None:
@@ -39,9 +40,15 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in reliability
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in reliability
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in reliability
+    assert "GPD/CONSISTENCY-REPORT.md" in reliability
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in reliability
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in reliability
     assert "paired response artifacts are present" in reliability
+    assert "Stage 6 Artifact Boundary" in reliability
+    assert "fresh `gpd_return.files_written`" in reliability
+    assert "gpd_return.status: blocked" in reliability
+    assert "read-only upstream artifacts during Stage 6" in reliability
+    assert "Stage 6 repaired upstream artifacts" in reliability
     assert "gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json" in reliability
     assert "gpd validate review-stage-report GPD/review/STAGE-<stage_id>{round_suffix}.json" in reliability
     assert "gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in reliability
@@ -61,6 +68,53 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "`REFEREE-DECISION.json`" not in reliability
     assert "`REVIEW-LEDGER.json`" not in reliability
     assert ".gpd/" not in reliability
+
+
+def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_referee() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    stage_six_outputs = (
+        "GPD/REFEREE-REPORT{round_suffix}.md",
+        "GPD/REFEREE-REPORT{round_suffix}.tex",
+        "GPD/review/REVIEW-LEDGER{round_suffix}.json",
+        "GPD/review/REFEREE-DECISION{round_suffix}.json",
+        "GPD/CONSISTENCY-REPORT.md",
+    )
+    for artifact in stage_six_outputs:
+        assert artifact in workflow
+        assert artifact in panel
+        assert artifact in reliability
+        assert artifact in referee
+
+    assert "fresh `gpd_return.files_written`" in workflow
+    assert "fresh `gpd_return.files_written`" in reliability
+    assert "fresh `gpd_return.files_written`" in referee
+
+    assert (
+        "Do not modify `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, "
+        "or `GPD/review/PROOF-REDTEAM{round_suffix}.md`."
+    ) in workflow
+    assert (
+        "Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and "
+        "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence."
+    ) in panel
+    assert (
+        "Treat `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, and "
+        "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream artifacts during Stage 6."
+    ) in reliability
+    assert (
+        "Never modify upstream staged-review inputs such as `GPD/review/CLAIMS{round_suffix}.json`, "
+        "any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`."
+    ) in referee
+
+    assert "return `gpd_return.status: blocked`" in workflow
+    assert "route the inconsistency back to the earliest failing upstream stage" in panel
+    assert "gpd_return.status: blocked" in reliability
+    assert "return `gpd_return.status: blocked`" in referee
+    assert "Stage 6 repaired upstream artifacts" in reliability
 
 
 def test_peer_review_references_keep_generic_claim_kind_out_of_default_theorem_bearing_classification() -> None:
