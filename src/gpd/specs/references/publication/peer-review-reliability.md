@@ -88,6 +88,19 @@ The workflow boundary and the referee-prompt boundary are the same for final adj
 
 Each of the six review stages can fail. The pipeline is **fail-closed**: a failed stage blocks all downstream stages that depend on it.
 
+### Runtime-Neutral Stage Cleanup
+
+Every spawned reviewer, proof critic, or referee run is a one-shot child handoff. When a child reaches `completed`, `checkpoint`, `blocked`, or `failed`, treat that outcome as terminal for that run: the child is closed/retired for the active review round and must not stay live across the next workflow step.
+
+After any terminal child outcome:
+
+- validate or classify the persisted artifact boundary in the orchestrator
+- close/retire the finished child before spawning any retry, continuation, or downstream stage
+- start retries and checkpoint continuations from persisted artifacts and declared carry-forward inputs only
+- do not reuse live child memory, pending tool state, or any other transient execution state across stage boundaries
+
+For the Stage 2 / Stage 3 / proof-review parallel wave, apply the same barrier to every child in the wave: wait for each outcome, validate the written artifacts, close/retire the completed children, then spawn Stage 4 only from the persisted handoff set. Sequential fallback must emulate the same cleanup boundary between stages.
+
 ### Common Failure Modes
 
 | Failure mode | Affected stages | Symptom | Recovery |
@@ -104,7 +117,7 @@ Each of the six review stages can fail. The pipeline is **fail-closed**: a faile
 ### Recovery Protocol
 
 1. **Detect.** After each stage completes, validate that the expected output artifact exists and conforms to the `StageReviewReport` JSON schema.
-2. **Retry.** Each stage is allowed at most **one retry**. On retry, pass the same inputs and explicit schema guidance.
+2. **Retry.** Each stage is allowed at most **one retry**. The retry is a fresh run. Do not resume the failed child in place; start again from the persisted artifacts and typed return data already captured for that stage, then pass the same inputs and explicit schema guidance.
 3. **Escalate.** If a stage fails after one retry, halt the pipeline and report the failure with the stage name, failure mode, and any partial output.
 4. **No silent skipping.** Never skip a failed stage and continue to the next. The staged design depends on each stage producing a valid handoff artifact.
 

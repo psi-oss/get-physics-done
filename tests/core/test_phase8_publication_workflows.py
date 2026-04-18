@@ -59,6 +59,62 @@ def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_contex
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in workflow
 
 
+def test_peer_review_workflow_retires_finished_handoffs_and_clears_transient_state() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert (
+        "A spawned handoff is not complete until the orchestrator has captured its typed return, "
+        "verified the stage-owned artifact boundary on disk, and then treated that finished child "
+        "as closed and retired." in workflow
+    )
+    assert (
+        "Once retired, its transient execution state, scratch reasoning, and live conversation "
+        "context must not be reused." in workflow
+    )
+    assert (
+        "Every downstream stage must begin from persisted artifacts plus the explicitly declared "
+        "carry-forward inputs for that stage." in workflow
+    )
+    assert (
+        "If subagent spawning is unavailable and the workflow falls back to sequential execution "
+        "in the main context, emulate the same boundary discipline: finish one stage, persist and "
+        "verify its artifacts, clear the stage-local transient state, and begin the next stage "
+        "only from those persisted outputs and declared carry-forward inputs." in workflow
+    )
+
+
+def test_peer_review_workflow_requires_barriers_and_cleanup_before_downstream_stage_spawns() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "Treat this recovery step as the Stage 2 / Stage 3 / proof-review branch barrier." in workflow
+    assert (
+        "Before Stage 4 can spawn, the orchestrator must capture the typed return from every "
+        "launched branch in the wave, confirm that the persisted artifacts for this round exist "
+        "and validate, and then retire each finished child handoff." in workflow
+    )
+    assert (
+        "Later stages and retries must restart from the written artifacts above plus the declared "
+        "carry-forward inputs, not from branch-local live context." in workflow
+    )
+    assert (
+        "After the Stage 4 typed return is captured and "
+        "`GPD/review/STAGE-physics{round_suffix}.json` validates, treat the finished Stage 4 "
+        "handoff as closed and retired before spawning Stage 5." in workflow
+    )
+    assert "Stage 5 must start from the persisted stage artifacts and declared carry-forward inputs only." in workflow
+    assert (
+        "After the Stage 5 typed return is captured and "
+        "`GPD/review/STAGE-interestingness{round_suffix}.json` validates, treat the finished "
+        "Stage 5 handoff as closed and retired before spawning Stage 6." in workflow
+    )
+    assert "Stage 6 must begin from the persisted stage artifacts and declared carry-forward inputs only." in workflow
+    assert (
+        "Capture the Stage 6 typed return first, then treat the finished adjudication handoff as "
+        "closed and retired before classifying the outcome as recovery-eligible, upstream-blocked, "
+        "or complete." in workflow
+    )
+
+
 def test_peer_review_stage_six_limits_writes_to_stage6_owned_artifacts() -> None:
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 

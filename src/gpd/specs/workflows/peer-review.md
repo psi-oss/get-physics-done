@@ -14,6 +14,9 @@ Peer review should be staged, evidence-aware, and fail-closed on unsupported sci
 
 Each stage runs in a fresh subagent context and writes a compact artifact. The final referee decides only after reading those artifacts.
 If any spawned reviewer or proof auditor needs user input, it must return `status: checkpoint` and stop. The orchestrator presents the checkpoint and spawns a fresh continuation handoff after the user responds. Do not keep the same spawned run alive waiting for confirmation.
+A spawned handoff is not complete until the orchestrator has captured its typed return, verified the stage-owned artifact boundary on disk, and then treated that finished child as closed and retired. Once retired, its transient execution state, scratch reasoning, and live conversation context must not be reused.
+Every downstream stage must begin from persisted artifacts plus the explicitly declared carry-forward inputs for that stage. Do not treat a prior child's live context, unstaged notes, or in-memory state as valid carry-forward evidence.
+If subagent spawning is unavailable and the workflow falls back to sequential execution in the main context, emulate the same boundary discipline: finish one stage, persist and verify its artifacts, clear the stage-local transient state, and begin the next stage only from those persisted outputs and declared carry-forward inputs.
 </core_principle>
 
 <process>
@@ -471,6 +474,7 @@ Reconstruct the theorem / proof inventory explicitly before judging the proof. I
 ```
 
 If the runtime supports parallel subagent execution, run Stage 2, Stage 3, and the conditional proof-critique pass in parallel when theorem-bearing claims are present. Otherwise run Stage 2 first, then Stage 3, then the conditional proof-critique pass.
+Treat Stage 2, Stage 3, and the conditional proof-critique pass as one barriered review wave. In sequential fallback, emulate the same barrier after each stage: finish the stage, persist and validate its artifact, retire that stage-local working state, and launch the next handoff only from the written artifacts for this round plus the declared carry-forward inputs.
 
 If literature, math, or the conditional proof-critique stage fails, STOP and report the failure.
 </step>
@@ -503,6 +507,7 @@ If validation fails for either stage:
 Max retries per stage: **1**.
 
 If the proof-redteam artifact is missing, malformed, lacks the canonical frontmatter, or omits required sections, retry `gpd-check-proof` once with the same inputs and an explicit reminder to emit the full canonical proof-audit artifact. If the retry also fails, STOP the pipeline and report that proof review could not be completed.
+Treat this recovery step as the Stage 2 / Stage 3 / proof-review branch barrier. Before Stage 4 can spawn, the orchestrator must capture the typed return from every launched branch in the wave, confirm that the persisted artifacts for this round exist and validate, and then retire each finished child handoff. Later stages and retries must restart from the written artifacts above plus the declared carry-forward inputs, not from branch-local live context.
 </step>
 
 <step name="stage_4_physics">
@@ -574,6 +579,7 @@ If validation fails:
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 5.
 
 Max retries per stage: **1**.
+After the Stage 4 typed return is captured and `GPD/review/STAGE-physics{round_suffix}.json` validates, treat the finished Stage 4 handoff as closed and retired before spawning Stage 5. Stage 5 must start from the persisted stage artifacts and declared carry-forward inputs only.
 </step>
 
 <step name="stage_5_significance">
@@ -637,6 +643,7 @@ If validation fails:
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 6 adjudication.
 
 Max retries per stage: **1**.
+After the Stage 5 typed return is captured and `GPD/review/STAGE-interestingness{round_suffix}.json` validates, treat the finished Stage 5 handoff as closed and retired before spawning Stage 6. Stage 6 must begin from the persisted stage artifacts and declared carry-forward inputs only.
 </step>
 
 <step name="final_adjudication">
@@ -721,6 +728,8 @@ Treat the Stage 6 return as incomplete if the fresh `gpd_return.files_written` s
 
 <step name="stage_recovery_6">
 **Stage 6 recovery -- Validate the adjudication outputs before proceeding.**
+
+Capture the Stage 6 typed return first, then treat the finished adjudication handoff as closed and retired before classifying the outcome as recovery-eligible, upstream-blocked, or complete. Recovery routing, validation, and final summarization must use the persisted Stage 6 artifacts plus the captured typed return; do not keep the adjudication run live while deciding what to do next.
 
 Check that both `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` exist and parse as valid JSON.
 Also confirm `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete.

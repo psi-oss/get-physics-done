@@ -36,3 +36,23 @@ def test_referee_checkpoint_ownership_and_mode_routing_are_explicit() -> None:
     assert "Checkpoint ownership is orchestrator-side" in source
     assert "fresh continuation handoff" in source
     assert "publication-pipeline-modes.md" in source
+
+
+def test_peer_review_and_referee_skill_surfaces_keep_lifecycle_cleanup_boundary() -> None:
+    from gpd.mcp.servers.skills_server import get_skill
+
+    peer_review = get_skill("gpd-peer-review")
+    referee = get_skill("gpd-referee")
+    peer_review_content = peer_review["content"]
+    referee_content = referee["content"]
+
+    assert "error" not in peer_review
+    assert "error" not in referee
+    assert "treated that finished child as closed and retired" in peer_review_content
+    assert "transient execution state, scratch reasoning, and live conversation context must not be reused" in peer_review_content
+    assert "retire each finished child handoff" in peer_review_content
+    assert "do not keep the adjudication run live while deciding what to do next" in peer_review_content
+    assert "Checkpoint ownership is orchestrator-side" in referee_content
+    assert "owns the fresh continuation handoff" in referee_content
+    assert "Preexisting files are stale unless the same paths appear in fresh `gpd_return.files_written` from this run." in referee_content
+    assert "For all statuses, `files_written` must list only files actually written in this run from the Stage 6 allowlist." in referee_content

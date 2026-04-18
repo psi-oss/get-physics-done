@@ -117,6 +117,30 @@ def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_re
     assert "Stage 6 repaired upstream artifacts" in reliability
 
 
+def test_peer_review_reliability_reference_documents_runtime_neutral_stage_cleanup() -> None:
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+
+    assert "Each stage runs in a fresh subagent context and writes a compact artifact." in workflow
+    assert "fresh continuation handoff" in workflow
+
+    assert "Runtime-Neutral Stage Cleanup" in reliability
+    assert "Every spawned reviewer, proof critic, or referee run is a one-shot child handoff." in reliability
+    assert "the child is closed/retired for the active review round" in reliability
+    assert "validate or classify the persisted artifact boundary in the orchestrator" in reliability
+    assert "close/retire the finished child before spawning any retry, continuation, or downstream stage" in reliability
+    assert "start retries and checkpoint continuations from persisted artifacts and declared carry-forward inputs only" in reliability
+    assert (
+        "do not reuse live child memory, pending tool state, or any other transient execution state "
+        "across stage boundaries"
+    ) in reliability
+    assert "Stage 2 / Stage 3 / proof-review parallel wave" in reliability
+    assert "Sequential fallback must emulate the same cleanup boundary between stages." in reliability
+    assert "The retry is a fresh run." in reliability
+    assert "Do not resume the failed child in place" in reliability
+    assert "persisted artifacts and typed return data already captured for that stage" in reliability
+
+
 def test_peer_review_references_keep_generic_claim_kind_out_of_default_theorem_bearing_classification() -> None:
     reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
