@@ -4327,6 +4327,24 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
     )
 
 
+def test_generated_peer_review_skill_surface_uses_artifact_text_helper_for_non_plaintext_intake() -> None:
+    from gpd.mcp.servers.skills_server import get_skill
+
+    peer_review_skill_content = get_skill("gpd-peer-review")["content"]
+
+    assert (
+        "If none exists, create `GPD/review/` if needed, run `gpd validate artifact-text "
+        '"$RESOLVED_MANUSCRIPT" --output GPD/review/MANUSCRIPT-TEXT.txt`, and use that extracted file as the '
+        "manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`."
+        in peer_review_skill_content
+    )
+    assert (
+        "If extraction fails, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, `.csv`, `.tsv`, or a "
+        "matching extracted `.txt` companion file." in peer_review_skill_content
+    )
+    assert "pdftotext" not in peer_review_skill_content
+
+
 def test_verification_and_publication_prompts_keep_decisive_contract_targets_reader_visible() -> None:
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
     write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")

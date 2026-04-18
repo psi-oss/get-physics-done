@@ -432,6 +432,23 @@ def _fake_pdftotext_run(extracted_text: str):
     return _run
 
 
+def _fake_pdftotext_failure_run(stderr_text: str, *, returncode: int = 1):
+    def _run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+        assert Path(command[0]).name == "pdftotext"
+
+        text_mode = bool(kwargs.get("text"))
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=returncode,
+            stdout="" if text_mode else b"",
+            stderr=stderr_text if text_mode else stderr_text.encode("utf-8"),
+        )
+
+    return _run
+
+
 def _write_review_stage_artifacts(
     project_root: Path,
     artifact_names: tuple[str, ...] | None = None,
@@ -4772,13 +4789,19 @@ class TestReviewValidationCommands:
             "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
         )
 
-    def test_review_preflight_peer_review_accepts_external_pdf_with_pdftotext(self, tmp_path: Path) -> None:
+    def test_review_preflight_peer_review_rejects_external_pdf_when_pdftotext_extraction_fails(
+        self,
+        tmp_path: Path,
+    ) -> None:
         workspace = tmp_path / "standalone-review"
         workspace.mkdir()
         artifact = workspace / "draft.pdf"
         _write_binary_pdf(artifact)
 
-        with patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"):
+        with (
+            patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"),
+            patch("subprocess.run", side_effect=_fake_pdftotext_failure_run("malformed trailer")) as run_mock,
+        ):
             result = runner.invoke(
                 app,
                 [
@@ -4794,15 +4817,78 @@ class TestReviewValidationCommands:
                 catch_exceptions=False,
             )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert payload["passed"] is True
-        assert checks["manuscript"]["passed"] is True
-        assert (
-            checks["manuscript"]["detail"]
-            == "./draft.pdf present; pdftotext available at /usr/bin/pdftotext for PDF review intake"
+        assert payload["passed"] is False
+        assert checks["manuscript"]["passed"] is False
+        assert checks["manuscript"]["detail"] == "PDF text extraction failed: malformed trailer"
+        assert run_mock.call_count >= 1
+
+    def test_review_preflight_peer_review_strict_materializes_generated_pdf_surface_with_validate_artifact_text(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        artifact = workspace / "draft.pdf"
+        _write_binary_pdf(artifact)
+        output_path = workspace / "artifact-text.txt"
+        extracted_text = (
+            "Theorem. Every admissible orbit reaches the annulus.\n"
+            "Proof. The extracted text keeps the theorem body intact.\n"
         )
+
+        with (
+            patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"),
+            patch("subprocess.run", side_effect=_fake_pdftotext_run(extracted_text)) as run_mock,
+        ):
+            preflight = runner.invoke(
+                app,
+                [
+                    "--raw",
+                    "--cwd",
+                    str(workspace),
+                    "validate",
+                    "review-preflight",
+                    "peer-review",
+                    "draft.pdf",
+                    "--strict",
+                ],
+                catch_exceptions=False,
+            )
+            preflight_run_calls = run_mock.call_count
+            materialized = runner.invoke(
+                app,
+                [
+                    "--raw",
+                    "--cwd",
+                    str(workspace),
+                    "validate",
+                    "artifact-text",
+                    artifact.name,
+                    "--output",
+                    output_path.name,
+                ],
+                catch_exceptions=False,
+            )
+
+        assert preflight.exit_code == 0, preflight.output
+        assert materialized.exit_code == 0, materialized.output
+
+        preflight_payload = json.loads(preflight.output)
+        materialized_payload = json.loads(materialized.output)
+        checks = {check["name"]: check for check in preflight_payload["checks"]}
+
+        assert preflight_payload["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"./draft.pdf present; {materialized_payload['detail']}"
+        assert materialized_payload["detail"] == "pdftotext available at /usr/bin/pdftotext for PDF review intake"
+        assert materialized_payload["surface_kind"] == "generated"
+        assert materialized_payload["text_length"] == len(extracted_text)
+        assert output_path.read_text(encoding="utf-8").strip() == extracted_text.strip()
+        assert preflight_run_calls >= 1
+        assert run_mock.call_count >= preflight_run_calls + 1
 
     def test_validate_artifact_text_uses_companion_text_for_binary_pdf(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"

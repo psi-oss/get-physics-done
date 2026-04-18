@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER
+from gpd.core.artifact_text import ArtifactTextError, ArtifactTextSurface
 from gpd.core.proof_review import (
     manuscript_has_theorem_bearing_claim_inventory,
     manuscript_has_theorem_bearing_language,
@@ -223,6 +224,40 @@ def test_manuscript_theorem_language_scan_returns_false_for_binary_pdf_without_t
     monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", lambda compiler: None)
 
     assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is False
+
+
+def test_manuscript_theorem_language_scan_for_explicit_pdf_uses_text_surface_and_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manuscript_path = _write_binary_pdf(tmp_path / "standalone-review" / "draft.pdf")
+    load_calls: list[Path] = []
+
+    def _load_theorem_surface(path: Path) -> ArtifactTextSurface:
+        load_calls.append(path)
+        return ArtifactTextSurface(
+            source_path=path,
+            text=(
+                "Theorem. For every r_0 > 0, the orbit intersects the target annulus.\n"
+                "Proof. The explicit PDF review target stays on the text surface.\n"
+            ),
+            detail="generated text surface",
+            surface_kind="generated",
+        )
+
+    monkeypatch.setattr("gpd.core.proof_review.load_artifact_text_surface", _load_theorem_surface)
+
+    assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is True
+    assert load_calls == [manuscript_path]
+
+    def _raise_text_surface_error(path: Path) -> ArtifactTextSurface:
+        load_calls.append(path)
+        raise ArtifactTextError("generated PDF text surface unavailable")
+
+    monkeypatch.setattr("gpd.core.proof_review.load_artifact_text_surface", _raise_text_surface_error)
+
+    assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is False
+    assert load_calls == [manuscript_path, manuscript_path]
 
 
 def test_manuscript_proof_review_rejects_nonpassing_proof_redteam_artifact(tmp_path: Path) -> None:

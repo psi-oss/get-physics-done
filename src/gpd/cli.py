@@ -40,6 +40,7 @@ from gpd.core.artifact_text import (
     DIGEST_KNOWLEDGE_SOURCE_SUFFIXES,
     PEER_REVIEW_ARTIFACT_SUFFIXES,
     ArtifactTextError,
+    load_artifact_text_surface,
     materialize_artifact_text_surface,
     probe_artifact_text_surface,
 )
@@ -6759,7 +6760,12 @@ def _peer_review_external_mode_requested(
     return not _path_is_within_supported_manuscript_root(project_root, target.resolve(strict=False))
 
 
-def _peer_review_artifact_text_surface_ready(manuscript: Path, *, probe: object | None = None) -> tuple[bool, str]:
+def _peer_review_artifact_text_surface_ready(
+    manuscript: Path,
+    *,
+    probe: object | None = None,
+    verify_generated_surface: bool = False,
+) -> tuple[bool, str]:
     """Return whether one peer-review artifact can be converted into review text."""
 
     try:
@@ -6773,6 +6779,11 @@ def _peer_review_artifact_text_surface_ready(manuscript: Path, *, probe: object 
             continue
         display_path = _format_display_path(path)
         detail = detail.replace(path.as_posix(), display_path).replace(str(path), display_path)
+    if verify_generated_surface and readiness_probe.ready and readiness_probe.surface_kind == "generated":
+        try:
+            load_artifact_text_surface(manuscript)
+        except ArtifactTextError as exc:
+            return False, str(exc)
     return readiness_probe.ready, detail
 
 
@@ -7340,7 +7351,10 @@ def _build_review_preflight(
                 ".xlsm",
             }
         ):
-            intake_ready, intake_detail = _peer_review_artifact_text_surface_ready(manuscript)
+            intake_ready, intake_detail = _peer_review_artifact_text_surface_ready(
+                manuscript,
+                verify_generated_surface=strict and subject is not None,
+            )
             manuscript_passed = manuscript_passed and intake_ready
             if intake_ready:
                 manuscript_detail = f"{_format_display_path(manuscript)} present; {intake_detail}"
