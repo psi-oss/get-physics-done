@@ -1067,6 +1067,10 @@ function log(msg) {
   console.log(` ${cyan}i${reset} ${msg}`);
 }
 
+function errLog(msg) {
+  console.error(` ${cyan}i${reset} ${msg}`);
+}
+
 function success(msg) {
   console.log(` ${green}✓${reset} ${msg}`);
 }
@@ -1947,7 +1951,7 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
     error("Runtime launcher/target preflight failed.");
     [...new Set(blockers)].forEach((message) => error(message));
     const doctorHints = runtimes.map((runtime) => `\`${runtimeDoctorHint(runtime, scope, targetDir)}\``).join(", ");
-    log(`Fix the blocking readiness issue(s) above, then rerun the bootstrap installer. Inspect directly with ${doctorHints}.`);
+    errLog(`Fix the blocking readiness issue(s) above, then rerun the bootstrap installer. Inspect directly with ${doctorHints}.`);
     return false;
   }
 
