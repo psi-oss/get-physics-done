@@ -141,7 +141,7 @@ Findings are classified by severity:
 2. **Address blocking issues.** Every finding with `"blocking": true` must be resolved or the claims must be narrowed to match the available evidence.
 3. **Treat uncovered theorem assumptions or parameters as blocking until resolved.** If a theorem statement quantifies over a parameter or names a hypothesis that the proof never uses, the manuscript must be corrected, narrowed, or explicitly re-proved before the next round.
 4. **Write author response.** Document how each finding was addressed in `GPD/AUTHOR-RESPONSE{round_suffix}.md` (or `-R2.md` / `-R3.md` for subsequent rounds).
-5. **Re-enter review.** After revisions, re-run `gpd:peer-review` for the next round. The pipeline detects prior reports and author responses to increment the round number automatically.
+5. **Re-enter review.** After revisions, re-run `gpd:peer-review` for the next round. The pipeline increments the round number only when the prior report and the canonical paired response artifacts are present: `GPD/AUTHOR-RESPONSE{round_suffix}.md` plus `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.
 6. **Converge.** The pipeline supports up to 3 review rounds. If the manuscript has not converged to `accept` or `minor_revision` after 3 rounds, consider restructuring the central contribution.
 
 ### Mapping Findings to Manuscript Changes

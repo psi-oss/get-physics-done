@@ -207,18 +207,60 @@ When proof-bearing review is active:
 <step name="round_detection">
 **Detect whether this is an initial review or a revision round:**
 
-Check for prior reports and author responses:
+Check for the latest complete prior review/response package with explicit file tests:
 
 ```bash
-ls GPD/REFEREE-REPORT*.md 2>/dev/null
-ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
+ROUND=1
+ROUND_SUFFIX=""
+
+ROUND1_REPORT="GPD/REFEREE-REPORT.md"
+ROUND1_AUTHOR_RESPONSE="GPD/AUTHOR-RESPONSE.md"
+ROUND1_REFEREE_RESPONSE="GPD/review/REFEREE_RESPONSE.md"
+
+ROUND2_REPORT="GPD/REFEREE-REPORT-R2.md"
+ROUND2_AUTHOR_RESPONSE="GPD/AUTHOR-RESPONSE-R2.md"
+ROUND2_REFEREE_RESPONSE="GPD/review/REFEREE_RESPONSE-R2.md"
+
+ROUND1_COMPLETE=0
+ROUND2_COMPLETE=0
+
+if [[ -f "$ROUND1_REPORT" || -f "$ROUND1_AUTHOR_RESPONSE" || -f "$ROUND1_REFEREE_RESPONSE" ]]; then
+  if [[ -f "$ROUND1_REPORT" && -f "$ROUND1_AUTHOR_RESPONSE" && -f "$ROUND1_REFEREE_RESPONSE" ]]; then
+    ROUND1_COMPLETE=1
+  else
+    echo "ERROR: Partial round-1 review package detected. Require GPD/REFEREE-REPORT.md, GPD/AUTHOR-RESPONSE.md, and GPD/review/REFEREE_RESPONSE.md before advancing."
+    exit 1
+  fi
+fi
+
+if [[ -f "$ROUND2_REPORT" || -f "$ROUND2_AUTHOR_RESPONSE" || -f "$ROUND2_REFEREE_RESPONSE" ]]; then
+  if [[ $ROUND1_COMPLETE -ne 1 ]]; then
+    echo "ERROR: Found round-2 artifacts before a complete round-1 response package. Stop and repair the review record before advancing."
+    exit 1
+  fi
+  if [[ -f "$ROUND2_REPORT" && -f "$ROUND2_AUTHOR_RESPONSE" && -f "$ROUND2_REFEREE_RESPONSE" ]]; then
+    ROUND2_COMPLETE=1
+  else
+    echo "ERROR: Partial round-2 review package detected. Require GPD/REFEREE-REPORT-R2.md, GPD/AUTHOR-RESPONSE-R2.md, and GPD/review/REFEREE_RESPONSE-R2.md before advancing."
+    exit 1
+  fi
+fi
+
+if [[ $ROUND2_COMPLETE -eq 1 ]]; then
+  ROUND=3
+  ROUND_SUFFIX="-R3"
+elif [[ $ROUND1_COMPLETE -eq 1 ]]; then
+  ROUND=2
+  ROUND_SUFFIX="-R2"
+fi
 ```
 
 Set:
 
-- `ROUND=1`, `ROUND_SUFFIX=""` for the first review
-- `ROUND=2`, `ROUND_SUFFIX="-R2"` if `GPD/REFEREE-REPORT.md` and `GPD/AUTHOR-RESPONSE.md` exist
-- `ROUND=3`, `ROUND_SUFFIX="-R3"` if `GPD/REFEREE-REPORT-R2.md` and `GPD/AUTHOR-RESPONSE-R2.md` exist
+- `ROUND=1`, `ROUND_SUFFIX=""` when no prior complete response package exists
+- `ROUND=2`, `ROUND_SUFFIX="-R2"` only if `GPD/REFEREE-REPORT.md`, `GPD/AUTHOR-RESPONSE.md`, and `GPD/review/REFEREE_RESPONSE.md` all exist
+- `ROUND=3`, `ROUND_SUFFIX="-R3"` only if `GPD/REFEREE-REPORT-R2.md`, `GPD/AUTHOR-RESPONSE-R2.md`, and `GPD/review/REFEREE_RESPONSE-R2.md` all exist
+- If the latest candidate round has a partial package, stop fail-closed and repair it before advancing. Do not infer the next round from a lone report or author response.
 
 Stage artifacts for revision rounds should use the same suffix:
 

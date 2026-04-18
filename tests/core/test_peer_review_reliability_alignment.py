@@ -40,6 +40,8 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in reliability
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in reliability
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in reliability
+    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in reliability
+    assert "paired response artifacts are present" in reliability
     assert "gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json" in reliability
     assert "gpd validate review-stage-report GPD/review/STAGE-<stage_id>{round_suffix}.json" in reliability
     assert "gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in reliability
@@ -52,6 +54,7 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "proof_audits[]" in reliability
     assert "theorem-bearing claims" in reliability
     assert "claim record itself" in reliability
+    assert "detects prior reports and author responses to increment the round number automatically" not in reliability
     assert "theorem_assumptions" not in reliability
     assert "theorem_parameters" not in reliability
     assert "`CLAIMS.json`" not in reliability

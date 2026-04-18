@@ -109,20 +109,26 @@ If the check fails, resolve convention mismatches before proceeding. New calcula
 **Check for existing referee response file:**
 
 ```bash
-ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null
-ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
+if [ -d GPD/review ]; then
+  find GPD/review -maxdepth 1 -type f -name 'REFEREE_RESPONSE*.md' -print
+fi
+if [ -d GPD ]; then
+  find GPD -maxdepth 1 -type f -name 'AUTHOR-RESPONSE*.md' -print
+fi
 ```
 
-If found, load as continuation context (user may be resuming an interrupted session).
+If found, load as continuation context (user may be resuming an interrupted session). Do not infer `round_suffix` from these listings; the shared handoff below remains authoritative for latest-round detection and sibling-artifact pairing.
 
 **Check for staged peer-review decision artifacts:**
 
 ```bash
-ls GPD/review/REVIEW-LEDGER*.json 2>/dev/null
-ls GPD/review/REFEREE-DECISION*.json 2>/dev/null
+if [ -d GPD/review ]; then
+  find GPD/review -maxdepth 1 -type f -name 'REVIEW-LEDGER*.json' -print
+  find GPD/review -maxdepth 1 -type f -name 'REFEREE-DECISION*.json' -print
+fi
 ```
 
-If matching round-specific files exist, load them as structured context.
+If matching round-specific files exist, load them as structured context, but keep the shared handoff below as the canonical source for active-round selection and paired response-artifact discovery.
 Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` here for the canonical failure-recovery, round-suffix, and latest-round artifact conventions that keep this workflow fail-closed.
 Apply the shared publication response-writer handoff exactly:
 

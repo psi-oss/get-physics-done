@@ -219,14 +219,26 @@ Use domain-specific expectations from the playbook when the paper requires speci
 **First:** Determine if this is an initial review or a revision review.
 
 ```bash
-ls GPD/REFEREE-REPORT*.md 2>/dev/null
-ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
-ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null
+if [[ -f GPD/REFEREE-REPORT-R2.md || -f GPD/AUTHOR-RESPONSE-R2.md || -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
+  if [[ -f GPD/REFEREE-REPORT-R2.md && -f GPD/AUTHOR-RESPONSE-R2.md && -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
+    prior_round_suffix="-R2"  # Complete round-2 package; enter revision review and produce round 3.
+  else
+    # Incomplete round-2 package. Stop fail-closed with checkpoint status.
+  fi
+elif [[ -f GPD/REFEREE-REPORT.md || -f GPD/AUTHOR-RESPONSE.md || -f GPD/review/REFEREE_RESPONSE.md ]]; then
+  if [[ -f GPD/REFEREE-REPORT.md && -f GPD/AUTHOR-RESPONSE.md && -f GPD/review/REFEREE_RESPONSE.md ]]; then
+    prior_round_suffix=""  # Complete round-1 package; enter revision review and produce round 2.
+  else
+    # Incomplete round-1 package. Stop fail-closed with checkpoint status.
+  fi
+else
+  # No prior complete response package. Proceed with initial review.
+fi
 ```
 
-**If a previous REFEREE-REPORT and the matching round's `AUTHOR-RESPONSE` plus `GPD/review/REFEREE_RESPONSE` both exist:** Enter Revision Review Mode (see `<revision_review_mode>` section). Skip the standard evaluation flow below — use the revision-specific protocol instead.
+**If the latest candidate round has a complete paired response package:** a previous `REFEREE-REPORT{suffix}.md`, matching `AUTHOR-RESPONSE{suffix}.md`, and matching `GPD/review/REFEREE_RESPONSE{suffix}.md` must all exist for the same suffix. Enter Revision Review Mode (see `<revision_review_mode>` section). Skip the standard evaluation flow below and use the revision-specific protocol instead.
 
-**If only one response artifact exists, or the response suffixes disagree:** stop fail-closed with `gpd_return.status: checkpoint` and report the incomplete response package. Do not infer revision state from a single response artifact.
+**If the latest candidate round is partial or suffix-inconsistent:** stop fail-closed with `gpd_return.status: checkpoint` and report the incomplete response package. Do not infer revision state from a single response artifact, and do not fall back to an older complete round when a newer candidate round is partial.
 
 **Otherwise:** Proceed with initial review (standard evaluation flow below).
 </step>
@@ -741,17 +753,31 @@ Revision Review Mode activates when:
 Detection:
 
 ```bash
-ls GPD/REFEREE-REPORT*.md 2>/dev/null
-ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
-ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null
+if [[ -f GPD/REFEREE-REPORT-R2.md || -f GPD/AUTHOR-RESPONSE-R2.md || -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
+  latest_candidate_round="R2"
+  if [[ -f GPD/REFEREE-REPORT-R2.md && -f GPD/AUTHOR-RESPONSE-R2.md && -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
+    # Complete round-2 package: rereview and produce REFEREE-REPORT-R3.md.
+  else
+    # Incomplete round-2 package: stop fail-closed with checkpoint status.
+  fi
+elif [[ -f GPD/REFEREE-REPORT.md || -f GPD/AUTHOR-RESPONSE.md || -f GPD/review/REFEREE_RESPONSE.md ]]; then
+  latest_candidate_round="R1"
+  if [[ -f GPD/REFEREE-REPORT.md && -f GPD/AUTHOR-RESPONSE.md && -f GPD/review/REFEREE_RESPONSE.md ]]; then
+    # Complete round-1 package: rereview and produce REFEREE-REPORT-R2.md.
+  else
+    # Incomplete round-1 package: stop fail-closed with checkpoint status.
+  fi
+fi
 ```
 
-If the report and both response artifacts exist with the same suffix, determine the current round number:
+Use the highest candidate round with any referee or response artifact present. Only advance when that round has the full paired response package; a partial newer round blocks progress even if an older round is complete.
+
+If the report and both response artifacts exist with the same suffix for the active candidate round, determine the current round number:
 
 - `REFEREE-REPORT.md` + `AUTHOR-RESPONSE.md` + `GPD/review/REFEREE_RESPONSE.md` -> produce `REFEREE-REPORT-R2.md` (round 2)
 - `REFEREE-REPORT-R2.md` + `AUTHOR-RESPONSE-R2.md` + `GPD/review/REFEREE_RESPONSE-R2.md` -> produce `REFEREE-REPORT-R3.md` (round 3)
 - **Maximum 3 review rounds.** After round 3, issue final recommendation regardless.
-- If one response artifact is missing or the suffixes disagree, stop fail-closed and report the incomplete response package instead of continuing as initial review or rereview.
+- If one response artifact is missing, the suffixes disagree, or the latest candidate round is only partially populated, stop fail-closed and report the incomplete response package instead of continuing as initial review or rereview.
 
 ### Revision Review Execution
 

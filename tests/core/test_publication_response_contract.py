@@ -59,11 +59,26 @@ def test_publication_response_artifacts_define_paired_completion_gate() -> None:
     assert "Canonical paired response-artifact and one-shot child-return contract for referee-response work." in source
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in source
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in source
+    assert "Treat the two files as one success gate" in source
+    assert "do not mark the round complete when only one of them is current" in source
+    assert "Successful response-round completion requires both" in source
     assert "status: checkpoint" in source
     assert "gpd_return.files_written" in source
     assert "Do not accept stale preexisting files" in source
     assert "response-artifact-contract.md" not in source
     assert "publication-artifact-gates.md" not in source
+
+
+def test_referee_revision_mode_requires_a_paired_response_package() -> None:
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    assert "paired response package" in referee
+    assert "GPD/AUTHOR-RESPONSE.md" in referee
+    assert "GPD/AUTHOR-RESPONSE-R{N}.md" in referee
+    assert "GPD/review/REFEREE_RESPONSE.md" in referee
+    assert "GPD/review/REFEREE_RESPONSE-R{N}.md" in referee
+    assert "suffixes disagree" in referee
+    assert "incomplete response package" in referee
 
 
 def test_paper_writer_and_referee_load_the_canonical_publication_response_contracts() -> None:

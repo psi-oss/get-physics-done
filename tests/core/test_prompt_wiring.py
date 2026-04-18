@@ -786,6 +786,49 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in writer_text
 
 
+def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_response_artifacts() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+    respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+
+    for content in (peer_review, referee):
+        assert "ls GPD/REFEREE-REPORT*.md 2>/dev/null" not in content
+        assert "ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null" not in content
+
+    assert "ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null" not in referee
+    assert "ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null" not in respond
+    assert "ls GPD/review/REVIEW-LEDGER*.json 2>/dev/null" not in respond
+    assert "ls GPD/review/REFEREE-DECISION*.json 2>/dev/null" not in respond
+
+    assert "GPD/REFEREE-REPORT.md" in peer_review
+    assert "GPD/AUTHOR-RESPONSE.md" in peer_review
+    assert "GPD/review/REFEREE_RESPONSE.md" in peer_review
+    assert "GPD/REFEREE-REPORT-R2.md" in peer_review
+    assert "GPD/AUTHOR-RESPONSE-R2.md" in peer_review
+    assert "GPD/review/REFEREE_RESPONSE-R2.md" in peer_review
+    assert re.search(r"(partial|incomplete)[\s\S]{0,80}(response package|artifact package|package)", peer_review, re.I)
+
+    assert "matching paired response package exists for the same round" in referee
+    assert re.search(
+        r"If one response artifact is missing[\s\S]{0,140}stop fail-closed and report the incomplete response package",
+        referee,
+    )
+    assert (
+        "The pipeline increments the round number only when the prior report and the canonical paired "
+        "response artifacts are present" in reliability
+    )
+    assert (
+        "`GPD/AUTHOR-RESPONSE{round_suffix}.md` plus `GPD/review/REFEREE_RESPONSE{round_suffix}.md`"
+        in reliability
+    )
+
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE_RESPONSE\*\.md['\"]", respond)
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]AUTHOR-RESPONSE\*\.md['\"]", respond)
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REVIEW-LEDGER\*\.json['\"]", respond)
+    assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE-DECISION\*\.json['\"]", respond)
+
+
 def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_response_outputs() -> None:
     peer_review = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
     respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
