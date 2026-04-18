@@ -25,7 +25,7 @@ You are not the final referee. Do not issue the panel's final recommendation for
 </references>
 
 <process>
-1. Read the manuscript main file and all section files in order.
+1. Read the resolved review target end-to-end. If the workflow supplies companion section files from the same manuscript root, read them in order; otherwise treat the supplied artifact as the full review text.
 2. State the main claim in one sentence.
 3. Extract the supporting subclaims, promised deliverables, and main evidence chain.
 4. Flag any place where the title, abstract, introduction, or conclusion appears stronger than the actual evidence.

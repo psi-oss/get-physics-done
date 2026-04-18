@@ -101,7 +101,7 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
 def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_arguments() -> None:
     workflow = _workflow_text("peer-review.md")
 
-    assert 'gpd validate review-preflight peer-review "$ARGUMENTS" --strict' in workflow
+    assert 'gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict' in workflow
     assert "gpd validate review-preflight peer-review --strict" not in workflow
     assert "If any spawned reviewer or proof auditor needs user input, it must return `status: checkpoint` and stop." in workflow
     assert "Do not keep the same spawned run alive waiting for confirmation." in workflow

@@ -288,7 +288,7 @@ See `GPD/CONVENTIONS.md`. Add `GPD/NOTATION_GLOSSARY.md` later only if the proje
 
 [Inferred from input, or "To be determined from conventions setup"]
 
-If the project may rely on Wolfram capability, distinguish a local Mathematica / Wolfram Language install from the shared optional Wolfram integration config. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`, but that stays separate from the shared path enabled with `gpd integrations enable wolfram`, and it is still separate from `gpd validate plan-preflight <PLAN.md>` and from local install checks.
+If the project may rely on Wolfram capability, distinguish a local Mathematica / Wolfram Language install from the shared optional Wolfram integration config. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`, but that stays separate from the shared path enabled with `gpd integrations enable wolfram`, and it is still separate from `gpd validate plan-preflight <PLAN.md>` and from local install checks.
 
 ## Requirements
 

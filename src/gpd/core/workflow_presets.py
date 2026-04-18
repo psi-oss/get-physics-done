@@ -42,11 +42,13 @@ _LATEX_CAPABILITY_DEFAULTS: dict[str, object] = {
     "bibliography_support_available": False,
     "latexmk_available": None,
     "kpsewhich_available": None,
+    "pdftotext_available": None,
     "readiness_state": "blocked",
     "message": "",
     "warnings": [],
     "paper_build_ready": False,
     "arxiv_submission_ready": False,
+    "pdf_review_ready": False,
 }
 
 
@@ -140,6 +142,7 @@ def _normalize_latex_capability(
 
     latexmk_value = _capability_value(latex_capability, "latexmk_available", "latexmk")
     kpsewhich_value = _capability_value(latex_capability, "kpsewhich_available", "kpsewhich")
+    pdftotext_value = _capability_value(latex_capability, "pdftotext_available", "pdftotext")
     full_toolchain_value = _capability_value(latex_capability, "full_toolchain_available", "full_toolchain_ready")
     full_toolchain_available = _strict_bool_value(full_toolchain_value)
     compiler_path = _capability_value(latex_capability, "compiler_path")
@@ -155,6 +158,7 @@ def _normalize_latex_capability(
         warnings = []
 
     bibtex_ready = bibtex_available is True
+    pdftotext_ready = _strict_bool_value(pdftotext_value) is not False
     bibliography_support_available = compiler_available and bibtex_ready
     paper_build_ready = compiler_available
     arxiv_submission_ready = bibliography_support_available and kpsewhich_value is True
@@ -191,11 +195,13 @@ def _normalize_latex_capability(
         "bibliography_support_available": bibliography_support_available,
         "latexmk_available": _strict_bool_value(latexmk_value),
         "kpsewhich_available": _strict_bool_value(kpsewhich_value),
+        "pdftotext_available": _strict_bool_value(pdftotext_value),
         "readiness_state": readiness_state,
         "message": message,
         "warnings": warnings,
         "paper_build_ready": paper_build_ready,
         "arxiv_submission_ready": arxiv_submission_ready,
+        "pdf_review_ready": pdftotext_ready,
     }
     return normalized
 
@@ -448,6 +454,7 @@ def resolve_workflow_preset_readiness(
     bibliography_support_ready = capability.get("bibliography_support_available") is True
     latexmk_available = capability.get("latexmk_available")
     kpsewhich_available = capability.get("kpsewhich_available")
+    pdf_review_ready = capability.get("pdf_review_ready") is True
     paper_build_ready = capability["paper_build_ready"] is True
     arxiv_submission_ready = capability["arxiv_submission_ready"] is True
 
@@ -473,23 +480,40 @@ def resolve_workflow_preset_readiness(
             ready_workflows = []
             degraded_workflows = list(preset.degraded_workflows)
             blocked_workflows = list(preset.blocked_workflows)
-        elif preset.requires_extra_tooling and not bibliography_support_ready:
-            status = "degraded"
+        elif preset.requires_extra_tooling:
+            status = "ready"
             usable = True
-            summary = (
-                "degraded without bibliography tooling: draft/review remain usable, while paper-build and "
-                "arxiv-submission may fail for manuscripts that require bibliography processing"
-            )
-            ready_workflows = list(preset.degraded_workflows)
-            degraded_workflows = ["paper-build", "arxiv-submission"]
-            blocked_workflows = []
-        elif preset.requires_extra_tooling and not arxiv_submission_ready:
-            status = "degraded"
-            usable = True
-            summary = "degraded without arxiv-submission support: paper-build remains usable, but arxiv-submission stays blocked"
-            ready_workflows = [workflow for workflow in preset.ready_workflows if workflow != "arxiv-submission"]
+            summary = "ready"
+            ready_workflows = list(preset.ready_workflows)
             degraded_workflows = []
-            blocked_workflows = ["arxiv-submission"]
+            blocked_workflows = []
+
+            if not bibliography_support_ready:
+                summary = (
+                    "degraded without bibliography tooling: draft/review remain usable, while paper-build and "
+                    "arxiv-submission may fail for manuscripts that require bibliography processing"
+                )
+                status = "degraded"
+                ready_workflows = [workflow for workflow in ready_workflows if workflow not in {"paper-build", "arxiv-submission"}]
+                degraded_workflows.extend(["paper-build", "arxiv-submission"])
+            elif not arxiv_submission_ready:
+                summary = (
+                    "degraded without arxiv-submission support: paper-build remains usable, but arxiv-submission stays blocked"
+                )
+                status = "degraded"
+                ready_workflows = [workflow for workflow in ready_workflows if workflow != "arxiv-submission"]
+                blocked_workflows.append("arxiv-submission")
+
+            if not pdf_review_ready:
+                if status == "ready":
+                    summary = (
+                        "degraded without pdftotext: TeX/Markdown/TXT review remains usable, "
+                        "but PDF intake for peer-review requires pdftotext or a companion text file"
+                    )
+                status = "degraded"
+                ready_workflows = [workflow for workflow in ready_workflows if workflow != "peer-review"]
+                if "peer-review" not in degraded_workflows:
+                    degraded_workflows.append("peer-review")
         else:
             status = "ready"
             usable = True
@@ -519,10 +543,21 @@ def resolve_workflow_preset_readiness(
                 warnings.append(
                     "kpsewhich is missing: paper-build remains usable, but arxiv-submission stays blocked."
                 )
+            elif not pdf_review_ready:
+                warnings.append(
+                    "pdftotext is missing: TeX/Markdown/TXT review remains usable, but PDF-backed peer-review intake "
+                    "requires pdftotext or a nearby `.txt` companion file."
+                )
             if latexmk_available is False:
                 warnings.append("latexmk is missing: paper builds will fall back to manual multipass compilation.")
             if kpsewhich_available is False:
                 warnings.append("kpsewhich is missing: TeX resource checks are best-effort only.")
+            if capability.get("pdftotext_available") is False and not any(
+                "pdftotext is missing:" in warning for warning in warnings
+            ):
+                warnings.append(
+                    "pdftotext is missing: PDF-backed peer-review intake requires pdftotext or a nearby `.txt` companion file."
+                )
 
         entries.append(
             {

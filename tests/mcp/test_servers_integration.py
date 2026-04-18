@@ -544,7 +544,7 @@ class TestSkillsServerIntegration:
                 "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
             }
         ]
-        assert result["context_mode"] == "project-required"
+        assert result["context_mode"] == "project-aware"
         assert result["project_reentry_capable"] is False
         assert "## Review Contract" in result["content"]
         assert "review_contract:" in result["content"]

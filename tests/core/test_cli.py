@@ -5825,10 +5825,12 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
         "bibtex_available": True,
         "bibliography_support_available": True,
         "kpsewhich_available": True,
+        "pdftotext_available": True,
         "readiness_state": "ready",
         "message": "pdflatex found (TeX Live): /usr/bin/pdflatex",
         "paper_build_ready": True,
         "arxiv_submission_ready": True,
+        "pdf_review_ready": True,
         "warnings": [],
     }
     assert len(payload["warnings"]) == 1

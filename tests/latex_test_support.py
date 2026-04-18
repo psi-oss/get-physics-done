@@ -12,6 +12,7 @@ def latex_capability_payload(**overrides: object) -> dict[str, object]:
         "bibtex_available": True,
         "latexmk_available": True,
         "kpsewhich_available": True,
+        "pdftotext_available": True,
         "readiness_state": "ready",
         "message": "pdflatex found (TeX Live): /usr/bin/pdflatex",
         "warnings": [],
@@ -27,7 +28,10 @@ def latex_capability_payload(**overrides: object) -> dict[str, object]:
             and bool(capability.get("bibtex_available"))
             and bool(capability.get("latexmk_available"))
             and bool(capability.get("kpsewhich_available"))
+            and bool(capability.get("pdftotext_available"))
         )
+    if "pdf_review_ready" not in capability:
+        capability["pdf_review_ready"] = bool(capability.get("pdftotext_available"))
     return capability
 
 

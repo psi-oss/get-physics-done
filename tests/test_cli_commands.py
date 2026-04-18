@@ -18,6 +18,7 @@ import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -1472,7 +1473,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:peer-review"
-        assert payload["context_mode"] == "project-required"
+        assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert "GPD/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
@@ -3453,7 +3454,7 @@ class TestReviewValidationCommands:
         assert "artifact manifest is invalid" in checks["artifact_manifest"]["detail"]
         assert "artifact_manifest.paper_title" in checks["artifact_manifest"]["detail"]
 
-    def test_review_preflight_peer_review_rejects_explicit_manuscript_path_outside_supported_roots(
+    def test_review_preflight_peer_review_accepts_explicit_manuscript_path_outside_supported_roots(
         self,
         gpd_project: Path,
     ) -> None:
@@ -3487,15 +3488,16 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:peer-review"
-        assert payload["passed"] is False
+        assert payload["passed"] is True
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert checks["manuscript"]["detail"] == (
-            "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project"
-        )
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"./submission/{_CANONICAL_MANUSCRIPT_BASENAME} present"
+        assert checks["artifact_manifest"]["detail"] == "./submission/ARTIFACT-MANIFEST.json present"
+        assert checks["bibliography_audit"]["detail"] == "./submission/BIBLIOGRAPHY-AUDIT.json present"
+        assert checks["reproducibility_manifest"]["detail"] == "./submission/reproducibility-manifest.json present"
 
     def test_review_preflight_peer_review_strict_does_not_fall_back_to_gpd_paper_for_explicit_manuscript(
         self,
@@ -3521,12 +3523,19 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
+        assert payload["passed"] is True
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert checks["manuscript"]["detail"] == (
-            "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project"
+        assert checks["manuscript"]["passed"] is True
+        assert checks["artifact_manifest"]["detail"] == (
+            "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+        )
+        assert checks["bibliography_audit"]["detail"] == (
+            "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
+        )
+        assert checks["reproducibility_manifest"]["detail"] == (
+            "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
         )
 
     def test_review_preflight_peer_review_accepts_explicit_manuscript_directory(self, gpd_project: Path) -> None:
@@ -4248,11 +4257,11 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is True
-        assert checks["required_files"]["passed"] is True
-        assert "../paper/" not in checks["manuscript"]["detail"]
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
 
-    def test_command_context_peer_review_rejects_explicit_manuscript_outside_supported_roots(
+    def test_command_context_peer_review_accepts_explicit_manuscript_outside_supported_roots(
         self,
         gpd_project: Path,
     ) -> None:
@@ -4275,13 +4284,118 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+
+    def test_command_context_peer_review_without_arguments_allows_interactive_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "peer-review"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["project_exists"]["blocking"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == (
+            "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
+            "or use the current GPD project when available"
+        )
+
+    def test_review_preflight_peer_review_accepts_external_txt_artifact(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        artifact = workspace / "notes.txt"
+        artifact.write_text("Standalone manuscript notes.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "notes.txt", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["project_state"]["blocking"] is False
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == "./notes.txt present"
+
+    def test_review_preflight_peer_review_accepts_external_pdf_artifact_with_companion_text(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        artifact = workspace / "draft.pdf"
+        artifact.write_bytes(b"%PDF-1.4\n% standalone draft\n")
+        (workspace / "draft.txt").write_text("Extracted PDF text.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "draft.pdf", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == "./draft.pdf present; PDF intake can use companion text file ./draft.txt"
+
+    def test_review_preflight_peer_review_rejects_external_pdf_without_text_support(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        artifact = workspace / "draft.pdf"
+        artifact.write_bytes(b"%PDF-1.4\n% standalone draft\n")
+
+        with patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value=None):
+            result = runner.invoke(
+                app,
+                ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "draft.pdf", "--strict"],
+                catch_exceptions=False,
+            )
+
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is False
         assert checks["manuscript"]["passed"] is False
         assert checks["manuscript"]["detail"] == (
-            "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project"
+            "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
         )
+
+    def test_review_preflight_peer_review_accepts_external_pdf_with_pdftotext(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        artifact = workspace / "draft.pdf"
+        artifact.write_bytes(b"%PDF-1.4\n% standalone draft\n")
+
+        with patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"):
+            result = runner.invoke(
+                app,
+                ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "draft.pdf", "--strict"],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == "./draft.pdf present; pdftotext available at /usr/bin/pdftotext for PDF review intake"
 
     def test_review_preflight_arxiv_submission_strict_does_not_fall_back_to_legacy_gpd_paper_artifacts(
         self,

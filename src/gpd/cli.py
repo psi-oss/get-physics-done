@@ -23,7 +23,7 @@ import os
 import re
 import shlex
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, NoReturn
@@ -3330,7 +3330,7 @@ def doctor(
     live_executable_probes: bool = typer.Option(
         False,
         "--live-executable-probes",
-        help="Run cheap local executable probes such as `pdflatex --version` or `wolframscript -version`",
+        help="Run cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`",
     ),
 ) -> None:
     """Check GPD installation and environment health, or inspect runtime readiness."""
@@ -5536,11 +5536,32 @@ def _resolve_review_preflight_manuscript(
     allow_markdown: bool = True,
     restrict_to_supported_roots: bool = False,
     workspace_cwd: Path | None = None,
+    allowed_suffixes: Collection[str] | None = None,
 ) -> tuple[Path | None, str]:
     """Resolve a review-preflight manuscript target from an explicit subject or defaults."""
 
     project_root = cwd.resolve(strict=False)
     subject_base = (workspace_cwd or cwd).resolve(strict=False)
+    normalized_allowed_suffixes = {
+        suffix.lower()
+        for suffix in (
+            allowed_suffixes
+            if allowed_suffixes is not None
+            else ({".tex", ".md"} if allow_markdown else {".tex"})
+        )
+    }
+    if not normalized_allowed_suffixes:
+        normalized_allowed_suffixes = {".tex"}
+
+    def _allowed_suffix_message() -> str:
+        ordered_suffixes = [suffix for suffix in (".tex", ".md", ".txt", ".pdf") if suffix in normalized_allowed_suffixes]
+        extras = sorted(suffix for suffix in normalized_allowed_suffixes if suffix not in {".tex", ".md", ".txt", ".pdf"})
+        ordered_suffixes.extend(extras)
+        if ordered_suffixes == [".tex"]:
+            return ".tex file"
+        if len(ordered_suffixes) == 2:
+            return f"{ordered_suffixes[0]} or {ordered_suffixes[1]} file"
+        return ", ".join(ordered_suffixes[:-1]) + f", or {ordered_suffixes[-1]} file"
 
     def _supported_explicit_manuscript_target(target: Path) -> bool:
         try:
@@ -5577,27 +5598,32 @@ def _resolve_review_preflight_manuscript(
         if not target.exists():
             return None, f"missing explicit manuscript target {_format_display_path(target)}"
         if target.is_file():
-            if target.suffix == ".tex" or (allow_markdown and target.suffix == ".md"):
-                manuscript_root, root_resolution = _supported_root_resolution_for_target(target)
-                if manuscript_root is not None and root_resolution is not None:
-                    if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
-                        return (
-                            None,
-                            f"{_format_display_path(manuscript_root)} is ambiguous or inconsistent: {root_resolution.detail}",
-                        )
-                    if root_resolution.manuscript_entrypoint.resolve(strict=False) != target.resolve(strict=False):
-                        return (
-                            None,
-                            (
-                                f"{_format_display_path(target)} does not match the resolved manuscript entrypoint "
-                                f"{_format_display_path(root_resolution.manuscript_entrypoint)} under "
-                                f"{_format_display_path(manuscript_root)}"
-                            ),
-                        )
+            target_suffix = target.suffix.lower()
+            if target_suffix in normalized_allowed_suffixes:
+                if target_suffix in {".tex", ".md"}:
+                    manuscript_root, root_resolution = _supported_root_resolution_for_target(target)
+                    if manuscript_root is not None and root_resolution is not None:
+                        if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
+                            return (
+                                None,
+                                f"{_format_display_path(manuscript_root)} is ambiguous or inconsistent: {root_resolution.detail}",
+                            )
+                        if root_resolution.manuscript_entrypoint.resolve(strict=False) != target.resolve(strict=False):
+                            return (
+                                None,
+                                (
+                                    f"{_format_display_path(target)} does not match the resolved manuscript entrypoint "
+                                    f"{_format_display_path(root_resolution.manuscript_entrypoint)} under "
+                                    f"{_format_display_path(manuscript_root)}"
+                                ),
+                            )
                 return target, f"{_format_display_path(target)} present"
-            if target.suffix == ".md":
+            if target_suffix == ".md" and normalized_allowed_suffixes == {".tex"}:
                 return None, f"explicit manuscript target must be a .tex file: {_format_display_path(target)}"
-            return None, f"explicit manuscript target must be a .tex or .md file: {_format_display_path(target)}"
+            return (
+                None,
+                f"explicit manuscript target must be a {_allowed_suffix_message()}: {_format_display_path(target)}",
+            )
 
         if target.is_dir():
             manuscript_root, root_resolution = _supported_root_resolution_for_target(target)
@@ -6368,6 +6394,7 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
         ["knowledge file path, source file path, arXiv ID, or topic"],
         _has_digest_knowledge_explicit_inputs,
     ),
+    "gpd:peer-review": (["paper directory, manuscript path, or external artifact path"], _has_simple_positional_inputs),
     "gpd:review-knowledge": (
         ["knowledge document path or canonical K-* knowledge id"],
         _has_review_knowledge_explicit_inputs,
@@ -6520,6 +6547,7 @@ def _command_required_files_override_detail(
         allow_markdown=not _command_requires_compiled_manuscript(command),
         restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
         workspace_cwd=workspace_cwd,
+        allowed_suffixes=_command_explicit_manuscript_suffixes(command),
     )
     if manuscript is None:
         return None
@@ -6539,9 +6567,31 @@ def _command_requires_compiled_manuscript(command: object) -> bool:
     return _review_contract_requests_check(contract, "compiled_manuscript")
 
 
+def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
+    """Return the allowed explicit manuscript suffixes for one command."""
+    allowed_suffixes = {".tex"}
+    if not _command_requires_compiled_manuscript(command):
+        allowed_suffixes.add(".md")
+    if getattr(command, "name", "") == "gpd:peer-review":
+        allowed_suffixes.update({".txt", ".pdf"})
+    return frozenset(allowed_suffixes)
+
+
+def _command_allows_external_manuscript_targets(command: object) -> bool:
+    """Return whether a command may accept explicit manuscript targets outside supported roots."""
+    return getattr(command, "name", "") == "gpd:peer-review"
+
+
+def _command_allows_interactive_standalone_intake(command: object) -> bool:
+    """Return whether a project-aware command may prompt for standalone inputs after launch."""
+    return getattr(command, "name", "") == "gpd:peer-review"
+
+
 def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -> bool:
     """Return whether explicit manuscript arguments must stay under supported manuscript roots."""
     if not _command_supports_explicit_manuscript_subject(command):
+        return False
+    if _command_allows_external_manuscript_targets(command):
         return False
 
     supported_roots = {"paper", "manuscript", "draft"}
@@ -6589,6 +6639,7 @@ def _command_context_manuscript_check(
             allow_markdown=allow_markdown,
             restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
             workspace_cwd=workspace_cwd,
+            allowed_suffixes=_command_explicit_manuscript_suffixes(command),
         )
         return manuscript is not None, detail
 
@@ -6662,6 +6713,51 @@ def _resolve_registry_command(command_name: str) -> tuple[object, str]:
 
     command = content_registry.get_command(command_name)
     return command, _canonical_command_name(command_name)
+
+
+def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) -> bool:
+    """Return whether *target* lives under a canonical manuscript root in *project_root*."""
+    try:
+        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return False
+    return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
+
+
+def _peer_review_external_mode_requested(
+    project_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> bool:
+    """Return whether peer-review should treat the current request as external-artifact mode."""
+    from gpd.core.constants import ProjectLayout
+
+    layout = ProjectLayout(project_root)
+    if not layout.project_md.exists():
+        return True
+    if not isinstance(subject, str) or not subject.strip():
+        return False
+
+    target = Path(subject)
+    if not target.is_absolute():
+        target = (workspace_cwd or project_root) / target
+    return not _path_is_within_supported_manuscript_root(project_root, target.resolve(strict=False))
+
+
+def _peer_review_pdf_intake_ready(manuscript: Path) -> tuple[bool, str]:
+    """Return whether a PDF manuscript target can be converted into review text."""
+    companion_text = manuscript.with_suffix(".txt")
+    if companion_text.exists():
+        return True, f"PDF intake can use companion text file {_format_display_path(companion_text)}"
+
+    from gpd.mcp.paper.compiler import find_latex_compiler
+
+    pdftotext_path = find_latex_compiler("pdftotext")
+    if pdftotext_path is not None:
+        return True, f"pdftotext available at {_format_display_path(pdftotext_path)} for PDF review intake"
+
+    return False, "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
 
 
 def _build_command_context_preflight(
@@ -6970,6 +7066,11 @@ def _build_command_context_preflight(
         ),
     )
     explicit_inputs_ok = predicate(arguments)
+    interactive_intake_allowed = (
+        _command_allows_interactive_standalone_intake(command)
+        and not explicit_inputs_ok
+        and not _has_simple_positional_inputs(arguments)
+    )
     add_check(
         "project_exists",
         project_exists,
@@ -6982,15 +7083,20 @@ def _build_command_context_preflight(
     )
     add_check(
         "explicit_inputs",
-        explicit_inputs_ok,
+        explicit_inputs_ok or interactive_intake_allowed,
         (
             "explicit standalone inputs detected"
             if explicit_inputs_ok
-            else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
+            else (
+                "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
+                "or use the current GPD project when available"
+                if interactive_intake_allowed
+                else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
+            )
         ),
-        blocking=not project_exists,
+        blocking=not project_exists and not interactive_intake_allowed,
     )
-    passed = project_exists or explicit_inputs_ok
+    passed = project_exists or explicit_inputs_ok or interactive_intake_allowed
     guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
     return CommandContextPreflightResult(
         command=public_command_name,
@@ -7024,6 +7130,7 @@ def _build_review_preflight(
     contract = command.review_contract
     if contract is None:
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
+    external_peer_review_mode = _peer_review_external_mode_requested(project_cwd, subject, workspace_cwd=cwd)
 
     checks: list[ReviewPreflightCheck] = []
     phase_subject = subject
@@ -7069,79 +7176,108 @@ def _build_review_preflight(
     )
 
     if "project_state" in contract.preflight_checks:
-        state_ok = layout.state_json.exists() and layout.state_md.exists()
-        add_check(
-            "project_state",
-            state_ok,
-            (
-                f"state.json={layout.state_json.exists()}, STATE.md={layout.state_md.exists()}"
-                if not state_ok
-                else f"{_format_display_path(layout.state_json)} and {_format_display_path(layout.state_md)} present"
-            ),
-        )
-        if strict:
-            validation = state_validate(project_cwd, integrity_mode="review")
-            detail = f"integrity_status={validation.integrity_status}"
-            if validation.issues:
-                detail = f"{detail}; {'; '.join(validation.issues)}"
-            add_check("state_integrity", validation.valid, detail, blocking=True)
+        if external_peer_review_mode:
+            add_check(
+                "project_state",
+                True,
+                "external artifact review: project state is optional and is not required to start review",
+                blocking=False,
+            )
+        else:
+            state_ok = layout.state_json.exists() and layout.state_md.exists()
+            add_check(
+                "project_state",
+                state_ok,
+                (
+                    f"state.json={layout.state_json.exists()}, STATE.md={layout.state_md.exists()}"
+                    if not state_ok
+                    else f"{_format_display_path(layout.state_json)} and {_format_display_path(layout.state_md)} present"
+                ),
+            )
+            if strict:
+                validation = state_validate(project_cwd, integrity_mode="review")
+                detail = f"integrity_status={validation.integrity_status}"
+                if validation.issues:
+                    detail = f"{detail}; {'; '.join(validation.issues)}"
+                add_check("state_integrity", validation.valid, detail, blocking=True)
 
     if "roadmap" in contract.preflight_checks:
-        add_check(
-            "roadmap",
-            layout.roadmap.exists(),
-            (
-                f"{_format_display_path(layout.roadmap)} present"
-                if layout.roadmap.exists()
-                else f"missing {_format_display_path(layout.roadmap)}"
-            ),
-        )
+        if external_peer_review_mode:
+            add_check("roadmap", True, "external artifact review: roadmap is optional", blocking=False)
+        else:
+            add_check(
+                "roadmap",
+                layout.roadmap.exists(),
+                (
+                    f"{_format_display_path(layout.roadmap)} present"
+                    if layout.roadmap.exists()
+                    else f"missing {_format_display_path(layout.roadmap)}"
+                ),
+            )
 
     if "conventions" in contract.preflight_checks:
-        add_check(
-            "conventions",
-            layout.conventions_md.exists(),
-            (
-                f"{_format_display_path(layout.conventions_md)} present"
-                if layout.conventions_md.exists()
-                else f"missing {_format_display_path(layout.conventions_md)}"
-            ),
-        )
+        if external_peer_review_mode:
+            add_check("conventions", True, "external artifact review: project conventions are optional", blocking=False)
+        else:
+            add_check(
+                "conventions",
+                layout.conventions_md.exists(),
+                (
+                    f"{_format_display_path(layout.conventions_md)} present"
+                    if layout.conventions_md.exists()
+                    else f"missing {_format_display_path(layout.conventions_md)}"
+                ),
+            )
 
     if "research_artifacts" in contract.preflight_checks:
-        digest_exists = layout.milestones_dir.exists() and any(layout.milestones_dir.rglob("RESEARCH-DIGEST.md"))
-        summary_exists = _has_any_phase_summary(layout.phases_dir)
-        passed = digest_exists or summary_exists
-        detail = "milestone digest or phase summaries present" if passed else "no digest or phase summaries found"
-        add_check("research_artifacts", passed, detail)
-        if strict and summary_exists:
-            summary_failures = _validate_phase_artifacts(layout.phases_dir, "summary")
+        if external_peer_review_mode:
             add_check(
-                "summary_frontmatter",
-                not summary_failures,
-                "all phase summaries satisfy the summary schema"
-                if not summary_failures
-                else "; ".join(summary_failures[:3]),
-                blocking=True,
+                "research_artifacts",
+                True,
+                "external artifact review: phase summaries or milestone digests are optional",
+                blocking=False,
             )
-        verification_reports_requested = _review_contract_requests_check(contract, "verification_reports")
-        if verification_reports_requested:
-            verification_exists = layout.phases_dir.exists() and any(layout.phases_dir.rglob("*VERIFICATION.md"))
-            add_check(
-                "verification_reports",
-                verification_exists,
-                "verification reports present" if verification_exists else "no verification reports found",
-            )
-            if strict and verification_exists:
-                verification_failures = _validate_phase_artifacts(layout.phases_dir, "verification")
+            if _review_contract_requests_check(contract, "verification_reports"):
                 add_check(
-                    "verification_frontmatter",
-                    not verification_failures,
-                    "all verification reports satisfy the verification schema"
-                    if not verification_failures
-                    else "; ".join(verification_failures[:3]),
+                    "verification_reports",
+                    True,
+                    "external artifact review: verification reports are optional",
+                    blocking=False,
+                )
+        else:
+            digest_exists = layout.milestones_dir.exists() and any(layout.milestones_dir.rglob("RESEARCH-DIGEST.md"))
+            summary_exists = _has_any_phase_summary(layout.phases_dir)
+            passed = digest_exists or summary_exists
+            detail = "milestone digest or phase summaries present" if passed else "no digest or phase summaries found"
+            add_check("research_artifacts", passed, detail)
+            if strict and summary_exists:
+                summary_failures = _validate_phase_artifacts(layout.phases_dir, "summary")
+                add_check(
+                    "summary_frontmatter",
+                    not summary_failures,
+                    "all phase summaries satisfy the summary schema"
+                    if not summary_failures
+                    else "; ".join(summary_failures[:3]),
                     blocking=True,
                 )
+            verification_reports_requested = _review_contract_requests_check(contract, "verification_reports")
+            if verification_reports_requested:
+                verification_exists = layout.phases_dir.exists() and any(layout.phases_dir.rglob("*VERIFICATION.md"))
+                add_check(
+                    "verification_reports",
+                    verification_exists,
+                    "verification reports present" if verification_exists else "no verification reports found",
+                )
+                if strict and verification_exists:
+                    verification_failures = _validate_phase_artifacts(layout.phases_dir, "verification")
+                    add_check(
+                        "verification_frontmatter",
+                        not verification_failures,
+                        "all verification reports satisfy the verification schema"
+                        if not verification_failures
+                        else "; ".join(verification_failures[:3]),
+                        blocking=True,
+                    )
 
     if "manuscript" in contract.preflight_checks:
         allow_markdown = not _command_requires_compiled_manuscript(command)
@@ -7151,6 +7287,7 @@ def _build_review_preflight(
                 project_cwd,
                 subject,
                 allow_markdown=allow_markdown,
+                allowed_suffixes=_command_explicit_manuscript_suffixes(command),
                 restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
                 workspace_cwd=cwd,
             )
@@ -7159,6 +7296,7 @@ def _build_review_preflight(
                 project_cwd,
                 None,
                 allow_markdown=allow_markdown,
+                allowed_suffixes=_command_explicit_manuscript_suffixes(command),
             )
         resolution = resolve_current_manuscript_resolution(project_cwd, allow_markdown=allow_markdown)
         if _command_allows_manuscript_bootstrap(command) and subject is None and resolution.status == "missing":
@@ -7173,6 +7311,13 @@ def _build_review_preflight(
             manuscript_passed = resolution.status == "resolved"
         else:
             manuscript_passed = manuscript is not None
+        if manuscript is not None and command.name == "gpd:peer-review" and manuscript.suffix.lower() == ".pdf":
+            pdf_ready, pdf_detail = _peer_review_pdf_intake_ready(manuscript)
+            manuscript_passed = manuscript_passed and pdf_ready
+            if pdf_ready:
+                manuscript_detail = f"{_format_display_path(manuscript)} present; {pdf_detail}"
+            else:
+                manuscript_detail = pdf_detail
         add_check(
             "manuscript",
             manuscript_passed,
@@ -7231,8 +7376,12 @@ def _build_review_preflight(
                 reproducibility_manifest = publication_artifacts.reproducibility_manifest
 
                 if "artifact_manifest" in requested_publication_checks:
-                    artifact_manifest_detail = "no ARTIFACT-MANIFEST.json found near the manuscript"
-                    artifact_manifest_passed = artifact_manifest is not None
+                    artifact_manifest_detail = (
+                        "no ARTIFACT-MANIFEST.json found near the manuscript"
+                        if not external_peer_review_mode
+                        else "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+                    )
+                    artifact_manifest_passed = artifact_manifest is not None or external_peer_review_mode
                     if artifact_manifest is not None:
                         artifact_manifest_detail = f"{_format_display_path(artifact_manifest)} present"
                         from gpd.mcp.paper.models import ArtifactManifest
@@ -7252,17 +7401,27 @@ def _build_review_preflight(
                                 _format_pydantic_schema_error(error, root_label="artifact_manifest")
                                 for error in exc.errors()[:3]
                             )
-                    add_check("artifact_manifest", artifact_manifest_passed, artifact_manifest_detail)
+                    add_check(
+                        "artifact_manifest",
+                        artifact_manifest_passed,
+                        artifact_manifest_detail,
+                        blocking=not external_peer_review_mode,
+                    )
 
                 if "bibliography_audit" in requested_publication_checks:
                     add_check(
                         "bibliography_audit",
-                        bibliography_audit is not None,
+                        bibliography_audit is not None or external_peer_review_mode,
                         (
                             f"{_format_display_path(bibliography_audit)} present"
                             if bibliography_audit is not None
-                            else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
+                            else (
+                                "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
+                                if not external_peer_review_mode
+                                else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
+                            )
                         ),
+                        blocking=not external_peer_review_mode,
                     )
 
                 if "compiled_manuscript" in requested_publication_checks:
@@ -7488,44 +7647,56 @@ def _build_review_preflight(
                 if "reproducibility_manifest" in requested_publication_checks:
                     add_check(
                         "reproducibility_manifest",
-                        reproducibility_manifest is not None,
+                        reproducibility_manifest is not None or external_peer_review_mode,
                         (
                             f"{_format_display_path(reproducibility_manifest)} present"
                             if reproducibility_manifest is not None
-                            else "no reproducibility manifest found near the manuscript"
+                            else (
+                                "no reproducibility manifest found near the manuscript"
+                                if not external_peer_review_mode
+                                else "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
+                            )
                         ),
+                        blocking=not external_peer_review_mode,
                     )
 
                 if "manuscript_proof_review" in requested_publication_checks:
-                    manuscript_proof_review = resolve_manuscript_proof_review_status(
-                        project_cwd,
-                        manuscript,
-                        persist_manifest=True,
-                    )
-                    theorem_bearing_review_required = _requires_theorem_bearing_manuscript_review(
-                        project_cwd, manuscript
-                    )
-                    manuscript_proof_review_passed = (
-                        manuscript_proof_review.can_rely_on_prior_review
-                        or manuscript_proof_review.state == "not_reviewed"
-                    )
-                    manuscript_proof_review_blocking = False
-                    manuscript_proof_review_detail = manuscript_proof_review.detail
-                    if _command_requires_compiled_manuscript(command):
-                        if "manuscript_proof_review" in conditional_blocking_preflight_checks:
-                            manuscript_proof_review_passed = manuscript_proof_review.can_rely_on_prior_review
-                            manuscript_proof_review_blocking = True
-                        else:
-                            manuscript_proof_review_passed = True
-                            manuscript_proof_review_detail = (
-                                "no theorem-bearing claims were detected in the latest matching staged claim inventory "
-                                "or staged math review; manuscript proof review is not required for submission"
-                            )
-                    elif _command_allows_manuscript_bootstrap(command):
-                        manuscript_proof_review_passed = manuscript_proof_review.can_rely_on_prior_review
+                    if external_peer_review_mode:
+                        manuscript_proof_review_passed = True
                         manuscript_proof_review_blocking = False
-                        if theorem_bearing_review_required:
-                            if not manuscript_proof_review_passed:
+                        manuscript_proof_review_detail = (
+                            "prior staged manuscript proof review is optional in external artifact mode; "
+                            "theorem-bearing claims will be audited in this review round if detected"
+                        )
+                    else:
+                        manuscript_proof_review = resolve_manuscript_proof_review_status(
+                            project_cwd,
+                            manuscript,
+                            persist_manifest=True,
+                        )
+                        theorem_bearing_review_required = _requires_theorem_bearing_manuscript_review(
+                            project_cwd, manuscript
+                        )
+                        manuscript_proof_review_passed = (
+                            manuscript_proof_review.can_rely_on_prior_review
+                            or manuscript_proof_review.state == "not_reviewed"
+                        )
+                        manuscript_proof_review_blocking = False
+                        manuscript_proof_review_detail = manuscript_proof_review.detail
+                        if _command_requires_compiled_manuscript(command):
+                            if "manuscript_proof_review" in conditional_blocking_preflight_checks:
+                                manuscript_proof_review_passed = manuscript_proof_review.can_rely_on_prior_review
+                                manuscript_proof_review_blocking = True
+                            else:
+                                manuscript_proof_review_passed = True
+                                manuscript_proof_review_detail = (
+                                    "no theorem-bearing claims were detected in the latest matching staged claim inventory "
+                                    "or staged math review; manuscript proof review is not required for submission"
+                                )
+                        elif _command_allows_manuscript_bootstrap(command):
+                            manuscript_proof_review_passed = manuscript_proof_review.can_rely_on_prior_review
+                            manuscript_proof_review_blocking = False
+                            if theorem_bearing_review_required and not manuscript_proof_review_passed:
                                 manuscript_proof_review_detail = (
                                     manuscript_proof_review.detail
                                     + "; write-paper will run its own staged proof-review loop"
@@ -7539,7 +7710,12 @@ def _build_review_preflight(
 
                 if strict and bibliography_audit is not None and "bibliography_audit" in requested_publication_checks:
                     clean, detail = _validate_bibliography_audit_semantics(bibliography_audit)
-                    add_check("bibliography_audit_clean", clean, detail, blocking=True)
+                    add_check(
+                        "bibliography_audit_clean",
+                        clean,
+                        detail,
+                        blocking=not external_peer_review_mode,
+                    )
                 if (
                     strict
                     and reproducibility_manifest is not None
@@ -7551,7 +7727,12 @@ def _build_review_preflight(
                         repro_payload = json.loads(reproducibility_manifest.read_text(encoding="utf-8"))
                         repro_validation = validate_reproducibility_manifest(repro_payload)
                     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-                        add_check("reproducibility_ready", False, f"could not validate reproducibility manifest: {exc}")
+                        add_check(
+                            "reproducibility_ready",
+                            False,
+                            f"could not validate reproducibility manifest: {exc}",
+                            blocking=not external_peer_review_mode,
+                        )
                     else:
                         ready = (
                             repro_validation.valid
@@ -7566,7 +7747,12 @@ def _build_review_preflight(
                                 f"warnings={len(repro_validation.warnings)}, issues={len(repro_validation.issues)}"
                             )
                         )
-                        add_check("reproducibility_ready", ready, detail)
+                        add_check(
+                            "reproducibility_ready",
+                            ready,
+                            detail,
+                            blocking=not external_peer_review_mode,
+                        )
 
     if "phase_artifacts" in contract.preflight_checks:
         if subject:
@@ -7686,7 +7872,7 @@ def validate_unattended_readiness_cmd(
     live_executable_probes: bool = typer.Option(
         False,
         "--live-executable-probes",
-        help="Run cheap local executable probes such as `pdflatex --version` or `wolframscript -version`",
+        help="Run cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`",
     ),
 ) -> None:
     """Check whether one runtime surface is ready for unattended use."""

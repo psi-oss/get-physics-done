@@ -42,10 +42,28 @@ If `derived_manuscript_reference_status` is present, use it as a first-pass manu
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
 
+Set `REVIEW_TARGET="$ARGUMENTS"` unless interactive intake overrides it.
+
+If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
+
+> **Platform note:** If `ask_user` is not available, present the same choices in plain text and wait for the user's freeform response.
+
+Use ask_user:
+
+- header: `Peer Review`
+- question: `Review the current GPD project manuscript, or point at a specific manuscript artifact?`
+- options:
+  - `Use current project` -- Review the active manuscript resolved from the current GPD project. Recommended when the folder is already a GPD project.
+  - `Pick artifact path` -- Review a specific `.tex`, `.md`, `.txt`, `.pdf`, or manuscript directory path instead.
+
+If the user chooses `Pick artifact path`, ask for one explicit path and store it in `REVIEW_TARGET`.
+
+If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
+
 Run centralized context preflight before continuing:
 
 ```bash
-CONTEXT=$(gpd --raw validate command-context peer-review "$ARGUMENTS")
+CONTEXT=$(gpd --raw validate command-context peer-review "$REVIEW_TARGET")
 if [ $? -ne 0 ]; then
   echo "$CONTEXT"
   exit 1
@@ -54,8 +72,8 @@ fi
 
 **Resolve manuscript target:**
 
-1. If `$ARGUMENTS` names a directory, use it as the candidate paper directory.
-2. If `$ARGUMENTS` names a `.tex` or `.md` file, use that file and its parent directory as the review root.
+1. If `$REVIEW_TARGET` names a directory, use it as the candidate paper directory.
+2. If `$REVIEW_TARGET` names a `.tex`, `.md`, `.txt`, or `.pdf` file, use that file and its parent directory as the review root.
 3. Otherwise search, in order:
    - the resolved manuscript entrypoint under `paper/`
    - the resolved manuscript entrypoint under `manuscript/`
@@ -63,7 +81,7 @@ fi
 
 After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:
 
-- `RESOLVED_MANUSCRIPT` = resolved `.tex` or `.md` entry point
+- `RESOLVED_MANUSCRIPT` = resolved manuscript entry point or explicit artifact file
 - `MANUSCRIPT_ROOT` = parent directory of `RESOLVED_MANUSCRIPT`
 - `ARTIFACT_MANIFEST_PATH` = `${MANUSCRIPT_ROOT}/ARTIFACT-MANIFEST.json`
 - `BIBLIOGRAPHY_AUDIT_PATH` = `${MANUSCRIPT_ROOT}/BIBLIOGRAPHY-AUDIT.json`
@@ -71,12 +89,20 @@ After resolution, keep all manuscript-local support artifacts rooted at the same
 - `PAPER_CONFIG_PATH` = `${MANUSCRIPT_ROOT}/PAPER-CONFIG.json`
 - `LOCAL_BIB_FILES` = all `*.bib` files under `${MANUSCRIPT_ROOT}`
 
+Prepare a reader-friendly manuscript surface for the staged reviewers:
+
+- For `.tex` or `.md`, keep the resolved main file plus any nearby section `.tex` / `.md` files under the same manuscript root.
+- For `.txt`, use the `.txt` file directly as the manuscript review surface.
+- For `.pdf`, first look for a nearby text companion such as the same basename with `.txt`. If none exists and `pdftotext` is available, create `GPD/review/` if needed, extract a text copy to `GPD/review/MANUSCRIPT-TEXT.txt`, and use that extracted file as the manuscript review surface while keeping the original PDF as the canonical `RESOLVED_MANUSCRIPT`. If neither a nearby text companion nor `pdftotext` is available, STOP and ask the user to point at a `.txt`, `.md`, `.tex`, or a PDF with an extractable text companion.
+
+Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
+
 **If no manuscript found:**
 
 ```
 No manuscript found. Searched: paper/, manuscript/, draft/
 
-Run gpd:write-paper first, or provide a manuscript path to gpd:peer-review.
+Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, or manuscript directory path to gpd:peer-review.
 ```
 
 Exit.
@@ -111,13 +137,13 @@ Apply the shared manuscript-root bootstrap contract exactly:
 @{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
 
 ```bash
-gpd validate review-preflight peer-review "$ARGUMENTS" --strict
+gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict
 ```
 
 If preflight exits nonzero because of missing project state, missing manuscript, degraded review integrity, or missing review-grade paper artifacts, STOP and show the blocking issues.
 If preflight reports blocked contract/state integrity, surface `project_contract_gate`, `project_contract_load_info`, and `project_contract_validation` details in the stop message and repair the blocked contract before retrying.
 
-In strict peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. Strict preflight also enforces the semantic gates `bibliography_audit_clean` and `reproducibility_ready`; those artifacts must be review-ready, not merely present. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts. Peer review is expected to fail closed when those review-support artifacts are absent, stale, or not review-ready.
+In strict project-backed peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. Strict preflight also enforces the semantic gates `bibliography_audit_clean` and `reproducibility_ready`; those artifacts must be review-ready, not merely present. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts. For explicit external artifact review, these manuscript-root publication artifacts become optional supporting context when present and must not block intake by themselves.
 Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent contract-backed evidence.
 </step>
 
@@ -126,11 +152,11 @@ Passing preflight still does not establish scientific support. Complete manifest
 
 Load the following files:
 
-- The resolved manuscript entrypoint and any nearby manuscript `*.tex` or `*.md` files that belong to the same manuscript root
-- `GPD/STATE.md`
-- `GPD/ROADMAP.md`
-- All summary artifacts matching `GPD/phases/*/*SUMMARY.md`
-- All `GPD/phases/*/*-VERIFICATION.md` files
+- `MANUSCRIPT_STAGE_FILES`
+- `GPD/STATE.md` if present
+- `GPD/ROADMAP.md` if present
+- All summary artifacts matching `GPD/phases/*/*SUMMARY.md` if present
+- All `GPD/phases/*/*-VERIFICATION.md` files if present
 - `GPD/comparisons/*-COMPARISON.md` if present
 - `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
@@ -247,7 +273,7 @@ Output paths:
 - `GPD/review/STAGE-reader{round_suffix}.json`
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 
 Focus on:
 1. Read the whole manuscript end-to-end before consulting project-internal summaries.
@@ -313,7 +339,7 @@ Carry-forward context: protocol bundle guidance {protocol_bundle_context}; proje
 Output path: `GPD/review/STAGE-literature{round_suffix}.json`
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 - `GPD/review/CLAIMS{round_suffix}.json`
 - `GPD/review/STAGE-reader{round_suffix}.json`
 - `GPD/comparisons/*-COMPARISON.md` if present
@@ -345,11 +371,11 @@ Carry-forward context: project contract {project_contract}; project contract gat
 Output path: `GPD/review/STAGE-math{round_suffix}.json`
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 - `GPD/review/CLAIMS{round_suffix}.json`
 - `GPD/review/STAGE-reader{round_suffix}.json`
-- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
-- `GPD/phases/*/*-VERIFICATION.md`
+- Summary artifacts matching `GPD/phases/*/*SUMMARY.md` if present
+- `GPD/phases/*/*-VERIFICATION.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
 
@@ -386,11 +412,11 @@ Before writing frontmatter, bind these fields exactly from the active round arti
 - `proof_artifact_paths`: copy exactly the theorem-bearing proof artifact paths under review, plus the manuscript entrypoint if it is not already listed
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 - `GPD/review/CLAIMS{round_suffix}.json`
 - `GPD/review/STAGE-reader{round_suffix}.json`
-- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
-- `GPD/phases/*/*-VERIFICATION.md`
+- Summary artifacts matching `GPD/phases/*/*SUMMARY.md` if present
+- `GPD/phases/*/*-VERIFICATION.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
 
@@ -461,14 +487,14 @@ Carry-forward context: project contract {project_contract}; project contract gat
 Output path: `GPD/review/STAGE-physics{round_suffix}.json`
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 - `GPD/review/CLAIMS{round_suffix}.json`
 - `GPD/review/STAGE-reader{round_suffix}.json`
 - `GPD/review/STAGE-math{round_suffix}.json`
 - `GPD/review/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
 - `GPD/review/STAGE-literature{round_suffix}.json`
-- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
-- `GPD/phases/*/*-VERIFICATION.md`
+- Summary artifacts matching `GPD/phases/*/*SUMMARY.md` if present
+- `GPD/phases/*/*-VERIFICATION.md` if present
 - `GPD/comparisons/*-COMPARISON.md` if present
 - `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md` if present
 
@@ -530,7 +556,7 @@ Carry-forward context: project contract {project_contract}; project contract gat
 Output path: `GPD/review/STAGE-interestingness{round_suffix}.json`
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 - `GPD/review/CLAIMS{round_suffix}.json`
 	- `GPD/review/STAGE-reader{round_suffix}.json`
 	- `GPD/review/STAGE-literature{round_suffix}.json`
@@ -596,7 +622,7 @@ Additive specialized guidance: {protocol_bundle_context}
 Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 
 Files to read:
-- Resolved manuscript main file and all nearby section .tex files
+- `MANUSCRIPT_STAGE_FILES`
 - `GPD/review/CLAIMS{round_suffix}.json`
 - `GPD/review/STAGE-reader{round_suffix}.json`
 - `GPD/review/STAGE-literature{round_suffix}.json`
@@ -609,12 +635,12 @@ Files to read:
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${BIBLIOGRAPHY_AUDIT_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
-- `GPD/STATE.md`
-- `GPD/ROADMAP.md`
-- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
-- `GPD/phases/*/*-VERIFICATION.md`
+- `GPD/STATE.md` if present
+- `GPD/ROADMAP.md` if present
+- Summary artifacts matching `GPD/phases/*/*SUMMARY.md` if present
+- `GPD/phases/*/*-VERIFICATION.md` if present
 
-If this is a revision round, also read the latest `REFEREE-REPORT*.md` and matching `AUTHOR-RESPONSE*.md`.
+If this is a revision round, also read the latest `REFEREE-REPORT*.md` and matching `AUTHOR-RESPONSE*.md` when present.
 
 If any required staged-review artifact is missing, malformed, or uses the wrong round suffix, STOP and report that failure instead of falling back to standalone review.
 

@@ -1647,7 +1647,7 @@ def _doctor_check_package_imports() -> HealthCheck:
 
 
 _DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS = 5
-_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS = ("pdflatex", "bibtex", "latexmk", "kpsewhich", "wolframscript")
+_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS = ("pdflatex", "bibtex", "latexmk", "kpsewhich", "pdftotext", "wolframscript")
 
 
 def _doctor_run_executable_probe(argv: list[str], *, timeout_seconds: int) -> dict[str, object]:
@@ -1729,10 +1729,11 @@ def _doctor_check_live_executable_probes() -> HealthCheck:
         resolved = _doctor_which(executable)
         if resolved is None:
             skipped.append(executable)
+            skipped_command = [executable, "-v"] if executable == "pdftotext" else [executable, "--version"]
             probe_results.append(
                 {
                     "label": executable,
-                    "command": [executable, "--version"],
+                    "command": skipped_command,
                     "status": "skipped",
                     "reason": "not found on PATH",
                 }
@@ -1740,7 +1741,8 @@ def _doctor_check_live_executable_probes() -> HealthCheck:
             warnings.append(f"{executable} not found on PATH")
             continue
 
-        probe = _doctor_run_executable_probe([resolved, "--version"], timeout_seconds=_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS)
+        probe_args = [resolved, "-v"] if executable == "pdftotext" else [resolved, "--version"]
+        probe = _doctor_run_executable_probe(probe_args, timeout_seconds=_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS)
         probe["label"] = executable
         probe["resolved_path"] = resolved
         probe_results.append(probe)
@@ -1968,11 +1970,13 @@ def _doctor_check_latex_toolchain() -> HealthCheck:
                 "bibtex_available": None,
                 "bibliography_support_available": False,
                 "kpsewhich_available": None,
+                "pdftotext_available": None,
                 "readiness_state": "blocked",
                 "message": "Could not load LaTeX detection helpers.",
                 "warnings": [f"Could not load LaTeX detection helpers: {exc}"],
                 "paper_build_ready": False,
                 "arxiv_submission_ready": False,
+                "pdf_review_ready": False,
                 "missing_components": [],
             },
             warnings=[f"Could not load LaTeX detection helpers: {exc}"],
@@ -1984,6 +1988,7 @@ def _doctor_check_latex_toolchain() -> HealthCheck:
     latexmk_available = bool(capability_details["latexmk_available"])
     bibtex_available = bool(capability_details["bibtex_available"])
     kpsewhich_available = bool(capability_details["kpsewhich_available"])
+    pdftotext_available = bool(capability_details["pdftotext_available"])
     full_toolchain_available = bool(capability_details["full_toolchain_available"])
     missing_components: list[str] = []
     if not compiler_available:
@@ -1994,6 +1999,8 @@ def _doctor_check_latex_toolchain() -> HealthCheck:
         missing_components.append("bibtex")
     if compiler_available and not kpsewhich_available:
         missing_components.append("kpsewhich")
+    if compiler_available and not pdftotext_available:
+        missing_components.append("pdftotext")
 
     warnings = list(capability_details.get("warnings", [])) if isinstance(capability_details.get("warnings"), list) else []
     if compiler_available and missing_components:
@@ -2052,6 +2059,12 @@ def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool
         warnings.append(
             "Publication / manuscript and full research presets are degraded without arxiv-submission support: "
             "`paper-build` remains usable, but `arxiv-submission` stays blocked until TeX resource checks pass."
+        )
+    elif not bool(capability_details.get("pdf_review_ready", False)):
+        warnings.append(
+            "Publication / manuscript and full research presets are degraded without pdftotext: "
+            "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, but PDF-backed `peer-review` intake "
+            "requires `pdftotext` or a nearby `.txt` companion file."
         )
 
     status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN

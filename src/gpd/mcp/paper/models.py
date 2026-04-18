@@ -459,10 +459,12 @@ class PaperToolchainCapability(BaseModel):
     bibliography_support_available: bool = False
     latexmk_available: bool | None = None
     kpsewhich_available: bool | None = None
+    pdftotext_available: bool | None = None
     available: bool = False
     full_toolchain_available: bool = False
     paper_build_ready: bool = False
     arxiv_submission_ready: bool = False
+    pdf_review_ready: bool = False
     readiness_state: Literal["blocked", "degraded", "ready"] = "blocked"
     message: str = ""
     warnings: list[str] = Field(default_factory=list)
@@ -473,14 +475,16 @@ class PaperToolchainCapability(BaseModel):
         bibtex_available = self.bibtex_available is True
         latexmk_available = self.latexmk_available is True
         kpsewhich_available = self.kpsewhich_available is True
+        pdftotext_available = self.pdftotext_available is True
 
         self.available = compiler_available
         self.bibliography_support_available = compiler_available and bibtex_available
         self.paper_build_ready = compiler_available
         self.full_toolchain_available = (
-            compiler_available and bibtex_available and latexmk_available and kpsewhich_available
+            compiler_available and bibtex_available and latexmk_available and kpsewhich_available and pdftotext_available
         )
         self.arxiv_submission_ready = self.bibliography_support_available and kpsewhich_available
+        self.pdf_review_ready = pdftotext_available
         if not compiler_available:
             self.readiness_state = "blocked"
         elif bibtex_available:
