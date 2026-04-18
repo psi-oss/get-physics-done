@@ -201,6 +201,7 @@ def validate_stage_review_artifact_alignment(
     artifact_path: Path,
     claim_index: ClaimIndex | None,
     expected_manuscript_path: str | None = None,
+    expected_manuscript_label: str = "expected manuscript",
     expected_manuscript_sha256: str | None = None,
     require_claim_index_error: bool = True,
 ) -> list[str]:
@@ -228,7 +229,7 @@ def validate_stage_review_artifact_alignment(
     if expected_manuscript_path and normalize_review_path_label(
         stage_report.manuscript_path
     ) != normalize_review_path_label(expected_manuscript_path):
-        errors.append(f"{artifact_path.name} manuscript_path does not match the referee decision manuscript_path")
+        errors.append(f"{artifact_path.name} manuscript_path does not match the {expected_manuscript_label}")
     if expected_manuscript_sha256 and stage_report.manuscript_sha256 != expected_manuscript_sha256:
         errors.append(f"{artifact_path.name} manuscript_sha256 does not match the active manuscript snapshot")
 
@@ -521,6 +522,7 @@ def _strict_stage_artifact_consistency_errors(
             validate_stage_review_artifact_file(
                 artifact_path,
                 expected_manuscript_path=expected_manuscript_path,
+                expected_manuscript_label="referee decision manuscript_path",
                 expected_manuscript_sha256=expected_manuscript_sha256,
             )
         )
@@ -635,6 +637,7 @@ def validate_stage_review_artifact_file(
     artifact_path: Path,
     *,
     expected_manuscript_path: str | None = None,
+    expected_manuscript_label: str = "expected manuscript",
     expected_manuscript_sha256: str | None = None,
 ) -> list[str]:
     """Return semantic validation errors for a stage-review file."""
@@ -654,6 +657,7 @@ def validate_stage_review_artifact_file(
         stage_report,
         artifact_path=artifact_path,
         expected_manuscript_path=expected_manuscript_path,
+        expected_manuscript_label=expected_manuscript_label,
         expected_manuscript_sha256=expected_manuscript_sha256,
     )
 
@@ -663,6 +667,7 @@ def validate_stage_review_artifact_payload(
     *,
     artifact_path: Path,
     expected_manuscript_path: str | None = None,
+    expected_manuscript_label: str = "expected manuscript",
     expected_manuscript_sha256: str | None = None,
 ) -> list[str]:
     """Return semantic validation errors for one typed stage-review artifact."""
@@ -687,6 +692,7 @@ def validate_stage_review_artifact_payload(
             artifact_path=artifact_path,
             claim_index=claim_index,
             expected_manuscript_path=expected_manuscript_path,
+            expected_manuscript_label=expected_manuscript_label,
             expected_manuscript_sha256=expected_manuscript_sha256,
             require_claim_index_error=not claim_index_errors,
         )

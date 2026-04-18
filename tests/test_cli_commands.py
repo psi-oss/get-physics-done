@@ -2457,6 +2457,32 @@ class TestReviewValidationCommands:
         assert payload["resolved_review_root"] == str(gpd_project)
         assert payload["staged_loading"]["stage_id"] == "bootstrap"
 
+    def test_init_peer_review_proof_review_detail_uses_active_manuscript_wording_without_final_review_artifacts(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        package = write_proof_review_package(gpd_project, theorem_bearing=True, review_report=False)
+        review_dir = gpd_project / "GPD" / "review"
+        (review_dir / "REVIEW-LEDGER.json").unlink()
+        (review_dir / "REFEREE-DECISION.json").unlink()
+        math_stage_path = review_dir / "STAGE-math.json"
+        math_stage_payload = json.loads(math_stage_path.read_text(encoding="utf-8"))
+        math_stage_payload["manuscript_path"] = "paper/other.tex"
+        math_stage_path.write_text(json.dumps(math_stage_payload), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "init", "peer-review", str(package.manuscript_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        detail = payload["derived_manuscript_proof_review_status"]["detail"]
+        assert payload["latest_review_artifacts"] is None
+        assert "active manuscript" in detail
+        assert "referee decision manuscript_path" not in detail
+
     def test_review_preflight_peer_review_project_backed_mode_surfaces_effective_contract_fields(
         self,
         gpd_project: Path,
@@ -6776,6 +6802,59 @@ def test_cli_uninstall_and_resolution_paths(monkeypatch: pytest.MonkeyPatch, gpd
         )
         is True
     )
+
+
+def test_resolve_model_explain_surfaces_runtime_default_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    gpd_project: Path,
+) -> None:
+    import gpd.core.config as config_module
+    import gpd.core.context as context_module
+
+    monkeypatch.setattr(config_module, "validate_agent_name", lambda agent_name: None)
+    monkeypatch.setattr(config_module, "resolve_tier", lambda cwd, agent_name: config_module.ModelTier.TIER_1)
+    monkeypatch.setattr(context_module, "_resolve_model", lambda cwd, agent_name: None)
+    monkeypatch.setattr(context_module, "_detect_platform", lambda cwd=None: _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name)
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(gpd_project), "resolve-model", "gpd-referee", "--explain"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["agent_name"] == "gpd-referee"
+    assert payload["tier"] == "tier-1"
+    assert payload["runtime"] == _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name
+    assert payload["runtime_source"] == "detected"
+    assert payload["resolved_model"] is None
+    assert payload["override_configured"] is False
+    assert payload["uses_runtime_default"] is True
+    assert "No explicit model override is configured" in payload["detail"]
+
+
+def test_resolve_model_keeps_blank_stdout_by_default_when_no_override(
+    monkeypatch: pytest.MonkeyPatch,
+    gpd_project: Path,
+) -> None:
+    import gpd.cli as cli_module
+    import gpd.core.config as config_module
+    import gpd.core.context as context_module
+
+    monkeypatch.setattr(cli_module, "_stdout_is_interactive", lambda: False)
+    monkeypatch.setattr(config_module, "validate_agent_name", lambda agent_name: None)
+    monkeypatch.setattr(context_module, "_resolve_model", lambda cwd, agent_name: None)
+    monkeypatch.setattr(context_module, "_detect_platform", lambda cwd=None: _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name)
+
+    result = runner.invoke(
+        app,
+        ["--cwd", str(gpd_project), "resolve-model", "gpd-referee"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.output == ""
 
 
 def test_init_new_project_help_surfaces_stage_option() -> None:

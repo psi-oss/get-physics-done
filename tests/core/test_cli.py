@@ -2707,8 +2707,10 @@ def test_validate_plan_preflight_blocks_on_missing_knowledge_dependency(
 def test_resolve_model_help_lists_supported_runtime_ids():
     result = runner.invoke(app, ["resolve-model", "--help"])
     assert result.exit_code == 0
+    normalized_output = _normalize_cli_output(result.output)
+    assert "--explain" in normalized_output
     for runtime_name in list_runtimes():
-        assert runtime_name in result.output
+        assert runtime_name in normalized_output
 
 
 def test_state_help():
