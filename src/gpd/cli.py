@@ -6679,11 +6679,17 @@ def _looks_like_review_knowledge_path_token(token: str) -> bool:
     if not _looks_like_digest_knowledge_path_token(token):
         return False
     path = Path(token)
-    return (
+    if not (
         path.suffix.lower() == ".md"
         and path.stem.startswith("K-")
         and normalize_ascii_slug(path.stem[2:]) == path.stem[2:]
-    )
+    ):
+        return False
+
+    normalized_parts = [part for part in path.as_posix().split("/") if part not in {"", "."}]
+    if path.is_absolute():
+        return len(normalized_parts) >= 3 and normalized_parts[-3:-1] == ["GPD", "knowledge"]
+    return len(normalized_parts) >= 3 and normalized_parts[:2] == ["GPD", "knowledge"]
 
 
 def _has_digest_knowledge_explicit_inputs(arguments: str | None) -> bool:
@@ -6832,6 +6838,29 @@ def _command_policy_bool(policy: object | None, field_name: str) -> bool | None:
         return None
     value = getattr(policy, field_name, None)
     return value if isinstance(value, bool) else None
+
+
+def _command_output_policy(command: object) -> object | None:
+    command_policy = getattr(command, "command_policy", None)
+    return getattr(command_policy, "output_policy", None)
+
+
+def _command_subject_policy_string(command: object, field_name: str) -> str:
+    subject_policy = _command_subject_policy(command)
+    value = getattr(subject_policy, field_name, None) if subject_policy is not None else None
+    return str(value or "").strip()
+
+
+def _command_subject_resolution_mode(command: object) -> str:
+    return _command_subject_policy_string(command, "resolution_mode")
+
+
+def _command_subject_kind(command: object) -> str:
+    return _command_subject_policy_string(command, "subject_kind")
+
+
+def _command_has_typed_subject_policy(command: object) -> bool:
+    return _command_subject_policy(command) is not None
 
 
 def _command_effective_context_mode(command: object) -> str:
@@ -7085,6 +7114,98 @@ def _command_allows_manuscript_bootstrap(command: object) -> bool:
     )
 
 
+def _command_allows_interactive_subject_intake(command: object) -> bool:
+    """Return whether a command may launch without a concrete subject and ask interactively."""
+    if _command_requires_manuscript_context(command):
+        return _command_allows_interactive_standalone_intake(command)
+    subject_policy = _command_subject_policy(command)
+    return bool(_command_policy_bool(subject_policy, "allow_interactive_without_subject"))
+
+
+def _command_interactive_subject_detail(command: object, explicit_inputs: list[str]) -> str:
+    """Return the standardized detail string for interactive subject intake."""
+    if _command_requires_manuscript_context(command):
+        return _command_manuscript_intake_policy(command).interactive_standalone_detail
+    if not explicit_inputs:
+        explicit_inputs = ["a concrete subject"]
+    if len(explicit_inputs) == 1:
+        subject_text = explicit_inputs[0]
+    elif len(explicit_inputs) == 2:
+        subject_text = f"{explicit_inputs[0]} or {explicit_inputs[1]}"
+    else:
+        subject_text = ", ".join(explicit_inputs[:-1]) + f", or {explicit_inputs[-1]}"
+    return f"no explicit subject supplied; interactive intake can prompt for {subject_text}"
+
+
+def _command_managed_output_policy(command: object):
+    """Return a storage-path managed-output policy derived from command metadata, when available."""
+    from gpd.core.storage_paths import (
+        ManagedOutputClass,
+        ManagedOutputMatchMode,
+        ManagedOutputPolicy,
+        ManagedOutputRootKind,
+        StageArtifactPolicy,
+    )
+
+    output_policy = _command_output_policy(command)
+    if output_policy is None:
+        return None
+
+    managed_root_raw = str(getattr(output_policy, "managed_root_kind", "") or "").strip().casefold()
+    if not managed_root_raw:
+        return None
+    if managed_root_raw in {"gpd", "gpd_managed_durable", "gpd_internal_other"}:
+        managed_root_kind = ManagedOutputRootKind.GPD
+        output_class = ManagedOutputClass.GPD_MANAGED_DURABLE
+    elif managed_root_raw in {"project", "user_export_durable", "project_local_other"}:
+        managed_root_kind = ManagedOutputRootKind.PROJECT
+        output_class = ManagedOutputClass.USER_EXPORT_DURABLE
+    else:
+        return None
+
+    subtree = str(getattr(output_policy, "default_output_subtree", "") or "").strip()
+    if not subtree:
+        return None
+    subtree = subtree.replace("\\", "/")
+    if managed_root_kind == ManagedOutputRootKind.GPD and subtree.startswith("GPD/"):
+        subtree = subtree[4:]
+    elif managed_root_kind == ManagedOutputRootKind.PROJECT and subtree.startswith("./"):
+        subtree = subtree[2:]
+    if not subtree:
+        return None
+
+    stage_policy_raw = str(getattr(output_policy, "stage_artifact_policy", "") or "").strip().casefold()
+    stage_artifact_policy = (
+        StageArtifactPolicy.ALLOWED if stage_policy_raw in {"allowed", "gpd_owned_outputs_only"} else StageArtifactPolicy.DISALLOWED
+    )
+
+    output_mode = str(getattr(output_policy, "output_mode", "") or "").strip().casefold()
+    match_mode = ManagedOutputMatchMode.EXACT if output_mode == "exact" else ManagedOutputMatchMode.SUBTREE
+
+    try:
+        return ManagedOutputPolicy(
+            output_class=output_class,
+            managed_root_kind=managed_root_kind,
+            default_output_subtree=tuple(
+                component for component in subtree.split("/") if component and component != "."
+            ),
+            match_mode=match_mode,
+            stage_artifact_policy=stage_artifact_policy,
+        )
+    except ValueError:
+        return None
+
+
+def _command_managed_output_root(command: object, *, project_root: Path) -> Path | None:
+    """Return the effective managed output root for one command, when typed policy declares it."""
+    from gpd.core.storage_paths import ProjectStorageLayout
+
+    policy = _command_managed_output_policy(command)
+    if policy is None:
+        return None
+    return ProjectStorageLayout(project_root).managed_output_path(policy)
+
+
 def _command_manuscript_bootstrap_detail() -> str:
     """Return the canonical bootstrap detail for manuscript-scaffolding commands."""
     return (
@@ -7119,6 +7240,242 @@ def _command_subject_base_ownership_mode(
     return "workspace_locked"
 
 
+def _resolve_review_knowledge_target(
+    context_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> tuple[str, Path | None, str]:
+    """Resolve one canonical review-knowledge target under ``GPD/knowledge``."""
+    workspace_root = (workspace_cwd or context_root).resolve(strict=False)
+    if not isinstance(subject, str) or not subject.strip():
+        return "missing", None, "missing explicit knowledge target"
+
+    tokens = _split_command_arguments(subject)
+    candidate = next((token for token in tokens if token and not token.startswith("-")), "")
+    if not candidate:
+        return "missing", None, "missing explicit knowledge target"
+
+    knowledge_dir = context_root / "GPD" / "knowledge"
+    if _looks_like_review_knowledge_id_token(candidate):
+        target_path = (knowledge_dir / f"{candidate}.md").resolve(strict=False)
+        return "resolved", target_path, f"canonical knowledge id resolves to {_format_display_path(target_path)}"
+
+    if not _looks_like_digest_knowledge_path_token(candidate):
+        return "invalid", None, "review target must be a canonical K-* id or GPD/knowledge/{knowledge_id}.md path"
+
+    target_path = (_resolve_subject_path(candidate, base=workspace_root) or (workspace_root / candidate)).resolve(strict=False)
+    try:
+        relative = target_path.relative_to(context_root.resolve(strict=False))
+    except ValueError:
+        return "invalid", target_path, "review target must resolve under the current workspace's GPD/knowledge/"
+
+    if not (
+        len(relative.parts) == 3
+        and relative.parts[0] == "GPD"
+        and relative.parts[1] == "knowledge"
+        and target_path.suffix.lower() == ".md"
+        and target_path.stem.startswith("K-")
+        and normalize_ascii_slug(target_path.stem[2:]) == target_path.stem[2:]
+    ):
+        return "invalid", target_path, "review target must resolve to canonical GPD/knowledge/{knowledge_id}.md"
+    return "resolved", target_path, f"canonical knowledge target {_format_display_path(target_path)}"
+
+
+def _nonpublication_subject_ownership_mode(
+    *,
+    target_path: Path | None,
+    resolved_project_root: Path | None,
+    base_ownership_mode: str,
+) -> str:
+    """Return ownership mode for a non-publication resolved subject."""
+    if target_path is None:
+        return base_ownership_mode
+    if resolved_project_root is None:
+        return "workspace_locked"
+    try:
+        target_path.resolve(strict=False).relative_to(resolved_project_root.resolve(strict=False))
+    except ValueError:
+        return "external_subject"
+    return base_ownership_mode
+
+
+def _build_nonpublication_resolved_command_subject(
+    project_root: Path,
+    command: object,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+    project_root_source: str | None = None,
+    project_root_auto_selected: bool = False,
+    reentry_mode: str | None = None,
+) -> ResolvedCommandSubject | None:
+    """Resolve the shared subject envelope for typed non-publication commands."""
+    if _command_requires_manuscript_context(command):
+        return None
+    resolution_mode = _command_subject_resolution_mode(command)
+    if not resolution_mode:
+        return None
+
+    workspace_root = (workspace_cwd or project_root).resolve(strict=False)
+    context_root = project_root.resolve(strict=False)
+    resolved_project_root = _resolved_project_root_for_subject(context_root)
+    resolved_project_root_source = project_root_source or ("workspace" if resolved_project_root is not None else None)
+    ancestor_walked_up = (
+        resolved_project_root is not None
+        and resolved_project_root != workspace_root
+        and _subject_is_relative_to(workspace_root, resolved_project_root)
+    )
+    base_ownership_mode = _command_subject_base_ownership_mode(
+        resolved_project_root=resolved_project_root,
+        project_root_source=resolved_project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+    )
+    explicit_inputs = _command_explicit_input_labels_from_policy(command)
+    subject_kind = _command_subject_kind(command) or "subject"
+
+    if (
+        not (isinstance(subject, str) and subject.strip())
+        and _command_allows_interactive_subject_intake(command)
+    ):
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=None,
+            target_root=None,
+            subject_kind=subject_kind,
+            ownership_mode=base_ownership_mode,
+            status="interactive",
+            exists=False,
+            explicit_input=False,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=_command_interactive_subject_detail(command, explicit_inputs),
+        )
+
+    tokens: list[str]
+    if resolution_mode == "phase_or_topic":
+        tokens = _positional_tokens(subject, flags_with_values=("--depth", "-d"))
+    else:
+        tokens = _positional_tokens(subject)
+    if not tokens:
+        if _command_allows_interactive_subject_intake(command):
+            return ResolvedCommandSubject(
+                command=str(getattr(command, "name", "") or ""),
+                workspace_root=workspace_root,
+                resolved_project_root=resolved_project_root,
+                context_root=context_root,
+                target_path=None,
+                target_root=None,
+                subject_kind=subject_kind,
+                ownership_mode=base_ownership_mode,
+                status="interactive",
+                exists=False,
+                explicit_input=False,
+                project_root_source=resolved_project_root_source,
+                project_root_auto_selected=project_root_auto_selected,
+                reentry_mode=reentry_mode,
+                ancestor_walked_up=ancestor_walked_up,
+                detail=_command_interactive_subject_detail(command, explicit_inputs),
+            )
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=None,
+            target_root=None,
+            subject_kind=subject_kind,
+            ownership_mode=base_ownership_mode,
+            status="missing",
+            exists=False,
+            explicit_input=False,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=f"missing explicit subject ({', '.join(explicit_inputs or ['subject'])})",
+        )
+
+    target_path: Path | None = None
+    target_root: Path | None = None
+    detail = "explicit subject supplied"
+    status = "resolved"
+
+    if resolution_mode in {"knowledge_review_target", "explicit_current_workspace_canonical_target"}:
+        status, target_path, detail = _resolve_review_knowledge_target(
+            context_root,
+            subject,
+            workspace_cwd=workspace_root,
+        )
+        if target_path is not None:
+            target_root = target_path.parent
+    elif resolution_mode == "knowledge_input":
+        first = tokens[0]
+        if _looks_like_digest_knowledge_path_token(first):
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_root = target_path if target_path.is_dir() else target_path.parent
+            detail = f"explicit knowledge input path {_format_display_path(target_path)}"
+        elif _looks_like_digest_knowledge_arxiv_token(first):
+            detail = f"explicit arXiv knowledge input {first}"
+        else:
+            detail = "explicit knowledge topic supplied"
+    elif resolution_mode in {"compare_subject", "compare_experiment_subject"}:
+        first = tokens[0]
+        if _looks_like_digest_knowledge_path_token(first):
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_root = target_path if target_path.is_dir() else target_path.parent
+            detail = f"explicit comparison target {_format_display_path(target_path)}"
+        else:
+            detail = "explicit comparison target supplied"
+    elif resolution_mode == "explanation_input":
+        first = tokens[0]
+        if _looks_like_digest_knowledge_path_token(first):
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_root = target_path if target_path.is_dir() else target_path.parent
+            detail = f"explicit explanation anchor {_format_display_path(target_path)}"
+        else:
+            detail = "explicit explanation subject supplied"
+    elif resolution_mode == "phase_or_topic":
+        first = tokens[0]
+        if re.fullmatch(r"\d+(?:\.\d+)*", first):
+            subject_kind = "phase"
+            detail = f"explicit phase subject {first}"
+        else:
+            detail = "explicit discovery topic supplied"
+    elif resolution_mode == "literature_topic":
+        detail = "explicit literature-review topic supplied"
+
+    ownership_mode = _nonpublication_subject_ownership_mode(
+        target_path=target_path,
+        resolved_project_root=resolved_project_root,
+        base_ownership_mode=base_ownership_mode,
+    )
+
+    return ResolvedCommandSubject(
+        command=str(getattr(command, "name", "") or ""),
+        workspace_root=workspace_root,
+        resolved_project_root=resolved_project_root,
+        context_root=context_root,
+        target_path=target_path,
+        target_root=target_root,
+        subject_kind=subject_kind,
+        ownership_mode=ownership_mode,
+        status=status,
+        exists=target_path.exists() if target_path is not None else False,
+        explicit_input=True,
+        project_root_source=resolved_project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+        reentry_mode=reentry_mode,
+        ancestor_walked_up=ancestor_walked_up,
+        detail=detail,
+    )
+
+
 def _build_resolved_command_subject(
     project_root: Path,
     command: object,
@@ -7131,6 +7488,18 @@ def _build_resolved_command_subject(
 ) -> ResolvedCommandSubject | None:
     """Resolve the shared subject envelope for publication/manuscript-aware commands."""
     from gpd.core.constants import ProjectLayout
+
+    generic_resolution = _build_nonpublication_resolved_command_subject(
+        project_root,
+        command,
+        subject,
+        workspace_cwd=workspace_cwd,
+        project_root_source=project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+        reentry_mode=reentry_mode,
+    )
+    if generic_resolution is not None:
+        return generic_resolution
 
     if not _command_requires_manuscript_context(command):
         return None
@@ -7773,7 +8142,6 @@ def _build_command_context_preflight(
                 _has_simple_positional_inputs,
             ),
         )
-    manuscript_intake_policy = _command_manuscript_intake_policy(command)
     resolved_subject = _build_resolved_command_subject(
         context_cwd,
         command,
@@ -7783,11 +8151,20 @@ def _build_command_context_preflight(
         project_root_auto_selected=False,
         reentry_mode="current-workspace" if project_exists else None,
     )
-    explicit_inputs_ok = predicate(arguments)
-    interactive_intake_allowed = (
-        manuscript_intake_policy.allow_interactive_standalone_intake
-        and not explicit_inputs_ok
-        and not _has_simple_positional_inputs(arguments)
+    if resolved_subject is not None and not _command_requires_manuscript_context(command):
+        explicit_inputs_ok = resolved_subject.status == "resolved"
+        interactive_intake_allowed = resolved_subject.status == "interactive"
+    else:
+        explicit_inputs_ok = predicate(arguments)
+        interactive_intake_allowed = (
+            _command_allows_interactive_subject_intake(command)
+            and not explicit_inputs_ok
+            and not _has_simple_positional_inputs(arguments)
+        )
+    subject_required = _command_has_typed_subject_policy(command)
+    subject_context_ready = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+    project_context_satisfies = project_exists and (
+        not subject_required or explicit_inputs_ok or interactive_intake_allowed or subject_context_ready
     )
     add_check(
         "project_exists",
@@ -7806,14 +8183,22 @@ def _build_command_context_preflight(
             "explicit standalone inputs detected"
             if explicit_inputs_ok
             else (
-                manuscript_intake_policy.interactive_standalone_detail
+                _command_interactive_subject_detail(command, explicit_inputs)
                 if interactive_intake_allowed
                 else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
             )
         ),
         blocking=not project_exists and not interactive_intake_allowed,
     )
-    passed = project_exists or explicit_inputs_ok or interactive_intake_allowed
+    managed_output_root = _command_managed_output_root(command, project_root=context_cwd)
+    if managed_output_root is not None:
+        add_check(
+            "managed_output_root",
+            True,
+            f"GPD-authored outputs resolve under {_format_display_path(managed_output_root)}",
+            blocking=False,
+        )
+    passed = project_context_satisfies or explicit_inputs_ok or interactive_intake_allowed
     guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
     return CommandContextPreflightResult(
         command=public_command_name,
@@ -7838,6 +8223,7 @@ def _build_review_preflight(
 ) -> ReviewPreflightResult:
     """Evaluate lightweight filesystem/state prerequisites for a review command."""
     from gpd.core.constants import ProjectLayout
+    from gpd.core.knowledge_runtime import KnowledgeDocRuntimeRecord, discover_knowledge_docs
     from gpd.core.phases import find_phase
     from gpd.core.state import state_validate
 
@@ -7896,6 +8282,46 @@ def _build_review_preflight(
         command,
         resolved_subject=resolved_subject,
     )
+    knowledge_inventory = None
+    knowledge_record: KnowledgeDocRuntimeRecord | None = None
+    knowledge_target_path: Path | None = None
+    knowledge_target_id: str | None = None
+
+    def load_knowledge_context() -> tuple[Path | None, str | None, KnowledgeDocRuntimeRecord | None]:
+        nonlocal knowledge_inventory, knowledge_record, knowledge_target_path, knowledge_target_id
+        if knowledge_inventory is not None:
+            return knowledge_target_path, knowledge_target_id, knowledge_record
+
+        knowledge_inventory = discover_knowledge_docs(project_cwd)
+        if (
+            resolved_subject is not None
+            and resolved_subject.subject_kind == "knowledge_document"
+            and resolved_subject.target_path is not None
+        ):
+            knowledge_target_path = resolved_subject.target_path.resolve(strict=False)
+        elif isinstance(subject, str) and subject.strip():
+            status, candidate_path, _detail = _resolve_review_knowledge_target(
+                project_cwd,
+                subject,
+                workspace_cwd=cwd,
+            )
+            if status in {"resolved", "missing", "invalid"} and candidate_path is not None:
+                knowledge_target_path = candidate_path.resolve(strict=False)
+
+        if knowledge_target_path is not None and knowledge_target_path.stem.startswith("K-"):
+            knowledge_target_id = knowledge_target_path.stem
+
+        if knowledge_target_path is not None:
+            try:
+                relative_path = knowledge_target_path.relative_to(project_cwd.resolve(strict=False)).as_posix()
+            except ValueError:
+                relative_path = None
+            if relative_path is not None:
+                knowledge_record = knowledge_inventory.by_path().get(relative_path)
+        if knowledge_record is None and knowledge_target_id:
+            knowledge_record = knowledge_inventory.by_id().get(knowledge_target_id)
+        return knowledge_target_path, knowledge_target_id, knowledge_record
+
     effective_required_outputs = (
         list(subject_preflight_policy.required_outputs)
         if subject_preflight_policy.required_outputs
@@ -7920,6 +8346,72 @@ def _build_review_preflight(
         context_detail,
         blocking=_review_preflight_check_is_blocking(contract, "command_context"),
     )
+
+    if str(getattr(command, "name", "") or "") == "gpd:review-knowledge":
+        state_files_present = layout.state_json.exists() and layout.state_md.exists()
+        detail = (
+            f"{_format_display_path(layout.state_json)} and {_format_display_path(layout.state_md)} present as optional background context"
+            if state_files_present
+            else "current-workspace knowledge review: project state is advisory background context only"
+        )
+        add_check("project_state", True, detail, blocking=False)
+
+    if "knowledge_target" in contract.preflight_checks:
+        target_path, target_id, _record = load_knowledge_context()
+        target_passed = (
+            resolved_subject is not None
+            and resolved_subject.subject_kind == "knowledge_document"
+            and resolved_subject.status == "resolved"
+        )
+        detail = (
+            resolved_subject.detail
+            if resolved_subject is not None and resolved_subject.subject_kind == "knowledge_document"
+            else (
+                f"canonical knowledge target {_format_display_path(target_path)}"
+                if target_path is not None
+                else (
+                    f"canonical knowledge id {target_id}"
+                    if target_id
+                    else "missing explicit canonical knowledge target"
+                )
+            )
+        )
+        add_check("knowledge_target", target_passed, detail)
+
+    if "knowledge_document" in contract.preflight_checks:
+        target_path, target_id, record = load_knowledge_context()
+        document_exists = record is not None or (target_path is not None and target_path.exists())
+        detail = (
+            f"{_format_display_path(target_path)} present and parsed"
+            if record is not None and target_path is not None
+            else (
+                f"{_format_display_path(target_path)} present"
+                if target_path is not None and target_path.exists()
+                else (
+                    f"missing canonical knowledge document {_format_display_path(target_path)}"
+                    if target_path is not None
+                    else (
+                        f"missing canonical knowledge document for {target_id}"
+                        if target_id
+                        else "missing canonical knowledge document"
+                    )
+                )
+            )
+        )
+        add_check("knowledge_document", document_exists, detail)
+
+    if "knowledge_review_freshness" in contract.preflight_checks:
+        _target_path, _target_id, record = load_knowledge_context()
+        freshness_passed = True
+        detail = "no prior approved review freshness requirement"
+        if record is not None and record.status == "stable":
+            freshness_passed = bool(record.review_fresh) and record.stale is False
+            detail = (
+                "approved review evidence is fresh"
+                if freshness_passed
+                else "stable knowledge document has stale or missing approved review evidence"
+            )
+        add_check("knowledge_review_freshness", freshness_passed, detail)
 
     if "project_state" in contract.preflight_checks:
         optional_detail = subject_preflight_policy.detail("project_state")

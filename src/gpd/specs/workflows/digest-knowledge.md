@@ -1,5 +1,5 @@
 <purpose>
-Author or update a project knowledge document with a truthful, deterministic create/update workflow.
+Author or update a current-workspace knowledge document with a truthful, deterministic create/update workflow.
 
 This workflow handles the draft-authoring half of the knowledge-doc lifecycle only:
 
@@ -18,6 +18,7 @@ Called from `gpd:digest-knowledge`.
 A knowledge document is only useful if its identity is deterministic, its target is unambiguous, and its lifecycle claims are honest.
 
 If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target. Route that request to `gpd:review-knowledge` instead.
+The canonical standalone/current-workspace durable target always lives under `./GPD/knowledge/`, even when the source material itself lives somewhere else.
 </core_principle>
 
 <process>
@@ -69,7 +70,7 @@ Classify the command argument(s) into one of four input classes:
 
 Classification rules:
 
-- `knowledge_path` means an explicit path under `GPD/knowledge/` pointing to a `.md` file
+- `knowledge_path` means an explicit path under the current workspace `GPD/knowledge/` pointing to a `.md` file
 - `source_path` means an explicit file path outside the knowledge tree that exists and can be read as source material
 - `arxiv_id` means a modern or legacy arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
   - modern example: `2401.12345` or `2401.12345v2`
@@ -83,6 +84,8 @@ Examples of ambiguity that must stop:
 - a token that is both a plausible filename stem and a plausible topic
 - a path-like input that could point either to a knowledge doc or to a source artifact
 - multiple existing knowledge docs that could all be the intended update target
+
+Reject lookalike `K-*.md` paths outside `GPD/knowledge/` as canonical targets. Treat those as `source_path` only when the user explicitly wants to digest that external file as source material.
 </step>
 
 <step name="resolve_target">
@@ -97,10 +100,11 @@ Resolution order:
 
 Target rules:
 
-- The canonical knowledge directory is `GPD/knowledge/`
+- The canonical knowledge directory is the current workspace `GPD/knowledge/`
 - The canonical file name is `GPD/knowledge/{knowledge_id}.md`
 - `knowledge_id` must remain stable once chosen
 - use the shared ASCII slug normalizer and the shared arXiv normalizer rather than inventing new parsing logic
+- write the durable knowledge doc only under the current workspace `GPD/knowledge/` tree; never beside an external source path
 
 If a target resolves to more than one candidate, stop and ask one focused clarification question.
 Do not pick a candidate by ordering, recency, or filename heuristics.
@@ -164,6 +168,7 @@ Content rules:
 - record what is covered, what is excluded, and what remains open
 - if the source is an arXiv paper, normalize the arXiv identifier before writing it into source metadata
 - if the source is an explicit file path, keep it project-relative when possible and avoid inventing unsupported references
+- if the source file lives outside the current workspace, keep the durable output under `GPD/knowledge/` rather than writing beside that source
 
 If updating an existing draft, preserve the identity and revise only the content that changed.
 If creating a new doc, initialize it as `status: draft`.

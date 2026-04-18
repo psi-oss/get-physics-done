@@ -154,3 +154,23 @@ def test_verify_work_workflow_runs_centralized_review_preflight() -> None:
 
     assert 'gpd validate review-preflight verify-work "${PHASE_ARG}" --strict' in workflow
     assert "gpd validate review-preflight verify-work --strict" in workflow
+
+
+def test_review_knowledge_workflow_keeps_strict_current_workspace_canonical_target_contract() -> None:
+    workflow = _workflow_text("review-knowledge.md")
+    command = _command_text("review-knowledge.md")
+
+    assert "context_mode: project-aware" in command
+    assert "review_mode: review" in command
+    assert "knowledge_target" in command
+    assert "knowledge_document" in command
+    assert "knowledge_review_freshness" in command
+    assert "missing project state" not in command
+    assert "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md" in command
+    assert "Keep this init bound to the workspace the user invoked from." in workflow
+    assert "do not auto-reenter a different recent project here." in workflow
+    assert 'CONTEXT=$(gpd --raw validate command-context review-knowledge "$ARGUMENTS")' in workflow
+    assert "Accept only:" in workflow
+    assert "an exact current-workspace `GPD/knowledge/{knowledge_id}.md` path" in workflow
+    assert "a canonical `K-*` knowledge_id that resolves uniquely to that path" in workflow
+    assert "Do not guess from fuzzy topic text, stem similarity, or filename ordering." in workflow

@@ -1658,6 +1658,24 @@ class TestDiscovery:
         assert reviewer_skill.category == "research"
         assert {"gpd-literature-review", "gpd-literature-reviewer"}.issubset(registry.list_skills())
 
+    def test_phase3_current_workspace_helper_commands_remain_project_aware_in_registry(self) -> None:
+        registry.invalidate_cache()
+
+        for command_name in (
+            "compare-experiment",
+            "compare-results",
+            "digest-knowledge",
+            "review-knowledge",
+            "discover",
+            "explain",
+            "literature-review",
+        ):
+            command = registry.get_command(command_name)
+
+            assert command.name == f"gpd:{command_name}"
+            assert command.context_mode == "project-aware"
+            assert command.project_reentry_capable is False
+
 
 class TestSkillDiscovery:
     """Tests for canonical skills derived from primary commands and agents."""

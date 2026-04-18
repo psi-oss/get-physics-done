@@ -26,15 +26,31 @@ def test_parameter_sweep_keeps_internal_docs_in_gpd_and_durable_data_in_artifact
     assert "${SWEEP_DIR}/results/point-{PADDED_INDEX}.json" not in workflow_text
 
 
-def test_compare_experiment_uses_durable_workspace_roots_for_inputs_and_outputs() -> None:
+def test_compare_experiment_uses_workspace_roots_for_inputs_and_gpd_roots_for_outputs() -> None:
     command_text = (REPO_ROOT / "src" / "gpd" / "commands" / "compare-experiment.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
 
     assert "find artifacts/ results/ data/ figures/ simulations/ paper/ -maxdepth 4" in command_text
-    assert "Treat `GPD/**` as internal provenance only." in command_text
+    assert "Treat `GPD/**` as internal provenance only for source discovery." in command_text
+    assert "keep the generated GPD-authored comparison package under the current workspace `GPD/comparisons/` subtree." in command_text
     assert "ls GPD/phases/*/results/" not in command_text
-    assert "artifacts/comparisons/{slug}/" in workflow_text
-    assert "Do not place final comparison figures, tables, or scripts under `GPD/`." in workflow_text
+    assert 'COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"' in workflow_text
+    assert 'COMPARISON_SUPPORT_DIR="GPD/comparisons/{slug}/"' in workflow_text
+    assert "Write final comparison figures, tables, and helper scripts under `${COMPARISON_SUPPORT_DIR}`." in workflow_text
+    assert "Do not run an unconditional standalone docs commit for this workflow." in workflow_text
+    assert "artifacts/comparisons/{slug}/" not in workflow_text
+    assert "Do not place final comparison figures, tables, or scripts under `GPD/`." not in workflow_text
+
+
+def test_compare_results_creates_workspace_gpd_comparison_root() -> None:
+    command_text = (REPO_ROOT / "src" / "gpd" / "commands" / "compare-results.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "compare-results.md").read_text(encoding="utf-8")
+
+    assert "default_output_subtree: GPD/comparisons" in command_text
+    assert "allow_interactive_without_subject: true" in command_text
+    assert 'COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"' in workflow_text
+    assert "mkdir -p GPD/comparisons" in workflow_text
+    assert "same current-workspace `GPD/comparisons/` subtree" in workflow_text
 
 
 def test_execute_phase_figure_tracker_scans_durable_figure_roots() -> None:

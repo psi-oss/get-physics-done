@@ -1,8 +1,31 @@
 ---
 name: gpd:digest-knowledge
-description: Create or update a draft project knowledge document from a topic, source file, arXiv ID, or existing knowledge path
-argument-hint: "[topic | source file | arXiv ID | GPD/knowledge/K-*.md]"
+description: Create or update a draft knowledge document in the current workspace from a topic, source file, arXiv ID, or canonical knowledge path
+argument-hint: "[topic | source file | arXiv ID | current-workspace GPD/knowledge/K-*.md]"
 context_mode: project-aware
+command-policy:
+  schema_version: 1
+  subject_policy:
+    subject_kind: knowledge_document
+    resolution_mode: explicit_input_to_canonical_current_workspace_target
+    explicit_input_kinds:
+      - knowledge_document_path
+      - source_path
+      - arxiv_id
+      - topic
+    allow_external_subjects: true
+  supporting_context_policy:
+    project_context_mode: project-aware
+    project_reentry_mode: disallowed
+    optional_file_patterns:
+      - GPD/knowledge/*.md
+      - GPD/literature/*.md
+      - GPD/research-map/*.md
+  output_policy:
+    output_mode: managed
+    managed_root_kind: gpd_managed_durable
+    default_output_subtree: GPD/knowledge
+    stage_artifact_policy: gpd_owned_outputs_only
 allowed-tools:
   - file_read
   - file_write
@@ -14,11 +37,13 @@ allowed-tools:
 ---
 
 <objective>
-Create or update a draft knowledge document from an explicit topic, source file, arXiv ID, or existing knowledge document path, while keeping the wrapper thin and the workflow authoritative.
+Create or update a draft knowledge document in the current workspace from an explicit topic, source file, arXiv ID, or canonical current-workspace knowledge document path, while keeping the wrapper thin and the workflow authoritative.
 
-**Orchestrator role:** Validate command context, gather the local project state needed to resolve a canonical target, classify the input, and then delegate the actual create/update decision-making to the workflow-owned `digest-knowledge` instructions.
+External source material may live anywhere. The canonical knowledge target itself must stay under the invoking workspace's `GPD/knowledge/` tree.
 
-**Why subagent:** The workflow will need fresh context for source intake, deterministic target resolution, and draft synthesis without contaminating the wrapper with policy details.
+**Orchestrator role:** Validate command context, gather the local current-workspace context needed to resolve a canonical target, classify the input, and then delegate the actual create/update decision-making to the workflow-owned `digest-knowledge` instructions.
+
+**Why subagent:** The workflow will need fresh context for source intake, deterministic current-workspace target resolution, and draft synthesis without contaminating the wrapper with policy details.
 </objective>
 
 <execution_context>
@@ -27,6 +52,8 @@ Create or update a draft knowledge document from an explicit topic, source file,
 
 <context>
 Input: $ARGUMENTS
+
+Treat `GPD/knowledge/` in the current workspace as the only canonical durable target tree for this command. An explicit `K-*.md` path outside that tree is not a canonical knowledge target here.
 
 Check for existing knowledge docs:
 
@@ -63,24 +90,26 @@ Extract `commit_docs`, `project_contract`, `project_contract_gate`, `project_con
 
 Interpret `$ARGUMENTS` as one of:
 
-1. explicit knowledge document path
+1. explicit current-workspace knowledge document path
 2. explicit source file path
 3. arXiv identifier
 4. free-form topic or question
 
 If the request is materially ambiguous, stop and ask one focused clarification question instead of guessing.
+Do not treat lookalike `K-*.md` files outside the current workspace `GPD/knowledge/` tree as canonical knowledge targets; they are source files only if the user clearly asked to digest that external file as source material.
 If the user is asking to promote a doc to `stable`, approve it, or mutate an existing stable target, route them to `gpd:review-knowledge` instead of pretending `digest-knowledge` can own that lifecycle step.
 
 ## 2. Resolve The Target
 
 Prefer deterministic resolution over implicit repair:
 
-1. reuse an explicit `GPD/knowledge/K-*.md` path if provided
+1. reuse an explicit current-workspace `GPD/knowledge/K-*.md` path if provided
 2. update an existing knowledge doc only when the target is exact, unambiguous, and already draft
 3. otherwise create a new draft target from a normalized `knowledge_id`
 
 If more than one existing knowledge doc is plausible, stop and ask for clarification.
 If the resolved target exists and is `stable` or `superseded`, do not repurpose it here; route the user to `gpd:review-knowledge` for promotion, revision, or replacement guidance.
+Never redirect the durable target to an external source directory or to a different recent project. The standalone/current-workspace target stays under `./GPD/knowledge/`.
 
 ## 3. Delegate The Workflow
 

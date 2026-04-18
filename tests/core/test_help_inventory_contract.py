@@ -132,3 +132,19 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
     assert "Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`" in help_workflow
     assert "Stable knowledge is already visible through the shared runtime reference surfaces" in help_workflow
     assert "Stable knowledge is available through the shared runtime reference surfaces" in help_workflow
+
+
+def test_help_workflow_current_workspace_helpers_and_discover_quick_mode_wording() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    assert "- `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning; `quick` is verification-only" in help_workflow
+    assert "- `quick` is verification-only and writes no file; `medium` and `deep` write discovery artifacts" in help_workflow
+    assert "- Written discovery artifacts feed planning or standalone analysis" in help_workflow
+    assert "- Writes the decisive comparison artifact under `GPD/comparisons/` in the current workspace" in help_workflow
+    assert "Create or update a current-workspace knowledge document draft from a topic, paper, source file, or explicit knowledge path." in help_workflow
+    assert "- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity" in help_workflow
+    assert "Review one canonical current-workspace knowledge document, record typed approval evidence, and promote a fresh approved draft to stable." in help_workflow
+    assert "- Resolves an exact existing current-workspace knowledge target by canonical path or knowledge id" in help_workflow
+    assert "- Writes a deterministic review artifact under `GPD/knowledge/reviews/` in the current workspace" in help_workflow
+    assert "Structured literature review for a physics research topic from the current project or one explicit topic or research question." in help_workflow
+    assert "- Writes the review and citation-source sidecar under `GPD/literature/` in the current workspace" in help_workflow

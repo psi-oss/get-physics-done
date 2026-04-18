@@ -4013,7 +4013,9 @@ def init_research_phase(
 
 def init_literature_review(cwd: Path, topic: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for literature review orchestration."""
-    config = load_config(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
+    config = load_config(effective_cwd)
     normalized_topic = topic.strip() if isinstance(topic, str) and topic.strip() else None
     slug = _generate_slug(normalized_topic)
     if normalized_topic and slug is None:
@@ -4024,15 +4026,18 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
     result: dict[str, object] = {
         "topic": normalized_topic,
         "slug": slug,
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
+        "workspace_root": requested_cwd.as_posix(),
+        "project_root": effective_cwd.as_posix(),
         "commit_docs": config["commit_docs"],
-        "state_exists": _state_exists(cwd),
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "research_mode": config["research_mode"],
         "autonomy": config["autonomy"],
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "platform": _detect_platform(cwd),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
 
     if stage is None:
         return result

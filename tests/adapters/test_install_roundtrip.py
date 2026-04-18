@@ -639,6 +639,32 @@ def test_real_installed_set_tier_models_prompt_keeps_direct_tier_override_contra
     assert "balanced default" in content
     assert "fastest / most economical" in content
 
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_compare_prompts_keep_gpd_output_contract_and_interactive_intake(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    compare_results = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "compare-results"),
+        runtime=runtime,
+    )
+    compare_experiment = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "compare-experiment"),
+        runtime=runtime,
+    )
+
+    assert "command_policy:" in compare_results
+    assert "allow_interactive_without_subject: true" in compare_results
+    assert "default_output_subtree: GPD/comparisons" in compare_results
+    assert "comparison target, phase, artifact path, or source-a vs source-b" in compare_results
+    assert "default_output_subtree: GPD/comparisons" in compare_experiment
+    assert "GPD/comparisons/{slug}/" in compare_experiment
+    assert "Do not run an unconditional standalone docs commit for this workflow." in compare_experiment
+    assert "artifacts/comparisons/{slug}/" not in compare_experiment
+
+
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
 def test_real_installed_public_local_cli_commands_stay_canonical(
     real_installed_repo_factory,

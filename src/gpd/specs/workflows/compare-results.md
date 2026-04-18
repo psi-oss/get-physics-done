@@ -68,7 +68,13 @@ When the comparison is decisive, always emit `comparison_verdicts`. Do not hide 
 
 ## 4. Write The Artifact
 
-Write `GPD/comparisons/[slug]-COMPARISON.md` using the internal-comparison template.
+Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and create the current-workspace managed comparison root before writing any GPD-authored outputs.
+
+```bash
+mkdir -p GPD/comparisons
+```
+
+Write `${COMPARISON_OUTPUT_PATH}` using the internal-comparison template.
 
 The frontmatter must include:
 - `comparison_verdicts`
@@ -76,6 +82,7 @@ The frontmatter must include:
 - `subject_id` / `reference_id` linkage when available
 
 If the comparison is load-bearing for a figure or table, note the resulting artifact path so the figure tracker can point back to it.
+Any additional GPD-authored notes, tables, or helper artifacts created for this comparison should stay under the same current-workspace `GPD/comparisons/` subtree.
 
 ## 5. Route The Outcome
 

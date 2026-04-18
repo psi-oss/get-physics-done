@@ -18,6 +18,9 @@ def test_literature_review_command_stays_thin_and_leaves_routing_to_the_workflow
 
     assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in command
     assert "The workflow owns staged loading, scope fixing, artifact gating, and citation verification." in command
+    assert "explicit topic or research question" in command
+    assert "under `GPD/literature/` rooted at the current workspace" in command
+    assert "Standalone empty invocations should already have failed preflight." in command
     assert "gpd-literature-reviewer" not in command
     assert "gpd-bibliographer" not in command
     assert "gpd commit" not in command
@@ -37,6 +40,9 @@ def test_literature_review_workflow_requires_reviewer_and_bibliographer_spawn_co
     assert "fresh continuation handoff" in workflow
     assert "checkpoint_response" in workflow
     assert "Do not trust the runtime handoff status by itself." in workflow
+    assert "Keep all durable review artifacts rooted under `GPD/literature/` in the current workspace." in workflow
+    assert "If `topic` is empty, do not invent or auto-derive it from project state" in workflow
+    assert "The review topic must already be explicit or newly clarified" in workflow
     assert "Proceed without citation audit." not in workflow
 
 

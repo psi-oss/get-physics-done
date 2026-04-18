@@ -1,7 +1,7 @@
 <purpose>
 Systematically compare theoretical predictions with experimental or observational data. Handles unit conversion, uncertainty propagation, statistical testing, and discrepancy analysis.
 
-Called from gpd:compare-experiment command. Produces COMPARISON.md with quantified agreement metrics.
+Called from gpd:compare-experiment command. Produces `GPD/comparisons/[slug]-COMPARISON.md` plus any generated supporting comparison assets under the same current-workspace `GPD/comparisons/` subtree.
 
 Agreement between theory and experiment must be quantified. "Looks about right" is not physics. The comparison must state: (1) what decisive output or contract target was predicted, (2) what was measured, (3) what the uncertainties are on both sides, (4) whether the agreement is statistically significant, and (5) if not, what the discrepancy tells us.
 </purpose>
@@ -309,10 +309,10 @@ If selected protocol bundles informed the comparison design, record them in `pro
 
 The `comparison_verdicts` block is the authoritative machine-readable ledger. The tables and prose explain it; they do not replace it.
 
-Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and write the report there.
+Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and `COMPARISON_SUPPORT_DIR="GPD/comparisons/{slug}/"`. Create the current-workspace managed comparison root before writing any GPD-authored outputs.
 
 ```bash
-mkdir -p GPD/comparisons
+mkdir -p GPD/comparisons "${COMPARISON_SUPPORT_DIR}"
 ```
 
 ## 6. Generate Comparison Figures
@@ -324,7 +324,7 @@ Create scripts for standard comparison plots:
 3. **Residual plot** -- (theory-exp) vs parameter, looking for systematic trends
 4. **Ratio plot** -- theory/experiment vs parameter (for normalizations)
 
-Write final comparison figures, tables, and helper scripts to stable workspace roots. Default to `artifacts/comparisons/{slug}/` unless the project already has a clearer durable home such as `figures/`, `data/`, or `scripts/`. Do not place final comparison figures, tables, or scripts under `GPD/`.
+Write final comparison figures, tables, and helper scripts under `${COMPARISON_SUPPORT_DIR}`. External theory inputs, raw datasets, or reusable project artifacts may continue to live in stable workspace roots such as `artifacts/`, `results/`, `data/`, `figures/`, `simulations/`, or `paper/`; only the GPD-authored comparison package belongs under `GPD/comparisons/`.
 
 ## 7. Present Results and Route
 
@@ -357,23 +357,17 @@ chi2/ndof = {value}, p-value = {value}
 - Compute next-order theoretical corrections
 ```
 
-## 8. Commit Comparison Report
+## 8. Finalize Persistence Honestly
 
-```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${COMPARISON_OUTPUT_PATH}" 2>&1) || true
-echo "$PRE_CHECK"
+Do not run an unconditional standalone docs commit for this workflow.
 
-gpd commit \
-  "docs: theory-experiment comparison for {slug}" \
-  --files "${COMPARISON_OUTPUT_PATH}"
-```
-
-Where `${COMPARISON_OUTPUT_PATH}` is `GPD/comparisons/[slug]-COMPARISON.md`.
+- If `project_exists` is true and `commit_docs` is enabled, you may bundle `${COMPARISON_OUTPUT_PATH}` and any generated `${COMPARISON_SUPPORT_DIR}` assets into the project's normal documentation commit path after reviewing the diff.
+- If the comparison is running in a standalone arbitrary workspace, skip the commit step entirely and report the written paths back to the user.
 
 </process>
 
 <output>
-COMPARISON.md written to `${COMPARISON_OUTPUT_PATH}` with full quantified comparison.
+`GPD/comparisons/[slug]-COMPARISON.md` written to `${COMPARISON_OUTPUT_PATH}` with full quantified comparison, plus any generated supporting assets under `${COMPARISON_SUPPORT_DIR}`.
 </output>
 
 <success_criteria>
@@ -390,6 +384,7 @@ COMPARISON.md written to `${COMPARISON_OUTPUT_PATH}` with full quantified compar
 - [ ] Comparison report generated
 - [ ] Contract-backed comparisons include `comparison_verdicts` keyed by subject ID / reference ID
 - [ ] Comparison figures generated (or scripts provided)
-- [ ] Comparison report committed (if commit_docs enabled)
+- [ ] Comparison outputs persisted under the current workspace `GPD/comparisons/` subtree
+- [ ] Standalone runs skip unconditional commit steps; project-backed runs only commit through the normal docs path when enabled
 - [ ] Results routed appropriately (paper writing or debugging)
 </success_criteria>

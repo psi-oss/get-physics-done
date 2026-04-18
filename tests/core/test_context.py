@@ -422,8 +422,8 @@ def _write_manuscript_proof_review_artifacts_with_proof_path(
     (review_dir / "PROOF-REDTEAM.md").write_text(
         (
             "---\n"
-                "status: passed\n"
-                "reviewer: gpd-check-proof\n"
+            "status: passed\n"
+            "reviewer: gpd-check-proof\n"
             "claim_ids:\n"
             "  - CLM-001\n"
             "proof_artifact_paths:\n"
@@ -445,28 +445,28 @@ def _write_manuscript_proof_review_artifacts_with_proof_path(
             "- Named parameters:\n"
             "  - `r_0`: target radius\n"
             "- Hypotheses:\n"
-                "  - `H1`: chi > 0\n"
-                "- Quantifier / domain obligations:\n"
-                "  - for every r_0 > 0\n"
-                "- Conclusion clauses:\n"
-                "  - annulus intersection holds\n"
-                "## Coverage Ledger\n"
+            "  - `H1`: chi > 0\n"
+            "- Quantifier / domain obligations:\n"
+            "  - for every r_0 > 0\n"
+            "- Conclusion clauses:\n"
+            "  - annulus intersection holds\n"
+            "## Coverage Ledger\n"
             "### Named-Parameter Coverage\n"
-                "| Parameter | Role / Domain | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| `r_0` | target radius | {proof_artifact_path}:1 | covered | Carried through the argument. |\n"
-                "### Hypothesis Coverage\n"
-                "| Hypothesis | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| `H1` | {proof_artifact_path}:1 | covered | Used in the positivity step. |\n"
-                "### Quantifier / Domain Coverage\n"
-                "| Obligation | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| `for every r_0 > 0` | {proof_artifact_path}:1 | covered | No specialization introduced. |\n"
-                "### Conclusion-Clause Coverage\n"
-                "| Clause | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| annulus intersection holds | {proof_artifact_path}:1 | covered | Final sentence states it. |\n"
+            "| Parameter | Role / Domain | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `r_0` | target radius | {proof_artifact_path}:1 | covered | Carried through the argument. |\n"
+            "### Hypothesis Coverage\n"
+            "| Hypothesis | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `H1` | {proof_artifact_path}:1 | covered | Used in the positivity step. |\n"
+            "### Quantifier / Domain Coverage\n"
+            "| Obligation | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `for every r_0 > 0` | {proof_artifact_path}:1 | covered | No specialization introduced. |\n"
+            "### Conclusion-Clause Coverage\n"
+            "| Clause | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| annulus intersection holds | {proof_artifact_path}:1 | covered | Final sentence states it. |\n"
             "## Adversarial Probe\n"
             "- Probe type: dropped-parameter test\n"
             "- Result: The proof still references r_0, so the theorem remains global in the target radius.\n"
@@ -1320,9 +1320,18 @@ class TestInitExecutePhase:
         )
 
         assert rendered.count("non-durable contract-intake warning") == 2
-        assert "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance" not in rendered
-        assert "context_intake.context_gaps entry is only a placeholder and does not preserve actionable guidance" not in rendered
-        assert "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact" not in rendered
+        assert (
+            "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance"
+            not in rendered
+        )
+        assert (
+            "context_intake.context_gaps entry is only a placeholder and does not preserve actionable guidance"
+            not in rendered
+        )
+        assert (
+            "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact"
+            not in rendered
+        )
         assert "references.0.must_surface must be a boolean" in rendered
         assert "context_intake is required" in rendered
         assert "scope.question is required" in rendered
@@ -1343,7 +1352,9 @@ class TestInitExecutePhase:
         assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["active_reference_context"]
         assert "GPD/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "critical slope" in "\n".join(ctx["effective_reference_intake"]["known_good_baselines"])
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
 
     def test_surfaces_live_execution_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1406,8 +1417,7 @@ class TestInitExecutePhase:
         assert "selected_protocol_bundles" not in ctx
         assert "protocol_bundle_asset_paths" not in ctx
         assert any(
-            extension["bundle_id"] == "stat-mech-simulation"
-            for extension in ctx["protocol_bundle_verifier_extensions"]
+            extension["bundle_id"] == "stat-mech-simulation" for extension in ctx["protocol_bundle_verifier_extensions"]
         )
 
     def test_surfaces_numerical_relativity_protocol_bundle(self, tmp_path: Path) -> None:
@@ -1422,8 +1432,7 @@ class TestInitExecutePhase:
         assert "numerical-relativity" in ctx["selected_protocol_bundle_ids"]
         assert "numerical-relativity.md" in ctx["protocol_bundle_context"]
         assert any(
-            extension["bundle_id"] == "numerical-relativity"
-            for extension in ctx["protocol_bundle_verifier_extensions"]
+            extension["bundle_id"] == "numerical-relativity" for extension in ctx["protocol_bundle_verifier_extensions"]
         )
 
     def test_protocol_bundle_verifier_extensions_match_mcp_bundle_checklist(self, tmp_path: Path) -> None:
@@ -1481,7 +1490,9 @@ class TestInitPlanPhase:
         assert ctx["padded_phase"] == "02"
         assert "staged_loading" not in ctx
 
-    def test_stage_phase_bootstrap_returns_only_bootstrap_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stage_phase_bootstrap_returns_only_bootstrap_payload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")
         _write_project_contract_state(tmp_path)
@@ -1525,7 +1536,9 @@ class TestInitPlanPhase:
         assert "Gap notes." in ctx["verification_content"]
         assert "Checks." in ctx["validation_content"]
 
-    def test_stage_checker_revision_uses_tight_checker_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stage_checker_revision_uses_tight_checker_payload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _setup_project(tmp_path)
         phase_dir = _create_phase_dir(tmp_path, "02-analysis")
         _write_project_contract_state(tmp_path)
@@ -1782,7 +1795,10 @@ class TestInitPlanPhase:
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["resolution_status"] == "provided"
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["verification_status"] == "verified"
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["manuscript_root"] == "paper"
-        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["bibliography_audit_path"] == "paper/BIBLIOGRAPHY-AUDIT.json"
+        assert (
+            ctx["derived_manuscript_reference_status"]["ref-benchmark"]["bibliography_audit_path"]
+            == "paper/BIBLIOGRAPHY-AUDIT.json"
+        )
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["source_artifacts"] == [
             "paper/BIBLIOGRAPHY-AUDIT.json"
         ]
@@ -1815,7 +1831,9 @@ class TestInitPlanPhase:
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "benchmark-paper" not in ctx["effective_reference_intake"]["must_read_refs"]
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
         assert ctx["active_reference_count"] >= ctx["derived_active_reference_count"]
         assert "GPD/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "unresolved reference token" not in ctx["active_reference_context"]
@@ -2166,17 +2184,12 @@ class TestInitNewProject:
 
     def test_detects_xdg_config_subdir_research_files_inside_a_project(self, tmp_path: Path) -> None:
         opencode_descriptor = next(
-            descriptor
-            for descriptor in _RUNTIME_DESCRIPTORS
-            if descriptor.global_config.xdg_subdir
+            descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.xdg_subdir
         )
         (tmp_path / ".config" / opencode_descriptor.global_config.xdg_subdir).mkdir(parents=True)
-        (
-            tmp_path
-            / ".config"
-            / opencode_descriptor.global_config.xdg_subdir
-            / "notes.py"
-        ).write_text("print('research notes')", encoding="utf-8")
+        (tmp_path / ".config" / opencode_descriptor.global_config.xdg_subdir / "notes.py").write_text(
+            "print('research notes')", encoding="utf-8"
+        )
 
         ctx = init_new_project(tmp_path)
 
@@ -2633,7 +2646,9 @@ class TestInitNewMilestone:
         assert ctx["project_contract_gate"]["authoritative"] is True
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
         assert "GPD/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
 
@@ -2959,9 +2974,7 @@ class TestInitResume:
         assert ctx["resume_candidates"][0]["resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
         assert "source" not in ctx["resume_candidates"][0]
 
-    def test_canonical_bounded_segment_carries_last_result_id_and_hydrates_result(
-        self, tmp_path: Path
-    ) -> None:
+    def test_canonical_bounded_segment_carries_last_result_id_and_hydrates_result(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict
 
@@ -3211,6 +3224,7 @@ class TestInitResume:
         with pytest.raises(RuntimeError, match="canonical resolution exploded"):
             init_resume(tmp_path)
 
+
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 
 
@@ -3435,7 +3449,10 @@ class TestInitVerifyWork:
 
         initial = init_verify_work(tmp_path, "1")
         assert initial["derived_manuscript_proof_review_status"]["state"] == "fresh"
-        assert external_proof_path.as_posix().removeprefix(f"{tmp_path.as_posix()}/") in initial["derived_manuscript_proof_review_status"]["watched_files"]
+        assert (
+            external_proof_path.as_posix().removeprefix(f"{tmp_path.as_posix()}/")
+            in initial["derived_manuscript_proof_review_status"]["watched_files"]
+        )
 
         external_proof_path.write_text(
             "\\documentclass{article}\n\\begin{document}\nRevised external proof.\n\\end{document}\n",
@@ -3466,7 +3483,8 @@ class TestInitTodos:
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
             'title: "Check convergence"\narea: numerical\ncreated: 2026-03-01\n\n'
-            'The body may mention area: theory and created: 2024-01-01, but those lines must be ignored.', encoding="utf-8"
+            "The body may mention area: theory and created: 2024-01-01, but those lines must be ignored.",
+            encoding="utf-8",
         )
 
         ctx = init_todos(tmp_path)
@@ -3481,8 +3499,9 @@ class TestInitTodos:
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
             'title: "Check convergence"\n\n'
-            'The body may mention area: numerical and created: 2026-03-01.\n'
-            'Those lines must not be treated as todo metadata.', encoding="utf-8"
+            "The body may mention area: numerical and created: 2026-03-01.\n"
+            "Those lines must not be treated as todo metadata.",
+            encoding="utf-8",
         )
 
         ctx = init_todos(tmp_path)
@@ -3496,19 +3515,11 @@ class TestInitTodos:
         pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "good.md").write_text(
-            "---\n"
-            "title: Good todo\n"
-            "area: numerical\n"
-            "created: 2026-03-01\n"
-            "---\n"
-            "Body\n",
+            "---\ntitle: Good todo\narea: numerical\ncreated: 2026-03-01\n---\nBody\n",
             encoding="utf-8",
         )
         (pending / "bad.md").write_text(
-            "---\n"
-            "title: Broken todo\n"
-            "area: [unterminated\n"
-            "Body without a closing delimiter\n",
+            "---\ntitle: Broken todo\narea: [unterminated\nBody without a closing delimiter\n",
             encoding="utf-8",
         )
 
@@ -3522,12 +3533,7 @@ class TestInitTodos:
         pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
-            "---\n"
-            "title: Check convergence\n"
-            "area: numerical\n"
-            "created: 2026-03-01\n"
-            "---\n"
-            "Body\n",
+            "---\ntitle: Check convergence\narea: numerical\ncreated: 2026-03-01\n---\nBody\n",
             encoding="utf-8",
         )
 
@@ -3541,8 +3547,7 @@ class TestInitTodos:
         pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "note.md").write_text(
-            "---\n"
-            "Body starts with a rule, not metadata.\n",
+            "---\nBody starts with a rule, not metadata.\n",
             encoding="utf-8",
         )
 
@@ -3704,9 +3709,13 @@ class TestInitMapResearch:
         assert ctx["project_contract"] is None
         assert ctx["derived_active_reference_count"] >= 2
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
 
-    def test_stage_bootstrap_returns_only_manifest_required_fields(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stage_bootstrap_returns_only_manifest_required_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
         _install_fake_stage_manifest(
@@ -3748,6 +3757,25 @@ class TestInitMapResearch:
 
 
 class TestInitLiteratureReview:
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (tmp_path / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_literature_review(nested, topic="Curvature flow bounds")
+
+        assert ctx["topic"] == "Curvature flow bounds"
+        assert ctx["slug"] == "curvature-flow-bounds"
+        assert ctx["project_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["state_exists"] is True
+        assert ctx["literature_review_files"] == ["GPD/literature/benchmark-REVIEW.md"]
+        assert "Benchmark Ref 2024" in ctx["active_reference_context"]
+
     def test_stage_loads_review_bootstrap_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
@@ -4115,9 +4143,7 @@ class TestInitProgress:
         assert "ref-benchmark" not in ctx["effective_reference_intake"]["must_read_refs"]
         assert "None confirmed in `state.json.project_contract.references` yet." in ctx["active_reference_context"]
 
-    def test_progress_matches_state_loader_for_recoverably_normalized_project_contract(
-        self, tmp_path: Path
-    ) -> None:
+    def test_progress_matches_state_loader_for_recoverably_normalized_project_contract(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_recoverable_project_contract_state(tmp_path)
 
@@ -4236,7 +4262,9 @@ class TestInitProgress:
         from gpd.core.state import ensure_state_schema
 
         normalized_state = ensure_state_schema({"project_contract": contract})
-        monkeypatch.setattr("gpd.core.state.peek_state_json", lambda cwd, **kwargs: (normalized_state, [], "state.json"))
+        monkeypatch.setattr(
+            "gpd.core.state.peek_state_json", lambda cwd, **kwargs: (normalized_state, [], "state.json")
+        )
         monkeypatch.setattr("gpd.core.state._load_raw_project_contract_payload", lambda cwd: None)
 
         loaded, load_info = _load_project_contract(tmp_path)
@@ -4328,12 +4356,7 @@ class TestExtractFrontmatterField:
     def test_body_lines_do_not_override_leading_metadata_block(self, tmp_path: Path) -> None:
         from gpd.core.context import _extract_frontmatter_field
 
-        content = (
-            'title: "Check convergence"\n'
-            "\n"
-            "area: numerical\n"
-            "created: 2026-03-01\n"
-        )
+        content = 'title: "Check convergence"\n\narea: numerical\ncreated: 2026-03-01\n'
         assert _extract_frontmatter_field(content, "title") == "Check convergence"
         assert _extract_frontmatter_field(content, "area") is None
         assert _extract_frontmatter_field(content, "created") is None
@@ -4348,6 +4371,7 @@ class TestInitPhaseOp:
     def test_no_phase_returns_phase_found_false(self, tmp_path):
         """init_phase_op with no phase should set phase_found=False."""
         from gpd.core.context import init_phase_op
+
         gpd_dir = tmp_path / "GPD"
         gpd_dir.mkdir()
         (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
@@ -4359,6 +4383,7 @@ class TestInitPhaseOp:
     def test_with_phase_directory(self, tmp_path):
         """init_phase_op with existing phase should set phase_found=True."""
         from gpd.core.context import init_phase_op
+
         gpd_dir = tmp_path / "GPD"
         phases_dir = gpd_dir / "phases" / "01-test"
         phases_dir.mkdir(parents=True)

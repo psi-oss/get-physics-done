@@ -1,8 +1,21 @@
 ---
 name: gpd:compare-experiment
 description: Systematically compare theoretical predictions with experimental or observational data
-argument-hint: "[prediction or dataset to compare]"
+argument-hint: "[prediction, dataset, phase, or comparison target]"
 context_mode: project-aware
+command-policy:
+  schema_version: 1
+  subject_policy:
+    subject_kind: comparison
+    resolution_mode: explicit_or_interactive_theory_data_comparison
+    explicit_input_kinds:
+      - prediction, dataset path, phase identifier, or comparison target
+    allow_external_subjects: true
+    allow_interactive_without_subject: true
+  output_policy:
+    output_mode: managed
+    managed_root_kind: gpd_managed_durable
+    default_output_subtree: GPD/comparisons
 allowed-tools:
   - file_read
   - file_write
@@ -34,7 +47,7 @@ Interpretation:
 - If a prediction name: compare that specific theoretical prediction with data
 - If a dataset path: compare theoretical model against that dataset
 - If a phase number: compare all predictions from that phase with available data
-- If empty: prompt for comparison target
+- If empty: ask one focused clarification question to identify the theory side, the data side, and the decisive comparison target
 
 Load theoretical predictions:
 
@@ -45,7 +58,7 @@ find artifacts/ results/ data/ figures/ simulations/ paper/ -maxdepth 4 \
   grep -i "result\|predict\|spectrum\|observable" | head -20
 ```
 
-Treat `GPD/**` as internal provenance only. Discover predictions and reusable comparison inputs from stable workspace directories such as `artifacts/`, `results/`, `data/`, `figures/`, `simulations/`, or `paper/`.
+Treat `GPD/**` as internal provenance only for source discovery. Discover predictions and reusable comparison inputs from stable workspace directories such as `artifacts/`, `results/`, `data/`, `figures/`, `simulations/`, or `paper/`, but keep the generated GPD-authored comparison package under the current workspace `GPD/comparisons/` subtree.
 
 </context>
 

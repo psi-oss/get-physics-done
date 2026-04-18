@@ -47,9 +47,7 @@ def test_internal_and_scratch_roots_are_project_local(tmp_path: Path) -> None:
         (DurableOutputKind.SLIDES, "slides"),
     ],
 )
-def test_output_dir_maps_each_durable_kind(
-    tmp_path: Path, kind: DurableOutputKind, expected_name: str
-) -> None:
+def test_output_dir_maps_each_durable_kind(tmp_path: Path, kind: DurableOutputKind, expected_name: str) -> None:
     layout = _make_layout(tmp_path)
 
     assert layout.output_dir(kind) == layout.root / expected_name
@@ -124,6 +122,41 @@ def test_assess_output_path_matches_explicit_gpd_managed_policy(tmp_path: Path) 
     assert assessment.matched_policy == policy
 
 
+@pytest.mark.parametrize(
+    ("subtree", "relative_output"),
+    [
+        (("analysis",), "GPD/analysis/discovery-curvature-flow-bounds.md"),
+        (("comparisons",), "GPD/comparisons/benchmark-COMPARISON.md"),
+        (("explanations",), "GPD/explanations/ward-identity.md"),
+        (("knowledge",), "GPD/knowledge/K-curvature-flow-bounds.md"),
+        (("knowledge", "reviews"), "GPD/knowledge/reviews/K-curvature-flow-bounds-REVIEW.md"),
+        (("literature",), "GPD/literature/curvature-flow-bounds-REVIEW.md"),
+    ],
+)
+def test_phase3_managed_output_policies_resolve_under_expected_gpd_roots(
+    tmp_path: Path,
+    subtree: tuple[str, ...],
+    relative_output: str,
+) -> None:
+    layout = _make_layout(tmp_path)
+    policy = ManagedOutputPolicy.gpd_subtree(*subtree)
+
+    assert layout.managed_output_path(policy) == layout.internal_root.joinpath(*subtree)
+
+    assessment = layout.assess_output_path(
+        relative_output,
+        managed_output_policies=(policy,),
+    )
+
+    assert assessment.classification == StorageClass.INTERNAL_DURABLE
+    assert assessment.managed_output_class == ManagedOutputClass.GPD_MANAGED_DURABLE
+    assert assessment.matched_policy == policy
+    assert layout.validate_final_output(
+        relative_output,
+        managed_output_policies=(policy,),
+    ) == (layout.internal_root / Path(relative_output).relative_to("GPD"))
+
+
 def test_temp_roots_uses_environment_overrides_and_deduplicates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -145,9 +178,7 @@ def test_temp_roots_uses_environment_overrides_and_deduplicates(
     assert roots[0] == Path(tempfile.gettempdir()).resolve(strict=False)
 
 
-def test_project_root_is_temporary_detects_temp_projects(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_project_root_is_temporary_detects_temp_projects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     temp_root = tmp_path / "runtime-temp"
     temp_root.mkdir()
     controlled_temp_roots = (temp_root.resolve(strict=False),)
@@ -303,13 +334,18 @@ def test_validate_commit_target_allows_policy_owned_gpd_managed_artifacts(tmp_pa
     target.write_text("\\documentclass{article}\n", encoding="utf-8")
     policy = ManagedOutputPolicy.gpd_subtree("paper")
 
-    assert layout.validate_commit_target(
-        target,
-        managed_output_policies=(policy,),
-    ) == target
+    assert (
+        layout.validate_commit_target(
+            target,
+            managed_output_policies=(policy,),
+        )
+        == target
+    )
 
 
-def test_check_user_output_reports_warning_without_raising_for_off_policy_but_project_local_paths(tmp_path: Path) -> None:
+def test_check_user_output_reports_warning_without_raising_for_off_policy_but_project_local_paths(
+    tmp_path: Path,
+) -> None:
     layout = _make_layout(tmp_path)
 
     check = layout.check_user_output("release-paper", kind=DurableOutputKind.PAPER)
@@ -403,6 +439,4 @@ def test_resolve_anchors_relative_paths_at_project_root(tmp_path: Path) -> None:
     ).resolve(strict=False)
     assert layout.resolve(layout.root / "paper" / "curvature_flow_bounds.tex") == (
         layout.root / "paper" / "curvature_flow_bounds.tex"
-    ).resolve(
-        strict=False
-    )
+    ).resolve(strict=False)

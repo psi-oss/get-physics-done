@@ -745,8 +745,19 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
     project_required_line = next(
         line for line in command_context.splitlines() if line.startswith("| `Project-required` |")
     )
-    assert "gpd:peer-review" in command_context
-    assert "gpd:peer-review" in project_aware_line
+    assert "explicit current-workspace inputs" in project_aware_line
+    for command_name in (
+        "gpd:compare-experiment",
+        "gpd:compare-results",
+        "gpd:discover",
+        "gpd:digest-knowledge",
+        "gpd:explain",
+        "gpd:review-knowledge",
+        "gpd:literature-review",
+        "gpd:peer-review",
+    ):
+        assert command_name in project_aware_line
+    assert "Project-aware commands stay rooted in the current workspace" in command_context
     assert "gpd:peer-review" not in project_required_line
     assert (
         "Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization."
@@ -798,12 +809,47 @@ def test_current_workspace_project_aware_workflows_disable_recent_project_reentr
     compare_experiment = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
     compare_results = (WORKFLOWS_DIR / "compare-results.md").read_text(encoding="utf-8")
     digest_knowledge = (WORKFLOWS_DIR / "digest-knowledge.md").read_text(encoding="utf-8")
+    explain = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
     review_knowledge = (WORKFLOWS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
 
     assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_experiment
     assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_results
     assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in digest_knowledge
+    assert 'INIT=$(gpd --raw init progress --include project,state,roadmap,config --no-project-reentry)' in explain
     assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in review_knowledge
+
+
+def test_compare_commands_expose_typed_policy_for_interactive_intake_and_gpd_outputs() -> None:
+    compare_results = registry.get_command("compare-results")
+    compare_experiment = registry.get_command("compare-experiment")
+
+    for command, resolution_mode, explicit_input in (
+        (
+            compare_results,
+            "explicit_or_interactive_internal_comparison",
+            "comparison target, phase, artifact path, or source-a vs source-b",
+        ),
+        (
+            compare_experiment,
+            "explicit_or_interactive_theory_data_comparison",
+            "prediction, dataset path, phase identifier, or comparison target",
+        ),
+    ):
+        assert command.command_policy is not None
+        assert command.command_policy.schema_version == 1
+        assert command.command_policy.subject_policy is not None
+        assert command.command_policy.subject_policy.subject_kind == "comparison"
+        assert command.command_policy.subject_policy.resolution_mode == resolution_mode
+        assert command.command_policy.subject_policy.explicit_input_kinds == [explicit_input]
+        assert command.command_policy.subject_policy.allow_external_subjects is True
+        assert command.command_policy.subject_policy.allow_interactive_without_subject is True
+        assert command.command_policy.supporting_context_policy is not None
+        assert command.command_policy.supporting_context_policy.project_context_mode == "project-aware"
+        assert command.command_policy.supporting_context_policy.project_reentry_mode == "disallowed"
+        assert command.command_policy.output_policy is not None
+        assert command.command_policy.output_policy.output_mode == "managed"
+        assert command.command_policy.output_policy.managed_root_kind == "gpd_managed_durable"
+        assert command.command_policy.output_policy.default_output_subtree == "GPD/comparisons"
 
 
 def test_list_review_commands_contains_all_expected_commands() -> None:
@@ -1528,6 +1574,23 @@ def test_reference_workflows_require_anchor_registry_propagation() -> None:
     assert "project_contract_load_info" not in map_command
     assert "reference_artifacts_content" not in map_command
     assert "REFERENCES.md is an anchor registry" in mapper_agent
+
+
+def test_literature_review_stage_manifest_keeps_citation_audit_write_visible() -> None:
+    literature_workflow = (WORKFLOWS_DIR / "literature-review.md").read_text(encoding="utf-8")
+    literature_staging = validate_workflow_stage_manifest_payload(
+        json.loads((WORKFLOWS_DIR / "literature-review-stage-manifest.json").read_text(encoding="utf-8")),
+        expected_workflow_id="literature-review",
+    )
+
+    assert literature_staging.stage_ids() == (
+        "review_bootstrap",
+        "scope_locked",
+        "review_handoff",
+        "completion_gate",
+    )
+    assert "GPD/literature/{slug}-CITATION-AUDIT.md" in literature_workflow
+    assert "GPD/literature/slug-CITATION-AUDIT.md" in literature_staging.stage("review_handoff").writes_allowed
 
 
 def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
@@ -2464,6 +2527,18 @@ def test_manuscript_documentation_uses_current_manuscript_root_paths_only() -> N
     assert "${PAPER_DIR}/EXPERIMENTAL_COMPARISON.md" not in execute_phase
     assert "GPD/paper/EXPERIMENTAL_COMPARISON.md" not in execute_phase
     assert "fig-main.pdf" not in figure_tracker
+
+
+def test_explain_surfaces_keep_workspace_rooted_outputs_and_honest_standalone_targeting() -> None:
+    explain_command = (COMMANDS_DIR / "explain.md").read_text(encoding="utf-8")
+    explain_workflow = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
+
+    assert "standalone question with an explicit topic" in explain_command
+    assert "Keep any GPD-authored explanation artifacts under `GPD/explanations/` rooted at the current workspace." in explain_command
+    assert "If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic" in explain_command
+    assert "standalone explanations only when the standalone request already names an explicit target" in explain_workflow
+    assert "Do not promise that an empty standalone launch can be clarified later" in explain_workflow
+    assert "Keep all GPD-authored explanation artifacts rooted under `GPD/explanations/` in the current workspace." in explain_workflow
 
 
 def test_publication_workflows_describe_recursive_manuscript_tree_inputs() -> None:
@@ -4133,10 +4208,19 @@ def test_help_surfaces_use_projectless_examples_that_satisfy_command_context_pre
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
     assert 'Usage: `gpd:derive-equation "derive the one-loop beta function"`' in help_workflow
+    assert 'Usage: `gpd:discover "finite-temperature RG flow" --depth deep`' in help_workflow
     assert "Usage: `gpd:dimensional-analysis 3`" in help_workflow
     assert "Usage: `gpd:limiting-cases 3`" in help_workflow
     assert "Usage: `gpd:numerical-convergence 3`" in help_workflow
     assert "Usage: `gpd:compare-experiment predictions.csv experiment.csv`" in help_workflow
+    assert "Usage: `gpd:compare-results results/01-SUMMARY.md`" in help_workflow
+    assert 'Usage: `gpd:explain "Ward identity"`' in help_workflow
+    assert 'Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`' in help_workflow
+    assert 'Usage: `gpd:digest-knowledge "renormalization group fixed points"`' in help_workflow
+    assert (
+        "Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md` or "
+        "`gpd:review-knowledge K-renormalization-group-fixed-points`"
+    ) in help_workflow
     assert (
         "Usage: `gpd:sensitivity-analysis --target cross_section --params g,m,Lambda --method numerical`"
         in help_workflow

@@ -337,8 +337,10 @@ Not every GPD command needs the same amount of project state.
 |--------------|---------|----------|
 | `Global` | Does not depend on the current workspace or project state | `gpd:help`, `gpd:update` |
 | `Projectless` | Can run before `GPD/PROJECT.md` exists | `gpd:start`, `gpd:tour`, `gpd:new-project`, `gpd:map-research`, `gpd:add-todo` |
-| `Project-aware` | Uses project context when present, but can also run from explicit standalone inputs in the current workspace | `gpd:discover "finite-temperature RG flow"`, `gpd:explain "Ward identity"`, `gpd:literature-review "axion monodromy"`, `gpd:peer-review draft.pdf` |
+| `Project-aware` | Uses project context when present, but can also run from explicit current-workspace inputs without silently reentering another project | `gpd:compare-experiment predictions.csv data.csv`, `gpd:compare-results results/01-SUMMARY.md`, `gpd:discover "finite-temperature RG flow"`, `gpd:digest-knowledge 2401.12345v2`, `gpd:explain "Ward identity"`, `gpd:review-knowledge K-renormalization-group-fixed-points`, `gpd:literature-review "axion monodromy"`, `gpd:peer-review draft.pdf` |
 | `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:write-paper` |
+
+Project-aware commands stay rooted in the current workspace: explicit inputs can define the subject, but GPD-authored outputs still land under that workspace's `GPD/` tree. Use the runtime help for the per-command target and output rules.
 
 For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
 

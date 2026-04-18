@@ -200,7 +200,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:discuss-phase <number>` - Capture phase context before planning
 - `gpd:research-phase <number>` - Run a focused phase literature survey
 - `gpd:list-phase-assumptions <number>` - Preview the planned phase approach
-- `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning
+- `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning; `quick` is verification-only
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
@@ -225,7 +225,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:limiting-cases` - Check known limits
 - `gpd:numerical-convergence` - Run convergence checks for numerical work
 - `gpd:compare-experiment` - Compare results against external data
-- `gpd:compare-results` - Compare internal results or baselines
+- `gpd:compare-results` - Compare internal results or baselines and write the verdict under `GPD/comparisons/`
 - `gpd:validate-conventions [phase]` - Check notation and convention consistency
 - `gpd:regression-check [phase]` - Scan for regressions in recorded verification state
 - `gpd:health` - Run project health checks
@@ -235,12 +235,12 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 
 ### Knowledge authoring
 
-- `gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]` - Create or update a draft knowledge doc from a topic, arXiv paper, source file, or explicit `GPD/knowledge/` path
-- `gpd:review-knowledge [knowledge path|knowledge id]` - Review a knowledge doc, write the review artifact, and promote fresh approved drafts to stable
+- `gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]` - Create or update a draft knowledge doc under `GPD/knowledge/` in the current workspace
+- `gpd:review-knowledge [knowledge path|knowledge id]` - Review one canonical current-workspace knowledge doc and write its review artifact
 
 ### Writing and publication
 
-- `gpd:literature-review [topic]` - Create a structured literature review
+- `gpd:literature-review [topic or research question]` - Create a structured literature review under `GPD/literature/` in the current workspace
 - `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results
 - `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow on the current project manuscript or one explicit artifact
 - `gpd:respond-to-referees [path to referee report or 'paste']` - Draft referee responses and revise the resolved manuscript root
@@ -379,8 +379,8 @@ Usage: `gpd:list-phase-assumptions 3`
 Run discovery phase to investigate methods, literature, and approaches before planning.
 
 - Surveys known results, standard methods, and computational tools
-- Depth levels: quick (summary), medium (detailed), deep (comprehensive)
-- Creates discovery artifacts consumed by planner or standalone analysis
+- `quick` is verification-only and writes no file; `medium` and `deep` write discovery artifacts
+- Written discovery artifacts feed planning or standalone analysis
 - Use when entering an unfamiliar subfield or technique
 
 Usage: `gpd:discover 3`
@@ -690,7 +690,8 @@ Usage: `gpd:compare-experiment predictions.csv experiment.csv`
 **`gpd:compare-results [phase, artifact, or comparison target]`**
 Compare internal results, baselines, or methods and emit a decisive verdict.
 
-- Compares phase outputs, artifacts, or named comparison targets
+- Compares phase outputs, artifacts, or named comparison targets from the active project or one explicit target
+- Writes the decisive comparison artifact under `GPD/comparisons/` in the current workspace
 - Surfaces agreement, tension, or failure in a single verdict-oriented view
 - Useful when you need to compare internal baselines without reaching for external data
 
@@ -854,9 +855,10 @@ Suggest the most impactful next action based on current project state.
 
 Usage: `gpd:suggest-next`
 
-**`gpd:literature-review [topic]`**
-Structured literature review for a physics research topic.
+**`gpd:literature-review [topic or research question]`**
+Structured literature review for a physics research topic from the current project or one explicit topic or research question.
 
+- Writes the review and citation-source sidecar under `GPD/literature/` in the current workspace
 - Citation network analysis and open question identification
 - Spawns `gpd-literature-reviewer` for the structured review
 - Spawns gpd-bibliographer agent for citation verification
@@ -865,10 +867,10 @@ Structured literature review for a physics research topic.
 Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 
 **`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
-Create or update a knowledge document draft from a topic, paper, source file, or explicit knowledge path.
+Create or update a current-workspace knowledge document draft from a topic, paper, source file, or explicit knowledge path.
 
 - Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
-- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
+- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity
 - Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
 - If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`
@@ -884,10 +886,10 @@ Create or update a knowledge document draft from a topic, paper, source file, or
 Usage: `gpd:digest-knowledge "renormalization group fixed points"`
 
 **`gpd:review-knowledge [knowledge path or knowledge id]`**
-Review a knowledge document, record typed approval evidence, and promote a fresh approved draft to stable.
+Review one canonical current-workspace knowledge document, record typed approval evidence, and promote a fresh approved draft to stable.
 
-- Resolves an exact existing knowledge target by canonical path or knowledge id
-- Writes a deterministic review artifact under `GPD/knowledge/reviews/`
+- Resolves an exact existing current-workspace knowledge target by canonical path or knowledge id
+- Writes a deterministic review artifact under `GPD/knowledge/reviews/` in the current workspace
 - Records review round, reviewer identity, approval artifact hash, reviewed content hash, and stale state
 - Promotes the document to `stable` only when the review is fresh and explicitly approved
 - Keeps `needs_changes` and `rejected` outcomes in the review loop without pretending they are stable

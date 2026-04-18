@@ -1,8 +1,27 @@
 ---
 name: gpd:explain
-description: Explain a physics concept rigorously in the context of the active project or standalone question
+description: Explain a physics concept rigorously in the context of the active project or a standalone question with an explicit topic
 argument-hint: "[concept, result, method, notation, or paper]"
 context_mode: project-aware
+command-policy:
+  schema_version: 1
+  subject_policy:
+    subject_kind: explanation_subject
+    resolution_mode: explanation_input
+    explicit_input_kinds:
+      - concept, result, method, notation, or paper
+    allow_interactive_without_subject: true
+  supporting_context_policy:
+    project_context_mode: project-aware
+    project_reentry_mode: disallowed
+    optional_file_patterns:
+      - GPD/STATE.md
+      - GPD/ROADMAP.md
+      - GPD/explanations/*.md
+  output_policy:
+    output_mode: managed
+    managed_root_kind: gpd_managed_durable
+    default_output_subtree: GPD/explanations
 allowed-tools:
   - file_read
   - file_write
@@ -18,6 +37,8 @@ allowed-tools:
 
 <objective>
 Produce a rigorous, well-scoped explanation of a concept, method, notation, result, or paper in the context of the user's current research workflow.
+
+Keep any GPD-authored explanation artifacts under `GPD/explanations/` rooted at the current workspace. In project-backed runs that means the resolved project root's `GPD/explanations/`; in standalone runs it means `./GPD/explanations/` in the invoking workspace.
 
 **Orchestrator role:** Clarify scope when necessary, gather local project/process context, spawn a `gpd-explainer` agent, optionally run `gpd-bibliographer` to verify cited papers, and present the finished explanation plus reading path.
 
@@ -57,7 +78,9 @@ fi
 
 Extract the target concept from `$ARGUMENTS`.
 
-- If the request is materially ambiguous and the active project does not disambiguate it, ask one focused clarification question.
+- If `$ARGUMENTS` is empty in project-context mode, ask one focused question to identify the concept, result, method, notation, or paper to explain.
+- If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic; standalone preflight should already have rejected the empty launch.
+- If the request is non-empty but materially ambiguous and the active project does not disambiguate it, ask one focused clarification question.
 - Otherwise infer the intended scope from the current phase, manuscript work, notation, and nearby project files.
 - If the concept looks like a derived equation or stored quantity, search the result registry first with `gpd result search` before falling back to prose-only context. If you find a canonical `result_id`, use `gpd result show "{result_id}"` for the direct stored-result view, `gpd result deps "{result_id}"` when the explanation needs upstream context, and `gpd result downstream "{result_id}"` when the explanation needs the reverse impact tree.
 

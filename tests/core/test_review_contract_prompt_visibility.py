@@ -270,7 +270,11 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert "`requires` is a closed mapping when present; only `files` is supported." in command_note
     assert "`requires.files` is a string or list of strings." in command_note
     assert "Empty optional fields may be omitted." in command_note
-    assert "Typed command policy is runtime-authoritative for publication-command intake in Phase 2" in command_note
+    assert (
+        "Typed command policy is runtime-authoritative for command intake, supporting-context routing, "
+        "and managed-output surfaces when a command declares it."
+        in command_note
+    )
     assert (
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes"
         in command_note
