@@ -26,11 +26,11 @@ The peer review phase activates **after a complete manuscript draft exists** and
 
 ### Precondition Checklist
 
-- Manuscript main file exists under `paper/`, `manuscript/`, or `draft/`
-- `GPD/STATE.md` and `GPD/ROADMAP.md` are present
-- Phase summaries and verification reports are available under `GPD/phases/`
-- `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are present (strict mode)
-- Strict preflight semantic gates pass: `bibliography_audit_clean` and `reproducibility_ready`
+- Either the active manuscript exists under `paper/`, `manuscript/`, or `draft/`, or the user supplies one explicit `.tex`, `.md`, `.txt`, or `.pdf` review target
+- `GPD/STATE.md` and `GPD/ROADMAP.md` are present when reviewing the current GPD project manuscript
+- Phase summaries and verification reports are available under `GPD/phases/` when reviewing the current GPD project manuscript
+- `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are required in strict project-backed mode and additive when present for explicit external artifact review
+- Strict preflight semantic gates pass for any manuscript-root publication artifacts that are present
 
 If any precondition fails, the review preflight blocks entry and reports the missing items.
 
@@ -58,7 +58,7 @@ All of the following must hold before the review phase begins:
 1. **Manuscript completeness.** All sections referenced in the paper structure are drafted. No placeholder or stub sections remain.
 2. **Artifact readiness.** `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` exist and pass validation. In strict mode the bibliography audit must also clear `bibliography_audit_clean`, and the reproducibility manifest must clear `reproducibility_ready`.
 3. **Verification coverage.** At least one verification report exists under `GPD/phases/`.
-4. **Preflight pass.** `gpd validate review-preflight peer-review "$ARGUMENTS" --strict` exits zero.
+4. **Preflight pass.** `gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict` exits zero.
 
 ### Exit Criteria
 

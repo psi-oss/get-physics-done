@@ -295,6 +295,7 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.source_meta["latex_capability"]["bibtex_available"] is True
     assert payload.source_meta["latex_capability"]["latexmk_available"] is False
     assert payload.source_meta["latex_capability"]["kpsewhich_available"] is False
+    assert payload.source_meta["latex_capability"]["pdftotext_available"] is True
     assert payload.source_meta["latex_capability"]["readiness_state"] == "ready"
     assert payload.source_meta["latex_capability"]["message"] == "pdflatex found (TeX Live): /usr/bin/pdflatex"
     assert "latex_available" not in payload.source_meta

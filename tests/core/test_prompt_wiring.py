@@ -728,7 +728,7 @@ def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("discover").context_mode == "project-aware"
     assert registry.get_command("explain").context_mode == "project-aware"
     assert registry.get_command("suggest-next").context_mode == "projectless"
-    assert registry.get_command("peer-review").context_mode == "project-required"
+    assert registry.get_command("peer-review").context_mode == "project-aware"
 
 
 def test_slides_workflow_references_templates_and_existing_output_policy() -> None:
@@ -2688,12 +2688,13 @@ def test_peer_review_prompt_includes_concise_stage_map_for_users() -> None:
 def test_peer_review_command_limits_default_manuscript_targets_to_canonical_roots() -> None:
     peer_review_command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "The default manuscript family is limited to `paper/`, `manuscript/`, and `draft/`." in peer_review_command
+    assert "The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`." in peer_review_command
     assert "then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules" in peer_review_command
+    assert "Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`." in peer_review_command
     assert "Do not use ad hoc wildcard discovery." in peer_review_command
     assert "find paper manuscript draft" not in peer_review_command
     assert "find . -maxdepth 3" not in peer_review_command
-    assert "pass an explicit manuscript path or paper directory" in peer_review_command
+    assert "ask the user to point at a specific artifact path" in peer_review_command
 
 
 def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:
@@ -2770,6 +2771,12 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
     )
     assert (
         "Resolve exactly one active manuscript root from the canonical manuscript family: `paper/`, `manuscript/`, or `draft/`."
+        in shared_preflight
+    )
+    assert "In explicit-artifact mode, allow one `.tex`, `.md`, `.txt`, or `.pdf` review target outside those roots." in shared_preflight
+    assert (
+        "For explicit-artifact mode, nearby `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and "
+        "`reproducibility-manifest.json` are additive when present rather than blocking prerequisites."
         in shared_preflight
     )
     assert (
@@ -3855,7 +3862,7 @@ def test_publication_workflows_refresh_bibliography_audit_after_bibliography_cha
     assert "references/publication/publication-review-round-artifacts.md" in peer_review_staging.stage(
         "artifact_discovery"
     ).loaded_authorities
-    assert "absent, stale, or not review-ready" in peer_review
+    assert "must be review-ready, not merely present" in peer_review
     assert "bibliography_audit_clean" in peer_review
     assert "reproducibility_ready" in peer_review
     assert (

@@ -115,11 +115,13 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
     bibtex_path = find_latex_compiler("bibtex")
     latexmk_path = find_latex_compiler("latexmk")
     kpsewhich_path = find_latex_compiler("kpsewhich")
+    pdftotext_path = find_latex_compiler("pdftotext")
 
     compiler_available = path is not None
     bibtex_available = bibtex_path is not None
     latexmk_available = latexmk_path is not None
     kpsewhich_available = kpsewhich_path is not None
+    pdftotext_available = pdftotext_path is not None
     warnings: list[str] = []
 
     if compiler_available:
@@ -132,7 +134,9 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
             warnings.append("latexmk not found; multi-pass compilation will fall back to manual passes.")
         if not kpsewhich_available:
             warnings.append("kpsewhich not found; TeX resource checks will assume installed resources.")
-    else:
+    if not pdftotext_available:
+        warnings.append("pdftotext not found; PDF peer-review intake will require a nearby `.txt` companion file.")
+    if not compiler_available:
         warnings.append("Install a LaTeX distribution to enable paper compilation.")
 
     # Heuristic distribution name
@@ -159,6 +163,7 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
             bibtex_available=bibtex_available,
             latexmk_available=latexmk_available,
             kpsewhich_available=kpsewhich_available,
+            pdftotext_available=pdftotext_available,
             readiness_state="blocked",
             message=get_latex_install_guidance(),
             warnings=warnings,
@@ -179,6 +184,10 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
         summary += "; kpsewhich available"
     else:
         summary += "; kpsewhich unavailable"
+    if pdftotext_available:
+        summary += "; pdftotext available"
+    else:
+        summary += "; pdftotext unavailable"
     summary += f"; readiness={readiness_state}"
 
     return LatexToolchainStatus(
@@ -189,6 +198,7 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
         bibtex_available=bibtex_available,
         latexmk_available=latexmk_available,
         kpsewhich_available=kpsewhich_available,
+        pdftotext_available=pdftotext_available,
         readiness_state=readiness_state,
         message=summary,
         warnings=warnings,

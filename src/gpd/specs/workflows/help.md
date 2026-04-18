@@ -58,9 +58,9 @@ Phase {N} complete:
 **Manuscript exists, no referee report yet:**
 ```
 Publication workflow:
-  gpd:peer-review         — Run manuscript peer review inside the current project
+  gpd:peer-review         — Run manuscript peer review on the current project manuscript or an explicit artifact
   gpd:arxiv-submission    — Package only after review passes and the paper-build contract succeeds
-  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
 
@@ -96,7 +96,7 @@ Project ─── the overall research goal
 5. `gpd:verify-work` — Verify physics correctness
 6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
 7. `gpd:write-paper` — Generate publication from results
-8. `gpd:peer-review` — Run manuscript review before submission inside the current project
+8. `gpd:peer-review` — Run manuscript review before submission on the current project manuscript or an explicit artifact
 9. `gpd:respond-to-referees` — Address reviewer comments if needed
 10. `gpd:arxiv-submission` — Package the approved manuscript
 
@@ -136,7 +136,7 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 - Use these names inside the installed agent/runtime command surface.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
-- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`.
+- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
@@ -241,7 +241,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 
 - `gpd:literature-review [topic]` - Create a structured literature review
 - `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results
-- `gpd:peer-review [paper directory or manuscript path]` - Run the staged review workflow
+- `gpd:peer-review [paper directory | manuscript path | .pdf/.txt artifact path]` - Run the staged review workflow
 - `gpd:respond-to-referees` - Draft referee responses and revise the paper
 - `gpd:arxiv-submission` - Package a built manuscript for arXiv
 - `gpd:slides [topic, audience, or source path]` - Create presentation slides
@@ -781,18 +781,21 @@ Structure and write a physics paper from research results.
 Usage: `gpd:write-paper "Critical exponents via RG"`
 Usage: `gpd:write-paper --from-phases 1,3,5` (subset of phases)
 
-**`gpd:peer-review [paper directory or manuscript path]`**
-Run skeptical peer review on an existing manuscript within the current GPD project.
+**`gpd:peer-review [paper directory | manuscript path | .pdf/.txt artifact path]`**
+Run skeptical peer review on an existing manuscript or explicit review artifact.
 
-- Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
-- Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
+- Runs strict review preflight checks against the resolved review target and available supporting artifacts
+- Loads manuscript files or explicit artifact text, plus project summaries and verification context when present
+- Bare PDF intake requires either `pdftotext` on PATH or a same-directory `.txt` companion file
 - Spawns a six-agent review panel plus the auxiliary `gpd-check-proof` critic when theorem-bearing claims are present
 - Produces stage artifacts under `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex`
 - Routes the result to `gpd:respond-to-referees` or `gpd:arxiv-submission`
-- Requires an initialized `GPD/PROJECT.md` workspace; manuscript paths do not bypass project preflight
+- If no argument is supplied, the command asks whether to review an explicit artifact or the current GPD project's active manuscript when available
 
 Usage: `gpd:peer-review`
 Usage: `gpd:peer-review paper/`
+Usage: `gpd:peer-review draft.pdf`
+Usage: `gpd:peer-review notes.txt`
 
 **`gpd:respond-to-referees`**
 Structure point-by-point response to referee reports and revise the manuscript.
@@ -888,7 +891,7 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 **Workflow presets**
 
 - `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
-- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
+- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
 - `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
 - `gpd presets show <preset>` - Preview one preset's bundle before applying it
 - `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema

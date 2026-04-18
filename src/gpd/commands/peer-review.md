@@ -1,8 +1,8 @@
 ---
 name: gpd:peer-review
-description: Conduct a staged six-pass peer review of a manuscript and supporting research artifacts in the current GPD project
-argument-hint: "[paper directory or manuscript path]"
-context_mode: project-required
+description: Conduct a staged six-pass peer review of a manuscript and supporting research artifacts from the current GPD project or an explicit external artifact
+argument-hint: "[paper directory or manuscript/artifact path]"
+context_mode: project-aware
 requires:
   files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]
 review-contract:
@@ -90,14 +90,13 @@ Keep the wrapper focused on the manuscript target, review prerequisites, and fin
 </execution_context>
 
 <context>
-Review target: $ARGUMENTS (optional paper directory or manuscript path)
+Review target: $ARGUMENTS (optional paper directory, manuscript path, or explicit artifact path). If no argument is provided, first ask whether to review an explicit artifact or the current GPD project's active manuscript when available.
 
-@GPD/STATE.md
-@GPD/ROADMAP.md
+If the current folder is a GPD project, treat `GPD/STATE.md` and `GPD/ROADMAP.md` as optional project context. Do not require them for standalone external artifact review.
 
-The default manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
-Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Do not use ad hoc wildcard discovery.
-If none of those roots exist, pass an explicit manuscript path or paper directory and let centralized preflight reject anything outside the supported target family.
+The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
+Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Do not use ad hoc wildcard discovery.
+If no explicit target is supplied, the workflow may either use the current GPD project manuscript when available or ask the user to point at a specific artifact path.
 
 ```bash
 # Regression guardrail wording retained for test alignment:

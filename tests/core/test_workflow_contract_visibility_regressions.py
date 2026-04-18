@@ -86,7 +86,7 @@ def test_peer_review_reliability_reference_matches_peer_review_workflow_invocati
         REPO_ROOT / "src/gpd/specs/references/publication/peer-review-reliability.md"
     ).read_text(encoding="utf-8")
 
-    expected = 'gpd validate review-preflight peer-review "$ARGUMENTS" --strict'
+    expected = 'gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict'
 
     assert expected in workflow
     assert expected in reliability
