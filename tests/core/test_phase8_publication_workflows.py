@@ -49,8 +49,8 @@ def test_respond_to_referees_balanced_mode_does_not_force_parse_confirmation() -
 def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_context() -> None:
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "Parse JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`" in workflow
-    assert "RESEARCH_MODE=$(echo \"$INIT\" | gpd json get .research_mode --default balanced)" in workflow
+    assert "Parse bootstrap JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`" in workflow
+    assert "RESEARCH_MODE=$(echo \"$BOOTSTRAP\" | gpd json get .research_mode --default balanced)" in workflow
     assert "<autonomy_mode>{AUTONOMY}</autonomy_mode>" in workflow
     assert "<research_mode>{RESEARCH_MODE}</research_mode>" in workflow
     assert "Treat the referee report files as required final-stage artifacts." in workflow

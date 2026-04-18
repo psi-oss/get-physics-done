@@ -59,7 +59,7 @@ Phase {N} complete:
 ```
 Publication workflow:
   gpd:peer-review         — Run manuscript peer review on the current project manuscript or an explicit artifact
-  gpd:arxiv-submission    — Package only after review passes and the paper-build contract succeeds
+  gpd:arxiv-submission    — Package the built project manuscript only after review passes and the paper-build contract succeeds
   gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
@@ -67,7 +67,7 @@ Publication workflow:
 **Referee report exists:**
 ```
 Revision workflow:
-  gpd:respond-to-referees — Draft responses and revise the manuscript
+  gpd:respond-to-referees — Draft responses and revise the project manuscript
   gpd:peer-review         — Re-run peer review after revision
 ```
 
@@ -97,8 +97,8 @@ Project ─── the overall research goal
 6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
 7. `gpd:write-paper` — Generate publication from results
 8. `gpd:peer-review` — Run manuscript review before submission on the current project manuscript or an explicit artifact
-9. `gpd:respond-to-referees` — Address reviewer comments if needed
-10. `gpd:arxiv-submission` — Package the approved manuscript
+9. `gpd:respond-to-referees` — Address reviewer comments against the project-backed manuscript if needed
+10. `gpd:arxiv-submission` — Package the approved built manuscript from the resolved project root
 
 **Example:** Studying the 3D Ising critical exponent:
 - Phase 1: Set up Wolff cluster MC algorithm
@@ -242,8 +242,8 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:literature-review [topic]` - Create a structured literature review
 - `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results
 - `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow
-- `gpd:respond-to-referees` - Draft referee responses and revise the paper
-- `gpd:arxiv-submission` - Package a built manuscript for arXiv
+- `gpd:respond-to-referees` - Draft referee responses and revise the project manuscript
+- `gpd:arxiv-submission` - Package a built project manuscript for arXiv
 - `gpd:slides [topic, audience, or source path]` - Create presentation slides
 
 ### Tangents, memory, and exports
@@ -787,6 +787,7 @@ Run skeptical peer review on an existing manuscript or explicit review artifact.
 - Runs strict review preflight checks against the resolved review target and available supporting artifacts
 - Loads manuscript files or explicit artifact text, plus project summaries and verification context when present
 - Explicit artifact intake accepts `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`; canonical in-project manuscript discovery still stays on the resolved `.tex` / `.md` entrypoint under `paper/`, `manuscript/`, or `draft/`
+- Standalone explicit-artifact intake is a peer-review-only entrypoint; downstream `gpd:respond-to-referees` and `gpd:arxiv-submission` stay bound to the resolved project manuscript root
 - Non-plain-text artifact intake (`.pdf`, `.docx`, `.xlsx`) uses `gpd validate artifact-text <path> --output <txt-path>` or a same-directory `.txt` companion file
 - Spawns a six-agent review panel plus the auxiliary `gpd-check-proof` critic when theorem-bearing claims are present
 - Produces stage artifacts under `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex`
@@ -801,7 +802,8 @@ Usage: `gpd:peer-review notes.txt`
 Usage: `gpd:peer-review data/observables.csv`
 
 **`gpd:respond-to-referees`**
-Structure point-by-point response to referee reports and revise the manuscript.
+Structure point-by-point response to referee reports and revise the project-backed manuscript.
+- Project-backed only: `$ARGUMENTS` selects the referee report source, while manuscript edits still apply to the resolved `paper/`, `manuscript/`, or `draft/` root
 - Parses referee comments into structured items with severity levels
 - Drafts both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with REF-xxx issue tracking (fixed/rebutted/acknowledged/needs-calculation)
 - Consumes `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
@@ -813,9 +815,10 @@ Structure point-by-point response to referee reports and revise the manuscript.
 Usage: `gpd:respond-to-referees`
 
 **`gpd:arxiv-submission`**
-Prepare a completed paper for arXiv submission with validation and packaging.
+Prepare a completed project-backed manuscript for arXiv submission with validation and packaging.
 
 - Requires a successful `gpd paper-build` before packaging
+- Project-backed only: package the resolved built `.tex` manuscript plus manuscript-root support artifacts; standalone peer-review targets such as `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` are not valid submission inputs
 - Optional local compiler smoke check if available
 - Bibliography flattening (inline .bbl or resolve .bib)
 - Figure format and resolution checking

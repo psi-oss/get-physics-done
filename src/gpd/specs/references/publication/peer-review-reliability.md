@@ -15,26 +15,30 @@ context_cost: low
 Guidance for reliable execution of the staged peer-review pipeline, covering when the phase triggers, how stages recover from failure, how to distinguish internal from external review, and how review findings feed back into manuscript revisions.
 
 This is the canonical reliability reference for the peer-review skill surface. Follow the path and round-suffix conventions here when the workflow, report, and response artifacts need a stable source of truth.
+Peer review supports two intake modes: `project-backed manuscript review` and `standalone explicit-artifact review`.
 
 ## When Peer Review Triggers
 
-The peer review phase activates **after a complete manuscript draft exists** and **before final PDF packaging and submission**. Specifically:
+`project-backed manuscript review` activates **after a complete manuscript draft exists** and **before final PDF packaging and submission**. `standalone explicit-artifact review` is a direct path-based intake surface for one explicit target and does not require a full publication-pipeline workspace. Specifically:
 
-1. **After draft completion.** The `gpd:write-paper` workflow produces a manuscript with all sections, equations, figures, and bibliography in place. Peer review does not run on incomplete drafts or outlines.
-2. **Before final PDF.** Peer review must complete and its findings must be addressed before the manuscript is packaged for submission (e.g., via `gpd:arxiv-submission`).
+1. **After draft completion.** In `project-backed manuscript review`, the `gpd:write-paper` workflow produces a manuscript with all sections, equations, figures, and bibliography in place. Peer review does not run on incomplete drafts or outlines.
+2. **Before final PDF.** In `project-backed manuscript review`, peer review must complete and its findings must be addressed before the manuscript is packaged for submission (e.g., via `gpd:arxiv-submission`).
 3. **Explicit invocation.** Peer review runs when the user invokes `gpd:peer-review` or when the write-paper workflow reaches its internal review gate. It is not triggered automatically by file saves or partial edits.
+4. **Standalone path intake.** In `standalone explicit-artifact review`, the user points at one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target. This standalone intake mode is limited to `gpd:peer-review`; it does not imply standalone downstream publication packaging.
 
 ### Precondition Checklist
 
-- Either the active manuscript exists under `paper/`, `manuscript/`, or `draft/`, or the user supplies one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` review target
-- `GPD/STATE.md` and `GPD/ROADMAP.md` are present when reviewing the current GPD project manuscript
-- Phase summaries and verification reports are available under `GPD/phases/` when reviewing the current GPD project manuscript
-- `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are required in strict project-backed mode and additive when present for explicit external artifact review
+- `project-backed manuscript review` uses the active manuscript resolved under `paper/`, `manuscript/`, or `draft/`
+- `standalone explicit-artifact review` requires one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target
+- `GPD/STATE.md` and `GPD/ROADMAP.md` are required only when reviewing the current GPD project manuscript
+- Phase summaries and verification reports under `GPD/phases/` are required only when reviewing the current GPD project manuscript
+- `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are strict project-backed gates and additive-only context when present for `standalone explicit-artifact review`
+- Standalone explicit-artifact intake must still expose a readable text surface for the resolved target, whether native or extracted
 - Strict preflight semantic gates pass for any manuscript-root publication artifacts that are present
 
 If any precondition fails, the review preflight blocks entry and reports the missing items.
 
-## Internal Review vs. External Review
+## Automated Internal Panel vs. Journal External Review
 
 The staged peer-review panel is an **automated internal review**. It is not a substitute for external peer review by human referees at a journal.
 
@@ -53,12 +57,24 @@ Use internal review to catch overclaiming, missing evidence, mathematical errors
 
 ### Entry Criteria
 
-All of the following must hold before the review phase begins:
+Entry criteria are mode-specific.
+
+Project-backed manuscript review:
 
 1. **Manuscript completeness.** All sections referenced in the paper structure are drafted. No placeholder or stub sections remain.
 2. **Artifact readiness.** `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` exist and pass validation. In strict mode the bibliography audit must also clear `bibliography_audit_clean`, and the reproducibility manifest must clear `reproducibility_ready`.
 3. **Verification coverage.** At least one verification report exists under `GPD/phases/`.
 4. **Preflight pass.** `gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict` exits zero.
+
+Standalone explicit-artifact review:
+
+1. **Explicit target resolution.** One concrete manuscript or artifact path has been supplied and accepted by command-context preflight.
+2. **Text-surface readiness.** The explicit target is directly readable (`.tex`, `.md`, `.txt`, `.csv`, `.tsv`) or a valid extracted/companion text surface exists for `.pdf`, `.docx`, or `.xlsx`.
+3. **Additive artifact handling.** Nearby manuscript-root publication artifacts may be read when present, but they are not prerequisites by themselves.
+4. **Preflight pass.** `gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict` exits zero.
+
+Verification coverage under `GPD/phases/` is required only for `project-backed manuscript review`.
+Artifact readiness requirements are strict project-backed gates, not `standalone explicit-artifact review` prerequisites.
 
 ### Exit Criteria
 
@@ -73,6 +89,10 @@ The review phase is complete when:
 
 If the recommendation is `accept` or `minor_revision` with no unresolved blockers, the manuscript may proceed to submission packaging. If the recommendation is `major_revision` or `reject`, the manuscript must return to revision before re-entering peer review.
 When strict submission preflight sees `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json`, it treats the latest round-specific pair as authoritative and blocks packaging unless that condition is satisfied for the active manuscript.
+
+### Round-State Source Of Truth
+
+Use the subject-aware `gpd --raw init peer-review "$REVIEW_TARGET"` payload as the source of truth for prior review and response rounds. Read `review_target_mode`, `review_target_mode_reason`, `resolved_review_target`, and `resolved_review_root` first so later stages know whether they are adjudicating the active project manuscript or one standalone explicit artifact. Then rely on `latest_review_round`, `latest_review_round_suffix`, `latest_review_artifacts`, `latest_response_round`, `latest_response_round_suffix`, and `latest_response_artifacts` for the resolved review target instead of inferring rounds from filename presence alone.
 
 ### Stage 6 Artifact Boundary
 

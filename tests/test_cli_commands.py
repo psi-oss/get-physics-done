@@ -83,6 +83,63 @@ _SLASH_COMMAND_DESCRIPTOR = next(
     if descriptor.validated_command_surface == "public_runtime_slash_command"
     and descriptor.runtime_name != _DOLLAR_COMMAND_DESCRIPTOR.runtime_name
 )
+PEER_REVIEW_COMMON_PREFLIGHT_CHECKS = [
+    "command_context",
+    "manuscript",
+    "manuscript_proof_review",
+]
+PROJECT_BACKED_PEER_REVIEW_CONDITIONAL = {
+    "when": "project-backed manuscript review",
+    "required_outputs": [],
+    "required_evidence": [
+        "phase summaries or milestone digest",
+        "verification reports",
+        "manuscript-root bibliography audit",
+        "manuscript-root artifact manifest",
+        "manuscript-root reproducibility manifest",
+        "manuscript-root publication artifacts",
+    ],
+    "blocking_conditions": [
+        "missing project state",
+        "missing roadmap",
+        "missing conventions",
+        "no research artifacts",
+    ],
+    "preflight_checks": [
+        "project_state",
+        "roadmap",
+        "conventions",
+        "research_artifacts",
+        "verification_reports",
+        "artifact_manifest",
+        "bibliography_audit",
+        "bibliography_audit_clean",
+        "reproducibility_manifest",
+        "reproducibility_ready",
+    ],
+    "blocking_preflight_checks": [
+        "project_state",
+        "roadmap",
+        "conventions",
+        "research_artifacts",
+        "verification_reports",
+        "artifact_manifest",
+        "bibliography_audit",
+        "bibliography_audit_clean",
+        "reproducibility_manifest",
+        "reproducibility_ready",
+    ],
+    "stage_artifacts": [],
+}
+THEOREM_BEARING_PEER_REVIEW_CONDITIONAL = {
+    "when": "theorem-bearing claims are present",
+    "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+    "required_evidence": [],
+    "blocking_conditions": [],
+    "preflight_checks": [],
+    "blocking_preflight_checks": [],
+    "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+}
 
 
 @pytest.fixture()
@@ -1637,6 +1694,7 @@ class TestReviewValidationCommands:
                 "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
                 "required_evidence": [],
                 "blocking_conditions": [],
+                "preflight_checks": [],
                 "blocking_preflight_checks": [],
                 "stage_artifacts": [],
             }
@@ -1660,29 +1718,15 @@ class TestReviewValidationCommands:
         assert "GPD/review/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/CONSISTENCY-REPORT.md" not in payload["review_contract"]["required_outputs"]
-        assert payload["review_contract"]["preflight_checks"] == [
-            "command_context",
-            "project_state",
-            "roadmap",
-            "conventions",
-            "research_artifacts",
-            "verification_reports",
-            "manuscript",
-            "artifact_manifest",
-            "bibliography_audit",
-            "bibliography_audit_clean",
-            "reproducibility_manifest",
-            "reproducibility_ready",
-            "manuscript_proof_review",
-        ]
+        assert payload["review_contract"]["preflight_checks"] == PEER_REVIEW_COMMON_PREFLIGHT_CHECKS
         assert payload["review_contract"]["required_evidence"] == [
-            "existing manuscript",
-            "phase summaries or milestone digest",
-            "verification reports",
-            "manuscript-root bibliography audit",
-            "manuscript-root artifact manifest",
-            "manuscript-root reproducibility manifest",
-            "manuscript-root publication artifacts",
+            "existing manuscript or explicit external artifact target",
+        ]
+        assert payload["review_contract"]["blocking_conditions"] == [
+            "missing manuscript or explicit external artifact target",
+            "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
         ]
         assert payload["review_contract"]["stage_artifacts"] == [
             "GPD/review/CLAIMS{round_suffix}.json",
@@ -1695,14 +1739,8 @@ class TestReviewValidationCommands:
             "GPD/review/REFEREE-DECISION{round_suffix}.json",
         ]
         assert payload["review_contract"]["conditional_requirements"] == [
-            {
-                "when": "theorem-bearing claims are present",
-                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-                "required_evidence": [],
-                "blocking_conditions": [],
-                "blocking_preflight_checks": [],
-                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-            }
+            PROJECT_BACKED_PEER_REVIEW_CONDITIONAL,
+            THEOREM_BEARING_PEER_REVIEW_CONDITIONAL,
         ]
         assert "stage_ids" not in payload["review_contract"]
         assert "final_decision_output" not in payload["review_contract"]
@@ -1790,6 +1828,7 @@ class TestReviewValidationCommands:
                 "required_outputs": [],
                 "required_evidence": ["cleared manuscript proof review for theorem-bearing manuscripts"],
                 "blocking_conditions": ["missing or stale manuscript proof review for theorem-bearing manuscripts"],
+                "preflight_checks": [],
                 "blocking_preflight_checks": ["manuscript_proof_review"],
                 "stage_artifacts": [],
             }
@@ -2290,14 +2329,8 @@ class TestReviewValidationCommands:
         assert payload["local_cli_equivalence_guaranteed"] is False
         assert f"public command surface rooted at `{dollar_command_prefix}`" in payload["dispatch_note"]
         assert payload["conditional_requirements"] == [
-            {
-                "when": "theorem-bearing claims are present",
-                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-                "required_evidence": [],
-                "blocking_conditions": [],
-                "blocking_preflight_checks": [],
-                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-            }
+            PROJECT_BACKED_PEER_REVIEW_CONDITIONAL,
+            THEOREM_BEARING_PEER_REVIEW_CONDITIONAL,
         ]
         checks = {check["name"]: check for check in payload["checks"]}
         assert "same-name local `gpd` subcommand" in checks["command_context"]["detail"]
@@ -2308,7 +2341,13 @@ class TestReviewValidationCommands:
 
     def test_review_contract_preflight_helpers_only_follow_explicit_checks(self) -> None:
         contract = SimpleNamespace(
-            preflight_checks=["artifact_manifest"],
+            preflight_checks=["command_context"],
+            conditional_requirements=[
+                SimpleNamespace(
+                    preflight_checks=["artifact_manifest"],
+                    blocking_preflight_checks=["artifact_manifest"],
+                )
+            ],
             required_evidence=[
                 "verification reports",
                 "manuscript-root artifact manifest",
@@ -2321,7 +2360,7 @@ class TestReviewValidationCommands:
         )
 
         assert cli_module._review_contract_requests_check(contract, "artifact_manifest") is True
-        assert cli_module._review_preflight_check_is_blocking(contract, "artifact_manifest") is True
+        assert cli_module._review_preflight_check_is_blocking(contract, "artifact_manifest") is False
         assert cli_module._review_contract_requests_check(contract, "verification_reports") is False
         assert cli_module._review_preflight_check_is_blocking(contract, "verification_reports") is False
         assert cli_module._review_contract_requests_check(contract, "compiled_manuscript") is False
@@ -2331,8 +2370,8 @@ class TestReviewValidationCommands:
         assert (
             cli_module._review_preflight_check_is_blocking(
                 contract,
-                "manuscript_proof_review",
-                conditional_blocking_preflight_checks={"manuscript_proof_review"},
+                "artifact_manifest",
+                conditional_blocking_preflight_checks={"artifact_manifest"},
             )
             is True
         )
@@ -2347,6 +2386,142 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         assert "Optional phase number, manuscript target" in result.output
         assert "referee report source" in result.output
+
+    def test_init_peer_review_help_surfaces_target_argument_and_stage_option(self) -> None:
+        result = runner.invoke(
+            app,
+            ["init", "peer-review", "--help"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "[SUBJECT]" in result.output
+        assert "Optional explicit review target path" in result.output
+        assert "--stage" in result.output
+
+    def test_init_peer_review_accepts_explicit_standalone_target_and_surfaces_mode(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        external_txt = gpd_project / "external-review.txt"
+        external_txt.write_text("Standalone review surface.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "init", "peer-review", external_txt.name],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["review_target_input"] == external_txt.name
+        assert payload["review_target_mode"] == "standalone explicit-artifact review"
+        assert "standalone explicit-artifact intake applies" in payload["review_target_mode_reason"]
+        assert payload["resolved_review_target"] == str(external_txt)
+        assert payload["resolved_review_root"] == str(gpd_project)
+        assert payload["manuscript_resolution_status"] == "resolved"
+        assert payload["manuscript_entrypoint"] == external_txt.name
+        assert payload["project_contract"] is None
+        assert payload["artifact_manifest_path"] is None
+        assert payload["latest_review_round"] is None
+        assert payload["latest_response_round"] is None
+
+    def test_init_peer_review_stage_bootstrap_includes_target_aware_mode_fields(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        external_txt = gpd_project / "external-review-stage.txt"
+        external_txt.write_text("Standalone stage review surface.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "init",
+                "peer-review",
+                external_txt.name,
+                "--stage",
+                "bootstrap",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["review_target_input"] == external_txt.name
+        assert payload["review_target_mode"] == "standalone explicit-artifact review"
+        assert payload["resolved_review_target"] == str(external_txt)
+        assert payload["resolved_review_root"] == str(gpd_project)
+        assert payload["staged_loading"]["stage_id"] == "bootstrap"
+
+    def test_review_preflight_peer_review_project_backed_mode_surfaces_effective_contract_fields(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "peer-review"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["resolved_mode"] == "project-backed manuscript review"
+        assert payload["effective_required_evidence"] == [
+            "existing manuscript or explicit external artifact target",
+            "phase summaries or milestone digest",
+            "verification reports",
+            "manuscript-root bibliography audit",
+            "manuscript-root artifact manifest",
+            "manuscript-root reproducibility manifest",
+            "manuscript-root publication artifacts",
+        ]
+        assert payload["effective_blocking_conditions"] == [
+            "missing manuscript or explicit external artifact target",
+            "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
+            "missing project state",
+            "missing roadmap",
+            "missing conventions",
+            "no research artifacts",
+        ]
+
+    def test_review_preflight_peer_review_standalone_mode_omits_project_backed_effective_contract_fields(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        external_txt = gpd_project / "external-review-preflight.txt"
+        external_txt.write_text("Standalone review surface.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "validate",
+                "review-preflight",
+                "peer-review",
+                external_txt.name,
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["resolved_mode"] == "standalone explicit-artifact review"
+        assert payload["effective_required_evidence"] == [
+            "existing manuscript or explicit external artifact target",
+        ]
+        assert payload["effective_blocking_conditions"] == [
+            "missing manuscript or explicit external artifact target",
+            "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
+        ]
 
     def test_command_required_files_override_detail_uses_contract_metadata_not_command_name(
         self, tmp_path: Path
@@ -2812,14 +2987,8 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["active_conditional_requirements"] == payload["conditional_requirements"]
         assert payload["active_conditional_requirements"] == [
-            {
-                "when": "theorem-bearing claims are present",
-                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-                "required_evidence": [],
-                "blocking_conditions": [],
-                "blocking_preflight_checks": [],
-                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-            }
+            PROJECT_BACKED_PEER_REVIEW_CONDITIONAL,
+            THEOREM_BEARING_PEER_REVIEW_CONDITIONAL,
         ]
 
     def test_review_preflight_peer_review_ignores_generic_claim_kind_without_theorem_metadata(
@@ -2844,7 +3013,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["passed"] is True
-        assert payload["active_conditional_requirements"] == []
+        assert payload["active_conditional_requirements"] == [PROJECT_BACKED_PEER_REVIEW_CONDITIONAL]
 
     def test_review_preflight_write_paper_reports_theorem_bearing_claim_inventory_without_blocking(
         self,
@@ -3724,9 +3893,11 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == f"./submission/{_CANONICAL_MANUSCRIPT_BASENAME} present"
-        assert checks["artifact_manifest"]["detail"] == "./submission/ARTIFACT-MANIFEST.json present"
-        assert checks["bibliography_audit"]["detail"] == "./submission/BIBLIOGRAPHY-AUDIT.json present"
-        assert checks["reproducibility_manifest"]["detail"] == "./submission/reproducibility-manifest.json present"
+        assert "artifact_manifest" not in checks
+        assert "bibliography_audit" not in checks
+        assert "reproducibility_manifest" not in checks
+        assert payload["resolved_mode"] == "standalone explicit-artifact review"
+        assert payload["effective_required_evidence"] == ["existing manuscript or explicit external artifact target"]
 
     def test_review_preflight_peer_review_strict_does_not_fall_back_to_gpd_paper_for_explicit_manuscript(
         self,
@@ -3757,15 +3928,10 @@ class TestReviewValidationCommands:
         assert payload["passed"] is True
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is True
-        assert checks["artifact_manifest"]["detail"] == (
-            "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
-        )
-        assert checks["bibliography_audit"]["detail"] == (
-            "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
-        )
-        assert checks["reproducibility_manifest"]["detail"] == (
-            "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
-        )
+        assert "artifact_manifest" not in checks
+        assert "bibliography_audit" not in checks
+        assert "reproducibility_manifest" not in checks
+        assert payload["resolved_mode"] == "standalone explicit-artifact review"
 
     def test_review_preflight_peer_review_accepts_explicit_manuscript_directory(self, gpd_project: Path) -> None:
         result = runner.invoke(
@@ -4430,8 +4596,8 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["review_ledger_valid"]["passed"] is False
-        assert checks["referee_decision_valid"]["passed"] is False
+        assert checks["review_ledger"]["passed"] is False
+        assert checks["referee_decision"]["passed"] is False
 
     def test_review_preflight_arxiv_submission_ignores_generic_non_publication_blockers(
         self, gpd_project: Path
@@ -4668,7 +4834,7 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["passed"] is True
-        assert checks["project_state"]["blocking"] is False
+        assert "project_state" not in checks
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == "./notes.txt present"
 
@@ -4730,7 +4896,7 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["passed"] is True
-        assert checks["project_state"]["blocking"] is False
+        assert "project_state" not in checks
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == f"./{artifact.name} present; {expected_detail}"
 

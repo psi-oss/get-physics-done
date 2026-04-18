@@ -582,15 +582,18 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "GPD/review/CLAIMS{round_suffix}.json" in peer_review.review_contract.required_outputs
     assert "GPD/review/STAGE-interestingness{round_suffix}.json" in peer_review.review_contract.required_outputs
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in peer_review.review_contract.required_outputs
-    assert "command_context" in peer_review.review_contract.preflight_checks
-    assert "verification_reports" in peer_review.review_contract.preflight_checks
-    assert "manuscript" in peer_review.review_contract.preflight_checks
-    assert "artifact_manifest" in peer_review.review_contract.preflight_checks
-    assert "bibliography_audit" in peer_review.review_contract.preflight_checks
-    assert "bibliography_audit_clean" in peer_review.review_contract.preflight_checks
-    assert "reproducibility_manifest" in peer_review.review_contract.preflight_checks
-    assert "reproducibility_ready" in peer_review.review_contract.preflight_checks
-    assert "manuscript_proof_review" in peer_review.review_contract.preflight_checks
+    assert peer_review.review_contract.required_evidence == ["existing manuscript or explicit external artifact target"]
+    assert peer_review.review_contract.blocking_conditions == [
+        "missing manuscript or explicit external artifact target",
+        "degraded review integrity",
+        "unsupported physical significance claims",
+        "collapsed novelty or venue fit",
+    ]
+    assert peer_review.review_contract.preflight_checks == [
+        "command_context",
+        "manuscript",
+        "manuscript_proof_review",
+    ]
     assert peer_review.review_contract.stage_artifacts == [
         "GPD/review/CLAIMS{round_suffix}.json",
         "GPD/review/STAGE-reader{round_suffix}.json",
@@ -607,16 +610,61 @@ def test_review_commands_expose_typed_contracts() -> None:
             "required_outputs": list(requirement.required_outputs),
             "required_evidence": list(requirement.required_evidence),
             "blocking_conditions": list(requirement.blocking_conditions),
+            "preflight_checks": list(requirement.preflight_checks),
             "blocking_preflight_checks": list(requirement.blocking_preflight_checks),
             "stage_artifacts": list(requirement.stage_artifacts),
         }
         for requirement in peer_review.review_contract.conditional_requirements
     ] == [
         {
+            "when": "project-backed manuscript review",
+            "required_outputs": [],
+            "required_evidence": [
+                "phase summaries or milestone digest",
+                "verification reports",
+                "manuscript-root bibliography audit",
+                "manuscript-root artifact manifest",
+                "manuscript-root reproducibility manifest",
+                "manuscript-root publication artifacts",
+            ],
+            "blocking_conditions": [
+                "missing project state",
+                "missing roadmap",
+                "missing conventions",
+                "no research artifacts",
+            ],
+            "preflight_checks": [
+                "project_state",
+                "roadmap",
+                "conventions",
+                "research_artifacts",
+                "verification_reports",
+                "artifact_manifest",
+                "bibliography_audit",
+                "bibliography_audit_clean",
+                "reproducibility_manifest",
+                "reproducibility_ready",
+            ],
+            "blocking_preflight_checks": [
+                "project_state",
+                "roadmap",
+                "conventions",
+                "research_artifacts",
+                "verification_reports",
+                "artifact_manifest",
+                "bibliography_audit",
+                "bibliography_audit_clean",
+                "reproducibility_manifest",
+                "reproducibility_ready",
+            ],
+            "stage_artifacts": [],
+        },
+        {
             "when": "theorem-bearing claims are present",
             "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
             "required_evidence": [],
             "blocking_conditions": [],
+            "preflight_checks": [],
             "blocking_preflight_checks": [],
             "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
         }
@@ -686,7 +734,54 @@ def test_conditional_review_contract_requirements_do_not_hide_runtime_blockers()
         "max_review_rounds",
     ):
         assert not hasattr(peer_review, field_name)
+    assert peer_review.preflight_checks == [
+        "command_context",
+        "manuscript",
+        "manuscript_proof_review",
+    ]
+    assert "manuscript_proof_review" in peer_review.preflight_checks
     assert peer_review.conditional_requirements == [
+        registry.ReviewContractConditionalRequirement(
+            when="project-backed manuscript review",
+            required_evidence=[
+                "phase summaries or milestone digest",
+                "verification reports",
+                "manuscript-root bibliography audit",
+                "manuscript-root artifact manifest",
+                "manuscript-root reproducibility manifest",
+                "manuscript-root publication artifacts",
+            ],
+            blocking_conditions=[
+                "missing project state",
+                "missing roadmap",
+                "missing conventions",
+                "no research artifacts",
+            ],
+            preflight_checks=[
+                "project_state",
+                "roadmap",
+                "conventions",
+                "research_artifacts",
+                "verification_reports",
+                "artifact_manifest",
+                "bibliography_audit",
+                "bibliography_audit_clean",
+                "reproducibility_manifest",
+                "reproducibility_ready",
+            ],
+            blocking_preflight_checks=[
+                "project_state",
+                "roadmap",
+                "conventions",
+                "research_artifacts",
+                "verification_reports",
+                "artifact_manifest",
+                "bibliography_audit",
+                "bibliography_audit_clean",
+                "reproducibility_manifest",
+                "reproducibility_ready",
+            ],
+        ),
         registry.ReviewContractConditionalRequirement(
             when="theorem-bearing claims are present",
             required_outputs=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
@@ -801,13 +896,12 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
     assert "ls GPD/review/REVIEW-LEDGER*.json 2>/dev/null" not in respond
     assert "ls GPD/review/REFEREE-DECISION*.json 2>/dev/null" not in respond
 
-    assert "GPD/REFEREE-REPORT.md" in peer_review
-    assert "GPD/AUTHOR-RESPONSE.md" in peer_review
-    assert "GPD/review/REFEREE_RESPONSE.md" in peer_review
-    assert "GPD/REFEREE-REPORT-R2.md" in peer_review
-    assert "GPD/AUTHOR-RESPONSE-R2.md" in peer_review
-    assert "GPD/review/REFEREE_RESPONSE-R2.md" in peer_review
-    assert re.search(r"(partial|incomplete)[\s\S]{0,80}(response package|artifact package|package)", peer_review, re.I)
+    assert "GPD/REFEREE-REPORT{round_suffix}.md" in peer_review
+    assert "GPD/AUTHOR-RESPONSE{ROUND_SUFFIX}.md" in peer_review
+    assert "GPD/review/REFEREE_RESPONSE{ROUND_SUFFIX}.md" in peer_review
+    assert 'ROUND_SUFFIX="-R${ROUND}"' in peer_review
+    assert "Repair the target-bound response artifacts before advancing." in peer_review
+    assert "without a paired author/referee response package" in peer_review
 
     assert "matching paired response package exists for the same round" in referee
     assert re.search(
@@ -870,14 +964,16 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
-    for content in (peer_review, respond):
-        assert (
-            'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]'
-            in content
-        )
+    assert "requires:" not in peer_review
+    assert (
+        'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]'
+        in respond
+    )
     assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in arxiv
 
     assert "conditional_requirements:" in peer_review
+    assert "when: project-backed manuscript review" in peer_review
+    assert "existing manuscript or explicit external artifact target" in peer_review
     assert "when: theorem-bearing claims are present" in peer_review
     assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in peer_review
     assert "gpd-check-proof" in peer_review
@@ -4044,7 +4140,10 @@ def test_publication_workflows_keep_manuscript_local_reference_status_rooted_at_
         "After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:"
         in peer_review
     )
-    assert "- `BIBLIOGRAPHY_AUDIT_PATH` = `${MANUSCRIPT_ROOT}/BIBLIOGRAPHY-AUDIT.json`" in peer_review
+    assert (
+        "- `BIBLIOGRAPHY_AUDIT_PATH` = `bibliography_audit_path` when present, otherwise "
+        "`${MANUSCRIPT_ROOT}/BIBLIOGRAPHY-AUDIT.json`"
+    ) in peer_review
     assert (
         "refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before generating the response letter or proceeding to final review"
         in respond
@@ -4273,7 +4372,15 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
         in peer_review_workflow
     )
     assert (
-        "If `$REVIEW_TARGET` names a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` file"
+        "Use centralized target-aware init plus centralized command-context preflight as the only authoritative "
+        "manuscript resolver." in peer_review_workflow
+    )
+    assert (
+        "In `project-backed manuscript review`, resolve the manuscript entrypoint under `paper/`, `manuscript/`, or "
+        "`draft/`" in peer_review_workflow
+    )
+    assert (
+        'INIT=$(gpd --raw init peer-review "$REVIEW_TARGET")'
         in peer_review_workflow
     )
     assert (

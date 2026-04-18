@@ -260,7 +260,7 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert f"`conditional_requirements[].when` must be one of {conditional_whens}" in note
     assert f"`preflight_checks` entries must be {preflight_checks};" in note
     assert "`conditional_requirements[].blocking_preflight_checks` is a list when present" in note
-    assert "appear in the top-level `preflight_checks` list." in note
+    assert "its entries must also be valid `preflight_checks` values." in note
     assert "Each `conditional_requirements[].when` value may appear at most once." in note
     assert "List fields reject blank entries and duplicates." in note
     assert "Each conditional requirement must declare at least one non-empty field." in note
@@ -420,7 +420,7 @@ def test_review_contract_visibility_note_surfaces_the_hard_constraints() -> None
     ) in note
     assert f"`preflight_checks` entries must be {preflight_checks};" in note
     assert "`conditional_requirements[].blocking_preflight_checks` is a list when present" in note
-    assert "appear in the top-level `preflight_checks` list." in note
+    assert "its entries must also be valid `preflight_checks` values." in note
 
 
 @pytest.mark.parametrize(
@@ -564,6 +564,7 @@ def test_review_contract_normalizer_canonicalizes_case_only_enum_drift() -> None
             "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
             "required_evidence": [],
             "blocking_conditions": [],
+            "preflight_checks": [],
             "blocking_preflight_checks": ["compiled_manuscript"],
             "stage_artifacts": [],
         }
@@ -754,27 +755,24 @@ def test_review_contract_renderer_always_surfaces_blocking_preflight_dependency_
     assert "`conditional_requirements[].blocking_preflight_checks`" in section
 
 
-def test_review_contract_renderer_rejects_conditional_blocking_preflight_checks_not_declared_top_level() -> None:
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"conditional_requirements\[0\]\.blocking_preflight_checks must also appear in preflight_checks: "
-            r"manuscript_proof_review"
-        ),
-    ):
-        render_review_contract_prompt(
-            {
-                "schema_version": 1,
-                "review_mode": "publication",
-                "preflight_checks": ["manuscript"],
-                "conditional_requirements": [
-                    {
-                        "when": "theorem-bearing manuscripts are present",
-                        "blocking_preflight_checks": ["manuscript_proof_review"],
-                    }
-                ],
-            }
-        )
+def test_review_contract_renderer_accepts_conditional_only_blocking_preflight_checks() -> None:
+    section = render_review_contract_prompt(
+        {
+            "schema_version": 1,
+            "review_mode": "publication",
+            "preflight_checks": ["manuscript"],
+            "conditional_requirements": [
+                {
+                    "when": "theorem-bearing manuscripts are present",
+                    "blocking_preflight_checks": ["manuscript_proof_review"],
+                }
+            ],
+        }
+    )
+
+    assert "conditional_requirements:" in section
+    assert "blocking_preflight_checks:" in section
+    assert "manuscript_proof_review" in section
 
 
 def test_review_contract_renderer_accepts_publication_artifact_preflight_checks() -> None:
@@ -1011,6 +1009,47 @@ def test_peer_review_contract_surfaces_typed_conditional_proof_requirements() ->
     assert contract is not None
     assert contract.conditional_requirements == [
         registry.ReviewContractConditionalRequirement(
+            when="project-backed manuscript review",
+            required_evidence=[
+                "phase summaries or milestone digest",
+                "verification reports",
+                "manuscript-root bibliography audit",
+                "manuscript-root artifact manifest",
+                "manuscript-root reproducibility manifest",
+                "manuscript-root publication artifacts",
+            ],
+            blocking_conditions=[
+                "missing project state",
+                "missing roadmap",
+                "missing conventions",
+                "no research artifacts",
+            ],
+            preflight_checks=[
+                "project_state",
+                "roadmap",
+                "conventions",
+                "research_artifacts",
+                "verification_reports",
+                "artifact_manifest",
+                "bibliography_audit",
+                "bibliography_audit_clean",
+                "reproducibility_manifest",
+                "reproducibility_ready",
+            ],
+            blocking_preflight_checks=[
+                "project_state",
+                "roadmap",
+                "conventions",
+                "research_artifacts",
+                "verification_reports",
+                "artifact_manifest",
+                "bibliography_audit",
+                "bibliography_audit_clean",
+                "reproducibility_manifest",
+                "reproducibility_ready",
+            ],
+        ),
+        registry.ReviewContractConditionalRequirement(
             when="theorem-bearing claims are present",
             required_outputs=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
             stage_artifacts=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
@@ -1018,6 +1057,7 @@ def test_peer_review_contract_surfaces_typed_conditional_proof_requirements() ->
     ]
     source = _read_command("peer-review")
     assert "conditional_requirements:" in source
+    assert "when: project-backed manuscript review" in source
     assert "when: theorem-bearing claims are present" in source
 
 

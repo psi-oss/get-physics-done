@@ -621,6 +621,10 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert "references/publication/peer-review-panel.md" in manifest.stages[0].must_not_eager_load
     assert "references/publication/peer-review-reliability.md" in manifest.stages[0].must_not_eager_load
     assert "templates/paper/paper-config-schema.md" in manifest.stages[0].must_not_eager_load
+    assert "review_target_mode" in manifest.stages[0].required_init_fields
+    assert "review_target_mode_reason" in manifest.stages[0].required_init_fields
+    assert "resolved_review_target" in manifest.stages[0].required_init_fields
+    assert "resolved_review_root" in manifest.stages[0].required_init_fields
     assert manifest.stages[1].loaded_authorities == (
         "workflows/peer-review.md",
         "templates/paper/publication-manuscript-root-preflight.md",
@@ -630,11 +634,17 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         "templates/paper/bibliography-audit-schema.md",
         "templates/paper/reproducibility-manifest.md",
     )
+    assert "review_target_mode" in manifest.stages[1].required_init_fields
+    assert "review_target_mode_reason" in manifest.stages[1].required_init_fields
+    assert "resolved_review_target" in manifest.stages[1].required_init_fields
+    assert "resolved_review_root" in manifest.stages[1].required_init_fields
     assert manifest.stages[2].loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
     )
+    assert "review_target_mode" in manifest.stages[2].required_init_fields
+    assert "resolved_review_target" in manifest.stages[2].required_init_fields
     assert manifest.stages[3].loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/peer-review-panel.md",
@@ -645,6 +655,8 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md",
     )
+    assert "review_target_mode" in manifest.stages[4].required_init_fields
+    assert "resolved_review_target" in manifest.stages[4].required_init_fields
 
 
 def test_known_init_fields_for_execute_phase_include_bootstrap_and_wave_context() -> None:

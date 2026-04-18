@@ -60,7 +60,14 @@ from gpd.core.conventions import is_bogus_value
 from gpd.core.errors import ValidationError
 from gpd.core.extras import approximation_list
 from gpd.core.knowledge_runtime import discover_knowledge_docs
+from gpd.core.manuscript_artifacts import (
+    _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
+)
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
+from gpd.core.peer_review_mode import (
+    PEER_REVIEW_STANDALONE_MODE,
+    resolve_peer_review_mode,
+)
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.project_reentry import (
     ProjectReentryCandidate,
@@ -442,6 +449,11 @@ _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS = frozenset(
 )
 _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS = frozenset(
     {
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",
@@ -1885,18 +1897,45 @@ def _build_publication_bootstrap_runtime_context(
 def _build_publication_runtime_snapshot_context(
     cwd: Path,
     *,
+    subject: str | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Build the canonical publication snapshot payload used by publication commands."""
 
     return publication_runtime_snapshot_context(
         cwd,
+        subject=subject,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
     )
 
 
+def _resolve_peer_review_target_context(
+    cwd: Path,
+    subject: str | None,
+) -> tuple[Path | None, Path | None]:
+    """Resolve the peer-review target path and root for init/context surfacing."""
+
+    if not isinstance(subject, str) or not subject.strip():
+        manuscript_entrypoint = resolve_current_manuscript_entrypoint(cwd)
+        return manuscript_entrypoint, manuscript_entrypoint.parent if manuscript_entrypoint is not None else None
+
+    target = Path(subject)
+    if not target.is_absolute():
+        target = cwd / target
+    resolved_target = target.resolve(strict=False)
+    if resolved_target.is_file():
+        return resolved_target, resolved_target.parent
+    if resolved_target.is_dir():
+        resolution = resolve_manuscript_entrypoint_from_root_resolution(resolved_target, allow_markdown=True)
+        if resolution.status == "resolved" and resolution.manuscript_entrypoint is not None:
+            return resolution.manuscript_entrypoint.resolve(strict=False), resolved_target
+        return None, resolved_target
+    return None, resolved_target.parent
+
+
 def _build_peer_review_runtime_context(
     cwd: Path,
+    subject: str | None = None,
     *,
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
@@ -1915,9 +1954,64 @@ def _build_peer_review_runtime_context(
     result.update(
         _build_publication_runtime_snapshot_context(
             cwd,
+            subject=subject,
             persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
         )
     )
+    resolved_mode, mode_reason = resolve_peer_review_mode(cwd, subject, workspace_cwd=cwd)
+    resolved_target, resolved_root = _resolve_peer_review_target_context(cwd, subject)
+    result.update(
+        {
+            "review_target_input": subject.strip() if isinstance(subject, str) else "",
+            "review_target_mode": resolved_mode,
+            "review_target_mode_reason": mode_reason,
+            "resolved_review_target": str(resolved_target) if resolved_target is not None else None,
+            "resolved_review_root": str(resolved_root) if resolved_root is not None else None,
+        }
+    )
+    if resolved_mode == PEER_REVIEW_STANDALONE_MODE:
+        gate = dict(result.get("project_contract_gate") or {})
+        gate.update(
+            {
+                "authoritative": False,
+                "visible": False,
+                "approval_blocked": False,
+                "reason": "standalone explicit-artifact review does not use the current project contract as authoritative context",
+            }
+        )
+        load_info = dict(result.get("project_contract_load_info") or {})
+        warnings = list(load_info.get("warnings") or [])
+        warning = (
+            "standalone explicit-artifact review hides current-project contract, bundle, and project-derived reference "
+            "context while preserving explicit-target manuscript/publication snapshot fields when they can be resolved"
+        )
+        if warning not in warnings:
+            warnings.append(warning)
+        load_info["warnings"] = warnings
+        load_info["mode"] = PEER_REVIEW_STANDALONE_MODE
+        result.update(
+            {
+                "project_contract": None,
+                "project_contract_gate": gate,
+                "project_contract_load_info": load_info,
+                "contract_intake": None,
+                "effective_reference_intake": {},
+                "selected_protocol_bundle_ids": [],
+                "protocol_bundle_context": None,
+                "active_reference_context": "",
+                "reference_artifact_files": [],
+                "reference_artifacts_content": None,
+                "literature_review_files": [],
+                "literature_review_count": 0,
+                "research_map_reference_files": [],
+                "research_map_reference_count": 0,
+                "citation_source_files": [],
+                "citation_source_count": 0,
+                "citation_source_warnings": [],
+                "derived_citation_sources": [],
+                "derived_citation_source_count": 0,
+            }
+        )
     return result
 
 
@@ -3751,7 +3845,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     return staged_payload
 
 
-def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
+def init_peer_review(cwd: Path, subject: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for staged manuscript peer review."""
     config = load_config(cwd)
     base_result: dict[str, object] = {
@@ -3764,9 +3858,7 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_reference_runtime_context(cwd))
-        result.update(_build_publication_bootstrap_runtime_context(cwd))
-        result.update(_build_publication_runtime_snapshot_context(cwd))
+        result.update(_build_peer_review_runtime_context(cwd, subject))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3783,12 +3875,8 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
             f"Unknown peer-review stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
         ) from exc
 
-    required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    if required_fields & _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS:
-        staged_source.update(_build_reference_runtime_context(cwd))
-    if required_fields & _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS:
-        staged_source.update(_build_publication_runtime_snapshot_context(cwd))
+    staged_source.update(_build_peer_review_runtime_context(cwd, subject))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:

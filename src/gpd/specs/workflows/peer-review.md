@@ -1,5 +1,5 @@
 <purpose>
-Conduct a standalone skeptical peer review of a manuscript and supporting artifacts through a staged six-agent panel. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
+Conduct a skeptical peer review of a manuscript and supporting artifacts through a staged six-agent panel. Peer review supports two intake modes: `project-backed manuscript review` and `standalone explicit-artifact review`. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
 </purpose>
 
 <core_principle>
@@ -24,28 +24,30 @@ If subagent spawning is unavailable and the workflow falls back to sequential ex
 <step name="init">
 **Initialize context and locate the review target:**
 
+Set `REVIEW_TARGET="$ARGUMENTS"` unless interactive intake overrides it.
+
+Bootstrap peer-review context from the dedicated peer-review init surface, not `phase-op`, so manuscript routing, publication blockers, and prior review-round state stay tied to the resolved peer-review target contract.
+
 ```bash
-INIT=$(gpd --raw init phase-op)
+BOOTSTRAP=$(gpd --raw init peer-review)
 if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
+  echo "ERROR: gpd peer-review bootstrap failed: $BOOTSTRAP"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse bootstrap JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`, `review_target_input`, `review_target_mode`, `review_target_mode_reason`, `resolved_review_target`, `resolved_review_root`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_blockers`, `latest_review_round`, `latest_review_round_suffix`, `latest_review_ledger`, `latest_referee_decision`, `latest_referee_report_md`, `latest_referee_report_tex`, `latest_proof_redteam`, `latest_review_artifacts`, `latest_response_round`, `latest_response_round_suffix`, `latest_author_response`, `latest_referee_response`, `latest_response_artifacts`.
 
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
-RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
+AUTONOMY=$(echo "$BOOTSTRAP" | gpd json get .autonomy --default balanced)
+RESEARCH_MODE=$(echo "$BOOTSTRAP" | gpd json get .research_mode --default balanced)
 ```
 Treat `project_contract_gate` as authoritative. Use `project_contract` and `contract_intake` only when `project_contract_gate.authoritative` is true; otherwise keep them as diagnostics/context and rely on `effective_reference_intake`, `reference_artifacts_content`, and `active_reference_context` as carry-forward evidence. Stage 1 stays manuscript-first, but later adjudication must not ignore either the approved contract or the active anchor ledger.
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
-
-Set `REVIEW_TARGET="$ARGUMENTS"` unless interactive intake overrides it.
 
 If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
 
@@ -63,6 +65,18 @@ If the user chooses `Pick artifact path`, ask for one explicit path and store it
 
 If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one explicit manuscript path or directory. Accept `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or a manuscript directory path. If the answer is still empty, STOP and ask again for a concrete artifact path.
 
+After the user has chosen a mode or supplied an explicit path, rerun the subject-aware peer-review init surface for the resolved target. Treat this second payload as authoritative for manuscript routing and review-round state; do not keep using current-project manuscript status from the bootstrap call after an explicit artifact target has been chosen.
+
+```bash
+INIT=$(gpd --raw init peer-review "$REVIEW_TARGET")
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review target init failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Parse target-aware init JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`, `review_target_input`, `review_target_mode`, `review_target_mode_reason`, `resolved_review_target`, `resolved_review_root`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_blockers`, `latest_review_round`, `latest_review_round_suffix`, `latest_review_ledger`, `latest_referee_decision`, `latest_referee_report_md`, `latest_referee_report_tex`, `latest_proof_redteam`, `latest_review_artifacts`, `latest_response_round`, `latest_response_round_suffix`, `latest_author_response`, `latest_referee_response`, `latest_response_artifacts`.
+
 Run centralized context preflight before continuing:
 
 ```bash
@@ -75,22 +89,24 @@ fi
 
 **Resolve manuscript target:**
 
-1. If `$REVIEW_TARGET` names a directory, use it as the candidate paper directory.
-2. If `$REVIEW_TARGET` names a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` file, use that file and its parent directory as the review root.
-3. Otherwise search, in order:
-   - the resolved manuscript entrypoint under `paper/`
-   - the resolved manuscript entrypoint under `manuscript/`
-   - the resolved manuscript entrypoint under `draft/`
+Use centralized target-aware init plus centralized command-context preflight as the only authoritative manuscript resolver.
 
-When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
+1. In `project-backed manuscript review`, resolve the manuscript entrypoint under `paper/`, `manuscript/`, or `draft/` from `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current-manuscript rules for those roots.
+2. In `standalone explicit-artifact review`, the explicit path the user chose is authoritative. Do not fall back to canonical project-manuscript discovery after a standalone explicit artifact has been selected.
+3. When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` discovery rules.
+4. Do not re-resolve the review target with ad hoc wildcard discovery or first-match shell globs after init/preflight has selected it.
 
 After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:
 
-- `RESOLVED_MANUSCRIPT` = resolved manuscript entry point or explicit artifact file
-- `MANUSCRIPT_ROOT` = parent directory of `RESOLVED_MANUSCRIPT`
-- `ARTIFACT_MANIFEST_PATH` = `${MANUSCRIPT_ROOT}/ARTIFACT-MANIFEST.json`
-- `BIBLIOGRAPHY_AUDIT_PATH` = `${MANUSCRIPT_ROOT}/BIBLIOGRAPHY-AUDIT.json`
-- `REPRODUCIBILITY_MANIFEST_PATH` = `${MANUSCRIPT_ROOT}/reproducibility-manifest.json`
+- `REVIEW_TARGET_MODE` = `review_target_mode` from the target-aware `INIT` payload
+- `REVIEW_TARGET_MODE_REASON` = `review_target_mode_reason` from the target-aware `INIT` payload
+- `RESOLVED_REVIEW_TARGET` = `resolved_review_target` from the target-aware `INIT` payload
+- `RESOLVED_REVIEW_ROOT` = `resolved_review_root` from the target-aware `INIT` payload
+- `RESOLVED_MANUSCRIPT` = `manuscript_entrypoint` from the target-aware `INIT` payload
+- `MANUSCRIPT_ROOT` = `manuscript_root` from the target-aware `INIT` payload
+- `ARTIFACT_MANIFEST_PATH` = `artifact_manifest_path` when present, otherwise `${MANUSCRIPT_ROOT}/ARTIFACT-MANIFEST.json`
+- `BIBLIOGRAPHY_AUDIT_PATH` = `bibliography_audit_path` when present, otherwise `${MANUSCRIPT_ROOT}/BIBLIOGRAPHY-AUDIT.json`
+- `REPRODUCIBILITY_MANIFEST_PATH` = `reproducibility_manifest_path` when present, otherwise `${MANUSCRIPT_ROOT}/reproducibility-manifest.json`
 - `PAPER_CONFIG_PATH` = `${MANUSCRIPT_ROOT}/PAPER-CONFIG.json`
 - `LOCAL_BIB_FILES` = all `*.bib` files under `${MANUSCRIPT_ROOT}`
 
@@ -106,7 +122,7 @@ Store the reviewer-visible inputs as `MANUSCRIPT_STAGE_FILES`.
 **If no manuscript found:**
 
 ```
-No manuscript found. Searched: paper/, manuscript/, draft/
+No review target found. The target-aware peer-review init plus command-context preflight did not resolve a manuscript under `paper/`, `manuscript/`, or `draft/`, and no valid explicit artifact target was accepted.
 
 Run gpd:write-paper first, or provide a `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory path to gpd:peer-review.
 ```
@@ -130,9 +146,9 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 
 - If `selected_protocol_bundle_ids` is non-empty, use the bundle summary as a compact map of decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should surface.
 - Bundle guidance is additive only: it can sharpen missing-evidence checks, but it cannot invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
-- Reader-visible claims and surfaced evidence remain first-class; review-support artifacts are scaffolding, not substitutes for contract-backed evidence.
+- Reader-visible claims and surfaced evidence remain first-class; review-support artifacts are scaffolding, not substitutes for authoritative evidence required by the resolved review target or project contract.
 - Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed without falling back to legacy recovery paths.
-- If no bundle is selected, run the same review pipeline against the manuscript and contract-backed artifacts without any specialized overlay.
+- If no bundle is selected, run the same review pipeline against the resolved review target plus any authoritative project-backed artifacts without any specialized overlay.
 </step>
 
 <step name="preflight">
@@ -146,11 +162,13 @@ Apply the shared manuscript-root bootstrap contract exactly:
 gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict
 ```
 
-If preflight exits nonzero because of missing project state, missing manuscript, degraded review integrity, or missing review-grade paper artifacts, STOP and show the blocking issues.
+If preflight exits nonzero because of a missing resolved review target, degraded review integrity, missing project-backed publication gates, or unsupported artifact-text intake, STOP and show the blocking issues.
+Missing project state, roadmap, conventions, research artifacts, verification reports, or manuscript-root publication artifacts are blocking only in `project-backed manuscript review`.
 If preflight reports blocked contract/state integrity, surface `project_contract_gate`, `project_contract_load_info`, and `project_contract_validation` details in the stop message and repair the blocked contract before retrying.
 
-In strict project-backed peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. Strict preflight also enforces the semantic gates `bibliography_audit_clean` and `reproducibility_ready`; those artifacts must be review-ready, not merely present. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts. For explicit external artifact review, these manuscript-root publication artifacts become optional supporting context when present and must not block intake by themselves.
-Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent contract-backed evidence.
+In strict project-backed peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. Strict preflight also enforces the semantic gates `bibliography_audit_clean` and `reproducibility_ready`; those artifacts must be review-ready, not merely present. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts.
+In `standalone explicit-artifact review`, manuscript-root publication artifacts, `GPD/STATE.md`, `GPD/ROADMAP.md`, phase summaries, and verification reports become additive supporting context when present and must not block intake by themselves unless the user explicitly makes them authoritative.
+Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent evidence required by the resolved review target or an authoritative project contract.
 </step>
 
 <step name="artifact_discovery">
@@ -173,8 +191,9 @@ Load the following files:
 
 Infer the target journal from `${PAPER_CONFIG_PATH}` when available; otherwise use `unspecified`.
 Do not rediscover the manuscript by `find` or first-match globbing at this stage; the resolved manuscript root from init/preflight remains authoritative.
+In `project-backed manuscript review`, `GPD/STATE.md`, `GPD/ROADMAP.md`, phase summaries, verification reports, comparison artifacts, and strict manuscript-root publication artifacts are authoritative evidence surfaces. In `standalone explicit-artifact review`, treat those project files as additive diagnostics only when they are already present; do not fail the workflow merely because they are absent.
 
-If bundle context is present, compare its decisive-artifact and reference expectations against the actual comparison artifacts and figure tracker. Missing bundle-suggested coverage is a warning unless the manuscript has narrowed the claim honestly; missing contract-backed decisive evidence remains a blocker.
+If bundle context is present, compare its decisive-artifact and reference expectations against the actual comparison artifacts and figure tracker. Missing bundle-suggested coverage is a warning unless the manuscript has narrowed the claim honestly; missing decisive evidence required by an authoritative project contract remains a blocker in `project-backed manuscript review`.
 
 Create the review artifact directory if needed:
 
@@ -210,60 +229,60 @@ When proof-bearing review is active:
 <step name="round_detection">
 **Detect whether this is an initial review or a revision round:**
 
-Check for the latest complete prior review/response package with explicit file tests:
+Use the subject-aware `INIT` payload as the source of truth for prior review and response state. Do not infer rounds by scanning `GPD/REFEREE-REPORT*`, `GPD/AUTHOR-RESPONSE*`, or `GPD/review/REFEREE_RESPONSE*` filenames in isolation.
+
+Read from `INIT`:
+
+- `latest_review_round`, `latest_review_round_suffix`, `latest_review_artifacts`
+- `latest_response_round`, `latest_response_round_suffix`, `latest_response_artifacts`
 
 ```bash
 ROUND=1
 ROUND_SUFFIX=""
 
-ROUND1_REPORT="GPD/REFEREE-REPORT.md"
-ROUND1_AUTHOR_RESPONSE="GPD/AUTHOR-RESPONSE.md"
-ROUND1_REFEREE_RESPONSE="GPD/review/REFEREE_RESPONSE.md"
+LATEST_REVIEW_STATE=$(echo "$INIT" | gpd json get .latest_review_artifacts.state --default missing)
+LATEST_REVIEW_ROUND=$(echo "$INIT" | gpd json get .latest_review_round --default 0)
+LATEST_REVIEW_SUFFIX=$(echo "$INIT" | gpd json get .latest_review_round_suffix --default "")
+LATEST_RESPONSE_STATE=$(echo "$INIT" | gpd json get .latest_response_artifacts.state --default missing)
+LATEST_RESPONSE_ROUND=$(echo "$INIT" | gpd json get .latest_response_round --default 0)
 
-ROUND2_REPORT="GPD/REFEREE-REPORT-R2.md"
-ROUND2_AUTHOR_RESPONSE="GPD/AUTHOR-RESPONSE-R2.md"
-ROUND2_REFEREE_RESPONSE="GPD/review/REFEREE_RESPONSE-R2.md"
-
-ROUND1_COMPLETE=0
-ROUND2_COMPLETE=0
-
-if [[ -f "$ROUND1_REPORT" || -f "$ROUND1_AUTHOR_RESPONSE" || -f "$ROUND1_REFEREE_RESPONSE" ]]; then
-  if [[ -f "$ROUND1_REPORT" && -f "$ROUND1_AUTHOR_RESPONSE" && -f "$ROUND1_REFEREE_RESPONSE" ]]; then
-    ROUND1_COMPLETE=1
-  else
-    echo "ERROR: Partial round-1 review package detected. Require GPD/REFEREE-REPORT.md, GPD/AUTHOR-RESPONSE.md, and GPD/review/REFEREE_RESPONSE.md before advancing."
-    exit 1
-  fi
+if [[ "$LATEST_REVIEW_STATE" == "partial" || "$LATEST_REVIEW_STATE" == "invalid" ]]; then
+  echo "ERROR: The latest review bundle for the resolved target is incomplete or invalid. Repair the target-bound review artifacts before advancing."
+  exit 1
 fi
 
-if [[ -f "$ROUND2_REPORT" || -f "$ROUND2_AUTHOR_RESPONSE" || -f "$ROUND2_REFEREE_RESPONSE" ]]; then
-  if [[ $ROUND1_COMPLETE -ne 1 ]]; then
-    echo "ERROR: Found round-2 artifacts before a complete round-1 response package. Stop and repair the review record before advancing."
-    exit 1
-  fi
-  if [[ -f "$ROUND2_REPORT" && -f "$ROUND2_AUTHOR_RESPONSE" && -f "$ROUND2_REFEREE_RESPONSE" ]]; then
-    ROUND2_COMPLETE=1
-  else
-    echo "ERROR: Partial round-2 review package detected. Require GPD/REFEREE-REPORT-R2.md, GPD/AUTHOR-RESPONSE-R2.md, and GPD/review/REFEREE_RESPONSE-R2.md before advancing."
-    exit 1
-  fi
+if [[ "$LATEST_RESPONSE_STATE" == "partial" || "$LATEST_RESPONSE_STATE" == "invalid" ]]; then
+  echo "ERROR: The latest response bundle for the resolved target is incomplete or invalid. Repair the target-bound response artifacts before advancing."
+  exit 1
 fi
 
-if [[ $ROUND2_COMPLETE -eq 1 ]]; then
-  ROUND=3
-  ROUND_SUFFIX="-R3"
-elif [[ $ROUND1_COMPLETE -eq 1 ]]; then
-  ROUND=2
-  ROUND_SUFFIX="-R2"
+if [[ "$LATEST_RESPONSE_STATE" == "complete" && "$LATEST_REVIEW_STATE" != "complete" ]]; then
+  echo "ERROR: A response bundle exists without a complete target-bound review bundle. Repair the review record before advancing."
+  exit 1
+fi
+
+if [[ "$LATEST_REVIEW_STATE" == "complete" ]]; then
+  if [[ "$LATEST_RESPONSE_STATE" != "complete" ]]; then
+    echo "ERROR: Found a complete prior review round for the resolved target without a paired author/referee response package. Finish the response round before advancing."
+    exit 1
+  fi
+  if [[ "$LATEST_RESPONSE_ROUND" != "$LATEST_REVIEW_ROUND" ]]; then
+    echo "ERROR: Latest response round does not match the latest review round for the resolved target. Repair the target-bound review record before advancing."
+    exit 1
+  fi
+  ROUND=$((LATEST_REVIEW_ROUND + 1))
+  if [[ $ROUND -ge 2 ]]; then
+    ROUND_SUFFIX="-R${ROUND}"
+  fi
 fi
 ```
 
 Set:
 
-- `ROUND=1`, `ROUND_SUFFIX=""` when no prior complete response package exists
-- `ROUND=2`, `ROUND_SUFFIX="-R2"` only if `GPD/REFEREE-REPORT.md`, `GPD/AUTHOR-RESPONSE.md`, and `GPD/review/REFEREE_RESPONSE.md` all exist
-- `ROUND=3`, `ROUND_SUFFIX="-R3"` only if `GPD/REFEREE-REPORT-R2.md`, `GPD/AUTHOR-RESPONSE-R2.md`, and `GPD/review/REFEREE_RESPONSE-R2.md` all exist
-- If the latest candidate round has a partial package, stop fail-closed and repair it before advancing. Do not infer the next round from a lone report or author response.
+- `ROUND=1`, `ROUND_SUFFIX=""` when `INIT` reports no complete prior target-bound review/response package
+- `ROUND=N+1` only when `INIT` reports a complete latest review bundle and a matching complete latest response bundle for the same resolved target manuscript
+- If `INIT` reports a partial or invalid latest review/response bundle, stop fail-closed and repair it before advancing
+- Do not infer the next round from a lone report, author response, referee response, or mismatched suffix under `GPD/`
 
 Stage artifacts for revision rounds should use the same suffix:
 
@@ -554,7 +573,7 @@ Focus on:
 3. Unsupported or unfounded connections between formal manipulations and physics
 4. Whether decisive comparison artifacts, benchmark anchors, and estimator caveats expected by the specialized workflow are actually visible in the manuscript or honestly scoped down
 
-Treat bundle guidance as additive skepticism only: it may highlight missing decisive comparisons or estimator caveats, but it must not replace contract-backed evidence or create new manuscript obligations out of thin air.
+Treat bundle guidance as additive skepticism only: it may highlight missing decisive comparisons or estimator caveats, but it must not replace authoritative evidence required by the resolved review target or project contract or create new manuscript obligations out of thin air.
 
 Return STAGE 4 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 4: physical soundness"
@@ -692,7 +711,7 @@ Files to read:
 - Summary artifacts matching `GPD/phases/*/*SUMMARY.md` if present
 - `GPD/phases/*/*-VERIFICATION.md` if present
 
-If this is a revision round, also read the latest `REFEREE-REPORT*.md` and matching `AUTHOR-RESPONSE*.md` when present.
+If this is a revision round, also read the target-aware `latest_referee_report_md` and `latest_author_response` surfaced by `INIT` when present.
 
 If any required staged-review artifact is missing, malformed, or uses the wrong round suffix, STOP and report that failure instead of falling back to standalone review.
 

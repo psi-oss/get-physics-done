@@ -61,15 +61,19 @@ from gpd.core.constants import (
 )
 from gpd.core.errors import ConfigError, GPDError
 from gpd.core.manuscript_artifacts import (
-    _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
-)
-from gpd.core.manuscript_artifacts import (
     locate_publication_artifact,
     resolve_current_manuscript_resolution,
 )
 from gpd.core.onboarding_surfaces import (
     beginner_onboarding_hub_url,
     beginner_startup_ladder_text,
+)
+from gpd.core.peer_review_mode import (
+    PEER_REVIEW_INVALID_SUBJECT_MODE,
+    PEER_REVIEW_PROJECT_BACKED_MODE,
+    PeerReviewModeResolution,
+    resolve_peer_review_mode_details,
+    resolve_review_manuscript_target,
 )
 from gpd.core.project_reentry import (
     ProjectReentryResolution,
@@ -411,6 +415,10 @@ class ReviewPreflightResult:
     blocking_conditions: list[str]
     conditional_requirements: list[ReviewContractConditionalRequirement]
     active_conditional_requirements: list[ReviewContractConditionalRequirement]
+    effective_required_evidence: list[str]
+    effective_blocking_conditions: list[str]
+    resolved_mode: str = ""
+    mode_reason: str = ""
     validated_surface: str = "public_runtime_command_surface"
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
@@ -438,6 +446,8 @@ class CommandContextPreflightResult:
     explicit_inputs: list[str]
     guidance: str
     checks: list[CommandContextCheck]
+    resolved_mode: str = ""
+    mode_reason: str = ""
     validated_surface: str = "public_runtime_command_surface"
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
@@ -4375,6 +4385,10 @@ def init_write_paper(
 
 @init_app.command("peer-review")
 def init_peer_review(
+    subject: str | None = typer.Argument(
+        None,
+        help="Optional explicit review target path for peer-review context resolution.",
+    ),
     stage: str | None = typer.Option(
         None,
         "--stage",
@@ -4385,7 +4399,7 @@ def init_peer_review(
     from gpd.core.context import init_peer_review
 
     try:
-        payload = init_peer_review(_get_cwd(), stage=stage)
+        payload = init_peer_review(_get_cwd(), subject=subject, stage=stage)
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
@@ -5546,138 +5560,15 @@ def _resolve_review_preflight_manuscript(
     allowed_suffixes: Collection[str] | None = None,
 ) -> tuple[Path | None, str]:
     """Resolve a review-preflight manuscript target from an explicit subject or defaults."""
-
-    project_root = cwd.resolve(strict=False)
-    subject_base = (workspace_cwd or cwd).resolve(strict=False)
-    normalized_allowed_suffixes = {
-        suffix.lower()
-        for suffix in (
-            allowed_suffixes if allowed_suffixes is not None else ({".tex", ".md"} if allow_markdown else {".tex"})
-        )
-    }
-    if not normalized_allowed_suffixes:
-        normalized_allowed_suffixes = {".tex"}
-
-    def _allowed_suffix_message() -> str:
-        preferred_order = (".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx", ".xlsm")
-        ordered_suffixes = [suffix for suffix in preferred_order if suffix in normalized_allowed_suffixes]
-        extras = sorted(suffix for suffix in normalized_allowed_suffixes if suffix not in set(preferred_order))
-        ordered_suffixes.extend(extras)
-        if ordered_suffixes == [".tex"]:
-            return ".tex file"
-        if len(ordered_suffixes) == 2:
-            return f"{ordered_suffixes[0]} or {ordered_suffixes[1]} file"
-        return ", ".join(ordered_suffixes[:-1]) + f", or {ordered_suffixes[-1]} file"
-
-    def _supported_explicit_manuscript_target(target: Path) -> bool:
-        try:
-            relative = target.resolve(strict=False).relative_to(project_root)
-        except ValueError:
-            return False
-        return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
-
-    def _supported_root_resolution_for_target(target: Path) -> tuple[Path, object] | tuple[None, None]:
-        try:
-            relative = target.resolve(strict=False).relative_to(project_root)
-        except ValueError:
-            return None, None
-        if not relative.parts or relative.parts[0] not in {"paper", "manuscript", "draft"}:
-            return None, None
-        manuscript_root = project_root / relative.parts[0]
-        return manuscript_root, resolve_manuscript_entrypoint_from_root_resolution(
-            manuscript_root,
-            allow_markdown=allow_markdown,
-        )
-
-    if subject:
-        target = Path(subject)
-        if not target.is_absolute():
-            target = subject_base / target
-
-        target = target.resolve(strict=False)
-        target_is_supported_root = _supported_explicit_manuscript_target(target)
-        if restrict_to_supported_roots and not target_is_supported_root:
-            return (
-                None,
-                "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project",
-            )
-        if not target.exists():
-            return None, f"missing explicit manuscript target {_format_display_path(target)}"
-        if target.is_file():
-            target_suffix = target.suffix.lower()
-            if target_suffix in normalized_allowed_suffixes:
-                if target_suffix in {".tex", ".md"}:
-                    manuscript_root, root_resolution = _supported_root_resolution_for_target(target)
-                    if manuscript_root is not None and root_resolution is not None:
-                        if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
-                            return (
-                                None,
-                                f"{_format_display_path(manuscript_root)} is ambiguous or inconsistent: {root_resolution.detail}",
-                            )
-                        if root_resolution.manuscript_entrypoint.resolve(strict=False) != target.resolve(strict=False):
-                            return (
-                                None,
-                                (
-                                    f"{_format_display_path(target)} does not match the resolved manuscript entrypoint "
-                                    f"{_format_display_path(root_resolution.manuscript_entrypoint)} under "
-                                    f"{_format_display_path(manuscript_root)}"
-                                ),
-                            )
-                return target, f"{_format_display_path(target)} present"
-            if target_suffix == ".md" and normalized_allowed_suffixes == {".tex"}:
-                return None, f"explicit manuscript target must be a .tex file: {_format_display_path(target)}"
-            return (
-                None,
-                f"explicit manuscript target must be a {_allowed_suffix_message()}: {_format_display_path(target)}",
-            )
-
-        if target.is_dir():
-            manuscript_root, root_resolution = _supported_root_resolution_for_target(target)
-            resolution = (
-                root_resolution
-                if manuscript_root is not None and root_resolution is not None
-                else resolve_manuscript_entrypoint_from_root_resolution(target, allow_markdown=allow_markdown)
-            )
-            if resolution.status == "resolved" and resolution.manuscript_entrypoint is not None:
-                if manuscript_root is not None and manuscript_root != target:
-                    resolved_entrypoint = resolution.manuscript_entrypoint.resolve(strict=False)
-                    try:
-                        resolved_entrypoint.relative_to(target)
-                    except ValueError:
-                        return (
-                            None,
-                            (
-                                f"{_format_display_path(target)} does not contain the resolved manuscript entrypoint "
-                                f"{_format_display_path(resolution.manuscript_entrypoint)} under "
-                                f"{_format_display_path(manuscript_root)}"
-                            ),
-                        )
-                return (
-                    resolution.manuscript_entrypoint,
-                    f"{_format_display_path(target)} resolved to {_format_display_path(resolution.manuscript_entrypoint)}",
-                )
-            if resolution.status == "missing":
-                return None, f"no manuscript entry point found under {_format_display_path(target)}"
-            return None, f"{_format_display_path(target)} is ambiguous or inconsistent: {resolution.detail}"
-
-    resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=allow_markdown)
-    manuscript = resolution.manuscript_entrypoint
-    if manuscript is not None and resolution.status == "resolved":
-        return manuscript, f"{_format_display_path(manuscript)} present"
-    if allow_markdown:
-        if resolution.status == "missing":
-            return (
-                None,
-                "no manuscript entrypoint found under paper/, manuscript/, or draft/ "
-                "(expected ARTIFACT-MANIFEST.json or PAPER-CONFIG.json-derived output)",
-            )
-        return (
-            None,
-            f"ambiguous or inconsistent manuscript roots: {resolution.detail}",
-        )
-    if resolution.status == "missing":
-        return None, "no LaTeX manuscript entrypoint found under paper/, manuscript/, or draft/"
-    return None, f"ambiguous or inconsistent manuscript roots: {resolution.detail}"
+    return resolve_review_manuscript_target(
+        cwd,
+        subject,
+        allow_markdown=allow_markdown,
+        restrict_to_supported_roots=restrict_to_supported_roots,
+        workspace_cwd=workspace_cwd,
+        allowed_suffixes=allowed_suffixes,
+        display_cwd=workspace_cwd or cwd,
+    )
 
 
 def _resolve_review_preflight_publication_artifact(manuscript: Path, *filenames: str) -> Path | None:
@@ -5762,10 +5653,33 @@ def _requires_theorem_bearing_manuscript_review(
     return manuscript is not None and manuscript_requires_theorem_bearing_review(project_cwd, manuscript)
 
 
+def _review_contract_declared_preflight_checks(contract: object) -> set[str]:
+    """Return every preflight check declared directly or conditionally on one review contract."""
+
+    declared_checks = set(getattr(contract, "preflight_checks", []) or [])
+    for requirement in list(getattr(contract, "conditional_requirements", []) or []):
+        declared_checks.update(list(getattr(requirement, "preflight_checks", []) or []))
+        declared_checks.update(list(getattr(requirement, "blocking_preflight_checks", []) or []))
+    return declared_checks
+
+
 def _review_contract_requests_check(contract: object, check_name: str) -> bool:
     """Return whether the review contract explicitly asks the CLI to execute one check."""
 
-    return check_name in list(getattr(contract, "preflight_checks", []) or [])
+    return check_name in _review_contract_declared_preflight_checks(contract)
+
+
+def _review_contract_active_requested_preflight_checks(
+    contract: object,
+    active_conditional_requirements: list[ReviewContractConditionalRequirement] | None = None,
+) -> set[str]:
+    """Return the preflight checks active for the current resolved review context."""
+
+    active_checks = set(getattr(contract, "preflight_checks", []) or [])
+    for requirement in list(active_conditional_requirements or []):
+        active_checks.update(list(getattr(requirement, "preflight_checks", []) or []))
+        active_checks.update(list(getattr(requirement, "blocking_preflight_checks", []) or []))
+    return active_checks
 
 
 def _review_preflight_check_is_blocking(
@@ -5785,12 +5699,21 @@ def _review_contract_active_conditional_requirements(
     *,
     project_cwd: Path,
     manuscript: Path | None,
+    resolved_mode: str = "",
 ) -> list[object]:
     """Return conditionals whose trigger is active for the current manuscript."""
 
     active_requirements: list[object] = []
     for requirement in list(getattr(contract, "conditional_requirements", []) or []):
         when = str(getattr(requirement, "when", "") or "").strip()
+        if when == "project-backed manuscript review":
+            if resolved_mode == "project-backed manuscript review":
+                active_requirements.append(requirement)
+            continue
+        if when == "standalone explicit-artifact review":
+            if resolved_mode == "standalone explicit-artifact review":
+                active_requirements.append(requirement)
+            continue
         if when in {
             "theorem-bearing claims are present",
             "theorem-bearing manuscripts are present",
@@ -5798,6 +5721,29 @@ def _review_contract_active_conditional_requirements(
             if _requires_theorem_bearing_manuscript_review(project_cwd, manuscript):
                 active_requirements.append(requirement)
     return active_requirements
+
+
+def _effective_review_contract_strings(
+    base_values: Collection[str],
+    active_requirements: Collection[object],
+    attribute_name: str,
+) -> list[str]:
+    """Return a deduplicated list of active review-contract string requirements."""
+
+    effective_values: list[str] = []
+    seen: set[str] = set()
+    for value in list(base_values):
+        normalized = str(value).strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            effective_values.append(normalized)
+    for requirement in active_requirements:
+        for value in list(getattr(requirement, attribute_name, []) or []):
+            normalized = str(value).strip()
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                effective_values.append(normalized)
+    return effective_values
 
 
 def _evaluate_review_required_state(
@@ -6621,12 +6567,14 @@ def _command_supports_explicit_manuscript_subject(command: object) -> bool:
         return False
     if _review_contract_requests_check(contract, "referee_report_source"):
         return False
-    return bool(_command_required_file_patterns(command))
+    return bool(_command_required_file_patterns(command)) or getattr(command, "name", "") == "gpd:peer-review"
 
 
 def _command_allows_manuscript_bootstrap(command: object) -> bool:
     """Return whether missing manuscript roots are expected to be bootstrapped."""
     contract = getattr(command, "review_contract", None)
+    if getattr(command, "name", "") == "gpd:peer-review":
+        return False
     return (
         _command_requires_manuscript_context(command)
         and not _command_required_file_patterns(command)
@@ -6730,13 +6678,26 @@ def _resolve_registry_command(command_name: str) -> tuple[object, str]:
     return command, _canonical_command_name(command_name)
 
 
-def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) -> bool:
-    """Return whether *target* lives under a canonical manuscript root in *project_root*."""
-    try:
-        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
-    except ValueError:
-        return False
-    return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
+def _peer_review_mode_resolution(
+    project_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> PeerReviewModeResolution:
+    """Return the resolved peer-review intake mode plus target details."""
+
+    return resolve_peer_review_mode_details(project_root, subject, workspace_cwd=workspace_cwd)
+
+
+def _peer_review_resolved_mode(
+    project_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> tuple[str, str]:
+    """Return the resolved peer-review intake mode and the reason it was selected."""
+    resolution = _peer_review_mode_resolution(project_root, subject, workspace_cwd=workspace_cwd)
+    return resolution.resolved_mode, resolution.mode_reason
 
 
 def _peer_review_external_mode_requested(
@@ -6746,18 +6707,7 @@ def _peer_review_external_mode_requested(
     workspace_cwd: Path | None = None,
 ) -> bool:
     """Return whether peer-review should treat the current request as external-artifact mode."""
-    from gpd.core.constants import ProjectLayout
-
-    layout = ProjectLayout(project_root)
-    if not layout.project_md.exists():
-        return True
-    if not isinstance(subject, str) or not subject.strip():
-        return False
-
-    target = Path(subject)
-    if not target.is_absolute():
-        target = (workspace_cwd or project_root) / target
-    return not _path_is_within_supported_manuscript_root(project_root, target.resolve(strict=False))
+    return _peer_review_mode_resolution(project_root, subject, workspace_cwd=workspace_cwd).standalone_artifact_mode
 
 
 def _peer_review_artifact_text_surface_ready(
@@ -7093,6 +7043,22 @@ def _build_command_context_preflight(
         ),
     )
     explicit_inputs_ok = predicate(arguments)
+    resolved_mode = ""
+    mode_reason = ""
+    explicit_inputs_detail = "explicit standalone inputs detected"
+    peer_review_has_explicit_target = command.name == "gpd:peer-review" and _has_simple_positional_inputs(arguments)
+    peer_review_mode = None
+    if command.name == "gpd:peer-review":
+        peer_review_mode = _peer_review_mode_resolution(context_cwd, arguments, workspace_cwd=cwd)
+        resolved_mode = peer_review_mode.resolved_mode
+        mode_reason = peer_review_mode.mode_reason
+        if peer_review_has_explicit_target:
+            explicit_inputs_ok = peer_review_mode.resolved_mode != PEER_REVIEW_INVALID_SUBJECT_MODE
+            explicit_inputs_detail = (
+                peer_review_mode.resolution_detail
+                if explicit_inputs_ok
+                else f"invalid explicit review target: {peer_review_mode.mode_reason}"
+            )
     interactive_intake_allowed = (
         _command_allows_interactive_standalone_intake(command)
         and not explicit_inputs_ok
@@ -7112,8 +7078,8 @@ def _build_command_context_preflight(
         "explicit_inputs",
         explicit_inputs_ok or interactive_intake_allowed,
         (
-            "explicit standalone inputs detected"
-            if explicit_inputs_ok
+            explicit_inputs_detail
+            if explicit_inputs_ok or (command.name == "gpd:peer-review" and peer_review_has_explicit_target)
             else (
                 "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
                 "or use the current GPD project when available"
@@ -7121,10 +7087,26 @@ def _build_command_context_preflight(
                 else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
             )
         ),
-        blocking=not project_exists and not interactive_intake_allowed,
+        blocking=(
+            peer_review_has_explicit_target
+            if command.name == "gpd:peer-review"
+            else not project_exists and not interactive_intake_allowed
+        ),
     )
-    passed = project_exists or explicit_inputs_ok or interactive_intake_allowed
-    guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+    passed = (
+        explicit_inputs_ok
+        if command.name == "gpd:peer-review" and peer_review_has_explicit_target
+        else project_exists or explicit_inputs_ok or interactive_intake_allowed
+    )
+    guidance = (
+        ""
+        if passed
+        else (
+            explicit_inputs_detail
+            if command.name == "gpd:peer-review" and peer_review_has_explicit_target and not explicit_inputs_ok
+            else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+        )
+    )
     return CommandContextPreflightResult(
         command=public_command_name,
         context_mode=command.context_mode,
@@ -7133,6 +7115,8 @@ def _build_command_context_preflight(
         explicit_inputs=explicit_inputs,
         guidance=guidance,
         checks=checks,
+        resolved_mode=resolved_mode,
+        mode_reason=mode_reason,
         validated_surface=_validated_runtime_surface(cwd=cwd),
         public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
         dispatch_note=dispatch_note,
@@ -7157,21 +7141,26 @@ def _build_review_preflight(
     contract = command.review_contract
     if contract is None:
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
-    external_peer_review_mode = _peer_review_external_mode_requested(project_cwd, subject, workspace_cwd=cwd)
+    resolved_mode = ""
+    mode_reason = ""
+    standalone_peer_review_mode = False
 
     checks: list[ReviewPreflightCheck] = []
     phase_subject = subject
-    if phase_subject is None and "phase_artifacts" in contract.preflight_checks:
+    if phase_subject is None and _review_contract_requests_check(contract, "phase_artifacts"):
         phase_subject = _current_review_phase_subject(project_cwd)
     phase_info = (
         find_phase(project_cwd, phase_subject)
-        if phase_subject and "phase_artifacts" in contract.preflight_checks
+        if phase_subject and _review_contract_requests_check(contract, "phase_artifacts")
         else None
     )
     manuscript: Path | None = None
     active_conditional_requirements: list[ReviewContractConditionalRequirement] = []
-
     conditional_blocking_preflight_checks: set[str] = set()
+    active_requested_preflight_checks = _review_contract_active_requested_preflight_checks(contract)
+
+    def requested_review_check(check_name: str) -> bool:
+        return check_name in active_requested_preflight_checks
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool | None = None) -> None:
         checks.append(
@@ -7193,8 +7182,30 @@ def _build_review_preflight(
 
     context_preflight = _build_command_context_preflight(command_name, arguments=subject)
     context_detail = context_preflight.guidance or f"context_mode={command.context_mode}"
+    if context_preflight.resolved_mode:
+        context_detail = f"{context_detail}; resolved_mode={context_preflight.resolved_mode}"
+    if context_preflight.mode_reason:
+        context_detail = f"{context_detail}; {context_preflight.mode_reason}"
     if context_preflight.dispatch_note:
         context_detail = f"{context_detail}; {context_preflight.dispatch_note}"
+    if command.name == "gpd:peer-review":
+        resolved_mode, mode_reason = _peer_review_resolved_mode(project_cwd, subject, workspace_cwd=cwd)
+        standalone_peer_review_mode = resolved_mode != PEER_REVIEW_PROJECT_BACKED_MODE
+        active_conditional_requirements = _review_contract_active_conditional_requirements(
+            contract,
+            project_cwd=project_cwd,
+            manuscript=None,
+            resolved_mode=resolved_mode,
+        )
+        conditional_blocking_preflight_checks = {
+            check_name
+            for requirement in active_conditional_requirements
+            for check_name in list(getattr(requirement, "blocking_preflight_checks", []) or [])
+        }
+        active_requested_preflight_checks = _review_contract_active_requested_preflight_checks(
+            contract,
+            active_conditional_requirements,
+        )
     add_check(
         "command_context",
         context_preflight.passed,
@@ -7202,8 +7213,8 @@ def _build_review_preflight(
         blocking=_review_preflight_check_is_blocking(contract, "command_context"),
     )
 
-    if "project_state" in contract.preflight_checks:
-        if external_peer_review_mode:
+    if requested_review_check("project_state"):
+        if standalone_peer_review_mode:
             add_check(
                 "project_state",
                 True,
@@ -7228,8 +7239,8 @@ def _build_review_preflight(
                     detail = f"{detail}; {'; '.join(validation.issues)}"
                 add_check("state_integrity", validation.valid, detail, blocking=True)
 
-    if "roadmap" in contract.preflight_checks:
-        if external_peer_review_mode:
+    if requested_review_check("roadmap"):
+        if standalone_peer_review_mode:
             add_check("roadmap", True, "external artifact review: roadmap is optional", blocking=False)
         else:
             add_check(
@@ -7242,8 +7253,8 @@ def _build_review_preflight(
                 ),
             )
 
-    if "conventions" in contract.preflight_checks:
-        if external_peer_review_mode:
+    if requested_review_check("conventions"):
+        if standalone_peer_review_mode:
             add_check("conventions", True, "external artifact review: project conventions are optional", blocking=False)
         else:
             add_check(
@@ -7256,15 +7267,15 @@ def _build_review_preflight(
                 ),
             )
 
-    if "research_artifacts" in contract.preflight_checks:
-        if external_peer_review_mode:
+    if requested_review_check("research_artifacts"):
+        if standalone_peer_review_mode:
             add_check(
                 "research_artifacts",
                 True,
                 "external artifact review: phase summaries or milestone digests are optional",
                 blocking=False,
             )
-            if _review_contract_requests_check(contract, "verification_reports"):
+            if requested_review_check("verification_reports"):
                 add_check(
                     "verification_reports",
                     True,
@@ -7287,7 +7298,7 @@ def _build_review_preflight(
                     else "; ".join(summary_failures[:3]),
                     blocking=True,
                 )
-            verification_reports_requested = _review_contract_requests_check(contract, "verification_reports")
+            verification_reports_requested = requested_review_check("verification_reports")
             if verification_reports_requested:
                 verification_exists = layout.phases_dir.exists() and any(layout.phases_dir.rglob("*VERIFICATION.md"))
                 add_check(
@@ -7306,7 +7317,7 @@ def _build_review_preflight(
                         blocking=True,
                     )
 
-    if "manuscript" in contract.preflight_checks:
+    if requested_review_check("manuscript"):
         allow_markdown = not _command_requires_compiled_manuscript(command)
         supports_explicit_manuscript_subject = _command_supports_explicit_manuscript_subject(command)
         if supports_explicit_manuscript_subject:
@@ -7369,7 +7380,7 @@ def _build_review_preflight(
                 else f"{_format_display_path(manuscript)} present"
             ),
         )
-        if subject and _review_contract_requests_check(contract, "referee_report_source") and subject != "paste":
+        if subject and requested_review_check("referee_report_source") and subject != "paste":
             report_path = Path(subject)
             if not report_path.is_absolute():
                 report_path = project_cwd / report_path
@@ -7388,12 +7399,17 @@ def _build_review_preflight(
                     contract,
                     project_cwd=project_cwd,
                     manuscript=manuscript,
+                    resolved_mode=resolved_mode,
                 )
                 conditional_blocking_preflight_checks = {
                     check_name
                     for requirement in active_conditional_requirements
                     for check_name in list(getattr(requirement, "blocking_preflight_checks", []) or [])
                 }
+                active_requested_preflight_checks = _review_contract_active_requested_preflight_checks(
+                    contract,
+                    active_conditional_requirements,
+                )
             requested_publication_checks = {
                 check_name
                 for check_name in (
@@ -7409,7 +7425,7 @@ def _build_review_preflight(
                     "reproducibility_manifest",
                     "manuscript_proof_review",
                 )
-                if _review_contract_requests_check(contract, check_name)
+                if requested_review_check(check_name)
             }
             if requested_publication_checks:
                 publication_artifacts = _resolve_review_preflight_publication_artifacts(manuscript)
@@ -7420,10 +7436,10 @@ def _build_review_preflight(
                 if "artifact_manifest" in requested_publication_checks:
                     artifact_manifest_detail = (
                         "no ARTIFACT-MANIFEST.json found near the manuscript"
-                        if not external_peer_review_mode
+                        if not standalone_peer_review_mode
                         else "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
                     )
-                    artifact_manifest_passed = artifact_manifest is not None or external_peer_review_mode
+                    artifact_manifest_passed = artifact_manifest is not None or standalone_peer_review_mode
                     if artifact_manifest is not None:
                         artifact_manifest_detail = f"{_format_display_path(artifact_manifest)} present"
                         from gpd.mcp.paper.models import ArtifactManifest
@@ -7450,23 +7466,23 @@ def _build_review_preflight(
                         "artifact_manifest",
                         artifact_manifest_passed,
                         artifact_manifest_detail,
-                        blocking=not external_peer_review_mode,
+                        blocking=not standalone_peer_review_mode,
                     )
 
                 if "bibliography_audit" in requested_publication_checks:
                     add_check(
                         "bibliography_audit",
-                        bibliography_audit is not None or external_peer_review_mode,
+                        bibliography_audit is not None or standalone_peer_review_mode,
                         (
                             f"{_format_display_path(bibliography_audit)} present"
                             if bibliography_audit is not None
                             else (
                                 "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
-                                if not external_peer_review_mode
+                                if not standalone_peer_review_mode
                                 else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
                             )
                         ),
-                        blocking=not external_peer_review_mode,
+                        blocking=not standalone_peer_review_mode,
                     )
 
                 if "compiled_manuscript" in requested_publication_checks:
@@ -7692,21 +7708,21 @@ def _build_review_preflight(
                 if "reproducibility_manifest" in requested_publication_checks:
                     add_check(
                         "reproducibility_manifest",
-                        reproducibility_manifest is not None or external_peer_review_mode,
+                        reproducibility_manifest is not None or standalone_peer_review_mode,
                         (
                             f"{_format_display_path(reproducibility_manifest)} present"
                             if reproducibility_manifest is not None
                             else (
                                 "no reproducibility manifest found near the manuscript"
-                                if not external_peer_review_mode
+                                if not standalone_peer_review_mode
                                 else "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
                             )
                         ),
-                        blocking=not external_peer_review_mode,
+                        blocking=not standalone_peer_review_mode,
                     )
 
                 if "manuscript_proof_review" in requested_publication_checks:
-                    if external_peer_review_mode:
+                    if standalone_peer_review_mode:
                         manuscript_proof_review_passed = True
                         manuscript_proof_review_blocking = False
                         manuscript_proof_review_detail = (
@@ -7759,7 +7775,7 @@ def _build_review_preflight(
                         "bibliography_audit_clean",
                         clean,
                         detail,
-                        blocking=not external_peer_review_mode,
+                        blocking=not standalone_peer_review_mode,
                     )
                 if (
                     strict
@@ -7776,7 +7792,7 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             False,
                             f"could not validate reproducibility manifest: {exc}",
-                            blocking=not external_peer_review_mode,
+                            blocking=not standalone_peer_review_mode,
                         )
                     else:
                         ready = (
@@ -7796,10 +7812,10 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             ready,
                             detail,
-                            blocking=not external_peer_review_mode,
+                            blocking=not standalone_peer_review_mode,
                         )
 
-    if "phase_artifacts" in contract.preflight_checks:
+    if requested_review_check("phase_artifacts"):
         if subject:
             phase_exists = phase_info is not None
             add_check(
@@ -7860,6 +7876,16 @@ def _build_review_preflight(
     if required_state_check is not None:
         add_check("required_state", required_state_check[0], required_state_check[1], blocking=True)
 
+    effective_required_evidence = _effective_review_contract_strings(
+        getattr(contract, "required_evidence", []) or [],
+        active_conditional_requirements,
+        "required_evidence",
+    )
+    effective_blocking_conditions = _effective_review_contract_strings(
+        getattr(contract, "blocking_conditions", []) or [],
+        active_conditional_requirements,
+        "blocking_conditions",
+    )
     passed = all(check.passed or not check.blocking for check in checks)
     return ReviewPreflightResult(
         command=public_command_name,
@@ -7872,6 +7898,10 @@ def _build_review_preflight(
         blocking_conditions=contract.blocking_conditions,
         conditional_requirements=list(contract.conditional_requirements),
         active_conditional_requirements=active_conditional_requirements,
+        effective_required_evidence=effective_required_evidence,
+        effective_blocking_conditions=effective_blocking_conditions,
+        resolved_mode=resolved_mode,
+        mode_reason=mode_reason,
         validated_surface=context_preflight.validated_surface,
         public_runtime_command_prefix=context_preflight.public_runtime_command_prefix,
         local_cli_equivalence_guaranteed=context_preflight.local_cli_equivalence_guaranteed,

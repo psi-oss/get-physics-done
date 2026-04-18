@@ -45,6 +45,8 @@ AGENT_SHARED_STATE_AUTHORITIES = ("return_only", "direct")
 REVIEW_CONTRACT_MODES = ("publication", "review")
 REVIEW_CONTRACT_REQUIRED_STATES = ("phase_executed",)
 REVIEW_CONTRACT_CONDITIONAL_WHENS = (
+    "project-backed manuscript review",
+    "standalone explicit-artifact review",
     "theorem-bearing claims are present",
     "theorem-bearing manuscripts are present",
 )
@@ -147,7 +149,8 @@ def review_contract_visibility_note() -> str:
         "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, and `stage_artifacts` are lists when present;",
         f"`preflight_checks` entries must be {preflight_checks};",
         f"`conditional_requirements[].when` must be one of {conditional_whens};",
-        "`conditional_requirements[].blocking_preflight_checks` is a list when present and its entries must also appear in the top-level `preflight_checks` list.",
+        "`conditional_requirements[].preflight_checks` is a list when present and its entries must also be valid `preflight_checks` values.",
+        "`conditional_requirements[].blocking_preflight_checks` is a list when present and its entries must also be valid `preflight_checks` values.",
         "Each `conditional_requirements[].when` value may appear at most once.",
         "List fields reject blank entries and duplicates.",
         "Each conditional requirement must declare at least one non-empty field.",

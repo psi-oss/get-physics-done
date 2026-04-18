@@ -5,7 +5,7 @@
     {
       "id": "bootstrap",
       "order": 1,
-      "purpose": "manuscript routing, contract-gate validation, and bootstrap review setup",
+      "purpose": "target-aware manuscript routing, intake-mode bootstrap, contract-gate validation, and review setup",
       "mode_paths": [
         "workflows/peer-review.md"
       ],
@@ -15,6 +15,11 @@
         "commit_docs",
         "autonomy",
         "research_mode",
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",
@@ -27,6 +32,28 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_referee_report_md",
+        "latest_referee_report_tex",
+        "latest_proof_redteam",
+        "latest_review_artifacts",
+        "latest_response_round",
+        "latest_response_round_suffix",
+        "latest_author_response",
+        "latest_referee_response",
+        "latest_response_artifacts",
         "platform"
       ],
       "loaded_authorities": [
@@ -57,20 +84,22 @@
       "writes_allowed": [],
       "produced_state": [
         "bootstrap review state",
-        "manuscript routing state"
+        "target-aware manuscript routing state",
+        "prior round snapshot state"
       ],
       "next_stages": [
         "preflight"
       ],
       "checkpoints": [
-        "manuscript target resolved",
-        "contract gate remains visible"
+        "intake mode and manuscript target resolved",
+        "contract gate remains visible",
+        "target-local round state surfaced"
       ]
     },
     {
       "id": "preflight",
       "order": 2,
-      "purpose": "review prerequisite validation and manuscript-root readiness checks",
+      "purpose": "mode-aware prerequisite validation and manuscript-root readiness checks",
       "mode_paths": [
         "workflows/peer-review.md"
       ],
@@ -80,6 +109,11 @@
         "commit_docs",
         "autonomy",
         "research_mode",
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",
@@ -103,6 +137,15 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "publication_blockers",
+        "publication_blocker_count",
         "platform"
       ],
       "loaded_authorities": [
@@ -132,20 +175,20 @@
       "writes_allowed": [],
       "produced_state": [
         "review preflight state",
-        "manuscript artifact freshness state"
+        "mode-aware manuscript artifact freshness state"
       ],
       "next_stages": [
         "artifact_discovery"
       ],
       "checkpoints": [
         "review preflight completed",
-        "required manuscript artifacts visible"
+        "project-backed gates or standalone waivers resolved"
       ]
     },
     {
       "id": "artifact_discovery",
       "order": 3,
-      "purpose": "manuscript artifact loading, round detection, and proof-bearing routing",
+      "purpose": "manuscript artifact loading, target-aware round detection, and proof-bearing routing",
       "mode_paths": [
         "workflows/peer-review.md"
       ],
@@ -155,6 +198,11 @@
         "commit_docs",
         "autonomy",
         "research_mode",
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",
@@ -178,6 +226,28 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_referee_report_md",
+        "latest_referee_report_tex",
+        "latest_proof_redteam",
+        "latest_review_artifacts",
+        "latest_response_round",
+        "latest_response_round_suffix",
+        "latest_author_response",
+        "latest_referee_response",
+        "latest_response_artifacts",
         "platform"
       ],
       "loaded_authorities": [
@@ -209,15 +279,15 @@
       "writes_allowed": [],
       "produced_state": [
         "manuscript target routing state",
-        "round detection state",
+        "target-aware round detection state",
         "proof-bearing routing state"
       ],
       "next_stages": [
         "panel_stages"
       ],
       "checkpoints": [
-        "manuscript target resolved",
-        "review round established",
+        "target-aware manuscript route resolved",
+        "target-bound review round established",
         "proof-bearing routing resolved"
       ]
     },
@@ -234,6 +304,11 @@
         "commit_docs",
         "autonomy",
         "research_mode",
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",
@@ -320,6 +395,11 @@
         "commit_docs",
         "autonomy",
         "research_mode",
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",
@@ -343,6 +423,18 @@
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_referee_report_md",
+        "latest_review_artifacts",
+        "latest_response_round",
+        "latest_response_round_suffix",
+        "latest_author_response",
+        "latest_response_artifacts",
         "platform"
       ],
       "loaded_authorities": [
@@ -384,7 +476,7 @@
       "checkpoints": [
         "ledger and decision written",
         "referee report complete",
-        "recommendation validated"
+        "recommendation validated against target-bound round state"
       ]
     },
     {
@@ -400,6 +492,11 @@
         "commit_docs",
         "autonomy",
         "research_mode",
+        "review_target_input",
+        "review_target_mode",
+        "review_target_mode_reason",
+        "resolved_review_target",
+        "resolved_review_root",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",

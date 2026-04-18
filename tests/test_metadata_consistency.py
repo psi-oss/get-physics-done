@@ -432,8 +432,7 @@ def test_referee_response_round_suffix_convention_is_consistent() -> None:
     author_response = _read("src/gpd/specs/templates/paper/author-response.md")
     template = _read("src/gpd/specs/templates/paper/referee-response.md")
 
-    assert 'ROUND_SUFFIX="-R2"' in peer_review
-    assert 'ROUND_SUFFIX="-R3"' in peer_review
+    assert 'ROUND_SUFFIX="-R${ROUND}"' in peer_review
     assert '`GPD/review/REFEREE_RESPONSE{round_suffix}.md`' in respond
     assert '`GPD/AUTHOR-RESPONSE{round_suffix}.md`' in respond
     assert "GPD/paper" not in respond
@@ -452,8 +451,8 @@ def test_referee_response_round_suffix_convention_is_consistent() -> None:
     assert "ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null" not in respond
     assert "ls GPD/review/REVIEW-LEDGER*.json 2>/dev/null" not in respond
     assert "ls GPD/review/REFEREE-DECISION*.json 2>/dev/null" not in respond
-    assert "GPD/review/REFEREE_RESPONSE.md" in peer_review
-    assert "GPD/review/REFEREE_RESPONSE-R2.md" in peer_review
+    assert "GPD/AUTHOR-RESPONSE{ROUND_SUFFIX}.md" in peer_review
+    assert "GPD/review/REFEREE_RESPONSE{ROUND_SUFFIX}.md" in peer_review
     assert "matching paired response package exists for the same round" in referee
     assert re.search(
         r"If one response artifact is missing[\s\S]{0,140}stop fail-closed and report the incomplete response package",
