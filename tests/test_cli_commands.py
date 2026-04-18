@@ -5165,6 +5165,32 @@ class TestReviewValidationCommands:
             "or use the current GPD project when available"
         )
 
+    def test_command_context_respond_to_referees_flagged_intake_uses_canonical_input_labels(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-respond"
+        workspace.mkdir()
+        explicit_intake = (
+            f"--manuscript submission/{_CANONICAL_MANUSCRIPT_BASENAME} "
+            "--report reports/referee-1.md --report reports/referee-2.md"
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "respond-to-referees", explicit_intake],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:respond-to-referees"
+        assert payload["passed"] is True
+        assert payload["explicit_inputs"] == ["manuscript path", "path to referee report", "`paste`"]
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == "explicit standalone inputs detected"
+
     def test_review_preflight_peer_review_accepts_external_txt_artifact(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"
         workspace.mkdir()

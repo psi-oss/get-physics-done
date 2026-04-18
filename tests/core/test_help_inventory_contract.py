@@ -82,6 +82,8 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
 
     assert_publication_lane_boundary_contract(readme)
     assert_publication_lane_boundary_contract(help_workflow)
+    assert "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`" in readme
+    assert "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`" in help_workflow
     assert "The later publication commands stay stricter:" in readme
     assert "**`gpd:respond-to-referees [path to referee report or 'paste']`**" in help_workflow
     assert "**`gpd:arxiv-submission [paper directory path]`**" in help_workflow

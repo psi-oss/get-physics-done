@@ -1207,7 +1207,7 @@ def test_respond_to_referees_command_policy_surfaces_explicit_manuscript_and_rep
         subject_policy=registry.CommandSubjectPolicy(
             subject_kind="publication",
             resolution_mode="explicit_or_project_manuscript",
-            explicit_input_kinds=["manuscript_path", "referee_report_path", "pasted_referee_report"],
+            explicit_input_kinds=["manuscript_path", "referee_report_path", "paste_referee_report"],
             allow_external_subjects=True,
             supported_roots=["paper", "manuscript", "draft"],
             allowed_suffixes=[".tex", ".md"],

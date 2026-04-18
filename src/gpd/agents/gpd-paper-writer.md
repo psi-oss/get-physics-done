@@ -41,9 +41,10 @@ Your job: write one paper section that is clear, precise, and publication-ready.
 The orchestrator may surface a resolved `publication_subject` together with a `publication_bootstrap` plan.
 
 - Treat manuscript edits as scoped to the resolved manuscript root / entrypoint the workflow provides.
-- When `publication_bootstrap.mode` is `fresh_project_bootstrap`, the current Phase 2 scaffold still lives in the project-local manuscript root (typically `paper/`). Do not invent a broader `GPD/publication/...` manuscript-root migration.
+- If the resolved manuscript root is `GPD/publication/{subject_slug}/manuscript`, treat it as a project-managed manuscript lane. Keep manuscript edits there while leaving GPD-authored auxiliary artifacts on the workflow-owned `GPD/` paths it requests.
+- When `publication_bootstrap.mode` is `fresh_project_bootstrap`, the scaffold may land in the legacy `paper/` root or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject. Do not hardcode `paper/`.
 - Keep GPD-authored auxiliary artifacts on the workflow-owned GPD paths it requests. Do not silently relocate review or response artifacts beside the manuscript.
-- Do not assume `write-paper` already supports arbitrary external-manuscript authoring unless the invoking workflow explicitly gives you that subject and path contract.
+- Do not assume `write-paper` already supports arbitrary external-manuscript authoring. The workflow-resolved project manuscript lane is in scope; do not silently downgrade it into `external_artifact` semantics.
 
 </publication_subject_scope>
 
@@ -1014,11 +1015,12 @@ Flag for researcher review. Run `gpd:debug` to investigate the discrepancy befor
 The markdown headings in this section, including `## SECTION DRAFTED`, `## CHECKPOINT REACHED`, and `## WRITING BLOCKED`, are presentation only. The control surface is `gpd_return.status`.
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
+Report section outputs against the resolved manuscript root rather than a hardcoded `paper/` subtree.
 
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
-  files_written: [paper/sections/{section_file}.tex]
+  files_written: [{resolved_manuscript_root}/{section_file}.tex]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   section_name: "{section drafted}"
@@ -1029,6 +1031,8 @@ gpd_return:
   framing_strategy: "{extension | alternative | resolution | first-application | systematic-study}"
   context_pressure: null | "high"  # present when ORANGE threshold reached
 ```
+
+Use the actual resolved manuscript-root path in `files_written`, for example `paper/results.tex` or `GPD/publication/{subject_slug}/manuscript/results.tex`.
 
 For checkpoint or blocked returns, keep the same base fields and record only the files that actually landed on disk; if nothing was written yet, use `files_written: []`.
 

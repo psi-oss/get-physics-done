@@ -13,7 +13,7 @@ command-policy:
     explicit_input_kinds:
       - manuscript_path
       - referee_report_path
-      - pasted_referee_report
+      - paste_referee_report
     allow_external_subjects: true
     supported_roots:
       - paper
@@ -84,6 +84,7 @@ Keep the wrapper focused on referee triage, revision routing, and synchronized r
 Referee report source: $ARGUMENTS (file path or `paste`).
 
 Preferred explicit intake is `--manuscript PATH` plus one or more `--report PATH` flags; the legacy single report path or `paste` shorthand remains valid when the manuscript subject resolves from the current GPD project.
+The workflow first normalizes that explicit manuscript/report intake into one validator-safe subject payload before calling `validate command-context` or `validate review-preflight`; if the normalized payload itself begins with `--`, the workflow passes it after an end-of-options marker so the validator CLI does not reinterpret intake flags as validator options.
 The workflow resolves the manuscript root, staged review artifacts, and revision targets, and keeps GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is explicit or external.
 </context>
 

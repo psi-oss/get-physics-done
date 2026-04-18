@@ -83,6 +83,7 @@ Conduct a skeptical peer review of a completed manuscript from the current GPD p
 
 Keep the wrapper focused on the manuscript target, review prerequisites, and final routing. When announcing the panel to the user, say what each stage does in one concise sentence: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-bearing claims also trigger the auxiliary gpd-check-proof critic; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.
 Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace. The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory.
+If the current project has already moved onto the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`, keep that resolved manuscript root intact and continue to write staged review artifacts on the workflow-owned `GPD/` paths.
 
 **Why subagent:** Staged manuscript review burns context fast. Fresh context keeps the orchestrator lean.
 </objective>
@@ -98,6 +99,7 @@ If the current folder is a GPD project, treat `GPD/STATE.md` and `GPD/ROADMAP.md
 Interpret the review contract in two modes: project-backed review requires project state, roadmap, conventions, research artifacts, verification reports, and manuscript-root publication artifacts; explicit external-artifact review still requires the resolved manuscript target but treats those project/manuscript-local artifacts as optional supporting context when present.
 
 The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
+Compatibility note: centralized preflight may also hand you a resolved project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`. Treat that as the active current-project manuscript subject, but do not relocate the staged review outputs beside the manuscript.
 Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Do not use ad hoc wildcard discovery.
 If no explicit target is supplied, the workflow may either use the current GPD project manuscript when available or ask the user to point at a specific artifact path.
 

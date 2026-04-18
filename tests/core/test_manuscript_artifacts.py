@@ -186,17 +186,145 @@ def test_resolve_current_publication_subject_surfaces_artifact_base_and_path_sem
     assert subject.artifact_base == tmp_path / "paper"
     assert subject.artifact_manifest == tmp_path / "paper" / "ARTIFACT-MANIFEST.json"
     assert subject.path_semantics is not None
+    assert subject.publication_lane_kind == "canonical_project_manuscript"
+    assert subject.publication_lane_owner == "project_managed"
+    assert subject.publication_subject_slug is not None
+    assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / subject.publication_subject_slug
+    assert subject.managed_manuscript_root == subject.managed_publication_root / "manuscript"
     assert subject.path_semantics.artifact_base_path == "paper"
     assert subject.path_semantics.manuscript_entrypoint_path == "paper/sections/curvature_flow_bounds.tex"
     assert subject.path_semantics.subject_relative_entrypoint_path == "sections/curvature_flow_bounds.tex"
     bootstrap_context = subject.to_bootstrap_context_dict()
     assert bootstrap_context["publication_subject_status"] == "resolved"
     assert bootstrap_context["publication_subject_source"] == "current_project"
+    assert bootstrap_context["publication_subject_slug"] == subject.publication_subject_slug
+    assert bootstrap_context["publication_lane_kind"] == "canonical_project_manuscript"
+    assert bootstrap_context["publication_lane_owner"] == "project_managed"
     assert bootstrap_context["publication_artifact_base"] == "paper"
     assert bootstrap_context["manuscript_entrypoint"] == "paper/sections/curvature_flow_bounds.tex"
+    assert bootstrap_context["managed_publication_root"] == f"GPD/publication/{subject.publication_subject_slug}"
+    assert bootstrap_context["managed_manuscript_root"] == (
+        f"GPD/publication/{subject.publication_subject_slug}/manuscript"
+    )
     assert resolve_publication_subject_artifact(subject, "BIBLIOGRAPHY-AUDIT.json") == (
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json"
     )
+
+
+def test_resolve_current_publication_subject_supports_managed_project_manuscript_lane(tmp_path: Path) -> None:
+    manuscript_root = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+    _write(
+        manuscript_root / "main.tex",
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+    )
+    _write(
+        manuscript_root / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+    _write(manuscript_root / "BIBLIOGRAPHY-AUDIT.json", "{}\n")
+    _write(manuscript_root / "reproducibility-manifest.json", "{}\n")
+
+    subject = resolve_current_publication_subject(tmp_path)
+
+    assert subject.status == "resolved"
+    assert subject.source == "current_project"
+    assert subject.manuscript_root == manuscript_root
+    assert subject.manuscript_entrypoint == manuscript_root / "main.tex"
+    assert subject.artifact_base == manuscript_root
+    assert subject.publication_subject_slug == "curvature-flow-bounds"
+    assert subject.publication_lane_kind == "managed_publication_manuscript"
+    assert subject.publication_lane_owner == "project_managed"
+    assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / "curvature-flow-bounds"
+    assert subject.managed_manuscript_root == manuscript_root
+    assert resolve_current_manuscript_root(tmp_path) == manuscript_root
+    assert resolve_current_manuscript_entrypoint(tmp_path) == manuscript_root / "main.tex"
+
+
+def test_resolve_current_publication_subject_fails_closed_when_canonical_and_managed_lanes_both_resolve(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}Paper\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "paper-main",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+    manuscript_root = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+    _write(
+        manuscript_root / "main.tex",
+        "\\documentclass{article}\\begin{document}Managed\\end{document}\n",
+    )
+    _write(
+        manuscript_root / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "managed-main",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "1" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+
+    subject = resolve_current_publication_subject(tmp_path)
+
+    assert subject.status == "ambiguous"
+    assert subject.manuscript_root is None
+    assert subject.manuscript_entrypoint is None
+    assert "multiple manuscript roots resolve" in subject.detail
+    assert resolve_current_manuscript_entrypoint(tmp_path) is None
 
 
 def test_resolve_publication_bootstrap_resolution_defaults_to_fresh_project_bootstrap(tmp_path: Path) -> None:
@@ -206,6 +334,32 @@ def test_resolve_publication_bootstrap_resolution_defaults_to_fresh_project_boot
     assert bootstrap.bootstrap_root == tmp_path / "paper"
     assert "current write-paper bootstrap remains at" in bootstrap.detail
     assert bootstrap.to_context_dict()["bootstrap_root"] == "paper"
+
+
+def test_resolve_publication_bootstrap_resolution_prefers_unique_managed_lane_candidate(tmp_path: Path) -> None:
+    manuscript_root = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+    _write(
+        manuscript_root / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Curvature Flow Bounds",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"heading": "Intro", "content": "Hello."}],
+            }
+        )
+        + "\n",
+    )
+
+    bootstrap = resolve_publication_bootstrap_resolution(tmp_path)
+
+    assert bootstrap.mode == "fresh_project_bootstrap"
+    assert bootstrap.publication_subject.status == "missing"
+    assert bootstrap.publication_subject.publication_subject_slug == "curvature-flow-bounds"
+    assert bootstrap.publication_subject.publication_lane_kind == "managed_publication_manuscript"
+    assert bootstrap.publication_subject.managed_manuscript_root == manuscript_root
+    assert bootstrap.bootstrap_root == manuscript_root
+    assert "managed manuscript lane" in bootstrap.detail
 
 
 def test_resolve_publication_bootstrap_resolution_blocks_on_ambiguous_manuscript_state(tmp_path: Path) -> None:
@@ -263,6 +417,39 @@ def test_resolve_publication_bootstrap_resolution_blocks_on_ambiguous_manuscript
     assert bootstrap.mode == "blocked"
     assert bootstrap.bootstrap_root is None
     assert "publication bootstrap is blocked" in bootstrap.detail
+
+
+def test_resolve_publication_bootstrap_resolution_blocks_when_multiple_bootstrap_roots_compete(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Curvature Flow Bounds",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"heading": "Intro", "content": "Hello."}],
+            }
+        )
+        + "\n",
+    )
+    _write(
+        tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript" / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Curvature Flow Bounds",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"heading": "Intro", "content": "Hello."}],
+            }
+        )
+        + "\n",
+    )
+
+    bootstrap = resolve_publication_bootstrap_resolution(tmp_path)
+
+    assert bootstrap.mode == "blocked"
+    assert bootstrap.bootstrap_root is None
+    assert "multiple manuscript bootstrap roots are present" in bootstrap.detail
 
 
 def test_resolve_explicit_publication_subject_accepts_explicit_entrypoint_and_uses_its_artifact_base(
@@ -338,6 +525,43 @@ def test_resolve_explicit_publication_subject_rejects_noncanonical_entrypoint_un
     )
 
     subject = resolve_explicit_publication_subject(tmp_path, tmp_path / "paper" / "appendix.tex")
+
+    assert subject.status == "invalid"
+    assert subject.source == "explicit_target"
+    assert "does not match the resolved manuscript entrypoint" in subject.detail
+
+
+def test_resolve_explicit_publication_subject_rejects_noncanonical_entrypoint_under_managed_lane(
+    tmp_path: Path,
+) -> None:
+    manuscript_root = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+    _write(manuscript_root / "main.tex", "\\documentclass{article}\\begin{document}Main\\end{document}\n")
+    _write(manuscript_root / "appendix.tex", "\\documentclass{article}\\begin{document}Appendix\\end{document}\n")
+    _write(
+        manuscript_root / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "jhep",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        )
+        + "\n",
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, manuscript_root / "appendix.tex")
 
     assert subject.status == "invalid"
     assert subject.source == "explicit_target"

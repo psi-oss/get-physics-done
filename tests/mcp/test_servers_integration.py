@@ -568,6 +568,7 @@ class TestSkillsServerIntegration:
         assert result["context_mode"] == "project-aware"
         assert result["project_reentry_capable"] is False
         assert "## Review Contract" in result["content"]
+        assert "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`" in result["content"]
         assert "review_contract:" in result["content"]
         assert "review-contract:" not in result["content"]
         assert "peer-review-reliability.md" in contract_documents

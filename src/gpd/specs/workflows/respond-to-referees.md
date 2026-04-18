@@ -50,11 +50,16 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 - Preserve the legacy shorthand `gpd:respond-to-referees path/to/report.md` or `gpd:respond-to-referees paste` only when the manuscript subject still resolves from the current GPD project.
 - Treat a bare positional path as a referee-report source only. Do not reinterpret it as the manuscript subject for this workflow.
 - Keep all GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is external; manuscript edits still occur in place on the resolved manuscript subject.
+- Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out. For the explicit `--manuscript ... --report ...` lane, keep the normalized manuscript/report payload in that single variable and do not explode it back into separate validator argv tokens.
 
 Run centralized context preflight before continuing:
 
 ```bash
-CONTEXT=$(gpd --raw validate command-context respond-to-referees "$ARGUMENTS")
+if [ -n "$PREFLIGHT_ARGUMENTS" ]; then
+  CONTEXT=$(gpd --raw validate command-context respond-to-referees -- "$PREFLIGHT_ARGUMENTS")
+else
+  CONTEXT=$(gpd --raw validate command-context respond-to-referees "$ARGUMENTS")
+fi
 if [ $? -ne 0 ]; then
   echo "$CONTEXT"
   exit 1
@@ -64,7 +69,9 @@ fi
 Run the centralized review preflight before continuing:
 
 ```bash
-if [ -n "$ARGUMENTS" ]; then
+if [ -n "$PREFLIGHT_ARGUMENTS" ]; then
+  REVIEW_PREFLIGHT=$(gpd validate review-preflight respond-to-referees --strict -- "$PREFLIGHT_ARGUMENTS")
+elif [ -n "$ARGUMENTS" ]; then
   REVIEW_PREFLIGHT=$(gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict)
 else
   REVIEW_PREFLIGHT=$(gpd validate review-preflight respond-to-referees --strict)
@@ -75,7 +82,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+When the normalized payload begins with `--`, the end-of-options marker is mandatory in both validator calls; otherwise the validator CLI will reinterpret `--manuscript` or `--report` as its own options instead of as subject text.
 Use the literal `paste` sentinel when collecting inline report text. Do not pass the raw pasted referee report body as `$ARGUMENTS` to the strict preflight command.
+Do not pass the raw pasted referee report body as `PREFLIGHT_ARGUMENTS` either; only the literal `paste` sentinel is validator-safe.
 
 If review preflight exits nonzero because of missing project state, missing manuscript, missing referee report source when provided as a path, degraded review integrity, or missing required conventions, STOP and show the blocking issues before drafting responses.
 In explicit external-manuscript mode, `project_state` and `conventions` are advisory only. The hard intake blockers remain the resolved manuscript subject, the report-source set, and review-integrity failures.

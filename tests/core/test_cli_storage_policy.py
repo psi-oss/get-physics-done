@@ -58,6 +58,26 @@ def _write_basic_paper_config(project_root: Path) -> Path:
     return config_path
 
 
+def _write_managed_publication_paper_config(project_root: Path, subject_slug: str = "curvature-flow") -> Path:
+    manuscript_dir = project_root / "GPD" / "publication" / subject_slug / "manuscript"
+    manuscript_dir.mkdir(parents=True)
+    config_path = manuscript_dir / "PAPER-CONFIG.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "title": "Managed Manuscript",
+                "output_filename": "managed_manuscript",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
 def _build_result(output_dir: Path) -> MagicMock:
     result = MagicMock()
     result.manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
@@ -174,6 +194,27 @@ def test_paper_build_manuscript_family_output_has_no_storage_warnings(
     assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
 
 
+def test_paper_build_managed_publication_manuscript_output_has_no_storage_warnings(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    config_path = _write_managed_publication_paper_config(tmp_path)
+    output_dir = config_path.parent
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))) as mock_build:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", str(config_path)],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["output_dir"] == "./GPD/publication/curvature-flow/manuscript"
+    assert payload["warnings"] == []
+    assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
+
+
 @pytest.mark.parametrize(
     ("relative_output_dir", "expected_fragment"),
     [
@@ -191,6 +232,25 @@ def test_paper_build_rejects_hidden_and_scratch_output_dirs(
 
     with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock()) as mock_build:
         with pytest.raises(StoragePathError, match=expected_fragment):
+            runner.invoke(
+                app,
+                ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
+                catch_exceptions=False,
+            )
+
+        mock_build.assert_not_awaited()
+
+
+def test_paper_build_rejects_managed_publication_output_dir_when_config_is_not_managed_lane(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    _write_basic_paper_config(tmp_path)
+    output_dir = tmp_path / "GPD" / "publication" / "curvature-flow" / "manuscript"
+    output_dir.mkdir(parents=True)
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock()) as mock_build:
+        with pytest.raises(StoragePathError, match="GPD/"):
             runner.invoke(
                 app,
                 ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],

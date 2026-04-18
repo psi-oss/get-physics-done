@@ -325,7 +325,7 @@ Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase
 
 Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
 
-Publication boundary: `gpd:peer-review` can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target. `gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root and its staged review/manuscript-root artifacts. GPD-authored auxiliary review/response outputs live under `GPD/`; this does not relocate the manuscript draft itself out of `paper/`, `manuscript/`, or `draft/`.
+Publication boundary: `gpd:write-paper` now manages one project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript` when the current project resolves that subject. `gpd:peer-review` can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target. `gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root and its staged review/manuscript-root artifacts. GPD-authored auxiliary review/response/package outputs stay under `GPD/`; this is still not a full publication-root migration or arbitrary external `write-paper` flow.
 
 Leave / return path: `gpd:pause-work` before leaving mid-phase, `gpd:resume-work` when you return in-runtime, `gpd:suggest-next` when you only need the next action, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue inside that workspace with the runtime `resume-work` command.
 

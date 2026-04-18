@@ -8,8 +8,10 @@ callers can route outputs consistently.
 from __future__ import annotations
 
 import os
+import re
 import tempfile
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 
@@ -101,6 +103,17 @@ class ManagedOutputPolicy:
     default_output_subtree: tuple[str, ...]
     match_mode: ManagedOutputMatchMode = ManagedOutputMatchMode.SUBTREE
     stage_artifact_policy: StageArtifactPolicy = StageArtifactPolicy.DISALLOWED
+
+    def bind_output_subtree_placeholders(
+        self,
+        bindings: Mapping[str, str],
+    ) -> ManagedOutputPolicy:
+        """Return a copy with dynamic subtree placeholders resolved."""
+
+        return replace(
+            self,
+            default_output_subtree=_bind_output_subtree_placeholders(self.default_output_subtree, bindings),
+        )
 
     @classmethod
     def gpd_subtree(
@@ -237,6 +250,7 @@ _SUSPICIOUS_DURABLE_SUFFIXES: frozenset[str] = frozenset(
 )
 _SCRATCH_TEMP_SUFFIXES: frozenset[str] = frozenset({".tmp", ".lock", ".bak"})
 _PROJECT_SCRATCH_SEGMENTS: frozenset[str] = frozenset({"tmp", "temp", "scratch"})
+_OUTPUT_SUBTREE_PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -287,6 +301,31 @@ def _normalize_output_subtree(parts: tuple[str, ...]) -> tuple[str, ...]:
     if not normalized:
         raise ValueError("Managed output subtree must contain at least one path component")
     return tuple(normalized)
+
+
+def _bind_output_subtree_placeholders(
+    parts: tuple[str, ...],
+    bindings: Mapping[str, str],
+) -> tuple[str, ...]:
+    if not parts:
+        return ()
+
+    def _replace_placeholder(match: re.Match[str]) -> str:
+        placeholder = match.group(1)
+        raw_value = str(bindings.get(placeholder, "")).strip()
+        if not raw_value:
+            raise ValueError(f"Missing managed output subtree binding for {{{placeholder}}}")
+        normalized_value = _normalize_output_subtree((raw_value,))
+        if len(normalized_value) != 1:
+            raise ValueError(
+                f"Managed output subtree placeholder {{{placeholder}}} must resolve to exactly one path component"
+            )
+        return normalized_value[0]
+
+    substituted = tuple(
+        _OUTPUT_SUBTREE_PLACEHOLDER_RE.sub(_replace_placeholder, component) for component in parts
+    )
+    return _normalize_output_subtree(substituted)
 
 
 class ProjectStorageLayout:

@@ -16,6 +16,7 @@ from gpd.core.workflow_staging import (
     PLAN_PHASE_STAGE_MANIFEST_PATH,
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
+    WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     invalidate_workflow_stage_manifest_cache,
     known_init_fields_for_workflow,
     load_workflow_stage_manifest,
@@ -324,6 +325,11 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
         _workflow_payload("write-paper"),
         expected_workflow_id="write-paper",
     )
+    bootstrap = manifest.stage("paper_bootstrap")
+    outline = manifest.stage("outline_and_scaffold")
+    authoring = manifest.stage("figure_and_section_authoring")
+    consistency = manifest.stage("consistency_and_references")
+    publication_review = manifest.stage("publication_review")
 
     assert manifest.workflow_id == "write-paper"
     assert manifest.stage_ids() == (
@@ -333,24 +339,49 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
         "consistency_and_references",
         "publication_review",
     )
-    assert "workflows/write-paper.md" in manifest.stages[0].loaded_authorities
-    assert "references/publication/publication-review-round-artifacts.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/publication-response-artifacts.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/publication-pipeline-modes.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/peer-review-panel.md" in manifest.stages[0].must_not_eager_load
-    assert "templates/paper/paper-config-schema.md" in manifest.stages[0].must_not_eager_load
-    assert manifest.stages[1].loaded_authorities == (
+    assert "workflows/write-paper.md" in bootstrap.loaded_authorities
+    assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
+    assert "references/publication/publication-response-artifacts.md" in bootstrap.must_not_eager_load
+    assert "references/publication/publication-pipeline-modes.md" in bootstrap.must_not_eager_load
+    assert "references/publication/peer-review-panel.md" in bootstrap.must_not_eager_load
+    assert "templates/paper/paper-config-schema.md" in bootstrap.must_not_eager_load
+    assert bootstrap.writes_allowed == ()
+    assert outline.loaded_authorities == (
         "workflows/write-paper.md",
         "references/publication/publication-pipeline-modes.md",
         "templates/paper/paper-config-schema.md",
         "templates/paper/artifact-manifest-schema.md",
     )
-    assert manifest.stages[2].loaded_authorities == (
+    assert outline.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/PROJECT.md",
+        "GPD/REQUIREMENTS.md",
+        "GPD/ROADMAP.md",
+        "GPD/STATE.md",
+        "GPD/state.json",
+        "GPD/config.json",
+    )
+    assert authoring.loaded_authorities == (
         "workflows/write-paper.md",
         "references/shared/canonical-schema-discipline.md",
         "templates/paper/figure-tracker.md",
     )
-    assert manifest.stages[4].loaded_authorities == (
+    assert authoring.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/phases",
+        "GPD/ROADMAP.md",
+        "GPD/STATE.md",
+        "GPD/state.json",
+    )
+    assert consistency.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/references-status.json",
+        "GPD/STATE.md",
+        "GPD/state.json",
+        "GPD/review",
+        "GPD/CONVENTIONS.md",
+    )
+    assert publication_review.loaded_authorities == (
         "workflows/write-paper.md",
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
@@ -358,6 +389,19 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
         "references/publication/peer-review-reliability.md",
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md",
+    )
+    assert publication_review.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/review",
+        "GPD/AUTHOR-RESPONSE.md",
+        "GPD/AUTHOR-RESPONSE-R2.md",
+        "GPD/AUTHOR-RESPONSE-R3.md",
+        "GPD/REFEREE-REPORT.md",
+        "GPD/REFEREE-REPORT.tex",
+        "GPD/REFEREE-REPORT-R2.md",
+        "GPD/REFEREE-REPORT-R2.tex",
+        "GPD/REFEREE-REPORT-R3.md",
+        "GPD/REFEREE-REPORT-R3.tex",
     )
 
 

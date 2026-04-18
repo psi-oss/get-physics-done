@@ -58,6 +58,7 @@ __all__ = [
     "PLAN_SUFFIX",
     "PUBLICATION_ARXIV_DIR_NAME",
     "PUBLICATION_DIR_NAME",
+    "PUBLICATION_MANUSCRIPT_DIR_NAME",
     "PUBLICATION_PROOF_REVIEW_DIR_NAME",
     "PROJECT_FILENAME",
     "ProjectLayout",
@@ -197,6 +198,9 @@ PUBLICATION_DIR_NAME = "publication"
 
 PUBLICATION_PROOF_REVIEW_DIR_NAME = "proof-review"
 """Subdirectory under GPD/publication/<subject>/ for proof-review manifests."""
+
+PUBLICATION_MANUSCRIPT_DIR_NAME = "manuscript"
+"""Subdirectory under GPD/publication/<subject>/ for project-managed manuscript roots."""
 
 PUBLICATION_ARXIV_DIR_NAME = "arxiv"
 """Subdirectory under GPD/publication/<subject>/ for arXiv packaging outputs."""
@@ -566,6 +570,11 @@ class ProjectLayout:
         """Return the managed proof-review root for one resolved subject slug."""
 
         return self.publication_subject_dir(subject_slug) / PUBLICATION_PROOF_REVIEW_DIR_NAME
+
+    def publication_manuscript_dir(self, subject_slug: str) -> Path:
+        """Return the managed manuscript root for one resolved subject slug."""
+
+        return self.publication_subject_dir(subject_slug) / PUBLICATION_MANUSCRIPT_DIR_NAME
 
     def publication_arxiv_dir(self, subject_slug: str) -> Path:
         """Return the managed arXiv packaging root for one resolved subject slug."""

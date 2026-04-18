@@ -14,7 +14,7 @@ from gpd.core.manuscript_artifacts import (
     resolve_current_publication_subject,
     resolve_explicit_publication_subject,
 )
-from gpd.core.proof_review import ProofReviewStatus, resolve_manuscript_proof_review_status
+from gpd.core.proof_review import ProofReviewStatus, publication_subject_slug, resolve_manuscript_proof_review_status
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
     review_artifact_round,
@@ -190,6 +190,11 @@ class PublicationRuntimeSnapshot:
 
         payload: dict[str, object] = {
             "publication_subject": subject.to_context_dict(),
+            "publication_subject_slug": (
+                publication_subject_slug(project_root, subject.manuscript_entrypoint)
+                if subject.manuscript_entrypoint is not None
+                else None
+            ),
             "publication_subject_status": subject.status,
             "publication_subject_source": subject.source,
             "publication_subject_detail": subject.detail,

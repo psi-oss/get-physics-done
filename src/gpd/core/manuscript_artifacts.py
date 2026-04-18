@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import Literal
 
 from pydantic import ValidationError as PydanticValidationError
 
+from gpd.core.constants import ProjectLayout
+from gpd.core.utils import normalize_ascii_slug
 from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, PublicationPathSemantics, derive_output_filename
 
 __all__ = [
@@ -51,6 +54,8 @@ class ManuscriptArtifacts:
 ManuscriptResolutionStatus = Literal["resolved", "missing", "ambiguous", "invalid"]
 PublicationSubjectStatus = Literal["resolved", "missing", "ambiguous", "invalid"]
 PublicationSubjectSource = Literal["current_project", "explicit_target"]
+PublicationLaneKind = Literal["canonical_project_manuscript", "managed_publication_manuscript", "external_artifact"]
+PublicationLaneOwner = Literal["project_managed", "external_artifact"]
 PublicationBootstrapMode = Literal["resume_existing_manuscript", "fresh_project_bootstrap", "blocked"]
 
 
@@ -91,6 +96,11 @@ class PublicationSubjectResolution:
     bibliography_audit: Path | None = None
     reproducibility_manifest: Path | None = None
     path_semantics: PublicationPathSemantics | None = None
+    publication_subject_slug: str | None = None
+    publication_lane_kind: PublicationLaneKind | None = None
+    publication_lane_owner: PublicationLaneOwner | None = None
+    managed_publication_root: Path | None = None
+    managed_manuscript_root: Path | None = None
     root_resolutions: tuple[ManuscriptRootResolution, ...] = ()
 
     @property
@@ -134,6 +144,11 @@ class PublicationSubjectResolution:
             "artifact_manifest": _relative_path(self.project_root, self.artifact_manifest),
             "bibliography_audit": _relative_path(self.project_root, self.bibliography_audit),
             "reproducibility_manifest": _relative_path(self.project_root, self.reproducibility_manifest),
+            "publication_subject_slug": self.publication_subject_slug,
+            "publication_lane_kind": self.publication_lane_kind,
+            "publication_lane_owner": self.publication_lane_owner,
+            "managed_publication_root": _relative_path(self.project_root, self.managed_publication_root),
+            "managed_manuscript_root": _relative_path(self.project_root, self.managed_manuscript_root),
             "path_semantics": None if self.path_semantics is None else self.path_semantics.model_dump(mode="python"),
         }
 
@@ -146,6 +161,9 @@ class PublicationSubjectResolution:
             "publication_subject_status": self.status,
             "publication_subject_source": self.source,
             "publication_subject_detail": self.detail,
+            "publication_subject_slug": self.publication_subject_slug,
+            "publication_lane_kind": self.publication_lane_kind,
+            "publication_lane_owner": self.publication_lane_owner,
             "publication_artifact_base": _relative_path(self.project_root, self.artifact_base),
             "manuscript_resolution_status": manuscript_resolution.status,
             "manuscript_resolution_detail": manuscript_resolution.detail,
@@ -154,6 +172,8 @@ class PublicationSubjectResolution:
             "artifact_manifest_path": _relative_path(self.project_root, self.artifact_manifest),
             "bibliography_audit_path": _relative_path(self.project_root, self.bibliography_audit),
             "reproducibility_manifest_path": _relative_path(self.project_root, self.reproducibility_manifest),
+            "managed_publication_root": _relative_path(self.project_root, self.managed_publication_root),
+            "managed_manuscript_root": _relative_path(self.project_root, self.managed_manuscript_root),
         }
 
 
@@ -236,6 +256,92 @@ def _relative_path(project_root: Path, path: Path | None) -> str | None:
         return resolved_path.relative_to(resolved_root).as_posix()
     except ValueError:
         return resolved_path.as_posix()
+
+
+def _canonical_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
+    try:
+        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+    if not relative.parts or relative.parts[0] not in _MANUSCRIPT_ROOTS:
+        return None
+    return project_root / relative.parts[0]
+
+
+def _managed_publication_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
+    layout = ProjectLayout(project_root)
+    publication_dir = layout.publication_dir.resolve(strict=False)
+    resolved_target = target.resolve(strict=False)
+    try:
+        relative = resolved_target.relative_to(publication_dir)
+    except ValueError:
+        return None
+    if not relative.parts:
+        return None
+
+    subject_root = publication_dir / relative.parts[0]
+    manuscript_root = subject_root / "manuscript"
+    if len(relative.parts) == 1:
+        return manuscript_root if manuscript_root.exists() and manuscript_root.is_dir() else None
+    if relative.parts[1] != "manuscript":
+        return None
+    return manuscript_root
+
+
+def _managed_publication_subject_slug_for_root(project_root: Path, manuscript_root: Path) -> str | None:
+    layout = ProjectLayout(project_root)
+    publication_dir = layout.publication_dir.resolve(strict=False)
+    resolved_root = manuscript_root.resolve(strict=False)
+    try:
+        relative = resolved_root.relative_to(publication_dir)
+    except ValueError:
+        return None
+    if len(relative.parts) != 2 or relative.parts[1] != "manuscript":
+        return None
+    return relative.parts[0]
+
+
+def _iter_managed_publication_manuscript_roots(project_root: Path) -> tuple[Path, ...]:
+    publication_dir = ProjectLayout(project_root).publication_dir
+    if not publication_dir.exists() or not publication_dir.is_dir():
+        return ()
+    try:
+        subject_dirs = sorted((path for path in publication_dir.iterdir() if path.is_dir()), key=lambda path: path.name)
+    except OSError:
+        return ()
+    return tuple(candidate for subject_dir in subject_dirs if (candidate := subject_dir / "manuscript").is_dir())
+
+
+def _publication_slug_label(project_root: Path, anchor_path: Path) -> str:
+    resolved_project_root = project_root.resolve(strict=False)
+    resolved_anchor = anchor_path.resolve(strict=False)
+    try:
+        return resolved_anchor.relative_to(resolved_project_root).as_posix()
+    except ValueError:
+        return resolved_anchor.as_posix()
+
+
+def _derive_hashed_publication_subject_slug(project_root: Path, anchor_path: Path) -> str:
+    label = _publication_slug_label(project_root, anchor_path)
+    slug_source = label[: -len(anchor_path.suffix)] if anchor_path.suffix else label
+    slug = normalize_ascii_slug(slug_source.replace("/", "-")) or "manuscript"
+    slug = slug[:48].rstrip("-") or "manuscript"
+    digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:12]
+    return f"{slug}-{digest}"
+
+
+def _unique_managed_publication_manuscript_root(
+    project_root: Path,
+    root_resolutions: tuple[ManuscriptRootResolution, ...],
+) -> Path | None:
+    managed_roots = tuple(
+        dict.fromkeys(
+            resolution.manuscript_root
+            for resolution in root_resolutions
+            if _managed_publication_subject_slug_for_root(project_root, resolution.manuscript_root) is not None
+        )
+    )
+    return managed_roots[0] if len(managed_roots) == 1 else None
 
 
 def _resolve_manuscript_entrypoint_from_root_resolution(
@@ -356,10 +462,15 @@ def resolve_manuscript_entrypoint_from_root(manuscript_root: Path, *, allow_mark
 def resolve_current_manuscript_resolution(project_root: Path, *, allow_markdown: bool = True) -> ManuscriptResolution:
     """Return the active manuscript resolution status for the project."""
 
-    root_resolutions = tuple(
+    canonical_root_resolutions = tuple(
         _resolve_manuscript_entrypoint_from_root_resolution(project_root / root_name, allow_markdown=allow_markdown)
         for root_name in _MANUSCRIPT_ROOTS
     )
+    managed_root_resolutions = tuple(
+        _resolve_manuscript_entrypoint_from_root_resolution(manuscript_root, allow_markdown=allow_markdown)
+        for manuscript_root in _iter_managed_publication_manuscript_roots(project_root)
+    )
+    root_resolutions = canonical_root_resolutions + managed_root_resolutions
     resolved = [resolution for resolution in root_resolutions if resolution.status == "resolved"]
     invalid = [resolution for resolution in root_resolutions if resolution.status == "invalid"]
 
@@ -397,7 +508,7 @@ def resolve_current_manuscript_resolution(project_root: Path, *, allow_markdown:
         status="missing",
         manuscript_root=None,
         manuscript_entrypoint=None,
-        detail="no manuscript entrypoint found under paper/, manuscript/, or draft/",
+        detail="no manuscript entrypoint found under paper/, manuscript/, draft/, or GPD/publication/*/manuscript",
         root_resolutions=root_resolutions,
     )
 
@@ -429,13 +540,10 @@ def _normalize_manuscript_base(manuscript_root: Path) -> Path:
 
 
 def _supported_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
-    try:
-        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
-    except ValueError:
-        return None
-    if not relative.parts or relative.parts[0] not in _MANUSCRIPT_ROOTS:
-        return None
-    return project_root / relative.parts[0]
+    canonical_root = _canonical_manuscript_root_for_target(project_root, target)
+    if canonical_root is not None:
+        return canonical_root
+    return _managed_publication_manuscript_root_for_target(project_root, target)
 
 
 def _resolve_publication_sidecars(
@@ -447,6 +555,120 @@ def _resolve_publication_sidecars(
         locate_publication_artifact(artifact_base, "ARTIFACT-MANIFEST.json"),
         locate_publication_artifact(artifact_base, "BIBLIOGRAPHY-AUDIT.json"),
         locate_publication_artifact(artifact_base, _REPRODUCIBILITY_MANIFEST_FILENAME),
+    )
+
+
+def _publication_lane_anchor(
+    *,
+    artifact_base: Path | None,
+    manuscript_root: Path | None,
+    manuscript_entrypoint: Path | None,
+    target_path: Path | None,
+    root_resolutions: tuple[ManuscriptRootResolution, ...],
+    project_root: Path,
+) -> Path | None:
+    for candidate in (
+        manuscript_root,
+        artifact_base,
+        manuscript_entrypoint,
+        target_path,
+        _unique_managed_publication_manuscript_root(project_root, root_resolutions),
+    ):
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _publication_lane_kind(
+    project_root: Path,
+    *,
+    artifact_base: Path | None,
+    manuscript_root: Path | None,
+    manuscript_entrypoint: Path | None,
+    target_path: Path | None,
+    root_resolutions: tuple[ManuscriptRootResolution, ...],
+) -> PublicationLaneKind | None:
+    anchor = _publication_lane_anchor(
+        artifact_base=artifact_base,
+        manuscript_root=manuscript_root,
+        manuscript_entrypoint=manuscript_entrypoint,
+        target_path=target_path,
+        root_resolutions=root_resolutions,
+        project_root=project_root,
+    )
+    if anchor is None:
+        return None
+    if _managed_publication_manuscript_root_for_target(project_root, anchor) is not None:
+        return "managed_publication_manuscript"
+    if _canonical_manuscript_root_for_target(project_root, anchor) is not None:
+        return "canonical_project_manuscript"
+    return "external_artifact"
+
+
+def _publication_subject_slug(
+    project_root: Path,
+    *,
+    artifact_base: Path | None,
+    manuscript_root: Path | None,
+    manuscript_entrypoint: Path | None,
+    target_path: Path | None,
+    root_resolutions: tuple[ManuscriptRootResolution, ...],
+) -> str | None:
+    for candidate in (manuscript_root, artifact_base, manuscript_entrypoint, target_path):
+        if candidate is None:
+            continue
+        managed_root = _managed_publication_manuscript_root_for_target(project_root, candidate)
+        if managed_root is not None:
+            return _managed_publication_subject_slug_for_root(project_root, managed_root)
+    unique_managed_root = _unique_managed_publication_manuscript_root(project_root, root_resolutions)
+    if unique_managed_root is not None:
+        return _managed_publication_subject_slug_for_root(project_root, unique_managed_root)
+    for candidate in (manuscript_entrypoint, target_path):
+        if candidate is not None:
+            return _derive_hashed_publication_subject_slug(project_root, candidate)
+    return None
+
+
+def _managed_publication_paths(
+    project_root: Path,
+    *,
+    publication_subject_slug: str | None,
+    publication_lane_kind: PublicationLaneKind | None,
+) -> tuple[Path | None, Path | None]:
+    if publication_subject_slug is None or publication_lane_kind not in {
+        "canonical_project_manuscript",
+        "managed_publication_manuscript",
+    }:
+        return None, None
+    layout = ProjectLayout(project_root)
+    publication_root = layout.publication_subject_dir(publication_subject_slug)
+    return publication_root, publication_root / "manuscript"
+
+
+def _bootstrap_candidate_root(project_root: Path, manuscript_root: Path) -> bool:
+    if not manuscript_root.exists() or not manuscript_root.is_dir():
+        return False
+    if _managed_publication_subject_slug_for_root(project_root, manuscript_root) is not None:
+        return True
+    marker_files = (
+        "PAPER-CONFIG.json",
+        "ARTIFACT-MANIFEST.json",
+        "BIBLIOGRAPHY-AUDIT.json",
+        _REPRODUCIBILITY_MANIFEST_FILENAME,
+    )
+    return any((manuscript_root / filename).exists() for filename in marker_files)
+
+
+def _bootstrap_candidate_roots(
+    project_root: Path,
+    root_resolutions: tuple[ManuscriptRootResolution, ...],
+) -> tuple[Path, ...]:
+    return tuple(
+        dict.fromkeys(
+            resolution.manuscript_root
+            for resolution in root_resolutions
+            if _bootstrap_candidate_root(project_root, resolution.manuscript_root)
+        )
     )
 
 
@@ -500,6 +722,33 @@ def _publication_subject_from_resolution(
     source: PublicationSubjectSource,
     target_path: Path | None = None,
 ) -> PublicationSubjectResolution:
+    publication_subject_slug = _publication_subject_slug(
+        project_root,
+        artifact_base=resolution.manuscript_root,
+        manuscript_root=resolution.manuscript_root,
+        manuscript_entrypoint=resolution.manuscript_entrypoint,
+        target_path=target_path,
+        root_resolutions=resolution.root_resolutions,
+    )
+    publication_lane_kind = _publication_lane_kind(
+        project_root,
+        artifact_base=resolution.manuscript_root,
+        manuscript_root=resolution.manuscript_root,
+        manuscript_entrypoint=resolution.manuscript_entrypoint,
+        target_path=target_path,
+        root_resolutions=resolution.root_resolutions,
+    )
+    publication_lane_owner: PublicationLaneOwner | None = None
+    if publication_lane_kind is not None:
+        publication_lane_owner = (
+            "project_managed" if publication_lane_kind != "external_artifact" else "external_artifact"
+        )
+    managed_publication_root, managed_manuscript_root = _managed_publication_paths(
+        project_root,
+        publication_subject_slug=publication_subject_slug,
+        publication_lane_kind=publication_lane_kind,
+    )
+
     if resolution.status != "resolved" or resolution.manuscript_entrypoint is None:
         return PublicationSubjectResolution(
             project_root=project_root,
@@ -509,6 +758,11 @@ def _publication_subject_from_resolution(
             target_path=target_path,
             manuscript_root=resolution.manuscript_root,
             manuscript_entrypoint=resolution.manuscript_entrypoint,
+            publication_subject_slug=publication_subject_slug,
+            publication_lane_kind=publication_lane_kind,
+            publication_lane_owner=publication_lane_owner,
+            managed_publication_root=managed_publication_root,
+            managed_manuscript_root=managed_manuscript_root,
             root_resolutions=resolution.root_resolutions,
         )
 
@@ -516,6 +770,28 @@ def _publication_subject_from_resolution(
         target_path or resolution.manuscript_root or resolution.manuscript_entrypoint
     )
     artifact_manifest, bibliography_audit, reproducibility_manifest = _resolve_publication_sidecars(artifact_base)
+    publication_subject_slug = _publication_subject_slug(
+        project_root,
+        artifact_base=artifact_base,
+        manuscript_root=resolution.manuscript_root,
+        manuscript_entrypoint=resolution.manuscript_entrypoint,
+        target_path=target_path,
+        root_resolutions=resolution.root_resolutions,
+    )
+    publication_lane_kind = _publication_lane_kind(
+        project_root,
+        artifact_base=artifact_base,
+        manuscript_root=resolution.manuscript_root,
+        manuscript_entrypoint=resolution.manuscript_entrypoint,
+        target_path=target_path,
+        root_resolutions=resolution.root_resolutions,
+    )
+    publication_lane_owner = "project_managed" if publication_lane_kind != "external_artifact" else "external_artifact"
+    managed_publication_root, managed_manuscript_root = _managed_publication_paths(
+        project_root,
+        publication_subject_slug=publication_subject_slug,
+        publication_lane_kind=publication_lane_kind,
+    )
     return PublicationSubjectResolution(
         project_root=project_root,
         status="resolved",
@@ -535,6 +811,11 @@ def _publication_subject_from_resolution(
             manuscript_root_path=resolution.manuscript_root,
             manuscript_entrypoint_path=resolution.manuscript_entrypoint,
         ),
+        publication_subject_slug=publication_subject_slug,
+        publication_lane_kind=publication_lane_kind,
+        publication_lane_owner=publication_lane_owner,
+        managed_publication_root=managed_publication_root,
+        managed_manuscript_root=managed_manuscript_root,
         root_resolutions=resolution.root_resolutions,
     )
 
@@ -748,6 +1029,32 @@ def resolve_publication_bootstrap_resolution(
         )
 
     if subject.status == "missing":
+        bootstrap_roots = _bootstrap_candidate_roots(resolved_project_root, subject.root_resolutions)
+        if len(bootstrap_roots) > 1:
+            return PublicationBootstrapResolution(
+                project_root=resolved_project_root,
+                publication_subject=subject,
+                mode="blocked",
+                detail=(
+                    "publication bootstrap is blocked: multiple manuscript bootstrap roots are present: "
+                    + ", ".join(str(root) for root in bootstrap_roots)
+                ),
+                bootstrap_root=None,
+            )
+        if len(bootstrap_roots) == 1:
+            bootstrap_root = bootstrap_roots[0]
+            bootstrap_detail = (
+                f"no publication subject is resolved; bootstrap the managed manuscript lane at {bootstrap_root}"
+                if _managed_publication_subject_slug_for_root(resolved_project_root, bootstrap_root) is not None
+                else f"no publication subject is resolved; bootstrap a fresh manuscript scaffold at {bootstrap_root}"
+            )
+            return PublicationBootstrapResolution(
+                project_root=resolved_project_root,
+                publication_subject=subject,
+                mode="fresh_project_bootstrap",
+                detail=bootstrap_detail,
+                bootstrap_root=bootstrap_root,
+            )
         return PublicationBootstrapResolution(
             project_root=resolved_project_root,
             publication_subject=subject,

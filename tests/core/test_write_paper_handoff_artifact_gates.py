@@ -35,10 +35,11 @@ def test_write_paper_response_artifact_completion_requires_typed_status_files_wr
     assert "Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md`, `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate." in source
 
 
-def test_write_paper_bootstrap_contract_is_explicit_about_current_phase2_split() -> None:
+def test_write_paper_bootstrap_contract_is_explicit_about_project_managed_manuscript_lane() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
 
     assert "Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight" in source
-    assert "This is the explicit current behavior; do **not** present it as a completed `GPD/publication/...` manuscript-root migration." in source
-    assert "manuscript scaffold files and manuscript-root builder artifacts stay in `${PAPER_DIR}/`" in source
-    assert "do not invent an external-manuscript `write-paper` flow" in source
+    assert "The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`" in source
+    assert "The fresh bootstrap root may be the legacy `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`" in source
+    assert "a resolved `${PAPER_DIR}` under `GPD/publication/{subject_slug}/manuscript` is a project-managed manuscript lane" in source
+    assert "do not invent an external-manuscript `write-paper` flow or relax the project-required contract" in source

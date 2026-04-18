@@ -301,7 +301,8 @@ def test_ingest_manuscript_reference_status_does_not_guess_when_multiple_candida
     assert result.reference_status == []
     assert result.reference_status_warnings == [
         "no resolved publication subject is available for bibliography audit ingestion: "
-        "no manuscript entrypoint found under paper/, manuscript/, or draft/"
+        "no manuscript entrypoint found under paper/, manuscript/, draft/, or "
+        "GPD/publication/*/manuscript"
     ]
 
 

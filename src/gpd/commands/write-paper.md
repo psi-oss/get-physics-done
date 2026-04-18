@@ -87,7 +87,8 @@ Keep the wrapper thin and let the workflow own the full pipeline.
 <context>
 Paper topic: $ARGUMENTS
 
-The workflow resolves whether this run resumes an existing manuscript root or bootstraps a fresh project-local manuscript scaffold.
+The workflow resolves whether this run resumes an existing project manuscript root or bootstraps a fresh manuscript scaffold at the resolved project-owned lane.
+That lane may be the legacy `paper/` root or a managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`; GPD-owned review/response auxiliaries remain under `GPD/`.
 </context>
 
 <process>

@@ -96,24 +96,25 @@ If the manuscript depends on any theorem-style or `proof_obligation` result, tre
 
 **Resolve manuscript bootstrap and output roots explicitly:**
 
-Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight as the authoritative Phase 2 bootstrap surface.
+Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight as the authoritative managed-manuscript bootstrap surface.
 
-- If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only.
-- If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` (currently `paper/`) and bootstrap a fresh manuscript scaffold there. This is the explicit current behavior; do **not** present it as a completed `GPD/publication/...` manuscript-root migration.
+- If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only. The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`; treat that as project-owned manuscript state rather than `external_artifact` mode.
+- If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the legacy `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
 - If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
 
-For compatibility with the longstanding shell-oriented workflow contract, keep the resolved manuscript-root binding visible in the legacy form when writing shell snippets:
+For compatibility with the longstanding shell-oriented workflow contract, keep the resolved manuscript-root binding visible when writing shell snippets:
 
 ```bash
-PAPER_DIR="$DIR"
-PAPER_DIR="paper"
+PAPER_DIR="${publication_bootstrap_root}"
+# e.g. PAPER_DIR="paper" or PAPER_DIR="GPD/publication/${subject_slug}/manuscript"
 ```
 
-Current Phase 2 split:
+Current publication-lane split:
 
 - manuscript scaffold files and manuscript-root builder artifacts stay in `${PAPER_DIR}/`
+- a resolved `${PAPER_DIR}` under `GPD/publication/{subject_slug}/manuscript` is a project-managed manuscript lane, not standalone `external_artifact` state
 - GPD-authored staged review artifacts stay under `GPD/` / `GPD/review/`
-- do not invent an external-manuscript `write-paper` flow or a broader managed publication root that the runtime and storage policy do not implement yet
+- do not invent an external-manuscript `write-paper` flow or relax the project-required contract; project-managed manuscript lanes are in scope, arbitrary standalone external artifacts are not
 
 **Check optional local LaTeX compiler availability for smoke tests (cross-platform):**
 

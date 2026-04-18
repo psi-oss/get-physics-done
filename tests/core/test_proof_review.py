@@ -10,6 +10,7 @@ from gpd.core.proof_review import (
     manuscript_has_theorem_bearing_language,
     manuscript_proof_review_manifest_path,
     phase_proof_review_manifest_path,
+    publication_subject_slug,
     resolve_manuscript_proof_review_status,
     resolve_phase_proof_review_status,
 )
@@ -42,6 +43,67 @@ def _write_external_manuscript_review_anchor(project_root: Path) -> Path:
                         "claim_type": "main_result",
                         "claim_kind": "other",
                         "text": "The manuscript reports a descriptive external result.",
+                        "artifact_path": manuscript_rel,
+                        "section": "Main Result",
+                        "equation_refs": [],
+                        "figure_refs": [],
+                        "supporting_artifacts": [],
+                        "theorem_assumptions": [],
+                        "theorem_parameters": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "STAGE-math.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "math",
+                "stage_kind": "math",
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims_reviewed": [],
+                "summary": "math review",
+                "strengths": ["checked manuscript"],
+                "findings": [],
+                "proof_audits": [],
+                "confidence": "high",
+                "recommendation_ceiling": "minor_revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript_path
+
+
+def _write_managed_manuscript_review_anchor(project_root: Path) -> Path:
+    manuscript_path = project_root / "GPD" / "publication" / "ising-bootstrap" / "manuscript" / "main.tex"
+    manuscript_path.parent.mkdir(parents=True, exist_ok=True)
+    manuscript_path.write_text(
+        "\\documentclass{article}\n\\begin{document}\nManaged publication draft.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (manuscript_path.parent / "references.bib").write_text("@article{demo,title={Managed Demo}}\n", encoding="utf-8")
+    manuscript_rel = "GPD/publication/ising-bootstrap/manuscript/main.tex"
+    manuscript_sha256 = compute_sha256(manuscript_path)
+
+    review_dir = project_root / "GPD" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "CLAIMS.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims": [
+                    {
+                        "claim_id": "CLM-MANAGED-001",
+                        "claim_type": "main_result",
+                        "claim_kind": "other",
+                        "text": "The manuscript reports a managed publication result.",
                         "artifact_path": manuscript_rel,
                         "section": "Main Result",
                         "equation_refs": [],
@@ -492,6 +554,23 @@ def test_external_manuscript_proof_review_bootstraps_manifest_under_gpd_publicat
     assert fresh.manifest_path == manifest_path
     assert manifest_path.exists()
     assert manifest_path.is_relative_to(tmp_path / "GPD" / "publication")
+    assert not (manuscript_path.parent / "PROOF-REVIEW-MANIFEST.json").exists()
+
+
+def test_managed_publication_manuscript_proof_review_reuses_existing_subject_slug(tmp_path: Path) -> None:
+    manuscript_path = _write_managed_manuscript_review_anchor(tmp_path)
+
+    manifest_path = manuscript_proof_review_manifest_path(manuscript_path, project_root=tmp_path)
+    fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
+
+    assert publication_subject_slug(tmp_path, manuscript_path) == "ising-bootstrap"
+    assert manifest_path == (
+        tmp_path / "GPD" / "publication" / "ising-bootstrap" / "proof-review" / "PROOF-REVIEW-MANIFEST.json"
+    )
+    assert fresh.state == "fresh"
+    assert fresh.manifest_bootstrapped is True
+    assert fresh.manifest_path == manifest_path
+    assert manifest_path.exists()
     assert not (manuscript_path.parent / "PROOF-REVIEW-MANIFEST.json").exists()
 
 

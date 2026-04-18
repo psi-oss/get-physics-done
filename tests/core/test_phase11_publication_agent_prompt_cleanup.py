@@ -38,15 +38,20 @@ def test_paper_writer_return_example_shows_required_base_fields_before_extension
     source = _read(PAPER_WRITER)
     envelope = _gpd_return_block(PAPER_WRITER)
 
+    assert "Report section outputs against the resolved manuscript root rather than a hardcoded `paper/` subtree." in source
+    assert (
+        "Use the actual resolved manuscript-root path in `files_written`, for example `paper/results.tex` or `GPD/publication/{subject_slug}/manuscript/results.tex`."
+        in source
+    )
     assert "status: completed | checkpoint | blocked | failed" in envelope
-    assert "files_written: [paper/sections/{section_file}.tex]" in envelope
+    assert "files_written: [{resolved_manuscript_root}/{section_file}.tex]" in envelope
     assert "issues: [list of issues encountered, if any]" in envelope
     assert "next_actions: [list of recommended follow-up actions]" in envelope
     assert 'section_name: "{section drafted}"' in envelope
     assert envelope.index("status: completed | checkpoint | blocked | failed") < envelope.index(
-        "files_written: [paper/sections/{section_file}.tex]"
+        "files_written: [{resolved_manuscript_root}/{section_file}.tex]"
     )
-    assert envelope.index("files_written: [paper/sections/{section_file}.tex]") < envelope.index(
+    assert envelope.index("files_written: [{resolved_manuscript_root}/{section_file}.tex]") < envelope.index(
         "issues: [list of issues encountered, if any]"
     )
     assert envelope.index("issues: [list of issues encountered, if any]") < envelope.index(

@@ -42,8 +42,8 @@ def test_write_paper_workflow_runs_centralized_review_preflight() -> None:
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "missing manuscript" not in workflow
-    assert 'PAPER_DIR="$DIR"' in workflow
-    assert 'PAPER_DIR="paper"' in workflow
+    assert 'PAPER_DIR="${publication_bootstrap_root}"' in workflow
+    assert '# e.g. PAPER_DIR="paper" or PAPER_DIR="GPD/publication/${subject_slug}/manuscript"' in workflow
     assert '${PAPER_DIR}/{topic_specific_stem}.tex' in workflow
 
 
@@ -60,13 +60,18 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "explicit_input_kinds:" in command
     assert "- manuscript_path" in command
     assert "- referee_report_path" in command
+    assert "- paste_referee_report" in command
     assert "default_output_subtree: GPD" in command
     assert "scope_variants:" in command
     assert "scope: explicit_external_manuscript" in command
+    assert "Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out." in workflow
+    assert 'gpd --raw validate command-context respond-to-referees -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
+    assert 'gpd validate review-preflight respond-to-referees --strict -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert "gpd validate review-preflight respond-to-referees --strict" in workflow
     assert "Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`" in workflow
     assert "Treat a bare positional path as a referee-report source only." in workflow
+    assert "the end-of-options marker is mandatory in both validator calls" in workflow
     assert "missing referee report source when provided as a path" in workflow
     assert "In explicit external-manuscript mode, `project_state` and `conventions` are advisory only." in workflow
     assert "Any spawned agent that needs user input must return `status: checkpoint` and stop" in workflow

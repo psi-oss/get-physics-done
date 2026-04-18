@@ -12,7 +12,7 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import PLANNING_DIR_NAME, PUBLICATION_DIR_NAME, ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
@@ -30,6 +30,7 @@ __all__ = [
     "manuscript_requires_theorem_bearing_review",
     "manuscript_proof_review_manifest_path",
     "phase_proof_review_manifest_path",
+    "publication_subject_slug",
     "resolve_manuscript_proof_review_status",
     "resolve_phase_proof_review_status",
 ]
@@ -166,24 +167,33 @@ def _uses_project_local_manuscript_manifest(project_root: Path, manuscript_entry
 
 
 def _managed_publication_proof_review_manifest_path(project_root: Path, manuscript_entrypoint: Path) -> Path:
-    """Return the managed proof-review manifest path for an explicit external manuscript subject."""
+    """Return the managed proof-review manifest path for one publication subject."""
 
     layout = ProjectLayout(project_root)
     return (
-        layout.publication_proof_review_dir(_publication_subject_slug(project_root, manuscript_entrypoint))
+        layout.publication_proof_review_dir(publication_subject_slug(project_root, manuscript_entrypoint))
         / MANUSCRIPT_PROOF_REVIEW_MANIFEST_NAME
     )
 
 
-def _publication_subject_slug(project_root: Path, manuscript_entrypoint: Path) -> str:
-    """Return a stable managed-output slug for one resolved manuscript subject."""
+def publication_subject_slug(project_root: Path, manuscript_entrypoint: Path) -> str:
+    """Return the managed publication subject slug for one resolved manuscript subject."""
 
     resolved_root = project_root.resolve(strict=False)
     resolved_entrypoint = manuscript_entrypoint.resolve(strict=False)
     try:
-        label = resolved_entrypoint.relative_to(resolved_root).as_posix()
+        relative = resolved_entrypoint.relative_to(resolved_root)
     except ValueError:
-        label = resolved_entrypoint.as_posix()
+        relative = None
+    if (
+        relative is not None
+        and len(relative.parts) >= 5
+        and relative.parts[0] == PLANNING_DIR_NAME
+        and relative.parts[1] == PUBLICATION_DIR_NAME
+        and relative.parts[3] == "manuscript"
+    ):
+        return relative.parts[2]
+    label = relative.as_posix() if relative is not None else resolved_entrypoint.as_posix()
     slug_source = label[: -len(resolved_entrypoint.suffix)] if resolved_entrypoint.suffix else label
     slug = normalize_ascii_slug(slug_source.replace("/", "-")) or "manuscript"
     slug = slug[:48].rstrip("-") or "manuscript"

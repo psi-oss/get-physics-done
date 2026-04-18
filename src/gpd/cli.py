@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import glob
+import hashlib
 import json
 import logging
 import os
@@ -50,6 +51,9 @@ from gpd.core.constants import (
     ENV_DATA_DIR,
     ENV_GPD_DISABLE_CHECKOUT_REEXEC,
     HOME_DATA_DIR_NAME,
+    PLANNING_DIR_NAME,
+    PUBLICATION_DIR_NAME,
+    PUBLICATION_MANUSCRIPT_DIR_NAME,
 )
 from gpd.core.errors import ConfigError, GPDError
 from gpd.core.manuscript_artifacts import (
@@ -5700,13 +5704,33 @@ def _allowed_manuscript_suffix_message(allowed_suffixes: Collection[str]) -> str
     return ", ".join(ordered_suffixes[:-1]) + f", or {ordered_suffixes[-1]} file"
 
 
-def _supported_explicit_manuscript_target(project_root: Path, target: Path) -> bool:
-    """Return whether *target* stays under a canonical manuscript root."""
+def _supported_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
+    """Return the canonical manuscript root that owns *target*, when supported."""
+    from gpd.core.constants import ProjectLayout
+
     try:
         relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
     except ValueError:
-        return False
-    return bool(relative.parts) and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES
+        return None
+
+    if relative.parts and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES:
+        return project_root / relative.parts[0]
+
+    if (
+        len(relative.parts) >= 4
+        and relative.parts[0] == PLANNING_DIR_NAME
+        and relative.parts[1] == PUBLICATION_DIR_NAME
+        and relative.parts[2]
+        and relative.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
+        return ProjectLayout(project_root).publication_manuscript_dir(relative.parts[2])
+
+    return None
+
+
+def _supported_explicit_manuscript_target(project_root: Path, target: Path) -> bool:
+    """Return whether *target* stays under a supported manuscript root."""
+    return _supported_manuscript_root_for_target(project_root, target) is not None
 
 
 def _supported_root_resolution_for_target(
@@ -5715,14 +5739,10 @@ def _supported_root_resolution_for_target(
     *,
     allow_markdown: bool,
 ) -> tuple[Path, object] | tuple[None, None]:
-    """Resolve the owning manuscript root for *target* when it stays under canonical roots."""
-    try:
-        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
-    except ValueError:
+    """Resolve the owning manuscript root for *target* when it stays under supported roots."""
+    manuscript_root = _supported_manuscript_root_for_target(project_root, target)
+    if manuscript_root is None:
         return None, None
-    if not relative.parts or relative.parts[0] not in _SUPPORTED_MANUSCRIPT_ROOT_NAMES:
-        return None, None
-    manuscript_root = project_root / relative.parts[0]
     return manuscript_root, resolve_manuscript_entrypoint_from_root_resolution(
         manuscript_root,
         allow_markdown=allow_markdown,
@@ -5757,8 +5777,8 @@ def _resolve_review_preflight_manuscript_target(
                 manuscript_root=requested_target if requested_target.is_dir() else requested_target.parent,
                 requested_target=requested_target,
                 detail=(
-                    "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` "
-                    "inside the current project"
+                    "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
+                    "or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
                 ),
             )
         if not requested_target.exists():
@@ -6386,6 +6406,35 @@ def _resolve_default_paper_config_path(*, project_root: Path | None = None) -> P
     )
 
 
+def _managed_publication_manuscript_output_policy(
+    *,
+    project_root: Path,
+    manuscript_config_path: Path,
+):
+    """Return the narrow managed manuscript output policy for one config path, when applicable."""
+    from gpd.core.storage_paths import ManagedOutputPolicy
+
+    manuscript_root = _supported_manuscript_root_for_target(project_root, manuscript_config_path)
+    if manuscript_root is None:
+        return None
+    try:
+        relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+    if (
+        len(relative_root.parts) != 4
+        or relative_root.parts[0] != PLANNING_DIR_NAME
+        or relative_root.parts[1] != PUBLICATION_DIR_NAME
+        or relative_root.parts[3] != PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
+        return None
+    return ManagedOutputPolicy.gpd_subtree(
+        PUBLICATION_DIR_NAME,
+        relative_root.parts[2],
+        PUBLICATION_MANUSCRIPT_DIR_NAME,
+    )
+
+
 def _resolve_paper_config_paths(config: object, *, base_dir: Path) -> PaperConfig:
     """Resolve relative figure paths in a PaperConfig against its config file directory."""
     from gpd.mcp.paper.models import FigureRef, PaperConfig
@@ -6559,6 +6608,37 @@ def _split_command_arguments(arguments: str | None) -> list[str]:
         return shlex.split(arguments)
     except ValueError:
         return arguments.split()
+
+
+def _flag_values(arguments: str | None, *flags: str) -> list[str]:
+    """Return non-empty values supplied to one or more long flags."""
+    tokens = _split_command_arguments(arguments)
+    values: list[str] = []
+    skip_next = False
+    flag_set = set(flags)
+
+    for index, token in enumerate(tokens):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--":
+            break
+        if token in flag_set:
+            skip_next = True
+            if index + 1 >= len(tokens):
+                continue
+            next_token = tokens[index + 1].strip()
+            if next_token and not next_token.startswith("-"):
+                values.append(next_token)
+            continue
+        matched_flag = next((flag for flag in flags if token.startswith(f"{flag}=")), None)
+        if matched_flag is None:
+            continue
+        value = token.partition("=")[2].strip()
+        if value:
+            values.append(value)
+
+    return values
 
 
 def _has_flag_value(tokens: list[str], flag: str) -> bool:
@@ -6914,7 +6994,7 @@ def _command_effective_project_reentry_mode(command: object) -> str:
 _PUBLICATION_INPUT_KIND_LABELS = {
     "artifact_path": ["external artifact path"],
     "manuscript_path": ["manuscript path"],
-    "manuscript_root": ["paper directory"],
+    "manuscript_root": ["paper directory or managed manuscript root"],
     "paste": ["`paste`"],
     "paste_referee_report": ["`paste`"],
     "publication_artifact_path": ["external artifact path"],
@@ -7006,6 +7086,63 @@ def _command_required_files_present(
     return passed, matched, missing
 
 
+def _command_explicit_manuscript_subject_kinds(command: object) -> set[str]:
+    """Return explicit input kinds that can carry a manuscript subject."""
+    subject_policy = _command_subject_policy(command)
+    return set(_command_policy_string_list(subject_policy, "explicit_input_kinds")).intersection(
+        {"artifact_path", "manuscript_path", "manuscript_root", "publication_artifact_path"}
+    )
+
+
+def _command_supports_positional_manuscript_subject(command: object) -> bool:
+    """Return whether one command reads a positional argument as manuscript input."""
+    contract = getattr(command, "review_contract", None)
+    if not _command_requires_manuscript_context(command):
+        return False
+    if _review_contract_requests_check(contract, "referee_report_source"):
+        return False
+    return bool(_command_explicit_manuscript_subject_kinds(command) or _command_required_file_patterns(command))
+
+
+def _command_supports_explicit_manuscript_subject(command: object) -> bool:
+    """Return whether one command accepts manuscript-subject intake in any form."""
+    if not _command_requires_manuscript_context(command):
+        return False
+    return bool(_command_explicit_manuscript_subject_kinds(command) or _command_required_file_patterns(command))
+
+
+def _command_explicit_manuscript_argument(command: object, arguments: str | None) -> str | None:
+    """Extract an explicit manuscript target from command arguments when present."""
+    if not isinstance(arguments, str) or not arguments.strip():
+        return None
+
+    flagged = _flag_values(arguments, "--manuscript")
+    if flagged:
+        return flagged[-1]
+
+    if not _command_supports_positional_manuscript_subject(command):
+        return None
+
+    positionals = _positional_tokens(arguments, flags_with_values=("--manuscript", "--report"))
+    return positionals[0] if positionals else None
+
+
+def _command_referee_report_arguments(command: object, arguments: str | None) -> tuple[str, ...]:
+    """Extract explicit referee-report sources from command arguments when present."""
+    contract = getattr(command, "review_contract", None)
+    if not _review_contract_requests_check(contract, "referee_report_source"):
+        return ()
+    if not isinstance(arguments, str) or not arguments.strip():
+        return ()
+
+    flagged = tuple(value for value in _flag_values(arguments, "--report") if value and value != "paste")
+    if flagged:
+        return flagged
+
+    positionals = _positional_tokens(arguments, flags_with_values=("--manuscript", "--report"))
+    return tuple(token for token in positionals if token and token != "paste")
+
+
 def _command_required_files_override_detail(
     project_root: Path,
     command: object,
@@ -7034,9 +7171,13 @@ def _command_required_files_override_detail(
     if not isinstance(arguments, str) or not arguments.strip():
         return None
 
+    manuscript_argument = _command_explicit_manuscript_argument(command, arguments)
+    if manuscript_argument is None:
+        return None
+
     manuscript, _ = _resolve_review_preflight_manuscript(
         project_root,
-        arguments,
+        manuscript_argument,
         allow_markdown=not _command_requires_compiled_manuscript(command),
         restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
         workspace_cwd=workspace_cwd,
@@ -7113,20 +7254,6 @@ def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -
     return bool(supported_roots) and supported_roots <= _SUPPORTED_MANUSCRIPT_ROOT_NAMES
 
 
-def _command_supports_explicit_manuscript_subject(command: object) -> bool:
-    """Return whether one command interprets positional subject as manuscript target."""
-    contract = getattr(command, "review_contract", None)
-    if not _command_requires_manuscript_context(command):
-        return False
-    if _review_contract_requests_check(contract, "referee_report_source"):
-        return False
-    subject_policy = _command_subject_policy(command)
-    input_kinds = set(_command_policy_string_list(subject_policy, "explicit_input_kinds"))
-    if input_kinds.intersection({"artifact_path", "manuscript_path", "manuscript_root", "publication_artifact_path"}):
-        return True
-    return bool(_command_required_file_patterns(command))
-
-
 def _command_allows_manuscript_bootstrap(command: object) -> bool:
     """Return whether missing manuscript roots are expected to be bootstrapped."""
     subject_policy = _command_subject_policy(command)
@@ -7165,7 +7292,74 @@ def _command_interactive_subject_detail(command: object, explicit_inputs: list[s
     return f"no explicit subject supplied; interactive intake can prompt for {subject_text}"
 
 
-def _command_managed_output_policy(command: object):
+def _resolved_subject_manuscript_entrypoint(
+    resolved_subject: ResolvedCommandSubject | None,
+) -> Path | None:
+    """Return the resolved manuscript file for subject-scoped commands."""
+    if (
+        resolved_subject is None
+        or resolved_subject.subject_kind != "manuscript"
+        or resolved_subject.status != "resolved"
+        or resolved_subject.target_path is None
+        or resolved_subject.target_path.is_dir()
+    ):
+        return None
+    return resolved_subject.target_path
+
+
+def _publication_subject_slug_for_manuscript_entrypoint(
+    project_root: Path,
+    manuscript_entrypoint: Path,
+) -> str:
+    """Return the managed publication slug for one manuscript entrypoint."""
+    manuscript_root = _supported_manuscript_root_for_target(project_root, manuscript_entrypoint)
+    if manuscript_root is not None:
+        try:
+            relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+        except ValueError:
+            relative_root = None
+        if (
+            relative_root is not None
+            and len(relative_root.parts) == 4
+            and relative_root.parts[0] == PLANNING_DIR_NAME
+            and relative_root.parts[1] == PUBLICATION_DIR_NAME
+            and relative_root.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+        ):
+            return relative_root.parts[2]
+
+    resolved_root = project_root.resolve(strict=False)
+    resolved_entrypoint = manuscript_entrypoint.resolve(strict=False)
+    try:
+        label = resolved_entrypoint.relative_to(resolved_root).as_posix()
+    except ValueError:
+        label = resolved_entrypoint.as_posix()
+    slug_source = label[: -len(resolved_entrypoint.suffix)] if resolved_entrypoint.suffix else label
+    slug = normalize_ascii_slug(slug_source.replace("/", "-")) or "manuscript"
+    slug = slug[:48].rstrip("-") or "manuscript"
+    digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:12]
+    return f"{slug}-{digest}"
+
+
+def _command_managed_output_bindings(
+    *,
+    project_root: Path,
+    resolved_subject: ResolvedCommandSubject | None,
+) -> dict[str, str]:
+    """Return dynamic managed-output subtree bindings for the active subject."""
+    manuscript_entrypoint = _resolved_subject_manuscript_entrypoint(resolved_subject)
+    if manuscript_entrypoint is None:
+        return {}
+    return {
+        "subject_slug": _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript_entrypoint)
+    }
+
+
+def _command_managed_output_policy(
+    command: object,
+    *,
+    project_root: Path | None = None,
+    resolved_subject: ResolvedCommandSubject | None = None,
+):
     """Return a storage-path managed-output policy derived from command metadata, when available."""
     from gpd.core.storage_paths import (
         ManagedOutputClass,
@@ -7195,12 +7389,14 @@ def _command_managed_output_policy(command: object):
     if not subtree:
         return None
     subtree = subtree.replace("\\", "/")
-    if managed_root_kind == ManagedOutputRootKind.GPD and subtree.startswith("GPD/"):
-        subtree = subtree[4:]
+    if managed_root_kind == ManagedOutputRootKind.GPD:
+        if subtree == PLANNING_DIR_NAME:
+            subtree = ""
+        elif subtree.startswith(f"{PLANNING_DIR_NAME}/"):
+            subtree = subtree[len(PLANNING_DIR_NAME) + 1 :]
     elif managed_root_kind == ManagedOutputRootKind.PROJECT and subtree.startswith("./"):
         subtree = subtree[2:]
-    if not subtree:
-        return None
+    subtree_components = tuple(component for component in subtree.split("/") if component and component != ".")
 
     stage_policy_raw = str(getattr(output_policy, "stage_artifact_policy", "") or "").strip().casefold()
     stage_artifact_policy = (
@@ -7211,24 +7407,42 @@ def _command_managed_output_policy(command: object):
     match_mode = ManagedOutputMatchMode.EXACT if output_mode == "exact" else ManagedOutputMatchMode.SUBTREE
 
     try:
-        return ManagedOutputPolicy(
+        policy = ManagedOutputPolicy(
             output_class=output_class,
             managed_root_kind=managed_root_kind,
-            default_output_subtree=tuple(
-                component for component in subtree.split("/") if component and component != "."
-            ),
+            default_output_subtree=subtree_components,
             match_mode=match_mode,
             stage_artifact_policy=stage_artifact_policy,
         )
     except ValueError:
         return None
 
+    if not any(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", component) for component in policy.default_output_subtree):
+        return policy
+    if project_root is None:
+        return None
+    try:
+        return policy.bind_output_subtree_placeholders(
+            _command_managed_output_bindings(project_root=project_root, resolved_subject=resolved_subject)
+        )
+    except ValueError:
+        return None
 
-def _command_managed_output_root(command: object, *, project_root: Path) -> Path | None:
+
+def _command_managed_output_root(
+    command: object,
+    *,
+    project_root: Path,
+    resolved_subject: ResolvedCommandSubject | None = None,
+) -> Path | None:
     """Return the effective managed output root for one command, when typed policy declares it."""
     from gpd.core.storage_paths import ProjectStorageLayout
 
-    policy = _command_managed_output_policy(command)
+    policy = _command_managed_output_policy(
+        command,
+        project_root=project_root,
+        resolved_subject=resolved_subject,
+    )
     if policy is None:
         return None
     return ProjectStorageLayout(project_root).managed_output_path(policy)
@@ -7556,6 +7770,7 @@ def _build_resolved_command_subject(
         project_root_source=resolved_project_root_source,
         project_root_auto_selected=project_root_auto_selected,
     )
+    manuscript_subject = _command_explicit_manuscript_argument(command, subject)
 
     if (
         _command_supports_explicit_manuscript_subject(command)
@@ -7584,7 +7799,7 @@ def _build_resolved_command_subject(
 
     target_resolution = _resolve_review_preflight_manuscript_target(
         context_root,
-        subject if _command_supports_explicit_manuscript_subject(command) else None,
+        manuscript_subject if _command_supports_explicit_manuscript_subject(command) else None,
         allow_markdown=not _command_requires_compiled_manuscript(command),
         restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
         workspace_cwd=workspace_root,
@@ -7710,12 +7925,8 @@ def _resolve_registry_command(command_name: str) -> tuple[object, str]:
 
 
 def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) -> bool:
-    """Return whether *target* lives under a canonical manuscript root in *project_root*."""
-    try:
-        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
-    except ValueError:
-        return False
-    return bool(relative.parts) and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES
+    """Return whether *target* lives under a supported manuscript root in *project_root*."""
+    return _supported_manuscript_root_for_target(project_root, target) is not None
 
 
 def _normalize_review_scope_selector(value: str) -> str:
@@ -8233,7 +8444,11 @@ def _build_command_context_preflight(
         context_root=context_cwd,
         project_exists=project_exists,
     )
-    managed_output_root = _command_managed_output_root(command, project_root=managed_output_context_root)
+    managed_output_root = _command_managed_output_root(
+        command,
+        project_root=managed_output_context_root,
+        resolved_subject=resolved_subject,
+    )
     if managed_output_root is not None:
         add_check(
             "managed_output_root",
@@ -8600,17 +8815,22 @@ def _build_review_preflight(
             manuscript_passed,
             manuscript_detail,
         )
-        if subject and _review_contract_requests_check(contract, "referee_report_source") and subject != "paste":
-            report_path = _resolve_subject_path(subject, base=project_cwd) or (project_cwd / subject).resolve(
-                strict=False
+        report_arguments = _command_referee_report_arguments(command, subject)
+        if report_arguments:
+            report_paths = tuple(
+                (_resolve_subject_path(report, base=project_cwd) or (project_cwd / report).resolve(strict=False))
+                for report in report_arguments
             )
             add_check(
                 "referee_report_source",
-                report_path.exists(),
-                (
-                    f"{_format_display_path(report_path)} present"
-                    if report_path.exists()
-                    else f"missing {_format_display_path(report_path)}"
+                all(path.exists() for path in report_paths),
+                "; ".join(
+                    (
+                        f"{_format_display_path(path)} present"
+                        if path.exists()
+                        else f"missing {_format_display_path(path)}"
+                    )
+                    for path in report_paths
                 ),
             )
         if manuscript is not None:
@@ -9216,8 +9436,9 @@ def validate_review_contract(
     )
 
 
-@validate_app.command("review-preflight")
+@validate_app.command("review-preflight", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def validate_review_preflight(
+    ctx: typer.Context,
     command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
     subject: str | None = typer.Argument(
         None,
@@ -9226,7 +9447,11 @@ def validate_review_preflight(
     strict: bool = typer.Option(False, "--strict", help="Enable stricter evidence-oriented checks"),
 ) -> None:
     """Run lightweight executable preflight checks for review-grade workflows."""
-    result = _build_review_preflight(command_name, subject=subject, strict=strict)
+    arguments: list[str] = []
+    if subject is not None:
+        arguments.append(subject)
+    arguments.extend(str(arg) for arg in ctx.args)
+    result = _build_review_preflight(command_name, subject=" ".join(arguments) or None, strict=strict)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)
@@ -9752,7 +9977,12 @@ def paper_build(
     resolved_config_root = config_file.resolve(strict=False)
     storage_root = project_root if resolved_config_root.is_relative_to(project_root) else resolved_config_root.parent
     storage_layout = ProjectStorageLayout(storage_root)
-    storage_layout.validate_final_output(output_path)
+    managed_output_policies = tuple(
+        policy
+        for policy in (_managed_publication_manuscript_output_policy(project_root=project_root, manuscript_config_path=config_file),)
+        if policy is not None
+    )
+    storage_layout.validate_final_output(output_path, managed_output_policies=managed_output_policies)
     storage_check = storage_layout.check_user_output(
         output_path,
         preferred_kinds=(
@@ -9760,6 +9990,7 @@ def paper_build(
             DurableOutputKind.MANUSCRIPT,
             DurableOutputKind.DRAFT,
         ),
+        managed_output_policies=managed_output_policies,
     )
 
     bib_source = _resolve_bibliography_path(

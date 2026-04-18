@@ -2517,6 +2517,11 @@ class TestInitNewProject:
         assert ctx["publication_subject_status"] == "resolved"
         assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
         assert ctx["publication_bootstrap_root"] == "paper"
+        assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["publication_subject_slug"]
+        assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
+        assert ctx["managed_manuscript_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/manuscript"
 
     def test_write_paper_stage_paper_bootstrap_filters_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2608,6 +2613,56 @@ class TestInitNewProject:
         assert ctx["manuscript_root"] == "paper"
         assert ctx["manuscript_entrypoint"] == "paper/main.tex"
         assert ctx["artifact_manifest_path"] == "paper/ARTIFACT-MANIFEST.json"
+
+    def test_write_paper_bootstrap_surfaces_managed_publication_lane_without_stage(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json").write_text("{}\n", encoding="utf-8")
+        (manuscript_dir / "reproducibility-manifest.json").write_text("{}\n", encoding="utf-8")
+
+        ctx = init_write_paper(tmp_path)
+
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_subject_slug"] == "curvature-flow-bounds"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["managed_manuscript_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert ctx["publication_bootstrap_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["publication_artifact_base"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["manuscript_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["manuscript_entrypoint"] == "GPD/publication/curvature-flow-bounds/manuscript/main.tex"
 
     def test_write_paper_stage_rejects_unknown_stage(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

@@ -31,12 +31,9 @@ def _write_review_round(review_dir: Path, *, manuscript_path: str, round_number:
     )
 
 
-def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_explicit_subject(
-    tmp_path: Path,
-) -> None:
-    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> None:
     _write(
-        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        manuscript_root / "ARTIFACT-MANIFEST.json",
         json.dumps(
             {
                 "version": 1,
@@ -47,7 +44,7 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
                     {
                         "artifact_id": "tex-paper",
                         "category": "tex",
-                        "path": "main.tex",
+                        "path": entrypoint_name,
                         "sha256": "0" * 64,
                         "produced_by": "test",
                         "sources": [],
@@ -59,6 +56,13 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
         )
         + "\n",
     )
+
+
+def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_explicit_subject(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
     _write(tmp_path / "draft" / "other.tex", "\\documentclass{article}\\begin{document}Other\\end{document}\n")
 
     review_dir = tmp_path / "GPD" / "review"
@@ -99,30 +103,7 @@ def test_publication_runtime_snapshot_accepts_legacy_review_dir_report_and_autho
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
-    _write(
-        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        json.dumps(
-            {
-                "version": 1,
-                "paper_title": "Main Paper",
-                "journal": "prl",
-                "created_at": "2026-04-02T00:00:00+00:00",
-                "artifacts": [
-                    {
-                        "artifact_id": "tex-paper",
-                        "category": "tex",
-                        "path": "main.tex",
-                        "sha256": "0" * 64,
-                        "produced_by": "test",
-                        "sources": [],
-                        "metadata": {},
-                    }
-                ],
-            },
-            indent=2,
-        )
-        + "\n",
-    )
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
 
     review_dir = tmp_path / "GPD" / "review"
     review_dir.mkdir(parents=True)
@@ -141,3 +122,39 @@ def test_publication_runtime_snapshot_accepts_legacy_review_dir_report_and_autho
     assert snapshot.latest_response_artifacts is not None
     assert snapshot.latest_response_artifacts.author_response == review_dir / "AUTHOR-RESPONSE-R2.md"
     assert snapshot.latest_response_artifacts.referee_response == review_dir / "REFEREE_RESPONSE-R2.md"
+
+
+def test_publication_runtime_snapshot_reuses_managed_publication_subject_slug_for_manuscript_lane(
+    tmp_path: Path,
+) -> None:
+    manuscript_root = tmp_path / "GPD" / "publication" / "ising-bootstrap" / "manuscript"
+    _write(manuscript_root / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(manuscript_root, "main.tex")
+    _write(manuscript_root / "BIBLIOGRAPHY-AUDIT.json", "{}\n")
+    _write(manuscript_root / "reproducibility-manifest.json", "{}\n")
+
+    review_dir = tmp_path / "GPD" / "review"
+    planning_dir = tmp_path / "GPD"
+    review_dir.mkdir(parents=True)
+    _write_review_round(
+        review_dir,
+        manuscript_path="GPD/publication/ising-bootstrap/manuscript/main.tex",
+        round_number=2,
+    )
+    _write(planning_dir / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(planning_dir / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    _write(planning_dir / "AUTHOR-RESPONSE-R2.md", "# Author Response R2\n")
+    _write(review_dir / "REFEREE_RESPONSE-R2.md", "# Referee Response R2\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "GPD/publication/ising-bootstrap/manuscript/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.publication_subject.artifact_base == manuscript_root
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_response_artifacts is not None
+    assert context["publication_subject_slug"] == "ising-bootstrap"
+    assert context["publication_artifact_base"] == "GPD/publication/ising-bootstrap/manuscript"
+    assert context["publication_subject"]["artifact_base"] == "GPD/publication/ising-bootstrap/manuscript"
+    assert context["publication_subject"]["manuscript_entrypoint"] == "GPD/publication/ising-bootstrap/manuscript/main.tex"

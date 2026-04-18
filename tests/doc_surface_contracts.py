@@ -1294,6 +1294,14 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "`gpd:write-paper` now manages one project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`",
+            "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`",
+        ),
+        label="project-managed manuscript lane surface",
+    )
+    _assert_contains_any(
+        content,
+        (
             "Publication boundary:",
             "Publication lane boundary:",
         ),
@@ -1330,6 +1338,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
         (
             "this does not relocate the manuscript draft itself out of `paper/`, `manuscript/`, or `draft/`",
             "this is not a full manuscript-root migration",
+            "this is still not a full publication-root migration or arbitrary external `write-paper` flow",
         ),
         label="manuscript-root migration boundary",
     )

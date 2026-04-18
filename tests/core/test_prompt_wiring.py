@@ -953,6 +953,9 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
+    assert "context_mode: project-required" in write_paper
+    assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
+    assert "GPD-owned review/response auxiliaries remain under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
     assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]' in respond
     assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in arxiv

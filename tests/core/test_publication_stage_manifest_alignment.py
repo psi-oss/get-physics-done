@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
+from gpd.core.workflow_staging import (
+    WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+    validate_workflow_stage_manifest_payload,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
@@ -29,6 +32,8 @@ def test_write_paper_stage_manifest_uses_canonical_publication_contracts() -> No
     )
 
     bootstrap = manifest.stage("paper_bootstrap")
+    outline = manifest.stage("outline_and_scaffold")
+    authoring = manifest.stage("figure_and_section_authoring")
     consistency = manifest.stage("consistency_and_references")
     publication_review = manifest.stage("publication_review")
 
@@ -36,6 +41,11 @@ def test_write_paper_stage_manifest_uses_canonical_publication_contracts() -> No
     assert "publication_bootstrap_mode" in bootstrap.required_init_fields
     assert "publication_bootstrap_root" in bootstrap.required_init_fields
     assert "artifact_manifest_path" in bootstrap.required_init_fields
+    assert bootstrap.writes_allowed == ()
+    assert outline.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert authoring.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert consistency.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert publication_review.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
     assert "GPD/references-status.json" in consistency.writes_allowed
     assert "GPD/AUTHOR-RESPONSE.md" in publication_review.writes_allowed
     assert "GPD/REFEREE-REPORT.tex" in publication_review.writes_allowed
