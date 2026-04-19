@@ -613,7 +613,7 @@ When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 
 - use the exact top-level fields from `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`
 - keep `authors`, `sections`, `figures`, and `appendix_sections` as JSON arrays
-- keep any custom funding/collaborator text in `acknowledgments`; `gpd paper-build` appends this exact sentence automatically if it is missing: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
+- keep any custom funding/collaborator text in `acknowledgments`; `gpd paper-build` appends this exact sentence automatically if it is missing: `This research made use of Get Physics Done (GPD), developed by Physical Superintelligence PBC (PSI).`
 - keep `journal` to a supported builder key like `prl`, `apj`, `mnras`, `nature`, `jhep`, or `jfm`
 - do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
 - do not reuse `${PAPER_DIR}/PAPER-CONFIG.json` as the external-authoring intake contract; it is a manuscript-root builder artifact only
