@@ -1059,7 +1059,7 @@ gpd_return:
     - GPD/review/REVIEW-LEDGER{round_suffix}.json
     - GPD/CONSISTENCY-REPORT.md  # only when applicable
   issues: [list of blocking or unresolved review issues, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   recommendation: "{accept | minor_revision | major_revision | reject}"
   confidence: "{high | medium | low}"
   major_issues: N

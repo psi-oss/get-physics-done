@@ -1421,7 +1421,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: []
   issues: [issue objects from Issue Format above]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   approved_plans: [list of plan IDs that passed]
   blocked_plans: [list of plan IDs needing revision or escalation]
   dimensions_checked: [list of dimensions evaluated]

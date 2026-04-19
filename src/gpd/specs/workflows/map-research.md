@@ -416,7 +416,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [GPD/research-map/{DOC1}.md, ...]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   focus: "theory | computation | methodology | status"
 ```
 

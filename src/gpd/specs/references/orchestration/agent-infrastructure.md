@@ -61,7 +61,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [list of file paths created or modified]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
 ```
 
 Agents may extend this with additional fields specific to their role (e.g., `phases_created`, `dimensions_checked`). The four base fields above are required on this envelope.
@@ -78,7 +78,9 @@ For the human-readable markdown portion of your return, end with a short continu
 
 - If your agent-specific template already has a next-step section, make that section concrete and command-oriented instead of adding a duplicate
 - Otherwise, append a `## > Next Up` block using `references/orchestration/continuation-format.md`
+- Any failed return, retry gate, manual stop, or "needs user input" checkpoint that expects later action must also end this way
 - Include `Also available:` when there are meaningful secondary options
+- Include `gpd:suggest-next` for project-backed states when the primary route may be unclear
 - Include the note `<sub>\`/clear\` first -> fresh context window</sub>` when the next step is another GPD command
 
 ---

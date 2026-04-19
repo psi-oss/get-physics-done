@@ -30,7 +30,7 @@ def test_roadmapper_prompt_example_includes_required_base_return_fields() -> Non
     assert "status: completed | checkpoint | blocked | failed" in envelope
     assert "files_written: [ROADMAP.md, STATE.md]" in envelope
     assert "issues: [list of issues encountered, if any]" in envelope
-    assert "next_actions: [list of recommended follow-up actions]" in envelope
+    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
     assert "phases_created: {count}" in envelope
     assert "base fields (status, files_written, issues, next_actions)" not in roadmapper
 
@@ -63,7 +63,7 @@ def test_phase_researcher_machine_readable_return_is_typed_first() -> None:
     assert "status: completed | checkpoint | blocked | failed" in researcher
     assert "files_written: [$PHASE_DIR/$PADDED_PHASE-RESEARCH.md]" in researcher
     assert "issues: [list of issues encountered, if any]" in researcher
-    assert "next_actions: [list of recommended follow-up actions]" in researcher
+    assert "next_actions: [concrete commands or exact artifact review actions]" in researcher
     assert "confidence: HIGH | MEDIUM | LOW" in researcher
     assert "Mapping: RESEARCH COMPLETE → completed, RESEARCH BLOCKED → blocked" not in researcher
     assert "Headings above are presentation only; route on gpd_return.status." in researcher
@@ -75,7 +75,7 @@ def test_executor_completion_spawned_handoff_example_keeps_base_fields_and_exten
     assert "status: completed | checkpoint | blocked | failed" in completion
     assert 'files_written: ["GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md"]' in completion
     assert "issues: [list of issues encountered, if any]" in completion
-    assert "next_actions: [list of recommended follow-up actions]" in completion
+    assert "next_actions: [concrete commands or exact artifact review actions]" in completion
     assert "state_updates:" in completion
     assert "advance_plan: true" in completion
     assert "update_progress: true" in completion

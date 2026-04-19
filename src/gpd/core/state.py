@@ -1288,6 +1288,24 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
     "blocked": None,
 }
 
+# Keep in sync with generate_state_markdown() Session Continuity fields.
+_SESSION_CONTINUITY_MIRROR_FIELDS = frozenset({
+    "last session",
+    "stopped at",
+    "resume file",
+    "last result id",
+    "hostname",
+    "platform",
+})
+
+
+def _session_continuity_mirror_field_reason(field_norm: str) -> str:
+    return (
+        f'Field "{field_norm}" is a Session Continuity mirror field '
+        "that is regenerated from state.json on save. "
+        "Use the continuation API to update session state."
+    )
+
 
 def is_valid_status(value: str) -> bool:
     """Check if a status value is recognized (case-insensitive exact match)."""
@@ -1369,6 +1387,38 @@ def state_has_field(content: str, field_name: str) -> bool:
     """Check if a **Field:** exists in STATE.md content."""
     escaped = re.escape(field_name)
     return bool(re.search(rf"\*\*{escaped}:\*\*", content, re.IGNORECASE))
+
+
+def _resolve_state_md_field_name(content: str, field: str) -> tuple[str, list[str], bool]:
+    """Resolve a STATE.md field name using patch/update lookup semantics."""
+    field_norm = field
+    also_tried: list[str] = []
+
+    found = state_has_field(content, field_norm)
+
+    if not found:
+        underscore_form = field.replace("_", " ")
+        if underscore_form != field:
+            also_tried.append(underscore_form)
+            found = state_has_field(content, underscore_form)
+            if found:
+                field_norm = underscore_form
+
+    if not found and "." in field:
+        stripped_raw = field.rsplit(".", 1)[-1]
+        also_tried.append(stripped_raw)
+        found = state_has_field(content, stripped_raw)
+        if found:
+            field_norm = stripped_raw
+        else:
+            stripped_norm = field.replace("_", " ").rsplit(".", 1)[-1]
+            if stripped_norm != stripped_raw:
+                also_tried.append(stripped_norm)
+                found = state_has_field(content, stripped_norm)
+                if found:
+                    field_norm = stripped_norm
+
+    return field_norm, also_tried, found
 
 
 # ─── STATE.md Parser ──────────────────────────────────────────────────────────
@@ -3898,7 +3948,19 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
         content = _load_or_rebuild_state_markdown_locked(cwd)
         if content is None:
             return StateUpdateResult(updated=False, reason="STATE.md not found")
-        field_norm = field.replace("_", " ")  # TODO(FULL-017): Apply dot-notation stripping here too
+        field_norm, _also_tried, found = _resolve_state_md_field_name(content, field)
+
+        if found and field_norm.lower() in _SESSION_CONTINUITY_MIRROR_FIELDS:
+            return StateUpdateResult(
+                updated=False,
+                reason=_session_continuity_mirror_field_reason(field_norm),
+            )
+
+        if field_norm.lower() == "status" and not is_valid_status(value):
+            return StateUpdateResult(
+                updated=False,
+                reason=f'Invalid status: "{value}". Valid: {", ".join(VALID_STATUSES)}',
+            )
 
         # Validate state transitions
         if field_norm.lower() == "status":
@@ -3908,7 +3970,7 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
                 if err:
                     return StateUpdateResult(updated=False, reason=err)
 
-        if not state_has_field(content, field_norm):
+        if not found:
             return StateUpdateResult(updated=False, reason=f'Field "{field}" not found in STATE.md')
 
         new_content = state_replace_field(content, field_norm, value)
@@ -3935,57 +3997,14 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
         failed: list[str] = []
         failure_reasons: dict[str, str] = {}
 
-        # Session Continuity fields are non-authoritative mirrors in STATE.md —
-        # save_state_markdown_locked() regenerates this section from state.json,
-        # so patching these fields via markdown replacement is silently a no-op.
-        # Keep in sync with generate_state_markdown() L2716-2724.
-        _session_mirror = frozenset({
-            "last session", "stopped at", "resume file",
-            "last result id", "hostname", "platform",
-        })
-
         for field, value in patches.items():
-            # --- Three-phase field resolution ---
-            # Phase 1: try the raw input exactly as given
-            field_norm = field
-            found = state_has_field(content, field_norm)
-            also_tried: list[str] = []
-
-            # Phase 2: try underscore → space normalization
-            if not found:
-                underscore_form = field.replace("_", " ")
-                if underscore_form != field:
-                    also_tried.append(underscore_form)
-                    found = state_has_field(content, underscore_form)
-                    if found:
-                        field_norm = underscore_form
-
-            # Phase 3: dot-prefix stripping (on the best candidate so far)
-            if not found and "." in field:
-                # Strip from the raw field first (preserves underscores)
-                stripped_raw = field.rsplit(".", 1)[-1]
-                also_tried.append(stripped_raw)
-                found = state_has_field(content, stripped_raw)
-                if found:
-                    field_norm = stripped_raw
-                else:
-                    # Also try underscore-replaced + stripped
-                    stripped_norm = field.replace("_", " ").rsplit(".", 1)[-1]
-                    if stripped_norm != stripped_raw:
-                        also_tried.append(stripped_norm)
-                        found = state_has_field(content, stripped_norm)
-                        if found:
-                            field_norm = stripped_norm
+            field_norm, also_tried, found = _resolve_state_md_field_name(content, field)
 
             # Guard: reject Session Continuity mirror fields — they are
             # regenerated from state.json on save, so markdown patches are no-ops.
-            if found and field_norm.lower() in _session_mirror:
+            if found and field_norm.lower() in _SESSION_CONTINUITY_MIRROR_FIELDS:
                 failed.append(field)
-                failure_reasons[field] = (
-                    f'Field "{field_norm}" is a Session Continuity mirror field '
-                    f"that is regenerated from state.json on save. "
-                    f"Use the continuation API to update session state."
-                )
+                failure_reasons[field] = _session_continuity_mirror_field_reason(field_norm)
                 continue
 
             if field_norm.lower() == "status" and not is_valid_status(value):

@@ -16,7 +16,7 @@ import re
 from collections.abc import Callable
 from functools import cache, lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NamedTuple
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -72,28 +72,47 @@ _SPEC_ROOT = content_registry.SPECS_DIR.resolve()
 _AGENT_ROOT = content_registry.AGENTS_DIR.resolve()
 _COMMAND_ROOT = content_registry.COMMANDS_DIR.resolve()
 _REPO_ROOT = _SPEC_ROOT.parents[2]
-_SPEC_RELATIVE_REFERENCE_PREFIXES = (
-    "references/",
-    "workflows/",
-    "templates/",
-    "bundles/",
-    "shared/",
-    "domains/",
-    "execution/",
-    "verification/",
-    "conventions/",
-    "research/",
-    "publication/",
-    "protocols/",
-    "subfields/",
-    "orchestration/",
+
+
+class _ReferencePrefixSpec(NamedTuple):
+    raw_prefix: str
+    portable_prefix: str
+    root: Path
+    kind: str
+    allow_missing: bool = False
+
+
+_REFERENCE_PREFIX_SPECS: tuple[_ReferencePrefixSpec, ...] = (
+    _ReferencePrefixSpec("references/", "@{GPD_INSTALL_DIR}/references/", _SPEC_ROOT / "references", "reference"),
+    _ReferencePrefixSpec("workflows/", "@{GPD_INSTALL_DIR}/workflows/", _SPEC_ROOT / "workflows", "workflow"),
+    _ReferencePrefixSpec("templates/", "@{GPD_INSTALL_DIR}/templates/", _SPEC_ROOT / "templates", "template"),
+    _ReferencePrefixSpec("bundles/", "@{GPD_INSTALL_DIR}/bundles/", _SPEC_ROOT / "bundles", "bundle"),
+    _ReferencePrefixSpec("shared/", "@{GPD_INSTALL_DIR}/shared/", _SPEC_ROOT / "shared", "reference"),
+    _ReferencePrefixSpec("domains/", "@{GPD_INSTALL_DIR}/domains/", _SPEC_ROOT / "domains", "reference"),
+    _ReferencePrefixSpec("execution/", "@{GPD_INSTALL_DIR}/execution/", _SPEC_ROOT / "execution", "reference"),
+    _ReferencePrefixSpec("verification/", "@{GPD_INSTALL_DIR}/verification/", _SPEC_ROOT / "verification", "reference"),
+    _ReferencePrefixSpec("conventions/", "@{GPD_INSTALL_DIR}/conventions/", _SPEC_ROOT / "conventions", "reference"),
+    _ReferencePrefixSpec("research/", "@{GPD_INSTALL_DIR}/research/", _SPEC_ROOT / "research", "reference"),
+    _ReferencePrefixSpec("publication/", "@{GPD_INSTALL_DIR}/publication/", _SPEC_ROOT / "publication", "reference"),
+    _ReferencePrefixSpec("protocols/", "@{GPD_INSTALL_DIR}/protocols/", _SPEC_ROOT / "protocols", "reference"),
+    _ReferencePrefixSpec("subfields/", "@{GPD_INSTALL_DIR}/subfields/", _SPEC_ROOT / "subfields", "reference"),
+    _ReferencePrefixSpec("orchestration/", "@{GPD_INSTALL_DIR}/orchestration/", _SPEC_ROOT / "orchestration", "reference"),
+    _ReferencePrefixSpec("commands/", "@{GPD_INSTALL_DIR}/commands/", _COMMAND_ROOT, "command"),
+    _ReferencePrefixSpec("agents/", "@{GPD_AGENTS_DIR}/", _AGENT_ROOT, "agent"),
+    _ReferencePrefixSpec("docs/", "@GPD/docs/", _REPO_ROOT / "docs", "docs", allow_missing=True),
 )
 _SKILL_COMMAND_PREFIX = "gpd-"
-_MARKDOWN_REFERENCE_RE = re.compile(
-    r"(?P<path>(?:@?\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
-    r"(?:references|workflows|templates|agents|commands|bundles|shared|domains|execution|verification|conventions|research|publication|protocols|subfields|orchestration|GPD|src/gpd)/)"
-    r"[^\s`\"')]+?\.md)"
-)
+
+
+@lru_cache(maxsize=1)
+def _markdown_reference_re() -> re.Pattern[str]:
+    """Return the matcher for direct markdown references."""
+
+    relative_prefixes = "|".join(re.escape(spec.raw_prefix) for spec in _REFERENCE_PREFIX_SPECS)
+    return re.compile(
+        r"(?P<path>(?:@?\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
+        rf"(?:{relative_prefixes}|GPD/|src/gpd/))[^\s`\"')]+?\.md)"
+    )
 _SKILL_BEHAVIORAL_GUARDRAIL_HINT = (
     "Use scientific skepticism and critical thinking without treating the user as an adversary. Treat missing "
     "evidence or artifacts as missing, blocked, failed, or inconclusive, and never fabricate references, results, "
@@ -360,26 +379,36 @@ def _portable_reference_path(raw_path: str, *, base_path: Path | None = None) ->
         resolved = resolved.resolve()
         if not resolved.is_file():
             return None
-        try:
-            rel = resolved.relative_to(_SPEC_ROOT)
-        except ValueError:
-            pass
-        else:
-            portable = f"@{{GPD_INSTALL_DIR}}/{rel.as_posix()}"
+        for spec in _REFERENCE_PREFIX_SPECS:
+            try:
+                rel = resolved.relative_to(spec.root)
+            except ValueError:
+                continue
+            portable = f"{spec.portable_prefix}{rel.as_posix()}"
             return portable, resolved
-        try:
-            rel = resolved.relative_to(_AGENT_ROOT)
-        except ValueError:
-            pass
-        else:
-            portable = f"@{{GPD_AGENTS_DIR}}/{rel.as_posix()}"
-            return portable, resolved
-        try:
-            rel = resolved.relative_to(_COMMAND_ROOT)
-        except ValueError:
+        return None
+
+    def _safe_missing_reference_suffix(relative: str) -> str | None:
+        normalized = relative.replace("\\", "/")
+        if not normalized or normalized.startswith("/"):
             return None
-        portable = f"@{{GPD_INSTALL_DIR}}/commands/{rel.as_posix()}"
-        return portable, resolved
+        parts = normalized.split("/")
+        if any(part in {"", ".", ".."} for part in parts):
+            return None
+        return normalized
+
+    def _missing_portable_path(spec: _ReferencePrefixSpec, relative: str) -> tuple[str, Path | None] | None:
+        safe_relative = _safe_missing_reference_suffix(relative)
+        if safe_relative is None:
+            return None
+        portable = f"{spec.portable_prefix}{safe_relative}"
+        return portable, None
+
+    def _reference_spec_for(candidate_path: str) -> _ReferencePrefixSpec | None:
+        for spec in _REFERENCE_PREFIX_SPECS:
+            if candidate_path.startswith(spec.raw_prefix):
+                return spec
+        return None
 
     if candidate.startswith("@{GPD_INSTALL_DIR}/") or candidate.startswith("{GPD_INSTALL_DIR}/"):
         relative = candidate.split("}/", 1)[1]
@@ -393,29 +422,23 @@ def _portable_reference_path(raw_path: str, *, base_path: Path | None = None) ->
         normalized = _normalize_resolved_path(resolved)
         return normalized
 
+    spec = _reference_spec_for(candidate)
+    if spec is not None:
+        relative = candidate.removeprefix(spec.raw_prefix)
+        resolved = spec.root / relative
+        normalized = _normalize_resolved_path(resolved)
+        if normalized is not None:
+            return normalized
+        if spec.allow_missing:
+            return _missing_portable_path(spec, relative)
+        return None
+
     raw_path_obj = Path(candidate)
     if raw_path_obj.is_absolute():
         normalized = _normalize_resolved_path(raw_path_obj)
         if normalized is not None:
             return normalized
         return None
-
-    if candidate.startswith(_SPEC_RELATIVE_REFERENCE_PREFIXES):
-        resolved = _SPEC_ROOT / candidate
-        normalized = _normalize_resolved_path(resolved)
-        return normalized
-
-    if candidate.startswith("commands/"):
-        relative = candidate.removeprefix("commands/")
-        resolved = _COMMAND_ROOT / relative
-        normalized = _normalize_resolved_path(resolved)
-        return normalized
-
-    if candidate.startswith("agents/"):
-        relative = candidate.removeprefix("agents/")
-        resolved = _AGENT_ROOT / relative
-        normalized = _normalize_resolved_path(resolved)
-        return normalized
 
     if candidate.startswith(("GPD/", "@GPD/")):
         project_path = candidate.removeprefix("@")
@@ -438,20 +461,11 @@ def _portable_reference_path(raw_path: str, *, base_path: Path | None = None) ->
 
 
 def _reference_kind(path: str) -> str:
+    for spec in _REFERENCE_PREFIX_SPECS:
+        if path.startswith(spec.portable_prefix):
+            return spec.kind
     if path.startswith("@GPD/"):
         return "project"
-    if path.startswith("@{GPD_AGENTS_DIR}/"):
-        return "agent"
-    if path.startswith("@{GPD_INSTALL_DIR}/commands/"):
-        return "command"
-    if path.startswith("@{GPD_INSTALL_DIR}/templates/"):
-        return "template"
-    if path.startswith("@{GPD_INSTALL_DIR}/workflows/"):
-        return "workflow"
-    if path.startswith("@{GPD_INSTALL_DIR}/bundles/"):
-        return "bundle"
-    if path.startswith("@{GPD_INSTALL_DIR}/references/"):
-        return "reference"
     return "spec"
 
 
@@ -478,7 +492,7 @@ def _extract_referenced_files(
         entry_list.append(entry)
 
     def _collect(markdown: str, *, current_path: Path | None, depth: int) -> None:
-        for match in _MARKDOWN_REFERENCE_RE.finditer(markdown):
+        for match in _markdown_reference_re().finditer(markdown):
             normalized = _portable_reference_path(match.group("path"), base_path=current_path)
             if normalized is None:
                 continue

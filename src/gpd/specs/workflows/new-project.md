@@ -99,6 +99,8 @@ Example structure:
   Set up the Monte Carlo simulation and finite-size scaling workflow.
 ```
 
+Stop after this error with `## > Next Up`: tell the user to edit the file and rerun `gpd:new-project --minimal @your-file.md`.
+
 **If `--minimal` without file** (`gpd:new-project --minimal`):
 
 Ask ONE question inline (freeform, NOT ask_user):
@@ -170,6 +172,8 @@ Then present a concise scoping summary and require explicit approval:
   - "Adjust scope" -- revise before writing files
   - "Review raw contract" -- show the structured contract
   - "Stop here" -- do not create downstream artifacts
+
+If the user selects "Stop here", end with `## > Next Up`: primary `gpd:new-project` (or `gpd:new-project --minimal @file.md` for file-backed minimal intake) and `gpd:suggest-next` if any project state was written.
 
 **CRITICAL:** Minimal mode is still allowed to be lean, but it is not allowed to be contract-free.
 
@@ -556,6 +560,16 @@ were skipped. Use gpd:settings to adjust workflow preferences.
 ## >> Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
+
+`gpd:discuss-phase 1`
+
+<sub>`/clear` first for fresh context, then run `gpd:discuss-phase 1`.</sub>
+
+---
+
+**Also available:**
+- `gpd:plan-phase 1` — skip discussion and plan directly
+- `gpd:suggest-next` — confirm the next action
 ```
 
 Use ask_user:
@@ -569,7 +583,7 @@ Use ask_user:
 
 **If "Discuss phase 1":** Tell the user to run `gpd:discuss-phase 1` (and suggest `/clear` first for a fresh context window).
 
-**If "Review artifacts first":** List the files and let the user inspect them. Suggest edits if needed, then re-offer planning.
+**If "Review artifacts first":** List the files and let the user inspect them. Suggest edits if needed, then re-offer `gpd:discuss-phase 1` as primary and `gpd:plan-phase 1` as the direct-plan alternative.
 
 **If "Done for now":** Exit. Remind them to use `gpd:resume-work` or `gpd:discuss-phase 1` when ready.
 
@@ -1471,6 +1485,8 @@ shared_state_policy: return_only
 
 **Handle scout returns:** Route on the full canonical `gpd_return` envelope (`status`, `files_written`, `issues`, and `next_actions`), and fail closed unless `gpd_return.status` is typed and the expected artifact is freshly named in `gpd_return.files_written`. If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation; do not keep the original scout alive. If `blocked`, surface the blocker, stop this scout path, and do not treat it as a retryable success. If `failed`, surface the failure and retry only once. If `completed`, verify the expected artifact exists on disk and is named in the fresh `gpd_return.files_written`. Treat any preexisting scout file as stale unless the same path appears in the fresh return. Do not trust runtime completion text alone.
 
+Any scout `checkpoint`, `blocked`, or final `failed` stop must end with `## > Next Up`: primary `gpd:new-project` (it will detect `GPD/init-progress.json` when present and offer resume) and `gpd:suggest-next`.
+
 **If any research agent fails to spawn or returns an error:** Verify which required scout artifacts exist (`PRIOR-WORK.md`, `METHODS.md`, `COMPUTATIONAL.md`, `PITFALLS.md`). Retry only the missing scout tasks once. If any required research file is still missing after the retry, STOP this survey path and present the missing artifacts. Do not proceed with a partial literature survey. Do not synthesize from incomplete scout output. Do not silently downgrade to manual main-context research.
 
 After all 4 scout artifacts are present on disk and each fresh `gpd_return.files_written` proves its expected artifact, spawn synthesizer to create SUMMARY.md:
@@ -1513,6 +1529,8 @@ shared_state_policy: return_only
 ```
 
 **Handle the synthesizer return:** Route on the full canonical `gpd_return` envelope (`status`, `files_written`, `issues`, and `next_actions`), and fail closed unless `gpd_return.status` is typed and `GPD/literature/SUMMARY.md` is freshly named in `gpd_return.files_written`. If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation after the response. If `blocked`, surface the blocker and stop this synth path until it is resolved. If `failed`, surface the failure and retry once. If `completed`, verify `GPD/literature/SUMMARY.md` exists and is named in the fresh return. Do not trust runtime completion text alone.
+
+Any synthesizer `checkpoint`, `blocked`, or final `failed` stop must end with `## > Next Up`: primary `gpd:new-project` (resume from staged init state when present) and `gpd:suggest-next`.
 
 **Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing, treat that scout as incomplete. If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing, treat that handoff as incomplete. Do not trust the runtime handoff status by itself.
 
@@ -1827,6 +1845,8 @@ If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADM
 - Retry the roadmapper once
 - If the retry still fails, surface the blocker and stop
 
+Any roadmapper `checkpoint`, `blocked`, or final `failed` stop must end with `## > Next Up`: primary `gpd:new-project` (resume from `GPD/init-progress.json` when present), plus `gpd:suggest-next`.
+
 **If `gpd_return.status: completed`:**
 
 Read the created ROADMAP.md and present it nicely inline:
@@ -2036,7 +2056,7 @@ shared_state_policy: direct
    gpd convention set metric_signature "$RESOLVED_METRIC"
    ```
 
-6. Note that full convention establishment was skipped. The user can run `gpd:validate-conventions` or rerun convention setup later, but the fallback lock must match the values written into `GPD/CONVENTIONS.md`.
+6. Note that full convention establishment was skipped. The user can run `gpd:validate-conventions`; the fallback lock must match the values written into `GPD/CONVENTIONS.md`.
 
 - **`CONVENTIONS ESTABLISHED`:** Display confirmation with convention summary. Commit CONVENTIONS.md:
 
@@ -2091,14 +2111,15 @@ Present completion with next steps:
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
-gpd:discuss-phase 1 — gather context and clarify approach
+`gpd:discuss-phase 1`
 
-<sub>/clear first -> fresh context window</sub>
+<sub>`/clear` first for fresh context, then run `gpd:discuss-phase 1`.</sub>
 
 ---
 
 **Also available:**
-- gpd:plan-phase 1 — skip discussion, plan directly
+- `gpd:plan-phase 1` — skip discussion and plan directly
+- `gpd:suggest-next` — confirm the next action
 
 ---------------------------------------------------------------
 ```

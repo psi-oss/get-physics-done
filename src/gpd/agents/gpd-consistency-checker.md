@@ -50,7 +50,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [GPD/phases/{scope}/CONSISTENCY-CHECK.md]
   issues: [list of issues, including warnings]
-  next_actions: [recommended follow-up]
+  next_actions: [concrete commands such as "gpd:validate-conventions", "gpd:resume-work", or "gpd:suggest-next"]
   phase_checked: [phase or milestone scope]
   checks_performed: [count]
   issues_found: [count]

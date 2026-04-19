@@ -660,6 +660,7 @@ If expert_needed: list items requiring expert review with explanation of why com
 If human_needed: list items requiring non-expert human review with explanation of why computational verification was insufficient.
 
 Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute fixes, re-verify | `expert_needed` -> present to researcher/expert review | `human_needed` -> present to researcher.
+When this workflow returns directly to the user or a blocking status stops orchestration, include concrete `next_actions`: `gpd:plan-phase {phase} --gaps` for gaps, `gpd:verify-work {phase}` to rerun verification, `gpd:show-phase {phase}` to review artifacts, and `gpd:suggest-next` as the recovery/confirmation route.
 </step>
 
 </process>

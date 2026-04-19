@@ -117,7 +117,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [references/references.bib, GPD/references-status.json]
   issues: [list of citation problems, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   entries_added: N
 ```
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from gpd.adapters.install_utils import expand_at_includes
 from gpd.core import public_surface_contract as public_surface_contract_module
 from gpd.core.cli_args import _ROOT_GLOBAL_FLAG_TOKENS
+from gpd.core.model_visible_text import command_visibility_note
 from gpd.core.public_surface_contract import (
     local_cli_bridge_note,
     local_cli_doctor_global_command,
@@ -740,3 +741,65 @@ def test_execute_phase_failure_recovery_counts_only_top_level_verification_statu
     )
     assert 'grep -c "status: failed"' not in workflow
     assert 'grep -c "status:"' not in workflow
+
+
+def test_execute_phase_closeout_always_surfaces_concrete_next_commands() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/execute-phase.md").read_text(encoding="utf-8")
+
+    assert 'Never end with only "ready to plan/continue" prose.' in workflow
+    assert "choose exactly one matching variant" in workflow
+    assert "make `gpd:discuss-phase {X+1}` the primary command" in workflow
+    assert "make `gpd:plan-phase {X+1}` the primary command" in workflow
+    assert "Always include `gpd:suggest-next`" in workflow
+    assert "Primary: `{chosen primary command}`" in workflow
+    assert "`gpd:complete-milestone`" in workflow
+    assert "**Also available:** `gpd:suggest-next`" in workflow
+    assert "Primary: `gpd:discuss-phase {X+1}` if context is missing" not in workflow
+    assert "If context is missing:" not in workflow
+    assert "If context exists:" not in workflow
+
+
+def test_command_requirements_force_concrete_next_up_for_stops() -> None:
+    note = command_visibility_note()
+
+    assert "completion, checkpoint, blocked return, failed return, retry gate, or stop" in note
+    assert "must end with a concrete `## > Next Up` or `## >> Next Up` section" in note
+    assert "copy-pasteable GPD commands" in note
+    assert "`gpd:suggest-next`" in note
+
+
+def test_continuation_format_covers_stop_and_checkpoint_routes() -> None:
+    continuation = (
+        REPO_ROOT / "src/gpd/specs/references/orchestration/continuation-format.md"
+    ).read_text(encoding="utf-8")
+
+    assert "## Stop And Checkpoint Rules" in continuation
+    for command in (
+        "`gpd:resume-work`",
+        "`gpd:new-project --minimal @file.md`",
+        "`gpd:discuss-phase N`",
+        "`gpd:plan-phase N --gaps`",
+        "`gpd:execute-phase N --gaps-only`",
+        "`gpd:verify-work N`",
+        "`gpd:validate-conventions`",
+        "`gpd:suggest-next`",
+    ):
+        assert command in continuation
+
+
+def test_new_project_and_new_milestone_closeouts_include_concrete_next_up_commands() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
+    new_milestone_command = (COMMANDS_DIR / "new-milestone.md").read_text(encoding="utf-8")
+
+    assert "Stop after this error with `## > Next Up`" in new_project
+    assert "`gpd:discuss-phase 1`" in new_project
+    assert "`gpd:plan-phase 1`" in new_project
+    assert "`gpd:suggest-next`" in new_project
+    assert "re-offer `gpd:discuss-phase 1` as primary" in new_project
+
+    assert "`gpd:discuss-phase [N]`" in new_milestone
+    assert "`gpd:plan-phase [N]`" in new_milestone
+    assert "`gpd:suggest-next`" in new_milestone
+    assert "primary `gpd:new-milestone [milestone name]`" in new_milestone
+    assert "**After:** `gpd:discuss-phase [N]`" in new_milestone_command

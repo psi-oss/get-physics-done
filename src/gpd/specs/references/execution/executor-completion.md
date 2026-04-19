@@ -289,7 +289,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: ["GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md"]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   state_updates:
     advance_plan: true
     update_progress: true

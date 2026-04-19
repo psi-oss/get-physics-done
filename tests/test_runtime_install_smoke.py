@@ -73,6 +73,7 @@ def test_runtime_cli_rejects_manifestless_ancestor_install(monkeypatch: pytest.M
     captured = capsys.readouterr()
     assert exit_code == 127
     assert f"GPD runtime bridge rejected missing install manifest at `{ancestor.resolve()}`." in captured.err
+    assert str(nested_cwd / adapter.config_dir_name) not in captured.err
 
 
 def test_runtime_cli_rejects_wrong_runtime_manifest_for_explicit_target(

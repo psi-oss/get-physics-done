@@ -187,12 +187,12 @@ Human-readable headings such as `## RESEARCH COMPLETE` and `## CHECKPOINT REACHE
 
 ## Step 5: Handle Return
 
-**If the researcher agent fails to spawn or returns an error:** Report the failure. Offer: 1) Retry with the same context, 2) Execute the research in the main context (slower but reliable), 3) Skip research and proceed to `gpd:plan-phase` directly (planner will work with less context). Do not silently continue without research output.
+**If the researcher agent fails to spawn or returns an error:** Report the failure. End with `## > Next Up`: primary `gpd:research-phase {phase_number}` to retry, plus `gpd:plan-phase {phase_number}` to skip research and plan directly, and `gpd:suggest-next`. Do not silently continue without research output.
 
-- **Artifact gate:** If `gpd_return.status: completed` but the `expected_artifacts` entry (`RESEARCH.md`) is missing from the phase directory or absent from `gpd_return.files_written`, treat the handoff as incomplete. Offer: 1) Retry researcher, 2) Execute the research in the main context, 3) Abort.
-- `gpd_return.status: completed` -- Display summary, offer: Plan/Dig deeper/Review/Done
-- `gpd_return.status: checkpoint` -- Present the checkpoint to the user, collect the response, and spawn a fresh continuation handoff. Do not resume the same spawned run.
-- `gpd_return.status: blocked` or `failed` -- Show attempts, offer: Add context/Try different approach/Manual
+- **Artifact gate:** If `gpd_return.status: completed` but the `expected_artifacts` entry (`RESEARCH.md`) is missing from the phase directory or absent from `gpd_return.files_written`, treat the handoff as incomplete. End with `## > Next Up`: primary `gpd:research-phase {phase_number}` to retry, plus `gpd:plan-phase {phase_number}` and `gpd:suggest-next`.
+- `gpd_return.status: completed` -- Display summary and end with `## > Next Up`: primary `gpd:plan-phase {phase_number}`, plus `gpd:research-phase {phase_number}` to dig deeper, `gpd:show-phase {phase_number}` to review, and `gpd:suggest-next`.
+- `gpd_return.status: checkpoint` -- Present the checkpoint to the user, collect the response, spawn a fresh continuation handoff, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:research-phase {phase_number}` and `gpd:suggest-next`. Do not resume the same spawned run.
+- `gpd_return.status: blocked` or `failed` -- Show attempts and end with `## > Next Up`: primary `gpd:discuss-phase {phase_number}` to add context, plus `gpd:research-phase {phase_number}` and `gpd:suggest-next`.
 
 ## Step 6: Spawn Continuation Researcher
 

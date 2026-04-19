@@ -1,10 +1,10 @@
 ---
 name: gpd:respond-to-referees
-description: Structure a point-by-point response to referee reports for the current GPD manuscript or an explicit manuscript target
-argument-hint: "[path to referee report or 'paste']"
+description: Structure a point-by-point response to referee reports for an explicit manuscript target or the current GPD manuscript
+argument-hint: "[--manuscript PATH] (--report PATH [--report PATH...] | paste)"
 context_mode: project-aware
 requires:
-  files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]
+  files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md", "GPD/publication/*/manuscript/*.tex", "GPD/publication/*/manuscript/*.md"]
 command-policy:
   schema_version: 1
   subject_policy:

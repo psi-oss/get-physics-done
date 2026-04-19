@@ -37,6 +37,6 @@ def test_literature_reviewer_shows_base_return_fields_and_one_shot_checkpointing
     status_idx = completed_block.index("  status: completed | checkpoint | blocked | failed")
     files_idx = completed_block.index("  files_written: [GPD/literature/{slug}-REVIEW.md]")
     issues_idx = completed_block.index("  issues: [most important unresolved issues or empty list]")
-    next_actions_idx = completed_block.index("  next_actions: [recommended follow-up actions or reading path]")
+    next_actions_idx = completed_block.index("  next_actions: [concrete commands or exact reading/review path]")
 
     assert status_idx < files_idx < issues_idx < next_actions_idx

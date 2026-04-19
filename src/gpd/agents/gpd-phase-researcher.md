@@ -531,7 +531,7 @@ gpd_return:
   # Headings above are presentation only; route on gpd_return.status.
   files_written: [$PHASE_DIR/$PADDED_PHASE-RESEARCH.md]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   confidence: HIGH | MEDIUM | LOW
 ```
 

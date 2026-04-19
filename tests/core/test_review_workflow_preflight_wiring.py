@@ -55,23 +55,26 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     ).read_text(encoding="utf-8")
 
     assert "context_mode: project-aware" in command
+    assert "argument-hint: \"[--manuscript PATH] (--report PATH [--report PATH...] | paste)\"" in command
     assert "command-policy:" in command
     assert "subject_kind: publication" in command
     assert "explicit_input_kinds:" in command
     assert "- manuscript_path" in command
     assert "- referee_report_path" in command
     assert "- paste_referee_report" in command
+    assert "GPD/publication/*/manuscript/*.tex" in command
+    assert "GPD/publication/*/manuscript/*.md" in command
     assert "default_output_subtree: GPD" in command
     assert "scope_variants:" in command
     assert "scope: explicit_external_manuscript" in command
     assert "Project-backed response rounds keep the current global `GPD/` / `GPD/review/` ownership." in command
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command
     assert "Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out." in workflow
+    assert "Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`" in workflow
     assert 'gpd --raw validate command-context respond-to-referees -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
     assert 'gpd validate review-preflight respond-to-referees --strict -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert "gpd validate review-preflight respond-to-referees --strict" in workflow
-    assert "Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`" in workflow
     assert "Treat a bare positional path as a referee-report source only." in workflow
     assert "the end-of-options marker is mandatory in both validator calls" in workflow
     assert "missing referee report source when provided as a path" in workflow

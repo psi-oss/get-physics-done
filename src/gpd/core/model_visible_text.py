@@ -153,6 +153,10 @@ def command_visibility_note() -> str:
         agent_clause,
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
         "Missing required files or other decisive evidence are blocking for strong claims; do not treat omissions or proxies as success.",
+        "Any user-visible completion, checkpoint, blocked return, failed return, retry gate, or stop that expects later "
+        "action must end with a concrete `## > Next Up` or `## >> Next Up` section. Include copy-pasteable GPD "
+        "commands when they exist; otherwise name the exact artifact or review action. Use `gpd:suggest-next` as the "
+        "recovery/confirmation command for project-backed states.",
         *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 

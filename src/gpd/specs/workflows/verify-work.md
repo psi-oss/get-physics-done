@@ -293,9 +293,9 @@ Read the verifier-produced verification file or report path.
   2. the same path appears in `gpd_return.files_written`
   3. `gpd validate verification-contract "${phase_dir}/${phase_number}-VERIFICATION.md"` passes before any downstream routing
 - If a canonical verification file already existed before this run, do not treat it as fresh verifier output unless the child reported that same path in `gpd_return.files_written`.
-- `gpd_return.status: checkpoint` means present the verifier checkpoint, collect user input, and spawn a fresh verifier continuation. Do not overwrite canonical verification status in this workflow.
-- `gpd_return.status: blocked` or `failed` means keep the session fail-closed, present the issues, and offer retry or manual follow-up. Do not treat any preexisting verification file as a new verifier result on this path.
-- If the verifier agent fails to spawn or returns an error, keep the session fail-closed. Do not let a stale existing verification file satisfy the success path.
+- `gpd_return.status: checkpoint` means present the verifier checkpoint, collect user input, spawn a fresh verifier continuation, and end the stop with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:verify-work ${phase_number}` and `gpd:suggest-next`. Do not overwrite canonical verification status in this workflow.
+- `gpd_return.status: blocked` or `failed` means keep the session fail-closed, present the issues, and end with `## > Next Up`: primary `gpd:verify-work ${phase_number}`, plus `gpd:resume-work` and `gpd:suggest-next`. Do not treat any preexisting verification file as a new verifier result on this path.
+- If the verifier agent fails to spawn or returns an error, keep the session fail-closed. End with the same `gpd:verify-work ${phase_number}` Next Up route. Do not let a stale existing verification file satisfy the success path.
 - If the canonical verification artifact is missing, unreadable, absent from `gpd_return.files_written`, or fails contract validation, treat the handoff as incomplete and request a fresh verifier continuation. Never trust the return text alone.
 - If a canonical verification file already exists, preserve its authoritative frontmatter and append only the session-local overlay here.
 - Do not recompute canonical verification status in this workflow.
@@ -457,10 +457,10 @@ Use `templates/planner-subagent-prompt.md` to build the gap_closure planner hand
 
 Before treating the handoff as complete, verify that the expected `PLAN.md` files exist in the phase directory and are listed in `gpd_return.files_written` from the fresh planner run.
 After the planner returns, route on `gpd_return.status`, not on headings. If `gpd_return.status` is `completed`, verify that each expected path is present on disk, readable, and present in `gpd_return.files_written` before treating the handoff as complete.
-If `gpd_return.status` is `checkpoint`, present the checkpoint, collect user input, and spawn a fresh planner continuation from the staged gap-repair payload instead of waiting inside the same run.
-If the planner reports `blocked` or `failed`, or if the expected `PLAN.md` files are missing, unreadable, stale, or absent from `gpd_return.files_written`, keep the session fail-closed and offer retry or manual plan creation.
+If `gpd_return.status` is `checkpoint`, present the checkpoint, collect user input, spawn a fresh planner continuation from the staged gap-repair payload instead of waiting inside the same run, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:plan-phase ${phase_number} --gaps` and `gpd:suggest-next`.
+If the planner reports `blocked` or `failed`, or if the expected `PLAN.md` files are missing, unreadable, stale, or absent from `gpd_return.files_written`, keep the session fail-closed and end with `## > Next Up`: primary `gpd:plan-phase ${phase_number} --gaps`, plus `gpd:resume-work` and `gpd:suggest-next`.
 
-If the planner fails to spawn or returns an error, keep the session fail-closed and offer retry or manual plan creation. Do not fall through to gap verification on the basis of preexisting `PLAN.md` files alone.
+If the planner fails to spawn or returns an error, keep the session fail-closed and offer retry or manual plan creation. Do not fall through to gap verification on the basis of preexisting `PLAN.md` files alone. End with the same `gpd:plan-phase ${phase_number} --gaps` Next Up route.
 </step>
 
 <step name="verify_gap_plans">
@@ -487,9 +487,9 @@ If the checker fails to spawn or returns an error, proceed without plan verifica
 If the checker returns a structured `gpd_return`, route on `gpd_return.status` and the structured plan lists, not on presentation text:
 
 - `completed`: treat the fresh fix plans as verified only after the on-disk files still match the planner's `files_written` set.
-- `checkpoint`: some plans are approved and others need revision; record `approved_plans` and `blocked_plans`, then send only the blocked plans back through the revision loop.
-- `blocked`: nothing is approved; feed the checker issues and blocked plan IDs back into the revision loop without rewriting approved plans.
-- `failed`: present the issues and offer retry or manual revision.
+- `checkpoint`: some plans are approved and others need revision; record `approved_plans` and `blocked_plans`, then send only the blocked plans back through the revision loop. If stopping for user input, end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:plan-phase ${phase_number} --gaps` and `gpd:suggest-next`.
+- `blocked`: nothing is approved; feed the checker issues and blocked plan IDs back into the revision loop without rewriting approved plans. If stopping, use the same Next Up route.
+- `failed`: present the issues and offer retry or manual revision. End with `## > Next Up`: primary `gpd:plan-phase ${phase_number} --gaps`, plus `gpd:resume-work` and `gpd:suggest-next`.
 </step>
 
 <step name="revision_loop">
@@ -505,6 +505,8 @@ If iteration count reaches 3, stop and offer the user:
 1. Force proceed
 2. Provide guidance and retry
 3. Abandon and exit
+
+End that stop with `## > Next Up`: primary `gpd:plan-phase ${phase_number} --gaps`, plus `gpd:execute-phase ${phase_number} --gaps-only`, `gpd:verify-work ${phase_number}`, and `gpd:suggest-next`.
 </step>
 
 <step name="complete_session">
@@ -525,6 +527,14 @@ gpd commit "verify(${phase_number}): complete research validation - {passed} pas
 ```
 
 Present the summary of passed, issue, and skipped checks. Do not relax verifier fail-closed results.
+
+End with `## > Next Up`:
+
+- If verification passed and more phases remain: primary `gpd:discuss-phase ${next_phase}` when context is missing, otherwise `gpd:plan-phase ${next_phase}`
+- If verification passed and the milestone is complete: primary `gpd:complete-milestone`
+- If gaps remain: primary `gpd:plan-phase ${phase_number} --gaps`; after gap plans exist, `gpd:execute-phase ${phase_number} --gaps-only`; confirm with `gpd:verify-work ${phase_number}`
+- Always include `gpd:suggest-next` as the recovery/confirmation command
+- Include `<sub>\`/clear\` first for fresh context, then run the primary command above.</sub>`
 </step>
 
 </process>

@@ -335,7 +335,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [GPD/literature/{slug}-REVIEW.md]
   issues: [most important unresolved issues or empty list]
-  next_actions: [recommended follow-up actions or reading path]
+  next_actions: [concrete commands or exact reading/review path]
   papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```
@@ -370,7 +370,7 @@ gpd_return:
   status: checkpoint
   files_written: [GPD/literature/{slug}-REVIEW.md]
   issues: [checkpoint question or ambiguity]
-  next_actions: [resume after user response]
+  next_actions: ["gpd:resume-work" or exact user-response handoff action]
   papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```

@@ -162,8 +162,8 @@ If either check fails, treat the handoff as incomplete and do not accept success
 Route only on the canonical `gpd_return.status`:
 
 - `gpd_return.status: completed` means the checker finished for the selected scope. Surface any advisory items from `gpd_return.issues`, but do not reinterpret the status text.
-- `gpd_return.status: checkpoint` means the checker needs user input. Present the checkpoint, offer the user the next action, and stop. Present options, checkpoint, and return.
-- `gpd_return.status: blocked` or `gpd_return.status: failed` means the checker could not complete. Surface `gpd_return.issues`, keep the run fail-closed, and stop.
+- `gpd_return.status: checkpoint` means the checker needs user input. Present options, checkpoint, and return. End with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:validate-conventions` and `gpd:suggest-next`.
+- `gpd_return.status: blocked` or `gpd_return.status: failed` means the checker could not complete. Surface `gpd_return.issues`, keep the run fail-closed, and end with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work`, `gpd convention set <key> <value>` when a lock repair is known, and `gpd:suggest-next`.
 
 Do not route on checker-local text markers or headings. Those are presentation only; route only on the canonical `gpd_return.status`.
 

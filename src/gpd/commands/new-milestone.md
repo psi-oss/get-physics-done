@@ -25,7 +25,7 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 - `GPD/ROADMAP.md` — phase structure (continues numbering)
 - `GPD/STATE.md` — reset for new milestone
 
-**After:** `gpd:plan-phase [N]` to start execution.
+**After:** `gpd:discuss-phase [N]` to clarify the first new phase before planning. Use `gpd:plan-phase [N]` only when the phase context is already clear.
 </objective>
 
 <execution_context>

@@ -150,18 +150,13 @@ def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_pat
     assert "context_intake must not be empty" in result["error"]
 
 
-def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_supplied(tmp_path: Path) -> None:
-    from gpd.mcp.servers.verification_server import run_contract_check
+def test_contract_tools_warn_when_references_lack_must_surface_anchor(tmp_path: Path) -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     contract = _project_local_contract_fixture(tmp_path)
     reference = contract["references"][0]
     assert isinstance(reference, dict)
     reference["must_surface"] = False
-    prior_output = contract["context_intake"]["must_include_prior_outputs"][0]
-    assert isinstance(prior_output, str)
-    grounded_output = tmp_path / prior_output
-    grounded_output.parent.mkdir(parents=True, exist_ok=True)
-    grounded_output.write_text("baseline summary\n", encoding="utf-8")
 
     request = {
         "check_key": "contract.benchmark_reproduction",
@@ -174,6 +169,34 @@ def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_
     rooted = run_contract_check(request, project_dir=tmp_path.resolve(strict=False).as_posix())
 
     assert rooted["status"] == "pass"
+    assert "references must include at least one must_surface=true anchor" in rooted["contract_warnings"]
+
+    suggested = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
+    assert "references must include at least one must_surface=true anchor" in suggested["contract_warnings"]
+
+
+def test_contract_tools_warn_for_non_concrete_must_surface_locator(tmp_path: Path) -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _project_local_contract_fixture(tmp_path)
+    reference = contract["references"][0]
+    assert isinstance(reference, dict)
+    reference["locator"] = "TBD"
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"], "reference_ids": ["ref-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    rooted = run_contract_check(request, project_dir=tmp_path.resolve(strict=False).as_posix())
+    suggested = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
+
+    assert rooted["status"] == "pass"
+    assert any("locator is not concrete enough" in warning for warning in rooted["contract_warnings"])
+    assert any("locator is not concrete enough" in warning for warning in suggested["contract_warnings"])
 
 
 def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_context_intake() -> None:

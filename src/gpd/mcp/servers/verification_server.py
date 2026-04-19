@@ -43,6 +43,7 @@ from gpd.contracts import (
     THEOREM_CLAIM_KIND_VALUES,
     THEOREM_STYLE_STATEMENT_REGEX_PATTERNS,
     ResearchContract,
+    _split_missing_must_surface_anchor_findings,
     collect_plan_contract_integrity_errors,
     contract_has_explicit_context_intake,
     parse_project_contract_data_salvage,
@@ -50,6 +51,7 @@ from gpd.contracts import (
     statement_looks_theorem_like,
 )
 from gpd.core.contract_validation import (
+    _must_surface_locator_warnings,
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
@@ -80,6 +82,18 @@ from gpd.mcp.verification_contract_policy import (
 logger = configure_mcp_logging("gpd-verification")
 
 mcp = FastMCP("gpd-verification")
+
+
+def _approved_contract_warnings(contract: ResearchContract, *, project_root: Path | None) -> list[str]:
+    """Return non-blocking approved-mode contract warnings shared by MCP tools."""
+
+    _, missing_anchor_warnings = _split_missing_must_surface_anchor_findings(
+        contract,
+        project_root=project_root,
+        mode="approved",
+    )
+    locator_warnings = _must_surface_locator_warnings(contract, project_root=project_root)
+    return list(dict.fromkeys([*missing_anchor_warnings, *locator_warnings]))
 
 _CONTRACT_ERROR_PATH_RE = re.compile(
     r"^(schema_version|[A-Za-z_][A-Za-z0-9_]*(?:\.\d+|\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*)(?:: | )"
@@ -4502,8 +4516,11 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     metadata=metadata,
                 )
 
-            return stable_mcp_response(
-                {
+            contract_warnings: list[str] = []
+            if contract is not None:
+                contract_warnings = _approved_contract_warnings(contract, project_root=project_root)
+
+            response = {
                 "check_id": check_meta.check_id,
                 "check_key": check_meta.check_key,
                 "check_name": check_meta.name,
@@ -4521,8 +4538,11 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 "contract_salvaged": bool(contract_salvage_errors),
                 "contract_salvage_findings": list(contract_salvage_errors),
                 "guidance": check_meta.oracle_hint,
-                }
-            )
+            }
+            if contract_warnings:
+                response["contract_warnings"] = contract_warnings
+
+            return stable_mcp_response(response)
         except Exception as exc:  # pragma: no cover - defensive envelope
             return _error_result(exc)
 
@@ -4644,11 +4664,14 @@ def suggest_contract_checks(
                 "contract_salvaged": bool(contract_salvage_errors),
                 "contract_salvage_findings": list(contract_salvage_errors),
             }
+            contract_warnings = _approved_contract_warnings(parsed, project_root=project_root)
             if contract_salvage_errors:
-                response["contract_warnings"] = [
+                contract_warnings = [
                     "Contract payload was salvaged before check suggestion: "
                     + _summarize_contract_salvage_errors(contract_salvage_errors)
-                ]
+                ] + contract_warnings
+            if contract_warnings:
+                response["contract_warnings"] = contract_warnings
             return stable_mcp_response(response)
         except Exception as exc:  # pragma: no cover - defensive envelope
             if isinstance(exc, PydanticValidationError):
