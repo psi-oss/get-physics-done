@@ -1789,6 +1789,12 @@ fi
 After phase completion, check the project's autonomy mode. If yolo or balanced with no pending checkpoint, auto-route to the next phase. If supervised, or if a checkpoint requires review, pause with a clear status message showing: current phase completed, why execution paused, exact next command to continue, and key artifacts to review. See `{GPD_INSTALL_DIR}/references/orchestration/continuous-execution.md` for the standard checkpoint protocol.
 </continuation_routing>
 
+Never end with only "ready to plan/continue" prose. After a successful closeout, choose the matching variant and emit a `Next Up` block with concrete commands:
+
+- If the next phase has no `*-CONTEXT.md`, make `gpd:discuss-phase {X+1}` the primary command and show `gpd:plan-phase {X+1}` as the direct-plan alternative.
+- If the next phase already has context, make `gpd:plan-phase {X+1}` the primary command.
+- Always include `gpd:suggest-next` as the shortest recovery/confirmation command when the user only wants the next action.
+
 **If more phases:**
 
 ```
@@ -1796,9 +1802,16 @@ After phase completion, check the project's autonomy mode. If yolo or balanced w
 
 **Phase {X+1}: {Name}** -- {Goal}
 
-`gpd:plan-phase {X+1}`
+If context is missing:
+Primary: `gpd:discuss-phase {X+1}`
+Direct plan alternative: `gpd:plan-phase {X+1}`
 
-<sub>`/clear` first for fresh context</sub>
+If context exists:
+Primary: `gpd:plan-phase {X+1}`
+
+Confirm next action: `gpd:suggest-next`
+
+<sub>`/clear` first for fresh context, then run the primary command above.</sub>
 ```
 
 **If milestone complete:**

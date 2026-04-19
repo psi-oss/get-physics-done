@@ -1262,6 +1262,8 @@ def test_respond_to_referees_command_policy_surfaces_explicit_manuscript_and_rep
                 "manuscript/*.md",
                 "draft/*.tex",
                 "draft/*.md",
+                "GPD/publication/*/manuscript/*.tex",
+                "GPD/publication/*/manuscript/*.md",
             ],
         ),
         output_policy=registry.CommandOutputPolicy(

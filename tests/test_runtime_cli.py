@@ -567,12 +567,37 @@ def test_runtime_cli_manifest_scoped_local_candidate_matching_does_not_consult_h
     assert runtime_cli._is_matching_local_install_candidate(global_config_dir, runtime=adapter.runtime_name) is False
 
 
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_resolves_manifestless_managed_surface_for_diagnostics(
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    workspace = tmp_path / "workspace"
+    ancestor_config_dir = workspace / descriptor.config_dir_name
+    nested_cwd = workspace / "research" / "notes"
+    nested_cwd.mkdir(parents=True)
+
+    seed_complete_runtime_install(ancestor_config_dir, runtime=descriptor.runtime_name)
+    (ancestor_config_dir / MANIFEST_NAME).unlink()
+
+    resolved = runtime_cli._resolve_local_config_dir(
+        f"./{descriptor.config_dir_name}",
+        runtime=descriptor.runtime_name,
+        cli_cwd=nested_cwd,
+    )
+
+    assert resolved == ancestor_config_dir.resolve()
+    assert resolved != (nested_cwd / descriptor.config_dir_name).resolve()
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_uses_manifest_explicit_target_for_repair_guidance(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    descriptor,
 ) -> None:
-    adapter = get_adapter("codex")
+    adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / "custom-global" / adapter.config_dir_name
     config_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = config_dir / MANIFEST_NAME
@@ -620,6 +645,45 @@ def test_runtime_cli_uses_manifest_explicit_target_for_repair_guidance(
     assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
     assert "--target-dir" in captured.err
     assert str(config_dir) in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_infers_target_dir_for_missing_explicit_target_repair_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / "custom-parent" / adapter.config_dir_name
+    seed_complete_runtime_install(config_dir, runtime=adapter.runtime_name, explicit_target=True)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("runtime", None)
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    exit_code = main(
+        [
+            "--runtime",
+            adapter.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
+    assert "--target-dir" in captured.err
+    assert shlex.quote(str(config_dir)) in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -1082,9 +1146,8 @@ def test_runtime_cli_rejects_local_config_dir_from_ancestor_workspace_without_ma
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
-    assert "The manifest must declare a non-empty `runtime` field." in captured.err
-    assert str(config_dir) in captured.err
+    assert f"GPD runtime bridge rejected incomplete install manifest at `{config_dir}`." in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert str(nested_cwd / descriptor.config_dir_name) not in captured.err
 
 
@@ -1223,9 +1286,8 @@ def test_runtime_cli_rejects_manifestless_ancestor_local_candidate_before_dispat
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert "GPD runtime bridge rejected missing install manifest" in captured.err
-    assert f"`{MANIFEST_NAME}`" in captured.err
-    assert str(config_dir) in captured.err
+    assert f"GPD runtime bridge rejected missing install manifest at `{config_dir}`." in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert str(nested_cwd / descriptor.config_dir_name) not in captured.err
 
 

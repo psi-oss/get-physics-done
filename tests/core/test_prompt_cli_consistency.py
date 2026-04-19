@@ -740,3 +740,16 @@ def test_execute_phase_failure_recovery_counts_only_top_level_verification_statu
     )
     assert 'grep -c "status: failed"' not in workflow
     assert 'grep -c "status:"' not in workflow
+
+
+def test_execute_phase_closeout_always_surfaces_concrete_next_commands() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/execute-phase.md").read_text(encoding="utf-8")
+
+    assert 'Never end with only "ready to plan/continue" prose.' in workflow
+    assert "make `gpd:discuss-phase {X+1}` the primary command" in workflow
+    assert "make `gpd:plan-phase {X+1}` the primary command" in workflow
+    assert "Always include `gpd:suggest-next`" in workflow
+    assert "Primary: `gpd:discuss-phase {X+1}`\nDirect plan alternative: `gpd:plan-phase {X+1}`" in workflow
+    assert "Primary: `gpd:plan-phase {X+1}`" in workflow
+    assert "Confirm next action: `gpd:suggest-next`" in workflow
+    assert "Primary: `gpd:discuss-phase {X+1}` if context is missing" not in workflow

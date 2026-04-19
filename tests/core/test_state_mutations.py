@@ -112,3 +112,64 @@ def test_markdown_mutator_recovers_missing_state_markdown_from_state_json(
     assert state_md.exists()
     regenerated = generate_state_markdown(load_state_json(cwd) or default_state_dict())
     assert regenerated.startswith("# Research State")
+
+
+def test_state_update_prefers_literal_dotted_field_before_dot_stripping(tmp_path: Path) -> None:
+    cwd = _bootstrap_markdown_recovery_project(tmp_path)
+    state_md = cwd / "GPD" / "STATE.md"
+    content = state_md.read_text(encoding="utf-8")
+    import re as _re
+
+    content = _re.sub(
+        r"(## Session Continuity)",
+        "**custom.field.status:** old_value\n\n\\1",
+        content,
+        count=1,
+        flags=_re.IGNORECASE,
+    )
+    state_md.write_text(content, encoding="utf-8")
+
+    result = state_update(cwd, "custom.field.status", "new_value")
+
+    assert result.updated is True
+    updated_content = state_md.read_text(encoding="utf-8")
+    assert "**custom.field.status:** new_value" in updated_content
+    assert "**Status:** Executing" in updated_content
+
+
+def test_state_update_strips_dot_prefix_after_underscore_resolution(tmp_path: Path) -> None:
+    cwd = _bootstrap_markdown_recovery_project(tmp_path)
+
+    result = state_update(cwd, "position.status", "Paused")
+
+    assert result.updated is True
+    stored = load_state_json(cwd)
+    assert stored is not None
+    assert stored["position"]["status"] == "Paused"
+
+
+def test_state_update_rejects_invalid_dotted_status_after_resolution(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["status"] = "Paused"
+    cwd = _bootstrap_markdown_recovery_project(tmp_path, state=state)
+
+    result = state_update(cwd, "position.status", "banana")
+
+    assert result.updated is False
+    assert 'Invalid status: "banana"' in (result.reason or "")
+    stored = load_state_json(cwd)
+    assert stored is not None
+    assert stored["position"]["status"] == "Paused"
+
+
+def test_state_update_rejects_dotted_session_continuity_mirror_field(tmp_path: Path) -> None:
+    cwd = _bootstrap_markdown_recovery_project(tmp_path)
+    state_record_session(cwd, stopped_at="Phase 03 Plan 2", resume_file="canonical-handoff.md")
+
+    result = state_update(cwd, "continuation.handoff.resume_file", "edited-in-markdown.md")
+
+    assert result.updated is False
+    assert "mirror field" in (result.reason or "").lower()
+    stored = load_state_json(cwd)
+    assert stored is not None
+    assert stored["continuation"]["handoff"]["resume_file"] == "canonical-handoff.md"

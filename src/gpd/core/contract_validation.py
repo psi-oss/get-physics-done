@@ -42,6 +42,7 @@ from gpd.contracts import (
     _is_concrete_reference_locator,
     _is_context_intake_locator_grounding,
     _is_project_artifact_path,
+    _split_missing_must_surface_anchor_findings,
     collect_contract_integrity_errors,
     collect_proof_bearing_claim_integrity_errors,
     is_placeholder_only_guidance_text,
@@ -1372,14 +1373,13 @@ def validate_project_contract(
     else:
         warnings.extend(_must_surface_locator_warnings(parsed, project_root=project_root))
 
-    has_non_reference_grounding = _has_non_reference_grounding_signal(parsed, project_root=project_root)
-
-    if parsed.references and not any(reference.must_surface for reference in parsed.references):
-        finding = "references must include at least one must_surface=true anchor"
-        if mode == "approved" and not has_non_reference_grounding:
-            errors.append(finding)
-        else:
-            warnings.append(finding)
+    reference_anchor_errors, reference_anchor_warnings = _split_missing_must_surface_anchor_findings(
+        parsed,
+        project_root=project_root,
+        mode=mode,
+    )
+    errors.extend(reference_anchor_errors)
+    warnings.extend(reference_anchor_warnings)
 
     if (
         mode == "approved"

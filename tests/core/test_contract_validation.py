@@ -20,6 +20,7 @@ from gpd.contracts import (
     ProjectContractParseResult,
     ResearchContract,
     SuggestedContractCheck,
+    _split_missing_must_surface_anchor_findings,
     claim_requires_proof_audit,
     collect_plan_contract_integrity_errors,
     contract_from_data,
@@ -1873,6 +1874,23 @@ def test_validate_project_contract_approved_mode_accepts_non_reference_grounding
     assert result.valid is True
     assert result.mode == "approved"
     assert "references must include at least one must_surface=true anchor" in result.warnings
+
+
+def test_split_missing_must_surface_anchor_findings_warns_only_when_other_grounding_exists(
+    tmp_path: Path,
+) -> None:
+    contract = _load_contract_fixture()
+    contract["references"][0]["must_surface"] = False
+    prior_output = tmp_path / "GPD" / "phases" / "00-baseline" / "00-01-SUMMARY.md"
+    prior_output.parent.mkdir(parents=True)
+    prior_output.write_text("# Summary\n", encoding="utf-8")
+    contract["context_intake"]["must_include_prior_outputs"] = ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
+    parsed = ResearchContract.model_validate(contract)
+
+    errors, warnings = _split_missing_must_surface_anchor_findings(parsed, project_root=tmp_path, mode="approved")
+
+    assert errors == []
+    assert warnings == ["references must include at least one must_surface=true anchor"]
 
 
 def test_validate_project_contract_approved_mode_rejects_nonexistent_prior_output_grounding(tmp_path: Path) -> None:

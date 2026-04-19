@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -14,7 +15,7 @@ from unittest.mock import patch
 import pytest
 
 import gpd.core.health as health_module
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import STATE_LINES_TARGET, ProjectLayout
 from gpd.core.contract_validation import validate_project_contract
 from gpd.core.errors import ValidationError
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
@@ -1012,6 +1013,17 @@ class TestCheckCompaction:
         (planning / "STATE.md").write_text("# State\nShort content\n", encoding="utf-8")
         result = check_compaction_needed(tmp_path)
         assert result.status == CheckStatus.OK
+
+    def test_trailing_newline_does_not_overcount_lines(self, tmp_path: Path):
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        content = "\n".join(f"line {index}" for index in range(STATE_LINES_TARGET)) + "\n"
+        (planning / "STATE.md").write_text(content, encoding="utf-8")
+
+        result = check_compaction_needed(tmp_path)
+
+        assert result.status == CheckStatus.OK
+        assert result.details["lines"] == STATE_LINES_TARGET
 
 
 class TestCheckOrphans:
@@ -2533,6 +2545,42 @@ class TestCheckLatestReturn:
         assert result.status == CheckStatus.FAIL
         assert "tasks_completed not a number" in result.issues[0] or "tasks_completed not a number" in " ".join(result.issues)
         assert "tasks_total not a number" in " ".join(result.issues)
+
+    def test_identical_mtime_uses_phase_order_not_lexicographic_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        phases_dir = cwd / "GPD" / "phases"
+        early = phases_dir / "02.2-old"
+        late = phases_dir / "02.10-new"
+        early.mkdir(parents=True)
+        late.mkdir(parents=True)
+        early_summary = early / "SUMMARY.md"
+        late_summary = late / "SUMMARY.md"
+        early_summary.write_text("# Summary\n", encoding="utf-8")
+        late_summary.write_text("# Summary\n", encoding="utf-8")
+
+        same_mtime = 1_700_000_000_000_000_000
+        os.utime(early_summary, ns=(same_mtime, same_mtime))
+        os.utime(late_summary, ns=(same_mtime, same_mtime))
+
+        monkeypatch.setattr(
+            health_module,
+            "cmd_validate_return",
+            lambda path: SimpleNamespace(
+                passed=True,
+                errors=[],
+                warnings=[],
+                fields={"status": "completed"},
+                warning_count=0,
+            ),
+        )
+
+        result = check_latest_return(cwd)
+
+        assert result.status == CheckStatus.OK
+        assert result.details["file"] == "02.10-new/SUMMARY.md"
+        assert result.details["summary_path"] == str(late_summary)
 
 
 class TestCheckResultConsistency:

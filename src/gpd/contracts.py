@@ -2477,6 +2477,28 @@ def _has_contract_grounding_context(
     )
 
 
+def _split_missing_must_surface_anchor_findings(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+    mode: Literal["draft", "approved"] = "draft",
+) -> tuple[list[str], list[str]]:
+    """Return errors and warnings for contracts that lack a must-surface reference anchor."""
+
+    if not contract.references or any(reference.must_surface for reference in contract.references):
+        return [], []
+
+    finding = "references must include at least one must_surface=true anchor"
+    has_non_reference_grounding = _has_contract_grounding_context(
+        contract,
+        project_root=project_root,
+        require_existing_project_artifacts=True,
+    )
+    if mode == "approved" and not has_non_reference_grounding:
+        return [finding], []
+    return [], [finding]
+
+
 def contract_has_explicit_context_intake(
     contract: ResearchContract,
     *,

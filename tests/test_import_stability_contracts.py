@@ -46,8 +46,31 @@ def test_registry_import_remains_stable_after_adapter_package_import() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        timeout=15,
         check=False,
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
     assert result.stdout.strip() == "True"
+
+
+def test_key_entrypoint_modules_import_stably() -> None:
+    result = subprocess.run(
+        [
+            *_repo_python_command(),
+            "-c",
+            (
+                "import importlib; "
+                "modules = ['gpd', 'gpd.cli', 'gpd.runtime_cli', 'gpd.mcp.servers.skills_server']; "
+                "[importlib.import_module(name) for name in modules]; "
+                "print(len(modules))"
+            ),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.stdout.strip() == "4"

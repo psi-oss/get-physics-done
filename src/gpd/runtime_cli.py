@@ -37,6 +37,7 @@ from gpd.core.cli_args import (
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.hooks.install_metadata import (
     config_dir_has_managed_install_markers,
+    load_install_manifest_explicit_target_status,
     load_install_manifest_runtime_status,
     load_install_manifest_scope_status,
 )
@@ -173,25 +174,39 @@ def _paths_equal(left: Path, right: Path) -> bool:
 
 def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bool:
     """Return whether *candidate* should satisfy a local bridge config-dir lookup."""
-    if not candidate.is_dir():
-        return False
+    return _local_install_candidate_status(candidate, runtime=runtime) == "matching"
 
+
+def _is_global_config_candidate(candidate: Path, *, runtime: str) -> bool:
     adapter = get_adapter(runtime)
+    return any(_paths_equal(candidate, global_dir) for global_dir in resolve_global_config_dir_candidates(adapter.runtime_descriptor))
+
+
+def _local_install_candidate_status(candidate: Path, *, runtime: str) -> str:
+    """Classify local config-dir candidates for ancestor resolution."""
+    if not candidate.is_dir():
+        return "none"
+
     manifest_status, manifest, manifest_runtime = load_install_manifest_runtime_status(candidate)
+    manifest_scope = manifest.get("install_scope")
     if manifest_status == "ok":
         if manifest_runtime != runtime:
-            return False
+            return "diagnostic"
+        if manifest_scope == "local":
+            return "matching"
+        if manifest_scope == "global":
+            return "none"
+        return "diagnostic"
 
-        manifest_scope = manifest.get("install_scope")
-        return manifest_scope == "local"
-
-    global_config_dirs = resolve_global_config_dir_candidates(adapter.runtime_descriptor, home=Path.home())
-    has_install_markers = config_dir_has_managed_install_markers(candidate)
-    if not has_install_markers:
-        return False
-    if any(_paths_equal(candidate, global_dir) for global_dir in global_config_dirs):
-        return False
-    return True
+    if manifest_status != "ok":
+        if manifest_scope == "global":
+            return "none"
+        if manifest_scope != "local" and _is_global_config_candidate(candidate, runtime=runtime):
+            return "none"
+        if manifest_status != "missing" or config_dir_has_managed_install_markers(candidate):
+            return "diagnostic"
+        return "none"
+    return "none"
 
 
 def _resolve_local_config_dir(raw_value: str, *, runtime: str, cli_cwd: Path) -> Path:
@@ -200,7 +215,7 @@ def _resolve_local_config_dir(raw_value: str, *, runtime: str, cli_cwd: Path) ->
     resolved_cwd = cli_cwd.resolve(strict=False)
     for base in (resolved_cwd, *resolved_cwd.parents):
         candidate = (base / relative).resolve(strict=False)
-        if _is_matching_local_install_candidate(candidate, runtime=runtime):
+        if _local_install_candidate_status(candidate, runtime=runtime) != "none":
             return candidate
     return (resolved_cwd / relative).resolve(strict=False)
 
@@ -656,19 +671,23 @@ def main(argv: list[str] | None = None) -> int:
         explicit_target=bool(options.explicit_target),
         cli_cwd=cli_cwd,
     )
-    manifest_status, manifest_payload, manifest_runtime = load_install_manifest_runtime_status(config_dir)
+    manifest_status, _manifest_payload, manifest_runtime = load_install_manifest_runtime_status(config_dir)
     manifest_scope_status, manifest_scope_payload, manifest_install_scope = load_install_manifest_scope_status(config_dir)
-    manifest_explicit_target = manifest_payload.get("explicit_target")
-    if not isinstance(manifest_explicit_target, bool):
-        manifest_explicit_target = None
-    repair_explicit_target = (
-        manifest_explicit_target if manifest_explicit_target is not None else bool(options.explicit_target)
+    _manifest_explicit_target_status, _manifest_explicit_target_payload, manifest_explicit_target = (
+        load_install_manifest_explicit_target_status(config_dir)
     )
     if manifest_scope_status == "ok":
         manifest_install_scope = manifest_scope_payload.get("install_scope")
         if not isinstance(manifest_install_scope, str):
             manifest_install_scope = None
     has_managed_install_markers = config_dir_has_managed_install_markers(config_dir)
+    repair_explicit_target = _uses_effective_explicit_target(
+        runtime=runtime,
+        config_dir=config_dir,
+        install_scope=manifest_install_scope if isinstance(manifest_install_scope, str) else options.install_scope,
+        explicit_target=manifest_explicit_target if manifest_explicit_target is not None else False,
+        cli_cwd=cli_cwd,
+    )
     failure = _classify_bridge_failure(
         runtime=runtime,
         config_dir=config_dir,

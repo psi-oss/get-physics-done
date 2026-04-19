@@ -79,6 +79,47 @@ def test_state_server_apply_return_updates_rejects_relative_project_dir(monkeypa
 
 
 @pytest.mark.parametrize(
+    ("tool_fn", "patch_target", "fake_result"),
+    [
+        (get_state, "gpd.mcp.servers.state_server.load_state_json", {"state": "loaded"}),
+        (
+            get_config,
+            "gpd.mcp.servers.state_server.load_config",
+            SimpleNamespace(model_dump=lambda: {"mode": "review"}),
+        ),
+    ],
+)
+def test_state_server_read_only_calls_do_not_migrate_root_planning_files(
+    tool_fn,
+    patch_target: str,
+    fake_result,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    planning = tmp_path
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    monkeypatch.setattr(patch_target, lambda *_args, **_kwargs: fake_result)
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.load_config"
+        if patch_target.endswith("load_state_json")
+        else "gpd.mcp.servers.state_server.load_state_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected loader call")),
+    )
+
+    result = tool_fn(str(tmp_path))
+
+    assert result["schema_version"] == 1
+    assert not (tmp_path / "GPD" / "PROJECT.md").exists()
+    assert not (tmp_path / "GPD" / "ROADMAP.md").exists()
+    if tool_fn is get_state:
+        assert result["state"] == "loaded"
+    else:
+        assert result["mode"] == "review"
+
+
+@pytest.mark.parametrize(
     ("tool_fn", "kwargs"),
     [
         (get_state, {"project_dir": "relative/project"}),

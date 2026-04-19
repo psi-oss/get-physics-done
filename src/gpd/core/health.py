@@ -435,7 +435,7 @@ def check_compaction_needed(cwd: Path) -> HealthCheck:
             details={"reason": "no_state_file"},
         )
 
-    line_count = len(content.split("\n"))
+    line_count = len(content.splitlines())
 
     # Count decisions
     dec_match = re.search(
@@ -696,7 +696,7 @@ def _latest_summary_file(cwd: Path) -> tuple[Path, str] | None:
 
     for phase_dir in sorted(
         (entry for entry in phases_dir.iterdir() if entry.is_dir()),
-        key=lambda entry: phase_sort_key(entry.name),
+        key=lambda entry: (phase_sort_key(entry.name), entry.name),
     ):
         for summary in sorted(
             (entry for entry in phase_dir.iterdir() if entry.is_file() and layout.is_summary_file(entry.name)),
@@ -707,13 +707,13 @@ def _latest_summary_file(cwd: Path) -> tuple[Path, str] | None:
             except OSError:
                 continue
             mtime_ns = getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))
-            candidates.append((mtime_ns, f"{phase_dir.name}/{summary.name}", summary))
+            candidates.append((mtime_ns, tuple(phase_sort_key(phase_dir.name)), phase_dir.name, summary.name, summary))
 
     if not candidates:
         return None
 
-    _mtime_ns, summary_name, summary_path = max(candidates, key=lambda item: (item[0], item[1]))
-    return summary_path, summary_name
+    _mtime_ns, _phase_key, phase_name, summary_filename, summary_path = max(candidates, key=lambda item: item[:4])
+    return summary_path, f"{phase_name}/{summary_filename}"
 
 
 def check_latest_return(cwd: Path) -> HealthCheck:

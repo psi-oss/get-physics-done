@@ -641,6 +641,33 @@ def test_get_skill_planner_agent_does_not_expose_staged_loading_sidecar(monkeypa
     assert "staged_loading" not in result["structured_metadata_authority"]
 
 
+def test_get_skill_planner_surfaces_docs_references(monkeypatch) -> None:
+    from pathlib import Path
+
+    from gpd import registry as content_registry
+    from gpd.mcp.servers.skills_server import get_skill
+
+    repo_agents_dir = Path(__file__).resolve().parents[2] / "src/gpd/agents"
+    monkeypatch.setattr(content_registry, "AGENTS_DIR", repo_agents_dir)
+    content_registry.invalidate_cache()
+
+    result = get_skill("gpd-planner")
+    docs_references = [entry for entry in result["referenced_files"] if entry["kind"] == "docs"]
+
+    assert any(entry["path"] == "@GPD/docs/conventions.md" for entry in docs_references)
+    assert all(not entry["path"].startswith("/") for entry in docs_references)
+    assert result["loading_hint"].startswith("Treat `content` as the wrapper/context surface.")
+
+
+def test_missing_docs_reference_rejects_unsafe_relative_suffixes() -> None:
+    from gpd.mcp.servers.skills_server import _portable_reference_path
+
+    assert _portable_reference_path("docs/future-conventions.md") == ("@GPD/docs/future-conventions.md", None)
+    assert _portable_reference_path("docs/../README.md") is None
+    assert _portable_reference_path("docs//future-conventions.md") is None
+    assert _portable_reference_path("docs/./future-conventions.md") is None
+
+
 def test_get_skill_plan_checker_agent_surfaces_direct_schema_dependency_and_least_privilege(
     tmp_path, monkeypatch
 ) -> None:

@@ -12,7 +12,7 @@ from gpd.adapters.runtime_catalog import (
     iter_runtime_descriptors,
     resolve_global_config_dir,
 )
-from gpd.hooks.install_metadata import installed_update_command
+from gpd.hooks.install_metadata import installed_update_command, load_install_manifest_explicit_target_status
 
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
@@ -159,6 +159,11 @@ def test_local_install_without_explicit_target_returns_no_trusted_update_command
     manifest.pop("explicit_target", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
+    explicit_target_state, explicit_target_payload, explicit_target = load_install_manifest_explicit_target_status(target)
+
+    assert explicit_target_state == "missing_explicit_target"
+    assert explicit_target_payload["runtime"] == descriptor.runtime_name
+    assert explicit_target is None
     assert installed_update_command(target) is None
 
 

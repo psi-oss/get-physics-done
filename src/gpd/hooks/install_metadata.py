@@ -207,6 +207,22 @@ def load_install_manifest_scope_status(config_dir: Path) -> tuple[str, dict[str,
     return "ok", payload, normalized_scope
 
 
+def load_install_manifest_explicit_target_status(config_dir: Path) -> tuple[str, dict[str, object], bool | None]:
+    """Return the manifest parse state, payload, and explicit-target flag when available."""
+
+    state, payload = load_install_manifest_state(config_dir)
+    if state != "ok":
+        return state, payload, None
+
+    if "explicit_target" not in payload:
+        return "missing_explicit_target", payload, None
+
+    explicit_target = payload.get("explicit_target")
+    if not isinstance(explicit_target, bool):
+        return "malformed_explicit_target", payload, None
+    return "ok", payload, explicit_target
+
+
 def assess_install_target(
     config_dir: Path,
     *,
@@ -309,8 +325,10 @@ def installed_update_command(config_dir: Path) -> str | None:
     except KeyError:
         return None
 
-    explicit_target = manifest.get("explicit_target")
-    if not isinstance(explicit_target, bool):
+    explicit_target_state, _explicit_target_manifest, explicit_target = load_install_manifest_explicit_target_status(
+        config_dir
+    )
+    if explicit_target_state != "ok" or explicit_target is None:
         # Fail closed for legacy manifests that do not prove whether the
         # install was explicitly targeted. Update-command synthesis is only
         # trusted when the manifest carries the authoritative flag.

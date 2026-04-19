@@ -49,7 +49,7 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 - Accept the literal `paste` sentinel as an explicit report source.
 - Preserve the legacy shorthand `gpd:respond-to-referees path/to/report.md` or `gpd:respond-to-referees paste` only when the manuscript subject still resolves from the current GPD project.
 - Treat a bare positional path as a referee-report source only. Do not reinterpret it as the manuscript subject for this workflow.
-- Keep all GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is external; manuscript edits still occur in place on the resolved manuscript subject.
+- Keep all GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is external, and keep manuscript edits on the resolved manuscript subject.
 - Project-backed response rounds keep the current global `GPD/` / `GPD/review/` ownership. If centralized preflight resolves an explicit external publication subject with a managed subject-owned publication root at `GPD/publication/{subject_slug}`, keep the same round-artifact family inside that managed root instead of writing sidecars beside `${PAPER_DIR}`.
 - Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out. For the explicit `--manuscript ... --report ...` lane, keep the normalized manuscript/report payload in that single variable and do not explode it back into separate validator argv tokens.
 

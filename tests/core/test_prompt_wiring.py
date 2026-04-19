@@ -999,7 +999,7 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     workflow_text = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     writer_text = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
 
-    assert "argument-hint: \"[path to referee report or 'paste']\"" in command_text
+    assert "argument-hint: \"[--manuscript PATH] (--report PATH [--report PATH...] | paste)\"" in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-wrapper-guidance.md" in command_text
     assert "Referee report source: $ARGUMENTS (file path or `paste`)." in command_text
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command_text
@@ -1094,6 +1094,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     peer_review = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    respond_command = registry.get_command("respond-to-referees")
 
     assert "context_mode: project-aware" in write_paper
     assert "--intake path/to/paper-authoring-input.json" in write_paper
@@ -1102,7 +1103,16 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in peer_review
     assert "current global `GPD/` / `GPD/review/` round-artifact layout" in peer_review
-    assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]' in respond
+    assert respond_command.argument_hint == "[--manuscript PATH] (--report PATH [--report PATH...] | paste)"
+    assert respond_command.command_policy is not None
+    assert respond_command.command_policy.subject_policy is not None
+    assert respond_command.command_policy.subject_policy.explicit_input_kinds == [
+        "manuscript_path",
+        "referee_report_path",
+        "paste_referee_report",
+    ]
+    assert respond_command.command_policy.subject_policy.supported_roots == ["paper", "manuscript", "draft"]
+    assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md", "GPD/publication/*/manuscript/*.tex", "GPD/publication/*/manuscript/*.md"]' in respond
     assert "bounded continuation path, not a full relocation of manuscript-local publication artifacts." in respond
     assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex", "GPD/publication/*/manuscript/*.tex"]' in arxiv
 

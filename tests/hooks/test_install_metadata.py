@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.runtime_catalog import ManagedInstallSurfacePolicy
-from gpd.hooks.install_metadata import inspect_managed_install_surface
+from gpd.hooks.install_metadata import inspect_managed_install_surface, load_install_manifest_explicit_target_status
 
 
 def test_inspect_managed_install_surface_uses_runtime_catalog_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,3 +64,20 @@ def test_inspect_managed_install_surface_does_not_fall_back_to_legacy_literal_pa
     assert surface.has_nested_commands is False
     assert surface.has_flat_commands is False
     assert surface.has_managed_agents is False
+
+
+def test_load_install_manifest_explicit_target_status_rejects_legacy_manifests(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / ".custom-runtime"
+    config_dir.mkdir()
+    (config_dir / "gpd-file-manifest.json").write_text(
+        '{"runtime": "test-runtime", "install_scope": "local"}',
+        encoding="utf-8",
+    )
+
+    state, payload, explicit_target = load_install_manifest_explicit_target_status(config_dir)
+
+    assert state == "missing_explicit_target"
+    assert payload == {"runtime": "test-runtime", "install_scope": "local"}
+    assert explicit_target is None
