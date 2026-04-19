@@ -1056,7 +1056,7 @@ gpd_return:
   # Mapping: SYNTHESIS COMPLETE → completed, SYNTHESIS BLOCKED → blocked
   files_written: [GPD/literature/SUMMARY.md]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
 ```
 
 </structured_returns>

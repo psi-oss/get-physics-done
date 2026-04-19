@@ -55,6 +55,12 @@ def _contract_bearing_command_surfaces() -> dict[str, tuple[str, ...]]:
     return surfaces
 
 
+def _runtime_expected_fragments(fragments: tuple[str, ...], *, runtime: str) -> tuple[str, ...]:
+    if runtime == "codex":
+        return tuple(fragment.replace("`gpd:suggest-next`", "`$gpd-suggest-next`") for fragment in fragments)
+    return fragments
+
+
 def _spawn_contract_commands() -> tuple[str, ...]:
     return tuple(command_name for command_name in _command_names() if "<spawn_contract>" in _read(COMMANDS_DIR / f"{command_name}.md"))
 
@@ -118,7 +124,7 @@ def _extract_spawn_contracts(text: str) -> list[dict[str, object]]:
 def test_runtime_projected_commands_keep_model_visible_contract_wrappers(command_name: str, expected_fragments: tuple[str, ...], runtime: str) -> None:
     projected = _project_markdown(COMMANDS_DIR / f"{command_name}.md", runtime, is_agent=False)
 
-    for fragment in expected_fragments:
+    for fragment in _runtime_expected_fragments(expected_fragments, runtime=runtime):
         assert fragment in projected, f"{runtime} {command_name} missing {fragment!r}"
 
 

@@ -31,7 +31,7 @@ def test_plan_checker_prompt_uses_typed_status_and_concise_presentation_language
     assert "status: completed | checkpoint | blocked | failed" in envelope
     assert "files_written: []" in envelope
     assert "issues: [issue objects from Issue Format above]" in envelope
-    assert "next_actions: [list of recommended follow-up actions]" in envelope
+    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
     assert "approved_plans: [list of plan IDs that passed]" in envelope
     assert "blocked_plans: [list of plan IDs needing revision or escalation]" in envelope
 
@@ -49,7 +49,7 @@ def test_bibliographer_prompt_uses_typed_checkpoint_language_and_shorter_heading
     assert "status: completed | checkpoint | blocked | failed" in envelope
     assert "files_written: [references/references.bib, GPD/references-status.json]" in envelope
     assert "issues: [list of citation problems, if any]" in envelope
-    assert "next_actions: [list of recommended follow-up actions]" in envelope
+    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
     assert "entries_added: N" in envelope
     assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in source
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" not in source

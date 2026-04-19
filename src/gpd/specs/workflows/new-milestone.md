@@ -270,6 +270,8 @@ Before trusting the scout handoff, route on `gpd_return.status` and `gpd_return.
 
 **If `gpd_return.status: failed`:** surface the failure details, retry only the missing scout once in the same task-local write scope if the artifact is absent, and stop the survey path if freshness still cannot be proven.
 
+Any scout `checkpoint`, `blocked`, or final `failed` stop must end with `## > Next Up`: primary `gpd:new-milestone [milestone name]` to re-enter staged milestone setup, plus `gpd:suggest-next`.
+
 **If any research agent fails to spawn or returns an error:** Verify which required scout artifacts exist (`PRIOR-WORK.md`, `METHODS.md`, `COMPUTATIONAL.md`, `PITFALLS.md`). Retry only the missing scout tasks once with the same task-local write scope. If any required research file is still missing after the retry, STOP this survey path and present the missing artifacts. Do not synthesize from incomplete scout output and do not continue the milestone on partial survey results.
 
 **Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing, treat that scout as incomplete. Retry only the missing scout once in the same task-local write scope. If the artifact is still missing, stop the survey path. Do not substitute main-context research for the missing scout and do not continue with a partial survey.
@@ -346,6 +348,8 @@ This synthesizer contract is task-local. Do not reuse survey write scopes or wid
 **If `gpd_return.status: blocked`:** Present the blocker, work with the user to resolve it, and spawn a fresh continuation once the blocker is resolved.
 
 **If `gpd_return.status: failed`:** Present the failure details, ask whether to retry the same continuation once or stop, and do not infer success from preexisting files.
+
+Any synthesizer `checkpoint`, `blocked`, or final `failed` stop must end with `## > Next Up`: primary `gpd:new-milestone [milestone name]`, plus `gpd:suggest-next`.
 
 **Artifact gate:** If the synthesizer reports `gpd_return.status: completed`, verify that `GPD/literature/SUMMARY.md` is readable and named in `gpd_return.files_written`. If the summary artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete. Retry the synthesizer once if the summary file is still missing. If it remains missing, stop and review the missing inputs. Do not create SUMMARY.md in the main context from partial scout output or from a stale summary that was not named in the fresh return.
 
@@ -571,6 +575,8 @@ This roadmapper contract is task-local. Do not widen the write scope or reuse it
 
 **If `gpd_return.status: failed`:** Present the failure details, ask whether to retry the same continuation once or stop, and do not infer success from preexisting files.
 
+Any roadmapper `checkpoint`, `blocked`, or final `failed` stop must end with `## > Next Up`: primary `gpd:new-milestone [milestone name]`, plus `gpd:suggest-next`.
+
 **Artifact gate:** If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`. If any expected artifact was already present before this handoff, it only counts as fresh output when the same path appears in `gpd_return.files_written`. If any expected artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete and request a fresh continuation. Do not trust runtime completion text alone.
 
 **One-shot freshness rule:** the only proof of success is a completed typed return naming the updated files. Existing files on disk are stale unless the same paths appear in `gpd_return.files_written` from this run.
@@ -665,6 +671,16 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files GPD/ROAD
 ## >> Next Up
 
 **Phase [N]: [Phase Name]** — [Goal]
+
+`gpd:discuss-phase [N]`
+
+<sub>`/clear` first for fresh context, then run `gpd:discuss-phase [N]`.</sub>
+
+---
+
+**Also available:**
+- `gpd:plan-phase [N]` — skip discussion and plan directly
+- `gpd:suggest-next` — confirm the next action
 ```
 </process>
 

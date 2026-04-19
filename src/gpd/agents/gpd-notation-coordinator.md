@@ -693,7 +693,7 @@ gpd_return:
   # Mapping: established → completed, updated → completed, conflict → failed
   files_written: [GPD/CONVENTIONS.md, ...]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands such as "gpd:validate-conventions", "gpd:resume-work", "gpd convention set <key> <value>", or "gpd:suggest-next"]
   conventions_file: GPD/CONVENTIONS.md
 ```
 

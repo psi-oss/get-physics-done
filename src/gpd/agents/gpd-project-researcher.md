@@ -690,7 +690,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [GPD/literature/SUMMARY.md, GPD/literature/METHODS.md, ...]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   confidence: HIGH | MEDIUM | LOW
 ```
 

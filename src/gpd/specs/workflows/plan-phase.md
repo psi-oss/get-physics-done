@@ -138,13 +138,13 @@ bind_plan_phase_init "$INIT"
 
 **If `planning_exists` is false:** Error -- run `gpd:new-project` first.
 
-**If `project_contract_load_info.status` starts with `blocked`:** STOP and checkpoint with the user. Show the specific `project_contract_load_info.errors` / `warnings`; do not silently continue from `ROADMAP.md` or `REQUIREMENTS.md` alone when the stored contract could not even be loaded cleanly.
+**If `project_contract_load_info.status` starts with `blocked`:** STOP and checkpoint with the user. Show the specific `project_contract_load_info.errors` / `warnings`; do not silently continue from `ROADMAP.md` or `REQUIREMENTS.md` alone when the stored contract could not even be loaded cleanly. End with `## > Next Up`: primary `gpd:sync-state`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
 
-**If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `GPD/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone.
+**If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `GPD/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone. End with `## > Next Up`: primary `gpd:new-project` for project setup repair or `gpd:sync-state` if state exists but drifted, then `gpd:plan-phase {PHASE}`, plus `gpd:suggest-next`.
 
 **Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.** If the gate is false, keep the contract visible as context and diagnostics, not as approved planning scope.
 
-**If `project_contract_validation.valid` is false:** STOP and checkpoint with the user. Quote the `project_contract_validation.errors` explicitly and repair the contract before planning; a visible-but-blocked contract is not an approved planning contract.
+**If `project_contract_validation.valid` is false:** STOP and checkpoint with the user. Quote the `project_contract_validation.errors` explicitly and repair the contract before planning; a visible-but-blocked contract is not an approved planning contract. End with `## > Next Up`: primary `gpd:sync-state`, then `gpd:plan-phase {PHASE}` after repair, plus `gpd:suggest-next`.
 
 ## 1.5 Proof-Obligation Planning Gate
 

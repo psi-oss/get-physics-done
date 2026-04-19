@@ -1023,7 +1023,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [{resolved_manuscript_root}/{section_file}.tex]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   section_name: "{section drafted}"
   equations_added: N
   figures_added: N

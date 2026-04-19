@@ -1095,6 +1095,12 @@ Plans with `interactive: true` require user interaction.
 
    [Checkpoint Details from agent return]
    [Awaiting section from agent return]
+
+   ## > Next Up
+
+   `gpd:resume-work`
+
+   Also available: `gpd:execute-phase {PHASE_NUMBER}` or `gpd:suggest-next`
    ```
 
 5. User responds: "approved"/"done" | issue description | decision selection
@@ -1600,7 +1606,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 )
 ```
 
-**If the verifier agent fails to spawn or returns an error:** Stop in a blocked state. Do not mark the phase complete or clear gap-closure state on this path. The user should run `gpd:verify-work` separately to confirm gaps are closed. If the phase is proof-bearing, do NOT mark it complete on this path; proof-obligation work remains blocked until re-verification and proof-redteam audits actually clear. Do not trust the runtime handoff status by itself. Do not let a stale existing verification file satisfy the success path.
+**If the verifier agent fails to spawn or returns an error:** Stop in a blocked state. Do not mark the phase complete or clear gap-closure state on this path. End with `## > Next Up`: primary `gpd:verify-work {PHASE_NUMBER}` to confirm gaps are closed, plus `gpd:resume-work` and `gpd:suggest-next`. If the phase is proof-bearing, do NOT mark it complete on this path; proof-obligation work remains blocked until re-verification and proof-redteam audits actually clear. Do not trust the runtime handoff status by itself. Do not let a stale existing verification file satisfy the success path.
 
 **Handle the verifier response through `gpd_return.status`:**
 
@@ -1610,9 +1616,9 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
   3. If either check fails, treat the re-verification handoff as blocked. Do not let a stale existing verification file satisfy the success path.
   4. After the artifact gate passes, use the canonical verifier verdict from `gpd_return.verification_status` or the written report frontmatter:
      - `passed` -> mark phase complete, proceed to `update_roadmap`
-     - `gaps_found` / `expert_needed` / `human_needed` -> report remaining gaps and STOP -- do not auto-loop. Present: "Re-verification found {N} remaining gaps. Review: {phase_dir}/{phase}-VERIFICATION.md"
-- `gpd_return.status: checkpoint`: stop and surface the checkpoint payload. Do not wait in place for user input inside this run.
-- `gpd_return.status: blocked` / `gpd_return.status: failed`: stop in a blocked state, surface the issues, and keep gap-closure state intact.
+     - `gaps_found` / `expert_needed` / `human_needed` -> report remaining gaps and STOP -- do not auto-loop. Present: "Re-verification found {N} remaining gaps. Review: {phase_dir}/{phase}-VERIFICATION.md" and end with `## > Next Up`: primary `gpd:plan-phase {PHASE_NUMBER} --gaps`, then `gpd:execute-phase {PHASE_NUMBER} --gaps-only`, `gpd:verify-work {PHASE_NUMBER}`, and `gpd:suggest-next`.
+- `gpd_return.status: checkpoint`: stop, surface the checkpoint payload, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:verify-work {PHASE_NUMBER}` and `gpd:suggest-next`. Do not wait in place for user input inside this run.
+- `gpd_return.status: blocked` / `gpd_return.status: failed`: stop in a blocked state, surface the issues, keep gap-closure state intact, and end with `## > Next Up`: primary `gpd:verify-work {PHASE_NUMBER}`, plus `gpd:resume-work` and `gpd:suggest-next`.
 
 **If the verifier output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped legacy routing.
 
@@ -1664,12 +1670,12 @@ if [ ! -f "$CONSISTENCY_REPORT" ]; then
 fi
 ```
 
-**If the consistency checker agent fails to spawn or returns an error:** Treat the consistency check as blocked. Do not proceed as if the phase was checked. The user can rerun `gpd:validate-conventions` or resume this phase from a fresh continuation if they want the cross-phase sweep.
+**If the consistency checker agent fails to spawn or returns an error:** Treat the consistency check as blocked. Do not proceed as if the phase was checked. End with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work`, `gpd:execute-phase {PHASE_NUMBER}`, and `gpd:suggest-next`.
 
 **Handle the checker response through `gpd_return.status`:**
 - `gpd_return.status: completed`: accept only if the artifact gate passes. Surface any `issues` as warnings, then continue.
-- `gpd_return.status: checkpoint`: stop and surface the checkpoint payload from the checker. Do not wait in place for user input inside this run.
-- `gpd_return.status: blocked` / `gpd_return.status: failed`: stop execution and surface the returned issues. If the user wants convention repair, spawn `gpd-notation-coordinator` from a fresh continuation after the stop.
+- `gpd_return.status: checkpoint`: stop, surface the checkpoint payload from the checker, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:validate-conventions` and `gpd:suggest-next`. Do not wait in place for user input inside this run.
+- `gpd_return.status: blocked` / `gpd_return.status: failed`: stop execution, surface the returned issues, and end with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work` and `gpd:suggest-next`. If the user wants convention repair, spawn `gpd-notation-coordinator` from a fresh continuation after the stop.
 
 **If the checker output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped legacy routing.
 
@@ -1714,7 +1720,7 @@ Load conventions: gpd convention list
 )
 ```
 
-**If the notation coordinator agent fails to spawn or returns an error:** The consistency issues remain unresolved. Offer: 1) Retry notation coordinator, 2) Resolve conflicts manually by editing CONVENTIONS.md and using `gpd convention set`, 3) Force continue with known inconsistencies (log to DECISIONS.md). Do not silently proceed — convention errors compound across phases.
+**If the notation coordinator agent fails to spawn or returns an error:** The consistency issues remain unresolved. End with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work`, `gpd convention set <key> <value>`, and `gpd:suggest-next`. Do not silently proceed — convention errors compound across phases.
 
 Handle notation-coordinator return:
 - **`CONVENTION UPDATE`:** Conventions fixed. Commit CONVENTIONS.md. Then verify `gpd convention check` reports `locked` or `complete`, and re-check any phase artifacts flagged for re-execution are still present on disk before continuing. If the lock is still open or a flagged artifact is missing, treat the update as incomplete and keep the phase blocked.
@@ -1789,7 +1795,7 @@ fi
 After phase completion, check the project's autonomy mode. If yolo or balanced with no pending checkpoint, auto-route to the next phase. If supervised, or if a checkpoint requires review, pause with a clear status message showing: current phase completed, why execution paused, exact next command to continue, and key artifacts to review. See `{GPD_INSTALL_DIR}/references/orchestration/continuous-execution.md` for the standard checkpoint protocol.
 </continuation_routing>
 
-Never end with only "ready to plan/continue" prose. After a successful closeout, choose the matching variant and emit a `Next Up` block with concrete commands:
+Never end with only "ready to plan/continue" prose. After a successful closeout, choose exactly one matching variant and emit a `Next Up` block with concrete commands; do not print conditional "if context is missing/exists" labels in the final answer.
 
 - If the next phase has no `*-CONTEXT.md`, make `gpd:discuss-phase {X+1}` the primary command and show `gpd:plan-phase {X+1}` as the direct-plan alternative.
 - If the next phase already has context, make `gpd:plan-phase {X+1}` the primary command.
@@ -1802,14 +1808,11 @@ Never end with only "ready to plan/continue" prose. After a successful closeout,
 
 **Phase {X+1}: {Name}** -- {Goal}
 
-If context is missing:
-Primary: `gpd:discuss-phase {X+1}`
-Direct plan alternative: `gpd:plan-phase {X+1}`
+Primary: `{chosen primary command}`
 
-If context exists:
-Primary: `gpd:plan-phase {X+1}`
-
-Confirm next action: `gpd:suggest-next`
+**Also available:**
+- `{secondary command}` -- when relevant
+- `gpd:suggest-next` -- confirm the next action
 
 <sub>`/clear` first for fresh context, then run the primary command above.</sub>
 ```
@@ -1822,6 +1825,10 @@ MILESTONE COMPLETE!
 All {N} phases executed.
 
 `gpd:complete-milestone`
+
+**Also available:** `gpd:suggest-next`
+
+<sub>`/clear` first for fresh context, then run `gpd:complete-milestone`.</sub>
 ```
 
 </step>

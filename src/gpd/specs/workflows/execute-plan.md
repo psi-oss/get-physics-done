@@ -758,7 +758,7 @@ ls -1 "${phase_dir}"/SUMMARY.md "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l
 
 | Condition                                  | Route                 | Action                                                                                                                                                  |
 | ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **balanced/yolo:** auto-continue to next plan when no blockers remain. **supervised:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
+| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **balanced/yolo:** auto-continue to next plan when no blockers remain. **supervised:** show next plan + completion summary, then end with `## > Next Up`: primary `gpd:execute-phase {phase}`, plus `gpd:suggest-next`. STOP here. |
 | summaries = plans, current < highest phase | **B: Phase done**     | Show completion, suggest `gpd:plan-phase {Z+1}` + `gpd:verify-work {Z}` + `gpd:discuss-phase {Z+1}`                                                  |
 | summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `gpd:complete-milestone` + `gpd:verify-work` + `gpd:add-phase`                                                                  |
 

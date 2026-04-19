@@ -976,7 +976,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [path to EXPERIMENT-DESIGN.md]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands or exact artifact review actions]
   design_file: [path to EXPERIMENT-DESIGN.md]
 ```
 

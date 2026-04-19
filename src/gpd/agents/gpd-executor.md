@@ -1076,7 +1076,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written: [list of file paths created or modified]
   issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  next_actions: [concrete commands such as "gpd:execute-phase {phase}", "gpd:verify-work {phase}", "gpd:resume-work", or "gpd:suggest-next"]
   phase: "{phase}"
   plan: "{plan}"
   tasks_completed: N

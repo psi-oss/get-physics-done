@@ -56,13 +56,20 @@ def _project_command(command_name: str, runtime: str) -> str:
     return projected
 
 
+def _runtime_command_visibility_note(runtime: str) -> str:
+    note = command_visibility_note()
+    if runtime == "codex":
+        return note.replace("`gpd:suggest-next`", "`$gpd-suggest-next`")
+    return note
+
+
 @pytest.mark.parametrize("runtime", RUNTIMES)
 @pytest.mark.parametrize("command_name", COMMANDS_WITH_REQUIREMENTS)
 def test_runtime_projected_commands_keep_requirements_visible(command_name: str, runtime: str) -> None:
     command_requires = _command_requirements(command_name)
     projected = _project_command(command_name, runtime)
 
-    assert command_visibility_note() in projected
+    assert _runtime_command_visibility_note(runtime) in projected
     assert projected.count("## Command Requirements") == 1
 
     for require_key, require_value in command_requires.items():

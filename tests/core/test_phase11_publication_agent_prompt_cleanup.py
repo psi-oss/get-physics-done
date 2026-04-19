@@ -46,7 +46,7 @@ def test_paper_writer_return_example_shows_required_base_fields_before_extension
     assert "status: completed | checkpoint | blocked | failed" in envelope
     assert "files_written: [{resolved_manuscript_root}/{section_file}.tex]" in envelope
     assert "issues: [list of issues encountered, if any]" in envelope
-    assert "next_actions: [list of recommended follow-up actions]" in envelope
+    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
     assert 'section_name: "{section drafted}"' in envelope
     assert envelope.index("status: completed | checkpoint | blocked | failed") < envelope.index(
         "files_written: [{resolved_manuscript_root}/{section_file}.tex]"
@@ -55,9 +55,9 @@ def test_paper_writer_return_example_shows_required_base_fields_before_extension
         "issues: [list of issues encountered, if any]"
     )
     assert envelope.index("issues: [list of issues encountered, if any]") < envelope.index(
-        "next_actions: [list of recommended follow-up actions]"
+        "next_actions: [concrete commands or exact artifact review actions]"
     )
-    assert envelope.index("next_actions: [list of recommended follow-up actions]") < envelope.index(
+    assert envelope.index("next_actions: [concrete commands or exact artifact review actions]") < envelope.index(
         'section_name: "{section drafted}"'
     )
     assert "base fields (status, files_written, issues, next_actions)" not in source
@@ -82,7 +82,7 @@ def test_bibliographer_prompt_uses_typed_status_and_base_field_first_return_exam
     assert "status: completed | checkpoint | blocked | failed" in envelope
     assert "files_written: [references/references.bib, GPD/references-status.json]" in envelope
     assert "issues: [list of citation problems, if any]" in envelope
-    assert "next_actions: [list of recommended follow-up actions]" in envelope
+    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
     assert "entries_added: N" in envelope
     assert envelope.index("status: completed | checkpoint | blocked | failed") < envelope.index(
         "files_written: [references/references.bib, GPD/references-status.json]"
@@ -91,7 +91,9 @@ def test_bibliographer_prompt_uses_typed_status_and_base_field_first_return_exam
         "issues: [list of citation problems, if any]"
     )
     assert envelope.index("issues: [list of citation problems, if any]") < envelope.index(
-        "next_actions: [list of recommended follow-up actions]"
+        "next_actions: [concrete commands or exact artifact review actions]"
     )
-    assert envelope.index("next_actions: [list of recommended follow-up actions]") < envelope.index("entries_added: N")
+    assert envelope.index("next_actions: [concrete commands or exact artifact review actions]") < envelope.index(
+        "entries_added: N"
+    )
     assert "base fields (status, files_written, issues, next_actions)" not in source

@@ -53,7 +53,7 @@ def test_settings_and_planning_config_keep_conventions_outside_config_json() -> 
     assert "Project conventions are not part of `config.json`." in planning_config
     assert "Do **not** introduce a `physics` block there." in planning_config
     assert (
-        "The user can run `gpd:validate-conventions` or rerun convention setup later, but the fallback lock must match the values written into `GPD/CONVENTIONS.md`."
+        "The user can run `gpd:validate-conventions`; the fallback lock must match the values written into `GPD/CONVENTIONS.md`."
         in new_project
     )
 
