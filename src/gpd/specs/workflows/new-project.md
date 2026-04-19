@@ -1147,7 +1147,7 @@ Create `GPD/config.json` with all settings:
 
 **If planning.commit_docs = Yes:**
 
-- No additional gitignore entries needed
+- Keep `GPD/` tracked, but add `GPD/state.json.bak` to `.gitignore` (create/update if needed). This file is a local crash-recovery backup, not a durable project artifact, and it should not remain as untracked noise after normal runs.
 
 **Sync runtime permissions after writing config.json:**
 
@@ -1957,7 +1957,7 @@ Display stage banner:
 NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
-If `NOTATION_MODEL` is empty or null, omit `model=` entirely in the spawn call. If it has a concrete value, include `model="$NOTATION_MODEL"`.
+If `NOTATION_MODEL` is empty or null, omit `model=` entirely in the spawn call. Continue without commentary about the missing override; that empty result is the normal "use the runtime default model" path, not a warning. If it has a concrete value, include `model="$NOTATION_MODEL"`.
 
 Set `CONVENTION_MODE` before spawning:
 

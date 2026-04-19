@@ -110,6 +110,18 @@ class TestPreCommitCheck:
         assert result.passed is True
         assert result.details[0].frontmatter_valid is None  # not checked
 
+    def test_binary_pdf_source_passes_without_utf8_text_validation(self, tmp_path: Path) -> None:
+        pdf = tmp_path / "source.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj\n<<>>\nendobj\n")
+
+        result = cmd_pre_commit_check(tmp_path, ["source.pdf"])
+
+        assert result.passed is True
+        assert result.files_checked == 1
+        assert result.details[0].readable is True
+        assert result.details[0].frontmatter_valid is None
+        assert result.details[0].has_nan is False
+
     def test_json_nonfinite_detection_fails(self, tmp_path: Path) -> None:
         txt = tmp_path / "data.json"
         txt.write_text('{"value": NaN}', encoding="utf-8")

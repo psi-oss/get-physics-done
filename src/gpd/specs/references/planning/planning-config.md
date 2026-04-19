@@ -70,6 +70,11 @@ Configuration options for `GPD/` directory behavior in physics research projects
 - Useful for: private research notes, draft calculations, preliminary explorations
 - The settings workflow exposes this as the explicit `planning.commit_docs` toggle
 
+**When `planning.commit_docs: true`:**
+
+- Keep `GPD/` tracked
+- Add `GPD/state.json.bak` to `.gitignore`; it is a crash-recovery backup, not a durable project artifact
+
 **Using gpd CLI (preferred):**
 
 ```bash

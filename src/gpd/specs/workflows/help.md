@@ -1273,6 +1273,11 @@ When `planning.commit_docs: false`:
 - Useful for collaborative projects, shared repos, or keeping planning private
 - All planning files still work normally, just not tracked in git
 
+When `planning.commit_docs: true`:
+
+- Keep `GPD/` tracked
+- Add `GPD/state.json.bak` to `.gitignore` so the crash-recovery backup does not linger as an untracked file in normal repos
+
 Example config:
 
 ```json

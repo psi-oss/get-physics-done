@@ -108,6 +108,23 @@ _ASSIGNMENT_NONFINITE_RE = re.compile(
     re.VERBOSE,
 )
 _DERIVATION_ASSERT_TARGET_RE = re.compile(r"(?i)^derivation-(?!state\.).+\.(?:md|py)$")
+_TEXT_VALIDATION_SUFFIXES = frozenset(
+    {
+        ".bib",
+        ".csv",
+        ".ipynb",
+        ".json",
+        ".markdown",
+        ".md",
+        ".py",
+        ".rst",
+        ".tex",
+        ".tsv",
+        ".txt",
+        ".yaml",
+        ".yml",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +209,11 @@ def _requires_assert_convention_check(file_path: str) -> bool:
 def _supports_assert_convention_validation(file_path: str) -> bool:
     """Return whether a file type supports ASSERT_CONVENTION parsing."""
     return Path(file_path).suffix.lower() in {".md", ".markdown", ".py", ".tex"}
+
+
+def _requires_utf8_text_validation(file_path: str) -> bool:
+    """Return whether a file should be decoded as UTF-8 and text-validated."""
+    return Path(file_path).suffix.lower() in _TEXT_VALIDATION_SUFFIXES
 
 
 def _has_assert_convention_marker(content: str) -> bool:
@@ -460,11 +482,23 @@ def _check_single_file(
         managed_output_policies=managed_output_policies,
     )
 
-    try:
-        content = full_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        detail.readable = False
-        detail.warnings.append(f"Cannot read file: {exc}")
+    content: str | None = None
+    if _requires_utf8_text_validation(file_path):
+        try:
+            content = full_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            detail.readable = False
+            detail.warnings.append(f"Cannot read file: {exc}")
+            return detail
+    else:
+        try:
+            full_path.read_bytes()
+        except OSError as exc:
+            detail.readable = False
+            detail.warnings.append(f"Cannot read file: {exc}")
+            return detail
+
+    if content is None:
         return detail
 
     suffix = full_path.suffix.lower()

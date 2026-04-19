@@ -552,6 +552,22 @@ def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -
     assert "Flag complementary approaches as tangent candidates for optional parallel investigation" in research_modes
 
 
+def test_new_project_and_help_surface_runtime_default_and_state_backup_gitignore_guidance() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    planning_config = (
+        REPO_ROOT / "src/gpd/specs/references/planning/planning-config.md"
+    ).read_text(encoding="utf-8")
+
+    assert "without commentary about the missing override" in new_project
+    assert 'normal "use the runtime default model" path' in new_project
+    assert "GPD/state.json.bak" in new_project
+    assert "GPD/state.json.bak" in help_workflow
+    assert "GPD/state.json.bak" in planning_config
+    assert "crash-recovery backup" in help_workflow
+    assert "crash-recovery backup" in planning_config
+
+
 def test_regression_check_prompt_examples_include_optional_phase_before_quick_flag() -> None:
     verifier_raw = (REPO_ROOT / "src/gpd/agents/gpd-verifier.md").read_text(encoding="utf-8")
     infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(encoding="utf-8")
