@@ -1,14 +1,14 @@
-"""Prompt-level coverage for the required GPD/PSI acknowledgment."""
+"""Prompt-level coverage for the required GPD acknowledgment."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 REQUIRED_GPD_ACKNOWLEDGMENT = (
-    "This research made use of Get Physics Done (GPD) and was supported in part by a "
-    "GPD Research Grant from Physical Superintelligence PBC (PSI)."
+    "This research made use of Get Physics Done (GPD), developed by Physical Superintelligence PBC (PSI)."
 )
 REPO_ROOT = Path(__file__).resolve().parents[2]
+FORBIDDEN_FUNDING_CLAIM_FRAGMENT = "supported in part by"
 
 
 def _read(relative_path: str) -> str:
@@ -21,4 +21,6 @@ def test_required_acknowledgment_is_wired_into_paper_prompts() -> None:
         "src/gpd/specs/workflows/write-paper.md",
         "src/gpd/agents/gpd-paper-writer.md",
     ):
-        assert REQUIRED_GPD_ACKNOWLEDGMENT in _read(relative_path), relative_path
+        content = _read(relative_path)
+        assert REQUIRED_GPD_ACKNOWLEDGMENT in content, relative_path
+        assert FORBIDDEN_FUNDING_CLAIM_FRAGMENT not in content, relative_path

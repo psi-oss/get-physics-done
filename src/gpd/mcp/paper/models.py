@@ -27,8 +27,7 @@ _LEGACY_LABEL_PREFIXES = ("sec:", "fig:", "app:")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SUBJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 REQUIRED_GPD_ACKNOWLEDGMENT = (
-    "This research made use of Get Physics Done (GPD) and was supported in part by a "
-    "GPD Research Grant from Physical Superintelligence PBC (PSI)."
+    "This research made use of Get Physics Done (GPD), developed by Physical Superintelligence PBC (PSI)."
 )
 
 

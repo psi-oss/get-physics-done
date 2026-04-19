@@ -452,9 +452,8 @@ class TestTemplates:
     def test_acknowledgment_normalizer_deduplicates_whitespace_variants(self):
         wrapped = (
             "We thank our collaborators.\n\n"
-            "This research made use of Get Physics Done (GPD)\n"
-            "and was supported in part by a GPD Research Grant from\n"
-            "Physical Superintelligence PBC (PSI)."
+            "This research made use of Get Physics Done (GPD),\n"
+            "developed by Physical Superintelligence PBC (PSI)."
         )
 
         config = PaperConfig(
