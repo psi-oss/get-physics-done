@@ -71,7 +71,7 @@ async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
                     Tool(name="read_paper", inputSchema={"type": "object"}),
                     Tool(name="semantic_search", inputSchema={"type": "object"}),
                 ],
-                nextCursor=None,
+                nextCursor="next-page",
             )
 
     bridge = ArxivBridge(ArxivBridgeConfig())
@@ -87,6 +87,34 @@ async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
         "read_paper",
         "download_source",
     ]
+    assert result.nextCursor == "next-page"
+
+
+@pytest.mark.asyncio
+async def test_bridge_preserves_upstream_pagination_and_only_adds_download_source_on_first_page() -> None:
+    from mcp.types import ListToolsResult, Tool
+
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def list_tools(self, cursor=None):
+            return ListToolsResult(
+                tools=[Tool(name="list_papers", inputSchema={"type": "object"})],
+                nextCursor="cursor-2" if cursor is None else None,
+            )
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = FakeSession()  # type: ignore[assignment]
+    try:
+        first = await bridge.list_tools()
+        second = await bridge.list_tools("cursor-2")
+    finally:
+        bridge._session = None
+
+    assert [tool.name for tool in first.tools] == ["list_papers", "download_source"]
+    assert first.nextCursor == "cursor-2"
+    assert [tool.name for tool in second.tools] == ["list_papers"]
+    assert second.nextCursor is None
 
 
 @pytest.mark.asyncio
@@ -110,6 +138,33 @@ async def test_bridge_proxies_upstream_tool_calls_without_rewriting() -> None:
         bridge._session = None
 
     assert result.structuredContent == {"tool": "download_paper", "arguments": {"paper_id": "2401.12345"}}
+
+
+@pytest.mark.asyncio
+async def test_bridge_rejects_unadvertised_upstream_tool_calls() -> None:
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        called = False
+
+        async def call_tool(self, name, arguments):
+            self.called = True
+            raise AssertionError("unadvertised tools must not be proxied")
+
+    fake_session = FakeSession()
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = fake_session  # type: ignore[assignment]
+    try:
+        result = await bridge.call_tool("semantic_search", {"query": "qft"})
+    finally:
+        bridge._session = None
+
+    assert result.isError is True
+    assert fake_session.called is False
+    assert result.structuredContent == {
+        "schema_version": 1,
+        "error": "Tool 'semantic_search' is not advertised by the GPD arXiv bridge",
+    }
 
 
 @pytest.mark.asyncio
@@ -141,8 +196,43 @@ async def test_bridge_download_source_returns_structured_metadata(monkeypatch: p
 
     assert result.isError is False
     assert result.structuredContent is not None
-    assert result.structuredContent["arxiv_id"] == "2401.12345"
+    assert result.structuredContent["schema_version"] == 1
+    assert result.structuredContent["tool"] == "download_source"
+    assert result.structuredContent["result"]["arxiv_id"] == "2401.12345"
     assert "Downloaded source archive" in result.content[0].text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({}, "paper_id must be a non-empty string"),
+        ({"paper_id": "   "}, "paper_id must be a non-empty string"),
+        ({"paper_id": "2401.12345", "overwrite": "false"}, "overwrite must be a boolean"),
+        ({"paper_id": "2401.12345", "extra": True}, "unsupported arguments: extra"),
+    ],
+)
+async def test_bridge_validates_download_source_arguments(
+    arguments: dict[str, object],
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gpd.mcp.servers import arxiv_bridge as module
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    def fail_download(*args, **kwargs):
+        raise AssertionError("invalid download_source arguments must not call downloader")
+
+    monkeypatch.setattr(module, "download_arxiv_source_archive", fail_download)
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    result = await bridge.call_tool("download_source", arguments)
+
+    assert result.isError is True
+    assert result.structuredContent is not None
+    assert result.structuredContent["schema_version"] == 1
+    assert message in result.structuredContent["error"]
+    assert message in result.content[0].text
 
 
 @pytest.mark.asyncio

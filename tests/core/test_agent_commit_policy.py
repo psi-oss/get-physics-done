@@ -56,11 +56,13 @@ def test_registry_agent_commit_authority_values_are_valid() -> None:
         assert registry.get_agent(name).commit_authority in valid
 
 
-def test_agent_infrastructure_commit_matrix_covers_full_agent_inventory() -> None:
+def test_agent_infrastructure_commit_policy_uses_frontmatter_inventory_instead_of_manual_matrix() -> None:
     infra = INFRA_PATH.read_text(encoding="utf-8")
-    matrix_agents = set(re.findall(r"^\| (gpd-[a-z-]+) \| `(?:direct|orchestrator)` \|", infra, re.MULTILINE))
 
-    assert matrix_agents == set(registry.list_agents())
+    assert "Direct-commit allowlist: `gpd-debugger`, `gpd-executor`, `gpd-planner`." in infra
+    assert "validated by the registry; do not duplicate a hand-maintained matrix" in infra
+    assert "Canonical ownership matrix:" not in infra
+    assert not re.search(r"^\| (gpd-[a-z-]+) \| `(?:direct|orchestrator)` \|", infra, re.MULTILINE)
 
 
 def test_agent_prompts_include_exact_commit_authority_sentence() -> None:
@@ -68,11 +70,14 @@ def test_agent_prompts_include_exact_commit_authority_sentence() -> None:
         path = Path(registry.get_agent(name).path)
         content = path.read_text(encoding="utf-8")
         expected = DIRECT_SENTENCE if name in DIRECT_AGENTS else ORCHESTRATOR_SENTENCE
-        assert expected in content, path.name
+        unexpected = ORCHESTRATOR_SENTENCE if name in DIRECT_AGENTS else DIRECT_SENTENCE
+        assert content.count(expected) == 1, path.name
+        assert unexpected not in content, path.name
 
 
-def test_verifier_does_not_duplicate_stale_commit_ownership_block() -> None:
-    verifier = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
+def test_agents_do_not_duplicate_stale_commit_ownership_blocks() -> None:
+    for path in sorted(AGENTS_DIR.glob("*.md")):
+        content = path.read_text(encoding="utf-8")
 
-    assert "## Agent Commit Ownership" not in verifier
-    assert "Which agents commit their own work vs. return `files_written`" not in verifier
+        assert "## Agent Commit Ownership" not in content, path.name
+        assert "Which agents commit their own work vs. return `files_written`" not in content, path.name

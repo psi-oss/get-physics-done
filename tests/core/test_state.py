@@ -2905,6 +2905,55 @@ def test_state_record_session_without_resume_file_updates_recent_project_freshne
     assert row.stopped_at == "Phase 4 P2"
 
 
+def test_state_record_session_same_values_records_last_session_heartbeat(
+    tmp_path: Path,
+    state_project_factory,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        state_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
+    )
+    state = default_state_dict()
+    state["position"]["current_phase"] = "4"
+    state["position"]["status"] = "Executing"
+    state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2025-01-01T00:00:00+00:00",
+            "stopped_at": "Phase 4 P2",
+            "resume_file": "NEXT.md",
+            "recorded_by": "state_record_session",
+        }
+    )
+    state["continuation"]["machine"].update(
+        {
+            "recorded_at": "2025-01-01T00:00:00+00:00",
+            "hostname": "builder-01",
+            "platform": "Linux 6.1 x86_64",
+        }
+    )
+    state["session"].update(
+        {
+            "last_date": "2025-01-01T00:00:00+00:00",
+            "stopped_at": "Phase 4 P2",
+            "resume_file": "NEXT.md",
+            "hostname": "builder-01",
+            "platform": "Linux 6.1 x86_64",
+        }
+    )
+    cwd = state_project_factory(tmp_path, state_dict=state)
+
+    result = state_record_session(cwd, stopped_at="Phase 4 P2", resume_file="NEXT.md")
+    stored = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
+
+    assert result.recorded is True
+    assert result.reason is None
+    assert result.updated == ["Last session"]
+    assert stored["continuation"]["handoff"]["recorded_at"] != "2025-01-01T00:00:00+00:00"
+    assert stored["session"]["last_date"] == stored["continuation"]["handoff"]["recorded_at"]
+
+
 def test_save_state_markdown_does_not_backfill_missing_canonical_machine_from_session_surface(tmp_path: Path) -> None:
     baseline = default_state_dict()
     baseline["position"]["status"] = "Executing"

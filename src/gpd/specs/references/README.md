@@ -29,5 +29,5 @@ This directory holds shared reference material used by specs and agent instructi
 - Put stepwise methods and computation-specific procedures under `protocols/`.
 - Put orchestration/runtime/model behavior references under `orchestration/`.
 - Put verifier-specific material under `verification/`.
-- Keep shipped reference files evergreen. Put dated audits or historical design notes outside `src/gpd/specs/references/`.
+- Keep shipped reference files evergreen. Put dated audits or historical design notes outside the runtime reference bundle.
 - Keep a reference at the root only when it is an index or a broadly shared cross-cutting entry point.

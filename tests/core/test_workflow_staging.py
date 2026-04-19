@@ -233,6 +233,19 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     )
 
 
+def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifest_workflow_id(
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload("execute-phase")
+    manifest_path = tmp_path / "custom-stage-manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    manifest = load_workflow_stage_manifest_from_path(manifest_path)
+
+    assert manifest.workflow_id == "execute-phase"
+    assert manifest.stage_ids()[0] == "phase_bootstrap"
+
+
 def test_known_init_fields_for_verify_work_include_proof_gate_and_artifact_context() -> None:
     known_init_fields = known_init_fields_for_workflow("verify-work")
 
@@ -1019,6 +1032,15 @@ def test_validate_workflow_stage_manifest_payload_rejects_bad_entries(
     mutator(payload)
 
     with pytest.raises(ValueError, match=message):
+        validate_workflow_stage_manifest_payload(payload)
+
+
+def test_validate_workflow_stage_manifest_payload_rejects_unknown_next_stages_before_order_checks() -> None:
+    payload = _workflow_payload("new-project")
+    payload["stages"][0]["next_stages"] = ["does_not_exist"]
+    payload["stages"][0]["order"] = 99
+
+    with pytest.raises(ValueError, match="next_stages contains unknown stage id"):
         validate_workflow_stage_manifest_payload(payload)
 
 

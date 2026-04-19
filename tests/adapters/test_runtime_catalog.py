@@ -175,7 +175,6 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
 
         assert descriptor.runtime_name in descriptor.selection_aliases
         assert descriptor.install_flag in descriptor.selection_flags
-        assert descriptor.public_command_surface_prefix == descriptor.command_prefix
         assert normalize_runtime_name(runtime_name) == runtime_name
         assert normalize_runtime_name(descriptor.display_name) == runtime_name
         assert normalize_runtime_name(descriptor.install_flag) == runtime_name
@@ -376,6 +375,51 @@ def test_runtime_catalog_accepts_future_validated_command_surface(
     assert descriptors[0].validated_command_surface == "public_runtime_semicolon_command"
 
 
+def test_runtime_catalog_defaults_public_command_surface_prefix_to_command_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0].pop("public_command_surface_prefix", None)
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert descriptors[0].public_command_surface_prefix == descriptors[0].command_prefix
+
+
+def test_runtime_catalog_accepts_descriptor_owned_public_command_surface_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["public_command_surface_prefix"] = "/public:"
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert descriptors[0].command_prefix == payload[0]["command_prefix"]
+    assert descriptors[0].public_command_surface_prefix == "/public:"
+    assert descriptors[0].public_command_surface_prefix != descriptors[0].command_prefix
+
+
+@pytest.mark.parametrize("prefix", [" public:", "public", "/bad space:", "gpd:"])
+def test_runtime_catalog_rejects_malformed_public_command_surface_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prefix: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["public_command_surface_prefix"] = prefix
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime catalog entry 0\.public_command_surface_prefix must be "
+            r"(a non-empty string|a slash or dollar command prefix)"
+        ),
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_rejects_invalid_delegation_capability_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -405,6 +449,23 @@ def test_runtime_catalog_rejects_invalid_capability_enum_values(
         match=r"runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook",
     ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_merges_partial_capabilities_with_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"] = {
+        "permissions_surface": "unsupported",
+    }
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert descriptors[0].capabilities.permissions_surface == "unsupported"
+    assert descriptors[0].capabilities.permission_surface_kind == "none"
+    assert descriptors[0].capabilities.supports_runtime_permission_sync is False
+    assert descriptors[0].capabilities.statusline_surface == "none"
 
 
 def test_runtime_catalog_accepts_future_config_surface_labels(

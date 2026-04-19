@@ -208,6 +208,40 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
+    def test_identical_root_and_nested_aliases_are_accepted(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "sparse",
+                    "execution": {"review_cadence": "sparse"},
+                    "commit_docs": False,
+                    "planning": {"commit_docs": False},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.review_cadence == ReviewCadence.SPARSE
+        assert cfg.commit_docs is False
+
+    def test_conflicting_root_and_nested_aliases_raise_config_error(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "dense",
+                    "execution": {"review_cadence": "sparse"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigError, match="Conflicting duplicate config aliases"):
+            load_config(tmp_path)
+
     def test_gitignored_planning_dir_forces_commit_docs_false(
         self,
         tmp_path: Path,

@@ -47,7 +47,7 @@ from gpd.adapters.install_utils import (
     remove_empty_text_file,
     remove_stale_agents,
     render_markdown_frontmatter,
-    should_preserve_public_local_cli_command,
+    rewrite_gpd_cli_invocations_to_runtime_bridge,
     split_markdown_frontmatter,
     verify_installed,
     write_manifest,
@@ -352,6 +352,19 @@ def _tracked_codex_generated_skill_dirs(
     return ()
 
 
+def _missing_codex_skills_surface_artifact(skills_dir: Path, tracked_skill_dirs: tuple[str, ...]) -> str:
+    """Return a stable logical missing-artifact label for Codex external skills."""
+    if tracked_skill_dirs:
+        sample = ", ".join(tracked_skill_dirs[:3])
+        if len(tracked_skill_dirs) > 3:
+            sample = f"{sample}, ..."
+        return (
+            "codex generated skills surface "
+            f"({len(tracked_skill_dirs)} skill dir(s): {sample}; expected at {skills_dir})"
+        )
+    return f"codex generated skills surface (expected at {skills_dir})"
+
+
 def _load_manifest_install_scope(target_dir: Path) -> str | None:
     """Return the install scope recorded in the local manifest, if present."""
     manifest_path = target_dir / MANIFEST_NAME
@@ -538,27 +551,11 @@ def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
 
 def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
     """Rewrite shell-executable ``gpd`` calls to the shared runtime CLI bridge."""
-    rewritten: list[str] = []
-    in_shell_fence = False
-
-    for line in content.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
-            rewritten.append(line)
-            continue
-
-        if in_shell_fence:
-            rewritten.append(_rewrite_codex_shell_line(line, launcher))
-            continue
-
-        rewritten.append(line)
-
-    return "".join(rewritten)
+    return rewrite_gpd_cli_invocations_to_runtime_bridge(
+        content,
+        launcher,
+        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+    )
 
 
 def _normalize_codex_questioning(content: str) -> str:
@@ -618,75 +615,6 @@ def _normalize_codex_questioning(content: str) -> str:
         separator,
         _CODEX_QUESTION_RUNTIME_NOTE + body,
     )
-
-
-def _rewrite_codex_shell_line(line: str, launcher: str) -> str:
-    """Rewrite only command-position ``gpd`` tokens on a shell line."""
-    pieces: list[str] = []
-    index = 0
-    in_single = False
-    in_double = False
-
-    while index < len(line):
-        char = line[index]
-        previous = line[index - 1] if index > 0 else ""
-
-        if char == "'" and not in_double:
-            in_single = not in_single
-            pieces.append(char)
-            index += 1
-            continue
-
-        if char == '"' and not in_single and previous != "\\":
-            in_double = not in_double
-            pieces.append(char)
-            index += 1
-            continue
-
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and _is_gpd_command_start(line, index)
-            and _is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
-                index += 3
-                continue
-            pieces.append(launcher)
-            index += 3
-            continue
-
-        pieces.append(char)
-        index += 1
-
-    return "".join(pieces)
-
-
-def _is_gpd_command_start(line: str, index: int) -> bool:
-    """Return whether ``gpd`` starts a shell command token at *index*."""
-    probe = index - 1
-    while probe >= 0 and line[probe] in " \t":
-        probe -= 1
-
-    if probe < 0:
-        return True
-
-    if line[probe] in "|;(!":
-        return True
-
-    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
-        return True
-
-    return False
-
-
-def _is_gpd_token_end(line: str, end_index: int) -> bool:
-    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
-    if end_index >= len(line):
-        return True
-    return line[end_index].isspace() or line[end_index] in {'"', "'", "`", ";", "|", "&", ")", "<", ">"}
 
 
 # ─── Adapter Class ───────────────────────────────────────────────────────────
@@ -1179,7 +1107,7 @@ class CodexAdapter(RuntimeAdapter):
             has_gpd_skills = False
 
         if not has_gpd_skills:
-            missing.append(str(skills_dir))
+            missing.append(_missing_codex_skills_surface_artifact(skills_dir, tracked_skill_dirs))
 
         return tuple(missing)
 

@@ -47,6 +47,12 @@ class TestBibtexCreation:
         keys = list(bib.entries.keys())
         assert keys[0].startswith("einstein1905")
 
+    def test_generated_bib_key_sanitizes_year_component(self):
+        sources = [CitationSource(source_type="paper", title="Odd Year", authors=["J. Smith"], year="in press, 2026")]
+        bib = create_bibliography(sources)
+
+        assert list(bib.entries.keys()) == ["smithinpress2026"]
+
     def test_bib_key_dedup(self):
         sources = [
             CitationSource(source_type="paper", title="Paper 1", authors=["A. Einstein"], year="1905"),
@@ -93,6 +99,21 @@ class TestBibtexCreation:
         bib = create_bibliography(sources)
 
         assert list(bib.entries.keys()) == ["shared-key", "shared-keya"]
+
+    @pytest.mark.parametrize("bibtex_key", ["bad key", "bad,key", "{bad}", "1bad", "bad/key"])
+    def test_preferred_bibtex_key_rejects_unsafe_values(self, bibtex_key: str):
+        sources = [
+            CitationSource(
+                source_type="paper",
+                title="Relativity",
+                authors=["A. Einstein"],
+                year="1905",
+                bibtex_key=bibtex_key,
+            )
+        ]
+
+        with pytest.raises(ValueError, match="preferred bibtex_key"):
+            create_bibliography(sources)
 
     def test_citation_keys_match_bibliography_emission(self):
         sources = [
@@ -217,6 +238,23 @@ class TestCitationSourceParsing:
         )
 
         assert [source.reference_id for source in sources] == ["lit-ref-001"]
+
+    def test_parse_citation_source_sidecar_payload_rejects_duplicate_reference_id(self) -> None:
+        with pytest.raises(ValueError, match=r"reference_id duplicates 'lit-ref-001'"):
+            parse_citation_source_sidecar_payload(
+                [
+                    {
+                        "reference_id": "lit-ref-001",
+                        "source_type": "paper",
+                        "title": "Benchmark Paper",
+                    },
+                    {
+                        "reference_id": "lit-ref-001",
+                        "source_type": "paper",
+                        "title": "Other Paper",
+                    },
+                ]
+            )
 
 
 # ---- arXiv enrichment tests ----
@@ -436,6 +474,27 @@ class TestBibliographyAudit:
         assert list(bib.entries.keys()) == ["shared-key", "shared-keya"]
         assert [entry.key for entry in audit.entries] == ["shared-key", "shared-keya"]
         assert [entry.reference_id for entry in audit.entries] == ["anchor-ref-1", "anchor-ref-2"]
+
+    def test_build_bibliography_with_audit_rejects_duplicate_reference_id(self):
+        sources = [
+            CitationSource(
+                source_type="paper",
+                reference_id="anchor-ref",
+                title="A Paper",
+                authors=["J. Smith"],
+                year="2024",
+            ),
+            CitationSource(
+                source_type="paper",
+                reference_id="anchor-ref",
+                title="B Paper",
+                authors=["A. Bohr"],
+                year="1913",
+            ),
+        ]
+
+        with pytest.raises(ValueError, match="duplicates entries 0 and 1"):
+            build_bibliography_with_audit(sources, enrich=False)
 
     def test_build_bibliography_with_audit_records_successful_enrichment(self):
         from datetime import datetime

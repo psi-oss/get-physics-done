@@ -150,10 +150,14 @@ class GpdReturnEnvelope(BaseModel):
         if not isinstance(value, str):
             raise ValueError("status must be a string")
         normalized = value.strip()
-        if normalized.lower() not in VALID_RETURN_STATUSES:
-            raise ValueError(f"Invalid status '{value}'. Must be one of: {', '.join(sorted(VALID_RETURN_STATUSES))}")
         if not normalized:
             raise ValueError("status must be a non-empty string")
+        if normalized.lower() in VALID_RETURN_STATUSES and normalized not in VALID_RETURN_STATUSES:
+            raise ValueError(
+                f"status must use canonical lowercase spelling: {', '.join(sorted(VALID_RETURN_STATUSES))}"
+            )
+        if normalized not in VALID_RETURN_STATUSES:
+            raise ValueError(f"Invalid status '{value}'. Must be one of: {', '.join(sorted(VALID_RETURN_STATUSES))}")
         return normalized
 
     @field_validator("files_written", "issues", "next_actions", mode="before")
@@ -316,7 +320,7 @@ def _normalize_validation_message(message: str) -> str:
 def _collect_gpd_return_warnings(envelope: GpdReturnEnvelope) -> list[str]:
     warnings: list[str] = []
 
-    if envelope.status.lower() == "completed" and envelope.tasks_completed is not None and envelope.tasks_total is not None:
+    if envelope.status == "completed" and envelope.tasks_completed is not None and envelope.tasks_total is not None:
         if envelope.tasks_completed < envelope.tasks_total:
             warnings.append(
                 f"Status is 'completed' but tasks_completed ({envelope.tasks_completed}) < tasks_total ({envelope.tasks_total})"

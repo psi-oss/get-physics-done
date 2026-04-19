@@ -10,6 +10,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 
 
 def _read(name: str) -> str:
@@ -26,6 +28,35 @@ def _between(text: str, start: str, end: str) -> str:
     body, end_marker, _ = tail.partition(end)
     assert end_marker, f"missing marker: {end}"
     return body
+
+
+def test_installed_prompt_paths_do_not_reference_source_specs_segment() -> None:
+    for directory in (WORKFLOWS_DIR, TEMPLATES_DIR, AGENTS_DIR, REFERENCES_DIR):
+        for path in sorted(directory.rglob("*.md")):
+            content = path.read_text(encoding="utf-8")
+            assert "{GPD_INSTALL_DIR}/specs/" not in content, path.relative_to(REPO_ROOT)
+            assert "src/gpd/specs/" not in content, path.relative_to(REPO_ROOT)
+
+
+def test_shipped_templates_do_not_contain_runtime_installer_comments() -> None:
+    for path in sorted(TEMPLATES_DIR.rglob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        assert "installer adapts" not in content, path.relative_to(REPO_ROOT)
+        assert not any(line.lstrip().startswith("#") and "<!--" in line for line in content.splitlines()), (
+            path.relative_to(REPO_ROOT)
+        )
+
+
+def test_command_wrappers_do_not_duplicate_workflow_routing_boilerplate() -> None:
+    forbidden_phrases = (
+        "Routes to the",
+        "workflow which handles:",
+        "The workflow handles all logic including:",
+    )
+    for path in sorted(COMMANDS_DIR.rglob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        for phrase in forbidden_phrases:
+            assert phrase not in content, path.relative_to(REPO_ROOT)
 
 
 def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -> None:
@@ -123,3 +154,27 @@ def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
 
     assert plan_phase.count("Required 4-way tangent decision model:") == 1
     assert plan_phase.count("Branch as alternative hypothesis") == 1
+
+
+def test_context_pressure_default_threshold_table_is_single_sourced() -> None:
+    infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(
+        encoding="utf-8"
+    )
+    thresholds = (REPO_ROOT / "src/gpd/specs/references/orchestration/context-pressure-thresholds.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert infra.count("| GREEN | < 40% | Proceed normally |") == 1
+    assert "| GREEN | < 40% | Proceed normally |" not in thresholds
+    assert "This file only lists per-agent overrides and calibration notes." in thresholds
+
+
+def test_state_portability_collapses_legacy_compatibility_prose() -> None:
+    state_portability = (REPO_ROOT / "src/gpd/specs/references/orchestration/state-portability.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "compatibility projections used only to fill missing canonical state during migration or recovery" in state_portability
+    assert "Backend compatibility cues remain backend-only inputs and are stripped after canonicalization." in state_portability
+    assert "Legacy `session` fields can still backfill missing canonical continuity" not in state_portability
+    assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability

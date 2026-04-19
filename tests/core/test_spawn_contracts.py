@@ -608,3 +608,11 @@ def test_debug_subagent_template_continuations_use_explicit_file_reads() -> None
 
     assert "Read the file at GPD/debug/{slug}.md" in content
     assert "@GPD/debug/{slug}.md" not in content
+    assert content.count("readonly=false") == 2
+
+
+def test_continuation_template_file_producing_example_sets_readonly_false() -> None:
+    content = _read(TEMPLATES_DIR / "continuation-prompt.md")
+
+    assert 'subagent_type="gpd-executor"' in content
+    assert "readonly=false" in content

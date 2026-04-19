@@ -1426,7 +1426,9 @@ class TestUninstall:
         )
 
         assert _tracked_codex_generated_skill_dirs(target, skills_dir=skills) == ()
-        assert str(skills) in adapter.missing_install_artifacts(target)
+        missing = adapter.missing_install_artifacts(target)
+        assert str(skills) not in missing
+        assert any(item.startswith("codex generated skills surface") for item in missing)
         assert adapter.has_complete_install(target) is False
 
     def test_missing_codex_skills_dir_metadata_does_not_fall_back_to_generic_manifest_skills_dir(
@@ -1453,7 +1455,9 @@ class TestUninstall:
         missing = adapter.missing_install_artifacts(target)
         expected_local_skills = target.parent / ".agents" / "skills"
         assert str(skills) not in missing
-        assert str(expected_local_skills) in missing
+        assert str(expected_local_skills) not in missing
+        assert any(str(expected_local_skills) in item for item in missing)
+        assert any(item.startswith("codex generated skills surface") for item in missing)
         assert str(env_skills) not in missing
 
         adapter.uninstall(target)

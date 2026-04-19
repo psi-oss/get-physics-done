@@ -73,6 +73,21 @@ def test_rejects_scalar_where_list_field_is_required() -> None:
     assert any("files_written" in error and "list" in error for error in result.errors)
 
 
+def test_rejects_uppercase_status_instead_of_propagating_case_drift() -> None:
+    content = _wrap_return_block(
+        "  status: COMPLETED\n"
+        "  files_written: []\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert result.envelope is None
+    assert any("canonical lowercase" in error for error in result.errors)
+
+
 def test_rejects_malformed_checker_plan_lists() -> None:
     content = _wrap_return_block(
         "  status: checkpoint\n"

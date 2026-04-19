@@ -13,13 +13,6 @@ allowed-tools:
 <objective>
 Add a new integer phase to the end of the current milestone in the roadmap.
 
-Routes to the add-phase workflow which handles:
-
-- Phase number calculation (next sequential integer)
-- Directory creation with slug generation
-- Roadmap structure updates
-- STATE.md roadmap evolution tracking
-
 Typical research phases include:
 
 - Literature review (survey existing results, identify gaps)
@@ -38,16 +31,5 @@ Typical research phases include:
 </execution_context>
 
 <process>
-**Follow the add-phase workflow** from `@{GPD_INSTALL_DIR}/workflows/add-phase.md`.
-
-The workflow handles all logic including:
-
-1. Argument parsing and validation
-2. Roadmap existence checking
-3. Current milestone identification
-4. Next phase number calculation (ignoring decimals)
-5. Slug generation from description
-6. Phase directory creation
-7. Roadmap entry insertion
-8. STATE.md updates
+Follow `@{GPD_INSTALL_DIR}/workflows/add-phase.md` exactly.
    </process>

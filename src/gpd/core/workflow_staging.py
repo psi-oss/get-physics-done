@@ -1377,13 +1377,22 @@ def validate_workflow_stage_manifest_payload(
     if len(set(stage_ids)) != len(stage_ids):
         raise ValueError("stage ids must be unique")
 
+    stage_id_set = set(stage_ids)
+    unknown_next_stages = {
+        next_stage
+        for stage in stages
+        for next_stage in stage.next_stages
+        if next_stage not in stage_id_set
+    }
+    if unknown_next_stages:
+        raise ValueError(f"next_stages contains unknown stage id(s): {', '.join(sorted(unknown_next_stages))}")
+
     stage_orders = [stage.order for stage in stages]
     if len(set(stage_orders)) != len(stage_orders):
         raise ValueError("stage order values must be unique")
     if stage_orders != list(range(1, len(stages) + 1)):
         raise ValueError("stage order values must start at 1 and increase by 1")
 
-    stage_id_set = set(stage_ids)
     order_by_id = {stage.id: stage.order for stage in stages}
     for stage in stages:
         backward_next = sorted(
@@ -1450,10 +1459,13 @@ def load_workflow_stage_manifest_from_path(
     known_init_fields: Iterable[str] | None = None,
 ) -> WorkflowStageManifest:
     workflow_id = _normalize_workflow_id(expected_workflow_id) if expected_workflow_id is not None else None
-    normalized_init_fields = _cache_key_init_fields(
-        known_init_fields if known_init_fields is not None else known_init_fields_for_workflow(workflow_id),
-        workflow_id=workflow_id or "new-project",
-    )
+    if known_init_fields is not None:
+        normalized = _normalize_init_field_set(known_init_fields, workflow_id=workflow_id or "")
+        normalized_init_fields = tuple(sorted(normalized)) if normalized is not None else None
+    elif workflow_id is not None:
+        normalized_init_fields = _cache_key_init_fields(None, workflow_id=workflow_id)
+    else:
+        normalized_init_fields = None
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,

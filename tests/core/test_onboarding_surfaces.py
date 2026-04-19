@@ -342,7 +342,19 @@ def test_public_surface_contract_loader_rejects_schema_key_drift_after_cache_cle
     load_public_surface_contract.cache_clear()
 
 
-def test_public_surface_contract_loader_rejects_local_cli_command_drift_against_schema(
+def test_public_surface_contract_schema_does_not_duplicate_local_cli_command_values() -> None:
+    schema = json.loads(
+        (
+            Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")
+        ).read_text(encoding="utf-8")
+    )
+
+    local_cli_bridge_schema = schema["sections"]["local_cli_bridge"]
+    assert "commands" not in local_cli_bridge_schema
+    assert "gpd --help" not in json.dumps(schema)
+
+
+def test_public_surface_contract_loader_still_rejects_command_named_command_order_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -356,55 +368,15 @@ def test_public_surface_contract_loader_rejects_local_cli_command_drift_against_
         canonical_payload["local_cli_bridge"]["commands"][1],
         canonical_payload["local_cli_bridge"]["commands"][0],
     ]
-    drifted_payload["local_cli_bridge"]["named_commands"]["help"] = canonical_payload["local_cli_bridge"]["commands"][1]
-    drifted_payload["local_cli_bridge"]["named_commands"]["doctor"] = canonical_payload["local_cli_bridge"]["commands"][
-        0
-    ]
 
     _load_public_surface_contract_with_payload(monkeypatch, tmp_path, drifted_payload)
 
     with pytest.raises(
         ValueError,
-        match=(
-            r"local_cli_bridge\.commands must exactly match "
-            r"public_surface_contract_schema\.sections\.local_cli_bridge\.commands"
-        ),
+        match=r"local_cli_bridge\.commands must exactly match local_cli_bridge\.named_commands in canonical order",
     ):
         load_public_surface_contract()
     load_public_surface_contract.cache_clear()
-
-
-def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mismatch_without_fresh_import_hack(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    canonical_payload = json.loads(
-        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract.json")).read_text(
-            encoding="utf-8"
-        )
-    )
-    canonical_schema = json.loads(
-        (
-            Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")
-        ).read_text(encoding="utf-8")
-    )
-    canonical_payload["local_cli_bridge"]["commands"].pop()
-    canonical_schema["sections"]["local_cli_bridge"]["commands"].pop()
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"public_surface_contract_schema\.local_cli_bridge commands and "
-            r"ordered named command keys must stay aligned"
-        ),
-    ):
-        _load_public_surface_contract_with_payload(
-            monkeypatch,
-            tmp_path,
-            canonical_payload,
-            canonical_schema,
-        )
-        load_public_surface_contract()
 
 
 @pytest.mark.parametrize(

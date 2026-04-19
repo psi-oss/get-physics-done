@@ -8,7 +8,7 @@ This file is intentionally evergreen. Dated forward-looking design notes belong 
 
 - typed paper and compiler surfaces under `src/gpd/mcp/paper/`
 - verification registry and verification MCP surfaces for machine-facing check metadata
-- review and referee workflows in `src/gpd/specs/workflows/`
+- review and referee workflows under `{GPD_INSTALL_DIR}/workflows/`
 - durable local observability under `GPD/observability/` and `GPD/traces/`
 - result/state management under `src/gpd/core/`
 
@@ -44,14 +44,14 @@ When review or verification behavior is described in multiple places:
 
 - executable registries and typed models win over prose
 - shipped reference files should describe implemented surfaces first
-- dated proposals and audits should stay outside `src/gpd/specs/`
+- dated proposals and audits should stay outside the shipped runtime reference bundle
 
 ## Use This File With
 
 - `references/verification/audits/verification-gap-analysis.md`
 - `references/verification/core/verification-core.md`
 - `references/publication/paper-quality-scoring.md`
-- the paper/review workflows under `src/gpd/specs/workflows/`
+- the paper/review workflows under `{GPD_INSTALL_DIR}/workflows/`
 
 ## Bottom Line
 

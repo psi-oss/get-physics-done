@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import yaml
 
@@ -56,6 +57,8 @@ _PKG_ROOT = Path(__file__).resolve().parent  # gpd/
 AGENTS_DIR = _PKG_ROOT / "agents"
 COMMANDS_DIR = _PKG_ROOT / "commands"
 _MODEL_VISIBLE_INCLUDE_PATH_PREFIX = "{GPD_INSTALL_DIR}/__gpd_registry_include__/"
+LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS: frozenset[str] = frozenset({"health", "suggest-next"})
+CommandNameFormat = Literal["slug", "label"]
 
 # ─── Frontmatter parsing helpers ────────────────────────────────────────────
 
@@ -2233,6 +2236,8 @@ def _discover_commands() -> dict[str, CommandDef]:
 
 
 _SKILL_CATEGORY_MAP: dict[str, str] = {
+    "gpd-autonomous": "execution",
+    "gpd-digest-knowledge": "research",
     "gpd-execute": "execution",
     "gpd-plan-checker": "verification",
     "gpd-plan": "planning",
@@ -2241,6 +2246,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-new": "project",
     "gpd-write": "paper",
     "gpd-peer-review": "paper",
+    "gpd-review-knowledge": "research",
     "gpd-review": "paper",
     "gpd-paper": "paper",
     "gpd-literature": "research",
@@ -2283,6 +2289,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-undo": "management",
     "gpd-sync": "management",
     "gpd-branch": "management",
+    "gpd-tangent": "planning",
     "gpd-respond": "paper",
     "gpd-reapply": "management",
     "gpd-regression": "verification",
@@ -2393,9 +2400,27 @@ def get_agent(name: str) -> AgentDef:
     return agents[name]
 
 
-def list_commands() -> list[str]:
-    """Return sorted list of all command names."""
-    return sorted(_cache.commands())
+def _format_command_name(command: CommandDef | str, *, name_format: CommandNameFormat) -> str:
+    """Render a command registry entry in the requested public name shape."""
+    if name_format not in {"slug", "label"}:
+        raise ValueError("name_format must be 'slug' or 'label'")
+
+    if isinstance(command, CommandDef):
+        slug = command_slug_from_label(command.name)
+        label = command.name
+    else:
+        slug = command_slug_from_label(command) or command
+        label = canonical_command_label(command)
+    return slug if name_format == "slug" else label
+
+
+def list_commands(*, name_format: CommandNameFormat = "slug") -> list[str]:
+    """Return sorted command names.
+
+    Defaults to registry slugs for historical compatibility. Pass
+    ``name_format="label"`` to receive public ``gpd:<slug>`` command labels.
+    """
+    return sorted(_format_command_name(command, name_format=name_format) for command in _cache.commands().values())
 
 
 def get_command(name: str) -> CommandDef:
@@ -2421,9 +2446,18 @@ def get_command(name: str) -> CommandDef:
     raise KeyError(f"Command not found: {name}")
 
 
-def list_review_commands() -> list[str]:
-    """Return sorted list of command names that expose review contracts."""
-    return sorted(cmd.name for cmd in _cache.commands().values() if cmd.review_contract is not None)
+def list_review_commands(*, name_format: CommandNameFormat = "label") -> list[str]:
+    """Return sorted review-contract command names.
+
+    Defaults to public ``gpd:<slug>`` labels for historical compatibility. Pass
+    ``name_format="slug"`` to align with ``list_commands()``'s default registry
+    key shape.
+    """
+    return sorted(
+        _format_command_name(command, name_format=name_format)
+        for command in _cache.commands().values()
+        if command.review_contract is not None
+    )
 
 
 def list_skills() -> list[str]:
@@ -2466,6 +2500,7 @@ __all__ = [
     "AGENTS_DIR",
     "AgentDef",
     "COMMANDS_DIR",
+    "LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS",
     "CommandDef",
     "CommandOutputPolicy",
     "CommandPolicy",

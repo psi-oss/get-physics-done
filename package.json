@@ -29,10 +29,8 @@
     "research",
     "ai",
     "agentic",
-    "claude",
-    "codex",
-    "gemini",
-    "opencode"
+    "ai runtimes",
+    "runtime adapters"
   ],
   "license": "Apache-2.0"
 }

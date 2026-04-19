@@ -2,14 +2,7 @@
 
 Standardized context pressure monitoring thresholds for all GPD agents. This file covers per-agent threshold calibration. For workflow-level context budgeting (how to segment plans, when to /clear, token cost estimates), see `references/orchestration/context-budget.md`.
 
-**Default thresholds** (from `references/orchestration/agent-infrastructure.md`):
-
-| Level | Threshold | Action |
-|---|---|---|
-| GREEN | < 40% | Proceed normally |
-| YELLOW | 40-60% | Prioritize remaining work, skip optional depth |
-| ORANGE | 60-75% | Complete current unit of work only, write checkpoint, prepare handoff |
-| RED | > 75% | STOP immediately, write checkpoint with progress so far, return with CHECKPOINT status |
+**Default thresholds:** use `references/orchestration/agent-infrastructure.md` §Context Pressure Management as the canonical GREEN/YELLOW/ORANGE/RED table. This file only lists per-agent overrides and calibration notes.
 
 ## Per-Agent Thresholds
 

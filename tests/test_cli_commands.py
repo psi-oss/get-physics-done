@@ -2129,7 +2129,7 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "review"
         assert payload["review_contract"]["required_outputs"] == [
-            "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md",
+            "GPD/knowledge/reviews/{knowledge_id}-R{review_round}-REVIEW.md",
             "GPD/knowledge/{knowledge_id}.md",
         ]
         assert payload["review_contract"]["required_evidence"] == [
@@ -3748,6 +3748,20 @@ class TestReviewValidationCommands:
         assert checks["project_exists"]["passed"] is False
         assert checks["explicit_inputs"]["passed"] is False
 
+    def test_command_context_review_knowledge_registry_errors_fail_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _raise_registry_error(command_name: str):
+            raise ValueError(f"registry parse failed for {command_name}")
+
+        monkeypatch.setattr(cli_module, "_resolve_registry_command", _raise_registry_error)
+
+        with pytest.raises(ValueError, match="registry parse failed for review-knowledge"):
+            cli_module._build_command_context_preflight(
+                "review-knowledge",
+                arguments="K-renormalization-group-fixed-points",
+            )
+
     def test_command_context_review_knowledge_accepts_explicit_knowledge_path_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -3845,7 +3859,7 @@ class TestReviewValidationCommands:
         assert payload["strict"] is True
         assert payload["passed"] is True
         assert "missing project state" not in payload["blocking_conditions"]
-        assert "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md" in payload["required_outputs"]
+        assert "GPD/knowledge/reviews/{knowledge_id}-R{review_round}-REVIEW.md" in payload["required_outputs"]
         assert checks["command_context"]["passed"] is True
         assert checks["project_state"]["passed"] is True
         assert checks["project_state"]["blocking"] is False
@@ -3853,6 +3867,34 @@ class TestReviewValidationCommands:
         assert "GPD/knowledge/K-renormalization-group-fixed-points.md" in checks["knowledge_target"]["detail"]
         assert checks["knowledge_document"]["passed"] is True
         assert checks["knowledge_review_freshness"]["passed"] is True
+
+    def test_review_preflight_review_knowledge_strict_rejects_malformed_canonical_document(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-review-knowledge-malformed"
+        workspace.mkdir()
+        knowledge_path = _write_draft_knowledge_document(workspace, knowledge_id="K-bad")
+        knowledge_path.write_text(
+            knowledge_path.read_text(encoding="utf-8").replace("knowledge_id: K-bad", "knowledge_id: K-other"),
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(workspace)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "review-knowledge", "K-bad", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is False
+        assert checks["knowledge_target"]["passed"] is True
+        assert checks["knowledge_document"]["passed"] is False
+        assert "failed strict parsing" in checks["knowledge_document"]["detail"]
 
     def test_review_preflight_review_knowledge_strict_rejects_noncanonical_standalone_target(
         self,

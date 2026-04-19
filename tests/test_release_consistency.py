@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd._python_compat import MIN_SUPPORTED_PYTHON_LABEL
 from gpd.adapters.runtime_catalog import get_shared_install_metadata
 from scripts.release_workflow import (
     ReleaseError,
@@ -300,7 +301,7 @@ def test_public_cli_surface_is_unified() -> None:
     assert sorted(path.name for path in (repo_root / "src" / "gpd").glob("cli*.py")) == ["cli.py"]
 
 
-def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
+def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
@@ -310,7 +311,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "push:" in workflow
     assert "branches: [main]" in workflow
     assert "workflow_dispatch:" in workflow
-    assert "name: pytest ${{ matrix.display_name }} (3.11)" in workflow
+    assert f"name: pytest ${{{{ matrix.display_name }}}} ({MIN_SUPPORTED_PYTHON_LABEL})" in workflow
     assert "fail-fast: false" in workflow
     assert "display_name: root 1/9" in workflow
     assert "display_name: root 9/9" in workflow
@@ -322,7 +323,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "display_name: core 5/5" in workflow
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
-    assert 'python-version: "3.11"' in workflow
+    assert f'python-version: "{MIN_SUPPORTED_PYTHON_LABEL}"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject

@@ -200,7 +200,6 @@ def _require_allowed_keys(payload: dict[str, object], *, label: str, keys: tuple
 class PublicSurfaceContractSchema:
     top_level_keys: tuple[str, ...]
     section_keys: dict[str, tuple[str, ...]]
-    local_cli_bridge_commands: tuple[str, ...]
     local_cli_named_command_keys: tuple[str, ...]
 
 
@@ -299,11 +298,10 @@ def load_public_surface_contract_schema() -> PublicSurfaceContractSchema:
     )
 
     section_keys: dict[str, tuple[str, ...]] = {}
-    local_cli_bridge_commands: tuple[str, ...] | None = None
     local_cli_named_command_keys: tuple[str, ...] | None = None
     section_key_names = {
         "beginner_onboarding": ("keys",),
-        "local_cli_bridge": ("keys", "commands", "named_commands"),
+        "local_cli_bridge": ("keys", "named_commands"),
         "post_start_settings": ("keys",),
         "resume_authority": ("keys",),
         "recovery_ladder": ("keys",),
@@ -333,10 +331,6 @@ def load_public_surface_contract_schema() -> PublicSurfaceContractSchema:
         if section_name != "local_cli_bridge":
             continue
 
-        local_cli_bridge_commands = _require_schema_string_tuple(
-            section_payload.get("commands"),
-            label="public_surface_contract_schema.sections.local_cli_bridge.commands",
-        )
         named_commands_payload = _require_object(
             section_payload.get("named_commands"),
             label="public_surface_contract_schema.sections.local_cli_bridge.named_commands",
@@ -356,18 +350,12 @@ def load_public_surface_contract_schema() -> PublicSurfaceContractSchema:
             label="public_surface_contract_schema.sections.local_cli_bridge.named_commands.ordered_keys",
         )
 
-    if local_cli_bridge_commands is None or local_cli_named_command_keys is None:
+    if local_cli_named_command_keys is None:
         raise ValueError("public_surface_contract_schema.local_cli_bridge is incomplete")
-
-    if len(local_cli_bridge_commands) != len(local_cli_named_command_keys):
-        raise ValueError(
-            "public_surface_contract_schema.local_cli_bridge commands and ordered named command keys must stay aligned"
-        )
 
     schema = PublicSurfaceContractSchema(
         top_level_keys=top_level_keys,
         section_keys=section_keys,
-        local_cli_bridge_commands=local_cli_bridge_commands,
         local_cli_named_command_keys=local_cli_named_command_keys,
     )
     _require_schema_matches_code(schema)
@@ -415,13 +403,8 @@ def _require_exact_command(commands: tuple[str, ...], *, label: str, command: st
     return command
 
 
-def _require_local_cli_bridge_command(command: str, *, bridge_commands: tuple[str, ...] | None = None) -> str:
-    commands = bridge_commands if bridge_commands is not None else local_cli_bridge_commands()
-    return _require_exact_command(commands, label="local_cli_bridge", command=command)
-
-
 def _local_cli_bridge_command(command: str) -> str:
-    return _require_local_cli_bridge_command(command)
+    return _require_exact_command(local_cli_bridge_commands(), label="local_cli_bridge", command=command)
 
 
 def _require_local_cli_bridge_template(command: str, *, label: str, expected: str) -> str:
@@ -561,18 +544,11 @@ def load_public_surface_contract() -> PublicSurfaceContract:
         keys=schema.section_keys["recovery_ladder"],
     )
     bridge_commands = _require_string_list(bridge_payload, "commands", label="local_cli_bridge")
-    for command in schema.local_cli_bridge_commands:
-        _require_exact_command(bridge_commands, label="local_cli_bridge", command=command)
     named_commands = _require_local_cli_named_commands(
         bridge_payload,
         bridge_commands=bridge_commands,
         named_command_keys=schema.local_cli_named_command_keys,
     )
-    if bridge_commands != schema.local_cli_bridge_commands:
-        raise ValueError(
-            "local_cli_bridge.commands must exactly match "
-            "public_surface_contract_schema.sections.local_cli_bridge.commands"
-        )
     recovery_local_snapshot_command = _require_string(
         recovery_payload,
         "local_snapshot_command",

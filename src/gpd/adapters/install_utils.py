@@ -280,6 +280,116 @@ def should_preserve_public_local_cli_command(command: str) -> bool:
     return False
 
 
+DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
+
+
+def rewrite_gpd_cli_invocations_to_runtime_bridge(
+    content: str,
+    bridge_command: str,
+    *,
+    shell_fence_languages: frozenset[str] = DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
+) -> str:
+    """Rewrite fenced-shell command-position ``gpd`` calls to the runtime bridge."""
+    rewritten: list[str] = []
+    in_shell_fence = False
+
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            if in_shell_fence:
+                in_shell_fence = False
+            else:
+                fence_language = stripped[3:].strip().lower()
+                in_shell_fence = fence_language in shell_fence_languages
+            rewritten.append(line)
+            continue
+
+        if in_shell_fence:
+            rewritten.append(rewrite_gpd_shell_line_to_runtime_bridge(line, bridge_command))
+            continue
+
+        rewritten.append(line)
+
+    return "".join(rewritten)
+
+
+def rewrite_gpd_shell_line_to_runtime_bridge(line: str, bridge_command: str) -> str:
+    """Rewrite only command-position ``gpd`` tokens on one shell line."""
+    pieces: list[str] = []
+    index = 0
+    in_single = False
+    in_double = False
+
+    while index < len(line):
+        char = line[index]
+        previous = line[index - 1] if index > 0 else ""
+
+        if char == "'" and not in_double:
+            in_single = not in_single
+            pieces.append(char)
+            index += 1
+            continue
+
+        if char == '"' and not in_single and previous != "\\":
+            in_double = not in_double
+            pieces.append(char)
+            index += 1
+            continue
+
+        if (
+            not in_single
+            and not in_double
+            and line.startswith("gpd", index)
+            and is_gpd_shell_command_start(line, index)
+            and is_gpd_shell_token_end(line, index + 3)
+        ):
+            if should_preserve_public_local_cli_command(line[index:]):
+                pieces.append("gpd")
+                index += 3
+                continue
+            pieces.append(bridge_command)
+            index += 3
+            continue
+
+        pieces.append(char)
+        index += 1
+
+    return "".join(pieces)
+
+
+def is_gpd_shell_command_start(line: str, index: int) -> bool:
+    """Return whether ``gpd`` starts a shell command token at *index*."""
+    probe = index - 1
+    while probe >= 0 and line[probe] in " \t":
+        probe -= 1
+
+    if probe < 0:
+        return True
+
+    if line[probe] in "|;(!{":
+        return True
+
+    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
+        return True
+
+    token_end = probe + 1
+    token_start = probe
+    while token_start >= 0 and (line[token_start].isalnum() or line[token_start] in "_-"):
+        token_start -= 1
+    previous_token = line[token_start + 1 : token_end]
+    if previous_token in {"if", "then", "elif", "else", "while", "until", "do", "time"}:
+        return True
+
+    return False
+
+
+def is_gpd_shell_token_end(line: str, end_index: int) -> bool:
+    """Return whether the token ending at *end_index* is standalone ``gpd``."""
+    if end_index >= len(line):
+        return True
+    return line[end_index].isspace() or line[end_index] in {'"', "'", "`", ";", "|", "&", ")", "<", ">"}
+
+
 def _replace_runtime_placeholders(
     content: str,
     path_prefix: str,

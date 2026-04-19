@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,7 @@ def test_runtime_catalog_schema_loader_exposes_canonical_optional_keys() -> None
     assert "public_command_surface_prefix" in schema["entry_optional_keys"]
     assert "unsupported" in runtime_catalog._RUNTIME_CAPABILITY_ENUMS["permissions_surface"]
     assert "unsupported" in schema["capability_enums"]["permissions_surface"]
+    assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
 
 
 def test_runtime_catalog_schema_matches_canonical_catalog_payload() -> None:
@@ -71,12 +73,14 @@ def test_runtime_catalog_accepts_explicit_public_command_surface_prefix_roundtri
     assert descriptors[0].public_command_surface_prefix == descriptors[0].command_prefix
 
 
-def test_runtime_catalog_rejects_mismatched_public_command_surface_prefix(
+def test_runtime_catalog_accepts_descriptor_owned_public_command_surface_prefix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = deepcopy(json.loads(CATALOG_PATH.read_text(encoding="utf-8")))
-    payload[0]["public_command_surface_prefix"] = f'{payload[0]["command_prefix"]}x'
+    payload[0]["public_command_surface_prefix"] = "/public:"
 
-    with pytest.raises(ValueError, match=r"runtime catalog entry 0\.public_command_surface_prefix must match command_prefix"):
-        _load_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    descriptors = _load_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert descriptors[0].public_command_surface_prefix == "/public:"
+    assert descriptors[0].public_command_surface_prefix != descriptors[0].command_prefix

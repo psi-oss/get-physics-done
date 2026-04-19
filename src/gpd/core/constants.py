@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd._python_compat import MIN_SUPPORTED_PYTHON
 from gpd.core.return_contract import REQUIRED_RETURN_FIELDS, VALID_RETURN_STATUSES
 
 __all__ = [
@@ -382,10 +383,10 @@ DECISION_THRESHOLD = 20
 UNCOMMITTED_FILES_THRESHOLD = 20
 """Number of uncommitted files before raising a warning."""
 
-MIN_PYTHON_MAJOR = 3
+MIN_PYTHON_MAJOR = MIN_SUPPORTED_PYTHON[0]
 """Minimum required Python major version."""
 
-MIN_PYTHON_MINOR = 11
+MIN_PYTHON_MINOR = MIN_SUPPORTED_PYTHON[1]
 """Minimum required Python minor version."""
 
 RECOMMENDED_PYTHON_VERSION: tuple[int, int] = (3, 12)

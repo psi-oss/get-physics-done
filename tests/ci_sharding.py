@@ -96,6 +96,116 @@ def ci_shard_specs() -> tuple[CIShardSpec, ...]:
     return tuple(specs)
 
 
+def expected_ci_shard_matrix() -> tuple[tuple[str, str, int, int], ...]:
+    return tuple(
+        (spec.display_name, spec.category, spec.shard_index, spec.shard_total)
+        for spec in ci_shard_specs()
+    )
+
+
+def _workflow_job(workflow: dict[str, object], job_name: str) -> dict[str, object]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_name]
+    assert isinstance(job, dict)
+    return job
+
+
+def workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, object]]:
+    job = _workflow_job(workflow, job_name)
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    assert all(isinstance(step, dict) for step in steps)
+    return steps
+
+
+def pytest_matrix_include(workflow: dict[str, object]) -> list[dict[str, object]]:
+    pytest_job = _workflow_job(workflow, "pytest")
+    strategy = pytest_job["strategy"]
+    assert isinstance(strategy, dict)
+    matrix = strategy["matrix"]
+    assert isinstance(matrix, dict)
+    include = matrix["include"]
+    assert isinstance(include, list)
+    assert all(isinstance(entry, dict) for entry in include)
+    return include
+
+
+def actual_ci_shard_matrix(workflow: dict[str, object]) -> tuple[tuple[str, str, int, int], ...]:
+    return tuple(
+        (
+            str(entry["display_name"]),
+            str(entry["category"]),
+            int(entry["shard_index"]),
+            int(entry["shard_total"]),
+        )
+        for entry in pytest_matrix_include(workflow)
+    )
+
+
+def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pyproject_text: str) -> None:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    pytest_steps = workflow_job_steps(workflow, "pytest")
+    pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
+    pytest_run_steps = {
+        str(step.get("name", "")): str(step.get("run", ""))
+        for step in pytest_steps
+        if "run" in step
+    }
+    matrix_include = pytest_matrix_include(workflow)
+    pytest_job = _workflow_job(workflow, "pytest")
+    strategy = pytest_job["strategy"]
+    assert isinstance(strategy, dict)
+
+    assert pytest_job.get("needs") is None
+    assert strategy["fail-fast"] is False
+    assert actual_ci_shard_matrix(workflow) == expected_ci_shard_matrix()
+    assert len(matrix_include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
+
+    # trigger-staging-rebuild moved to staging-rebuild.yml (workflow_run trigger)
+    # to avoid showing as a skipped check on PRs.
+    assert "trigger-staging-rebuild" not in jobs
+
+    assert "Set up Node.js" in pytest_step_names
+    assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
+    resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
+    pytest_shard_command = pytest_run_steps["Run pytest shard"]
+    assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
+    assert "PYTEST_CATEGORY" in resolve_targets_command
+    assert "PYTEST_SHARD_TARGET_FILE" in resolve_targets_command
+    assert "Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']}" in resolve_targets_command
+    assert "shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}" in resolve_targets_command
+    assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
+    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
+    assert pytest_steps[-1]["name"] == "Run pytest shard"
+    assert pytest_steps[-1]["run"] == pytest_shard_command
+    assert pytest_steps[2]["uses"] == "actions/setup-node@v6"
+    assert pytest_steps[2]["with"]["node-version"] == "20"
+    assert 'addopts = "-n auto --dist=worksteal"' in pyproject_text
+    assert 'pytest-xdist>=3.8.0' in pyproject_text
+
+
+def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
+    assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
+    assert "`uv run pytest -q` does the same with quieter output" in tests_readme
+    assert "Both inherit `-n auto --dist=worksteal` from `pyproject.toml`" in tests_readme
+    assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
+    assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
+    assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
+    assert (
+        "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, "
+        "`hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`"
+    ) in tests_readme
+    assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
+    assert (
+        "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, "
+        "`tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`"
+    ) in tests_readme
+    assert "greedily rebalances those work units inside each category" in tests_readme
+
+
 def all_test_relpaths(*, tests_root: Path) -> tuple[str, ...]:
     return tuple(path.relative_to(tests_root).as_posix() for path in sorted(tests_root.rglob("test_*.py")))
 

@@ -46,13 +46,14 @@ def test_runtime_command_prefixes_are_derived_from_the_runtime_catalog() -> None
     expected_prefixes: list[str] = []
     seen: set[str] = set()
     for descriptor in iter_runtime_descriptors():
-        for candidate in (
-            descriptor.command_prefix,
-            descriptor.command_prefix[1:] if descriptor.command_prefix[:1] in {"/", "$"} else None,
-        ):
-            if candidate and candidate not in seen:
-                seen.add(candidate)
-                expected_prefixes.append(candidate)
+        for prefix in (descriptor.command_prefix, validated_public_command_prefix(descriptor)):
+            for candidate in (
+                prefix,
+                prefix[1:] if prefix[:1] in {"/", "$"} else None,
+            ):
+                if candidate and candidate not in seen:
+                    seen.add(candidate)
+                    expected_prefixes.append(candidate)
     for canonical_prefix in ("gpd:", "gpd-"):
         if canonical_prefix not in seen:
             seen.add(canonical_prefix)
@@ -97,6 +98,32 @@ def test_registry_accepts_runtime_native_command_labels(
     command = registry.get_command(_command_label(descriptor.command_prefix, "execute-phase"))
 
     assert command.name == "gpd:execute-phase"
+
+
+def test_registry_accepts_descriptor_owned_public_command_labels(
+    _registry_roots: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    commands_dir, _ = _registry_roots
+    (commands_dir / "peer-review.md").write_text(
+        "---\nname: gpd:peer-review\ndescription: Review\n---\nReview body.\n",
+        encoding="utf-8",
+    )
+    descriptors = (
+        SimpleNamespace(command_prefix="/adapter-only:", public_command_surface_prefix="/public:"),
+    )
+    monkeypatch.setattr("gpd.adapters.runtime_catalog.iter_runtime_descriptors", lambda: descriptors)
+    runtime_command_prefixes.cache_clear()
+    runtime_public_command_prefixes.cache_clear()
+    try:
+        command = registry.get_command("/public:peer-review")
+    finally:
+        runtime_command_prefixes.cache_clear()
+        runtime_public_command_prefixes.cache_clear()
+
+    assert command.name == "gpd:peer-review"
 
 
 @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda item: item.runtime_name)
