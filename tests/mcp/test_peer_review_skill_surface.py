@@ -16,22 +16,15 @@ def test_peer_review_skill_surfaces_reliability_reference_as_contract_document()
     assert "Peer Review Phase Reliability" in contract_documents["peer-review-reliability.md"]["body"]
     assert any(path.endswith("peer-review-reliability.md") for path in result["contract_references"])
     assert result["review_contract"]["required_evidence"] == [
-        "resolved manuscript target",
-        "project-backed review: phase summaries or milestone digest",
-        "project-backed review: verification reports",
-        "project-backed review: manuscript-root bibliography audit",
-        "project-backed review: manuscript-root artifact manifest",
-        "project-backed review: manuscript-root reproducibility manifest",
-        "explicit external-artifact review: manuscript-local publication artifacts when present",
+        "existing manuscript or explicit external artifact target",
     ]
     assert result["review_contract"]["blocking_conditions"] == [
-        "missing manuscript",
-        "project-backed review missing project state",
-        "project-backed review missing roadmap",
-        "project-backed review missing conventions",
-        "project-backed review missing research artifacts or verification reports",
-        "project-backed review missing required manuscript-root publication artifacts",
+        "missing manuscript or explicit external artifact target",
         "degraded review integrity",
         "unsupported physical significance claims",
         "collapsed novelty or venue fit",
     ]
+    assert result["review_contract"]["conditional_requirements"][0]["when"] == "project-backed manuscript review"
+    assert any(
+        variant["scope"] == "explicit_artifact" for variant in result["review_contract"].get("scope_variants", [])
+    )

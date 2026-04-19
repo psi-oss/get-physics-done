@@ -131,7 +131,7 @@ def _coverage_metric(satisfied: int, total: int) -> CoverageMetric:
 def _read_text(path: Path) -> str | None:
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
 
 
@@ -837,12 +837,16 @@ def build_paper_quality_input(
     manuscript_content = ""
     if paper_dir is not None:
         artifact_manifest = _load_artifact_manifest(
-            subject.artifact_manifest
+            (
+                subject.artifact_manifest or locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
+            )
             if manuscript_resolution.status == "resolved"
             else locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
         )
         bibliography_audit = _load_bibliography_audit(
-            subject.bibliography_audit
+            (
+                subject.bibliography_audit or locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
+            )
             if manuscript_resolution.status == "resolved"
             else locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
         )

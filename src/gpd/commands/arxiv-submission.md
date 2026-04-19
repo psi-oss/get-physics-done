@@ -106,6 +106,7 @@ Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the acti
 
 Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`.
 When `$ARGUMENTS` is omitted, use the current GPD project's resolved manuscript subject only; do not switch to standalone interactive intake or arbitrary external directories.
+This remains a project-backed manuscript workflow: package the resolved built manuscript root or its `.tex` entrypoint, not a standalone peer-review artifact such as `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx`.
 </context>
 
 <process>

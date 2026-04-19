@@ -37,6 +37,14 @@ from rich.text import Text
 
 from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.command_labels import canonical_command_label, validated_public_command_prefix
+from gpd.core.artifact_text import (
+    DIGEST_KNOWLEDGE_SOURCE_SUFFIXES,
+    PEER_REVIEW_ARTIFACT_SUFFIXES,
+    ArtifactTextError,
+    load_artifact_text_surface,
+    materialize_artifact_text_surface,
+    probe_artifact_text_surface,
+)
 from gpd.core.arxiv_source_download import normalize_arxiv_id
 from gpd.core.cli_args import (
     normalize_root_global_cli_options as _normalize_root_global_cli_options,
@@ -66,6 +74,12 @@ from gpd.core.manuscript_artifacts import (
 from gpd.core.onboarding_surfaces import (
     beginner_onboarding_hub_url,
     beginner_startup_ladder_text,
+)
+from gpd.core.peer_review_mode import (
+    PEER_REVIEW_INVALID_SUBJECT_MODE,
+    PEER_REVIEW_PROJECT_BACKED_MODE,
+    PeerReviewModeResolution,
+    resolve_peer_review_mode_details,
 )
 from gpd.core.project_reentry import (
     ProjectReentryResolution,
@@ -201,6 +215,16 @@ def _output(data: object) -> None:
             _pretty_print(data)
         else:
             console.print(str(data), highlight=False)
+
+
+def _stdout_is_interactive() -> bool:
+    stream = getattr(sys, "stdout", None)
+    if stream is None:
+        return False
+    try:
+        return bool(stream.isatty())
+    except Exception:
+        return False
 
 
 def _pretty_print(d: dict) -> None:
@@ -365,9 +389,18 @@ def _format_display_path(target: str | Path | None) -> str:
     if not target_path.is_absolute():
         target_path = _get_cwd() / target_path
 
-    resolved_target = target_path.resolve(strict=False)
-    resolved_cwd = _get_cwd().expanduser().resolve(strict=False)
-    resolved_home = Path.home().expanduser().resolve(strict=False)
+    try:
+        resolved_target = target_path.resolve(strict=False)
+    except OSError:
+        return target_path.as_posix()
+    try:
+        resolved_cwd = _get_cwd().expanduser().resolve(strict=False)
+    except OSError:
+        resolved_cwd = _get_cwd().expanduser()
+    try:
+        resolved_home = Path.home().expanduser().resolve(strict=False)
+    except OSError:
+        return resolved_target.as_posix()
 
     try:
         relative_to_cwd = resolved_target.relative_to(resolved_cwd)
@@ -399,8 +432,14 @@ def _format_display_path_from_cwd(target: str | Path | None, *, cwd: Path) -> st
     if not target_path.is_absolute():
         target_path = cwd.expanduser() / target_path
 
-    resolved_target = target_path.resolve(strict=False)
-    resolved_cwd = cwd.expanduser().resolve(strict=False)
+    try:
+        resolved_target = target_path.resolve(strict=False)
+    except OSError:
+        return target_path.as_posix()
+    try:
+        resolved_cwd = cwd.expanduser().resolve(strict=False)
+    except OSError:
+        resolved_cwd = cwd.expanduser()
 
     try:
         relative = resolved_target.relative_to(resolved_cwd)
@@ -460,6 +499,10 @@ class ReviewPreflightResult:
     blocking_conditions: list[str]
     conditional_requirements: list[ReviewContractConditionalRequirement]
     active_conditional_requirements: list[ReviewContractConditionalRequirement]
+    effective_required_evidence: list[str]
+    effective_blocking_conditions: list[str]
+    resolved_mode: str = ""
+    mode_reason: str = ""
     validated_surface: str = "public_runtime_command_surface"
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
@@ -488,6 +531,8 @@ class CommandContextPreflightResult:
     explicit_inputs: list[str]
     guidance: str
     checks: list[CommandContextCheck]
+    resolved_mode: str = ""
+    mode_reason: str = ""
     validated_surface: str = "public_runtime_command_surface"
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
@@ -2056,21 +2101,37 @@ def _recent_project_resume_file_state(project_root: object, resume_file: object)
         return None, None
 
     project_path = Path(project_root).expanduser()
-    if not project_path.exists() or not project_path.is_dir():
+    try:
+        project_exists = project_path.exists()
+        project_is_dir = project_path.is_dir()
+    except OSError:
+        return False, "project unavailable on this machine"
+    if not project_exists or not project_is_dir:
         return None, None
 
-    resolved_project = project_path.resolve(strict=False)
+    try:
+        resolved_project = project_path.resolve(strict=False)
+    except OSError:
+        return False, "project unavailable on this machine"
     candidate = Path(resume_file).expanduser()
-    resolved_target = (
-        candidate.resolve(strict=False) if candidate.is_absolute() else (project_path / candidate).resolve(strict=False)
-    )
+    try:
+        resolved_target = (
+            candidate.resolve(strict=False) if candidate.is_absolute() else (project_path / candidate).resolve(strict=False)
+        )
+    except OSError:
+        return False, "resume file unavailable"
     try:
         resolved_target.relative_to(resolved_project)
     except ValueError:
         return False, "resume file outside project root"
-    if not resolved_target.exists():
+    try:
+        target_exists = resolved_target.exists()
+        target_is_file = resolved_target.is_file()
+    except OSError:
+        return False, "resume file unavailable"
+    if not target_exists:
         return False, "resume file missing"
-    if not resolved_target.is_file():
+    if not target_is_file:
         return False, "resume file is not a file"
     return True, None
 
@@ -2113,8 +2174,23 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
     available_value = row.get("available")
     if isinstance(available_value, bool):
         available = available_value
+        derived_availability_reason = None
     else:
-        available = project_path.is_dir()
+        try:
+            available = project_path.is_dir()
+        except OSError:
+            available = False
+            derived_availability_reason = "project unavailable on this machine"
+        else:
+            if available:
+                derived_availability_reason = None
+            else:
+                try:
+                    project_exists = project_path.exists()
+                except OSError:
+                    derived_availability_reason = "project unavailable on this machine"
+                else:
+                    derived_availability_reason = "project root is not a directory" if project_exists else "project root missing"
     normalized: dict[str, object] = {
         "project_root": project_root,
         "workspace": _format_display_path(project_path),
@@ -2124,7 +2200,12 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
     if not available:
         normalized["command"] = "unavailable"
     elif project_path.is_absolute():
-        normalized["command"] = f"gpd --cwd {shlex.quote(str(project_path.resolve(strict=False)))} resume"
+        try:
+            resolved_project_path = project_path.resolve(strict=False)
+        except OSError:
+            normalized["command"] = "unavailable"
+        else:
+            normalized["command"] = f"gpd --cwd {shlex.quote(str(resolved_project_path))} resume"
     else:
         normalized["command"] = None
 
@@ -2155,6 +2236,8 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
     ):
         if key in row:
             normalized[key] = row[key]
+    if derived_availability_reason is not None and not normalized.get("availability_reason"):
+        normalized["availability_reason"] = derived_availability_reason
 
     resume_file_available, resume_file_reason = _recent_project_resume_file_state(
         normalized.get("project_root"),
@@ -2224,7 +2307,10 @@ def _resume_recent_project_command(row: dict[str, object]) -> str:
         return "unavailable"
     if row.get("available") is not True:
         return "unavailable"
-    project_path = Path(project_root).expanduser().resolve(strict=False)
+    try:
+        project_path = Path(project_root).expanduser().resolve(strict=False)
+    except OSError:
+        return "unavailable"
     return f"gpd --cwd {shlex.quote(str(project_path))} resume"
 
 
@@ -2252,15 +2338,29 @@ def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, object] |
     if not isinstance(project_root, str) or not project_root.strip():
         return None
 
-    project_path = Path(project_root).expanduser().resolve(strict=False)
-    if not project_path.exists() or not project_path.is_dir():
+    try:
+        project_path = Path(project_root).expanduser().resolve(strict=False)
+        project_exists = project_path.exists()
+        project_is_dir = project_path.is_dir()
+    except OSError:
+        project_path = Path(project_root).expanduser()
+        project_exists = False
+        project_is_dir = False
+    if not project_exists or not project_is_dir:
         return {
             "recovery_status": "no-recovery",
             "recovery_status_label": "Unavailable checkout",
             "recovery_note": "project unavailable on this machine",
         }
 
-    state_exists, roadmap_exists, project_exists = recoverable_project_context(project_path)
+    try:
+        state_exists, roadmap_exists, project_exists = recoverable_project_context(project_path)
+    except OSError:
+        return {
+            "recovery_status": "no-recovery",
+            "recovery_status_label": "Unavailable checkout",
+            "recovery_note": "project unavailable on this machine",
+        }
     if not (state_exists or roadmap_exists or project_exists):
         return None
 
@@ -4571,6 +4671,10 @@ def init_write_paper(
 
 @init_app.command("peer-review")
 def init_peer_review(
+    subject: str | None = typer.Argument(
+        None,
+        help="Optional explicit review target path for peer-review context resolution.",
+    ),
     stage: str | None = typer.Option(
         None,
         "--stage",
@@ -4581,7 +4685,7 @@ def init_peer_review(
     from gpd.core.context import init_peer_review
 
     try:
-        payload = init_peer_review(_get_cwd(), stage=stage)
+        payload = init_peer_review(_get_cwd(), subject=subject, stage=stage)
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
@@ -6289,6 +6393,8 @@ def _validate_bibliography_audit_semantics(bibliography_audit: Path) -> tuple[bo
         audit_payload = json.loads(bibliography_audit.read_text(encoding="utf-8"))
     except OSError as exc:
         return False, f"could not read bibliography audit: {exc}"
+    except UnicodeDecodeError as exc:
+        return False, f"bibliography audit is not valid UTF-8: {exc}"
     except json.JSONDecodeError as exc:
         return False, f"could not parse bibliography audit: {exc}"
 
@@ -6336,10 +6442,33 @@ def _requires_theorem_bearing_manuscript_review(
     return manuscript is not None and manuscript_requires_theorem_bearing_review(project_cwd, manuscript)
 
 
+def _review_contract_declared_preflight_checks(contract: object) -> set[str]:
+    """Return every preflight check declared directly or conditionally on one review contract."""
+
+    declared_checks = set(getattr(contract, "preflight_checks", []) or [])
+    for requirement in list(getattr(contract, "conditional_requirements", []) or []):
+        declared_checks.update(list(getattr(requirement, "preflight_checks", []) or []))
+        declared_checks.update(list(getattr(requirement, "blocking_preflight_checks", []) or []))
+    return declared_checks
+
+
 def _review_contract_requests_check(contract: object, check_name: str) -> bool:
     """Return whether the review contract explicitly asks the CLI to execute one check."""
 
-    return check_name in list(getattr(contract, "preflight_checks", []) or [])
+    return check_name in _review_contract_declared_preflight_checks(contract)
+
+
+def _review_contract_active_requested_preflight_checks(
+    contract: object,
+    active_conditional_requirements: list[ReviewContractConditionalRequirement] | None = None,
+) -> set[str]:
+    """Return the preflight checks active for the current resolved review context."""
+
+    active_checks = set(getattr(contract, "preflight_checks", []) or [])
+    for requirement in list(active_conditional_requirements or []):
+        active_checks.update(list(getattr(requirement, "preflight_checks", []) or []))
+        active_checks.update(list(getattr(requirement, "blocking_preflight_checks", []) or []))
+    return active_checks
 
 
 def _review_preflight_check_is_blocking(
@@ -6359,12 +6488,21 @@ def _review_contract_active_conditional_requirements(
     *,
     project_cwd: Path,
     manuscript: Path | None,
+    resolved_mode: str = "",
 ) -> list[object]:
     """Return conditionals whose trigger is active for the current manuscript."""
 
     active_requirements: list[object] = []
     for requirement in list(getattr(contract, "conditional_requirements", []) or []):
         when = str(getattr(requirement, "when", "") or "").strip()
+        if when == "project-backed manuscript review":
+            if resolved_mode == "project-backed manuscript review":
+                active_requirements.append(requirement)
+            continue
+        if when == "standalone explicit-artifact review":
+            if resolved_mode == "standalone explicit-artifact review":
+                active_requirements.append(requirement)
+            continue
         if when in {
             "theorem-bearing claims are present",
             "theorem-bearing manuscripts are present",
@@ -6372,6 +6510,29 @@ def _review_contract_active_conditional_requirements(
             if _requires_theorem_bearing_manuscript_review(project_cwd, manuscript):
                 active_requirements.append(requirement)
     return active_requirements
+
+
+def _effective_review_contract_strings(
+    base_values: Collection[str],
+    active_requirements: Collection[object],
+    attribute_name: str,
+) -> list[str]:
+    """Return a deduplicated list of active review-contract string requirements."""
+
+    effective_values: list[str] = []
+    seen: set[str] = set()
+    for value in list(base_values):
+        normalized = str(value).strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            effective_values.append(normalized)
+    for requirement in active_requirements:
+        for value in list(getattr(requirement, attribute_name, []) or []):
+            normalized = str(value).strip()
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                effective_values.append(normalized)
+    return effective_values
 
 
 def _evaluate_review_required_state(
@@ -6515,6 +6676,8 @@ def _load_json_document(input_path: str) -> object:
             raw = target.read_text(encoding="utf-8")
         except FileNotFoundError as exc:
             raise GPDError(f"JSON input not found: {source}") from exc
+        except UnicodeDecodeError as exc:
+            raise GPDError(f"JSON input is not valid UTF-8: {source}: {exc}") from exc
         except OSError as exc:
             raise GPDError(f"Failed to read JSON input from {source}: {exc}") from exc
 
@@ -6535,8 +6698,28 @@ def _load_text_document(input_path: str) -> tuple[Path, str]:
         return target, target.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise GPDError(f"Text input not found: {source}") from exc
+    except UnicodeDecodeError as exc:
+        raise GPDError(f"Text input is not valid UTF-8: {source}: {exc}") from exc
     except OSError as exc:
         raise GPDError(f"Failed to read text input from {source}: {exc}") from exc
+
+
+def _load_json_document_or_error(input_path: str) -> object:
+    """Load JSON input and emit the standard CLI error envelope on failure."""
+
+    try:
+        return _load_json_document(input_path)
+    except GPDError as exc:
+        _error(str(exc))
+
+
+def _load_text_document_or_error(input_path: str) -> tuple[Path, str]:
+    """Load text input and emit the standard CLI error envelope on failure."""
+
+    try:
+        return _load_text_document(input_path)
+    except GPDError as exc:
+        _error(str(exc))
 
 
 def _project_root_for_json_input(input_path: str) -> Path:
@@ -7087,22 +7270,7 @@ def _has_parameter_sweep_explicit_inputs(arguments: str | None) -> bool:
     return any(_looks_like_parameter_sweep_anchor_token(token) for token in positionals)
 
 
-_DIGEST_KNOWLEDGE_PATH_SUFFIXES = {
-    ".bib",
-    ".csv",
-    ".ipynb",
-    ".json",
-    ".markdown",
-    ".md",
-    ".pdf",
-    ".py",
-    ".rst",
-    ".tex",
-    ".txt",
-    ".tsv",
-    ".yaml",
-    ".yml",
-}
+_DIGEST_KNOWLEDGE_PATH_SUFFIXES = DIGEST_KNOWLEDGE_SOURCE_SUFFIXES
 
 
 def _looks_like_digest_knowledge_topic_token(token: str) -> bool:
@@ -7602,7 +7770,10 @@ def _command_manuscript_intake_policy(command: object) -> ManuscriptIntakePolicy
 
 def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
     """Return the allowed explicit manuscript suffixes for one command."""
-    return _command_manuscript_intake_policy(command).allowed_suffixes
+    allowed_suffixes = _command_manuscript_intake_policy(command).allowed_suffixes
+    if getattr(command, "name", "") == "gpd:peer-review" and allowed_suffixes <= {".tex", ".md"}:
+        return PEER_REVIEW_ARTIFACT_SUFFIXES
+    return allowed_suffixes
 
 
 def _command_allows_external_manuscript_targets(command: object) -> bool:
@@ -7637,6 +7808,8 @@ def _command_allows_manuscript_bootstrap(command: object) -> bool:
     if bootstrap_allowed is not None:
         return bootstrap_allowed
     contract = getattr(command, "review_contract", None)
+    if getattr(command, "name", "") == "gpd:peer-review":
+        return False
     return (
         _command_requires_manuscript_context(command)
         and not _command_required_file_patterns(command)
@@ -8378,6 +8551,28 @@ def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) 
     return _supported_manuscript_root_for_target(project_root, target) is not None
 
 
+def _peer_review_mode_resolution(
+    project_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> PeerReviewModeResolution:
+    """Return the resolved peer-review intake mode plus target details."""
+
+    return resolve_peer_review_mode_details(project_root, subject, workspace_cwd=workspace_cwd)
+
+
+def _peer_review_resolved_mode(
+    project_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> tuple[str, str]:
+    """Return the resolved peer-review intake mode and the reason it was selected."""
+    resolution = _peer_review_mode_resolution(project_root, subject, workspace_cwd=workspace_cwd)
+    return resolution.resolved_mode, resolution.mode_reason
+
+
 def _normalize_review_scope_selector(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
 
@@ -8505,19 +8700,41 @@ def _publication_subject_preflight_policy(
     )
 
 
-def _peer_review_pdf_intake_ready(manuscript: Path) -> tuple[bool, str]:
-    """Return whether a PDF manuscript target can be converted into review text."""
-    companion_text = manuscript.with_suffix(".txt")
-    if companion_text.exists():
-        return True, f"PDF intake can use companion text file {_format_display_path(companion_text)}"
+def _peer_review_standalone_artifact_mode(
+    project_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> bool:
+    """Return whether peer-review should treat the current request as external-artifact mode."""
+    return _peer_review_mode_resolution(project_root, subject, workspace_cwd=workspace_cwd).standalone_artifact_mode
 
-    from gpd.mcp.paper.compiler import find_latex_compiler
 
-    pdftotext_path = find_latex_compiler("pdftotext")
-    if pdftotext_path is not None:
-        return True, f"pdftotext available at {_format_display_path(pdftotext_path)} for PDF review intake"
+def _peer_review_artifact_text_surface_ready(
+    manuscript: Path,
+    *,
+    probe: object | None = None,
+    verify_generated_surface: bool = False,
+) -> tuple[bool, str]:
+    """Return whether one peer-review artifact can be converted into review text."""
 
-    return False, "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
+    try:
+        readiness_probe = probe if probe is not None else probe_artifact_text_surface(manuscript)
+    except ArtifactTextError as exc:
+        return False, str(exc)
+
+    detail = readiness_probe.detail
+    for path in (readiness_probe.surface_path, readiness_probe.helper_path):
+        if path is None:
+            continue
+        display_path = _format_display_path(path)
+        detail = detail.replace(path.as_posix(), display_path).replace(str(path), display_path)
+    if verify_generated_surface and readiness_probe.ready and readiness_probe.surface_kind == "generated":
+        try:
+            load_artifact_text_surface(manuscript)
+        except ArtifactTextError as exc:
+            return False, str(exc)
+    return readiness_probe.ready, detail
 
 
 def _build_command_context_preflight(
@@ -8865,6 +9082,10 @@ def _build_command_context_preflight(
         project_root_auto_selected=False,
         reentry_mode="current-workspace" if project_exists else None,
     )
+    resolved_mode = ""
+    mode_reason = ""
+    explicit_inputs_detail = "explicit standalone inputs detected"
+    peer_review_has_explicit_target = command.name == "gpd:peer-review" and _has_simple_positional_inputs(arguments)
     if resolved_subject is not None and not _command_requires_manuscript_context(command):
         explicit_inputs_ok = resolved_subject.status == "resolved"
         interactive_intake_allowed = resolved_subject.status == "interactive"
@@ -8879,6 +9100,17 @@ def _build_command_context_preflight(
                 and resolved_subject.ownership_mode == "external_authoring_intake"
                 and resolved_subject.status in {"resolved", "bootstrap"}
             )
+        if command.name == "gpd:peer-review":
+            peer_review_mode = _peer_review_mode_resolution(context_cwd, arguments, workspace_cwd=cwd)
+            resolved_mode = peer_review_mode.resolved_mode
+            mode_reason = peer_review_mode.mode_reason
+            if peer_review_has_explicit_target:
+                explicit_inputs_ok = peer_review_mode.resolved_mode != PEER_REVIEW_INVALID_SUBJECT_MODE
+                explicit_inputs_detail = (
+                    peer_review_mode.resolution_detail
+                    if explicit_inputs_ok
+                    else f"invalid explicit review target: {peer_review_mode.mode_reason}"
+                )
         interactive_intake_allowed = (
             _command_allows_interactive_subject_intake(command)
             and not explicit_inputs_ok
@@ -8918,13 +9150,33 @@ def _build_command_context_preflight(
                 and resolved_subject is not None
                 and resolved_subject.ownership_mode == "external_authoring_intake"
             )
+            else explicit_inputs_detail
+            if explicit_inputs_ok or (command.name == "gpd:peer-review" and peer_review_has_explicit_target)
             else (
                 _command_interactive_subject_detail(command, explicit_inputs)
                 if interactive_intake_allowed
                 else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
             )
         ),
-        blocking=not project_exists and not interactive_intake_allowed,
+        blocking=(
+            peer_review_has_explicit_target
+            if command.name == "gpd:peer-review"
+            else not project_exists and not interactive_intake_allowed
+        ),
+    )
+    passed = (
+        explicit_inputs_ok
+        if command.name == "gpd:peer-review" and peer_review_has_explicit_target
+        else project_exists or explicit_inputs_ok or interactive_intake_allowed
+    )
+    guidance = (
+        ""
+        if passed
+        else (
+            explicit_inputs_detail
+            if command.name == "gpd:peer-review" and peer_review_has_explicit_target and not explicit_inputs_ok
+            else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+        )
     )
     managed_output_context_root = _command_managed_output_context_root(
         workspace_root=cwd,
@@ -8945,6 +9197,8 @@ def _build_command_context_preflight(
         )
     passed = project_context_satisfies or explicit_inputs_ok or interactive_intake_allowed
     guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+    if command.name == "gpd:peer-review" and peer_review_has_explicit_target and not explicit_inputs_ok:
+        guidance = explicit_inputs_detail
     return CommandContextPreflightResult(
         command=public_command_name,
         context_mode=effective_context_mode,
@@ -8953,6 +9207,8 @@ def _build_command_context_preflight(
         explicit_inputs=explicit_inputs,
         guidance=guidance,
         checks=checks,
+        resolved_mode=resolved_mode,
+        mode_reason=mode_reason,
         validated_surface=_validated_runtime_surface(cwd=cwd),
         public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
         dispatch_note=dispatch_note,
@@ -8979,21 +9235,26 @@ def _build_review_preflight(
     contract = command.review_contract
     if contract is None:
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
-    manuscript_intake_policy = _command_manuscript_intake_policy(command)
+    resolved_mode = ""
+    mode_reason = ""
+    standalone_peer_review_mode = False
 
     checks: list[ReviewPreflightCheck] = []
     phase_subject = subject
-    if phase_subject is None and "phase_artifacts" in contract.preflight_checks:
+    if phase_subject is None and _review_contract_requests_check(contract, "phase_artifacts"):
         phase_subject = _current_review_phase_subject(project_cwd)
     phase_info = (
         find_phase(project_cwd, phase_subject)
-        if phase_subject and "phase_artifacts" in contract.preflight_checks
+        if phase_subject and _review_contract_requests_check(contract, "phase_artifacts")
         else None
     )
     manuscript: Path | None = None
     active_conditional_requirements: list[ReviewContractConditionalRequirement] = []
-
     conditional_blocking_preflight_checks: set[str] = set()
+    active_requested_preflight_checks = _review_contract_active_requested_preflight_checks(contract)
+
+    def requested_review_check(check_name: str) -> bool:
+        return check_name in active_requested_preflight_checks
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool | None = None) -> None:
         checks.append(
@@ -9083,8 +9344,30 @@ def _build_review_preflight(
         else list(contract.blocking_conditions)
     )
     context_detail = context_preflight.guidance or f"context_mode={_command_effective_context_mode(command)}"
+    if context_preflight.resolved_mode:
+        context_detail = f"{context_detail}; resolved_mode={context_preflight.resolved_mode}"
+    if context_preflight.mode_reason:
+        context_detail = f"{context_detail}; {context_preflight.mode_reason}"
     if context_preflight.dispatch_note:
         context_detail = f"{context_detail}; {context_preflight.dispatch_note}"
+    if command.name == "gpd:peer-review":
+        resolved_mode, mode_reason = _peer_review_resolved_mode(project_cwd, subject, workspace_cwd=cwd)
+        standalone_peer_review_mode = resolved_mode != PEER_REVIEW_PROJECT_BACKED_MODE
+        active_conditional_requirements = _review_contract_active_conditional_requirements(
+            contract,
+            project_cwd=project_cwd,
+            manuscript=None,
+            resolved_mode=resolved_mode,
+        )
+        conditional_blocking_preflight_checks = {
+            check_name
+            for requirement in active_conditional_requirements
+            for check_name in list(getattr(requirement, "blocking_preflight_checks", []) or [])
+        }
+        active_requested_preflight_checks = _review_contract_active_requested_preflight_checks(
+            contract,
+            active_conditional_requirements,
+        )
     add_check(
         "command_context",
         context_preflight.passed,
@@ -9158,13 +9441,20 @@ def _build_review_preflight(
             )
         add_check("knowledge_review_freshness", freshness_passed, detail)
 
-    if "project_state" in contract.preflight_checks:
+    if requested_review_check("project_state"):
         optional_detail = subject_preflight_policy.detail("project_state")
         if optional_detail is not None:
             add_check(
                 "project_state",
                 True,
                 optional_detail,
+                blocking=False,
+            )
+        elif standalone_peer_review_mode:
+            add_check(
+                "project_state",
+                True,
+                "external artifact review: project state is optional",
                 blocking=False,
             )
         else:
@@ -9185,10 +9475,12 @@ def _build_review_preflight(
                     detail = f"{detail}; {'; '.join(validation.issues)}"
                 add_check("state_integrity", validation.valid, detail, blocking=True)
 
-    if "roadmap" in contract.preflight_checks:
+    if requested_review_check("roadmap"):
         optional_detail = subject_preflight_policy.detail("roadmap")
         if optional_detail is not None:
             add_check("roadmap", True, optional_detail, blocking=False)
+        elif standalone_peer_review_mode:
+            add_check("roadmap", True, "external artifact review: roadmap is optional", blocking=False)
         else:
             add_check(
                 "roadmap",
@@ -9200,10 +9492,12 @@ def _build_review_preflight(
                 ),
             )
 
-    if "conventions" in contract.preflight_checks:
+    if requested_review_check("conventions"):
         optional_detail = subject_preflight_policy.detail("conventions")
         if optional_detail is not None:
             add_check("conventions", True, optional_detail, blocking=False)
+        elif standalone_peer_review_mode:
+            add_check("conventions", True, "external artifact review: project conventions are optional", blocking=False)
         else:
             add_check(
                 "conventions",
@@ -9215,7 +9509,7 @@ def _build_review_preflight(
                 ),
             )
 
-    if "research_artifacts" in contract.preflight_checks:
+    if requested_review_check("research_artifacts"):
         optional_detail = subject_preflight_policy.detail("research_artifacts")
         if optional_detail is not None:
             add_check(
@@ -9224,11 +9518,25 @@ def _build_review_preflight(
                 optional_detail,
                 blocking=False,
             )
-            if _review_contract_requests_check(contract, "verification_reports"):
+            if requested_review_check("verification_reports"):
                 add_check(
                     "verification_reports",
                     True,
                     subject_preflight_policy.detail("verification_reports") or "verification reports are optional",
+                    blocking=False,
+                )
+        elif standalone_peer_review_mode:
+            add_check(
+                "research_artifacts",
+                True,
+                "external artifact review: research artifacts are optional",
+                blocking=False,
+            )
+            if requested_review_check("verification_reports"):
+                add_check(
+                    "verification_reports",
+                    True,
+                    "external artifact review: verification reports are optional",
                     blocking=False,
                 )
         else:
@@ -9247,7 +9555,7 @@ def _build_review_preflight(
                     else "; ".join(summary_failures[:3]),
                     blocking=True,
                 )
-            verification_reports_requested = _review_contract_requests_check(contract, "verification_reports")
+            verification_reports_requested = requested_review_check("verification_reports")
             if verification_reports_requested:
                 verification_exists = layout.phases_dir.exists() and any(layout.phases_dir.rglob("*VERIFICATION.md"))
                 add_check(
@@ -9266,37 +9574,62 @@ def _build_review_preflight(
                         blocking=True,
                     )
 
-    if "manuscript" in contract.preflight_checks:
-        manuscript_detail = (
-            resolved_subject.detail
-            if resolved_subject is not None
-            else "manuscript subject could not be resolved from command context"
-        )
-        manuscript = (
-            resolved_subject.target_path
-            if (
-                resolved_subject is not None
-                and resolved_subject.subject_kind == "manuscript"
-                and resolved_subject.status == "resolved"
-                and resolved_subject.target_path is not None
-                and resolved_subject.target_path.is_file()
+    if requested_review_check("manuscript"):
+        allow_markdown = not _command_requires_compiled_manuscript(command)
+        supports_explicit_manuscript_subject = _command_supports_explicit_manuscript_subject(command)
+        explicit_manuscript_subject = _command_explicit_manuscript_argument(command, subject)
+        if supports_explicit_manuscript_subject:
+            manuscript, manuscript_detail = _resolve_review_preflight_manuscript(
+                project_cwd,
+                explicit_manuscript_subject,
+                allow_markdown=allow_markdown,
+                allowed_suffixes=_command_explicit_manuscript_suffixes(command),
+                restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
+                workspace_cwd=cwd,
             )
-            else None
-        )
-        manuscript_passed = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
-        if _command_requires_compiled_manuscript(command):
             manuscript_passed = manuscript is not None
+        else:
+            manuscript_detail = (
+                resolved_subject.detail
+                if resolved_subject is not None
+                else "manuscript subject could not be resolved from command context"
+            )
+            manuscript = (
+                resolved_subject.target_path
+                if (
+                    resolved_subject is not None
+                    and resolved_subject.subject_kind == "manuscript"
+                    and resolved_subject.status == "resolved"
+                    and resolved_subject.target_path is not None
+                    and resolved_subject.target_path.is_file()
+                )
+                else None
+            )
+            manuscript_passed = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+            if _command_requires_compiled_manuscript(command):
+                manuscript_passed = manuscript is not None
         if (
             manuscript is not None
-            and manuscript.suffix.lower() == ".pdf"
-            and ".pdf" in manuscript_intake_policy.allowed_suffixes
+            and command.name == "gpd:peer-review"
+            and manuscript.suffix.lower()
+            in {
+                ".pdf",
+                ".docx",
+                ".csv",
+                ".tsv",
+                ".xlsx",
+                ".xlsm",
+            }
         ):
-            pdf_ready, pdf_detail = _peer_review_pdf_intake_ready(manuscript)
-            manuscript_passed = manuscript_passed and pdf_ready
-            if pdf_ready:
-                manuscript_detail = f"{_format_display_path(manuscript)} present; {pdf_detail}"
+            intake_ready, intake_detail = _peer_review_artifact_text_surface_ready(
+                manuscript,
+                verify_generated_surface=strict and subject is not None,
+            )
+            manuscript_passed = manuscript_passed and intake_ready
+            if intake_ready:
+                manuscript_detail = f"{_format_display_path(manuscript)} present; {intake_detail}"
             else:
-                manuscript_detail = pdf_detail
+                manuscript_detail = intake_detail
         add_check(
             "manuscript",
             manuscript_passed,
@@ -9326,12 +9659,17 @@ def _build_review_preflight(
                     contract,
                     project_cwd=project_cwd,
                     manuscript=manuscript,
+                    resolved_mode=resolved_mode,
                 )
                 conditional_blocking_preflight_checks = {
                     check_name
                     for requirement in active_conditional_requirements
                     for check_name in list(getattr(requirement, "blocking_preflight_checks", []) or [])
                 }
+                active_requested_preflight_checks = _review_contract_active_requested_preflight_checks(
+                    contract,
+                    active_conditional_requirements,
+                )
             requested_publication_checks = {
                 check_name
                 for check_name in (
@@ -9347,7 +9685,7 @@ def _build_review_preflight(
                     "reproducibility_manifest",
                     "manuscript_proof_review",
                 )
-                if _review_contract_requests_check(contract, check_name)
+                if requested_review_check(check_name)
             }
             if requested_publication_checks:
                 publication_artifacts = _resolve_review_preflight_publication_artifacts(manuscript)
@@ -9359,10 +9697,15 @@ def _build_review_preflight(
                     artifact_manifest_missing = artifact_manifest is None
                     artifact_manifest_detail = subject_preflight_policy.missing_detail(
                         "artifact_manifest",
-                        default="no ARTIFACT-MANIFEST.json found near the manuscript",
+                        default=(
+                            "no ARTIFACT-MANIFEST.json found near the manuscript"
+                            if not standalone_peer_review_mode
+                            else "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+                        ),
                     )
                     artifact_manifest_passed = (
                         artifact_manifest is not None
+                        or standalone_peer_review_mode
                         or subject_preflight_policy.passes_when_missing("artifact_manifest")
                     )
                     if artifact_manifest is not None:
@@ -9375,6 +9718,9 @@ def _build_review_preflight(
                         except OSError as exc:
                             artifact_manifest_passed = False
                             artifact_manifest_detail = f"could not read artifact manifest: {exc}"
+                        except UnicodeDecodeError as exc:
+                            artifact_manifest_passed = False
+                            artifact_manifest_detail = f"artifact manifest is not valid UTF-8: {exc}"
                         except json.JSONDecodeError as exc:
                             artifact_manifest_passed = False
                             artifact_manifest_detail = f"could not parse artifact manifest: {exc}"
@@ -9391,6 +9737,7 @@ def _build_review_preflight(
                         blocking=subject_preflight_policy.blocking(
                             "artifact_manifest",
                             missing=artifact_manifest_missing,
+                            default=not standalone_peer_review_mode,
                         ),
                     )
 
@@ -9398,11 +9745,16 @@ def _build_review_preflight(
                     bibliography_missing = bibliography_audit is None
                     bibliography_missing_detail = subject_preflight_policy.missing_detail(
                         "bibliography_audit",
-                        default="no BIBLIOGRAPHY-AUDIT.json found near the manuscript",
+                        default=(
+                            "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
+                            if not standalone_peer_review_mode
+                            else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
+                        ),
                     )
                     add_check(
                         "bibliography_audit",
                         bibliography_audit is not None
+                        or standalone_peer_review_mode
                         or subject_preflight_policy.passes_when_missing("bibliography_audit"),
                         (
                             f"{_format_display_path(bibliography_audit)} present"
@@ -9412,6 +9764,7 @@ def _build_review_preflight(
                         blocking=subject_preflight_policy.blocking(
                             "bibliography_audit",
                             missing=bibliography_missing,
+                            default=not standalone_peer_review_mode,
                         ),
                     )
 
@@ -9688,11 +10041,16 @@ def _build_review_preflight(
                     reproducibility_missing = reproducibility_manifest is None
                     reproducibility_missing_detail = subject_preflight_policy.missing_detail(
                         "reproducibility_manifest",
-                        default="no reproducibility manifest found near the manuscript",
+                        default=(
+                            "no reproducibility manifest found near the manuscript"
+                            if not standalone_peer_review_mode
+                            else "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
+                        ),
                     )
                     add_check(
                         "reproducibility_manifest",
                         reproducibility_manifest is not None
+                        or standalone_peer_review_mode
                         or subject_preflight_policy.passes_when_missing("reproducibility_manifest"),
                         (
                             f"{_format_display_path(reproducibility_manifest)} present"
@@ -9702,11 +10060,12 @@ def _build_review_preflight(
                         blocking=subject_preflight_policy.blocking(
                             "reproducibility_manifest",
                             missing=reproducibility_missing,
+                            default=not standalone_peer_review_mode,
                         ),
                     )
 
                 if "manuscript_proof_review" in requested_publication_checks:
-                    if subject_preflight_policy.relaxes("manuscript_proof_review"):
+                    if standalone_peer_review_mode or subject_preflight_policy.relaxes("manuscript_proof_review"):
                         manuscript_proof_review_passed = True
                         manuscript_proof_review_blocking = False
                         manuscript_proof_review_detail = subject_preflight_policy.missing_detail(
@@ -9759,7 +10118,10 @@ def _build_review_preflight(
                         "bibliography_audit_clean",
                         clean,
                         detail,
-                        blocking=subject_preflight_policy.blocking("bibliography_audit_clean"),
+                        blocking=subject_preflight_policy.blocking(
+                            "bibliography_audit_clean",
+                            default=not standalone_peer_review_mode,
+                        ),
                     )
                 if (
                     strict
@@ -9776,7 +10138,10 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             False,
                             f"could not validate reproducibility manifest: {exc}",
-                            blocking=subject_preflight_policy.blocking("reproducibility_ready"),
+                            blocking=subject_preflight_policy.blocking(
+                                "reproducibility_ready",
+                                default=not standalone_peer_review_mode,
+                            ),
                         )
                     else:
                         ready = (
@@ -9796,10 +10161,13 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             ready,
                             detail,
-                            blocking=subject_preflight_policy.blocking("reproducibility_ready"),
+                            blocking=subject_preflight_policy.blocking(
+                                "reproducibility_ready",
+                                default=not standalone_peer_review_mode,
+                            ),
                         )
 
-    if "phase_artifacts" in contract.preflight_checks:
+    if requested_review_check("phase_artifacts"):
         if subject:
             phase_exists = phase_info is not None
             add_check(
@@ -9860,6 +10228,27 @@ def _build_review_preflight(
     if required_state_check is not None:
         add_check("required_state", required_state_check[0], required_state_check[1], blocking=True)
 
+    effective_required_outputs = _effective_review_contract_strings(
+        list(subject_preflight_policy.required_outputs)
+        if subject_preflight_policy.required_outputs
+        else list(getattr(contract, "required_outputs", []) or []),
+        active_conditional_requirements,
+        "required_outputs",
+    )
+    effective_required_evidence = _effective_review_contract_strings(
+        list(subject_preflight_policy.required_evidence)
+        if subject_preflight_policy.required_evidence
+        else list(getattr(contract, "required_evidence", []) or []),
+        active_conditional_requirements,
+        "required_evidence",
+    )
+    effective_blocking_conditions = _effective_review_contract_strings(
+        list(subject_preflight_policy.blocking_conditions)
+        if subject_preflight_policy.blocking_conditions
+        else list(getattr(contract, "blocking_conditions", []) or []),
+        active_conditional_requirements,
+        "blocking_conditions",
+    )
     passed = all(check.passed or not check.blocking for check in checks)
     return ReviewPreflightResult(
         command=public_command_name,
@@ -9872,6 +10261,10 @@ def _build_review_preflight(
         blocking_conditions=effective_blocking_conditions,
         conditional_requirements=list(contract.conditional_requirements),
         active_conditional_requirements=active_conditional_requirements,
+        effective_required_evidence=effective_required_evidence,
+        effective_blocking_conditions=effective_blocking_conditions,
+        resolved_mode=resolved_mode,
+        mode_reason=mode_reason,
         validated_surface=context_preflight.validated_surface,
         public_runtime_command_prefix=context_preflight.public_runtime_command_prefix,
         local_cli_equivalence_guaranteed=context_preflight.local_cli_equivalence_guaranteed,
@@ -9973,6 +10366,67 @@ def validate_review_preflight(
         raise typer.Exit(code=1)
 
 
+@validate_app.command("artifact-text")
+def validate_artifact_text_cmd(
+    input_path: str = typer.Argument(..., help="Path to an artifact that should expose a readable text surface"),
+    output_path: str | None = typer.Option(
+        None,
+        "--output",
+        help="Optional path for the materialized UTF-8 text surface",
+    ),
+) -> None:
+    """Validate or materialize a readable text surface for one external artifact."""
+
+    source_path = Path(input_path)
+    if not source_path.is_absolute():
+        source_path = _get_cwd() / source_path
+    source_path = source_path.resolve(strict=False)
+    if not source_path.exists():
+        _error(f"Artifact input not found: {_format_display_path(source_path)}")
+    if not source_path.is_file():
+        _error(f"Artifact input must be a file: {_format_display_path(source_path)}")
+
+    try:
+        probe = probe_artifact_text_surface(source_path)
+    except ArtifactTextError as exc:
+        _error(str(exc))
+    if not probe.ready:
+        _error(probe.detail)
+
+    if output_path is None:
+        _output(
+            {
+                "input_path": str(source_path),
+                "ready": probe.ready,
+                "detail": _peer_review_artifact_text_surface_ready(source_path, probe=probe)[1],
+                "surface_kind": probe.surface_kind,
+            }
+        )
+        return
+
+    materialized_output = Path(output_path)
+    if not materialized_output.is_absolute():
+        materialized_output = _get_cwd() / materialized_output
+    materialized_output = materialized_output.resolve(strict=False)
+    if materialized_output == source_path:
+        _error("--output must differ from the source artifact path")
+
+    try:
+        result = materialize_artifact_text_surface(source_path, materialized_output)
+    except ArtifactTextError as exc:
+        _error(str(exc))
+
+    _output(
+        {
+            "input_path": str(result.source_path),
+            "output_path": str(result.output_path),
+            "detail": _peer_review_artifact_text_surface_ready(source_path, probe=probe)[1],
+            "surface_kind": result.surface_kind,
+            "text_length": result.text_length,
+        }
+    )
+
+
 @validate_app.command("paper-quality")
 def validate_paper_quality(
     input_path: str | None = typer.Argument(None, help="Path to a paper-quality JSON file, or '-' for stdin"),
@@ -9998,7 +10452,7 @@ def validate_paper_quality(
     else:
         if not input_path:
             _error("Provide a PaperQualityInput path or use --from-project <root>")
-        payload = _load_json_document(input_path)
+        payload = _load_json_document_or_error(input_path)
         try:
             paper_quality_input = PaperQualityInput.model_validate(payload)
         except PydanticValidationError as exc:
@@ -10026,7 +10480,7 @@ def validate_project_contract_cmd(
     if normalized_mode not in {"draft", "approved"}:
         raise GPDError(f"Invalid --mode {mode!r}. Expected 'draft' or 'approved'.")
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     if input_path == "-":
         workspace_cwd = _state_command_cwd()
         stdin_inside_project = (workspace_cwd / "GPD").is_dir()
@@ -10111,7 +10565,7 @@ def validate_plan_preflight_cmd(
 
     from gpd.core.tool_preflight import build_plan_tool_preflight
 
-    file_path, _ = _load_text_document(input_path)
+    file_path, _ = _load_text_document_or_error(input_path)
     result = build_plan_tool_preflight(file_path)
     _output(result)
     if not result.passed:
@@ -10143,7 +10597,7 @@ def validate_review_claim_index_cmd(
     """Validate a staged peer-review claim index."""
     from gpd.mcp.paper.models import ClaimIndex
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         claim_index = ClaimIndex.model_validate(payload)
     except PydanticValidationError as exc:
@@ -10166,7 +10620,7 @@ def validate_review_stage_report_cmd(
     )
     from gpd.mcp.paper.models import StageReviewReport
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         stage_report = StageReviewReport.model_validate(payload)
     except PydanticValidationError as exc:
@@ -10204,7 +10658,7 @@ def validate_review_ledger_cmd(
     """Validate a staged peer-review issue ledger."""
     from gpd.mcp.paper.models import ReviewLedger
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         ledger = ReviewLedger.model_validate(payload)
     except PydanticValidationError as exc:
@@ -10239,7 +10693,7 @@ def validate_referee_decision(
     if strict and ledger_path is None:
         _error("Strict referee-decision validation requires --ledger with the matching review-ledger JSON.")
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     try:
         decision = RefereeDecisionInput.model_validate(payload)
     except PydanticValidationError as exc:
@@ -10251,7 +10705,7 @@ def validate_referee_decision(
 
     review_ledger = None
     if ledger_path is not None:
-        ledger_payload = _load_json_document(ledger_path)
+        ledger_payload = _load_json_document_or_error(ledger_path)
         try:
             review_ledger = ReviewLedger.model_validate(ledger_payload)
         except PydanticValidationError as exc:
@@ -10295,7 +10749,7 @@ def validate_reproducibility_manifest_cmd(
         validate_reproducibility_manifest,
     )
 
-    payload = _load_json_document(input_path)
+    payload = _load_json_document_or_error(input_path)
     result = validate_reproducibility_manifest(payload)
     result_payload = result.model_dump(mode="json")
     result_payload["reproducibility_ready"] = result_payload.pop("ready_for_review")
@@ -10638,13 +11092,21 @@ def resolve_model_cmd(
         "--runtime",
         help=_runtime_override_help(),
     ),
+    explain: bool = typer.Option(
+        False,
+        "--explain",
+        help="Explain the resolved tier/runtime and why the command may print nothing.",
+    ),
 ) -> None:
     """Resolve the runtime-specific model override for an agent.
 
     Prints nothing when no override is configured so callers can omit the
-    runtime model parameter and let the platform use its default model.
+    runtime model parameter and let the platform use its default model. Use
+    --explain for a human-readable explanation without changing shell-safe
+    default stdout behavior.
     """
-    from gpd.core.config import resolve_model, validate_agent_name
+    from gpd.core.config import resolve_model, resolve_tier, validate_agent_name
+    from gpd.core.context import _detect_platform as detect_context_runtime
     from gpd.core.context import _resolve_model as resolve_context_model
 
     supported_runtimes = _supported_runtime_names()
@@ -10665,6 +11127,44 @@ def resolve_model_cmd(
             if runtime is not None
             else resolve_context_model(_get_cwd(), agent_name)
         )
+        if explain:
+            effective_runtime = runtime if runtime is not None else normalize_runtime_name(detect_context_runtime(_get_cwd()))
+            tier = resolve_tier(_get_cwd(), agent_name).value
+            if resolved_model is not None:
+                detail = (
+                    f"Resolved explicit model override for runtime {effective_runtime!r} at {tier}; "
+                    f"the command emits {resolved_model!r}."
+                )
+            elif effective_runtime is None:
+                detail = (
+                    "No active runtime could be resolved, so no runtime-specific override can be selected. "
+                    "Omit the model parameter and let the platform use its default model."
+                )
+            else:
+                detail = (
+                    f"No explicit model override is configured for runtime {effective_runtime!r} at {tier}. "
+                    "The command stays silent by default so shell wrappers can omit the model parameter "
+                    "and use the platform default."
+                )
+            _output(
+                {
+                    "agent_name": agent_name,
+                    "tier": tier,
+                    "runtime": effective_runtime,
+                    "runtime_source": "explicit" if runtime is not None else "detected",
+                    "resolved_model": resolved_model,
+                    "override_configured": resolved_model is not None,
+                    "uses_runtime_default": resolved_model is None,
+                    "detail": detail,
+                }
+            )
+            return
+        if resolved_model is None and _stdout_is_interactive():
+            console.print(
+                "[dim]No explicit model override is configured. Use `gpd resolve-model "
+                f"{agent_name} --explain` for details.[/dim]"
+            )
+            return
         _output(resolved_model)
     except ConfigError as exc:
         _error(str(exc))

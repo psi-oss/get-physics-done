@@ -105,13 +105,16 @@ Goal:
 - Read all stage artifacts.
 - Spot-check the manuscript where the stage artifacts disagree or feel under-evidenced.
 - Issue the final recommendation.
+- Stage 6 may write only the adjudication artifacts listed under Output.
+- Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and `GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence. Do not repair, rewrite, replace, or backfill them inside Stage 6.
+- If any upstream artifact is missing, malformed, stale, or mutually inconsistent, Stage 6 must fail closed and route the inconsistency back to the earliest failing upstream stage instead of patching those artifacts during adjudication.
 
 Output:
 - `GPD/review/REVIEW-LEDGER{round_suffix}.json`
 - `GPD/review/REFEREE-DECISION{round_suffix}.json`
 - `GPD/REFEREE-REPORT{round_suffix}.md`
 - `GPD/REFEREE-REPORT{round_suffix}.tex`
-- `GPD/CONSISTENCY-REPORT.md` when applicable
+- `GPD/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar. It does not authorize Stage 6 to mutate upstream stage artifacts.
 
 ## Fresh-Context Rule
 
@@ -131,6 +134,7 @@ Do not pass the entire orchestration transcript into later stages. The stage art
 - Stage 4 should read Stage 1 and Stage 3, and Stage 2 when literature overlap affects physical interpretation.
 - Stage 5 should read Stages 1, 2, and 4.
 - Stage 6 reads all prior stage artifacts and spot-checks the manuscript as needed. When theorem-bearing claims exist, `PROOF-REDTEAM{round_suffix}.md` is mandatory Stage 6 input rather than optional context.
+- If Stage 6 detects a missing, malformed, stale, or inconsistent upstream artifact, route that failure back to the earliest failing upstream stage. Do not repair upstream stage artifacts during final adjudication.
 - For theorem-bearing review, a missing, invalid, or non-passing `PROOF-REDTEAM{round_suffix}.md` artifact is itself a blocking stage-integrity failure.
 - `blocking` in each finding must be a literal JSON boolean (`true` or `false`), not a quoted string or synonym such as `"yes"` / `"no"`.
 
@@ -212,7 +216,7 @@ Additionally:
 - `manuscript_sha256` must be the lowercase 64-hex digest for the exact manuscript snapshot under review.
 - The filename `STAGE-<stage_id>{round_suffix}.json` and the JSON `round` field must agree: unsuffixed first-round artifacts use `round: 1`, and `-R<round>` filenames must use that same integer in `round`.
 - For Stages 2-5, `manuscript_path` and `manuscript_sha256` must exactly match the sibling `CLAIMS{round_suffix}.json` claim index for the same round.
-- In Stage 3, every reviewed theorem-bearing Stage 1 claim must receive exactly one `proof_audits[]` entry. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like statement text still require proof audits even when extraction is incomplete. Missing proof audits, extra audits for unreviewed claims, or repeated `claim_id` values are contract failures, not soft omissions.
+- In Stage 3, every reviewed theorem-bearing Stage 1 claim must receive exactly one `proof_audits[]` entry. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone, while `claim_kind: claim | result | other` becomes theorem-bearing only when non-empty theorem metadata or theorem-like statement text makes the proof obligation explicit. Missing proof audits, extra audits for unreviewed claims, or repeated `claim_id` values are contract failures, not soft omissions.
 - If the validator requires theorem-bearing Stage 1 claims to be reviewed, every such claim must appear in `claims_reviewed` before the stage is considered complete.
 - In Stage 3, any uncovered theorem assumption, uncovered theorem parameter, or explicit theorem-to-proof mismatch caps `recommendation_ceiling` at `major_revision` or `reject`.
 - Every nested `ReviewFinding.issue_id` must match `REF-[A-Za-z0-9][A-Za-z0-9_-]*`.
@@ -251,9 +255,11 @@ Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:
 - `claim_id` must match `CLM-[A-Za-z0-9][A-Za-z0-9_-]*`.
 - `claim_type` must use exactly: `main_result`, `novelty`, `significance`, `physical_interpretation`, `generality`, `method`.
 - `claim_kind` must use exactly: `theorem`, `lemma`, `corollary`, `proposition`, `result`, `claim`, `other`.
+- The theorem-style `claim_kind` values are limited to `theorem`, `lemma`, `corollary`, and `proposition`.
 - Keep `section` as an empty string and `equation_refs`, `figure_refs`, `supporting_artifacts` as empty lists when unavailable.
 - Keep `theorem_assumptions` and `theorem_parameters` as arrays even when unavailable.
-- When a claim is theorem-bearing, set `claim_kind` explicitly instead of leaving it at `other`; `theorem_assumptions` must enumerate the theorem's explicit hypotheses or regime assumptions, and `theorem_parameters` must enumerate the free target parameters or quantified variables the proof must cover.
+- Do not treat `claim_kind: claim` as theorem-bearing by default. In staged peer review, a generic `claim` becomes theorem-bearing only when non-empty `theorem_assumptions`, non-empty `theorem_parameters`, or theorem-like statement text makes the proof obligation explicit.
+- When a claim is theorem-bearing, set `claim_kind` explicitly instead of leaving it at `other`; use the theorem-style kinds when the manuscript actually presents a theorem, lemma, corollary, or proposition. `theorem_assumptions` must enumerate the theorem's explicit hypotheses or regime assumptions, and `theorem_parameters` must enumerate the free target parameters or quantified variables the proof must cover.
 - Do not silently drop statement parameters just because the derivation later centers or normalizes the algebra. If the statement quantifies over `r_0`, index `r_0`.
 - Do not invent locations, equations, figures, or supporting artifacts just to populate the schema.
 

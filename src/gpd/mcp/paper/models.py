@@ -645,7 +645,7 @@ class ClaimRecord(BaseModel):
     @property
     def theorem_bearing(self) -> bool:
         return (
-            self.claim_kind in {"theorem", "lemma", "corollary", "proposition", "claim"}
+            self.claim_kind in {"theorem", "lemma", "corollary", "proposition"}
             or bool(self.theorem_assumptions)
             or bool(self.theorem_parameters)
             or statement_looks_theorem_like(self.text)

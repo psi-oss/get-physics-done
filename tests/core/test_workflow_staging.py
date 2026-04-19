@@ -694,6 +694,11 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert "references/publication/peer-review-panel.md" in bootstrap.must_not_eager_load
     assert "references/publication/peer-review-reliability.md" in bootstrap.must_not_eager_load
     assert "templates/paper/paper-config-schema.md" in bootstrap.must_not_eager_load
+    assert "review_target_input" in bootstrap.required_init_fields
+    assert "review_target_mode" in bootstrap.required_init_fields
+    assert "review_target_mode_reason" in bootstrap.required_init_fields
+    assert "resolved_review_target" in bootstrap.required_init_fields
+    assert "resolved_review_root" in bootstrap.required_init_fields
     assert "publication_subject_slug" in bootstrap.required_init_fields
     assert "publication_lane_kind" in bootstrap.required_init_fields
     assert "publication_lane_owner" in bootstrap.required_init_fields
@@ -709,11 +714,19 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         "templates/paper/bibliography-audit-schema.md",
         "templates/paper/reproducibility-manifest.md",
     )
+    assert "review_target_input" in preflight.required_init_fields
+    assert "review_target_mode" in preflight.required_init_fields
+    assert "review_target_mode_reason" in preflight.required_init_fields
+    assert "resolved_review_target" in preflight.required_init_fields
+    assert "resolved_review_root" in preflight.required_init_fields
     assert artifact_discovery.loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
     )
+    assert "review_target_input" in artifact_discovery.required_init_fields
+    assert "review_target_mode" in artifact_discovery.required_init_fields
+    assert "resolved_review_target" in artifact_discovery.required_init_fields
     assert panel_stages.loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/peer-review-panel.md",
@@ -727,6 +740,9 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md",
     )
+    assert "review_target_input" in final_adjudication.required_init_fields
+    assert "review_target_mode" in final_adjudication.required_init_fields
+    assert "resolved_review_target" in final_adjudication.required_init_fields
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
     assert (
         "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json"
@@ -736,10 +752,15 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert "selected_review_root" in finalize.required_init_fields
 
 
-def test_known_init_fields_for_peer_review_include_publication_routing() -> None:
+def test_known_init_fields_for_peer_review_include_publication_routing_and_review_target_state() -> None:
     known_init_fields = known_init_fields_for_workflow("peer-review")
 
     assert known_init_fields is not None
+    assert "review_target_input" in known_init_fields
+    assert "review_target_mode" in known_init_fields
+    assert "review_target_mode_reason" in known_init_fields
+    assert "resolved_review_target" in known_init_fields
+    assert "resolved_review_root" in known_init_fields
     assert "publication_subject_slug" in known_init_fields
     assert "publication_lane_kind" in known_init_fields
     assert "publication_lane_owner" in known_init_fields

@@ -246,13 +246,30 @@ def _candidate_from_recent_row(row: Mapping[str, object]) -> ProjectReentryCandi
     if project_root_text is None:
         return None
 
-    project_root = Path(project_root_text).expanduser().resolve(strict=False)
-    state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
+    project_root = Path(project_root_text).expanduser()
+    try:
+        project_root = project_root.resolve(strict=False)
+    except OSError:
+        state_exists = False
+        roadmap_exists = False
+        project_exists = False
+        inferred_available = False
+    else:
+        try:
+            state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
+        except OSError:
+            state_exists = False
+            roadmap_exists = False
+            project_exists = False
+        try:
+            inferred_available = project_root.is_dir()
+        except OSError:
+            inferred_available = False
     available_value = row.get("available")
     if available_value is None:
-        available = project_root.is_dir()
+        available = inferred_available
     else:
-        available = _strict_bool_value(available_value) is True
+        available = _strict_bool_value(available_value) is True and inferred_available
     recoverable = available and (state_exists or roadmap_exists or project_exists)
     resume_file = _normalize_recent_text(row, "resume_file")
     resume_file_available = _strict_bool_value(row.get("resume_file_available"))

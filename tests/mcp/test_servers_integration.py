@@ -538,31 +538,69 @@ class TestSkillsServerIntegration:
         assert result["review_contract"]["review_mode"] == "publication"
         assert "required_state" not in result["review_contract"]
         assert result["review_contract"]["required_evidence"] == [
-            "resolved manuscript target",
-            "project-backed review: phase summaries or milestone digest",
-            "project-backed review: verification reports",
-            "project-backed review: manuscript-root bibliography audit",
-            "project-backed review: manuscript-root artifact manifest",
-            "project-backed review: manuscript-root reproducibility manifest",
-            "explicit external-artifact review: manuscript-local publication artifacts when present",
+            "existing manuscript or explicit external artifact target",
         ]
         assert result["review_contract"]["blocking_conditions"] == [
-            "missing manuscript",
-            "project-backed review missing project state",
-            "project-backed review missing roadmap",
-            "project-backed review missing conventions",
-            "project-backed review missing research artifacts or verification reports",
-            "project-backed review missing required manuscript-root publication artifacts",
+            "missing manuscript or explicit external artifact target",
             "degraded review integrity",
             "unsupported physical significance claims",
             "collapsed novelty or venue fit",
         ]
+        assert result["review_contract"]["conditional_requirements"][0]["when"] == "project-backed manuscript review"
+        assert any(
+            variant["scope"] == "explicit_artifact"
+            for variant in result["review_contract"].get("scope_variants", [])
+        )
         assert result["review_contract"]["conditional_requirements"] == [
+            {
+                "when": "project-backed manuscript review",
+                "required_outputs": [],
+                "required_evidence": [
+                    "phase summaries or milestone digest",
+                    "verification reports",
+                    "manuscript-root bibliography audit",
+                    "manuscript-root artifact manifest",
+                    "manuscript-root reproducibility manifest",
+                    "manuscript-root publication artifacts",
+                ],
+                "blocking_conditions": [
+                    "missing project state",
+                    "missing roadmap",
+                    "missing conventions",
+                    "no research artifacts",
+                ],
+                "preflight_checks": [
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "research_artifacts",
+                    "verification_reports",
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "bibliography_audit_clean",
+                    "reproducibility_manifest",
+                    "reproducibility_ready",
+                ],
+                "blocking_preflight_checks": [
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "research_artifacts",
+                    "verification_reports",
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "bibliography_audit_clean",
+                    "reproducibility_manifest",
+                    "reproducibility_ready",
+                ],
+                "stage_artifacts": [],
+            },
             {
                 "when": "theorem-bearing claims are present",
                 "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
                 "required_evidence": [],
                 "blocking_conditions": [],
+                "preflight_checks": [],
                 "blocking_preflight_checks": [],
                 "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
             }

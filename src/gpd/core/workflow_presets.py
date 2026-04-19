@@ -329,8 +329,7 @@ def _preset_actionable_config_bundle(preset: WorkflowPreset) -> dict[str, object
         if canonical_config_key(key) is None or key not in supported_keys:
             supported = ", ".join(sorted(supported_keys))
             raise ValueError(
-                f"Workflow preset {preset.id!r} contains unsupported config key {key!r}; "
-                f"expected one of: {supported}"
+                f"Workflow preset {preset.id!r} contains unsupported config key {key!r}; expected one of: {supported}"
             )
         bundle[key] = copy.deepcopy(value)
     return bundle
@@ -390,8 +389,7 @@ def preview_workflow_preset_application(
         if canonical_config_key(key) is None or key not in supported_keys:
             supported = ", ".join(sorted(supported_keys))
             raise ValueError(
-                f"Workflow preset {preset.id!r} contains unsupported config key {key!r}; "
-                f"expected one of: {supported}"
+                f"Workflow preset {preset.id!r} contains unsupported config key {key!r}; expected one of: {supported}"
             )
 
         before = _preset_effective_value(raw_config, key)
@@ -494,12 +492,12 @@ def resolve_workflow_preset_readiness(
                     "arxiv-submission may fail for manuscripts that require bibliography processing"
                 )
                 status = "degraded"
-                ready_workflows = [workflow for workflow in ready_workflows if workflow not in {"paper-build", "arxiv-submission"}]
+                ready_workflows = [
+                    workflow for workflow in ready_workflows if workflow not in {"paper-build", "arxiv-submission"}
+                ]
                 degraded_workflows.extend(["paper-build", "arxiv-submission"])
             elif not arxiv_submission_ready:
-                summary = (
-                    "degraded without arxiv-submission support: paper-build remains usable, but arxiv-submission stays blocked"
-                )
+                summary = "degraded without arxiv-submission support: paper-build remains usable, but arxiv-submission stays blocked"
                 status = "degraded"
                 ready_workflows = [workflow for workflow in ready_workflows if workflow != "arxiv-submission"]
                 blocked_workflows.append("arxiv-submission")
@@ -507,7 +505,7 @@ def resolve_workflow_preset_readiness(
             if not pdf_review_ready:
                 if status == "ready":
                     summary = (
-                        "degraded without pdftotext: TeX/Markdown/TXT review remains usable, "
+                        "degraded without pdftotext: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
                         "but PDF intake for peer-review requires pdftotext or a companion text file"
                     )
                 status = "degraded"
@@ -540,13 +538,11 @@ def resolve_workflow_preset_readiness(
                     "BibTeX support is missing: bibliography-free manuscripts may still build, but citation-bearing builds and submission prep can fail outright."
                 )
             elif not arxiv_submission_ready:
-                warnings.append(
-                    "kpsewhich is missing: paper-build remains usable, but arxiv-submission stays blocked."
-                )
+                warnings.append("kpsewhich is missing: paper-build remains usable, but arxiv-submission stays blocked.")
             elif not pdf_review_ready:
                 warnings.append(
-                    "pdftotext is missing: TeX/Markdown/TXT review remains usable, but PDF-backed peer-review intake "
-                    "requires pdftotext or a nearby `.txt` companion file."
+                    "pdftotext is missing: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
+                    "but PDF-backed peer-review intake requires pdftotext or a nearby `.txt` companion file."
                 )
             if latexmk_available is False:
                 warnings.append("latexmk is missing: paper builds will fall back to manual multipass compilation.")

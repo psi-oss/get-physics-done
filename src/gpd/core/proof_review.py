@@ -12,6 +12,7 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
+from gpd.core.artifact_text import ArtifactTextError, load_artifact_text_surface
 from gpd.core.constants import PLANNING_DIR_NAME, PROJECT_FILENAME, PUBLICATION_DIR_NAME, ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
@@ -59,13 +60,19 @@ _PHASE_PROOF_AFFECTING_EXTENSIONS = frozenset(
 )
 _MANUSCRIPT_PROOF_AFFECTING_EXTENSIONS = frozenset(
     {
-        ".tex",
+        ".csv",
+        ".docx",
         ".md",
+        ".pdf",
+        ".tex",
+        ".tsv",
         ".bib",
         ".bst",
         ".sty",
         ".cls",
         ".txt",
+        ".xlsx",
+        ".xlsm",
     }
 )
 _STAGE_MATH_FILENAME_RE = re.compile(r"^STAGE-math(?P<round_suffix>-R(?P<round>\d+))?\.json$")
@@ -278,7 +285,7 @@ def manuscript_has_theorem_bearing_claim_inventory(
         round_number, _round_suffix = match
         try:
             claim_index = read_claim_index(path)
-        except (OSError, json.JSONDecodeError, PydanticValidationError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, PydanticValidationError):
             continue
         if resolve_review_manuscript_path(project_root, claim_index.manuscript_path) != resolved_manuscript:
             continue
@@ -307,17 +314,18 @@ def manuscript_has_theorem_bearing_language(
         return False
 
     manuscript_paths: list[Path] = [entrypoint]
-    for candidate in sorted(entrypoint.parent.rglob("*")):
-        if candidate == entrypoint or not candidate.is_file():
-            continue
-        if candidate.suffix.lower() not in {".tex", ".md"}:
-            continue
-        manuscript_paths.append(candidate)
+    if entrypoint.suffix.lower() in {".tex", ".md"}:
+        for candidate in sorted(entrypoint.parent.rglob("*")):
+            if candidate == entrypoint or not candidate.is_file():
+                continue
+            if candidate.suffix.lower() not in {".tex", ".md"}:
+                continue
+            manuscript_paths.append(candidate)
 
     for manuscript_path in manuscript_paths:
         try:
-            content = manuscript_path.read_text(encoding="utf-8")
-        except OSError:
+            content = load_artifact_text_surface(manuscript_path).text
+        except ArtifactTextError:
             continue
         if _THEOREM_STYLE_MANUSCRIPT_RE.search(content):
             return True
@@ -517,7 +525,7 @@ def _resolve_status(
         try:
             manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest_records = _manifest_records(manifest_payload, scope=scope)
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             return ProofReviewStatus(
                 scope=scope,
                 state="invalid_manifest",
@@ -530,7 +538,9 @@ def _resolve_status(
 
         expected_hashes = manifest_records["hashes"]
         changed_labels = sorted(
-            path for path in expected_hashes.keys() & current_hashes.keys() if expected_hashes[path] != current_hashes[path]
+            path
+            for path in expected_hashes.keys() & current_hashes.keys()
+            if expected_hashes[path] != current_hashes[path]
         )
         missing_labels = sorted(path for path in expected_hashes.keys() - current_hashes.keys())
         unexpected_labels = sorted(path for path in current_hashes.keys() - expected_hashes.keys())
@@ -726,7 +736,7 @@ def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoin
         claim_index_matches_current = False
         try:
             claim_index = read_claim_index(claim_index_path)
-        except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, PydanticValidationError) as exc:
             validation_errors.append(f"{claim_index_path.name} could not be loaded: {exc}")
         else:
             claim_index_matches_current = (
@@ -746,7 +756,7 @@ def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoin
 
         try:
             report = read_stage_review_report(path)
-        except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, PydanticValidationError) as exc:
             if not claim_index_matches_current:
                 continue
             validation_errors.append(f"{path.name} could not be loaded: {exc}")
@@ -767,7 +777,9 @@ def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoin
                 )
             )
             continue
-        report_matches_current = resolve_review_manuscript_path(project_root, report.manuscript_path) == resolved_manuscript
+        report_matches_current = (
+            resolve_review_manuscript_path(project_root, report.manuscript_path) == resolved_manuscript
+        )
         if not report_matches_current and not claim_index_matches_current:
             continue
         if claim_index is not None:
@@ -777,6 +789,7 @@ def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoin
                     artifact_path=path,
                     claim_index=claim_index,
                     expected_manuscript_path=expected_manuscript_path,
+                    expected_manuscript_label="active manuscript",
                 )
             )
             if theorem_claim_ids:
@@ -832,7 +845,7 @@ def _read_proof_redteam_status(
 ) -> tuple[str | None, str | None]:
     try:
         meta, body = extract_frontmatter(path.read_text(encoding="utf-8"))
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         return None, str(exc)
     except FrontmatterParseError as exc:
         return None, str(exc)
@@ -938,7 +951,11 @@ def _read_proof_redteam_status(
         return None, "proof-redteam Adversarial Probe must record both probe type and result"
 
     verdict_body = _section_body(body, "## Verdict")
-    if "Scope status:" not in verdict_body or "Quantifier status:" not in verdict_body or "Counterexample status:" not in verdict_body:
+    if (
+        "Scope status:" not in verdict_body
+        or "Quantifier status:" not in verdict_body
+        or "Counterexample status:" not in verdict_body
+    ):
         return None, "proof-redteam Verdict must include scope, quantifier, and counterexample status lines"
 
     if status == "passed":
@@ -966,7 +983,9 @@ def _read_proof_redteam_status(
     return status, None
 
 
-def _read_proof_redteam_structured_audit(meta: dict[str, object]) -> tuple[_ProofRedteamStructuredAudit | None, str | None]:
+def _read_proof_redteam_structured_audit(
+    meta: dict[str, object],
+) -> tuple[_ProofRedteamStructuredAudit | None, str | None]:
     missing_parameter_symbols, error = _read_proof_redteam_string_list(meta, "missing_parameter_symbols")
     if error is not None:
         return None, error
@@ -976,7 +995,9 @@ def _read_proof_redteam_structured_audit(meta: dict[str, object]) -> tuple[_Proo
     coverage_gaps, error = _read_proof_redteam_string_list(meta, "coverage_gaps")
     if error is not None:
         return None, error
-    scope_status, error = _read_proof_redteam_status_value(meta, "scope_status", _PROOF_REDTEAM_REQUIRED_SCOPE_STATUS_VALUES)
+    scope_status, error = _read_proof_redteam_status_value(
+        meta, "scope_status", _PROOF_REDTEAM_REQUIRED_SCOPE_STATUS_VALUES
+    )
     if error is not None:
         return None, error
     quantifier_status, error = _read_proof_redteam_status_value(

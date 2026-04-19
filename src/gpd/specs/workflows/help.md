@@ -784,7 +784,7 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` keeps the legacy current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and adds one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` still only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. This is not a full publication-root migration.
+Publication lane boundary: `gpd:write-paper` keeps the legacy current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and adds one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` still only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. This is not a full publication-root migration.
 
 **`gpd:write-paper [title or topic] [--from-phases 1,2,3]`**
 Structure and write a physics paper from research results.
@@ -807,12 +807,14 @@ Usage: `gpd:write-paper "Critical exponents via RG"`
 Usage: `gpd:write-paper --from-phases 1,3,5` (subset of phases)
 Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`
 
-**`gpd:peer-review [paper directory | manuscript path | .pdf/.txt artifact path]`**
+**`gpd:peer-review [paper directory | manuscript path | explicit artifact path]`**
 Run skeptical peer review on an existing manuscript or explicit review artifact.
 
 - Runs strict review preflight checks against the resolved review target and available supporting artifacts
 - Loads manuscript files or explicit artifact text, plus project summaries and verification context when present
-- Bare PDF intake requires either `pdftotext` on PATH or a same-directory `.txt` companion file
+- Explicit artifact intake accepts `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`; canonical in-project manuscript discovery still stays on the resolved `.tex` / `.md` entrypoint under `paper/`, `manuscript/`, or `draft/`
+- Standalone explicit-artifact intake is a peer-review-only entrypoint; downstream `gpd:respond-to-referees` and `gpd:arxiv-submission` stay bound to the resolved project manuscript root
+- Non-plain-text artifact intake (`.pdf`, `.docx`, `.xlsx`) uses `gpd validate artifact-text <path> --output <txt-path>` or a same-directory `.txt` companion file
 - Spawns a six-agent review panel plus the auxiliary `gpd-check-proof` critic when theorem-bearing claims are present
 - Project-backed review artifacts stay on the current `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` paths
 - If an explicit external manuscript becomes a continued GPD publication subject, the GPD-owned continuation lineage can anchor under `GPD/publication/{subject_slug}/...`
@@ -823,10 +825,13 @@ Run skeptical peer review on an existing manuscript or explicit review artifact.
 Usage: `gpd:peer-review`
 Usage: `gpd:peer-review paper/`
 Usage: `gpd:peer-review draft.pdf`
+Usage: `gpd:peer-review draft.docx`
 Usage: `gpd:peer-review notes.txt`
+Usage: `gpd:peer-review data/observables.csv`
 
 **`gpd:respond-to-referees [path to referee report or 'paste']`**
 Structure point-by-point response to referee reports and revise the manuscript.
+- `$ARGUMENTS` selects the referee report source, while manuscript edits always apply to the resolved manuscript root rather than the report path
 - Parses referee comments into structured items with severity levels
 - Project-backed continuation keeps `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with REF-xxx issue tracking (fixed/rebutted/acknowledged/needs-calculation)
 - Explicit external-manuscript continuation uses a subject-owned publication root under `GPD/publication/{subject_slug}/...`
@@ -845,6 +850,7 @@ Usage: `gpd:respond-to-referees paste`
 Prepare a completed GPD-owned manuscript for arXiv submission with validation and packaging.
 
 - Requires a successful `gpd paper-build` before packaging
+- Project-backed only: package the resolved built `.tex` manuscript plus manuscript-root support artifacts; standalone peer-review targets such as `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` are not valid submission inputs
 - Optional local compiler smoke check if available
 - Bibliography flattening (inline .bbl or resolve .bib)
 - Figure format and resolution checking
@@ -895,6 +901,9 @@ Create or update a current-workspace knowledge document draft from a topic, pape
 
 - Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity
+- Source-file intake accepts `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied explicitly
+- Non-plain-text source intake (`.pdf`, `.docx`, `.xlsx`) is normalized through `gpd validate artifact-text <path> --output <txt-path>` before drafting; keep the original artifact path as the canonical source reference
+- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity
 - Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
 - If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`
@@ -905,6 +914,8 @@ Create or update a current-workspace knowledge document draft from a topic, pape
 - Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
 - Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
 - Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
+- Example document source: `gpd:digest-knowledge ./drafts/review-notes.docx`
+- Example tabular source: `gpd:digest-knowledge ./data/critical-exponents.csv`
 - Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`
 
 Usage: `gpd:digest-knowledge "renormalization group fixed points"`

@@ -442,6 +442,21 @@ def test_shared_installed_markdown_preserves_round_aware_review_placeholders(
 
     assert saw_round_placeholder is True
 
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_installed_referee_latex_template_exists_and_matches_source(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    source_template = REPO_GPD_ROOT / "specs" / "templates" / "paper" / "referee-report.tex"
+    installed_template = (
+        real_installed_repo_factory(runtime) / "get-physics-done" / "templates" / "paper" / "referee-report.tex"
+    )
+
+    assert source_template.exists()
+    assert installed_template.exists()
+    assert installed_template.read_bytes() == source_template.read_bytes()
+
 # ---------------------------------------------------------------------------
 # Claude Code: install → read back → compare
 # ---------------------------------------------------------------------------

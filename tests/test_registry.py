@@ -1144,7 +1144,8 @@ class TestParseCommandFile:
             allow_external_subjects=True,
             allow_interactive_without_subject=True,
             supported_roots=["paper", "manuscript", "draft"],
-            allowed_suffixes=[".tex", ".md", ".txt", ".pdf"],
+            allowed_suffixes=[".tex", ".md", ".txt", ".pdf", ".docx", ".csv", ".tsv", ".xlsx"],
+            bootstrap_allowed=False,
         )
 
     def test_peer_review_registry_exposes_compat_explicit_artifact_scope_variant(self) -> None:

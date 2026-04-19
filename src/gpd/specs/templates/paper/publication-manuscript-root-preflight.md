@@ -1,7 +1,8 @@
 Canonical manuscript-root publication preflight.
 
 Resolve exactly one active manuscript root from the canonical manuscript family: `paper/`, `manuscript/`, or `draft/`.
-In explicit-artifact mode, allow one `.tex`, `.md`, `.txt`, or `.pdf` review target outside those roots.
+In explicit-artifact mode, allow one `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or `.xlsx` review target outside those roots.
+The wider explicit-artifact extension set does not widen in-project manuscript-root discovery beyond the resolved `.tex` / `.md` entrypoint path inside those roots.
 Workflow-specific intake policy remains authoritative: this template defines manuscript-root resolution and manuscript-local artifact gating, but it does not by itself authorize standalone external-subject support for every publication command.
 If publication-managed intake/provenance state exists under `GPD/publication/{subject_slug}/intake/`, treat it as intake state only. Keep `GPD/publication/{subject_slug}/manuscript/` as the sole authoritative managed manuscript/build root, and do not let `intake/` participate in manuscript-root discovery or manuscript-local artifact selection.
 

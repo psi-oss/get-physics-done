@@ -343,6 +343,7 @@ class ReviewContractConditionalRequirement:
     required_outputs: list[str] = field(default_factory=list)
     required_evidence: list[str] = field(default_factory=list)
     blocking_conditions: list[str] = field(default_factory=list)
+    preflight_checks: list[str] = field(default_factory=list)
     blocking_preflight_checks: list[str] = field(default_factory=list)
     stage_artifacts: list[str] = field(default_factory=list)
 
@@ -1751,6 +1752,7 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
                 required_outputs=list(requirement.get("required_outputs", [])),
                 required_evidence=list(requirement.get("required_evidence", [])),
                 blocking_conditions=list(requirement.get("blocking_conditions", [])),
+                preflight_checks=list(requirement.get("preflight_checks", [])),
                 blocking_preflight_checks=list(requirement.get("blocking_preflight_checks", [])),
                 stage_artifacts=list(requirement.get("stage_artifacts", [])),
             )

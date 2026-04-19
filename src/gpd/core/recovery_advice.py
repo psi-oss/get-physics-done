@@ -492,8 +492,16 @@ def build_recovery_advice(
 ) -> RecoveryAdvice:
     """Build the shared recovery/orientation contract for one workspace."""
 
-    normalized_cwd = cwd.expanduser().resolve(strict=False)
-    payload = dict(resume_payload) if resume_payload is not None else init_resume(normalized_cwd, data_root=data_root)
+    try:
+        normalized_cwd = cwd.expanduser().resolve(strict=False)
+    except OSError:
+        normalized_cwd = cwd.expanduser()
+    if resume_payload is not None:
+        payload = dict(resume_payload)
+    elif force_recent and recent_rows is not None:
+        payload = {}
+    else:
+        payload = init_resume(normalized_cwd, data_root=data_root)
     rows = list(recent_rows) if recent_rows is not None else list_recent_projects(data_root, last=recent_projects_last)
     project_reentry_candidates = _project_reentry_candidates(payload)
     selected_project_reentry_candidate = _selected_project_reentry_candidate(
