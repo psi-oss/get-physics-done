@@ -16,6 +16,8 @@ from gpd.core.workflow_staging import (
     PLAN_PHASE_STAGE_MANIFEST_PATH,
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
+    WRITE_PAPER_MANAGED_INTAKE_ROOT,
+    WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     invalidate_workflow_stage_manifest_cache,
     known_init_fields_for_workflow,
     load_workflow_stage_manifest,
@@ -324,6 +326,11 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
         _workflow_payload("write-paper"),
         expected_workflow_id="write-paper",
     )
+    bootstrap = manifest.stage("paper_bootstrap")
+    outline = manifest.stage("outline_and_scaffold")
+    authoring = manifest.stage("figure_and_section_authoring")
+    consistency = manifest.stage("consistency_and_references")
+    publication_review = manifest.stage("publication_review")
 
     assert manifest.workflow_id == "write-paper"
     assert manifest.stage_ids() == (
@@ -333,24 +340,59 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
         "consistency_and_references",
         "publication_review",
     )
-    assert "workflows/write-paper.md" in manifest.stages[0].loaded_authorities
-    assert "references/publication/publication-review-round-artifacts.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/publication-response-artifacts.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/publication-pipeline-modes.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/peer-review-panel.md" in manifest.stages[0].must_not_eager_load
-    assert "templates/paper/paper-config-schema.md" in manifest.stages[0].must_not_eager_load
-    assert manifest.stages[1].loaded_authorities == (
+    assert "workflows/write-paper.md" in bootstrap.loaded_authorities
+    assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
+    assert "references/publication/publication-response-artifacts.md" in bootstrap.must_not_eager_load
+    assert "references/publication/publication-pipeline-modes.md" in bootstrap.must_not_eager_load
+    assert "references/publication/peer-review-panel.md" in bootstrap.must_not_eager_load
+    assert "templates/paper/paper-config-schema.md" in bootstrap.must_not_eager_load
+    assert bootstrap.writes_allowed == ()
+    assert "contract_intake" in bootstrap.required_init_fields
+    assert "effective_reference_intake" in bootstrap.required_init_fields
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "publication_intake_root" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "managed_manuscript_root" in bootstrap.required_init_fields
+    assert outline.loaded_authorities == (
         "workflows/write-paper.md",
         "references/publication/publication-pipeline-modes.md",
         "templates/paper/paper-config-schema.md",
         "templates/paper/artifact-manifest-schema.md",
     )
-    assert manifest.stages[2].loaded_authorities == (
+    assert outline.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        WRITE_PAPER_MANAGED_INTAKE_ROOT,
+        "GPD/PROJECT.md",
+        "GPD/REQUIREMENTS.md",
+        "GPD/ROADMAP.md",
+        "GPD/STATE.md",
+        "GPD/state.json",
+        "GPD/config.json",
+    )
+    assert authoring.loaded_authorities == (
         "workflows/write-paper.md",
         "references/shared/canonical-schema-discipline.md",
         "templates/paper/figure-tracker.md",
     )
-    assert manifest.stages[4].loaded_authorities == (
+    assert authoring.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/phases",
+        "GPD/ROADMAP.md",
+        "GPD/STATE.md",
+        "GPD/state.json",
+    )
+    assert consistency.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/references-status.json",
+        "GPD/STATE.md",
+        "GPD/state.json",
+        "GPD/review",
+        "GPD/CONVENTIONS.md",
+    )
+    assert publication_review.loaded_authorities == (
         "workflows/write-paper.md",
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
@@ -358,6 +400,19 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
         "references/publication/peer-review-reliability.md",
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md",
+    )
+    assert publication_review.writes_allowed == (
+        WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+        "GPD/review",
+        "GPD/AUTHOR-RESPONSE.md",
+        "GPD/AUTHOR-RESPONSE-R2.md",
+        "GPD/AUTHOR-RESPONSE-R3.md",
+        "GPD/REFEREE-REPORT.md",
+        "GPD/REFEREE-REPORT.tex",
+        "GPD/REFEREE-REPORT-R2.md",
+        "GPD/REFEREE-REPORT-R2.tex",
+        "GPD/REFEREE-REPORT-R3.md",
+        "GPD/REFEREE-REPORT-R3.tex",
     )
 
 
@@ -372,6 +427,18 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
     assert "selected_protocol_bundle_ids" in known_init_fields
     assert "protocol_bundle_context" in known_init_fields
     assert "active_reference_context" in known_init_fields
+    assert "contract_intake" in known_init_fields
+    assert "effective_reference_intake" in known_init_fields
+    assert "publication_subject_status" in known_init_fields
+    assert "publication_subject_slug" in known_init_fields
+    assert "publication_lane_kind" in known_init_fields
+    assert "publication_lane_owner" in known_init_fields
+    assert "publication_bootstrap_mode" in known_init_fields
+    assert "publication_bootstrap_root" in known_init_fields
+    assert "selected_publication_root" in known_init_fields
+    assert "publication_intake_root" in known_init_fields
+    assert "managed_publication_root" in known_init_fields
+    assert "managed_manuscript_root" in known_init_fields
     assert "reference_artifacts_content" in known_init_fields
     assert "state_content" in known_init_fields
     assert "requirements_content" in known_init_fields
@@ -606,6 +673,12 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         _workflow_payload("peer-review"),
         expected_workflow_id="peer-review",
     )
+    bootstrap = manifest.stage("bootstrap")
+    preflight = manifest.stage("preflight")
+    artifact_discovery = manifest.stage("artifact_discovery")
+    panel_stages = manifest.stage("panel_stages")
+    final_adjudication = manifest.stage("final_adjudication")
+    finalize = manifest.stage("finalize")
 
     assert manifest.workflow_id == "peer-review"
     assert manifest.stage_ids() == (
@@ -616,16 +689,23 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         "final_adjudication",
         "finalize",
     )
-    assert "workflows/peer-review.md" in manifest.stages[0].loaded_authorities
-    assert "references/publication/publication-review-round-artifacts.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/peer-review-panel.md" in manifest.stages[0].must_not_eager_load
-    assert "references/publication/peer-review-reliability.md" in manifest.stages[0].must_not_eager_load
-    assert "templates/paper/paper-config-schema.md" in manifest.stages[0].must_not_eager_load
-    assert "review_target_mode" in manifest.stages[0].required_init_fields
-    assert "review_target_mode_reason" in manifest.stages[0].required_init_fields
-    assert "resolved_review_target" in manifest.stages[0].required_init_fields
-    assert "resolved_review_root" in manifest.stages[0].required_init_fields
-    assert manifest.stages[1].loaded_authorities == (
+    assert "workflows/peer-review.md" in bootstrap.loaded_authorities
+    assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
+    assert "references/publication/peer-review-panel.md" in bootstrap.must_not_eager_load
+    assert "references/publication/peer-review-reliability.md" in bootstrap.must_not_eager_load
+    assert "templates/paper/paper-config-schema.md" in bootstrap.must_not_eager_load
+    assert "review_target_input" in bootstrap.required_init_fields
+    assert "review_target_mode" in bootstrap.required_init_fields
+    assert "review_target_mode_reason" in bootstrap.required_init_fields
+    assert "resolved_review_target" in bootstrap.required_init_fields
+    assert "resolved_review_root" in bootstrap.required_init_fields
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
+    assert preflight.loaded_authorities == (
         "workflows/peer-review.md",
         "templates/paper/publication-manuscript-root-preflight.md",
         "references/publication/peer-review-reliability.md",
@@ -634,29 +714,59 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
         "templates/paper/bibliography-audit-schema.md",
         "templates/paper/reproducibility-manifest.md",
     )
-    assert "review_target_mode" in manifest.stages[1].required_init_fields
-    assert "review_target_mode_reason" in manifest.stages[1].required_init_fields
-    assert "resolved_review_target" in manifest.stages[1].required_init_fields
-    assert "resolved_review_root" in manifest.stages[1].required_init_fields
-    assert manifest.stages[2].loaded_authorities == (
+    assert "review_target_input" in preflight.required_init_fields
+    assert "review_target_mode" in preflight.required_init_fields
+    assert "review_target_mode_reason" in preflight.required_init_fields
+    assert "resolved_review_target" in preflight.required_init_fields
+    assert "resolved_review_root" in preflight.required_init_fields
+    assert artifact_discovery.loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
     )
-    assert "review_target_mode" in manifest.stages[2].required_init_fields
-    assert "resolved_review_target" in manifest.stages[2].required_init_fields
-    assert manifest.stages[3].loaded_authorities == (
+    assert "review_target_input" in artifact_discovery.required_init_fields
+    assert "review_target_mode" in artifact_discovery.required_init_fields
+    assert "resolved_review_target" in artifact_discovery.required_init_fields
+    assert panel_stages.loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/peer-review-panel.md",
     )
-    assert manifest.stages[4].loaded_authorities == (
+    assert "GPD/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/PROOF-REDTEAM{round_suffix}.md" in panel_stages.writes_allowed
+    assert final_adjudication.loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/peer-review-panel.md",
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md",
     )
-    assert "review_target_mode" in manifest.stages[4].required_init_fields
-    assert "resolved_review_target" in manifest.stages[4].required_init_fields
+    assert "review_target_input" in final_adjudication.required_init_fields
+    assert "review_target_mode" in final_adjudication.required_init_fields
+    assert "resolved_review_target" in final_adjudication.required_init_fields
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
+    assert (
+        "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json"
+        in final_adjudication.writes_allowed
+    )
+    assert "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md" in final_adjudication.writes_allowed
+    assert "selected_review_root" in finalize.required_init_fields
+
+
+def test_known_init_fields_for_peer_review_include_publication_routing_and_review_target_state() -> None:
+    known_init_fields = known_init_fields_for_workflow("peer-review")
+
+    assert known_init_fields is not None
+    assert "review_target_input" in known_init_fields
+    assert "review_target_mode" in known_init_fields
+    assert "review_target_mode_reason" in known_init_fields
+    assert "resolved_review_target" in known_init_fields
+    assert "resolved_review_root" in known_init_fields
+    assert "publication_subject_slug" in known_init_fields
+    assert "publication_lane_kind" in known_init_fields
+    assert "publication_lane_owner" in known_init_fields
+    assert "managed_publication_root" in known_init_fields
+    assert "selected_publication_root" in known_init_fields
+    assert "selected_review_root" in known_init_fields
 
 
 def test_known_init_fields_for_execute_phase_include_bootstrap_and_wave_context() -> None:
@@ -841,10 +951,33 @@ def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
         "package",
         "finalize",
     )
-    assert "references/publication/publication-bootstrap-preflight.md" in manifest.stage("bootstrap").loaded_authorities
-    assert "references/publication/publication-review-round-artifacts.md" in manifest.stage("review_gate").loaded_authorities
-    assert "references/publication/peer-review-reliability.md" in manifest.stage("review_gate").loaded_authorities
-    assert "references/publication/publication-response-writer-handoff.md" not in manifest.stage("review_gate").loaded_authorities
+    bootstrap = manifest.stage("bootstrap")
+    review_gate = manifest.stage("review_gate")
+    package = manifest.stage("package")
+    assert "references/publication/publication-bootstrap-preflight.md" in bootstrap.loaded_authorities
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
+    assert "references/publication/publication-review-round-artifacts.md" in review_gate.loaded_authorities
+    assert "references/publication/peer-review-reliability.md" in review_gate.loaded_authorities
+    assert "references/publication/publication-response-writer-handoff.md" not in review_gate.loaded_authorities
+    assert package.writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
+
+
+def test_known_init_fields_for_arxiv_submission_include_publication_routing() -> None:
+    known_init_fields = known_init_fields_for_workflow("arxiv-submission")
+
+    assert known_init_fields is not None
+    assert "publication_subject_slug" in known_init_fields
+    assert "publication_lane_kind" in known_init_fields
+    assert "publication_lane_owner" in known_init_fields
+    assert "managed_publication_root" in known_init_fields
+    assert "selected_publication_root" in known_init_fields
+    assert "selected_review_root" in known_init_fields
+
 
 @pytest.mark.parametrize(
     ("mutator", "message"),

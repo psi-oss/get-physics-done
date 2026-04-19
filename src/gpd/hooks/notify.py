@@ -336,6 +336,8 @@ def main() -> None:
             project_root=project_root,
             project_dir_present=project_dir_present,
             project_dir_trusted=project_dir_trusted,
+            target_path=getattr(roots, "target_path", None),
+            target_root=getattr(roots, "target_root", None),
         )
         runtime_lookup = resolve_runtime_lookup_context_from_payload_roots(
             runtime_roots,

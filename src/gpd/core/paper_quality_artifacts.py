@@ -28,7 +28,12 @@ from gpd.core.frontmatter import (
     _validate_contract_mapping,
     extract_frontmatter,
 )
-from gpd.core.manuscript_artifacts import locate_publication_artifact, resolve_current_manuscript_resolution
+from gpd.core.manuscript_artifacts import (
+    PublicationSubjectResolution,
+    infer_publication_artifact_base,
+    locate_publication_artifact,
+    resolve_current_publication_subject,
+)
 from gpd.core.paper_quality import (
     _CITE_CMD_PREFIX,
     BinaryCheck,
@@ -259,37 +264,6 @@ def _load_manuscript_config(manuscript_dir: Path) -> dict[str, object]:
         return PaperConfig.model_validate(payload).model_dump(mode="python")
     except PydanticValidationError:
         return payload
-
-
-def _best_effort_manuscript_root(project_root: Path) -> Path | None:
-    resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
-    if resolution.status == "resolved" and resolution.manuscript_root is not None:
-        return resolution.manuscript_root
-    if resolution.status == "ambiguous":
-        return None
-
-    candidates: list[Path] = []
-    for root_name in ("paper", "manuscript", "draft"):
-        candidate = project_root / root_name
-        if not candidate.exists() or not candidate.is_dir():
-            continue
-        has_publication_artifacts = any(
-            (candidate / artifact_name).exists()
-            for artifact_name in (
-                "PAPER-CONFIG.json",
-                "ARTIFACT-MANIFEST.json",
-                "BIBLIOGRAPHY-AUDIT.json",
-                "FIGURE_TRACKER.md",
-                "reproducibility-manifest.json",
-            )
-        )
-        has_manuscript_content = any(
-            path.is_file() and path.suffix.lower() in _MANUSCRIPT_CONTENT_SUFFIXES for path in candidate.rglob("*")
-        )
-        if has_publication_artifacts or has_manuscript_content:
-            candidates.append(candidate)
-
-    return candidates[0] if len(candidates) == 1 else None
 
 
 def _derivation_artifacts(project_root: Path) -> list[Path]:
@@ -829,27 +803,53 @@ def _build_figures_input(
     return figures, results
 
 
-def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
+def build_paper_quality_input(
+    project_root: Path,
+    *,
+    publication_subject: PublicationSubjectResolution | None = None,
+) -> PaperQualityInput:
     """Build a conservative :class:`PaperQualityInput` from project artifacts."""
 
     root = Path(project_root)
-    manuscript_resolution = resolve_current_manuscript_resolution(root, allow_markdown=True)
+    subject = publication_subject or resolve_current_publication_subject(root, allow_markdown=True)
+    manuscript_resolution = subject.as_manuscript_resolution()
     if manuscript_resolution.status in {"ambiguous", "invalid"}:
         raise GPDError(
             "paper-quality artifact resolution requires an unambiguous manuscript root; "
             f"found {manuscript_resolution.status}: {manuscript_resolution.detail}"
         )
+    if manuscript_resolution.status == "resolved" and manuscript_resolution.manuscript_root is not None:
+        paper_dir = subject.artifact_base or manuscript_resolution.manuscript_root
+        manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint
+    elif publication_subject is not None:
+        raise GPDError(
+            "paper-quality artifact resolution requires a resolved publication subject; "
+            f"found {manuscript_resolution.status}: {manuscript_resolution.detail}"
+        )
+    else:
+        paper_dir = infer_publication_artifact_base(root, allow_markdown=True)
+        manuscript_entrypoint = None
 
-    paper_dir = manuscript_resolution.manuscript_root or _best_effort_manuscript_root(root)
-    manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint
     artifact_manifest = None
     bibliography_audit = None
     paper_config: dict[str, object] = {}
     manuscript_files: list[Path] = []
     manuscript_content = ""
     if paper_dir is not None:
-        artifact_manifest = _load_artifact_manifest(locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json"))
-        bibliography_audit = _load_bibliography_audit(locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json"))
+        artifact_manifest = _load_artifact_manifest(
+            (
+                subject.artifact_manifest or locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
+            )
+            if manuscript_resolution.status == "resolved"
+            else locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
+        )
+        bibliography_audit = _load_bibliography_audit(
+            (
+                subject.bibliography_audit or locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
+            )
+            if manuscript_resolution.status == "resolved"
+            else locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
+        )
         paper_config = _load_manuscript_config(paper_dir)
         manuscript_files, manuscript_content = _collect_manuscript_content(
             paper_dir,

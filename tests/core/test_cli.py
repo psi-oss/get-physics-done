@@ -120,6 +120,109 @@ def _make_checkout(tmp_path: Path, version: str = "9.9.9") -> Path:
     return repo_root
 
 
+def _write_managed_publication_manuscript(
+    project_root: Path,
+    *,
+    subject_slug: str = "curvature-flow",
+    stem: str = "managed_manuscript",
+) -> Path:
+    manuscript_dir = project_root / "GPD" / "publication" / subject_slug / "manuscript"
+    manuscript_dir.mkdir(parents=True, exist_ok=True)
+    manuscript = manuscript_dir / f"{stem}.tex"
+    manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}\n", encoding="utf-8")
+    (manuscript_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Managed Manuscript",
+                "output_filename": stem,
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript
+
+
+def _bootstrap_publication_project(project_root: Path) -> None:
+    planning = project_root / "GPD"
+    planning.mkdir(parents=True, exist_ok=True)
+    state = default_state_dict()
+    save_state_json(project_root, state)
+    save_state_markdown(project_root, generate_state_markdown(state))
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning / "CONVENTIONS.md").write_text("# Conventions\n", encoding="utf-8")
+
+
+def _write_write_paper_authoring_input(
+    workspace: Path,
+    *,
+    file_name: str = "write-paper-authoring-input.json",
+    subject_slug: str = "external-authoring-test",
+) -> Path:
+    intake_path = workspace / file_name
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "External Authoring Bounds",
+                "authors": [{"name": "A. Researcher"}],
+                "target_journal": "prl",
+                "subject_slug": subject_slug,
+                "central_claim": "The controlled benchmark supports a stable external-authoring draft.",
+                "claims": [
+                    {
+                        "id": "CLM-main",
+                        "statement": "The benchmarked bound is stable across the resolved regime.",
+                        "evidence": {
+                            "source_note_ids": ["NOTE-main"],
+                            "result_ids": ["RES-main"],
+                            "figure_ids": ["FIG-main"],
+                            "citation_source_ids": ["cite-main"],
+                        },
+                    }
+                ],
+                "source_notes": [
+                    {
+                        "id": "NOTE-main",
+                        "path": "notes/main-result.md",
+                        "summary": "Summarizes the decisive benchmark and fit stability.",
+                    }
+                ],
+                "results": [
+                    {
+                        "id": "RES-main",
+                        "summary": "Main fitted bound with uncertainty band.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "figures": [
+                    {
+                        "id": "FIG-main",
+                        "path": "figures/main-bound.pdf",
+                        "caption": "Benchmark comparison supporting the main bound.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "citation_sources": [
+                    {
+                        "source_type": "paper",
+                        "reference_id": "cite-main",
+                        "title": "Benchmark Recovery in a Controlled Regime",
+                        "authors": ["A. Author"],
+                        "year": "2024",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return intake_path
+
+
 class _ExecutionSnapshot(SimpleNamespace):
     def model_dump(self, mode: str = "json") -> dict[str, object]:
         return dict(self.__dict__)
@@ -6082,7 +6185,9 @@ def test_validate_paper_quality_from_project_rejects_missing_manuscript_root(tmp
         result.exception
     )
     assert "found missing" in str(result.exception)
-    assert "no manuscript entrypoint found under paper/, manuscript/, or draft/" in str(result.exception)
+    assert "no manuscript entrypoint found under paper/, manuscript/, draft/, or GPD/publication/*/manuscript" in str(
+        result.exception
+    )
 
 
 def test_paper_build_does_not_discover_legacy_planning_configs(tmp_path: Path, capsys) -> None:
@@ -6283,6 +6388,219 @@ def test_resolve_review_preflight_publication_artifacts_bundle(tmp_path: Path) -
     assert bundle.artifact_manifest == manuscript_dir / "ARTIFACT-MANIFEST.json"
     assert bundle.bibliography_audit == manuscript_dir / "BIBLIOGRAPHY-AUDIT.json"
     assert bundle.reproducibility_manifest == manuscript_dir / "reproducibility-manifest.json"
+
+
+def test_resolve_latest_publication_review_round_artifacts_uses_subject_owned_review_root_for_managed_manuscript(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "GPD" / "review").mkdir(parents=True)
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    (tmp_path / "GPD" / "review" / "REVIEW-LEDGER.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "GPD" / "review" / "REFEREE-DECISION.json").write_text("{}", encoding="utf-8")
+    subject_review_dir = tmp_path / "GPD" / "publication" / "curvature-flow" / "review"
+    subject_review_dir.mkdir(parents=True, exist_ok=True)
+    (subject_review_dir / "REVIEW-LEDGER-R2.json").write_text("{}", encoding="utf-8")
+    (subject_review_dir / "REFEREE-DECISION-R2.json").write_text("{}", encoding="utf-8")
+
+    round_bundle = cli_module._resolve_latest_publication_review_round_artifacts(
+        tmp_path,
+        manuscript=manuscript,
+    )
+
+    assert round_bundle is not None
+    assert round_bundle.round_number == 2
+    assert round_bundle.review_ledger == subject_review_dir / "REVIEW-LEDGER-R2.json"
+    assert round_bundle.referee_decision == subject_review_dir / "REFEREE-DECISION-R2.json"
+
+
+def test_resolve_latest_publication_response_round_artifacts_uses_subject_owned_publication_root_for_managed_manuscript(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "GPD").mkdir(parents=True)
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    (tmp_path / "GPD" / "AUTHOR-RESPONSE.md").write_text("# Round 1 author response\n", encoding="utf-8")
+    (tmp_path / "GPD" / "review").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "GPD" / "review" / "REFEREE_RESPONSE.md").write_text(
+        "# Round 1 referee response\n",
+        encoding="utf-8",
+    )
+    subject_root = tmp_path / "GPD" / "publication" / "curvature-flow"
+    subject_review_dir = subject_root / "review"
+    subject_review_dir.mkdir(parents=True, exist_ok=True)
+    (subject_root / "AUTHOR-RESPONSE-R2.md").write_text("# Round 2 author response\n", encoding="utf-8")
+    (subject_review_dir / "REFEREE_RESPONSE-R2.md").write_text("# Round 2 referee response\n", encoding="utf-8")
+
+    round_bundle = cli_module._resolve_latest_publication_response_round_artifacts(
+        tmp_path,
+        manuscript=manuscript,
+    )
+
+    assert round_bundle is not None
+    assert round_bundle.round_number == 2
+    assert round_bundle.author_response == subject_root / "AUTHOR-RESPONSE-R2.md"
+    assert round_bundle.referee_response == subject_review_dir / "REFEREE_RESPONSE-R2.md"
+
+
+def test_build_resolved_command_subject_treats_managed_publication_manuscript_lane_as_project_backed(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "GPD").mkdir()
+    (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    command, _ = cli_module._resolve_registry_command("arxiv-submission")
+
+    resolved_subject = cli_module._build_resolved_command_subject(
+        tmp_path,
+        command,
+        "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+        workspace_cwd=tmp_path,
+        project_root_source="workspace",
+        project_root_auto_selected=False,
+        reentry_mode="current-workspace",
+    )
+
+    assert resolved_subject is not None
+    assert resolved_subject.status == "resolved"
+    assert resolved_subject.ownership_mode == "project_backed"
+    assert resolved_subject.target_path == manuscript
+    assert resolved_subject.target_root == manuscript.parent
+
+
+def test_command_managed_output_root_binds_subject_slug_for_managed_publication_lane(tmp_path: Path) -> None:
+    (tmp_path / "GPD").mkdir()
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    command, _ = cli_module._resolve_registry_command("arxiv-submission")
+    resolved_subject = cli_module.ResolvedCommandSubject(
+        command="gpd:arxiv-submission",
+        workspace_root=tmp_path,
+        resolved_project_root=tmp_path,
+        context_root=tmp_path,
+        target_path=manuscript,
+        target_root=manuscript.parent,
+        subject_kind="manuscript",
+        ownership_mode="project_backed",
+        status="resolved",
+        exists=True,
+        explicit_input=True,
+        detail="explicit managed manuscript subject",
+    )
+
+    managed_output_root = cli_module._command_managed_output_root(
+        command,
+        project_root=tmp_path,
+        resolved_subject=resolved_subject,
+    )
+
+    assert managed_output_root == (tmp_path / "GPD" / "publication" / "curvature-flow" / "arxiv").resolve(strict=False)
+
+
+def test_build_resolved_command_subject_write_paper_external_intake_bootstraps_managed_publication_lane(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "external-authoring"
+    workspace.mkdir()
+    intake_path = _write_write_paper_authoring_input(workspace)
+    command, _ = cli_module._resolve_registry_command("write-paper")
+
+    resolved_subject = cli_module._build_resolved_command_subject(
+        workspace,
+        command,
+        f"--intake {intake_path.name}",
+        workspace_cwd=workspace,
+        project_root_source=None,
+        project_root_auto_selected=False,
+        reentry_mode=None,
+    )
+
+    assert resolved_subject is not None
+    assert resolved_subject.status == "bootstrap"
+    assert resolved_subject.subject_kind == "publication"
+    assert resolved_subject.ownership_mode == "external_authoring_intake"
+    assert resolved_subject.explicit_input is True
+    assert resolved_subject.target_path == intake_path
+    assert resolved_subject.target_root == (
+        workspace / "GPD" / "publication" / "external-authoring-test" / "manuscript"
+    ).resolve(strict=False)
+
+
+def test_build_resolved_command_subject_write_paper_external_intake_reports_schema_errors(tmp_path: Path) -> None:
+    workspace = tmp_path / "external-authoring-invalid"
+    workspace.mkdir()
+    intake_path = workspace / "write-paper-authoring-input.json"
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "Broken intake",
+                "authors": [{"name": "A. Researcher"}],
+                "target_journal": "prl",
+                "claims": [],
+                "source_notes": [],
+                "citation_sources": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    command, _ = cli_module._resolve_registry_command("write-paper")
+
+    resolved_subject = cli_module._build_resolved_command_subject(
+        workspace,
+        command,
+        f"--intake {intake_path.name}",
+        workspace_cwd=workspace,
+        project_root_source=None,
+        project_root_auto_selected=False,
+        reentry_mode=None,
+    )
+
+    assert resolved_subject is not None
+    assert resolved_subject.status == "invalid"
+    assert resolved_subject.ownership_mode == "external_authoring_intake"
+    assert resolved_subject.target_path == intake_path
+    assert "write_paper_authoring_input.central_claim is required" in resolved_subject.detail
+
+
+def test_command_managed_output_root_normalizes_gpd_root_policy(tmp_path: Path) -> None:
+    (tmp_path / "GPD").mkdir()
+    command, _ = cli_module._resolve_registry_command("respond-to-referees")
+
+    managed_output_root = cli_module._command_managed_output_root(command, project_root=tmp_path)
+
+    assert managed_output_root == (tmp_path / "GPD").resolve(strict=False)
+
+
+def test_review_preflight_respond_to_referees_accepts_explicit_manuscript_and_report_flags(tmp_path: Path) -> None:
+    _bootstrap_publication_project(tmp_path)
+    manuscript = _write_managed_publication_manuscript(tmp_path)
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "ref1.md").write_text("Report 1\n", encoding="utf-8")
+    (reports_dir / "ref2.md").write_text("Report 2\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(tmp_path),
+            "validate",
+            "review-preflight",
+            "respond-to-referees",
+            "--strict",
+            f"--manuscript {manuscript.relative_to(tmp_path).as_posix()} --report reports/ref1.md --report reports/ref2.md",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    checks = {check["name"]: check for check in payload["checks"]}
+    assert checks["manuscript"]["passed"] is True
+    assert "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex" in checks["manuscript"]["detail"]
+    assert checks["referee_report_source"]["passed"] is True
+    assert "reports/ref1.md present" in checks["referee_report_source"]["detail"]
+    assert "reports/ref2.md present" in checks["referee_report_source"]["detail"]
+    assert payload["passed"] is True
 
 
 def test_resolve_review_preflight_manuscript_directory_uses_manifest_declared_entrypoint(tmp_path: Path) -> None:
@@ -6603,7 +6921,8 @@ def test_resolve_review_preflight_manuscript_rejects_missing_out_of_root_target_
     assert resolved is None
     assert (
         detail
-        == "explicit manuscript target must stay under `paper/`, `manuscript/`, or `draft/` inside the current project"
+        == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
+        "or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
     )
 
 
@@ -6697,7 +7016,7 @@ def test_resolve_review_preflight_manuscript_rejects_unsupported_explicit_target
     )
 
     assert resolved is None
-    assert "must stay under `paper/`, `manuscript/`, or `draft/`" in detail
+    assert "must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`" in detail
 
 
 @pytest.mark.parametrize("suffix", [".docx", ".csv", ".tsv", ".xlsx"])

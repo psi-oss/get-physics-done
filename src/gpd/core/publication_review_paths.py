@@ -6,13 +6,37 @@ import posixpath
 import re
 from pathlib import Path
 
+from gpd.core.manuscript_artifacts import (
+    PublicationSubjectResolution,
+)
+from gpd.core.manuscript_artifacts import (
+    publication_root_for_subject as _publication_root_for_subject,
+)
+from gpd.core.manuscript_artifacts import (
+    review_dir_for_subject as _review_dir_for_subject,
+)
+
 __all__ = [
     "manuscript_matches_review_artifact_path",
     "normalize_review_path_label",
+    "publication_root_for_subject",
     "resolve_review_manuscript_path",
+    "review_dir_for_subject",
     "review_artifact_round",
     "review_round_suffix",
 ]
+
+
+def publication_root_for_subject(publication_subject: PublicationSubjectResolution) -> Path | None:
+    """Return the canonical publication root for one publication subject."""
+
+    return _publication_root_for_subject(publication_subject)
+
+
+def review_dir_for_subject(publication_subject: PublicationSubjectResolution) -> Path | None:
+    """Return the canonical review directory for one publication subject."""
+
+    return _review_dir_for_subject(publication_subject)
 
 
 def review_artifact_round(path: Path, *, pattern: re.Pattern[str]) -> tuple[int, str] | None:

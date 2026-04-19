@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
+from gpd.core.workflow_staging import (
+    WRITE_PAPER_MANAGED_INTAKE_ROOT,
+    WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
+    validate_workflow_stage_manifest_payload,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
@@ -29,8 +33,33 @@ def test_write_paper_stage_manifest_uses_canonical_publication_contracts() -> No
     )
 
     bootstrap = manifest.stage("paper_bootstrap")
+    outline = manifest.stage("outline_and_scaffold")
+    authoring = manifest.stage("figure_and_section_authoring")
     consistency = manifest.stage("consistency_and_references")
     publication_review = manifest.stage("publication_review")
+
+    assert "publication_subject_status" in bootstrap.required_init_fields
+    assert "publication_bootstrap_mode" in bootstrap.required_init_fields
+    assert "publication_bootstrap_root" in bootstrap.required_init_fields
+    assert "artifact_manifest_path" in bootstrap.required_init_fields
+    assert bootstrap.writes_allowed == ()
+    assert "contract_intake" in bootstrap.required_init_fields
+    assert "effective_reference_intake" in bootstrap.required_init_fields
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "publication_intake_root" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "managed_manuscript_root" in bootstrap.required_init_fields
+    assert outline.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert WRITE_PAPER_MANAGED_INTAKE_ROOT in outline.writes_allowed
+    assert authoring.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert consistency.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert publication_review.writes_allowed[0] == WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT
+    assert "GPD/references-status.json" in consistency.writes_allowed
+    assert "GPD/AUTHOR-RESPONSE.md" in publication_review.writes_allowed
+    assert "GPD/REFEREE-REPORT.tex" in publication_review.writes_allowed
 
     assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
     assert "references/publication/publication-response-artifacts.md" in bootstrap.must_not_eager_load
@@ -72,10 +101,17 @@ def test_peer_review_stage_manifest_uses_canonical_publication_contracts() -> No
     bootstrap = manifest.stage("bootstrap")
     preflight = manifest.stage("preflight")
     artifact_discovery = manifest.stage("artifact_discovery")
+    panel_stages = manifest.stage("panel_stages")
     final_adjudication = manifest.stage("final_adjudication")
 
     assert "references/publication/publication-review-round-artifacts.md" in bootstrap.must_not_eager_load
     assert "references/publication/publication-response-artifacts.md" in bootstrap.must_not_eager_load
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
 
     assert preflight.loaded_authorities[0] == "workflows/peer-review.md"
     assert "references/publication/peer-review-reliability.md" in preflight.loaded_authorities
@@ -88,9 +124,29 @@ def test_peer_review_stage_manifest_uses_canonical_publication_contracts() -> No
         "references/publication/publication-review-round-artifacts.md",
         "references/publication/publication-response-artifacts.md",
     )
+    assert "GPD/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/CLAIMS{round_suffix}.json" in panel_stages.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/PROOF-REDTEAM{round_suffix}.md" in panel_stages.writes_allowed
     assert "references/publication/peer-review-panel.md" in final_adjudication.loaded_authorities
     assert "templates/paper/review-ledger-schema.md" in final_adjudication.loaded_authorities
     assert "templates/paper/referee-decision-schema.md" in final_adjudication.loaded_authorities
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
+    assert "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md" in final_adjudication.writes_allowed
+
+
+def test_arxiv_submission_stage_manifest_surfaces_publication_routing() -> None:
+    manifest = _load_manifest("arxiv-submission")
+    bootstrap = manifest.stage("bootstrap")
+    package = manifest.stage("package")
+
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "publication_lane_owner" in bootstrap.required_init_fields
+    assert "managed_publication_root" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
+    assert package.writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
 
 
 def test_publication_bootstrap_preflight_uses_canonical_publication_contracts() -> None:

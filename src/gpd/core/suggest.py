@@ -37,23 +37,27 @@ from gpd.core.manuscript_artifacts import (
     locate_publication_artifact,
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_resolution,
+    resolve_current_publication_subject,
 )
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.proof_review import (
     manuscript_requires_theorem_bearing_review,
+    publication_lineage_roots,
     resolve_manuscript_proof_review_status,
 )
 from gpd.core.public_surface_contract import recovery_local_snapshot_command
-from gpd.core.publication_review_paths import (
-    manuscript_matches_review_artifact_path,
-    review_artifact_round,
+from gpd.core.publication_runtime import (
+    resolve_latest_publication_response_artifacts,
+    resolve_latest_publication_review_artifacts,
 )
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.utils import (
     is_phase_complete as _is_phase_complete,
 )
-from gpd.core.utils import matching_phase_artifact_count as _matching_phase_artifact_count
+from gpd.core.utils import (
+    matching_phase_artifact_count as _matching_phase_artifact_count,
+)
 from gpd.core.utils import (
     phase_sort_key as _phase_sort_key,
 )
@@ -75,8 +79,6 @@ __all__ = [
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
 
 
 # ─── Data Models ──────────────────────────────────────────────────────────────
@@ -187,10 +189,6 @@ def _is_research_file(name: str) -> bool:
 
 def _is_verification_file(name: str) -> bool:
     return name.endswith(VERIFICATION_SUFFIX)
-
-
-
-
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
@@ -313,7 +311,6 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
     return results
 
 
-
 def _phase_label(phase: _PhaseAnalysis) -> str:
     """Format a phase number + optional name for display."""
     if phase.name:
@@ -385,30 +382,12 @@ def _has_literature_review(cwd: Path) -> bool:
     return any(f.name.endswith("-REVIEW.md") for f in lit_dir.iterdir() if f.is_file())
 
 
-def _has_author_response(cwd: Path) -> bool:
-    responses_dir = _planning_dir(cwd)
-    if not responses_dir.is_dir():
-        return False
-    return any(path.is_file() for path in responses_dir.glob("AUTHOR-RESPONSE*.md"))
-
-
-def _latest_referee_decision_recommendation(cwd: Path) -> str | None:
-    review_dir = _planning_dir(cwd) / "review"
-    if not review_dir.is_dir():
+def _latest_referee_decision_recommendation(decision_path: Path | None) -> str | None:
+    if decision_path is None:
         return None
 
-    decision_by_round: dict[int, Path] = {}
-    for path in sorted(review_dir.glob("REFEREE-DECISION*.json")):
-        details = review_artifact_round(path, pattern=_REFEREE_DECISION_FILENAME_RE)
-        if details is not None:
-            decision_by_round[details[0]] = path
-
-    if not decision_by_round:
-        return None
-
-    latest_round = max(decision_by_round)
     try:
-        payload = json.loads(decision_by_round[latest_round].read_text(encoding="utf-8"))
+        payload = json.loads(decision_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     recommendation = payload.get("final_recommendation")
@@ -416,30 +395,6 @@ def _latest_referee_decision_recommendation(cwd: Path) -> str | None:
         return None
     normalized = recommendation.strip().lower()
     return normalized or None
-
-
-def _latest_publication_review_package(review_dir: Path) -> tuple[Path, Path] | None:
-    ledger_by_round: dict[int, Path] = {}
-    decision_by_round: dict[int, Path] = {}
-
-    for path in sorted(review_dir.glob("REVIEW-LEDGER*.json")):
-        details = review_artifact_round(path, pattern=_REVIEW_LEDGER_FILENAME_RE)
-        if details is not None:
-            ledger_by_round[details[0]] = path
-    for path in sorted(review_dir.glob("REFEREE-DECISION*.json")):
-        details = review_artifact_round(path, pattern=_REFEREE_DECISION_FILENAME_RE)
-        if details is not None:
-            decision_by_round[details[0]] = path
-
-    if not ledger_by_round or not decision_by_round:
-        return None
-
-    latest_round = max({*ledger_by_round.keys(), *decision_by_round.keys()})
-    ledger_path = ledger_by_round.get(latest_round)
-    decision_path = decision_by_round.get(latest_round)
-    if ledger_path is None or decision_path is None:
-        return None
-    return ledger_path, decision_path
 
 
 def _manuscript_has_submission_support_artifacts(cwd: Path, manuscript_entrypoint: Path | None) -> bool:
@@ -508,30 +463,24 @@ def _publication_review_package_allows_submission(cwd: Path, manuscript_entrypoi
     if manuscript_entrypoint is None or manuscript_entrypoint.suffix != ".tex":
         return False
 
-    review_dir = _planning_dir(cwd) / "review"
-    if not review_dir.is_dir():
+    latest_review_artifacts = resolve_latest_publication_review_artifacts(
+        cwd,
+        manuscript_entrypoint=manuscript_entrypoint,
+    )
+    if latest_review_artifacts is None:
         return False
 
-    latest_package = _latest_publication_review_package(review_dir)
-    if latest_package is None:
+    ledger_path = latest_review_artifacts.review_ledger
+    decision_path = latest_review_artifacts.referee_decision
+    if ledger_path is None or decision_path is None:
         return False
 
-    ledger_path, decision_path = latest_package
     try:
         from gpd.core.referee_policy import evaluate_referee_decision
         from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
         review_ledger = read_review_ledger(ledger_path)
         decision = read_referee_decision(decision_path)
-        if not manuscript_matches_review_artifact_path(review_ledger.manuscript_path, manuscript_entrypoint, cwd=cwd):
-            return False
-        manuscript_matches_decision = manuscript_matches_review_artifact_path(
-            decision.manuscript_path,
-            manuscript_entrypoint,
-            cwd=cwd,
-        )
-        if not manuscript_matches_decision:
-            return False
         report = evaluate_referee_decision(
             decision,
             strict=True,
@@ -590,8 +539,25 @@ def _format_missing_conventions_reason(missing: tuple[str, ...]) -> str:
     return f"{len(labels)} convention {plural} missing: {preview} — define before calculations"
 
 
+def _is_bounded_external_write_paper_lane(cwd: Path, manuscript_entrypoint: Path | None) -> bool:
+    """Return whether the active managed manuscript is the standalone external-authoring lane."""
+
+    if manuscript_entrypoint is None or _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"):
+        return False
+
+    publication_subject = resolve_current_publication_subject(cwd, allow_markdown=True)
+    if not publication_subject.resolved or publication_subject.manuscript_entrypoint is None:
+        return False
+    return (
+        publication_subject.publication_lane_kind == "managed_publication_manuscript"
+        and publication_subject.manuscript_entrypoint.resolve(strict=False) == manuscript_entrypoint.resolve(strict=False)
+    )
+
+
 def _publication_submission_is_strictly_ready(cwd: Path, manuscript_entrypoint: Path | None) -> bool:
     if manuscript_entrypoint is None:
+        return False
+    if _is_bounded_external_write_paper_lane(cwd, manuscript_entrypoint):
         return False
     if _current_publication_blockers(cwd):
         return False
@@ -617,14 +583,36 @@ def _manuscript_submission_proof_review_is_fresh(
 
 
 def _has_referee_report(cwd: Path) -> bool:
-    """Check for canonical referee report files in `GPD/` only."""
+    """Check for the active manuscript's referee report bundle."""
 
-    reports_dir = _planning_dir(cwd)
-    if not reports_dir.is_dir():
+    manuscript_resolution = resolve_current_manuscript_resolution(cwd, allow_markdown=True)
+    manuscript_entrypoint = (
+        manuscript_resolution.manuscript_entrypoint if manuscript_resolution.status == "resolved" else None
+    )
+    if manuscript_entrypoint is None:
         return False
-    if _has_author_response(cwd) and _latest_referee_decision_recommendation(cwd) == "accept":
+
+    publication_root, review_dir = publication_lineage_roots(cwd, manuscript_entrypoint)
+    review_artifacts = resolve_latest_publication_review_artifacts(
+        cwd,
+        manuscript_entrypoint=manuscript_entrypoint,
+    )
+    if review_artifacts is None or review_artifacts.referee_report_md is None:
+        return any(path.is_file() for path in publication_root.glob("REFEREE-REPORT*.md")) or any(
+            path.is_file() for path in review_dir.glob("REFEREE-REPORT*.md")
+        )
+
+    response_artifacts = resolve_latest_publication_response_artifacts(
+        cwd,
+        review_artifacts=review_artifacts,
+    )
+    if (
+        response_artifacts is not None
+        and response_artifacts.complete
+        and _latest_referee_decision_recommendation(review_artifacts.referee_decision) == "accept"
+    ):
         return False
-    return any(f.is_file() for f in reports_dir.glob("REFEREE-REPORT*.md"))
+    return True
 
 
 def _has_adaptive_lock_signal(cwd: Path) -> bool:
@@ -640,7 +628,9 @@ def _has_adaptive_lock_signal(cwd: Path) -> bool:
         "approach_validated: true",
     )
     decisive_pass_re = re.compile(r"subject_role:\s*decisive[\s\S]{0,400}?verdict:\s*pass\b", re.IGNORECASE)
-    decisive_failure_re = re.compile(r"subject_role:\s*decisive[\s\S]{0,400}?verdict:\s*(?:tension|fail)\b", re.IGNORECASE)
+    decisive_failure_re = re.compile(
+        r"subject_role:\s*decisive[\s\S]{0,400}?verdict:\s*(?:tension|fail)\b", re.IGNORECASE
+    )
     passed_status_re = re.compile(r"^status:\s*passed\b", re.IGNORECASE | re.MULTILINE)
     for path in sorted(phases_dir.rglob("*.md")):
         if not path.is_file():
@@ -720,6 +710,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     """
     suggestions: list[_MutableRecommendation] = []
     ctx_kwargs: dict[str, object] = {}
+
     def format_command(action):
         return _format_command(action, cwd=cwd)
 
@@ -727,7 +718,9 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     project_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
     roadmap_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}")
     manuscript_resolution = resolve_current_manuscript_resolution(cwd, allow_markdown=True)
-    manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint if manuscript_resolution.status == "resolved" else None
+    manuscript_entrypoint = (
+        manuscript_resolution.manuscript_entrypoint if manuscript_resolution.status == "resolved" else None
+    )
     manuscript_state_is_blocked = manuscript_resolution.status in {"ambiguous", "invalid"}
 
     if not project_exists and manuscript_entrypoint is None:
@@ -974,6 +967,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     has_latex_manuscript = manuscript_entrypoint is not None and manuscript_entrypoint.suffix == ".tex"
     has_lit_review = _has_literature_review(cwd)
     has_referee = _has_referee_report(cwd)
+    bounded_external_write_paper_lane = _is_bounded_external_write_paper_lane(cwd, manuscript_entrypoint)
     submission_ready_review = _publication_submission_is_strictly_ready(cwd, manuscript_entrypoint)
 
     ctx_kwargs["has_paper"] = has_paper_flag
@@ -1032,7 +1026,11 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                     action="peer-review",
                     priority=4,
                     command=format_command("peer-review"),
-                    reason="Paper draft exists — run standalone peer review before submission packaging",
+                    reason=(
+                        "Managed external-authoring manuscript exists — route to standalone peer review next"
+                        if bounded_external_write_paper_lane
+                        else "Paper draft exists — run standalone peer review before submission packaging"
+                    ),
                 )
             )
     # ── 14. No phases at all → need to plan ─────────────────────────────

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
+from gpd.core.manuscript_artifacts import resolve_explicit_publication_subject
 from gpd.core.reference_ingestion import (
     _extract_section,
     ingest_manuscript_reference_status,
@@ -139,9 +140,15 @@ def _write_knowledge_doc(
         "  stale: false\n"
     )
     if status == "stable":
-        content = base_content.replace("coverage_summary:\n  covered_topics: [fixed points]\n  excluded_topics: [implementation]\n  open_gaps: [none]\n", "coverage_summary:\n  covered_topics: [fixed points]\n  excluded_topics: [implementation]\n  open_gaps: [none]\n" + review_block)
+        content = base_content.replace(
+            "coverage_summary:\n  covered_topics: [fixed points]\n  excluded_topics: [implementation]\n  open_gaps: [none]\n",
+            "coverage_summary:\n  covered_topics: [fixed points]\n  excluded_topics: [implementation]\n  open_gaps: [none]\n"
+            + review_block,
+        )
     elif status == "in_review":
-        content = base_content.replace("status: in_review\n", "status: in_review\n" + review_block.replace("stale: false", "stale: true"))
+        content = base_content.replace(
+            "status: in_review\n", "status: in_review\n" + review_block.replace("stale: false", "stale: true")
+        )
     elif status == "superseded":
         content = base_content.replace(
             "---\n\n",
@@ -246,6 +253,127 @@ def test_ingest_manuscript_reference_status_reads_current_audit(tmp_path: Path) 
     assert result.reference_status[0].source_artifacts == ["paper/BIBLIOGRAPHY-AUDIT.json"]
 
 
+def test_ingest_manuscript_reference_status_does_not_guess_when_multiple_candidate_roots_exist(
+    tmp_path: Path,
+) -> None:
+    _bootstrap_project(tmp_path)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    manuscript_dir = tmp_path / "manuscript"
+    manuscript_dir.mkdir()
+    (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-30T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-30T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = ingest_manuscript_reference_status(tmp_path)
+
+    assert result.manuscript_root == ""
+    assert result.bibliography_audit_path == ""
+    assert result.subject_resolution_status == "missing"
+    assert "no manuscript entrypoint found" in result.subject_resolution_detail
+    assert result.reference_status == []
+    assert result.reference_status_warnings == [
+        "no resolved publication subject is available for bibliography audit ingestion: "
+        "no manuscript entrypoint found under paper/, manuscript/, draft/, or "
+        "GPD/publication/*/manuscript"
+    ]
+
+
+def test_ingest_manuscript_reference_status_accepts_an_explicit_publication_subject(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    manuscript_dir = tmp_path / "manuscript"
+    manuscript_dir.mkdir()
+    (manuscript_dir / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
+    (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-30T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [
+                    {
+                        "key": "benchmark2024",
+                        "source_type": "paper",
+                        "reference_id": "ref-benchmark",
+                        "title": "Benchmark Paper",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                        "verification_sources": ["manual"],
+                        "canonical_identifiers": ["doi:10.1000/example"],
+                        "missing_core_fields": [],
+                        "enriched_fields": [],
+                        "warnings": [],
+                        "errors": [],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, "manuscript/main.tex")
+    result = ingest_manuscript_reference_status(tmp_path, publication_subject=subject)
+
+    assert result.subject_resolution_status == "resolved"
+    assert result.manuscript_root == "manuscript"
+    assert result.bibliography_audit_path == "manuscript/BIBLIOGRAPHY-AUDIT.json"
+    assert [record.reference_id for record in result.reference_status] == ["ref-benchmark"]
+
+
 def test_ingest_reference_artifacts_ignores_malformed_citation_source_sidecar(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
     literature_dir = tmp_path / "GPD" / "literature"
@@ -341,7 +469,9 @@ def test_literature_review_surfaces_publish_closed_citation_source_contract() ->
     assert "Extra keys are rejected by the downstream parser." in agent_doc
     assert "strict `CitationSource` objects" in workflow_doc
     assert "Extra keys are rejected" in workflow_doc
-    assert "Only read or propagate the deferred reference-artifact context after the scope has been fixed." in workflow_doc
+    assert (
+        "Only read or propagate the deferred reference-artifact context after the scope has been fixed." in workflow_doc
+    )
 
 
 def test_ingest_reference_artifacts_handles_sidecars_deterministically(tmp_path: Path) -> None:
@@ -405,18 +535,18 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
         "---\n"
         "review_summary:\n"
         "  active_anchors:\n"
-        "    - anchor_id: \"ref-benchmark\"\n"
-        "      anchor: \"Ref Benchmark\"\n"
-        "      locator: \"Benchmark Paper\"\n"
-        "      type: \"benchmark\"\n"
-        "      why_it_matters: \"Decisive benchmark\"\n"
-        "      contract_subject_ids: [\"claim-anchor\"]\n"
-        "      required_action: \"read/use/compare\"\n"
-        "      carry_forward_to: \"planning/verification\"\n"
+        '    - anchor_id: "ref-benchmark"\n'
+        '      anchor: "Ref Benchmark"\n'
+        '      locator: "Benchmark Paper"\n'
+        '      type: "benchmark"\n'
+        '      why_it_matters: "Decisive benchmark"\n'
+        '      contract_subject_ids: ["claim-anchor"]\n'
+        '      required_action: "read/use/compare"\n'
+        '      carry_forward_to: "planning/verification"\n'
         "  benchmark_values:\n"
-        "    - quantity: \"critical exponent\"\n"
-        "      value: \"1.23\"\n"
-        "      source: \"Benchmark Paper\"\n"
+        '    - quantity: "critical exponent"\n'
+        '      value: "1.23"\n'
+        '      source: "Benchmark Paper"\n'
         "---\n"
         "```\n",
         encoding="utf-8",
@@ -470,13 +600,13 @@ def test_ingest_reference_artifacts_ignores_legacy_review_summary_aliases(tmp_pa
         "---\n"
         "review_summary:\n"
         "  active_references:\n"
-        "    - anchor_id: \"ref-legacy\"\n"
-        "      anchor: \"Legacy Benchmark\"\n"
-        "      locator: \"Legacy Paper\"\n"
-        "      type: \"benchmark\"\n"
+        '    - anchor_id: "ref-legacy"\n'
+        '      anchor: "Legacy Benchmark"\n'
+        '      locator: "Legacy Paper"\n'
+        '      type: "benchmark"\n'
         "  known_good_baselines:\n"
-        "    - \"critical exponent — 1.23 — source: Legacy Paper\"\n"
-        "  must_read_references: [\"ref-legacy\"]\n"
+        '    - "critical exponent — 1.23 — source: Legacy Paper"\n'
+        '  must_read_references: ["ref-legacy"]\n'
         "---\n"
         "```\n",
         encoding="utf-8",
@@ -673,9 +803,7 @@ def test_context_discovers_additional_research_map_reference_artifacts(tmp_path:
     research_map_dir = tmp_path / "GPD" / "research-map"
     research_map_dir.mkdir(parents=True)
     (research_map_dir / "CONCERNS.md").write_text(
-        "# Reference Context\n\n"
-        "## Prior Outputs\n\n"
-        "- `GPD/phases/00-baseline/00-SUMMARY.md`\n",
+        "# Reference Context\n\n## Prior Outputs\n\n- `GPD/phases/00-baseline/00-SUMMARY.md`\n",
         encoding="utf-8",
     )
 
@@ -715,9 +843,9 @@ def test_ingest_reference_artifacts_surfaces_explicit_or_derived_must_surface_fl
 def test_anchor_registry_templates_document_must_surface_column_and_fallback_heuristic() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     literature_workflow = (repo_root / "src/gpd/specs/workflows/literature-review.md").read_text(encoding="utf-8")
-    reference_template = (
-        repo_root / "src/gpd/specs/references/templates/research-mapper/REFERENCES.md"
-    ).read_text(encoding="utf-8")
+    reference_template = (repo_root / "src/gpd/specs/references/templates/research-mapper/REFERENCES.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "| Must Surface |" in literature_workflow
     assert "Set `Must Surface` to `yes`" in literature_workflow

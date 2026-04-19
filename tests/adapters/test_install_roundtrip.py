@@ -31,6 +31,7 @@ from gpd.adapters.runtime_catalog import get_runtime_descriptor, get_shared_inst
 from gpd.adapters.tool_names import build_canonical_alias_map
 from gpd.core.public_surface_contract import local_cli_bridge_commands
 from gpd.registry import load_agents_from_dir
+from tests.doc_surface_contracts import assert_publication_lane_boundary_contract
 
 REPO_GPD_ROOT = Path(__file__).resolve().parents[2] / "src" / "gpd"
 RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter in iter_adapters())
@@ -332,6 +333,22 @@ def _assert_installed_contract_visibility(
     assert "Targeted flags narrow the optional check mix only." in verify_work
     assert "Every spawned agent is a one-shot delegation" in verify_work
     assert "If a required proof-redteam audit is missing, stale, malformed, or not `passed`, spawn `gpd-check-proof` once" in verify_work
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_installed_peer_review_prompt_keeps_publication_lane_boundary(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    peer_review = _read_runtime_command_prompt(target.parent, target, runtime, "peer-review")
+    peer_review = _canonicalize_runtime_markdown(peer_review, runtime=runtime)
+
+    assert "Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace." in peer_review
+    assert (
+        "The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory."
+        in peer_review
+    )
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
@@ -638,6 +655,32 @@ def test_real_installed_set_tier_models_prompt_keeps_direct_tier_override_contra
     assert "balanced default" in content
     assert "fastest / most economical" in content
 
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_compare_prompts_keep_gpd_output_contract_and_interactive_intake(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    compare_results = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "compare-results"),
+        runtime=runtime,
+    )
+    compare_experiment = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "compare-experiment"),
+        runtime=runtime,
+    )
+
+    assert "command_policy:" in compare_results
+    assert "allow_interactive_without_subject: true" in compare_results
+    assert "default_output_subtree: GPD/comparisons" in compare_results
+    assert "comparison target, phase, artifact path, or source-a vs source-b" in compare_results
+    assert "default_output_subtree: GPD/comparisons" in compare_experiment
+    assert "GPD/comparisons/{slug}/" in compare_experiment
+    assert "Do not run an unconditional standalone docs commit for this workflow." in compare_experiment
+    assert "artifacts/comparisons/{slug}/" not in compare_experiment
+
+
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
 def test_real_installed_public_local_cli_commands_stay_canonical(
     real_installed_repo_factory,
@@ -670,6 +713,40 @@ def test_help_like_skills_keep_canonical_local_cli_language(tmp_path: Path) -> N
     assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", help_skill) is None
     assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", tour_skill) is None
     assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", settings_skill) is None
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_help_prompt_keeps_relaxed_technical_analysis_contract(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    help_prompt = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "help"),
+        runtime=runtime,
+    )
+
+    assert "Project-aware technical-analysis lane:" in help_prompt
+    assert "GPD/analysis/" in help_prompt
+    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_prompt
+    assert "Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`" in help_prompt
+    assert "Usage: `gpd:limiting-cases results/01-SUMMARY.md`" in help_prompt
+    assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_prompt
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_help_prompt_surfaces_bounded_write_paper_external_authoring_lane(
+    real_installed_repo_factory,
+    runtime: str,
+) -> None:
+    target = real_installed_repo_factory(runtime)
+    help_prompt = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(target.parent, target, runtime, "help"),
+        runtime=runtime,
+    )
+
+    assert_publication_lane_boundary_contract(help_prompt)
+    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_prompt
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])

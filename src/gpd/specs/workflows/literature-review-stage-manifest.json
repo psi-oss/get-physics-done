@@ -142,7 +142,7 @@
     {
       "id": "review_handoff",
       "order": 3,
-      "purpose": "delegate the literature review, citation-source sidecar, and any checkpoint artifacts",
+      "purpose": "delegate the literature review, citation-source sidecar, citation audit, and any checkpoint artifacts",
       "mode_paths": [
         "workflows/literature-review.md"
       ],
@@ -213,12 +213,14 @@
       "writes_allowed": [
         "GPD/literature/slug-REVIEW.md",
         "GPD/literature/slug-CITATION-SOURCES.json",
+        "GPD/literature/slug-CITATION-AUDIT.md",
         "GPD/literature/slug-STATE.yaml",
         "GPD/literature/slug-CONTINUATION.md"
       ],
       "produced_state": [
         "review artifact state",
-        "citation sidecar state"
+        "citation sidecar state",
+        "citation audit state"
       ],
       "next_stages": [
         "completion_gate"

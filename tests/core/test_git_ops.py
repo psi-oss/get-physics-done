@@ -16,6 +16,7 @@ from gpd.core.git_ops import (
     cmd_commit,
     cmd_pre_commit_check,
 )
+from gpd.core.storage_paths import ManagedOutputPolicy
 
 runner = CliRunner()
 
@@ -109,6 +110,18 @@ class TestPreCommitCheck:
         assert result.passed is True
         assert result.details[0].frontmatter_valid is None  # not checked
 
+    def test_binary_pdf_source_passes_without_utf8_text_validation(self, tmp_path: Path) -> None:
+        pdf = tmp_path / "source.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj\n<<>>\nendobj\n")
+
+        result = cmd_pre_commit_check(tmp_path, ["source.pdf"])
+
+        assert result.passed is True
+        assert result.files_checked == 1
+        assert result.details[0].readable is True
+        assert result.details[0].frontmatter_valid is None
+        assert result.details[0].has_nan is False
+
     def test_json_nonfinite_detection_fails(self, tmp_path: Path) -> None:
         txt = tmp_path / "data.json"
         txt.write_text('{"value": NaN}', encoding="utf-8")
@@ -193,6 +206,21 @@ class TestPreCommitCheck:
         assert result.details[0].storage_valid is False
         assert result.details[0].storage_class == "internal_durable"
         assert any("internal metadata directories" in warning for warning in result.warnings)
+
+    def test_policy_owned_gpd_managed_commit_target_passes_storage_validation(self, tmp_path: Path) -> None:
+        target = tmp_path / "GPD" / "paper" / "main.tex"
+        target.parent.mkdir(parents=True)
+        target.write_text("\\documentclass{article}\n", encoding="utf-8")
+
+        result = cmd_pre_commit_check(
+            tmp_path,
+            ["GPD/paper/main.tex"],
+            managed_output_policies=(ManagedOutputPolicy.gpd_subtree("paper"),),
+        )
+
+        assert result.passed is True
+        assert result.details[0].storage_valid is True
+        assert result.details[0].storage_class == "internal_durable"
 
     def test_derivation_markdown_with_matching_assertion_passes(self, tmp_path: Path) -> None:
         self._write_convention_lock(tmp_path, metric_signature="mostly-minus")

@@ -13,6 +13,7 @@ import logging
 import re
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
@@ -63,7 +64,11 @@ from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
-from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
+from gpd.core.manuscript_artifacts import (
+    resolve_current_manuscript_entrypoint,
+    resolve_current_publication_subject,
+    resolve_publication_bootstrap_resolution,
+)
 from gpd.core.peer_review_mode import (
     PEER_REVIEW_STANDALONE_MODE,
     resolve_peer_review_mode,
@@ -92,7 +97,7 @@ from gpd.core.resume_surface import (
     resume_origin_for_handoff,
     resume_origin_for_interrupted_agent,
 )
-from gpd.core.root_resolution import resolve_project_root, resolve_project_roots
+from gpd.core.root_resolution import RootResolutionPolicy, resolve_project_root, resolve_project_roots
 from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
@@ -148,6 +153,14 @@ from gpd.core.workflow_staging import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class InitRootPolicy(StrEnum):
+    """High-level workspace/project policy for init payload assembly."""
+
+    WORKSPACE_LOCKED = "workspace_locked"
+    PROJECT_SCOPED = "project_scoped"
+    PROJECT_REENTRY_ALLOWED = "project_reentry_allowed"
 
 
 # Research file extensions for project detection.
@@ -358,12 +371,41 @@ _WRITE_PAPER_CONTRACT_GATE_FIELDS = frozenset(
 )
 _WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS = frozenset(
     {
+        "contract_intake",
+        "effective_reference_intake",
         "selected_protocol_bundle_ids",
         "protocol_bundle_context",
         "active_reference_context",
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+    }
+)
+_WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS = frozenset(
+    {
+        "publication_subject",
+        "publication_subject_status",
+        "publication_subject_source",
+        "publication_subject_detail",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "publication_artifact_base",
+        "selected_publication_root",
+        "publication_intake_root",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "managed_publication_root",
+        "managed_manuscript_root",
+        "publication_bootstrap",
+        "publication_bootstrap_mode",
+        "publication_bootstrap_root",
+        "publication_bootstrap_detail",
     }
 )
 _WRITE_PAPER_REFERENCE_RUNTIME_FIELDS = frozenset(
@@ -404,6 +446,7 @@ _WRITE_PAPER_INIT_FIELDS = frozenset(
         *_WRITE_PAPER_BASE_INIT_FIELDS,
         *_WRITE_PAPER_CONTRACT_GATE_FIELDS,
         *_WRITE_PAPER_REFERENCE_RUNTIME_FIELDS,
+        *_WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS,
         *_WRITE_PAPER_STATE_MEMORY_FIELDS,
         *_WRITE_PAPER_FILE_CONTENT_FIELDS,
     }
@@ -449,6 +492,12 @@ _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS = frozenset(
 )
 _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS = frozenset(
     {
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "review_target_input",
         "review_target_mode",
         "review_target_mode_reason",
@@ -851,6 +900,26 @@ def _state_exists(cwd: Path) -> bool:
         acquire_lock=False,
     )
     return isinstance(state, dict)
+
+
+def _resolve_project_scoped_cwd(cwd: Path) -> Path:
+    """Return the nearest verified current-workspace project root, else the normalized cwd."""
+
+    return _resolve_cwd_for_root_policy(cwd, policy=RootResolutionPolicy.PROJECT_SCOPED)
+
+
+def _resolve_workspace_locked_cwd(cwd: Path) -> Path:
+    """Return the requested workspace unless it is itself a verified GPD root."""
+
+    return _resolve_cwd_for_root_policy(cwd, policy=RootResolutionPolicy.WORKSPACE_LOCKED)
+
+
+def _resolve_cwd_for_root_policy(cwd: Path, *, policy: RootResolutionPolicy) -> Path:
+    """Resolve *cwd* according to one explicit root policy."""
+
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    resolved = resolve_project_root(requested_cwd, require_layout=True, policy=policy)
+    return resolved if resolved is not None else requested_cwd
 
 
 def _structured_state_objects(value: object) -> list[dict[str, object]]:
@@ -1823,6 +1892,8 @@ def _build_publication_bootstrap_runtime_context(
     persist_manuscript_proof_review_manifest: bool = False,
 ) -> dict[str, object]:
     """Build the lightweight contract/bundle/manuscript-status payload for publication bootstrap."""
+    publication_subject = resolve_current_publication_subject(cwd, allow_markdown=True)
+    publication_bootstrap = resolve_publication_bootstrap_resolution(cwd, allow_markdown=True)
     contract, project_contract_load_info = _load_project_contract(cwd)
     derived_references = _serialize_active_references(contract)
     effective_reference_intake = _merge_reference_intake(contract, {}, derived_references)
@@ -1861,14 +1932,35 @@ def _build_publication_bootstrap_runtime_context(
     )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     selected_protocol_bundles = select_protocol_bundles(project_text, authoritative_contract)
-    manuscript_reference_status = ingest_manuscript_reference_status(cwd)
+    manuscript_reference_status = ingest_manuscript_reference_status(cwd, publication_subject=publication_subject)
     manuscript_proof_review_status = resolve_manuscript_proof_review_status(
         cwd,
+        publication_subject.manuscript_entrypoint,
         persist_manifest=persist_manuscript_proof_review_manifest,
     )
     derived_manuscript_reference_status = {
         record.reference_id: record.to_context_dict() for record in manuscript_reference_status.reference_status
     }
+    publication_bootstrap_payload = publication_bootstrap.to_context_dict()
+    publication_context = publication_subject.to_bootstrap_context_dict()
+    selected_roots = _selected_publication_stage_roots(
+        publication_subject_slug=publication_context.get("publication_subject_slug")
+        if isinstance(publication_context.get("publication_subject_slug"), str)
+        else None,
+        publication_lane_kind=publication_context.get("publication_lane_kind")
+        if isinstance(publication_context.get("publication_lane_kind"), str)
+        else None,
+        managed_publication_root=publication_context.get("managed_publication_root")
+        if isinstance(publication_context.get("managed_publication_root"), str)
+        else None,
+    )
+    surfaced_contract_intake = None
+    if project_contract_gate.get("visible") and visible_contract is not None:
+        surfaced_contract_intake = visible_contract.context_intake.model_dump(mode="json")
+    publication_intake_root = None
+    managed_publication_root = publication_context.get("managed_publication_root")
+    if isinstance(managed_publication_root, str) and managed_publication_root:
+        publication_intake_root = f"{managed_publication_root}/intake"
     return {
         "project_contract": visible_context_contract.model_dump(mode="json")
         if visible_context_contract is not None
@@ -1876,6 +1968,15 @@ def _build_publication_bootstrap_runtime_context(
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
+        "contract_intake": surfaced_contract_intake,
+        "effective_reference_intake": surfaced_effective_reference_intake,
+        **publication_context,
+        **selected_roots,
+        "publication_intake_root": publication_intake_root,
+        "publication_bootstrap": publication_bootstrap_payload,
+        "publication_bootstrap_mode": publication_bootstrap_payload["mode"],
+        "publication_bootstrap_root": publication_bootstrap_payload["bootstrap_root"],
+        "publication_bootstrap_detail": publication_bootstrap_payload["detail"],
         "selected_protocol_bundle_ids": [bundle.bundle_id for bundle in selected_protocol_bundles],
         "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles),
         "active_reference_context": _render_active_reference_context(
@@ -1894,6 +1995,36 @@ def _build_publication_bootstrap_runtime_context(
     }
 
 
+def _selected_publication_stage_roots(
+    *,
+    publication_subject_slug: str | None,
+    publication_lane_kind: str | None,
+    managed_publication_root: str | None,
+) -> dict[str, str | None]:
+    """Return the active publication and review roots for staged publication work."""
+
+    if publication_lane_kind == "canonical_project_manuscript":
+        selected_publication_root = PLANNING_DIR_NAME
+    elif publication_subject_slug:
+        selected_publication_root = managed_publication_root or (
+            f"{PLANNING_DIR_NAME}/publication/{publication_subject_slug}"
+        )
+    else:
+        selected_publication_root = None
+
+    if selected_publication_root is None:
+        selected_review_root = None
+    elif selected_publication_root == PLANNING_DIR_NAME:
+        selected_review_root = f"{PLANNING_DIR_NAME}/review"
+    else:
+        selected_review_root = f"{selected_publication_root}/review"
+
+    return {
+        "selected_publication_root": selected_publication_root,
+        "selected_review_root": selected_review_root,
+    }
+
+
 def _build_publication_runtime_snapshot_context(
     cwd: Path,
     *,
@@ -1902,11 +2033,43 @@ def _build_publication_runtime_snapshot_context(
 ) -> dict[str, object]:
     """Build the canonical publication snapshot payload used by publication commands."""
 
-    return publication_runtime_snapshot_context(
+    snapshot = publication_runtime_snapshot_context(
         cwd,
         subject=subject,
         persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
     )
+    publication_subject = snapshot.get("publication_subject")
+    subject_context = publication_subject if isinstance(publication_subject, Mapping) else {}
+    publication_lane_kind = (
+        subject_context.get("publication_lane_kind")
+        if isinstance(subject_context.get("publication_lane_kind"), str)
+        else None
+    )
+    publication_lane_owner = (
+        subject_context.get("publication_lane_owner")
+        if isinstance(subject_context.get("publication_lane_owner"), str)
+        else None
+    )
+    managed_publication_root = (
+        subject_context.get("managed_publication_root")
+        if isinstance(subject_context.get("managed_publication_root"), str)
+        else None
+    )
+    snapshot.update(
+        {
+            "publication_lane_kind": publication_lane_kind,
+            "publication_lane_owner": publication_lane_owner,
+            "managed_publication_root": managed_publication_root,
+            **_selected_publication_stage_roots(
+                publication_subject_slug=snapshot.get("publication_subject_slug")
+                if isinstance(snapshot.get("publication_subject_slug"), str)
+                else None,
+                publication_lane_kind=publication_lane_kind,
+                managed_publication_root=managed_publication_root,
+            ),
+        }
+    )
+    return snapshot
 
 
 def _resolve_peer_review_target_context(
@@ -3519,6 +3682,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         "project_root": reentry_metadata["project_root"],
         "project_root_source": reentry_metadata["project_root_source"],
         "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
+        "init_root_policy": InitRootPolicy.PROJECT_REENTRY_ALLOWED.value,
         "project_reentry_mode": reentry_metadata["project_reentry_mode"],
         "project_reentry_requires_selection": reentry_metadata["project_reentry_requires_selection"],
         "project_reentry_selected_candidate": reentry_metadata.get("project_reentry_selected_candidate"),
@@ -3817,10 +3981,13 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     needs_full_reference_context = bool(required_fields & _WRITE_PAPER_REFERENCE_RUNTIME_FIELDS)
     needs_bootstrap_reference_context = bool(required_fields & _WRITE_PAPER_BOOTSTRAP_REFERENCE_FIELDS)
     needs_contract_gate_context = bool(required_fields & _WRITE_PAPER_CONTRACT_GATE_FIELDS)
+    needs_publication_bootstrap_context = bool(required_fields & _WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS)
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    elif needs_bootstrap_reference_context or needs_contract_gate_context:
+    elif needs_bootstrap_reference_context or needs_contract_gate_context or needs_publication_bootstrap_context:
+        staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
+    if needs_full_reference_context and needs_publication_bootstrap_context:
         staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
 
     if required_fields & _WRITE_PAPER_STATE_MEMORY_FIELDS:
@@ -3944,13 +4111,15 @@ def init_phase_op(
             "gpd init phase-op does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
-    phase_info = _try_find_phase(cwd, phase) if phase else None
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
+    phase_info = _try_find_phase(effective_cwd, phase) if phase else None
 
     result: dict[str, object] = {
         # Models
-        "executor_model": _resolve_model(cwd, "gpd-executor", config),
-        "verifier_model": _resolve_model(cwd, "gpd-verifier", config),
+        "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),
+        "verifier_model": _resolve_model(effective_cwd, "gpd-verifier", config),
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -3977,20 +4146,20 @@ def init_phase_op(
         "has_validation": phase_info.get("has_validation", False) if phase_info else False,
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # File existence
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _state_exists(cwd),
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-    result.update(_build_state_memory_runtime_context(cwd))
-    result.update(_build_execution_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
+    result.update(_build_state_memory_runtime_context(effective_cwd))
+    result.update(_build_execution_runtime_context(effective_cwd))
 
-    planning = cwd / PLANNING_DIR_NAME
+    planning = effective_cwd / PLANNING_DIR_NAME
     if "state" in includes:
         result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
-        result.update(_build_structured_state_runtime_context(cwd))
+        result.update(_build_structured_state_runtime_context(effective_cwd))
     if "config" in includes:
         result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
     if "roadmap" in includes:
@@ -4032,7 +4201,9 @@ def init_research_phase(
 
 def init_literature_review(cwd: Path, topic: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for literature review orchestration."""
-    config = load_config(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
+    config = load_config(effective_cwd)
     normalized_topic = topic.strip() if isinstance(topic, str) and topic.strip() else None
     slug = _generate_slug(normalized_topic)
     if normalized_topic and slug is None:
@@ -4043,15 +4214,18 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
     result: dict[str, object] = {
         "topic": normalized_topic,
         "slug": slug,
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
+        "workspace_root": requested_cwd.as_posix(),
+        "project_root": effective_cwd.as_posix(),
         "commit_docs": config["commit_docs"],
-        "state_exists": _state_exists(cwd),
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "research_mode": config["research_mode"],
         "autonomy": config["autonomy"],
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "platform": _detect_platform(cwd),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
 
     if stage is None:
         return result
@@ -4191,10 +4365,11 @@ def init_milestone_op(cwd: Path) -> dict:
 
 def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
-    config = load_config(cwd)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
 
     # Check for existing research maps
-    research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
+    research_map_dir = effective_cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
     existing_maps: list[str] = []
     try:
         existing_maps = sorted(f.name for f in research_map_dir.iterdir() if f.is_file() and f.name.endswith(".md"))
@@ -4203,7 +4378,8 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
 
     result = {
         # Models
-        "mapper_model": _resolve_model(cwd, "gpd-research-mapper", config),
+        "mapper_model": _resolve_model(effective_cwd, "gpd-research-mapper", config),
+        "init_root_policy": InitRootPolicy.PROJECT_SCOPED.value,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -4215,12 +4391,12 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
         "existing_maps": existing_maps,
         "has_maps": len(existing_maps) > 0,
         # File existence
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "research_map_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
+        "research_map_dir_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
 
     if stage is None:
         return result
@@ -4263,14 +4439,16 @@ def init_progress(
             data_root=data_root,
             prefer_workspace_layout=True,
         )
+        init_root_policy = InitRootPolicy.PROJECT_REENTRY_ALLOWED.value
     else:
-        effective_cwd = resolve_project_root(requested_cwd, require_layout=True) or requested_cwd
+        effective_cwd = _resolve_workspace_locked_cwd(requested_cwd)
         reentry_metadata = {
             "workspace_root": requested_cwd.as_posix(),
             "project_root": effective_cwd.as_posix(),
             "project_root_source": "workspace",
             "project_root_auto_selected": False,
         }
+        init_root_policy = InitRootPolicy.WORKSPACE_LOCKED.value
     config = load_config(effective_cwd)
     milestone = _try_get_milestone_info(effective_cwd)
 
@@ -4341,6 +4519,7 @@ def init_progress(
         "project_root": reentry_metadata["project_root"],
         "project_root_source": reentry_metadata["project_root_source"],
         "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
+        "init_root_policy": init_root_policy,
         # Models
         "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),
         "planner_model": _resolve_model(effective_cwd, "gpd-planner", config),

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import glob
+import hashlib
 import json
 import logging
 import os
@@ -58,8 +59,14 @@ from gpd.core.constants import (
     ENV_DATA_DIR,
     ENV_GPD_DISABLE_CHECKOUT_REEXEC,
     HOME_DATA_DIR_NAME,
+    PLANNING_DIR_NAME,
+    PUBLICATION_DIR_NAME,
+    PUBLICATION_MANUSCRIPT_DIR_NAME,
 )
 from gpd.core.errors import ConfigError, GPDError
+from gpd.core.manuscript_artifacts import (
+    _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
+)
 from gpd.core.manuscript_artifacts import (
     locate_publication_artifact,
     resolve_current_manuscript_resolution,
@@ -73,7 +80,6 @@ from gpd.core.peer_review_mode import (
     PEER_REVIEW_PROJECT_BACKED_MODE,
     PeerReviewModeResolution,
     resolve_peer_review_mode_details,
-    resolve_review_manuscript_target,
 )
 from gpd.core.project_reentry import (
     ProjectReentryResolution,
@@ -100,10 +106,11 @@ from gpd.core.public_surface_contract import (
 )
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
+    review_artifact_round,
+    review_round_suffix,
 )
 from gpd.core.publication_runtime import (
     publication_blockers_for_project,
-    resolve_latest_publication_review_artifacts,
 )
 from gpd.core.recovery_advice import (
     RecoveryAdvice,
@@ -117,7 +124,7 @@ from gpd.core.resume_surface import (
     resume_candidate_kind,
     resume_candidate_kind_from_source,
 )
-from gpd.core.root_resolution import resolve_project_root
+from gpd.core.root_resolution import RootResolutionPolicy, resolve_project_root
 from gpd.core.runtime_command_surfaces import (
     format_active_runtime_command,
     resolve_active_runtime_descriptor,
@@ -141,7 +148,7 @@ from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION
 if TYPE_CHECKING:
     from gpd.core.health import UnattendedReadinessResult
     from gpd.mcp.paper.bibliography import CitationSource
-    from gpd.mcp.paper.models import PaperConfig
+    from gpd.mcp.paper.models import PaperConfig, WritePaperAuthoringInput
     from gpd.registry import ReviewContractConditionalRequirement
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
@@ -292,6 +299,36 @@ def _project_scoped_cwd(cwd: Path | None = None) -> Path:
     return resolved if resolved is not None else workspace_cwd
 
 
+def _workspace_locked_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the effective cwd without walking up to an ancestor project root."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    _migrate_planning_files(workspace_cwd)
+    resolved = resolve_project_root(
+        workspace_cwd,
+        require_layout=True,
+        policy=RootResolutionPolicy.WORKSPACE_LOCKED,
+    )
+    return resolved if resolved is not None else workspace_cwd
+
+
+def _command_preflight_cwd(
+    command: object,
+    *,
+    cwd: Path | None = None,
+    arguments: str | None = None,
+) -> Path:
+    """Resolve the authoritative preflight root for one command."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    if _command_supports_project_reentry(command):
+        return _status_command_cwd(workspace_cwd)
+
+    command_name = str(getattr(command, "name", "") or "")
+    if command_name == "gpd:write-paper":
+        return _workspace_locked_cwd(workspace_cwd)
+
+    return _project_scoped_cwd(workspace_cwd)
+
+
 def _split_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]]:
     """Partition root-global CLI options from the rest of the argv stream."""
     return _split_root_global_cli_options(argv)
@@ -417,6 +454,28 @@ def _format_display_path_from_cwd(target: str | Path | None, *, cwd: Path) -> st
 
 
 @dataclasses.dataclass(frozen=True)
+class ResolvedCommandSubject:
+    """Shared command-subject resolution envelope for CLI preflight consumers."""
+
+    command: str
+    workspace_root: Path
+    resolved_project_root: Path | None
+    context_root: Path
+    target_path: Path | None
+    target_root: Path | None
+    subject_kind: str
+    ownership_mode: str
+    status: str
+    exists: bool
+    explicit_input: bool = False
+    project_root_source: str | None = None
+    project_root_auto_selected: bool = False
+    reentry_mode: str | None = None
+    ancestor_walked_up: bool = False
+    detail: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
 class ReviewPreflightCheck:
     """One executable preflight check for a review command."""
 
@@ -448,6 +507,7 @@ class ReviewPreflightResult:
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
     dispatch_note: str = ""
+    resolved_subject: ResolvedCommandSubject | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -477,6 +537,152 @@ class CommandContextPreflightResult:
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
     dispatch_note: str = ""
+    resolved_subject: ResolvedCommandSubject | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class ResolvedManuscriptTarget:
+    """Structured manuscript-target resolution details for publication commands."""
+
+    status: str
+    manuscript: Path | None
+    manuscript_root: Path | None
+    requested_target: Path | None
+    detail: str
+
+
+@dataclasses.dataclass(frozen=True)
+class WritePaperExternalAuthoringIntakeResolution:
+    """Validated external-authoring intake details for bounded ``gpd:write-paper`` bootstrap."""
+
+    status: str
+    intake_path: Path | None
+    manuscript_root: Path | None
+    intake_root: Path | None
+    subject_slug: str | None
+    manifest: WritePaperAuthoringInput | None = None
+    detail: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class ManuscriptIntakePolicy:
+    """Static manuscript-subject intake rules for one command."""
+
+    allowed_suffixes: frozenset[str]
+    allow_external_targets: bool = False
+    allow_interactive_standalone_intake: bool = False
+    interactive_standalone_detail: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class PublicationSubjectPreflightPolicy:
+    """Publication preflight relaxations and scope overrides derived from the active subject."""
+
+    active_scopes: frozenset[str] = frozenset()
+    relaxed_checks: frozenset[str] = frozenset()
+    optional_checks: frozenset[str] = frozenset()
+    detail_overrides: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    required_outputs: tuple[str, ...] = ()
+    required_evidence: tuple[str, ...] = ()
+    blocking_conditions: tuple[str, ...] = ()
+
+    def relaxes(self, check_name: str) -> bool:
+        return check_name in self.relaxed_checks
+
+    def makes_missing_optional(self, check_name: str) -> bool:
+        return check_name in self.optional_checks
+
+    def passes_when_missing(self, check_name: str) -> bool:
+        return self.relaxes(check_name) or self.makes_missing_optional(check_name)
+
+    def detail(self, check_name: str) -> str | None:
+        return self.detail_overrides.get(check_name)
+
+    def blocking(self, check_name: str, *, missing: bool = False, default: bool = True) -> bool:
+        if self.relaxes(check_name):
+            return False
+        if missing and self.makes_missing_optional(check_name):
+            return False
+        return default
+
+    def missing_detail(self, check_name: str, *, default: str) -> str:
+        detail = self.detail(check_name)
+        return detail if detail is not None else default
+
+
+_SUPPORTED_MANUSCRIPT_ROOT_NAMES = frozenset({"paper", "manuscript", "draft"})
+_DEFAULT_PUBLICATION_EXTERNAL_SUFFIXES = frozenset({".txt", ".pdf"})
+_PUBLICATION_INTERACTIVE_STANDALONE_DETAIL = (
+    "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
+    "or use the current GPD project when available"
+)
+_EXTERNAL_ARTIFACT_RELAXED_CHECKS = frozenset(
+    {
+        "project_state",
+        "roadmap",
+        "conventions",
+        "research_artifacts",
+        "verification_reports",
+        "manuscript_proof_review",
+    }
+)
+_EXTERNAL_ARTIFACT_OPTIONAL_CHECKS = frozenset(
+    {
+        "artifact_manifest",
+        "bibliography_audit",
+        "bibliography_audit_clean",
+        "reproducibility_manifest",
+        "reproducibility_ready",
+    }
+)
+_EXTERNAL_ARTIFACT_OPTIONAL_DETAILS = {
+    "project_state": "external artifact review: project state is optional and is not required to start review",
+    "roadmap": "external artifact review: roadmap is optional",
+    "conventions": "external artifact review: project conventions are optional",
+    "research_artifacts": "external artifact review: phase summaries or milestone digests are optional",
+    "verification_reports": "external artifact review: verification reports are optional",
+    "artifact_manifest": "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it",
+    "bibliography_audit": "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it",
+    "reproducibility_manifest": (
+        "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
+    ),
+    "manuscript_proof_review": (
+        "prior staged manuscript proof review is optional in external artifact mode; "
+        "theorem-bearing claims will be audited in this review round if detected"
+    ),
+}
+_WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS = ["--intake path/to/write-paper-authoring-input.json"]
+_WRITE_PAPER_EXTERNAL_AUTHORING_DETAIL = (
+    "external authoring outside a project requires `--intake path/to/write-paper-authoring-input.json`"
+)
+_WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_DETAILS = {
+    "project_state": "external authoring intake: project state is optional because the intake manifest is authoritative",
+    "roadmap": "external authoring intake: roadmap is optional because the intake manifest supplies the draft scope",
+    "conventions": "external authoring intake: project conventions are optional before the manuscript exists",
+    "research_artifacts": (
+        "external authoring intake: milestone digests and phase summaries are optional because claims and evidence "
+        "come from the intake manifest"
+    ),
+    "verification_reports": (
+        "external authoring intake: project verification reports are optional because claim-to-evidence bindings come "
+        "from the intake manifest"
+    ),
+    "artifact_manifest": (
+        "no ARTIFACT-MANIFEST.json found yet; the external authoring lane emits it after manuscript scaffolding"
+    ),
+    "bibliography_audit": (
+        "no BIBLIOGRAPHY-AUDIT.json found yet; the external authoring lane emits it after bibliography scaffolding"
+    ),
+    "bibliography_audit_clean": "bibliography audit cleanliness is optional before the first external-authoring draft",
+    "reproducibility_manifest": (
+        "no reproducibility manifest found yet; the external authoring lane emits it after manuscript scaffolding"
+    ),
+    "reproducibility_ready": "reproducibility readiness is optional before the first external-authoring draft",
+    "manuscript_proof_review": (
+        "prior staged manuscript proof review is optional before the first external-authoring draft; "
+        "proof review begins after the manuscript is authored"
+    ),
+}
 
 
 def _format_runtime_list(runtime_names: list[str]) -> str:
@@ -5630,6 +5836,297 @@ validate_app = typer.Typer(help="Validation checks")
 app.add_typer(validate_app, name="validate")
 
 
+def _resolve_subject_path(subject: str | None, *, base: Path) -> Path | None:
+    """Resolve one raw subject string relative to *base* when possible."""
+    if not isinstance(subject, str) or not subject.strip():
+        return None
+    target = Path(subject)
+    if not target.is_absolute():
+        target = base / target
+    return target.resolve(strict=False)
+
+
+def _subject_is_relative_to(target: Path, base: Path) -> bool:
+    """Return whether *target* stays under *base* after normalization."""
+    try:
+        target.resolve(strict=False).relative_to(base.resolve(strict=False))
+    except ValueError:
+        return False
+    return True
+
+
+def _normalized_allowed_manuscript_suffixes(
+    *,
+    allow_markdown: bool,
+    allowed_suffixes: Collection[str] | None = None,
+) -> set[str]:
+    """Return normalized explicit manuscript suffixes for one command."""
+    normalized_allowed_suffixes = {
+        suffix.lower()
+        for suffix in (
+            allowed_suffixes if allowed_suffixes is not None else ({".tex", ".md"} if allow_markdown else {".tex"})
+        )
+    }
+    return normalized_allowed_suffixes or {".tex"}
+
+
+def _allowed_manuscript_suffix_message(allowed_suffixes: Collection[str]) -> str:
+    """Return a user-facing suffix description for manuscript target errors."""
+    ordered_suffixes = [suffix for suffix in (".tex", ".md", ".txt", ".pdf") if suffix in allowed_suffixes]
+    extras = sorted(suffix for suffix in allowed_suffixes if suffix not in {".tex", ".md", ".txt", ".pdf"})
+    ordered_suffixes.extend(extras)
+    if ordered_suffixes == [".tex"]:
+        return ".tex file"
+    if len(ordered_suffixes) == 2:
+        return f"{ordered_suffixes[0]} or {ordered_suffixes[1]} file"
+    return ", ".join(ordered_suffixes[:-1]) + f", or {ordered_suffixes[-1]} file"
+
+
+def _supported_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
+    """Return the canonical manuscript root that owns *target*, when supported."""
+    from gpd.core.constants import ProjectLayout
+
+    try:
+        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+
+    if relative.parts and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES:
+        return project_root / relative.parts[0]
+
+    if (
+        len(relative.parts) >= 4
+        and relative.parts[0] == PLANNING_DIR_NAME
+        and relative.parts[1] == PUBLICATION_DIR_NAME
+        and relative.parts[2]
+        and relative.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
+        return ProjectLayout(project_root).publication_manuscript_dir(relative.parts[2])
+
+    return None
+
+
+def _supported_explicit_manuscript_target(project_root: Path, target: Path) -> bool:
+    """Return whether *target* stays under a supported manuscript root."""
+    return _supported_manuscript_root_for_target(project_root, target) is not None
+
+
+def _supported_root_resolution_for_target(
+    project_root: Path,
+    target: Path,
+    *,
+    allow_markdown: bool,
+) -> tuple[Path, object] | tuple[None, None]:
+    """Resolve the owning manuscript root for *target* when it stays under supported roots."""
+    manuscript_root = _supported_manuscript_root_for_target(project_root, target)
+    if manuscript_root is None:
+        return None, None
+    return manuscript_root, resolve_manuscript_entrypoint_from_root_resolution(
+        manuscript_root,
+        allow_markdown=allow_markdown,
+    )
+
+
+def _resolve_review_preflight_manuscript_target(
+    cwd: Path,
+    subject: str | None,
+    *,
+    allow_markdown: bool = True,
+    restrict_to_supported_roots: bool = False,
+    workspace_cwd: Path | None = None,
+    allowed_suffixes: Collection[str] | None = None,
+) -> ResolvedManuscriptTarget:
+    """Resolve a review-preflight manuscript target with structured status details."""
+
+    project_root = cwd.resolve(strict=False)
+    subject_base = (workspace_cwd or cwd).resolve(strict=False)
+    normalized_allowed_suffixes = _normalized_allowed_manuscript_suffixes(
+        allow_markdown=allow_markdown,
+        allowed_suffixes=allowed_suffixes,
+    )
+    requested_target = _resolve_subject_path(subject, base=subject_base)
+
+    if requested_target is not None:
+        target_is_supported_root = _supported_explicit_manuscript_target(project_root, requested_target)
+        if restrict_to_supported_roots and not target_is_supported_root:
+            return ResolvedManuscriptTarget(
+                status="invalid",
+                manuscript=None,
+                manuscript_root=requested_target if requested_target.is_dir() else requested_target.parent,
+                requested_target=requested_target,
+                detail=(
+                    "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
+                    "or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
+                ),
+            )
+        if not requested_target.exists():
+            return ResolvedManuscriptTarget(
+                status="missing",
+                manuscript=None,
+                manuscript_root=requested_target if requested_target.suffix == "" else requested_target.parent,
+                requested_target=requested_target,
+                detail=f"missing explicit manuscript target {_format_display_path(requested_target)}",
+            )
+        if requested_target.is_file():
+            target_suffix = requested_target.suffix.lower()
+            if target_suffix in normalized_allowed_suffixes:
+                if target_suffix in {".tex", ".md"}:
+                    manuscript_root, root_resolution = _supported_root_resolution_for_target(
+                        project_root,
+                        requested_target,
+                        allow_markdown=allow_markdown,
+                    )
+                    if manuscript_root is not None and root_resolution is not None:
+                        if root_resolution.status != "resolved" or root_resolution.manuscript_entrypoint is None:
+                            return ResolvedManuscriptTarget(
+                                status=root_resolution.status,
+                                manuscript=None,
+                                manuscript_root=manuscript_root,
+                                requested_target=requested_target,
+                                detail=(
+                                    f"{_format_display_path(manuscript_root)} is ambiguous or inconsistent: "
+                                    f"{root_resolution.detail}"
+                                ),
+                            )
+                        if root_resolution.manuscript_entrypoint.resolve(strict=False) != requested_target.resolve(
+                            strict=False
+                        ):
+                            return ResolvedManuscriptTarget(
+                                status="invalid",
+                                manuscript=None,
+                                manuscript_root=manuscript_root,
+                                requested_target=requested_target,
+                                detail=(
+                                    f"{_format_display_path(requested_target)} does not match the resolved manuscript "
+                                    f"entrypoint {_format_display_path(root_resolution.manuscript_entrypoint)} under "
+                                    f"{_format_display_path(manuscript_root)}"
+                                ),
+                            )
+                return ResolvedManuscriptTarget(
+                    status="resolved",
+                    manuscript=requested_target,
+                    manuscript_root=requested_target.parent,
+                    requested_target=requested_target,
+                    detail=f"{_format_display_path(requested_target)} present",
+                )
+            if target_suffix == ".md" and normalized_allowed_suffixes == {".tex"}:
+                return ResolvedManuscriptTarget(
+                    status="invalid",
+                    manuscript=None,
+                    manuscript_root=requested_target.parent,
+                    requested_target=requested_target,
+                    detail=f"explicit manuscript target must be a .tex file: {_format_display_path(requested_target)}",
+                )
+            return ResolvedManuscriptTarget(
+                status="invalid",
+                manuscript=None,
+                manuscript_root=requested_target.parent,
+                requested_target=requested_target,
+                detail=(
+                    "explicit manuscript target must be a "
+                    f"{_allowed_manuscript_suffix_message(normalized_allowed_suffixes)}: "
+                    f"{_format_display_path(requested_target)}"
+                ),
+            )
+
+        if requested_target.is_dir():
+            manuscript_root, root_resolution = _supported_root_resolution_for_target(
+                project_root,
+                requested_target,
+                allow_markdown=allow_markdown,
+            )
+            resolution = (
+                root_resolution
+                if manuscript_root is not None and root_resolution is not None
+                else resolve_manuscript_entrypoint_from_root_resolution(requested_target, allow_markdown=allow_markdown)
+            )
+            if resolution.status == "resolved" and resolution.manuscript_entrypoint is not None:
+                if manuscript_root is not None and manuscript_root != requested_target:
+                    resolved_entrypoint = resolution.manuscript_entrypoint.resolve(strict=False)
+                    if not _subject_is_relative_to(resolved_entrypoint, requested_target):
+                        return ResolvedManuscriptTarget(
+                            status="invalid",
+                            manuscript=None,
+                            manuscript_root=manuscript_root,
+                            requested_target=requested_target,
+                            detail=(
+                                f"{_format_display_path(requested_target)} does not contain the resolved manuscript "
+                                f"entrypoint {_format_display_path(resolution.manuscript_entrypoint)} under "
+                                f"{_format_display_path(manuscript_root)}"
+                            ),
+                        )
+                return ResolvedManuscriptTarget(
+                    status="resolved",
+                    manuscript=resolution.manuscript_entrypoint,
+                    manuscript_root=resolution.manuscript_root,
+                    requested_target=requested_target,
+                    detail=(
+                        f"{_format_display_path(requested_target)} resolved to "
+                        f"{_format_display_path(resolution.manuscript_entrypoint)}"
+                    ),
+                )
+            if resolution.status == "missing":
+                return ResolvedManuscriptTarget(
+                    status="missing",
+                    manuscript=None,
+                    manuscript_root=resolution.manuscript_root,
+                    requested_target=requested_target,
+                    detail=f"no manuscript entry point found under {_format_display_path(requested_target)}",
+                )
+            return ResolvedManuscriptTarget(
+                status=resolution.status,
+                manuscript=None,
+                manuscript_root=resolution.manuscript_root,
+                requested_target=requested_target,
+                detail=f"{_format_display_path(requested_target)} is ambiguous or inconsistent: {resolution.detail}",
+            )
+
+    resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=allow_markdown)
+    manuscript = resolution.manuscript_entrypoint
+    if manuscript is not None and resolution.status == "resolved":
+        return ResolvedManuscriptTarget(
+            status="resolved",
+            manuscript=manuscript,
+            manuscript_root=resolution.manuscript_root,
+            requested_target=None,
+            detail=f"{_format_display_path(manuscript)} present",
+        )
+    if allow_markdown:
+        if resolution.status == "missing":
+            return ResolvedManuscriptTarget(
+                status="missing",
+                manuscript=None,
+                manuscript_root=resolution.manuscript_root,
+                requested_target=None,
+                detail=(
+                    "no manuscript entrypoint found under paper/, manuscript/, or draft/ "
+                    "(expected ARTIFACT-MANIFEST.json or PAPER-CONFIG.json-derived output)"
+                ),
+            )
+        return ResolvedManuscriptTarget(
+            status=resolution.status,
+            manuscript=None,
+            manuscript_root=resolution.manuscript_root,
+            requested_target=None,
+            detail=f"ambiguous or inconsistent manuscript roots: {resolution.detail}",
+        )
+    if resolution.status == "missing":
+        return ResolvedManuscriptTarget(
+            status="missing",
+            manuscript=None,
+            manuscript_root=resolution.manuscript_root,
+            requested_target=None,
+            detail="no LaTeX manuscript entrypoint found under paper/, manuscript/, or draft/",
+        )
+    return ResolvedManuscriptTarget(
+        status=resolution.status,
+        manuscript=None,
+        manuscript_root=resolution.manuscript_root,
+        requested_target=None,
+        detail=f"ambiguous or inconsistent manuscript roots: {resolution.detail}",
+    )
+
+
 def _resolve_review_preflight_manuscript(
     cwd: Path,
     subject: str | None,
@@ -5640,15 +6137,16 @@ def _resolve_review_preflight_manuscript(
     allowed_suffixes: Collection[str] | None = None,
 ) -> tuple[Path | None, str]:
     """Resolve a review-preflight manuscript target from an explicit subject or defaults."""
-    return resolve_review_manuscript_target(
+
+    resolution = _resolve_review_preflight_manuscript_target(
         cwd,
         subject,
         allow_markdown=allow_markdown,
         restrict_to_supported_roots=restrict_to_supported_roots,
         workspace_cwd=workspace_cwd,
         allowed_suffixes=allowed_suffixes,
-        display_cwd=workspace_cwd or cwd,
     )
+    return resolution.manuscript, resolution.detail
 
 
 def _resolve_review_preflight_publication_artifact(manuscript: Path, *filenames: str) -> Path | None:
@@ -5663,6 +6161,217 @@ class ManuscriptPublicationArtifacts:
     artifact_manifest: Path | None = None
     bibliography_audit: Path | None = None
     reproducibility_manifest: Path | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class PublicationReviewRoundArtifacts:
+    """Latest review-round artifacts, even when they no longer match the active manuscript."""
+
+    round_number: int
+    round_suffix: str
+    review_ledger: Path | None
+    referee_decision: Path | None
+
+
+@dataclasses.dataclass(frozen=True)
+class PublicationResponseRoundArtifacts:
+    """Latest response-round artifacts without assuming fresh staged review exists."""
+
+    round_number: int
+    round_suffix: str
+    author_response: Path | None
+    referee_response: Path | None
+
+
+_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
+_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
+_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
+_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
+
+
+def _managed_publication_root_for_target(project_root: Path, target: Path) -> Path | None:
+    """Return the managed publication root for one target under ``GPD/publication/<slug>/manuscript``."""
+
+    from gpd.core.constants import ProjectLayout
+
+    manuscript_root = _supported_manuscript_root_for_target(project_root, target)
+    if manuscript_root is None:
+        return None
+    try:
+        relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+    if (
+        len(relative_root.parts) >= 4
+        and relative_root.parts[0] == PLANNING_DIR_NAME
+        and relative_root.parts[1] == PUBLICATION_DIR_NAME
+        and relative_root.parts[2]
+        and relative_root.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
+        return ProjectLayout(project_root).publication_subject_dir(relative_root.parts[2])
+    return None
+
+
+def _publication_lineage_search_roots(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    """Return candidate publication-root and review-root search paths for one manuscript subject."""
+
+    planning_dir = project_root / PLANNING_DIR_NAME
+    publication_roots: list[Path] = [planning_dir]
+    review_roots: list[Path] = [planning_dir / "review"]
+
+    if manuscript is None:
+        return tuple(publication_roots), tuple(review_roots)
+
+    managed_publication_root = _managed_publication_root_for_target(project_root, manuscript)
+    if managed_publication_root is not None:
+        publication_roots.append(managed_publication_root)
+        review_roots.append(managed_publication_root / "review")
+        return tuple(dict.fromkeys(publication_roots)), tuple(dict.fromkeys(review_roots))
+
+    if _supported_manuscript_root_for_target(project_root, manuscript) is None:
+        from gpd.core.constants import ProjectLayout
+
+        subject_root = ProjectLayout(project_root).publication_subject_dir(
+            _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript)
+        )
+        publication_roots.insert(0, subject_root)
+        review_roots.insert(0, subject_root / "review")
+
+    return tuple(dict.fromkeys(publication_roots)), tuple(dict.fromkeys(review_roots))
+
+
+def _round_file_map(
+    *search_roots: Path,
+    filename_pattern: re.Pattern[str],
+    glob_pattern: str,
+) -> dict[int, Path]:
+    """Return one round-number-to-path map across ordered search roots."""
+
+    round_map: dict[int, Path] = {}
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.glob(glob_pattern)):
+            round_info = review_artifact_round(path, pattern=filename_pattern)
+            if round_info is None:
+                continue
+            round_number, _round_suffix = round_info
+            round_map.setdefault(round_number, path)
+    return round_map
+
+
+def _latest_round_number(*round_maps: dict[int, Path]) -> int | None:
+    """Return the latest round number present across one or more artifact maps."""
+
+    round_numbers = {round_number for round_map in round_maps for round_number in round_map}
+    return max(round_numbers) if round_numbers else None
+
+
+def _publication_review_round_path_maps(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> tuple[dict[int, Path], dict[int, Path]]:
+    """Return staged review-artifact maps rooted at the manuscript's publication lineage."""
+
+    _publication_roots, review_roots = _publication_lineage_search_roots(project_root, manuscript=manuscript)
+    return (
+        _round_file_map(
+            *review_roots,
+            filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
+            glob_pattern="REVIEW-LEDGER*.json",
+        ),
+        _round_file_map(
+            *review_roots,
+            filename_pattern=_REFEREE_DECISION_FILENAME_RE,
+            glob_pattern="REFEREE-DECISION*.json",
+        ),
+    )
+
+
+def _publication_response_round_path_maps(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> tuple[dict[int, Path], dict[int, Path]]:
+    """Return paired response-artifact maps rooted at the manuscript's publication lineage."""
+
+    publication_roots, review_roots = _publication_lineage_search_roots(project_root, manuscript=manuscript)
+    return (
+        _round_file_map(
+            *publication_roots,
+            filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
+            glob_pattern="AUTHOR-RESPONSE*.md",
+        ),
+        _round_file_map(
+            *review_roots,
+            filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
+            glob_pattern="REFEREE_RESPONSE*.md",
+        ),
+    )
+
+
+def _publication_review_round_artifacts(
+    round_number: int,
+    *,
+    review_ledger_by_round: dict[int, Path],
+    referee_decision_by_round: dict[int, Path],
+) -> PublicationReviewRoundArtifacts:
+    """Return one staged review round bundle from precomputed round maps."""
+
+    return PublicationReviewRoundArtifacts(
+        round_number=round_number,
+        round_suffix=review_round_suffix(round_number),
+        review_ledger=review_ledger_by_round.get(round_number),
+        referee_decision=referee_decision_by_round.get(round_number),
+    )
+
+
+def _resolve_latest_publication_review_round_artifacts(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> PublicationReviewRoundArtifacts | None:
+    """Return the newest staged review round without enforcing manuscript-path matching."""
+
+    review_ledger_by_round, referee_decision_by_round = _publication_review_round_path_maps(
+        project_root,
+        manuscript=manuscript,
+    )
+    round_number = _latest_round_number(review_ledger_by_round, referee_decision_by_round)
+    if round_number is None:
+        return None
+    return _publication_review_round_artifacts(
+        round_number,
+        review_ledger_by_round=review_ledger_by_round,
+        referee_decision_by_round=referee_decision_by_round,
+    )
+
+
+def _resolve_latest_publication_response_round_artifacts(
+    project_root: Path,
+    *,
+    manuscript: Path | None = None,
+) -> PublicationResponseRoundArtifacts | None:
+    """Return the newest paired-response round without assuming fresh review clearance exists."""
+
+    author_response_by_round, referee_response_by_round = _publication_response_round_path_maps(
+        project_root,
+        manuscript=manuscript,
+    )
+    round_number = _latest_round_number(author_response_by_round, referee_response_by_round)
+    if round_number is None:
+        return None
+    return PublicationResponseRoundArtifacts(
+        round_number=round_number,
+        round_suffix=review_round_suffix(round_number),
+        author_response=author_response_by_round.get(round_number),
+        referee_response=referee_response_by_round.get(round_number),
+    )
 
 
 def _resolve_review_preflight_publication_artifacts(manuscript: Path) -> ManuscriptPublicationArtifacts:
@@ -6119,6 +6828,35 @@ def _resolve_default_paper_config_path(*, project_root: Path | None = None) -> P
     )
 
 
+def _managed_publication_manuscript_output_policy(
+    *,
+    project_root: Path,
+    manuscript_config_path: Path,
+):
+    """Return the narrow managed manuscript output policy for one config path, when applicable."""
+    from gpd.core.storage_paths import ManagedOutputPolicy
+
+    manuscript_root = _supported_manuscript_root_for_target(project_root, manuscript_config_path)
+    if manuscript_root is None:
+        return None
+    try:
+        relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+    if (
+        len(relative_root.parts) != 4
+        or relative_root.parts[0] != PLANNING_DIR_NAME
+        or relative_root.parts[1] != PUBLICATION_DIR_NAME
+        or relative_root.parts[3] != PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
+        return None
+    return ManagedOutputPolicy.gpd_subtree(
+        PUBLICATION_DIR_NAME,
+        relative_root.parts[2],
+        PUBLICATION_MANUSCRIPT_DIR_NAME,
+    )
+
+
 def _resolve_paper_config_paths(config: object, *, base_dir: Path) -> PaperConfig:
     """Resolve relative figure paths in a PaperConfig against its config file directory."""
     from gpd.mcp.paper.models import FigureRef, PaperConfig
@@ -6294,6 +7032,166 @@ def _split_command_arguments(arguments: str | None) -> list[str]:
         return arguments.split()
 
 
+def _flag_values(arguments: str | None, *flags: str) -> list[str]:
+    """Return non-empty values supplied to one or more long flags."""
+    tokens = _split_command_arguments(arguments)
+    values: list[str] = []
+    skip_next = False
+    flag_set = set(flags)
+
+    for index, token in enumerate(tokens):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--":
+            break
+        if token in flag_set:
+            skip_next = True
+            if index + 1 >= len(tokens):
+                continue
+            next_token = tokens[index + 1].strip()
+            if next_token and not next_token.startswith("-"):
+                values.append(next_token)
+            continue
+        matched_flag = next((flag for flag in flags if token.startswith(f"{flag}=")), None)
+        if matched_flag is None:
+            continue
+        value = token.partition("=")[2].strip()
+        if value:
+            values.append(value)
+
+    return values
+
+
+def _write_paper_external_authoring_intake_argument(arguments: str | None) -> str | None:
+    """Return the explicit ``--intake`` manifest path supplied to ``gpd:write-paper``."""
+
+    flagged = _flag_values(arguments, "--intake")
+    return flagged[-1] if flagged else None
+
+
+def _write_paper_external_authoring_subject_slug(manifest: WritePaperAuthoringInput) -> str:
+    """Return the managed publication subject slug for one external-authoring intake."""
+
+    explicit_slug = str(getattr(manifest, "subject_slug", "") or "").strip()
+    if explicit_slug:
+        return explicit_slug
+    derived_slug = normalize_ascii_slug(str(getattr(manifest, "title", "") or "")) or "paper"
+    return derived_slug[:48].rstrip("-") or "paper"
+
+
+def _resolve_write_paper_external_authoring_intake(
+    project_root: Path,
+    arguments: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> WritePaperExternalAuthoringIntakeResolution | None:
+    """Validate the bounded external-authoring intake manifest for ``gpd:write-paper``."""
+
+    from gpd.mcp.paper.models import WritePaperAuthoringInput
+
+    intake_argument = _write_paper_external_authoring_intake_argument(arguments)
+    if intake_argument is None:
+        return None
+
+    workspace_root = (workspace_cwd or project_root).resolve(strict=False)
+    intake_path = (_resolve_subject_path(intake_argument, base=workspace_root) or (workspace_root / intake_argument)).resolve(
+        strict=False
+    )
+    if intake_path.suffix.lower() != ".json":
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper `--intake` must point to a JSON file: {_format_display_path(intake_path)}",
+        )
+    if not intake_path.exists():
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="missing",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"missing write-paper intake manifest {_format_display_path(intake_path)}",
+        )
+    if intake_path.is_dir():
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper `--intake` must point to a JSON file, not a directory: {_format_display_path(intake_path)}",
+        )
+
+    try:
+        payload = _load_json_document(str(intake_path))
+    except GPDError as exc:
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"could not load write-paper intake manifest: {exc}",
+        )
+    if not isinstance(payload, dict):
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper intake manifest must be a JSON object: {_format_display_path(intake_path)}",
+        )
+
+    try:
+        manifest = WritePaperAuthoringInput.model_validate(payload)
+    except PydanticValidationError as exc:
+        details = "; ".join(
+            _format_pydantic_schema_error(error, root_label="write_paper_authoring_input")
+            for error in exc.errors()[:3]
+        )
+        return WritePaperExternalAuthoringIntakeResolution(
+            status="invalid",
+            intake_path=intake_path,
+            manuscript_root=None,
+            intake_root=None,
+            subject_slug=None,
+            detail=f"write-paper intake manifest is invalid: {details}",
+        )
+
+    subject_slug = _write_paper_external_authoring_subject_slug(manifest)
+    publication_root = (
+        project_root.resolve(strict=False)
+        / PLANNING_DIR_NAME
+        / PUBLICATION_DIR_NAME
+        / subject_slug
+    )
+    manuscript_root = publication_root / PUBLICATION_MANUSCRIPT_DIR_NAME
+    intake_root = publication_root / "intake"
+    return WritePaperExternalAuthoringIntakeResolution(
+        status="resolved",
+        intake_path=intake_path,
+        manuscript_root=manuscript_root,
+        intake_root=intake_root,
+        subject_slug=subject_slug,
+        manifest=manifest,
+        detail=(
+            f"validated external authoring intake {_format_display_path(intake_path)}; "
+            f"managed manuscript bootstrap will use {_format_display_path(manuscript_root)}"
+        ),
+    )
+
+
+def _has_write_paper_external_authoring_intake(arguments: str | None) -> bool:
+    """Return whether ``gpd:write-paper`` received an explicit ``--intake`` flag."""
+
+    return _write_paper_external_authoring_intake_argument(arguments) is not None
+
+
 def _has_flag_value(tokens: list[str], flag: str) -> bool:
     """Return True when ``flag`` is present with a non-empty value."""
     for index, token in enumerate(tokens):
@@ -6348,6 +7246,30 @@ def _has_sensitivity_explicit_inputs(arguments: str | None) -> bool:
     return _has_flag_value(tokens, "--target") and _has_flag_value(tokens, "--params")
 
 
+def _looks_like_parameter_sweep_anchor_token(token: str) -> bool:
+    """Return True for a standalone/current-workspace parameter-sweep compute anchor."""
+    if not token or token.startswith("-"):
+        return False
+    if token.isdigit():
+        return False
+    if token.startswith(("./", "../", "~/", "/", "@")):
+        return True
+    if os.sep in token or (os.altsep is not None and os.altsep in token):
+        return True
+    if Path(token).suffix:
+        return True
+    return any(character.isalpha() for character in token)
+
+
+def _has_parameter_sweep_explicit_inputs(arguments: str | None) -> bool:
+    """Parameter-sweep standalone mode needs param/range flags plus a non-phase compute anchor."""
+    tokens = _split_command_arguments(arguments)
+    if not (_has_flag_value(tokens, "--param") and _has_flag_value(tokens, "--range")):
+        return False
+    positionals = _positional_tokens(arguments, flags_with_values=("--param", "--range"))
+    return any(_looks_like_parameter_sweep_anchor_token(token) for token in positionals)
+
+
 _DIGEST_KNOWLEDGE_PATH_SUFFIXES = DIGEST_KNOWLEDGE_SOURCE_SUFFIXES
 
 
@@ -6397,11 +7319,17 @@ def _looks_like_review_knowledge_path_token(token: str) -> bool:
     if not _looks_like_digest_knowledge_path_token(token):
         return False
     path = Path(token)
-    return (
+    if not (
         path.suffix.lower() == ".md"
         and path.stem.startswith("K-")
         and normalize_ascii_slug(path.stem[2:]) == path.stem[2:]
-    )
+    ):
+        return False
+
+    normalized_parts = [part for part in path.as_posix().split("/") if part not in {"", "."}]
+    if path.is_absolute():
+        return len(normalized_parts) >= 3 and normalized_parts[-3:-1] == ["GPD", "knowledge"]
+    return len(normalized_parts) >= 3 and normalized_parts[:2] == ["GPD", "knowledge"]
 
 
 def _has_digest_knowledge_explicit_inputs(arguments: str | None) -> bool:
@@ -6425,17 +7353,22 @@ def _has_review_knowledge_explicit_inputs(arguments: str | None) -> bool:
 
 
 _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None], bool]]] = {
-    "gpd:compare-experiment": (["prediction, dataset path, or phase identifier"], _has_simple_positional_inputs),
-    "gpd:compare-results": (["phase, artifact, or comparison target"], _has_simple_positional_inputs),
+    "gpd:compare-experiment": (
+        ["prediction, dataset path, phase identifier, or comparison target"],
+        _has_simple_positional_inputs,
+    ),
+    "gpd:compare-results": (
+        ["comparison target, phase, artifact path, or source-a vs source-b"],
+        _has_simple_positional_inputs,
+    ),
     "gpd:derive-equation": (["equation or topic to derive"], _has_simple_positional_inputs),
     "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
     "gpd:explain": (["concept, result, method, notation, or paper"], _has_simple_positional_inputs),
     "gpd:digest-knowledge": (
-        ["knowledge file path, source file path, arXiv ID, or topic"],
+        ["knowledge document path", "source path", "arxiv id", "topic"],
         _has_digest_knowledge_explicit_inputs,
     ),
-    "gpd:peer-review": (["paper directory, manuscript path, or external artifact path"], _has_simple_positional_inputs),
     "gpd:review-knowledge": (
         ["knowledge document path or canonical K-* knowledge id"],
         _has_review_knowledge_explicit_inputs,
@@ -6443,7 +7376,12 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
     "gpd:limiting-cases": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
     "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),
+    "gpd:parameter-sweep": (
+        ["computation anchor or file path", "--param name", "--range start:end:steps"],
+        _has_parameter_sweep_explicit_inputs,
+    ),
     "gpd:sensitivity-analysis": (["--target quantity", "--params p1,p2,..."], _has_sensitivity_explicit_inputs),
+    "gpd:write-paper": (_WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS, _has_write_paper_external_authoring_intake),
 }
 
 
@@ -6511,8 +7449,131 @@ def _active_runtime_settings_command(*, cwd: Path | None = None) -> str:
     )
 
 
+def _command_review_contract(command: object) -> object | None:
+    return getattr(command, "review_contract", None)
+
+
+def _command_review_mode(command: object) -> str:
+    return str(getattr(_command_review_contract(command), "review_mode", "") or "").strip()
+
+
+def _command_subject_policy(command: object) -> object | None:
+    command_policy = getattr(command, "command_policy", None)
+    return getattr(command_policy, "subject_policy", None)
+
+
+def _command_supporting_context_policy(command: object) -> object | None:
+    command_policy = getattr(command, "command_policy", None)
+    return getattr(command_policy, "supporting_context_policy", None)
+
+
+def _command_policy_string_list(policy: object | None, field_name: str) -> list[str]:
+    if policy is None:
+        return []
+    raw_value = getattr(policy, field_name, None)
+    if not isinstance(raw_value, tuple | list):
+        return []
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for item in raw_value:
+        value = str(item or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _command_policy_bool(policy: object | None, field_name: str) -> bool | None:
+    if policy is None:
+        return None
+    value = getattr(policy, field_name, None)
+    return value if isinstance(value, bool) else None
+
+
+def _command_output_policy(command: object) -> object | None:
+    command_policy = getattr(command, "command_policy", None)
+    return getattr(command_policy, "output_policy", None)
+
+
+def _command_subject_policy_string(command: object, field_name: str) -> str:
+    subject_policy = _command_subject_policy(command)
+    value = getattr(subject_policy, field_name, None) if subject_policy is not None else None
+    return str(value or "").strip()
+
+
+def _command_subject_resolution_mode(command: object) -> str:
+    return _command_subject_policy_string(command, "resolution_mode")
+
+
+def _command_subject_kind(command: object) -> str:
+    return _command_subject_policy_string(command, "subject_kind")
+
+
+def _command_has_typed_subject_policy(command: object) -> bool:
+    return _command_subject_policy(command) is not None
+
+
+def _command_effective_context_mode(command: object) -> str:
+    """Return the runtime-authoritative context mode for one command."""
+    if _command_review_mode(command) == "publication":
+        supporting_context_policy = _command_supporting_context_policy(command)
+        project_context_mode = str(getattr(supporting_context_policy, "project_context_mode", "") or "").strip()
+        if project_context_mode:
+            return project_context_mode
+    return str(getattr(command, "context_mode", "project-required") or "project-required")
+
+
+def _command_effective_project_reentry_mode(command: object) -> str:
+    """Return the runtime-authoritative project re-entry mode for one command."""
+    if _command_review_mode(command) == "publication":
+        supporting_context_policy = _command_supporting_context_policy(command)
+        project_reentry_mode = str(getattr(supporting_context_policy, "project_reentry_mode", "") or "").strip()
+        if project_reentry_mode:
+            return project_reentry_mode
+    return "allowed" if bool(getattr(command, "project_reentry_capable", False)) else "disallowed"
+
+
+_PUBLICATION_INPUT_KIND_LABELS = {
+    "artifact_path": ["external artifact path"],
+    "authoring_intake_manifest": _WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS,
+    "manuscript_path": ["manuscript path"],
+    "manuscript_root": ["paper directory or managed manuscript root"],
+    "paste": ["`paste`"],
+    "paste_referee_report": ["`paste`"],
+    "publication_artifact_path": ["external artifact path"],
+    "referee_report_path": ["path to referee report"],
+    "referee_report_source": ["path to referee report"],
+}
+
+
+def _publication_input_kind_labels(input_kind: str) -> list[str]:
+    canonical = re.sub(r"[^a-z0-9]+", "_", input_kind.casefold()).strip("_")
+    labels = _PUBLICATION_INPUT_KIND_LABELS.get(canonical)
+    if labels is not None:
+        return labels
+    return [input_kind.replace("_", " ")]
+
+
+def _command_explicit_input_labels_from_policy(command: object) -> list[str]:
+    subject_policy = _command_subject_policy(command)
+    labels: list[str] = []
+    seen: set[str] = set()
+    for input_kind in _command_policy_string_list(subject_policy, "explicit_input_kinds"):
+        for label in _publication_input_kind_labels(input_kind):
+            if label in seen:
+                continue
+            seen.add(label)
+            labels.append(label)
+    return labels
+
+
 def _command_required_file_patterns(command: object) -> list[str]:
-    """Return normalized ``requires.files`` patterns from command metadata."""
+    """Return runtime-authoritative required file patterns for one command."""
+    if _command_review_mode(command) == "publication":
+        supporting_context_policy = _command_supporting_context_policy(command)
+        if supporting_context_policy is not None:
+            return _command_policy_string_list(supporting_context_policy, "required_file_patterns")
     requires = getattr(command, "requires", None)
     if not isinstance(requires, Mapping):
         return []
@@ -6569,22 +7630,98 @@ def _command_required_files_present(
     return passed, matched, missing
 
 
+def _command_explicit_manuscript_subject_kinds(command: object) -> set[str]:
+    """Return explicit input kinds that can carry a manuscript subject."""
+    subject_policy = _command_subject_policy(command)
+    return set(_command_policy_string_list(subject_policy, "explicit_input_kinds")).intersection(
+        {"artifact_path", "manuscript_path", "manuscript_root", "publication_artifact_path"}
+    )
+
+
+def _command_supports_positional_manuscript_subject(command: object) -> bool:
+    """Return whether one command reads a positional argument as manuscript input."""
+    contract = getattr(command, "review_contract", None)
+    if not _command_requires_manuscript_context(command):
+        return False
+    if _review_contract_requests_check(contract, "referee_report_source"):
+        return False
+    return bool(_command_explicit_manuscript_subject_kinds(command) or _command_required_file_patterns(command))
+
+
+def _command_supports_explicit_manuscript_subject(command: object) -> bool:
+    """Return whether one command accepts manuscript-subject intake in any form."""
+    if not _command_requires_manuscript_context(command):
+        return False
+    return bool(_command_explicit_manuscript_subject_kinds(command) or _command_required_file_patterns(command))
+
+
+def _command_explicit_manuscript_argument(command: object, arguments: str | None) -> str | None:
+    """Extract an explicit manuscript target from command arguments when present."""
+    if not isinstance(arguments, str) or not arguments.strip():
+        return None
+
+    flagged = _flag_values(arguments, "--manuscript")
+    if flagged:
+        return flagged[-1]
+
+    if not _command_supports_positional_manuscript_subject(command):
+        return None
+
+    positionals = _positional_tokens(arguments, flags_with_values=("--manuscript", "--report"))
+    return positionals[0] if positionals else None
+
+
+def _command_referee_report_arguments(command: object, arguments: str | None) -> tuple[str, ...]:
+    """Extract explicit referee-report sources from command arguments when present."""
+    contract = getattr(command, "review_contract", None)
+    if not _review_contract_requests_check(contract, "referee_report_source"):
+        return ()
+    if not isinstance(arguments, str) or not arguments.strip():
+        return ()
+
+    flagged = tuple(value for value in _flag_values(arguments, "--report") if value and value != "paste")
+    if flagged:
+        return flagged
+
+    positionals = _positional_tokens(arguments, flags_with_values=("--manuscript", "--report"))
+    return tuple(token for token in positionals if token and token != "paste")
+
+
 def _command_required_files_override_detail(
     project_root: Path,
     command: object,
     arguments: str | None,
     *,
     workspace_cwd: Path | None = None,
+    resolved_subject: ResolvedCommandSubject | None = None,
 ) -> str | None:
     """Return a detail string when explicit review inputs satisfy required-file gating."""
+    if not _command_supports_explicit_manuscript_subject(command):
+        return None
+    if resolved_subject is not None:
+        if (
+            not resolved_subject.explicit_input
+            or resolved_subject.subject_kind != "manuscript"
+            or resolved_subject.status != "resolved"
+            or resolved_subject.ownership_mode not in {"project_backed", "project_reentry_selected"}
+            or resolved_subject.target_path is None
+            or resolved_subject.target_path.is_dir()
+        ):
+            return None
+        return (
+            "explicit manuscript target satisfies command context: "
+            f"{_format_display_path(resolved_subject.target_path)}"
+        )
     if not isinstance(arguments, str) or not arguments.strip():
         return None
-    if not _command_supports_explicit_manuscript_subject(command):
+
+    manuscript_argument = _command_explicit_manuscript_argument(command, arguments)
+    if manuscript_argument is None:
         return None
 
     manuscript, _ = _resolve_review_preflight_manuscript(
         project_root,
-        arguments,
+        manuscript_argument,
         allow_markdown=not _command_requires_compiled_manuscript(command),
         restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
         workspace_cwd=workspace_cwd,
@@ -6608,24 +7745,45 @@ def _command_requires_compiled_manuscript(command: object) -> bool:
     return _review_contract_requests_check(contract, "compiled_manuscript")
 
 
+def _command_manuscript_intake_policy(command: object) -> ManuscriptIntakePolicy:
+    """Return manuscript-target intake rules derived from command metadata."""
+    subject_policy = _command_subject_policy(command)
+    allowed_suffixes = set(_command_policy_string_list(subject_policy, "allowed_suffixes"))
+    if not allowed_suffixes:
+        allowed_suffixes = {".tex"}
+        if not _command_requires_compiled_manuscript(command):
+            allowed_suffixes.add(".md")
+    allow_external_targets = _command_policy_bool(subject_policy, "allow_external_subjects")
+    allow_interactive_without_subject = _command_policy_bool(
+        subject_policy,
+        "allow_interactive_without_subject",
+    )
+    return ManuscriptIntakePolicy(
+        allowed_suffixes=frozenset(allowed_suffixes),
+        allow_external_targets=bool(allow_external_targets),
+        allow_interactive_standalone_intake=bool(allow_interactive_without_subject),
+        interactive_standalone_detail=(
+            _PUBLICATION_INTERACTIVE_STANDALONE_DETAIL if allow_interactive_without_subject else ""
+        ),
+    )
+
+
 def _command_explicit_manuscript_suffixes(command: object) -> frozenset[str]:
     """Return the allowed explicit manuscript suffixes for one command."""
-    allowed_suffixes = {".tex"}
-    if not _command_requires_compiled_manuscript(command):
-        allowed_suffixes.add(".md")
-    if getattr(command, "name", "") == "gpd:peer-review":
+    allowed_suffixes = _command_manuscript_intake_policy(command).allowed_suffixes
+    if getattr(command, "name", "") == "gpd:peer-review" and allowed_suffixes <= {".tex", ".md"}:
         return PEER_REVIEW_ARTIFACT_SUFFIXES
-    return frozenset(allowed_suffixes)
+    return allowed_suffixes
 
 
 def _command_allows_external_manuscript_targets(command: object) -> bool:
     """Return whether a command may accept explicit manuscript targets outside supported roots."""
-    return getattr(command, "name", "") == "gpd:peer-review"
+    return _command_manuscript_intake_policy(command).allow_external_targets
 
 
 def _command_allows_interactive_standalone_intake(command: object) -> bool:
     """Return whether a project-aware command may prompt for standalone inputs after launch."""
-    return getattr(command, "name", "") == "gpd:peer-review"
+    return _command_manuscript_intake_policy(command).allow_interactive_standalone_intake
 
 
 def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -> bool:
@@ -6634,24 +7792,21 @@ def _command_explicit_manuscript_subject_uses_supported_roots(command: object) -
         return False
     if _command_allows_external_manuscript_targets(command):
         return False
-
-    supported_roots = {"paper", "manuscript", "draft"}
-    roots = {Path(pattern).parts[0] for pattern in _command_required_file_patterns(command) if Path(pattern).parts}
-    return bool(roots) and roots <= supported_roots
-
-
-def _command_supports_explicit_manuscript_subject(command: object) -> bool:
-    """Return whether one command interprets positional subject as manuscript target."""
-    contract = getattr(command, "review_contract", None)
-    if not _command_requires_manuscript_context(command):
-        return False
-    if _review_contract_requests_check(contract, "referee_report_source"):
-        return False
-    return bool(_command_required_file_patterns(command)) or getattr(command, "name", "") == "gpd:peer-review"
+    subject_policy = _command_subject_policy(command)
+    supported_roots = {root for root in _command_policy_string_list(subject_policy, "supported_roots") if root}
+    if not supported_roots:
+        supported_roots = {
+            Path(pattern).parts[0] for pattern in _command_required_file_patterns(command) if Path(pattern).parts
+        }
+    return bool(supported_roots) and supported_roots <= _SUPPORTED_MANUSCRIPT_ROOT_NAMES
 
 
 def _command_allows_manuscript_bootstrap(command: object) -> bool:
     """Return whether missing manuscript roots are expected to be bootstrapped."""
+    subject_policy = _command_subject_policy(command)
+    bootstrap_allowed = _command_policy_bool(subject_policy, "bootstrap_allowed")
+    if bootstrap_allowed is not None:
+        return bootstrap_allowed
     contract = getattr(command, "review_contract", None)
     if getattr(command, "name", "") == "gpd:peer-review":
         return False
@@ -6663,44 +7818,679 @@ def _command_allows_manuscript_bootstrap(command: object) -> bool:
     )
 
 
+def _command_allows_interactive_subject_intake(command: object) -> bool:
+    """Return whether a command may launch without a concrete subject and ask interactively."""
+    if _command_requires_manuscript_context(command):
+        return _command_allows_interactive_standalone_intake(command)
+    subject_policy = _command_subject_policy(command)
+    return bool(_command_policy_bool(subject_policy, "allow_interactive_without_subject"))
+
+
+def _command_interactive_subject_detail(command: object, explicit_inputs: list[str]) -> str:
+    """Return the standardized detail string for interactive subject intake."""
+    if _command_requires_manuscript_context(command):
+        return _command_manuscript_intake_policy(command).interactive_standalone_detail
+    if not explicit_inputs:
+        explicit_inputs = ["a concrete subject"]
+    if len(explicit_inputs) == 1:
+        subject_text = explicit_inputs[0]
+    elif len(explicit_inputs) == 2:
+        subject_text = f"{explicit_inputs[0]} or {explicit_inputs[1]}"
+    else:
+        subject_text = ", ".join(explicit_inputs[:-1]) + f", or {explicit_inputs[-1]}"
+    return f"no explicit subject supplied; interactive intake can prompt for {subject_text}"
+
+
+def _resolved_subject_manuscript_entrypoint(
+    resolved_subject: ResolvedCommandSubject | None,
+) -> Path | None:
+    """Return the resolved manuscript file for subject-scoped commands."""
+    if (
+        resolved_subject is None
+        or resolved_subject.subject_kind != "manuscript"
+        or resolved_subject.status != "resolved"
+        or resolved_subject.target_path is None
+        or resolved_subject.target_path.is_dir()
+    ):
+        return None
+    return resolved_subject.target_path
+
+
+def _publication_subject_slug_for_manuscript_entrypoint(
+    project_root: Path,
+    manuscript_entrypoint: Path,
+) -> str:
+    """Return the managed publication slug for one manuscript entrypoint."""
+    manuscript_root = _supported_manuscript_root_for_target(project_root, manuscript_entrypoint)
+    if manuscript_root is not None:
+        try:
+            relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+        except ValueError:
+            relative_root = None
+        if (
+            relative_root is not None
+            and len(relative_root.parts) == 4
+            and relative_root.parts[0] == PLANNING_DIR_NAME
+            and relative_root.parts[1] == PUBLICATION_DIR_NAME
+            and relative_root.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+        ):
+            return relative_root.parts[2]
+
+    resolved_root = project_root.resolve(strict=False)
+    resolved_entrypoint = manuscript_entrypoint.resolve(strict=False)
+    try:
+        label = resolved_entrypoint.relative_to(resolved_root).as_posix()
+    except ValueError:
+        label = resolved_entrypoint.as_posix()
+    slug_source = label[: -len(resolved_entrypoint.suffix)] if resolved_entrypoint.suffix else label
+    slug = normalize_ascii_slug(slug_source.replace("/", "-")) or "manuscript"
+    slug = slug[:48].rstrip("-") or "manuscript"
+    digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:12]
+    return f"{slug}-{digest}"
+
+
+def _command_managed_output_bindings(
+    *,
+    project_root: Path,
+    resolved_subject: ResolvedCommandSubject | None,
+) -> dict[str, str]:
+    """Return dynamic managed-output subtree bindings for the active subject."""
+    manuscript_entrypoint = _resolved_subject_manuscript_entrypoint(resolved_subject)
+    if manuscript_entrypoint is None:
+        return {}
+    return {
+        "subject_slug": _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript_entrypoint)
+    }
+
+
+def _command_managed_output_policy(
+    command: object,
+    *,
+    project_root: Path | None = None,
+    resolved_subject: ResolvedCommandSubject | None = None,
+):
+    """Return a storage-path managed-output policy derived from command metadata, when available."""
+    from gpd.core.storage_paths import (
+        ManagedOutputClass,
+        ManagedOutputMatchMode,
+        ManagedOutputPolicy,
+        ManagedOutputRootKind,
+        StageArtifactPolicy,
+    )
+
+    output_policy = _command_output_policy(command)
+    if output_policy is None:
+        return None
+
+    managed_root_raw = str(getattr(output_policy, "managed_root_kind", "") or "").strip().casefold()
+    if not managed_root_raw:
+        return None
+    if managed_root_raw in {"gpd", "gpd_managed_durable", "gpd_internal_other"}:
+        managed_root_kind = ManagedOutputRootKind.GPD
+        output_class = ManagedOutputClass.GPD_MANAGED_DURABLE
+    elif managed_root_raw in {"project", "user_export_durable", "project_local_other"}:
+        managed_root_kind = ManagedOutputRootKind.PROJECT
+        output_class = ManagedOutputClass.USER_EXPORT_DURABLE
+    else:
+        return None
+
+    subtree = str(getattr(output_policy, "default_output_subtree", "") or "").strip()
+    if not subtree:
+        return None
+    subtree = subtree.replace("\\", "/")
+    if managed_root_kind == ManagedOutputRootKind.GPD:
+        if subtree == PLANNING_DIR_NAME:
+            subtree = ""
+        elif subtree.startswith(f"{PLANNING_DIR_NAME}/"):
+            subtree = subtree[len(PLANNING_DIR_NAME) + 1 :]
+    elif managed_root_kind == ManagedOutputRootKind.PROJECT and subtree.startswith("./"):
+        subtree = subtree[2:]
+    subtree_components = tuple(component for component in subtree.split("/") if component and component != ".")
+
+    stage_policy_raw = str(getattr(output_policy, "stage_artifact_policy", "") or "").strip().casefold()
+    stage_artifact_policy = (
+        StageArtifactPolicy.ALLOWED if stage_policy_raw in {"allowed", "gpd_owned_outputs_only"} else StageArtifactPolicy.DISALLOWED
+    )
+
+    output_mode = str(getattr(output_policy, "output_mode", "") or "").strip().casefold()
+    match_mode = ManagedOutputMatchMode.EXACT if output_mode == "exact" else ManagedOutputMatchMode.SUBTREE
+
+    try:
+        policy = ManagedOutputPolicy(
+            output_class=output_class,
+            managed_root_kind=managed_root_kind,
+            default_output_subtree=subtree_components,
+            match_mode=match_mode,
+            stage_artifact_policy=stage_artifact_policy,
+        )
+    except ValueError:
+        return None
+
+    if not any(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", component) for component in policy.default_output_subtree):
+        return policy
+    if project_root is None:
+        return None
+    try:
+        return policy.bind_output_subtree_placeholders(
+            _command_managed_output_bindings(project_root=project_root, resolved_subject=resolved_subject)
+        )
+    except ValueError:
+        return None
+
+
+def _command_managed_output_root(
+    command: object,
+    *,
+    project_root: Path,
+    resolved_subject: ResolvedCommandSubject | None = None,
+) -> Path | None:
+    """Return the effective managed output root for one command, when typed policy declares it."""
+    from gpd.core.storage_paths import ProjectStorageLayout
+
+    policy = _command_managed_output_policy(
+        command,
+        project_root=project_root,
+        resolved_subject=resolved_subject,
+    )
+    if policy is None:
+        return None
+    return ProjectStorageLayout(project_root).managed_output_path(policy)
+
+
+def _command_managed_output_context_root(
+    *,
+    workspace_root: Path,
+    context_root: Path,
+    project_exists: bool,
+) -> Path:
+    """Choose the root that owns managed outputs for one command-context preflight."""
+    return context_root if project_exists else workspace_root
+
+
+def _command_manuscript_bootstrap_detail() -> str:
+    """Return the canonical bootstrap detail for manuscript-scaffolding commands."""
+    return (
+        "no manuscript entrypoint found under paper/, manuscript/, or draft/; "
+        "fresh bootstrap is allowed and will scaffold a topic-specific manuscript stem under ./paper/"
+    )
+
+
+def _resolved_project_root_for_subject(context_root: Path) -> Path | None:
+    """Return the project root bound to one subject-resolution context, if any."""
+    from gpd.core.constants import ProjectLayout
+
+    candidate = context_root.resolve(strict=False)
+    return candidate if ProjectLayout(candidate).project_md.exists() else None
+
+
+def _command_subject_base_ownership_mode(
+    *,
+    resolved_project_root: Path | None,
+    project_root_source: str | None,
+    project_root_auto_selected: bool,
+) -> str:
+    """Return the default subject ownership mode before explicit-target overrides."""
+    if (
+        resolved_project_root is not None
+        and project_root_auto_selected
+        and str(project_root_source or "").strip() == "recent_project"
+    ):
+        return "project_reentry_selected"
+    if resolved_project_root is not None:
+        return "project_backed"
+    return "workspace_locked"
+
+
+def _resolve_review_knowledge_target(
+    context_root: Path,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+) -> tuple[str, Path | None, str]:
+    """Resolve one canonical review-knowledge target under ``GPD/knowledge``."""
+    workspace_root = (workspace_cwd or context_root).resolve(strict=False)
+    if not isinstance(subject, str) or not subject.strip():
+        return "missing", None, "missing explicit knowledge target"
+
+    tokens = _split_command_arguments(subject)
+    candidate = next((token for token in tokens if token and not token.startswith("-")), "")
+    if not candidate:
+        return "missing", None, "missing explicit knowledge target"
+
+    knowledge_dir = context_root / "GPD" / "knowledge"
+    if _looks_like_review_knowledge_id_token(candidate):
+        target_path = (knowledge_dir / f"{candidate}.md").resolve(strict=False)
+        return "resolved", target_path, f"canonical knowledge id resolves to {_format_display_path(target_path)}"
+
+    if not _looks_like_digest_knowledge_path_token(candidate):
+        return "invalid", None, "review target must be a canonical K-* id or GPD/knowledge/{knowledge_id}.md path"
+
+    target_path = (_resolve_subject_path(candidate, base=workspace_root) or (workspace_root / candidate)).resolve(strict=False)
+    try:
+        relative = target_path.relative_to(context_root.resolve(strict=False))
+    except ValueError:
+        return "invalid", target_path, "review target must resolve under the current workspace's GPD/knowledge/"
+
+    if not (
+        len(relative.parts) == 3
+        and relative.parts[0] == "GPD"
+        and relative.parts[1] == "knowledge"
+        and target_path.suffix.lower() == ".md"
+        and target_path.stem.startswith("K-")
+        and normalize_ascii_slug(target_path.stem[2:]) == target_path.stem[2:]
+    ):
+        return "invalid", target_path, "review target must resolve to canonical GPD/knowledge/{knowledge_id}.md"
+    return "resolved", target_path, f"canonical knowledge target {_format_display_path(target_path)}"
+
+
+def _nonpublication_subject_ownership_mode(
+    *,
+    target_path: Path | None,
+    resolved_project_root: Path | None,
+    base_ownership_mode: str,
+) -> str:
+    """Return ownership mode for a non-publication resolved subject."""
+    if target_path is None:
+        return base_ownership_mode
+    if resolved_project_root is None:
+        return "workspace_locked"
+    try:
+        target_path.resolve(strict=False).relative_to(resolved_project_root.resolve(strict=False))
+    except ValueError:
+        return "external_subject"
+    return base_ownership_mode
+
+
+def _build_nonpublication_resolved_command_subject(
+    project_root: Path,
+    command: object,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+    project_root_source: str | None = None,
+    project_root_auto_selected: bool = False,
+    reentry_mode: str | None = None,
+) -> ResolvedCommandSubject | None:
+    """Resolve the shared subject envelope for typed non-publication commands."""
+    if _command_requires_manuscript_context(command):
+        return None
+    resolution_mode = _command_subject_resolution_mode(command)
+    if not resolution_mode:
+        return None
+
+    workspace_root = (workspace_cwd or project_root).resolve(strict=False)
+    context_root = project_root.resolve(strict=False)
+    resolved_project_root = _resolved_project_root_for_subject(context_root)
+    resolved_project_root_source = project_root_source or ("workspace" if resolved_project_root is not None else None)
+    ancestor_walked_up = (
+        resolved_project_root is not None
+        and resolved_project_root != workspace_root
+        and _subject_is_relative_to(workspace_root, resolved_project_root)
+    )
+    base_ownership_mode = _command_subject_base_ownership_mode(
+        resolved_project_root=resolved_project_root,
+        project_root_source=resolved_project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+    )
+    explicit_inputs = _command_explicit_input_labels_from_policy(command)
+    subject_kind = _command_subject_kind(command) or "subject"
+
+    if (
+        not (isinstance(subject, str) and subject.strip())
+        and _command_allows_interactive_subject_intake(command)
+    ):
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=None,
+            target_root=None,
+            subject_kind=subject_kind,
+            ownership_mode=base_ownership_mode,
+            status="interactive",
+            exists=False,
+            explicit_input=False,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=_command_interactive_subject_detail(command, explicit_inputs),
+        )
+
+    tokens: list[str]
+    if resolution_mode == "phase_or_topic":
+        tokens = _positional_tokens(subject, flags_with_values=("--depth", "-d"))
+    else:
+        tokens = _positional_tokens(subject)
+    if not tokens:
+        if _command_allows_interactive_subject_intake(command):
+            return ResolvedCommandSubject(
+                command=str(getattr(command, "name", "") or ""),
+                workspace_root=workspace_root,
+                resolved_project_root=resolved_project_root,
+                context_root=context_root,
+                target_path=None,
+                target_root=None,
+                subject_kind=subject_kind,
+                ownership_mode=base_ownership_mode,
+                status="interactive",
+                exists=False,
+                explicit_input=False,
+                project_root_source=resolved_project_root_source,
+                project_root_auto_selected=project_root_auto_selected,
+                reentry_mode=reentry_mode,
+                ancestor_walked_up=ancestor_walked_up,
+                detail=_command_interactive_subject_detail(command, explicit_inputs),
+            )
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=None,
+            target_root=None,
+            subject_kind=subject_kind,
+            ownership_mode=base_ownership_mode,
+            status="missing",
+            exists=False,
+            explicit_input=False,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=f"missing explicit subject ({', '.join(explicit_inputs or ['subject'])})",
+        )
+
+    target_path: Path | None = None
+    target_root: Path | None = None
+    detail = "explicit subject supplied"
+    status = "resolved"
+
+    if resolution_mode in {"knowledge_review_target", "explicit_current_workspace_canonical_target"}:
+        status, target_path, detail = _resolve_review_knowledge_target(
+            context_root,
+            subject,
+            workspace_cwd=workspace_root,
+        )
+        if target_path is not None:
+            target_root = target_path.parent
+    elif resolution_mode == "knowledge_input":
+        first = tokens[0]
+        if _looks_like_digest_knowledge_path_token(first):
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_root = target_path if target_path.is_dir() else target_path.parent
+            detail = f"explicit knowledge input path {_format_display_path(target_path)}"
+        elif _looks_like_digest_knowledge_arxiv_token(first):
+            detail = f"explicit arXiv knowledge input {first}"
+        else:
+            detail = "explicit knowledge topic supplied"
+    elif resolution_mode in {"compare_subject", "compare_experiment_subject"}:
+        first = tokens[0]
+        if _looks_like_digest_knowledge_path_token(first):
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_root = target_path if target_path.is_dir() else target_path.parent
+            detail = f"explicit comparison target {_format_display_path(target_path)}"
+        else:
+            detail = "explicit comparison target supplied"
+    elif resolution_mode == "explanation_input":
+        first = tokens[0]
+        if _looks_like_digest_knowledge_path_token(first):
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_root = target_path if target_path.is_dir() else target_path.parent
+            detail = f"explicit explanation anchor {_format_display_path(target_path)}"
+        else:
+            detail = "explicit explanation subject supplied"
+    elif resolution_mode == "phase_or_topic":
+        first = tokens[0]
+        if re.fullmatch(r"\d+(?:\.\d+)*", first):
+            subject_kind = "phase"
+            detail = f"explicit phase subject {first}"
+        else:
+            detail = "explicit discovery topic supplied"
+    elif resolution_mode == "literature_topic":
+        detail = "explicit literature-review topic supplied"
+
+    ownership_mode = _nonpublication_subject_ownership_mode(
+        target_path=target_path,
+        resolved_project_root=resolved_project_root,
+        base_ownership_mode=base_ownership_mode,
+    )
+
+    return ResolvedCommandSubject(
+        command=str(getattr(command, "name", "") or ""),
+        workspace_root=workspace_root,
+        resolved_project_root=resolved_project_root,
+        context_root=context_root,
+        target_path=target_path,
+        target_root=target_root,
+        subject_kind=subject_kind,
+        ownership_mode=ownership_mode,
+        status=status,
+        exists=target_path.exists() if target_path is not None else False,
+        explicit_input=True,
+        project_root_source=resolved_project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+        reentry_mode=reentry_mode,
+        ancestor_walked_up=ancestor_walked_up,
+        detail=detail,
+    )
+
+
+def _build_resolved_command_subject(
+    project_root: Path,
+    command: object,
+    subject: str | None,
+    *,
+    workspace_cwd: Path | None = None,
+    project_root_source: str | None = None,
+    project_root_auto_selected: bool = False,
+    reentry_mode: str | None = None,
+) -> ResolvedCommandSubject | None:
+    """Resolve the shared subject envelope for publication/manuscript-aware commands."""
+    from gpd.core.constants import ProjectLayout
+
+    generic_resolution = _build_nonpublication_resolved_command_subject(
+        project_root,
+        command,
+        subject,
+        workspace_cwd=workspace_cwd,
+        project_root_source=project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+        reentry_mode=reentry_mode,
+    )
+    if generic_resolution is not None:
+        return generic_resolution
+
+    if not _command_requires_manuscript_context(command):
+        return None
+
+    workspace_root = (workspace_cwd or project_root).resolve(strict=False)
+    context_root = project_root.resolve(strict=False)
+    resolved_project_root = _resolved_project_root_for_subject(context_root)
+    resolved_project_root_source = project_root_source or ("workspace" if resolved_project_root is not None else None)
+    ancestor_walked_up = (
+        resolved_project_root is not None
+        and resolved_project_root != workspace_root
+        and _subject_is_relative_to(workspace_root, resolved_project_root)
+    )
+    base_ownership_mode = _command_subject_base_ownership_mode(
+        resolved_project_root=resolved_project_root,
+        project_root_source=resolved_project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+    )
+    if str(getattr(command, "name", "") or "") == "gpd:write-paper" and resolved_project_root is None:
+        intake_resolution = _resolve_write_paper_external_authoring_intake(
+            context_root,
+            subject,
+            workspace_cwd=workspace_root,
+        )
+        if intake_resolution is None:
+            return ResolvedCommandSubject(
+                command=str(getattr(command, "name", "") or ""),
+                workspace_root=workspace_root,
+                resolved_project_root=resolved_project_root,
+                context_root=context_root,
+                target_path=None,
+                target_root=None,
+                subject_kind="publication",
+                ownership_mode=base_ownership_mode,
+                status="missing",
+                exists=False,
+                explicit_input=False,
+                project_root_source=resolved_project_root_source,
+                project_root_auto_selected=project_root_auto_selected,
+                reentry_mode=reentry_mode,
+                ancestor_walked_up=ancestor_walked_up,
+                detail=_WRITE_PAPER_EXTERNAL_AUTHORING_DETAIL,
+            )
+
+        intake_target_root = (
+            intake_resolution.manuscript_root
+            or intake_resolution.intake_root
+            or (
+                intake_resolution.intake_path.parent
+                if intake_resolution.intake_path is not None
+                else None
+            )
+        )
+        if intake_resolution.status == "resolved":
+            return ResolvedCommandSubject(
+                command=str(getattr(command, "name", "") or ""),
+                workspace_root=workspace_root,
+                resolved_project_root=resolved_project_root,
+                context_root=context_root,
+                target_path=intake_resolution.intake_path,
+                target_root=intake_resolution.manuscript_root,
+                subject_kind="publication",
+                ownership_mode="external_authoring_intake",
+                status="bootstrap",
+                exists=intake_resolution.intake_path is not None and intake_resolution.intake_path.exists(),
+                explicit_input=True,
+                project_root_source=resolved_project_root_source,
+                project_root_auto_selected=project_root_auto_selected,
+                reentry_mode=reentry_mode,
+                ancestor_walked_up=ancestor_walked_up,
+                detail=intake_resolution.detail,
+            )
+
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=intake_resolution.intake_path,
+            target_root=intake_target_root,
+            subject_kind="publication",
+            ownership_mode="external_authoring_intake",
+            status=intake_resolution.status,
+            exists=intake_resolution.intake_path is not None and intake_resolution.intake_path.exists(),
+            explicit_input=True,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=intake_resolution.detail,
+        )
+    manuscript_subject = _command_explicit_manuscript_argument(command, subject)
+
+    if (
+        _command_supports_explicit_manuscript_subject(command)
+        and not (isinstance(subject, str) and subject.strip())
+        and _command_allows_interactive_standalone_intake(command)
+        and not ProjectLayout(context_root).project_md.exists()
+    ):
+        return ResolvedCommandSubject(
+            command=str(getattr(command, "name", "") or ""),
+            workspace_root=workspace_root,
+            resolved_project_root=resolved_project_root,
+            context_root=context_root,
+            target_path=None,
+            target_root=None,
+            subject_kind="manuscript",
+            ownership_mode=base_ownership_mode,
+            status="interactive",
+            exists=False,
+            explicit_input=False,
+            project_root_source=resolved_project_root_source,
+            project_root_auto_selected=project_root_auto_selected,
+            reentry_mode=reentry_mode,
+            ancestor_walked_up=ancestor_walked_up,
+            detail=_command_manuscript_intake_policy(command).interactive_standalone_detail,
+        )
+
+    target_resolution = _resolve_review_preflight_manuscript_target(
+        context_root,
+        manuscript_subject if _command_supports_explicit_manuscript_subject(command) else None,
+        allow_markdown=not _command_requires_compiled_manuscript(command),
+        restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
+        workspace_cwd=workspace_root,
+        allowed_suffixes=_command_explicit_manuscript_suffixes(command),
+    )
+    target_path = target_resolution.manuscript or target_resolution.requested_target
+    target_root = target_resolution.manuscript_root
+    if target_root is None and target_path is not None:
+        target_root = target_path if target_path.is_dir() else target_path.parent
+
+    status = target_resolution.status
+    detail = target_resolution.detail
+    if (
+        _command_allows_manuscript_bootstrap(command)
+        and target_resolution.requested_target is None
+        and status == "missing"
+    ):
+        status = "bootstrap"
+        detail = _command_manuscript_bootstrap_detail()
+        target_root = context_root / "paper"
+
+    ownership_mode = base_ownership_mode
+    ownership_target = target_resolution.manuscript or target_resolution.requested_target
+    if ownership_target is not None and (
+        resolved_project_root is None
+        or not _path_is_within_supported_manuscript_root(resolved_project_root, ownership_target)
+    ):
+        ownership_mode = "external_artifact"
+
+    return ResolvedCommandSubject(
+        command=str(getattr(command, "name", "") or ""),
+        workspace_root=workspace_root,
+        resolved_project_root=resolved_project_root,
+        context_root=context_root,
+        target_path=target_path,
+        target_root=target_root,
+        subject_kind="manuscript",
+        ownership_mode=ownership_mode,
+        status=status,
+        exists=target_path.exists() if target_path is not None else False,
+        explicit_input=target_resolution.requested_target is not None,
+        project_root_source=resolved_project_root_source,
+        project_root_auto_selected=project_root_auto_selected,
+        reentry_mode=reentry_mode,
+        ancestor_walked_up=ancestor_walked_up,
+        detail=detail,
+    )
+
+
 def _command_context_manuscript_check(
     project_root: Path,
     command: object,
     arguments: str | None,
     *,
     workspace_cwd: Path | None = None,
+    resolved_subject: ResolvedCommandSubject | None = None,
 ) -> tuple[bool, str] | None:
     """Return a canonical manuscript-context check for publication commands."""
     if not _command_requires_manuscript_context(command):
         return None
-
-    allow_markdown = not _command_requires_compiled_manuscript(command)
-    if _command_supports_explicit_manuscript_subject(command):
-        manuscript, detail = _resolve_review_preflight_manuscript(
-            project_root,
-            arguments,
-            allow_markdown=allow_markdown,
-            restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
-            workspace_cwd=workspace_cwd,
-            allowed_suffixes=_command_explicit_manuscript_suffixes(command),
-        )
-        return manuscript is not None, detail
-
-    resolution = resolve_current_manuscript_resolution(
+    subject_resolution = resolved_subject or _build_resolved_command_subject(
         project_root,
-        allow_markdown=allow_markdown,
+        command,
+        arguments,
+        workspace_cwd=workspace_cwd,
     )
-    if _command_allows_manuscript_bootstrap(command) and resolution.status == "missing":
-        return (
-            True,
-            "no manuscript entrypoint found under paper/, manuscript/, or draft/; "
-            "fresh bootstrap is allowed and will scaffold a topic-specific manuscript stem under ./paper/",
-        )
-    if resolution.status == "resolved" and resolution.manuscript_entrypoint is not None:
-        return True, f"{_format_display_path(resolution.manuscript_entrypoint)} present"
-    if resolution.status == "missing":
-        return False, resolution.detail
-    return False, f"ambiguous or inconsistent manuscript roots: {resolution.detail}"
+    if subject_resolution is None:
+        return None
+    return subject_resolution.status in {"resolved", "bootstrap"}, subject_resolution.detail
 
 
 def _validated_runtime_surface(*, cwd: Path | None = None) -> str:
@@ -6744,10 +8534,8 @@ def _canonical_command_name(command_name: str) -> str:
 
 def _command_supports_project_reentry(command: object) -> bool:
     """Return whether one registry command can recover a project root before execution."""
-    explicit = getattr(command, "project_reentry_capable", None)
-    if isinstance(explicit, bool):
-        return explicit
-    return False
+    project_reentry_mode = _command_effective_project_reentry_mode(command).casefold()
+    return project_reentry_mode not in {"", "disallowed", "false", "none"}
 
 
 def _resolve_registry_command(command_name: str) -> tuple[object, str]:
@@ -6756,6 +8544,11 @@ def _resolve_registry_command(command_name: str) -> tuple[object, str]:
 
     command = content_registry.get_command(command_name)
     return command, _canonical_command_name(command_name)
+
+
+def _path_is_within_supported_manuscript_root(project_root: Path, target: Path) -> bool:
+    """Return whether *target* lives under a supported manuscript root in *project_root*."""
+    return _supported_manuscript_root_for_target(project_root, target) is not None
 
 
 def _peer_review_mode_resolution(
@@ -6780,7 +8573,134 @@ def _peer_review_resolved_mode(
     return resolution.resolved_mode, resolution.mode_reason
 
 
-def _peer_review_external_mode_requested(
+def _normalize_review_scope_selector(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
+
+
+def _resolved_subject_scope_selectors(resolved_subject: ResolvedCommandSubject | None) -> frozenset[str]:
+    if resolved_subject is None:
+        return frozenset()
+
+    selectors: set[str] = set()
+    ownership_mode = _normalize_review_scope_selector(resolved_subject.ownership_mode)
+    if ownership_mode:
+        selectors.add(ownership_mode)
+    status = _normalize_review_scope_selector(resolved_subject.status)
+    if status:
+        selectors.add(status)
+    if resolved_subject.explicit_input:
+        selectors.add("explicit_input")
+        if resolved_subject.subject_kind == "manuscript":
+            selectors.add("explicit_manuscript")
+    if resolved_subject.ancestor_walked_up:
+        selectors.add("ancestor_project")
+    if resolved_subject.ownership_mode in {"project_backed", "project_reentry_selected"}:
+        selectors.add("project_backed")
+    if resolved_subject.ownership_mode == "external_artifact":
+        selectors.update(
+            {
+                "explicit_artifact",
+                "explicit_external_manuscript",
+                "explicit_external_subject",
+                "external_artifact",
+            }
+        )
+    if resolved_subject.ownership_mode == "external_authoring_intake":
+        selectors.update(
+            {
+                "external_authoring_intake",
+                "explicit_intake_manifest",
+                "authoring_intake",
+            }
+        )
+    if resolved_subject.status == "interactive":
+        selectors.update({"interactive", "interactive_standalone"})
+    return frozenset(selectors)
+
+
+def _active_review_contract_scope_variants(
+    contract: object,
+    *,
+    resolved_subject: ResolvedCommandSubject | None,
+) -> list[object]:
+    active_selectors = _resolved_subject_scope_selectors(resolved_subject)
+    active_variants: list[object] = []
+    for variant in list(getattr(contract, "scope_variants", []) or []):
+        scope = _normalize_review_scope_selector(str(getattr(variant, "scope", "") or ""))
+        if scope and scope in active_selectors:
+            active_variants.append(variant)
+    return active_variants
+
+
+def _effective_review_contract_scope_overrides(
+    contract: object,
+    *,
+    active_scope_variants: list[object],
+) -> tuple[list[str], list[str], list[str]]:
+    required_outputs = list(getattr(contract, "required_outputs", []) or [])
+    required_evidence = list(getattr(contract, "required_evidence", []) or [])
+    blocking_conditions = list(getattr(contract, "blocking_conditions", []) or [])
+    for variant in active_scope_variants:
+        outputs_override = list(getattr(variant, "required_outputs_override", []) or [])
+        if outputs_override:
+            required_outputs = outputs_override
+        evidence_override = list(getattr(variant, "required_evidence_override", []) or [])
+        if evidence_override:
+            required_evidence = evidence_override
+        blocking_override = list(getattr(variant, "blocking_conditions_override", []) or [])
+        if blocking_override:
+            blocking_conditions = blocking_override
+    return required_outputs, required_evidence, blocking_conditions
+
+
+def _publication_subject_preflight_policy(
+    command: object,
+    *,
+    resolved_subject: ResolvedCommandSubject | None,
+) -> PublicationSubjectPreflightPolicy:
+    """Return publication preflight relaxations derived from the shared subject envelope."""
+    contract = _command_review_contract(command)
+    if _command_review_mode(command) != "publication":
+        return PublicationSubjectPreflightPolicy()
+
+    active_scopes = _resolved_subject_scope_selectors(resolved_subject)
+    active_scope_variants = _active_review_contract_scope_variants(
+        contract,
+        resolved_subject=resolved_subject,
+    )
+    relaxed_checks: set[str] = set()
+    optional_checks: set[str] = set()
+    detail_overrides: dict[str, str] = {}
+    for variant in active_scope_variants:
+        relaxed_checks.update(list(getattr(variant, "relaxed_preflight_checks", []) or []))
+        optional_checks.update(list(getattr(variant, "optional_preflight_checks", []) or []))
+
+    if active_scopes.intersection({"external_authoring_intake", "explicit_intake_manifest", "authoring_intake"}):
+        for check_name, detail in _WRITE_PAPER_EXTERNAL_AUTHORING_OPTIONAL_DETAILS.items():
+            if check_name in relaxed_checks or check_name in optional_checks:
+                detail_overrides.setdefault(check_name, detail)
+
+    if active_scopes.intersection({"explicit_artifact", "external_artifact"}):
+        for check_name, detail in _EXTERNAL_ARTIFACT_OPTIONAL_DETAILS.items():
+            if check_name in relaxed_checks or check_name in optional_checks:
+                detail_overrides.setdefault(check_name, detail)
+
+    required_outputs, required_evidence, blocking_conditions = _effective_review_contract_scope_overrides(
+        contract,
+        active_scope_variants=active_scope_variants,
+    )
+    return PublicationSubjectPreflightPolicy(
+        active_scopes=active_scopes,
+        relaxed_checks=frozenset(relaxed_checks),
+        optional_checks=frozenset(optional_checks),
+        detail_overrides=detail_overrides,
+        required_outputs=tuple(required_outputs),
+        required_evidence=tuple(required_evidence),
+        blocking_conditions=tuple(blocking_conditions),
+    )
+
+
+def _peer_review_standalone_artifact_mode(
     project_root: Path,
     subject: str | None,
     *,
@@ -6839,24 +8759,25 @@ def _build_command_context_preflight(
             project_reentry_capable=False,
         )
         public_command_name = canonical_command_name
-    context_cwd = _status_command_cwd(cwd) if _command_supports_project_reentry(command) else _project_scoped_cwd(cwd)
+    context_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=arguments)
     layout = ProjectLayout(context_cwd)
     project_exists = layout.project_md.exists()
     dispatch_note = _runtime_surface_dispatch_note(cwd=cwd)
     init_command = _active_runtime_new_project_command(cwd=cwd)
+    effective_context_mode = _command_effective_context_mode(command)
 
     checks: list[CommandContextCheck] = []
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool = True) -> None:
         checks.append(CommandContextCheck(name=name, passed=passed, detail=detail, blocking=blocking))
 
-    add_check("context_mode", True, f"context_mode={command.context_mode}", blocking=False)
+    add_check("context_mode", True, f"context_mode={effective_context_mode}", blocking=False)
 
-    if command.context_mode == "global":
+    if effective_context_mode == "global":
         add_check("project_context", True, "command runs without project context", blocking=False)
         return CommandContextPreflightResult(
             command=public_command_name,
-            context_mode=command.context_mode,
+            context_mode=effective_context_mode,
             passed=True,
             project_exists=project_exists,
             explicit_inputs=[],
@@ -6867,7 +8788,7 @@ def _build_command_context_preflight(
             dispatch_note=dispatch_note,
         )
 
-    if command.context_mode == "projectless":
+    if effective_context_mode == "projectless":
         add_check(
             "project_context",
             True,
@@ -6876,7 +8797,7 @@ def _build_command_context_preflight(
         )
         return CommandContextPreflightResult(
             command=public_command_name,
-            context_mode=command.context_mode,
+            context_mode=effective_context_mode,
             passed=True,
             project_exists=project_exists,
             explicit_inputs=[],
@@ -6887,13 +8808,22 @@ def _build_command_context_preflight(
             dispatch_note=dispatch_note,
         )
 
-    if command.context_mode == "project-required":
+    if effective_context_mode == "project-required":
         required_file_patterns = _command_required_file_patterns(command)
         if _command_supports_project_reentry(command):
             reentry = _status_command_reentry(cwd)
             selected_root = reentry.resolved_project_root or context_cwd
             layout = ProjectLayout(selected_root)
             state_exists, roadmap_exists, project_exists = recoverable_project_context(selected_root)
+            resolved_subject = _build_resolved_command_subject(
+                selected_root,
+                command,
+                arguments,
+                workspace_cwd=cwd,
+                project_root_source=reentry.source or "workspace",
+                project_root_auto_selected=reentry.auto_selected,
+                reentry_mode=reentry.mode,
+            )
             if reentry.auto_selected and reentry.project_root:
                 add_check(
                     "project_reentry",
@@ -6969,6 +8899,7 @@ def _build_command_context_preflight(
                         command,
                         arguments,
                         workspace_cwd=cwd,
+                        resolved_subject=resolved_subject,
                     )
                     if override_detail is not None:
                         required_files_present = True
@@ -6991,6 +8922,7 @@ def _build_command_context_preflight(
                 command,
                 arguments,
                 workspace_cwd=cwd,
+                resolved_subject=resolved_subject,
             )
             if manuscript_context is not None:
                 manuscript_context_passed, manuscript_context_detail = manuscript_context
@@ -7025,7 +8957,7 @@ def _build_command_context_preflight(
             )
             return CommandContextPreflightResult(
                 command=public_command_name,
-                context_mode=command.context_mode,
+                context_mode=effective_context_mode,
                 passed=recoverable,
                 project_exists=project_exists,
                 explicit_inputs=[],
@@ -7034,6 +8966,7 @@ def _build_command_context_preflight(
                 validated_surface=_validated_runtime_surface(cwd=cwd),
                 public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
                 dispatch_note=dispatch_note,
+                resolved_subject=resolved_subject,
             )
         add_check(
             "project_exists",
@@ -7045,11 +8978,21 @@ def _build_command_context_preflight(
             ),
         )
         required_file_patterns = _command_required_file_patterns(command)
+        resolved_subject = _build_resolved_command_subject(
+            context_cwd,
+            command,
+            arguments,
+            workspace_cwd=cwd,
+            project_root_source="workspace",
+            project_root_auto_selected=False,
+            reentry_mode="current-workspace" if project_exists else None,
+        )
         manuscript_context = _command_context_manuscript_check(
             context_cwd,
             command,
             arguments,
             workspace_cwd=cwd,
+            resolved_subject=resolved_subject,
         )
         if required_file_patterns:
             required_files_present, matched_patterns, missing_patterns = _command_required_files_present(
@@ -7063,6 +9006,7 @@ def _build_command_context_preflight(
                     command,
                     arguments,
                     workspace_cwd=cwd,
+                    resolved_subject=resolved_subject,
                 )
                 if override_detail is not None:
                     required_files_present = True
@@ -7104,7 +9048,7 @@ def _build_command_context_preflight(
         )
         return CommandContextPreflightResult(
             command=public_command_name,
-            context_mode=command.context_mode,
+            context_mode=effective_context_mode,
             passed=passed,
             project_exists=project_exists,
             explicit_inputs=[],
@@ -7113,36 +9057,69 @@ def _build_command_context_preflight(
             validated_surface=_validated_runtime_surface(cwd=cwd),
             public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
             dispatch_note=dispatch_note,
+            resolved_subject=resolved_subject,
         )
 
-    explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
-        command.name,
-        (
-            [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"],
-            _has_simple_positional_inputs,
-        ),
+    explicit_inputs = _command_explicit_input_labels_from_policy(command)
+    predicate: Callable[[str | None], bool] = _has_simple_positional_inputs
+    project_aware_override = _PROJECT_AWARE_EXPLICIT_INPUTS.get(str(getattr(command, "name", "") or ""))
+    if project_aware_override is not None:
+        explicit_inputs, predicate = project_aware_override
+    elif not explicit_inputs:
+        explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
+            command.name,
+            (
+                [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"],
+                _has_simple_positional_inputs,
+            ),
+        )
+    resolved_subject = _build_resolved_command_subject(
+        context_cwd,
+        command,
+        arguments,
+        workspace_cwd=cwd,
+        project_root_source="workspace" if project_exists else None,
+        project_root_auto_selected=False,
+        reentry_mode="current-workspace" if project_exists else None,
     )
-    explicit_inputs_ok = predicate(arguments)
     resolved_mode = ""
     mode_reason = ""
     explicit_inputs_detail = "explicit standalone inputs detected"
     peer_review_has_explicit_target = command.name == "gpd:peer-review" and _has_simple_positional_inputs(arguments)
-    peer_review_mode = None
-    if command.name == "gpd:peer-review":
-        peer_review_mode = _peer_review_mode_resolution(context_cwd, arguments, workspace_cwd=cwd)
-        resolved_mode = peer_review_mode.resolved_mode
-        mode_reason = peer_review_mode.mode_reason
-        if peer_review_has_explicit_target:
-            explicit_inputs_ok = peer_review_mode.resolved_mode != PEER_REVIEW_INVALID_SUBJECT_MODE
-            explicit_inputs_detail = (
-                peer_review_mode.resolution_detail
-                if explicit_inputs_ok
-                else f"invalid explicit review target: {peer_review_mode.mode_reason}"
+    if resolved_subject is not None and not _command_requires_manuscript_context(command):
+        explicit_inputs_ok = resolved_subject.status == "resolved"
+        interactive_intake_allowed = resolved_subject.status == "interactive"
+    else:
+        explicit_inputs_ok = predicate(arguments)
+        if (
+            str(getattr(command, "name", "") or "") == "gpd:write-paper"
+            and _has_write_paper_external_authoring_intake(arguments)
+        ):
+            explicit_inputs_ok = bool(
+                resolved_subject is not None
+                and resolved_subject.ownership_mode == "external_authoring_intake"
+                and resolved_subject.status in {"resolved", "bootstrap"}
             )
-    interactive_intake_allowed = (
-        _command_allows_interactive_standalone_intake(command)
-        and not explicit_inputs_ok
-        and not _has_simple_positional_inputs(arguments)
+        if command.name == "gpd:peer-review":
+            peer_review_mode = _peer_review_mode_resolution(context_cwd, arguments, workspace_cwd=cwd)
+            resolved_mode = peer_review_mode.resolved_mode
+            mode_reason = peer_review_mode.mode_reason
+            if peer_review_has_explicit_target:
+                explicit_inputs_ok = peer_review_mode.resolved_mode != PEER_REVIEW_INVALID_SUBJECT_MODE
+                explicit_inputs_detail = (
+                    peer_review_mode.resolution_detail
+                    if explicit_inputs_ok
+                    else f"invalid explicit review target: {peer_review_mode.mode_reason}"
+                )
+        interactive_intake_allowed = (
+            _command_allows_interactive_subject_intake(command)
+            and not explicit_inputs_ok
+            and not _has_simple_positional_inputs(arguments)
+        )
+    subject_required = _command_has_typed_subject_policy(command)
+    subject_context_ready = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+    project_context_satisfies = project_exists and (
+        not subject_required or explicit_inputs_ok or interactive_intake_allowed or subject_context_ready
     )
     add_check(
         "project_exists",
@@ -7158,11 +9135,25 @@ def _build_command_context_preflight(
         "explicit_inputs",
         explicit_inputs_ok or interactive_intake_allowed,
         (
-            explicit_inputs_detail
+            "validated external authoring intake manifest"
+            if (
+                explicit_inputs_ok
+                and str(getattr(command, "name", "") or "") == "gpd:write-paper"
+                and _has_write_paper_external_authoring_intake(arguments)
+            )
+            else "explicit standalone inputs detected"
+            if explicit_inputs_ok
+            else resolved_subject.detail
+            if (
+                str(getattr(command, "name", "") or "") == "gpd:write-paper"
+                and _has_write_paper_external_authoring_intake(arguments)
+                and resolved_subject is not None
+                and resolved_subject.ownership_mode == "external_authoring_intake"
+            )
+            else explicit_inputs_detail
             if explicit_inputs_ok or (command.name == "gpd:peer-review" and peer_review_has_explicit_target)
             else (
-                "no explicit review target supplied; interactive intake can prompt for a specific artifact path "
-                "or use the current GPD project when available"
+                _command_interactive_subject_detail(command, explicit_inputs)
                 if interactive_intake_allowed
                 else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
             )
@@ -7187,9 +9178,30 @@ def _build_command_context_preflight(
             else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
         )
     )
+    managed_output_context_root = _command_managed_output_context_root(
+        workspace_root=cwd,
+        context_root=context_cwd,
+        project_exists=project_exists,
+    )
+    managed_output_root = _command_managed_output_root(
+        command,
+        project_root=managed_output_context_root,
+        resolved_subject=resolved_subject,
+    )
+    if managed_output_root is not None:
+        add_check(
+            "managed_output_root",
+            True,
+            f"GPD-authored outputs resolve under {_format_display_path(managed_output_root)}",
+            blocking=False,
+        )
+    passed = project_context_satisfies or explicit_inputs_ok or interactive_intake_allowed
+    guidance = "" if passed else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
+    if command.name == "gpd:peer-review" and peer_review_has_explicit_target and not explicit_inputs_ok:
+        guidance = explicit_inputs_detail
     return CommandContextPreflightResult(
         command=public_command_name,
-        context_mode=command.context_mode,
+        context_mode=effective_context_mode,
         passed=passed,
         project_exists=project_exists,
         explicit_inputs=explicit_inputs,
@@ -7200,6 +9212,7 @@ def _build_command_context_preflight(
         validated_surface=_validated_runtime_surface(cwd=cwd),
         public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
         dispatch_note=dispatch_note,
+        resolved_subject=resolved_subject,
     )
 
 
@@ -7211,13 +9224,14 @@ def _build_review_preflight(
 ) -> ReviewPreflightResult:
     """Evaluate lightweight filesystem/state prerequisites for a review command."""
     from gpd.core.constants import ProjectLayout
+    from gpd.core.knowledge_runtime import KnowledgeDocRuntimeRecord, discover_knowledge_docs
     from gpd.core.phases import find_phase
     from gpd.core.state import state_validate
 
     cwd = _get_cwd()
-    project_cwd = _project_scoped_cwd(cwd)
-    layout = ProjectLayout(project_cwd)
     command, public_command_name = _resolve_registry_command(command_name)
+    project_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=subject)
+    layout = ProjectLayout(project_cwd)
     contract = command.review_contract
     if contract is None:
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
@@ -7261,7 +9275,75 @@ def _build_review_preflight(
         )
 
     context_preflight = _build_command_context_preflight(command_name, arguments=subject)
-    context_detail = context_preflight.guidance or f"context_mode={command.context_mode}"
+    resolved_subject = context_preflight.resolved_subject or _build_resolved_command_subject(
+        project_cwd,
+        command,
+        subject,
+        workspace_cwd=cwd,
+        project_root_source="workspace" if layout.project_md.exists() else None,
+        project_root_auto_selected=False,
+        reentry_mode="current-workspace" if layout.project_md.exists() else None,
+    )
+    subject_preflight_policy = _publication_subject_preflight_policy(
+        command,
+        resolved_subject=resolved_subject,
+    )
+    knowledge_inventory = None
+    knowledge_record: KnowledgeDocRuntimeRecord | None = None
+    knowledge_target_path: Path | None = None
+    knowledge_target_id: str | None = None
+
+    def load_knowledge_context() -> tuple[Path | None, str | None, KnowledgeDocRuntimeRecord | None]:
+        nonlocal knowledge_inventory, knowledge_record, knowledge_target_path, knowledge_target_id
+        if knowledge_inventory is not None:
+            return knowledge_target_path, knowledge_target_id, knowledge_record
+
+        knowledge_inventory = discover_knowledge_docs(project_cwd)
+        if (
+            resolved_subject is not None
+            and resolved_subject.subject_kind == "knowledge_document"
+            and resolved_subject.target_path is not None
+        ):
+            knowledge_target_path = resolved_subject.target_path.resolve(strict=False)
+        elif isinstance(subject, str) and subject.strip():
+            status, candidate_path, _detail = _resolve_review_knowledge_target(
+                project_cwd,
+                subject,
+                workspace_cwd=cwd,
+            )
+            if status in {"resolved", "missing", "invalid"} and candidate_path is not None:
+                knowledge_target_path = candidate_path.resolve(strict=False)
+
+        if knowledge_target_path is not None and knowledge_target_path.stem.startswith("K-"):
+            knowledge_target_id = knowledge_target_path.stem
+
+        if knowledge_target_path is not None:
+            try:
+                relative_path = knowledge_target_path.relative_to(project_cwd.resolve(strict=False)).as_posix()
+            except ValueError:
+                relative_path = None
+            if relative_path is not None:
+                knowledge_record = knowledge_inventory.by_path().get(relative_path)
+        if knowledge_record is None and knowledge_target_id:
+            knowledge_record = knowledge_inventory.by_id().get(knowledge_target_id)
+        return knowledge_target_path, knowledge_target_id, knowledge_record
+
+    effective_required_outputs = (
+        list(subject_preflight_policy.required_outputs)
+        if subject_preflight_policy.required_outputs
+        else list(contract.required_outputs)
+    )
+    effective_required_evidence = (
+        list(subject_preflight_policy.required_evidence)
+        if subject_preflight_policy.required_evidence
+        else list(contract.required_evidence)
+    )
+    effective_blocking_conditions = (
+        list(subject_preflight_policy.blocking_conditions)
+        if subject_preflight_policy.blocking_conditions
+        else list(contract.blocking_conditions)
+    )
+    context_detail = context_preflight.guidance or f"context_mode={_command_effective_context_mode(command)}"
     if context_preflight.resolved_mode:
         context_detail = f"{context_detail}; resolved_mode={context_preflight.resolved_mode}"
     if context_preflight.mode_reason:
@@ -7293,12 +9375,86 @@ def _build_review_preflight(
         blocking=_review_preflight_check_is_blocking(contract, "command_context"),
     )
 
+    if str(getattr(command, "name", "") or "") == "gpd:review-knowledge":
+        state_files_present = layout.state_json.exists() and layout.state_md.exists()
+        detail = (
+            f"{_format_display_path(layout.state_json)} and {_format_display_path(layout.state_md)} present as optional background context"
+            if state_files_present
+            else "current-workspace knowledge review: project state is advisory background context only"
+        )
+        add_check("project_state", True, detail, blocking=False)
+
+    if "knowledge_target" in contract.preflight_checks:
+        target_path, target_id, _record = load_knowledge_context()
+        target_passed = (
+            resolved_subject is not None
+            and resolved_subject.subject_kind == "knowledge_document"
+            and resolved_subject.status == "resolved"
+        )
+        detail = (
+            resolved_subject.detail
+            if resolved_subject is not None and resolved_subject.subject_kind == "knowledge_document"
+            else (
+                f"canonical knowledge target {_format_display_path(target_path)}"
+                if target_path is not None
+                else (
+                    f"canonical knowledge id {target_id}"
+                    if target_id
+                    else "missing explicit canonical knowledge target"
+                )
+            )
+        )
+        add_check("knowledge_target", target_passed, detail)
+
+    if "knowledge_document" in contract.preflight_checks:
+        target_path, target_id, record = load_knowledge_context()
+        document_exists = record is not None or (target_path is not None and target_path.exists())
+        detail = (
+            f"{_format_display_path(target_path)} present and parsed"
+            if record is not None and target_path is not None
+            else (
+                f"{_format_display_path(target_path)} present"
+                if target_path is not None and target_path.exists()
+                else (
+                    f"missing canonical knowledge document {_format_display_path(target_path)}"
+                    if target_path is not None
+                    else (
+                        f"missing canonical knowledge document for {target_id}"
+                        if target_id
+                        else "missing canonical knowledge document"
+                    )
+                )
+            )
+        )
+        add_check("knowledge_document", document_exists, detail)
+
+    if "knowledge_review_freshness" in contract.preflight_checks:
+        _target_path, _target_id, record = load_knowledge_context()
+        freshness_passed = True
+        detail = "no prior approved review freshness requirement"
+        if record is not None and record.status == "stable":
+            freshness_passed = bool(record.review_fresh) and record.stale is False
+            detail = (
+                "approved review evidence is fresh"
+                if freshness_passed
+                else "stable knowledge document has stale or missing approved review evidence"
+            )
+        add_check("knowledge_review_freshness", freshness_passed, detail)
+
     if requested_review_check("project_state"):
-        if standalone_peer_review_mode:
+        optional_detail = subject_preflight_policy.detail("project_state")
+        if optional_detail is not None:
             add_check(
                 "project_state",
                 True,
-                "external artifact review: project state is optional and is not required to start review",
+                optional_detail,
+                blocking=False,
+            )
+        elif standalone_peer_review_mode:
+            add_check(
+                "project_state",
+                True,
+                "external artifact review: project state is optional",
                 blocking=False,
             )
         else:
@@ -7320,7 +9476,10 @@ def _build_review_preflight(
                 add_check("state_integrity", validation.valid, detail, blocking=True)
 
     if requested_review_check("roadmap"):
-        if standalone_peer_review_mode:
+        optional_detail = subject_preflight_policy.detail("roadmap")
+        if optional_detail is not None:
+            add_check("roadmap", True, optional_detail, blocking=False)
+        elif standalone_peer_review_mode:
             add_check("roadmap", True, "external artifact review: roadmap is optional", blocking=False)
         else:
             add_check(
@@ -7334,7 +9493,10 @@ def _build_review_preflight(
             )
 
     if requested_review_check("conventions"):
-        if standalone_peer_review_mode:
+        optional_detail = subject_preflight_policy.detail("conventions")
+        if optional_detail is not None:
+            add_check("conventions", True, optional_detail, blocking=False)
+        elif standalone_peer_review_mode:
             add_check("conventions", True, "external artifact review: project conventions are optional", blocking=False)
         else:
             add_check(
@@ -7348,11 +9510,26 @@ def _build_review_preflight(
             )
 
     if requested_review_check("research_artifacts"):
-        if standalone_peer_review_mode:
+        optional_detail = subject_preflight_policy.detail("research_artifacts")
+        if optional_detail is not None:
             add_check(
                 "research_artifacts",
                 True,
-                "external artifact review: phase summaries or milestone digests are optional",
+                optional_detail,
+                blocking=False,
+            )
+            if requested_review_check("verification_reports"):
+                add_check(
+                    "verification_reports",
+                    True,
+                    subject_preflight_policy.detail("verification_reports") or "verification reports are optional",
+                    blocking=False,
+                )
+        elif standalone_peer_review_mode:
+            add_check(
+                "research_artifacts",
+                True,
+                "external artifact review: research artifacts are optional",
                 blocking=False,
             )
             if requested_review_check("verification_reports"):
@@ -7400,35 +9577,37 @@ def _build_review_preflight(
     if requested_review_check("manuscript"):
         allow_markdown = not _command_requires_compiled_manuscript(command)
         supports_explicit_manuscript_subject = _command_supports_explicit_manuscript_subject(command)
+        explicit_manuscript_subject = _command_explicit_manuscript_argument(command, subject)
         if supports_explicit_manuscript_subject:
             manuscript, manuscript_detail = _resolve_review_preflight_manuscript(
                 project_cwd,
-                subject,
+                explicit_manuscript_subject,
                 allow_markdown=allow_markdown,
                 allowed_suffixes=_command_explicit_manuscript_suffixes(command),
                 restrict_to_supported_roots=_command_explicit_manuscript_subject_uses_supported_roots(command),
                 workspace_cwd=cwd,
             )
+            manuscript_passed = manuscript is not None
         else:
-            manuscript, manuscript_detail = _resolve_review_preflight_manuscript(
-                project_cwd,
-                None,
-                allow_markdown=allow_markdown,
-                allowed_suffixes=_command_explicit_manuscript_suffixes(command),
-            )
-        resolution = resolve_current_manuscript_resolution(project_cwd, allow_markdown=allow_markdown)
-        if _command_allows_manuscript_bootstrap(command) and subject is None and resolution.status == "missing":
             manuscript_detail = (
-                "no manuscript entrypoint found under paper/, manuscript/, or draft/; "
-                "fresh bootstrap is allowed and will scaffold a topic-specific manuscript stem under ./paper/"
+                resolved_subject.detail
+                if resolved_subject is not None
+                else "manuscript subject could not be resolved from command context"
             )
-            manuscript_passed = True
-        elif _command_requires_compiled_manuscript(command):
-            manuscript_passed = manuscript is not None
-        elif subject is None:
-            manuscript_passed = resolution.status == "resolved"
-        else:
-            manuscript_passed = manuscript is not None
+            manuscript = (
+                resolved_subject.target_path
+                if (
+                    resolved_subject is not None
+                    and resolved_subject.subject_kind == "manuscript"
+                    and resolved_subject.status == "resolved"
+                    and resolved_subject.target_path is not None
+                    and resolved_subject.target_path.is_file()
+                )
+                else None
+            )
+            manuscript_passed = resolved_subject is not None and resolved_subject.status in {"resolved", "bootstrap"}
+            if _command_requires_compiled_manuscript(command):
+                manuscript_passed = manuscript is not None
         if (
             manuscript is not None
             and command.name == "gpd:peer-review"
@@ -7454,23 +9633,24 @@ def _build_review_preflight(
         add_check(
             "manuscript",
             manuscript_passed,
-            (
-                manuscript_detail
-                if manuscript is None or supports_explicit_manuscript_subject
-                else f"{_format_display_path(manuscript)} present"
-            ),
+            manuscript_detail,
         )
-        if subject and requested_review_check("referee_report_source") and subject != "paste":
-            report_path = Path(subject)
-            if not report_path.is_absolute():
-                report_path = project_cwd / report_path
+        report_arguments = _command_referee_report_arguments(command, subject)
+        if report_arguments:
+            report_paths = tuple(
+                (_resolve_subject_path(report, base=project_cwd) or (project_cwd / report).resolve(strict=False))
+                for report in report_arguments
+            )
             add_check(
                 "referee_report_source",
-                report_path.exists(),
-                (
-                    f"{_format_display_path(report_path)} present"
-                    if report_path.exists()
-                    else f"missing {_format_display_path(report_path)}"
+                all(path.exists() for path in report_paths),
+                "; ".join(
+                    (
+                        f"{_format_display_path(path)} present"
+                        if path.exists()
+                        else f"missing {_format_display_path(path)}"
+                    )
+                    for path in report_paths
                 ),
             )
         if manuscript is not None:
@@ -7514,12 +9694,20 @@ def _build_review_preflight(
                 reproducibility_manifest = publication_artifacts.reproducibility_manifest
 
                 if "artifact_manifest" in requested_publication_checks:
-                    artifact_manifest_detail = (
-                        "no ARTIFACT-MANIFEST.json found near the manuscript"
-                        if not standalone_peer_review_mode
-                        else "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+                    artifact_manifest_missing = artifact_manifest is None
+                    artifact_manifest_detail = subject_preflight_policy.missing_detail(
+                        "artifact_manifest",
+                        default=(
+                            "no ARTIFACT-MANIFEST.json found near the manuscript"
+                            if not standalone_peer_review_mode
+                            else "no ARTIFACT-MANIFEST.json found near the manuscript; external artifact review can proceed without it"
+                        ),
                     )
-                    artifact_manifest_passed = artifact_manifest is not None or standalone_peer_review_mode
+                    artifact_manifest_passed = (
+                        artifact_manifest is not None
+                        or standalone_peer_review_mode
+                        or subject_preflight_policy.passes_when_missing("artifact_manifest")
+                    )
                     if artifact_manifest is not None:
                         artifact_manifest_detail = f"{_format_display_path(artifact_manifest)} present"
                         from gpd.mcp.paper.models import ArtifactManifest
@@ -7546,51 +9734,83 @@ def _build_review_preflight(
                         "artifact_manifest",
                         artifact_manifest_passed,
                         artifact_manifest_detail,
-                        blocking=not standalone_peer_review_mode,
+                        blocking=subject_preflight_policy.blocking(
+                            "artifact_manifest",
+                            missing=artifact_manifest_missing,
+                            default=not standalone_peer_review_mode,
+                        ),
                     )
 
                 if "bibliography_audit" in requested_publication_checks:
+                    bibliography_missing = bibliography_audit is None
+                    bibliography_missing_detail = subject_preflight_policy.missing_detail(
+                        "bibliography_audit",
+                        default=(
+                            "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
+                            if not standalone_peer_review_mode
+                            else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
+                        ),
+                    )
                     add_check(
                         "bibliography_audit",
-                        bibliography_audit is not None or standalone_peer_review_mode,
+                        bibliography_audit is not None
+                        or standalone_peer_review_mode
+                        or subject_preflight_policy.passes_when_missing("bibliography_audit"),
                         (
                             f"{_format_display_path(bibliography_audit)} present"
                             if bibliography_audit is not None
-                            else (
-                                "no BIBLIOGRAPHY-AUDIT.json found near the manuscript"
-                                if not standalone_peer_review_mode
-                                else "no BIBLIOGRAPHY-AUDIT.json found near the manuscript; external artifact review can proceed without it"
-                            )
+                            else bibliography_missing_detail
                         ),
-                        blocking=not standalone_peer_review_mode,
+                        blocking=subject_preflight_policy.blocking(
+                            "bibliography_audit",
+                            missing=bibliography_missing,
+                            default=not standalone_peer_review_mode,
+                        ),
                     )
 
                 if "compiled_manuscript" in requested_publication_checks:
                     compiled_manuscript = manuscript.with_suffix(".pdf")
+                    compiled_manuscript_missing = not compiled_manuscript.exists()
                     add_check(
                         "compiled_manuscript",
-                        compiled_manuscript.exists(),
+                        compiled_manuscript.exists()
+                        or subject_preflight_policy.passes_when_missing("compiled_manuscript"),
                         (
                             f"{_format_display_path(compiled_manuscript)} present"
                             if compiled_manuscript.exists()
                             else f"missing compiled manuscript {_format_display_path(compiled_manuscript)}"
                         ),
-                        blocking=True,
+                        blocking=subject_preflight_policy.blocking(
+                            "compiled_manuscript",
+                            missing=compiled_manuscript_missing,
+                            default=True,
+                        ),
                     )
 
                 if "publication_blockers" in requested_publication_checks:
-                    publication_blockers = publication_blockers_for_project(project_cwd)
-                    add_check(
-                        "publication_blockers",
-                        not publication_blockers,
-                        (
-                            "no unresolved publication blockers"
-                            if not publication_blockers
-                            else f"{len(publication_blockers)} unresolved publication blocker(s): "
-                            + "; ".join(publication_blockers[:3])
-                        ),
-                        blocking=True,
-                    )
+                    if subject_preflight_policy.relaxes("publication_blockers"):
+                        add_check(
+                            "publication_blockers",
+                            True,
+                            subject_preflight_policy.missing_detail(
+                                "publication_blockers",
+                                default="publication blockers are optional for this intake",
+                            ),
+                            blocking=False,
+                        )
+                    else:
+                        publication_blockers = publication_blockers_for_project(project_cwd)
+                        add_check(
+                            "publication_blockers",
+                            not publication_blockers,
+                            (
+                                "no unresolved publication blockers"
+                                if not publication_blockers
+                                else f"{len(publication_blockers)} unresolved publication blocker(s): "
+                                + "; ".join(publication_blockers[:3])
+                            ),
+                            blocking=True,
+                        )
 
                 review_ledger = None
                 review_checks_requested = requested_publication_checks.intersection(
@@ -7603,11 +9823,32 @@ def _build_review_preflight(
                     }
                 )
                 if review_checks_requested:
-                    latest_review_artifacts = resolve_latest_publication_review_artifacts(
+                    review_ledger_by_round, referee_decision_by_round = _publication_review_round_path_maps(
                         project_cwd,
-                        manuscript,
+                        manuscript=manuscript,
                     )
-                    if latest_review_artifacts is None:
+                    latest_review_round = _resolve_latest_publication_review_round_artifacts(
+                        project_cwd,
+                        manuscript=manuscript,
+                    )
+                    latest_response_round = _resolve_latest_publication_response_round_artifacts(
+                        project_cwd,
+                        manuscript=manuscript,
+                    )
+                    required_review_round = latest_review_round
+                    response_round_requires_fresh_review = False
+                    if latest_response_round is not None and (
+                        required_review_round is None
+                        or latest_response_round.round_number > required_review_round.round_number
+                    ):
+                        required_review_round = _publication_review_round_artifacts(
+                            latest_response_round.round_number,
+                            review_ledger_by_round=review_ledger_by_round,
+                            referee_decision_by_round=referee_decision_by_round,
+                        )
+                        response_round_requires_fresh_review = True
+
+                    if required_review_round is None:
                         if "review_ledger" in review_checks_requested:
                             add_check(
                                 "review_ledger",
@@ -7623,12 +9864,17 @@ def _build_review_preflight(
                                 blocking=True,
                             )
                     else:
-                        ledger_path = latest_review_artifacts.review_ledger
-                        decision_path = latest_review_artifacts.referee_decision
+                        ledger_path = required_review_round.review_ledger
+                        decision_path = required_review_round.referee_decision
                         round_label = (
-                            f"round {latest_review_artifacts.round_number}"
-                            if latest_review_artifacts.round_number > 1
+                            f"round {required_review_round.round_number}"
+                            if required_review_round.round_number > 1
                             else "round 1"
+                        )
+                        response_round_detail = (
+                            f"; latest response artifacts already reached {round_label}"
+                            if response_round_requires_fresh_review
+                            else ""
                         )
                         if "review_ledger" in review_checks_requested:
                             add_check(
@@ -7637,7 +9883,10 @@ def _build_review_preflight(
                                 (
                                     f"{_format_display_path(ledger_path)} present for latest staged review {round_label}"
                                     if ledger_path is not None
-                                    else f"missing REVIEW-LEDGER{latest_review_artifacts.round_suffix}.json for latest staged review {round_label}"
+                                    else (
+                                        f"missing REVIEW-LEDGER{required_review_round.round_suffix}.json "
+                                        f"for latest staged review {round_label}{response_round_detail}"
+                                    )
                                 ),
                                 blocking=True,
                             )
@@ -7648,7 +9897,10 @@ def _build_review_preflight(
                                 (
                                     f"{_format_display_path(decision_path)} present for latest staged review {round_label}"
                                     if decision_path is not None
-                                    else f"missing REFEREE-DECISION{latest_review_artifacts.round_suffix}.json for latest staged review {round_label}"
+                                    else (
+                                        f"missing REFEREE-DECISION{required_review_round.round_suffix}.json "
+                                        f"for latest staged review {round_label}{response_round_detail}"
+                                    )
                                 ),
                                 blocking=True,
                             )
@@ -7786,28 +10038,39 @@ def _build_review_preflight(
                                     )
 
                 if "reproducibility_manifest" in requested_publication_checks:
+                    reproducibility_missing = reproducibility_manifest is None
+                    reproducibility_missing_detail = subject_preflight_policy.missing_detail(
+                        "reproducibility_manifest",
+                        default=(
+                            "no reproducibility manifest found near the manuscript"
+                            if not standalone_peer_review_mode
+                            else "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
+                        ),
+                    )
                     add_check(
                         "reproducibility_manifest",
-                        reproducibility_manifest is not None or standalone_peer_review_mode,
+                        reproducibility_manifest is not None
+                        or standalone_peer_review_mode
+                        or subject_preflight_policy.passes_when_missing("reproducibility_manifest"),
                         (
                             f"{_format_display_path(reproducibility_manifest)} present"
                             if reproducibility_manifest is not None
-                            else (
-                                "no reproducibility manifest found near the manuscript"
-                                if not standalone_peer_review_mode
-                                else "no reproducibility manifest found near the manuscript; external artifact review can proceed without it"
-                            )
+                            else reproducibility_missing_detail
                         ),
-                        blocking=not standalone_peer_review_mode,
+                        blocking=subject_preflight_policy.blocking(
+                            "reproducibility_manifest",
+                            missing=reproducibility_missing,
+                            default=not standalone_peer_review_mode,
+                        ),
                     )
 
                 if "manuscript_proof_review" in requested_publication_checks:
-                    if standalone_peer_review_mode:
+                    if standalone_peer_review_mode or subject_preflight_policy.relaxes("manuscript_proof_review"):
                         manuscript_proof_review_passed = True
                         manuscript_proof_review_blocking = False
-                        manuscript_proof_review_detail = (
-                            "prior staged manuscript proof review is optional in external artifact mode; "
-                            "theorem-bearing claims will be audited in this review round if detected"
+                        manuscript_proof_review_detail = subject_preflight_policy.missing_detail(
+                            "manuscript_proof_review",
+                            default="prior staged manuscript proof review is optional for this intake",
                         )
                     else:
                         manuscript_proof_review = resolve_manuscript_proof_review_status(
@@ -7855,7 +10118,10 @@ def _build_review_preflight(
                         "bibliography_audit_clean",
                         clean,
                         detail,
-                        blocking=not standalone_peer_review_mode,
+                        blocking=subject_preflight_policy.blocking(
+                            "bibliography_audit_clean",
+                            default=not standalone_peer_review_mode,
+                        ),
                     )
                 if (
                     strict
@@ -7872,7 +10138,10 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             False,
                             f"could not validate reproducibility manifest: {exc}",
-                            blocking=not standalone_peer_review_mode,
+                            blocking=subject_preflight_policy.blocking(
+                                "reproducibility_ready",
+                                default=not standalone_peer_review_mode,
+                            ),
                         )
                     else:
                         ready = (
@@ -7892,7 +10161,10 @@ def _build_review_preflight(
                             "reproducibility_ready",
                             ready,
                             detail,
-                            blocking=not standalone_peer_review_mode,
+                            blocking=subject_preflight_policy.blocking(
+                                "reproducibility_ready",
+                                default=not standalone_peer_review_mode,
+                            ),
                         )
 
     if requested_review_check("phase_artifacts"):
@@ -7956,13 +10228,24 @@ def _build_review_preflight(
     if required_state_check is not None:
         add_check("required_state", required_state_check[0], required_state_check[1], blocking=True)
 
+    effective_required_outputs = _effective_review_contract_strings(
+        list(subject_preflight_policy.required_outputs)
+        if subject_preflight_policy.required_outputs
+        else list(getattr(contract, "required_outputs", []) or []),
+        active_conditional_requirements,
+        "required_outputs",
+    )
     effective_required_evidence = _effective_review_contract_strings(
-        getattr(contract, "required_evidence", []) or [],
+        list(subject_preflight_policy.required_evidence)
+        if subject_preflight_policy.required_evidence
+        else list(getattr(contract, "required_evidence", []) or []),
         active_conditional_requirements,
         "required_evidence",
     )
     effective_blocking_conditions = _effective_review_contract_strings(
-        getattr(contract, "blocking_conditions", []) or [],
+        list(subject_preflight_policy.blocking_conditions)
+        if subject_preflight_policy.blocking_conditions
+        else list(getattr(contract, "blocking_conditions", []) or []),
         active_conditional_requirements,
         "blocking_conditions",
     )
@@ -7973,9 +10256,9 @@ def _build_review_preflight(
         strict=strict,
         passed=passed,
         checks=checks,
-        required_outputs=contract.required_outputs,
-        required_evidence=contract.required_evidence,
-        blocking_conditions=contract.blocking_conditions,
+        required_outputs=effective_required_outputs,
+        required_evidence=effective_required_evidence,
+        blocking_conditions=effective_blocking_conditions,
         conditional_requirements=list(contract.conditional_requirements),
         active_conditional_requirements=active_conditional_requirements,
         effective_required_evidence=effective_required_evidence,
@@ -7986,6 +10269,7 @@ def _build_review_preflight(
         public_runtime_command_prefix=context_preflight.public_runtime_command_prefix,
         local_cli_equivalence_guaranteed=context_preflight.local_cli_equivalence_guaranteed,
         dispatch_note=context_preflight.dispatch_note,
+        resolved_subject=resolved_subject,
     )
 
 
@@ -8055,14 +10339,15 @@ def validate_review_contract(
     _output(
         {
             "command": public_command_name,
-            "context_mode": command.context_mode,
+            "context_mode": _command_effective_context_mode(command),
             "review_contract": dataclasses.asdict(command.review_contract),
         }
     )
 
 
-@validate_app.command("review-preflight")
+@validate_app.command("review-preflight", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def validate_review_preflight(
+    ctx: typer.Context,
     command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
     subject: str | None = typer.Argument(
         None,
@@ -8071,7 +10356,11 @@ def validate_review_preflight(
     strict: bool = typer.Option(False, "--strict", help="Enable stricter evidence-oriented checks"),
 ) -> None:
     """Run lightweight executable preflight checks for review-grade workflows."""
-    result = _build_review_preflight(command_name, subject=subject, strict=strict)
+    arguments: list[str] = []
+    if subject is not None:
+        arguments.append(subject)
+    arguments.extend(str(arg) for arg in ctx.args)
+    result = _build_review_preflight(command_name, subject=" ".join(arguments) or None, strict=strict)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)
@@ -8658,7 +10947,12 @@ def paper_build(
     resolved_config_root = config_file.resolve(strict=False)
     storage_root = project_root if resolved_config_root.is_relative_to(project_root) else resolved_config_root.parent
     storage_layout = ProjectStorageLayout(storage_root)
-    storage_layout.validate_final_output(output_path)
+    managed_output_policies = tuple(
+        policy
+        for policy in (_managed_publication_manuscript_output_policy(project_root=project_root, manuscript_config_path=config_file),)
+        if policy is not None
+    )
+    storage_layout.validate_final_output(output_path, managed_output_policies=managed_output_policies)
     storage_check = storage_layout.check_user_output(
         output_path,
         preferred_kinds=(
@@ -8666,6 +10960,7 @@ def paper_build(
             DurableOutputKind.MANUSCRIPT,
             DurableOutputKind.DRAFT,
         ),
+        managed_output_policies=managed_output_policies,
     )
 
     bib_source = _resolve_bibliography_path(

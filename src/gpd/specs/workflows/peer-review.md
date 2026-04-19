@@ -1,5 +1,6 @@
 <purpose>
-Conduct a skeptical peer review of a manuscript and supporting artifacts through a staged six-agent panel. Peer review supports two intake modes: `project-backed manuscript review` and `standalone explicit-artifact review`. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
+Conduct a staged skeptical peer review of either the current GPD project manuscript or an explicit manuscript artifact through a six-agent panel. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
+Peer review supports two intake modes: `project-backed manuscript review` and `standalone explicit-artifact review`. The goal is to prevent single-pass, overly charitable reviews of manuscripts that are mathematically coherent but physically weak, novelty-light, or scientifically unconvincing.
 </purpose>
 
 <core_principle>
@@ -48,6 +49,7 @@ Treat `project_contract_gate` as authoritative. Use `project_contract` and `cont
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
 The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
+This workflow is project-aware: it may resolve the active manuscript from the current GPD project or review one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target supplied in the current workspace. In both modes, write the review artifacts under `GPD/` in the invoking workspace.
 
 If `REVIEW_TARGET` is empty and `project_exists` is true, ask the user which mode they want:
 

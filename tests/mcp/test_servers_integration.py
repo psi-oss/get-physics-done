@@ -520,6 +520,8 @@ class TestSkillsServerIntegration:
         assert "## Command Requirements" in result["content"]
         assert "Quick Start Extract" in result["content"]
         assert "## Contextual Help" in result["content"]
+        assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in result["content"]
+        assert "resolved GPD-owned manuscript root" in result["content"]
         assert result["file_count"] == 1
         assert result["allowed_tools_surface"] == "command.allowed-tools"
 
@@ -527,6 +529,7 @@ class TestSkillsServerIntegration:
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-peer-review")
+        contract_documents = {Path(entry["path"]).name: entry for entry in result["contract_documents"]}
 
         assert "error" not in result
         assert any(path.endswith("review-ledger-schema.md") for path in result["schema_references"])
@@ -534,6 +537,20 @@ class TestSkillsServerIntegration:
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
         assert "required_state" not in result["review_contract"]
+        assert result["review_contract"]["required_evidence"] == [
+            "existing manuscript or explicit external artifact target",
+        ]
+        assert result["review_contract"]["blocking_conditions"] == [
+            "missing manuscript or explicit external artifact target",
+            "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
+        ]
+        assert result["review_contract"]["conditional_requirements"][0]["when"] == "project-backed manuscript review"
+        assert any(
+            variant["scope"] == "explicit_artifact"
+            for variant in result["review_contract"].get("scope_variants", [])
+        )
         assert result["review_contract"]["conditional_requirements"] == [
             {
                 "when": "project-backed manuscript review",
@@ -591,8 +608,18 @@ class TestSkillsServerIntegration:
         assert result["context_mode"] == "project-aware"
         assert result["project_reentry_capable"] is False
         assert "## Review Contract" in result["content"]
+        assert any(
+            fragment in result["content"]
+            for fragment in (
+                "project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`",
+                "subject-owned publication root under `GPD/publication/{subject_slug}`",
+                "staged review artifacts on the workflow-owned `GPD/` paths",
+            )
+        )
         assert "review_contract:" in result["content"]
         assert "review-contract:" not in result["content"]
+        assert "peer-review-reliability.md" in contract_documents
+        assert "explicit external artifact review" in contract_documents["peer-review-reliability.md"]["body"]
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
         assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
         assert "It already embeds the model-visible `Command Requirements` section." in result["loading_hint"]

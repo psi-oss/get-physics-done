@@ -12,16 +12,17 @@ context_cost: low
 
 # Peer Review Phase Reliability
 
-Guidance for reliable execution of the staged peer-review pipeline, covering when the phase triggers, how stages recover from failure, how to distinguish internal from external review, and how review findings feed back into manuscript revisions.
+Guidance for reliable execution of the staged peer-review pipeline, whether `gpd:peer-review` is reviewing the current GPD project manuscript or one explicit manuscript artifact. This covers when the workflow triggers, how stages recover from failure, how to distinguish internal from external review, and how review findings feed back into manuscript revisions.
 
-This is the canonical reliability reference for the peer-review skill surface. Follow the path and round-suffix conventions here when the workflow, report, and response artifacts need a stable source of truth.
+This is the canonical reliability reference for the peer-review skill surface. Follow the path and round-suffix conventions here when the workflow, report, and response artifacts need a stable source of truth. `gpd:peer-review` is project-aware: it can review the active manuscript in the current GPD project or an explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target, while still writing review artifacts under `GPD/` in the invoking workspace.
+That output policy does not relocate the manuscript draft or manuscript-root manifests; those stay rooted at the resolved manuscript directory and must not be copied into `GPD/` to satisfy strict gates.
 Peer review supports two intake modes: `project-backed manuscript review` and `standalone explicit-artifact review`.
 
 ## When Peer Review Triggers
 
 `project-backed manuscript review` activates **after a complete manuscript draft exists** and **before final PDF packaging and submission**. `standalone explicit-artifact review` is a direct path-based intake surface for one explicit target and does not require a full publication-pipeline workspace. Specifically:
 
-1. **After draft completion.** In `project-backed manuscript review`, the `gpd:write-paper` workflow produces a manuscript with all sections, equations, figures, and bibliography in place. Peer review does not run on incomplete drafts or outlines.
+1. **After draft completion.** In `project-backed manuscript review`, the current GPD project manuscript produced by `gpd:write-paper` must already be a real draft with sections, equations, figures, and bibliography in place. In `standalone explicit-artifact review`, the explicit manuscript artifact must already be reviewable. Peer review does not run on incomplete drafts or outlines.
 2. **Before final PDF.** In `project-backed manuscript review`, peer review must complete and its findings must be addressed before the manuscript is packaged for submission (e.g., via `gpd:arxiv-submission`).
 3. **Explicit invocation.** Peer review runs when the user invokes `gpd:peer-review` or when the write-paper workflow reaches its internal review gate. It is not triggered automatically by file saves or partial edits.
 4. **Standalone path intake.** In `standalone explicit-artifact review`, the user points at one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target. This standalone intake mode is limited to `gpd:peer-review`; it does not imply standalone downstream publication packaging.
@@ -34,9 +35,10 @@ Peer review supports two intake modes: `project-backed manuscript review` and `s
 - Phase summaries and verification reports under `GPD/phases/` are required only when reviewing the current GPD project manuscript
 - `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are strict project-backed gates and additive-only context when present for `standalone explicit-artifact review`
 - Standalone explicit-artifact intake must still expose a readable text surface for the resolved target, whether native or extracted
+- Manuscript-root publication artifacts must be read from the resolved manuscript directory itself; copied stand-ins under `GPD/` do not satisfy strict gates
 - Strict preflight semantic gates pass for any manuscript-root publication artifacts that are present
 
-If any precondition fails, the review preflight blocks entry and reports the missing items.
+If any precondition fails, the review preflight blocks entry and reports the missing items. The blocking set is mode-dependent: project-backed review may require project state and phase artifacts, while explicit external-artifact review may proceed without them.
 
 ## Automated Internal Panel vs. Journal External Review
 
@@ -62,8 +64,8 @@ Entry criteria are mode-specific.
 Project-backed manuscript review:
 
 1. **Manuscript completeness.** All sections referenced in the paper structure are drafted. No placeholder or stub sections remain.
-2. **Artifact readiness.** `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` exist and pass validation. In strict mode the bibliography audit must also clear `bibliography_audit_clean`, and the reproducibility manifest must clear `reproducibility_ready`.
-3. **Verification coverage.** At least one verification report exists under `GPD/phases/`.
+2. **Artifact readiness.** In strict project-backed mode, `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` exist and pass validation. In that mode the bibliography audit must also clear `bibliography_audit_clean`, and the reproducibility manifest must clear `reproducibility_ready`. For explicit external artifact review, these manuscript-root publication artifacts are additive when present and only block when the strict intake mode actually requires them.
+3. **Verification coverage.** At least one verification report exists under `GPD/phases/` when reviewing the current GPD project manuscript. Explicit external artifact review should use supporting evidence when present, but missing project-local verification reports alone do not block that mode.
 4. **Preflight pass.** `gpd validate review-preflight peer-review "$REVIEW_TARGET" --strict` exits zero.
 
 Standalone explicit-artifact review:

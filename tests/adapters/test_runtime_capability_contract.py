@@ -336,3 +336,14 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
         assert "relaunch-required" in readme
         assert_settings_local_terminal_follow_up_contract(settings_workflow)
         assert "requires_relaunch" in settings_workflow
+
+
+def test_runtime_facing_docs_keep_typed_command_policy_vocabulary_generic() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    help_workflow = (REPO_ROOT / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+
+    assert "Typed command metadata is not review-only." in readme
+    assert "shared command applicability surface for public commands" in readme
+    assert "generic typed command-policy check for the public runtime surface" in help_workflow
+    for content in (readme, help_workflow):
+        assert "specialized typed surfaces for commands that expose review/publication contracts" in content

@@ -11,15 +11,17 @@ Read these files using the file_read tool:
 
 ## 0. Load Project Context
 
+Keep this init bound to the workspace the user invoked from. `compare-results` can run as a current-workspace standalone comparison, so do not auto-reenter a different recent project here.
+
 ```bash
-INIT=$(gpd --raw init progress --include state)
+INIT=$(gpd --raw init progress --include state --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `active_reference_context`, `derived_convention_lock`
+Parse JSON for: `state_exists`, `project_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `active_reference_context`, `derived_convention_lock`
 
 If the relevant phase or artifact is contract-backed, resolve:
 - `subject_id`
@@ -31,6 +33,7 @@ If the relevant phase or artifact is contract-backed, resolve:
 Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.
 If `active_reference_context` is non-empty, keep that anchor ledger visible while resolving `subject_id`, `reference_id`, thresholds, and comparison linkage.
 If `derived_convention_lock` is non-empty, keep that canonical lock visible while checking shared conventions and normalization between Source A, Source B, and the verdict threshold.
+If `state_exists` is false in the current workspace, require the user to provide the comparison sources, shared conventions, and decisive threshold explicitly instead of inferring them from another project.
 
 Do not drop back to generic prose when a contract-backed target exists.
 
@@ -65,7 +68,13 @@ When the comparison is decisive, always emit `comparison_verdicts`. Do not hide 
 
 ## 4. Write The Artifact
 
-Write `GPD/comparisons/[slug]-COMPARISON.md` using the internal-comparison template.
+Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and create the current-workspace managed comparison root before writing any GPD-authored outputs.
+
+```bash
+mkdir -p GPD/comparisons
+```
+
+Write `${COMPARISON_OUTPUT_PATH}` using the internal-comparison template.
 
 The frontmatter must include:
 - `comparison_verdicts`
@@ -73,6 +82,7 @@ The frontmatter must include:
 - `subject_id` / `reference_id` linkage when available
 
 If the comparison is load-bearing for a figure or table, note the resulting artifact path so the figure tracker can point back to it.
+Any additional GPD-authored notes, tables, or helper artifacts created for this comparison should stay under the same current-workspace `GPD/comparisons/` subtree.
 
 ## 5. Route The Outcome
 

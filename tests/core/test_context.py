@@ -10,6 +10,7 @@ import pytest
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.constants import ProjectLayout
 from gpd.core.context import (
+    _WRITE_PAPER_INIT_FIELDS,
     _extract_frontmatter_field,
     _generate_slug,
     _is_phase_complete,
@@ -21,12 +22,14 @@ from gpd.core.context import (
     _render_active_reference_context,
     _should_skip_research_scan_entry,
     _state_exists,
+    init_arxiv_submission,
     init_execute_phase,
     init_literature_review,
     init_map_research,
     init_milestone_op,
     init_new_milestone,
     init_new_project,
+    init_peer_review,
     init_phase_op,
     init_plan_phase,
     init_progress,
@@ -59,7 +62,7 @@ _XDG_RUNTIME_DESCRIPTOR = next(
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
     planning = tmp_path / "GPD"
-    planning.mkdir()
+    planning.mkdir(parents=True, exist_ok=True)
     (planning / "phases").mkdir()
     return tmp_path
 
@@ -421,8 +424,8 @@ def _write_manuscript_proof_review_artifacts_with_proof_path(
     (review_dir / "PROOF-REDTEAM.md").write_text(
         (
             "---\n"
-                "status: passed\n"
-                "reviewer: gpd-check-proof\n"
+            "status: passed\n"
+            "reviewer: gpd-check-proof\n"
             "claim_ids:\n"
             "  - CLM-001\n"
             "proof_artifact_paths:\n"
@@ -444,28 +447,28 @@ def _write_manuscript_proof_review_artifacts_with_proof_path(
             "- Named parameters:\n"
             "  - `r_0`: target radius\n"
             "- Hypotheses:\n"
-                "  - `H1`: chi > 0\n"
-                "- Quantifier / domain obligations:\n"
-                "  - for every r_0 > 0\n"
-                "- Conclusion clauses:\n"
-                "  - annulus intersection holds\n"
-                "## Coverage Ledger\n"
+            "  - `H1`: chi > 0\n"
+            "- Quantifier / domain obligations:\n"
+            "  - for every r_0 > 0\n"
+            "- Conclusion clauses:\n"
+            "  - annulus intersection holds\n"
+            "## Coverage Ledger\n"
             "### Named-Parameter Coverage\n"
-                "| Parameter | Role / Domain | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| `r_0` | target radius | {proof_artifact_path}:1 | covered | Carried through the argument. |\n"
-                "### Hypothesis Coverage\n"
-                "| Hypothesis | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| `H1` | {proof_artifact_path}:1 | covered | Used in the positivity step. |\n"
-                "### Quantifier / Domain Coverage\n"
-                "| Obligation | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| `for every r_0 > 0` | {proof_artifact_path}:1 | covered | No specialization introduced. |\n"
-                "### Conclusion-Clause Coverage\n"
-                "| Clause | Proof Location | Status | Notes |\n"
-                "| --- | --- | --- | --- |\n"
-                f"| annulus intersection holds | {proof_artifact_path}:1 | covered | Final sentence states it. |\n"
+            "| Parameter | Role / Domain | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `r_0` | target radius | {proof_artifact_path}:1 | covered | Carried through the argument. |\n"
+            "### Hypothesis Coverage\n"
+            "| Hypothesis | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `H1` | {proof_artifact_path}:1 | covered | Used in the positivity step. |\n"
+            "### Quantifier / Domain Coverage\n"
+            "| Obligation | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `for every r_0 > 0` | {proof_artifact_path}:1 | covered | No specialization introduced. |\n"
+            "### Conclusion-Clause Coverage\n"
+            "| Clause | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| annulus intersection holds | {proof_artifact_path}:1 | covered | Final sentence states it. |\n"
             "## Adversarial Probe\n"
             "- Probe type: dropped-parameter test\n"
             "- Result: The proof still references r_0, so the theorem remains global in the target radius.\n"
@@ -1319,9 +1322,18 @@ class TestInitExecutePhase:
         )
 
         assert rendered.count("non-durable contract-intake warning") == 2
-        assert "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance" not in rendered
-        assert "context_intake.context_gaps entry is only a placeholder and does not preserve actionable guidance" not in rendered
-        assert "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact" not in rendered
+        assert (
+            "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance"
+            not in rendered
+        )
+        assert (
+            "context_intake.context_gaps entry is only a placeholder and does not preserve actionable guidance"
+            not in rendered
+        )
+        assert (
+            "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact"
+            not in rendered
+        )
         assert "references.0.must_surface must be a boolean" in rendered
         assert "context_intake is required" in rendered
         assert "scope.question is required" in rendered
@@ -1342,7 +1354,9 @@ class TestInitExecutePhase:
         assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["active_reference_context"]
         assert "GPD/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "critical slope" in "\n".join(ctx["effective_reference_intake"]["known_good_baselines"])
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
 
     def test_surfaces_live_execution_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1405,8 +1419,7 @@ class TestInitExecutePhase:
         assert "selected_protocol_bundles" not in ctx
         assert "protocol_bundle_asset_paths" not in ctx
         assert any(
-            extension["bundle_id"] == "stat-mech-simulation"
-            for extension in ctx["protocol_bundle_verifier_extensions"]
+            extension["bundle_id"] == "stat-mech-simulation" for extension in ctx["protocol_bundle_verifier_extensions"]
         )
 
     def test_surfaces_numerical_relativity_protocol_bundle(self, tmp_path: Path) -> None:
@@ -1421,8 +1434,7 @@ class TestInitExecutePhase:
         assert "numerical-relativity" in ctx["selected_protocol_bundle_ids"]
         assert "numerical-relativity.md" in ctx["protocol_bundle_context"]
         assert any(
-            extension["bundle_id"] == "numerical-relativity"
-            for extension in ctx["protocol_bundle_verifier_extensions"]
+            extension["bundle_id"] == "numerical-relativity" for extension in ctx["protocol_bundle_verifier_extensions"]
         )
 
     def test_protocol_bundle_verifier_extensions_match_mcp_bundle_checklist(self, tmp_path: Path) -> None:
@@ -1480,7 +1492,9 @@ class TestInitPlanPhase:
         assert ctx["padded_phase"] == "02"
         assert "staged_loading" not in ctx
 
-    def test_stage_phase_bootstrap_returns_only_bootstrap_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stage_phase_bootstrap_returns_only_bootstrap_payload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")
         _write_project_contract_state(tmp_path)
@@ -1524,7 +1538,9 @@ class TestInitPlanPhase:
         assert "Gap notes." in ctx["verification_content"]
         assert "Checks." in ctx["validation_content"]
 
-    def test_stage_checker_revision_uses_tight_checker_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stage_checker_revision_uses_tight_checker_payload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _setup_project(tmp_path)
         phase_dir = _create_phase_dir(tmp_path, "02-analysis")
         _write_project_contract_state(tmp_path)
@@ -1781,7 +1797,10 @@ class TestInitPlanPhase:
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["resolution_status"] == "provided"
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["verification_status"] == "verified"
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["manuscript_root"] == "paper"
-        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["bibliography_audit_path"] == "paper/BIBLIOGRAPHY-AUDIT.json"
+        assert (
+            ctx["derived_manuscript_reference_status"]["ref-benchmark"]["bibliography_audit_path"]
+            == "paper/BIBLIOGRAPHY-AUDIT.json"
+        )
         assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["source_artifacts"] == [
             "paper/BIBLIOGRAPHY-AUDIT.json"
         ]
@@ -1814,7 +1833,9 @@ class TestInitPlanPhase:
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "benchmark-paper" not in ctx["effective_reference_intake"]["must_read_refs"]
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
         assert ctx["active_reference_count"] >= ctx["derived_active_reference_count"]
         assert "GPD/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "unresolved reference token" not in ctx["active_reference_context"]
@@ -2166,17 +2187,12 @@ class TestInitNewProject:
 
     def test_detects_xdg_config_subdir_research_files_inside_a_project(self, tmp_path: Path) -> None:
         opencode_descriptor = next(
-            descriptor
-            for descriptor in _RUNTIME_DESCRIPTORS
-            if descriptor.global_config.xdg_subdir
+            descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.xdg_subdir
         )
         (tmp_path / ".config" / opencode_descriptor.global_config.xdg_subdir).mkdir(parents=True)
-        (
-            tmp_path
-            / ".config"
-            / opencode_descriptor.global_config.xdg_subdir
-            / "notes.py"
-        ).write_text("print('research notes')", encoding="utf-8")
+        (tmp_path / ".config" / opencode_descriptor.global_config.xdg_subdir / "notes.py").write_text(
+            "print('research notes')", encoding="utf-8"
+        )
 
         ctx = init_new_project(tmp_path)
 
@@ -2501,13 +2517,25 @@ class TestInitNewProject:
         assert "derived_manuscript_reference_status" in ctx
         assert "derived_manuscript_proof_review_status" in ctx
         assert "protocol_bundle_context" in ctx
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert ctx["publication_bootstrap_root"] == "paper"
+        assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["publication_subject_slug"]
+        assert ctx["selected_publication_root"] == "GPD"
+        assert ctx["publication_intake_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/intake"
+        assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
+        assert ctx["managed_manuscript_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/manuscript"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
     def test_write_paper_stage_paper_bootstrap_filters_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
         _write_project_contract_state(tmp_path)
 
-        manifest = load_workflow_stage_manifest("write-paper")
+        manifest = load_workflow_stage_manifest("write-paper", known_init_fields=_WRITE_PAPER_INIT_FIELDS)
         stage = manifest.get_stage("paper_bootstrap")
 
         ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
@@ -2518,6 +2546,13 @@ class TestInitNewProject:
         assert "reference_artifacts_content" not in ctx
         assert "state_content" not in ctx
         assert "derived_convention_lock" not in ctx
+        assert ctx["publication_subject_status"] == "missing"
+        assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
+        assert ctx["publication_bootstrap_root"] == "paper"
+        assert ctx["selected_publication_root"] is None
+        assert ctx["publication_intake_root"] is None
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
     def test_write_paper_stage_outline_and_scaffold_loads_deferred_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2531,7 +2566,7 @@ class TestInitNewProject:
         _write_research_map_anchor_files(tmp_path)
         _write_structured_state_memory(tmp_path)
 
-        manifest = load_workflow_stage_manifest("write-paper")
+        manifest = load_workflow_stage_manifest("write-paper", known_init_fields=_WRITE_PAPER_INIT_FIELDS)
         stage = manifest.get_stage("outline_and_scaffold")
 
         ctx = init_write_paper(tmp_path, stage="outline_and_scaffold")
@@ -2544,12 +2579,280 @@ class TestInitNewProject:
         assert "Verified evidence" in ctx["requirements_content"]
         assert ctx["derived_convention_lock_count"] == 2
         assert ctx["derived_intermediate_result_count"] == 1
+        assert ctx["publication_bootstrap_mode"] == "fresh_project_bootstrap"
+        assert ctx["selected_publication_root"] is None
+        assert ctx["publication_intake_root"] is None
+        assert ctx["contract_intake"] is None
+        assert ctx["effective_reference_intake"] == {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+
+    def test_write_paper_stage_paper_bootstrap_surfaces_resolved_publication_subject(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
+
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert ctx["publication_bootstrap_root"] == "paper"
+        assert ctx["publication_artifact_base"] == "paper"
+        assert ctx["manuscript_root"] == "paper"
+        assert ctx["manuscript_entrypoint"] == "paper/main.tex"
+        assert ctx["artifact_manifest_path"] == "paper/ARTIFACT-MANIFEST.json"
+        assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["selected_publication_root"] == "GPD"
+        assert ctx["publication_intake_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/intake"
+        assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
+        assert ctx["managed_manuscript_root"] == f"GPD/publication/{ctx['publication_subject_slug']}/manuscript"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
+
+    def test_write_paper_bootstrap_surfaces_managed_publication_lane_without_stage(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json").write_text("{}\n", encoding="utf-8")
+        (manuscript_dir / "reproducibility-manifest.json").write_text("{}\n", encoding="utf-8")
+
+        ctx = init_write_paper(tmp_path)
+
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_subject_slug"] == "curvature-flow-bounds"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["managed_manuscript_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert ctx["publication_bootstrap_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["publication_artifact_base"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["manuscript_root"] == "GPD/publication/curvature-flow-bounds/manuscript"
+        assert ctx["manuscript_entrypoint"] == "GPD/publication/curvature-flow-bounds/manuscript/main.tex"
+        assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["publication_intake_root"] == "GPD/publication/curvature-flow-bounds/intake"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
+
+    def test_write_paper_stage_bootstrap_surfaces_managed_lane_roots_without_project_backing(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "external-lane" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        intake_dir = manuscript_dir.parent / "intake"
+        intake_dir.mkdir(parents=True)
+        (intake_dir / "paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}External lane draft.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "External Lane",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
+
+        assert ctx["project_exists"] is False
+        assert ctx["publication_subject_status"] == "resolved"
+        assert ctx["publication_subject_slug"] == "external-lane"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == "GPD/publication/external-lane"
+        assert ctx["managed_manuscript_root"] == "GPD/publication/external-lane/manuscript"
+        assert ctx["selected_publication_root"] == "GPD/publication/external-lane"
+        assert ctx["publication_intake_root"] == "GPD/publication/external-lane/intake"
+        assert ctx["contract_intake"] is None
+        assert ctx["effective_reference_intake"] == {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
 
     def test_write_paper_stage_rejects_unknown_stage(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
 
         with pytest.raises(ValueError, match="Unknown write-paper stage 'bogus'"):
             init_write_paper(tmp_path, stage="bogus")
+
+    def test_peer_review_stage_bootstrap_surfaces_selected_project_review_roots(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPeer review target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        manifest = load_workflow_stage_manifest("peer-review")
+        stage = manifest.get_stage("bootstrap")
+        ctx = init_peer_review(tmp_path, stage="bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["publication_subject_slug"]
+        assert ctx["publication_lane_kind"] == "canonical_project_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == f"GPD/publication/{ctx['publication_subject_slug']}"
+        assert ctx["selected_publication_root"] == "GPD"
+        assert ctx["selected_review_root"] == "GPD/review"
+
+    def test_arxiv_submission_stage_bootstrap_surfaces_subject_owned_publication_roots(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nSubmission target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        (manuscript_dir / "main.tex").write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Curvature Flow Bounds",
+                    "journal": "jhep",
+                    "created_at": "2026-04-02T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "main-tex",
+                            "category": "tex",
+                            "path": "main.tex",
+                            "sha256": "0" * 64,
+                            "produced_by": "test",
+                            "sources": [],
+                            "metadata": {},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        manifest = load_workflow_stage_manifest("arxiv-submission")
+        stage = manifest.get_stage("bootstrap")
+        ctx = init_arxiv_submission(tmp_path, stage="bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["publication_subject_slug"] == "curvature-flow-bounds"
+        assert ctx["publication_lane_kind"] == "managed_publication_manuscript"
+        assert ctx["publication_lane_owner"] == "project_managed"
+        assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert ctx["selected_review_root"] == "GPD/publication/curvature-flow-bounds/review"
 
 
 # ─── init_new_milestone ───────────────────────────────────────────────────────
@@ -2582,7 +2885,9 @@ class TestInitNewMilestone:
         assert ctx["project_contract_gate"]["authoritative"] is True
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
         assert "GPD/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
 
@@ -2858,6 +3163,7 @@ class TestInitResume:
         assert ctx["project_root"] == workspace.resolve().as_posix()
         assert ctx["project_root_source"] == "current_workspace"
         assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "project_reentry_allowed"
         assert ctx["project_reentry_mode"] == "current-workspace"
         assert ctx["project_reentry_selected_candidate"] is not None
         assert ctx["project_reentry_selected_candidate"]["source"] == "current_workspace"
@@ -2907,9 +3213,7 @@ class TestInitResume:
         assert ctx["resume_candidates"][0]["resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
         assert "source" not in ctx["resume_candidates"][0]
 
-    def test_canonical_bounded_segment_carries_last_result_id_and_hydrates_result(
-        self, tmp_path: Path
-    ) -> None:
+    def test_canonical_bounded_segment_carries_last_result_id_and_hydrates_result(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict
 
@@ -3159,6 +3463,7 @@ class TestInitResume:
         with pytest.raises(RuntimeError, match="canonical resolution exploded"):
             init_resume(tmp_path)
 
+
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 
 
@@ -3383,7 +3688,10 @@ class TestInitVerifyWork:
 
         initial = init_verify_work(tmp_path, "1")
         assert initial["derived_manuscript_proof_review_status"]["state"] == "fresh"
-        assert external_proof_path.as_posix().removeprefix(f"{tmp_path.as_posix()}/") in initial["derived_manuscript_proof_review_status"]["watched_files"]
+        assert (
+            external_proof_path.as_posix().removeprefix(f"{tmp_path.as_posix()}/")
+            in initial["derived_manuscript_proof_review_status"]["watched_files"]
+        )
 
         external_proof_path.write_text(
             "\\documentclass{article}\n\\begin{document}\nRevised external proof.\n\\end{document}\n",
@@ -3414,7 +3722,8 @@ class TestInitTodos:
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
             'title: "Check convergence"\narea: numerical\ncreated: 2026-03-01\n\n'
-            'The body may mention area: theory and created: 2024-01-01, but those lines must be ignored.', encoding="utf-8"
+            "The body may mention area: theory and created: 2024-01-01, but those lines must be ignored.",
+            encoding="utf-8",
         )
 
         ctx = init_todos(tmp_path)
@@ -3429,8 +3738,9 @@ class TestInitTodos:
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
             'title: "Check convergence"\n\n'
-            'The body may mention area: numerical and created: 2026-03-01.\n'
-            'Those lines must not be treated as todo metadata.', encoding="utf-8"
+            "The body may mention area: numerical and created: 2026-03-01.\n"
+            "Those lines must not be treated as todo metadata.",
+            encoding="utf-8",
         )
 
         ctx = init_todos(tmp_path)
@@ -3444,19 +3754,11 @@ class TestInitTodos:
         pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "good.md").write_text(
-            "---\n"
-            "title: Good todo\n"
-            "area: numerical\n"
-            "created: 2026-03-01\n"
-            "---\n"
-            "Body\n",
+            "---\ntitle: Good todo\narea: numerical\ncreated: 2026-03-01\n---\nBody\n",
             encoding="utf-8",
         )
         (pending / "bad.md").write_text(
-            "---\n"
-            "title: Broken todo\n"
-            "area: [unterminated\n"
-            "Body without a closing delimiter\n",
+            "---\ntitle: Broken todo\narea: [unterminated\nBody without a closing delimiter\n",
             encoding="utf-8",
         )
 
@@ -3470,12 +3772,7 @@ class TestInitTodos:
         pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
-            "---\n"
-            "title: Check convergence\n"
-            "area: numerical\n"
-            "created: 2026-03-01\n"
-            "---\n"
-            "Body\n",
+            "---\ntitle: Check convergence\narea: numerical\ncreated: 2026-03-01\n---\nBody\n",
             encoding="utf-8",
         )
 
@@ -3489,8 +3786,7 @@ class TestInitTodos:
         pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "note.md").write_text(
-            "---\n"
-            "Body starts with a rule, not metadata.\n",
+            "---\nBody starts with a rule, not metadata.\n",
             encoding="utf-8",
         )
 
@@ -3607,6 +3903,22 @@ class TestInitMapResearch:
         assert ctx["has_maps"] is False
         assert ctx["existing_maps"] == []
 
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        map_dir = tmp_path / "GPD" / "research-map"
+        map_dir.mkdir()
+        (map_dir / "theory.md").write_text("# Theory Map", encoding="utf-8")
+
+        ctx = init_map_research(nested)
+
+        assert ctx["init_root_policy"] == "project_scoped"
+        assert ctx["planning_exists"] is True
+        assert ctx["research_map_dir_exists"] is True
+        assert ctx["has_maps"] is True
+        assert "theory.md" in ctx["existing_maps"]
+
     def test_existing_maps(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         map_dir = tmp_path / "GPD" / "research-map"
@@ -3636,9 +3948,13 @@ class TestInitMapResearch:
         assert ctx["project_contract"] is None
         assert ctx["derived_active_reference_count"] >= 2
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
-        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert (
+            "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        )
 
-    def test_stage_bootstrap_returns_only_manifest_required_fields(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stage_bootstrap_returns_only_manifest_required_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
         _install_fake_stage_manifest(
@@ -3680,6 +3996,25 @@ class TestInitMapResearch:
 
 
 class TestInitLiteratureReview:
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (tmp_path / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_literature_review(nested, topic="Curvature flow bounds")
+
+        assert ctx["topic"] == "Curvature flow bounds"
+        assert ctx["slug"] == "curvature-flow-bounds"
+        assert ctx["project_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["state_exists"] is True
+        assert ctx["literature_review_files"] == ["GPD/literature/benchmark-REVIEW.md"]
+        assert "Benchmark Ref 2024" in ctx["active_reference_context"]
+
     def test_stage_loads_review_bootstrap_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
@@ -3824,10 +4159,31 @@ class TestInitProgress:
         assert ctx["project_root"] == workspace.resolve().as_posix()
         assert ctx["project_root_source"] == "workspace"
         assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "workspace_locked"
         assert ctx["config_content"] is not None
         assert "project_reentry_mode" not in ctx
         assert "project_reentry_candidates" not in ctx
         assert "project_reentry_selected_candidate" not in ctx
+
+    def test_progress_without_project_reentry_stays_workspace_locked_under_ancestor_project(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+
+        project.mkdir()
+        _setup_project(project)
+        nested.mkdir(parents=True)
+
+        ctx = init_progress(nested, include_project_reentry=False)
+
+        assert ctx["workspace_root"] == nested.resolve().as_posix()
+        assert ctx["project_root"] == nested.resolve().as_posix()
+        assert ctx["project_root_source"] == "workspace"
+        assert ctx["project_root_auto_selected"] is False
+        assert ctx["init_root_policy"] == "workspace_locked"
+        assert "project_reentry_mode" not in ctx
 
     def test_progress_rejects_legacy_autonomy_values(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -4026,9 +4382,7 @@ class TestInitProgress:
         assert "ref-benchmark" not in ctx["effective_reference_intake"]["must_read_refs"]
         assert "None confirmed in `state.json.project_contract.references` yet." in ctx["active_reference_context"]
 
-    def test_progress_matches_state_loader_for_recoverably_normalized_project_contract(
-        self, tmp_path: Path
-    ) -> None:
+    def test_progress_matches_state_loader_for_recoverably_normalized_project_contract(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_recoverable_project_contract_state(tmp_path)
 
@@ -4147,7 +4501,9 @@ class TestInitProgress:
         from gpd.core.state import ensure_state_schema
 
         normalized_state = ensure_state_schema({"project_contract": contract})
-        monkeypatch.setattr("gpd.core.state.peek_state_json", lambda cwd, **kwargs: (normalized_state, [], "state.json"))
+        monkeypatch.setattr(
+            "gpd.core.state.peek_state_json", lambda cwd, **kwargs: (normalized_state, [], "state.json")
+        )
         monkeypatch.setattr("gpd.core.state._load_raw_project_contract_payload", lambda cwd: None)
 
         loaded, load_info = _load_project_contract(tmp_path)
@@ -4239,12 +4595,7 @@ class TestExtractFrontmatterField:
     def test_body_lines_do_not_override_leading_metadata_block(self, tmp_path: Path) -> None:
         from gpd.core.context import _extract_frontmatter_field
 
-        content = (
-            'title: "Check convergence"\n'
-            "\n"
-            "area: numerical\n"
-            "created: 2026-03-01\n"
-        )
+        content = 'title: "Check convergence"\n\narea: numerical\ncreated: 2026-03-01\n'
         assert _extract_frontmatter_field(content, "title") == "Check convergence"
         assert _extract_frontmatter_field(content, "area") is None
         assert _extract_frontmatter_field(content, "created") is None
@@ -4259,6 +4610,7 @@ class TestInitPhaseOp:
     def test_no_phase_returns_phase_found_false(self, tmp_path):
         """init_phase_op with no phase should set phase_found=False."""
         from gpd.core.context import init_phase_op
+
         gpd_dir = tmp_path / "GPD"
         gpd_dir.mkdir()
         (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
@@ -4270,6 +4622,7 @@ class TestInitPhaseOp:
     def test_with_phase_directory(self, tmp_path):
         """init_phase_op with existing phase should set phase_found=True."""
         from gpd.core.context import init_phase_op
+
         gpd_dir = tmp_path / "GPD"
         phases_dir = gpd_dir / "phases" / "01-test"
         phases_dir.mkdir(parents=True)
@@ -4280,6 +4633,21 @@ class TestInitPhaseOp:
         # Phase should be found since we created the directory
         if result.get("phase_found"):
             assert "01" in str(result.get("phase_number", ""))
+
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-test")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        result = init_phase_op(nested, phase="1")
+
+        assert isinstance(result, dict)
+        assert result["init_root_policy"] == "project_scoped"
+        assert result["planning_exists"] is True
+        assert result["phase_found"] is True
+        assert result["phase_number"] == "01"
+        assert str(result["phase_dir"]).startswith("GPD/phases/01-")
 
     def test_includes_structured_state_context_when_state_is_requested(self, tmp_path):
         """init_phase_op should surface canonical state slices when state is included."""

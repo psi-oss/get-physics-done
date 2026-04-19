@@ -20,23 +20,32 @@ A result quoted as "E = 3.7 +/- 0.2 eV" is incomplete without knowing what drive
 <process>
 
 <step name="initialize" priority="first">
-Load project context:
+Load workspace-bound supporting context first. Sensitivity analysis may use project data when it exists in the invoking workspace, but it must not silently reenter a different recent project.
 
 ```bash
-INIT=$(gpd --raw init phase-op --include state,config "${PHASE_ARG:-}")
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelization`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `state_exists`, `roadmap_exists`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelization`, `project_exists`, `state_exists`, `roadmap_exists`.
 
-Read STATE.md for project conventions, unit system, and active approximations.
-Extract `convention_lock` for unit conventions and parameter definitions.
-Extract `intermediate_results` for previously computed parameter values and their uncertainties.
-If `GPD/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
-If no project context exists (standalone usage), proceed with explicit parameter declarations required from user.
+- If `state_exists` is true: Read `STATE.md` for project conventions, unit system, and active approximations. Extract `convention_lock` for unit conventions and parameter definitions. Extract `intermediate_results` for previously computed parameter values and their uncertainties. If `GPD/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
+- If `state_exists` is false: Proceed in standalone/current-workspace mode with explicit parameter declarations required from the user. Standalone outputs still live under `GPD/analysis/` in the invoking workspace, but do not mutate `STATE.md` or `state.json`.
+
+Resolve authoritative phase-backed persistence only after the target quantity is known. If the target resolves to a canonical stored result with phase metadata, or the user explicitly anchors the run to a current-workspace phase, then load phase context explicitly:
+
+```bash
+PHASE_INIT=$(gpd --raw init phase-op --include state,config "{phase_number}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: phase initialization failed: $PHASE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use that follow-up phase init only when the phase number is authoritative for this run. If no authoritative phase context exists, keep `phase_found=false` and treat the run as analysis-only persistence under `GPD/analysis/`.
 
 **Convention verification** (if project exists):
 
@@ -48,13 +57,8 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-**If `phase_found` is false and a phase was specified:** Error -- phase directory not found.
-**If no phase specified:** Create an analysis-specific directory:
-
-```bash
-ANALYSIS_DIR="GPD/analysis"
-mkdir -p "$ANALYSIS_DIR"
-```
+**If `phase_found` is false after an explicit phase-backed resolution attempt:** Error -- phase directory not found in the current workspace.
+**If no authoritative phase is resolved:** Create `GPD/analysis/` in the invoking workspace only when you are ready to write the standalone/current-workspace report.
 
 </step>
 
@@ -67,9 +71,11 @@ Identify the target quantity and the parameters to analyze.
 
 Determine what output quantity f we are analyzing the sensitivity of:
 
-- Load project state via `gpd --raw init progress --include state,config` and check `intermediate_results` for computed quantities. If you need to locate the canonical target or one of its upstream results first, use `gpd result search`; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before `gpd result deps "{result_id}"` for the recorded upstream dependency chain. Keep `gpd query search` for SUMMARY/frontmatter lookup.
+- Load project state via `gpd --raw init progress --include state,config --no-project-reentry` and check `intermediate_results` for computed quantities. If you need to locate the canonical target or one of its upstream results first, use `gpd result search`; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before `gpd result deps "{result_id}"` for the recorded upstream dependency chain. Keep `gpd query search` for SUMMARY/frontmatter lookup.
 - Read from phase SUMMARY.md files for key results
 - If `--target` is specified, use that quantity directly
+- If the canonical target resolves to authoritative phase metadata, record `phase_found`, `phase_dir`, `phase_number`, and `phase_slug` before deciding the persistence path
+- Never recover phase-backed persistence from `${PHASE_ARG:-}`, recent-project state, or a guessed current phase. Phase-backed writes are allowed only after an authoritative current-workspace phase resolution.
 
 ```markdown
 ## Sensitivity Target
@@ -89,7 +95,7 @@ Identify all input parameters that f depends on:
 3. **Approximation controls:** expansion orders, truncation levels, regime boundaries
 4. **Measured inputs:** experimental values used in the calculation
 
-Read from `GPD/STATE.md` to identify active approximations and their controlling parameters. Where structured data is needed, load via `gpd --raw init progress --include state,config`.
+If project state exists, read from `GPD/STATE.md` to identify active approximations and their controlling parameters. Where structured data is needed, load via `gpd --raw init progress --include state,config --no-project-reentry`. In standalone mode, require the user to declare any approximations or validity bounds that should be analyzed.
 
 ```markdown
 ## Parameters
@@ -357,7 +363,7 @@ for i in range(len(ranked)):
 <step name="approximation_sensitivity">
 **Step 5: Analyze Approximation Sensitivity**
 
-For each active approximation in the project (read from `GPD/STATE.md`; load structured data via `gpd --raw init progress --include state,config` if needed):
+If project state exists, analyze each active approximation in the project (read from `GPD/STATE.md`; load structured data via `gpd --raw init progress --include state,config` if needed). In standalone mode, analyze only the approximations or regime boundaries explicitly supplied for the current target:
 
 ### 5a. Identify controlling parameters
 
@@ -517,16 +523,29 @@ status: completed
 Save to:
 
 - If phase-scoped: `${phase_dir}/SENSITIVITY-REPORT.md`
-- If standalone: `GPD/analysis/sensitivity-{slug}.md`
+- If not phase-scoped (standalone or analysis-only): `GPD/analysis/sensitivity-{slug}.md`
 
-### 6b. Update state
+Resolve `REPORT_PATH` only after the target quantity and any authoritative phase metadata are known:
 
-Update `propagated_uncertainties` via the CLI (which properly syncs STATE.md and state.json):
+- If authoritative phase-backed context exists: `REPORT_PATH="${phase_dir}/SENSITIVITY-REPORT.md"`
+- Otherwise: `REPORT_PATH="GPD/analysis/sensitivity-{slug}.md"`
+
+Create `GPD/analysis/` only for the standalone/current-workspace branch:
+
+```bash
+mkdir -p GPD/analysis
+```
+
+Never write standalone/current-workspace sensitivity reports under `GPD/phases/**`.
+
+### 6b. Update state (phase-scoped project mode only)
+
+Only when both `state_exists` and `phase_found` are true should this workflow update `propagated_uncertainties` via the CLI (which properly syncs `STATE.md` and `state.json`):
 
 ```bash
 gpd uncertainty add "{target quantity}" \
   --value "{nominal_value}" \
-  --uncertainty "{total_uncertainty}" --phase "{phase}" --method "sensitivity-analysis"
+  --uncertainty "{total_uncertainty}" --phase "{phase_number}" --method "sensitivity-analysis"
 ```
 
 Run this for the target quantity and for each parameter whose sensitivity-derived uncertainty is significant. For example, if the analysis covers multiple intermediate quantities:
@@ -543,12 +562,14 @@ gpd uncertainty add "{symbol}_from_{dominant_param}" \
   --uncertainty "{delta_f_dominant}" --phase "${phase_number}" --method "sensitivity-analysis"
 ```
 
-Record the sensitivity ranking and dominant source in STATE.md as a research artifact.
+Record the sensitivity ranking and dominant source in `STATE.md` as a research artifact only in that phase-scoped project mode.
+
+If no phase-scoped project context exists, skip all `gpd uncertainty add` calls. The run ends after writing `GPD/analysis/sensitivity-{slug}.md` in the invoking workspace and presenting the results directly.
 
 </step>
 
 <step name="commit_and_present">
-**Commit all sensitivity analysis artifacts:**
+**Commit phase-scoped sensitivity analysis artifacts only when both `state_exists` and `phase_found` are true:**
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files "${REPORT_PATH}" GPD/STATE.md 2>&1) || true
@@ -559,7 +580,9 @@ gpd commit \
   --files "${REPORT_PATH}" GPD/STATE.md
 ```
 
-Where `${REPORT_PATH}` is `${phase_dir}/SENSITIVITY-REPORT.md` or `GPD/analysis/sensitivity-{slug}.md` depending on scope.
+If `commit_docs` is disabled, expect the CLI commit bridge to skip the commit cleanly.
+Do not run an unconditional standalone docs commit for this workflow.
+If the run is not phase-scoped, do not run `gpd pre-commit-check` or `gpd commit`. Leave `GPD/analysis/sensitivity-{slug}.md` in the working tree and present the findings directly.
 
 **Present final results:**
 
@@ -583,7 +606,7 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 ### Output Files
 
 - `${REPORT_PATH}` -- full sensitivity report
-- `GPD/STATE.md` -- updated with uncertainty estimates
+- `GPD/STATE.md` -- updated with uncertainty estimates only when `state_exists=true` and `phase_found=true`
 
 ---
 
@@ -604,7 +627,7 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 <failure_handling>
 
 - **Divergent sensitivity:** |S_i| exceeds threshold for one or more parameters. This may indicate a critical point, resonance, or ill-conditioned formulation. Flag prominently in the report and recommend non-perturbative treatment or reformulation near the divergence.
-- **Missing parameters:** A parameter required for the analysis cannot be found in STATE.md or phase summaries. Prompt the user for its nominal value and uncertainty. Do not guess values.
+- **Missing parameters:** A parameter required for the analysis cannot be found in `STATE.md`, prior artifacts, or phase summaries. Prompt the user for its nominal value and uncertainty. Do not guess values.
 - **Numerical instability:** Finite-difference derivatives give inconsistent results at different step sizes. Reduce perturbation fraction, switch to analytical derivatives if possible, or flag the parameter as requiring special treatment.
 - **All-zero sensitivities:** Every |S_i| is effectively zero. Either the output does not depend on any of the analyzed parameters (check the dependency chain for errors), or the perturbation is too small to register (increase delta_frac). Investigate before reporting.
 
@@ -612,7 +635,8 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 
 <success_criteria>
 
-- [ ] Project context loaded via `gpd --raw init phase-op`
+- [ ] Current-workspace supporting context loaded via `gpd --raw init progress --include state,config --no-project-reentry`
+- [ ] `gpd --raw init phase-op` used only when authoritative phase context exists
 - [ ] Target quantity identified with nominal value and current uncertainty
 - [ ] All relevant input parameters cataloged with nominal values and uncertainties
 - [ ] Sensitivity method chosen (analytical, numerical, or combined) and justified
@@ -625,8 +649,8 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 - [ ] Active approximations analyzed for systematic error contribution
 - [ ] Complete uncertainty budget constructed with dominant source identified
 - [ ] SENSITIVITY-REPORT.md generated with ranked parameter table and recommendations
-- [ ] propagated_uncertainties updated via `gpd uncertainty add`
-- [ ] Artifacts committed via `gpd commit`
+- [ ] `propagated_uncertainties` updated via `gpd uncertainty add` when `state_exists=true` and `phase_found=true`
+- [ ] Phase-scoped artifacts committed via `gpd commit`; standalone or analysis-only runs present results directly without `STATE.md` or `state.json` mutations
 - [ ] User presented with key findings and next steps
 
 </success_criteria>

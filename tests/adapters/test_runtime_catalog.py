@@ -549,6 +549,10 @@ def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback
     assert codex_policy.notify_event_types == ("agent-turn-complete",)
     assert "agent-turn-complete" in merged_policy.notify_event_types
     assert "cwd" in merged_policy.workspace_keys
+    assert codex_policy.target_path_keys == ("target_path",)
+    assert codex_policy.target_root_keys == ("target_root",)
+    assert merged_policy.target_path_keys == ("target_path",)
+    assert merged_policy.target_root_keys == ("target_root",)
     assert codex_policy.supports_runtime_session_payload_attribution is False
     assert codex_policy.supports_agent_payload_attribution is False
     assert merged_policy.supports_runtime_session_payload_attribution is False

@@ -24,6 +24,16 @@ def _mode_aware_section(text: str) -> str:
     return match.group("section")
 
 
+def _discover_help_section(text: str) -> str:
+    match = re.search(
+        r"\*\*`gpd:discover \[phase or topic\] \[--depth quick\|medium\|deep\]`\*\*\n(?P<section>.*?)(?=\n\*\*`gpd:show-phase)",
+        text,
+        re.S,
+    )
+    assert match is not None
+    return match.group("section")
+
+
 def test_owned_workflows_make_balanced_research_mode_explicit() -> None:
     for name in MODE_AWARE_WORKFLOWS:
         section = _mode_aware_section(_read_workflow(name))
@@ -46,16 +56,23 @@ def test_help_dedupes_runtime_permission_readiness_trio() -> None:
     assert help_workflow.count("gpd permissions sync --runtime <runtime> --autonomy balanced") == 1
 
 
+def test_help_describes_discover_quick_depth_as_verification_only_without_files() -> None:
+    discover_help = _discover_help_section(_read_workflow("help.md"))
+
+    assert "quick (summary)" not in discover_help
+    assert re.search(r"verification[- ]only|no files? (?:created|written)|without writing a file", discover_help, re.I)
+
+
 def test_publication_workflows_read_mode_state_from_init_context() -> None:
     write_paper = _read_workflow("write-paper.md")
     respond = _read_workflow("respond-to-referees.md")
 
-    assert 'INIT=$(gpd --raw init phase-op --include config)' in write_paper
+    assert "INIT=$(gpd --raw init phase-op --include config)" in write_paper
     assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)' in write_paper
     assert 'RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)' in write_paper
     assert "gpd --raw config get autonomy" not in write_paper
     assert "gpd --raw config get research_mode" not in write_paper
 
-    assert 'INIT=$(gpd --raw init phase-op --include config)' in respond
+    assert "INIT=$(gpd --raw init phase-op --include config)" in respond
     assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)' in respond
     assert "gpd --raw config get autonomy" not in respond

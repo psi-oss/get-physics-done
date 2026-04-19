@@ -27,6 +27,7 @@ __all__ = [
     "ProjectRootResolution",
     "RootResolutionBasis",
     "RootResolutionConfidence",
+    "RootResolutionPolicy",
     "normalize_workspace_hint",
     "resolve_project_root",
     "resolve_project_roots",
@@ -48,6 +49,13 @@ class RootResolutionConfidence(StrEnum):
     LOW = "low"
 
 
+class RootResolutionPolicy(StrEnum):
+    """How the workspace hint is allowed to resolve a project root."""
+
+    WORKSPACE_LOCKED = "workspace_locked"
+    PROJECT_SCOPED = "project_scoped"
+
+
 @dataclass(frozen=True, slots=True)
 class ProjectRootResolution:
     """Typed root-resolution result for workspace-aware callers."""
@@ -55,6 +63,7 @@ class ProjectRootResolution:
     workspace_root: Path | None
     project_hint: Path | None
     project_root: Path
+    policy: RootResolutionPolicy
     basis: RootResolutionBasis
     confidence: RootResolutionConfidence
     has_project_layout: bool
@@ -88,7 +97,11 @@ def normalize_workspace_hint(value: Path | str | None) -> Path | None:
         return expanded
 
 
-def _walk_project_root(candidate: Path | None) -> tuple[Path | None, int]:
+def _walk_project_root(
+    candidate: Path | None,
+    *,
+    allow_ancestor_walk: bool = True,
+) -> tuple[Path | None, int]:
     """Walk *candidate* and its ancestors until the best ``GPD/`` layout is found."""
 
     if candidate is None:
@@ -97,7 +110,8 @@ def _walk_project_root(candidate: Path | None) -> tuple[Path | None, int]:
     best_verified: tuple[int, int, Path] | None = None
     best_bare: tuple[int, Path] | None = None
 
-    for steps, path in enumerate((candidate, *candidate.parents)):
+    search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
+    for steps, path in enumerate(search_roots):
         layout = ProjectLayout(path)
         if not layout.gpd.is_dir():
             continue
@@ -130,6 +144,7 @@ def resolve_project_roots(
     workspace: Path | str | None = None,
     *,
     project_dir: Path | str | None = None,
+    policy: RootResolutionPolicy = RootResolutionPolicy.PROJECT_SCOPED,
 ) -> ProjectRootResolution | None:
     """Resolve the normalized workspace hint and best project root.
 
@@ -139,6 +154,14 @@ def resolve_project_roots(
     2. verified workspace walk-up
     3. explicit ``project_dir`` fallback
     4. workspace fallback
+
+    ``policy`` controls only how the workspace hint participates:
+
+    - ``project_scoped`` allows ancestor walk-up from the workspace
+    - ``workspace_locked`` keeps the workspace bound to the exact requested path
+
+    Explicit ``project_dir`` hints still verify by ancestor walk-up so callers
+    can pass nested project hints without losing the authoritative root.
     """
 
     workspace_root = normalize_workspace_hint(workspace)
@@ -150,18 +173,23 @@ def resolve_project_roots(
             workspace_root=workspace_root,
             project_hint=project_hint,
             project_root=explicit_root,
+            policy=policy,
             basis=RootResolutionBasis.PROJECT_DIR,
             confidence=RootResolutionConfidence.HIGH,
             has_project_layout=True,
             walk_up_steps=explicit_steps,
         )
 
-    workspace_project_root, workspace_steps = _walk_project_root(workspace_root)
+    workspace_project_root, workspace_steps = _walk_project_root(
+        workspace_root,
+        allow_ancestor_walk=policy != RootResolutionPolicy.WORKSPACE_LOCKED,
+    )
     if workspace_project_root is not None:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
             project_root=workspace_project_root,
+            policy=policy,
             basis=RootResolutionBasis.WORKSPACE,
             confidence=RootResolutionConfidence.HIGH,
             has_project_layout=True,
@@ -173,6 +201,7 @@ def resolve_project_roots(
             workspace_root=workspace_root,
             project_hint=project_hint,
             project_root=project_hint,
+            policy=policy,
             basis=RootResolutionBasis.PROJECT_DIR,
             confidence=RootResolutionConfidence.MEDIUM,
             has_project_layout=False,
@@ -184,6 +213,7 @@ def resolve_project_roots(
             workspace_root=workspace_root,
             project_hint=project_hint,
             project_root=workspace_root,
+            policy=policy,
             basis=RootResolutionBasis.WORKSPACE,
             confidence=RootResolutionConfidence.LOW,
             has_project_layout=False,
@@ -198,10 +228,11 @@ def resolve_project_root(
     *,
     project_dir: Path | str | None = None,
     require_layout: bool = False,
+    policy: RootResolutionPolicy = RootResolutionPolicy.PROJECT_SCOPED,
 ) -> Path | None:
     """Return the resolved project root path for compatibility callers."""
 
-    resolution = resolve_project_roots(workspace, project_dir=project_dir)
+    resolution = resolve_project_roots(workspace, project_dir=project_dir, policy=policy)
     if resolution is None:
         return None
     if require_layout and not resolution.has_project_layout:

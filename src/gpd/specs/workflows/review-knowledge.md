@@ -1,5 +1,5 @@
 <purpose>
-Review a knowledge document, record typed review evidence, and decide whether it is ready to become stable.
+Review a current-workspace knowledge document, record typed review evidence, and decide whether it is ready to become stable.
 
 This workflow owns the review/promotion half of the knowledge-doc lifecycle only:
 
@@ -18,15 +18,17 @@ Called from `gpd:review-knowledge`.
 A knowledge document is only stable when the current reviewed snapshot still matches the approved content.
 
 Review is explicit, typed, and freshness-bound. A review artifact without a matching content hash is not a trust anchor. Promotion to `stable` must only happen after a fresh approved review, while `needs_changes` and `rejected` keep the document in `in_review`.
+Strict standalone/current-workspace review is anchored to one canonical `GPD/knowledge/{knowledge_id}.md` target. Missing project state by itself is not a blocker when that explicit target and its freshness evidence are present.
 </core_principle>
 
 <process>
 
 <step name="load_context" priority="first">
 Load the project and command context before choosing a target:
+Keep this init bound to the workspace the user invoked from. `review-knowledge` must review the explicit current-workspace target, so do not auto-reenter a different recent project here.
 
 ```bash
-INIT=$(gpd --raw init progress --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -57,6 +59,8 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
+
+Treat strict knowledge review preflight as current-workspace and target-specific: it must resolve `knowledge_target`, validate the `knowledge_document`, and check `knowledge_review_freshness` against the explicit canonical target. Missing `STATE.md` alone is advisory background context, not a standalone blocker.
 </step>
 
 <step name="resolve_target">
@@ -64,10 +68,11 @@ Resolve one exact knowledge target from the explicit argument.
 
 Accept only:
 
-1. an exact `GPD/knowledge/{knowledge_id}.md` path
+1. an exact current-workspace `GPD/knowledge/{knowledge_id}.md` path
 2. a canonical `K-*` knowledge_id that resolves uniquely to that path
 
 Do not guess from fuzzy topic text, stem similarity, or filename ordering.
+Reject lookalikes such as `notes/K-foo.md` or any other `K-*.md` path outside the current workspace `GPD/knowledge/` tree.
 If more than one candidate exists, stop and ask for clarification.
 
 After resolution, bind:

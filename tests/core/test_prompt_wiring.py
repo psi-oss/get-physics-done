@@ -25,6 +25,7 @@ from tests.doc_surface_contracts import (
     assert_help_command_single_command_extract_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
+    assert_publication_lane_boundary_contract,
     assert_recovery_ladder_contract,
     assert_resume_authority_contract,
     assert_runtime_reset_rediscovery_contract,
@@ -42,6 +43,7 @@ def _clean_registry_cache():
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+README_PATH = REPO_ROOT / "README.md"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -126,7 +128,7 @@ AGENT_REFERENCE_TOKENS = {
         "Agent surface: public writable production agent specialized for discrepancy investigation and bounded repair work.",
         "On demand only: shared protocols, verification core, physics subfields, agent infrastructure, and cross-project patterns.",
         "Keep work in `gpd-debugger` while the task is root-cause isolation, validation, or a bounded repair tied to that investigation.",
-        'After root cause is confirmed, update `session_status` to "diagnosed".',
+        "Do not update `session_status` to \"diagnosed\" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts.",
         "goal: find_root_cause_only",
         "goal: find_and_correct",
     ],
@@ -551,7 +553,11 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in write_paper.review_contract.required_outputs
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper.review_contract.required_outputs
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in write_paper.review_contract.required_outputs
-    assert write_paper.review_contract.required_evidence == []
+    assert write_paper.review_contract.required_evidence == [
+        "project-backed lane: research artifacts and verification reports",
+        "external-authoring lane: explicit `--intake` manifest with claim-to-evidence bindings",
+        "bibliography / citation-source input",
+    ]
     assert "command_context" in write_paper.review_contract.preflight_checks
     assert "verification_reports" in write_paper.review_contract.preflight_checks
     assert "manuscript" in write_paper.review_contract.preflight_checks
@@ -818,8 +824,65 @@ def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("slides").context_mode == "projectless"
     assert registry.get_command("discover").context_mode == "project-aware"
     assert registry.get_command("explain").context_mode == "project-aware"
+    assert registry.get_command("parameter-sweep").context_mode == "project-aware"
     assert registry.get_command("suggest-next").context_mode == "projectless"
     assert registry.get_command("peer-review").context_mode == "project-aware"
+
+
+def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_publication_entrypoints() -> None:
+    readme = README_PATH.read_text(encoding="utf-8")
+    command_context = readme.split("### Command Context", 1)[1].split("The full in-runtime reference", 1)[0]
+
+    assert "| `Global` |" in command_context
+    assert "| `Projectless` |" in command_context
+    assert "| `Project-aware` |" in command_context
+    assert "| `Project-required` |" in command_context
+    project_aware_line = next(line for line in command_context.splitlines() if line.startswith("| `Project-aware` |"))
+    project_required_line = next(
+        line for line in command_context.splitlines() if line.startswith("| `Project-required` |")
+    )
+    assert "explicit current-workspace inputs" in project_aware_line
+    for command_name in (
+        "gpd:compare-experiment",
+        "gpd:compare-results",
+        "gpd:discover",
+        "gpd:digest-knowledge",
+        "gpd:explain",
+        "gpd:parameter-sweep",
+        "gpd:review-knowledge",
+        "gpd:literature-review",
+        "gpd:peer-review",
+        "gpd:write-paper --intake intake/paper-authoring-input.json",
+    ):
+        assert command_name in project_aware_line
+    assert "Project-aware commands stay rooted in the current workspace" in command_context
+    assert "The relaxed technical-analysis lane lives here too" in command_context
+    for command_name in (
+        "gpd:derive-equation",
+        "gpd:dimensional-analysis",
+        "gpd:limiting-cases",
+        "gpd:numerical-convergence",
+        "gpd:parameter-sweep",
+        "gpd:sensitivity-analysis",
+    ):
+        assert command_name in command_context
+    assert "GPD/analysis/" in command_context
+    assert "GPD/sweeps/" in command_context
+    assert "`gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane." in command_context
+    assert "gpd:peer-review" not in project_required_line
+    assert "gpd:write-paper" not in project_required_line
+    assert (
+        "Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization."
+        not in command_context
+    )
+
+
+def test_readme_and_help_workflow_surface_publication_lane_boundary_without_claiming_root_migration() -> None:
+    readme = README_PATH.read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert_publication_lane_boundary_contract(readme)
+    assert_publication_lane_boundary_contract(help_workflow)
 
 
 def test_slides_workflow_references_templates_and_existing_output_policy() -> None:
@@ -839,10 +902,13 @@ def test_representative_prompts_use_centralized_command_context_preflight() -> N
     expected = {
         COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
         COMMANDS_DIR / "compare-results.md": "gpd --raw validate command-context compare-results",
+        COMMANDS_DIR / "derive-equation.md": "gpd --raw validate command-context derive-equation",
         COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
         COMMANDS_DIR / "explain.md": "gpd --raw validate command-context explain",
         COMMANDS_DIR / "limiting-cases.md": "gpd --raw validate command-context limiting-cases",
         COMMANDS_DIR / "literature-review.md": "gpd --raw validate command-context literature-review",
+        COMMANDS_DIR / "numerical-convergence.md": "gpd --raw validate command-context numerical-convergence",
+        COMMANDS_DIR / "parameter-sweep.md": "gpd --raw validate command-context parameter-sweep",
         COMMANDS_DIR / "sensitivity-analysis.md": "gpd --raw validate command-context sensitivity-analysis",
         WORKFLOWS_DIR / "peer-review.md": "gpd --raw validate command-context peer-review",
         WORKFLOWS_DIR / "progress.md": "gpd --raw validate command-context progress",
@@ -852,12 +918,74 @@ def test_representative_prompts_use_centralized_command_context_preflight() -> N
         assert token in path.read_text(encoding="utf-8"), path
 
 
+def test_current_workspace_project_aware_workflows_disable_recent_project_reentry() -> None:
+    compare_experiment = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
+    compare_results = (WORKFLOWS_DIR / "compare-results.md").read_text(encoding="utf-8")
+    digest_knowledge = (WORKFLOWS_DIR / "digest-knowledge.md").read_text(encoding="utf-8")
+    explain = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
+    review_knowledge = (WORKFLOWS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
+
+    assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_experiment
+    assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_results
+    assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in digest_knowledge
+    assert 'INIT=$(gpd --raw init progress --include project,state,roadmap,config --no-project-reentry)' in explain
+    assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in review_knowledge
+
+
+def test_compare_commands_expose_typed_policy_for_interactive_intake_and_gpd_outputs() -> None:
+    compare_results = registry.get_command("compare-results")
+    compare_experiment = registry.get_command("compare-experiment")
+
+    for command, resolution_mode, explicit_input in (
+        (
+            compare_results,
+            "explicit_or_interactive_internal_comparison",
+            "comparison target, phase, artifact path, or source-a vs source-b",
+        ),
+        (
+            compare_experiment,
+            "explicit_or_interactive_theory_data_comparison",
+            "prediction, dataset path, phase identifier, or comparison target",
+        ),
+    ):
+        assert command.command_policy is not None
+        assert command.command_policy.schema_version == 1
+        assert command.command_policy.subject_policy is not None
+        assert command.command_policy.subject_policy.subject_kind == "comparison"
+        assert command.command_policy.subject_policy.resolution_mode == resolution_mode
+        assert command.command_policy.subject_policy.explicit_input_kinds == [explicit_input]
+        assert command.command_policy.subject_policy.allow_external_subjects is True
+        assert command.command_policy.subject_policy.allow_interactive_without_subject is True
+        assert command.command_policy.supporting_context_policy is not None
+        assert command.command_policy.supporting_context_policy.project_context_mode == "project-aware"
+        assert command.command_policy.supporting_context_policy.project_reentry_mode == "disallowed"
+        assert command.command_policy.output_policy is not None
+        assert command.command_policy.output_policy.output_mode == "managed"
+        assert command.command_policy.output_policy.managed_root_kind == "gpd_managed_durable"
+        assert command.command_policy.output_policy.default_output_subtree == "GPD/comparisons"
+
+
 def test_list_review_commands_contains_all_expected_commands() -> None:
     """Regression: line 307 duplicated the gpd:peer-review check instead of
     testing gpd:respond-to-referees and gpd:verify-work."""
     review_cmds = registry.list_review_commands()
     expected = {"gpd:peer-review", "gpd:write-paper", "gpd:respond-to-referees", "gpd:verify-work"}
     assert expected <= set(review_cmds), f"Missing review commands: {expected - set(review_cmds)}"
+
+
+def test_parameter_sweep_command_uses_project_aware_gpd_sweeps_output_policy() -> None:
+    command = registry.get_command("parameter-sweep")
+
+    assert command.context_mode == "project-aware"
+    assert command.command_policy is not None
+    assert command.command_policy.schema_version == 1
+    assert command.command_policy.supporting_context_policy is not None
+    assert command.command_policy.supporting_context_policy.project_context_mode == "project-aware"
+    assert command.command_policy.supporting_context_policy.project_reentry_mode == "disallowed"
+    assert command.command_policy.output_policy is not None
+    assert command.command_policy.output_policy.output_mode == "managed"
+    assert command.command_policy.output_policy.managed_root_kind == "gpd_managed_durable"
+    assert command.command_policy.output_policy.default_output_subtree == "GPD/sweeps"
 
 
 def test_list_review_commands_no_duplicates() -> None:
@@ -874,6 +1002,7 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "argument-hint: \"[path to referee report or 'paste']\"" in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-wrapper-guidance.md" in command_text
     assert "Referee report source: $ARGUMENTS (file path or `paste`)." in command_text
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command_text
     assert "Use the literal `paste` sentinel" in workflow_text
     assert "REVIEW-LEDGER*.json" in workflow_text
     assert "REFEREE-DECISION*.json" in workflow_text
@@ -944,11 +1073,13 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
 
     assert "resolved section file within the manuscript tree rooted at `${PAPER_DIR}`" in respond
     assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in respond
-    assert "${PAPER_DIR}/response-letter.tex" in respond
+    assert "optional manuscript-local response-letter companion" in respond
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in respond
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in respond
     assert "templates/paper/author-response.md" in respond
     assert "needs-calculation" in respond
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in respond
+    assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in respond
 
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper
     assert "REVIEW-LEDGER{round_suffix}.json" in write_paper_expanded
@@ -964,12 +1095,16 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
-    assert "requires:" not in peer_review
-    assert (
-        'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]'
-        in respond
-    )
-    assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in arxiv
+    assert "context_mode: project-aware" in write_paper
+    assert "--intake path/to/paper-authoring-input.json" in write_paper
+    assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
+    assert "GPD-owned review/response auxiliaries remain under `GPD/`" in write_paper
+    assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in peer_review
+    assert "current global `GPD/` / `GPD/review/` round-artifact layout" in peer_review
+    assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]' in respond
+    assert "bounded continuation path, not a full relocation of manuscript-local publication artifacts." in respond
+    assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex", "GPD/publication/*/manuscript/*.tex"]' in arxiv
 
     assert "conditional_requirements:" in peer_review
     assert "when: project-backed manuscript review" in peer_review
@@ -983,7 +1118,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "latest peer-review review ledger" in arxiv
     assert "latest peer-review referee decision" in arxiv
     assert "missing latest staged peer-review decision evidence" in arxiv
-    assert "The resolved manuscript root and its build artifacts satisfied the workflow gates" in arxiv
+    assert "The resolved manuscript root and its build, reproducibility, and staged-review artifacts satisfied the workflow gates" in arxiv
     assert "Keep the wrapper thin and let the workflow own validation, packaging, and submission-gate details." in arxiv
     assert 'find . -name "main.tex"' not in arxiv
     assert 'find . -name "*.tex"' not in write_paper
@@ -1675,6 +1810,23 @@ def test_reference_workflows_require_anchor_registry_propagation() -> None:
     assert "project_contract_load_info" not in map_command
     assert "reference_artifacts_content" not in map_command
     assert "REFERENCES.md is an anchor registry" in mapper_agent
+
+
+def test_literature_review_stage_manifest_keeps_citation_audit_write_visible() -> None:
+    literature_workflow = (WORKFLOWS_DIR / "literature-review.md").read_text(encoding="utf-8")
+    literature_staging = validate_workflow_stage_manifest_payload(
+        json.loads((WORKFLOWS_DIR / "literature-review-stage-manifest.json").read_text(encoding="utf-8")),
+        expected_workflow_id="literature-review",
+    )
+
+    assert literature_staging.stage_ids() == (
+        "review_bootstrap",
+        "scope_locked",
+        "review_handoff",
+        "completion_gate",
+    )
+    assert "GPD/literature/{slug}-CITATION-AUDIT.md" in literature_workflow
+    assert "GPD/literature/slug-CITATION-AUDIT.md" in literature_staging.stage("review_handoff").writes_allowed
 
 
 def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
@@ -2615,6 +2767,18 @@ def test_manuscript_documentation_uses_current_manuscript_root_paths_only() -> N
     assert "fig-main.pdf" not in figure_tracker
 
 
+def test_explain_surfaces_keep_workspace_rooted_outputs_and_honest_standalone_targeting() -> None:
+    explain_command = (COMMANDS_DIR / "explain.md").read_text(encoding="utf-8")
+    explain_workflow = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
+
+    assert "standalone question with an explicit topic" in explain_command
+    assert "Keep any GPD-authored explanation artifacts under `GPD/explanations/` rooted at the current workspace." in explain_command
+    assert "If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic" in explain_command
+    assert "standalone explanations only when the standalone request already names an explicit target" in explain_workflow
+    assert "Do not promise that an empty standalone launch can be clarified later" in explain_workflow
+    assert "Keep all GPD-authored explanation artifacts rooted under `GPD/explanations/` in the current workspace." in explain_workflow
+
+
 def test_publication_workflows_describe_recursive_manuscript_tree_inputs() -> None:
     arxiv_submission = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
@@ -2709,7 +2873,7 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "determine which source is more recent" not in sync_state
     assert (
         "Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, "
-        "and `active_reference_context` visible throughout the staged review" in write_paper
+        "and `active_reference_context` visible throughout that staged review" in write_paper
     )
     assert peer_review.count(contract_gate_note) >= 1
     assert "repair the blocked contract before retrying" in peer_review
@@ -2888,9 +3052,10 @@ def test_peer_review_command_limits_default_manuscript_targets_to_canonical_root
         in peer_review_command
     )
     assert "then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules" in peer_review_command
+    assert "Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`." in peer_review_command
     assert (
-        "Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, or "
-        "`.xlsx`." in peer_review_command
+        "Additional supported external artifact formats also include `.docx`, `.csv`, `.tsv`, and `.xlsx`."
+        in peer_review_command
     )
     assert (
         "Keep canonical in-project manuscript-root discovery on the manifest/config-resolved `.tex` / `.md` entrypoint "
@@ -3447,6 +3612,10 @@ def test_sync_state_and_write_paper_command_prompts_expand_required_schema_bodie
     assert "Reproducibility Manifest Template" in write_paper
     assert "bibliographer search breadth" in write_paper
     assert "paper-writer style by mode" in write_paper
+    assert "When a workflow exposes the bounded external-authoring lane, accept one explicit intake manifest only." in write_paper
+    assert "GPD/publication/{subject_slug}/intake/" in write_paper
+    assert "Do not mine arbitrary folders or infer claim/evidence bindings from loose notes." in write_paper
+    assert "Do not infer widened `gpd:arxiv-submission` scope" in write_paper
     assert '"execution_steps"' in write_paper
     assert "random_seeds[].computation" in write_paper
     assert "resource_requirements[].step" in write_paper
@@ -4150,6 +4319,7 @@ def test_publication_workflows_keep_manuscript_local_reference_status_rooted_at_
     )
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in respond
     assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in respond
+    assert "do not infer a full publication-tree relocation from this bounded continuation path." in respond
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in arxiv_submission
     assert (
         "Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself."
@@ -4341,14 +4511,36 @@ def test_help_surfaces_use_projectless_examples_that_satisfy_command_context_pre
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
     assert 'Usage: `gpd:derive-equation "derive the one-loop beta function"`' in help_workflow
-    assert "Usage: `gpd:dimensional-analysis 3`" in help_workflow
-    assert "Usage: `gpd:limiting-cases 3`" in help_workflow
-    assert "Usage: `gpd:numerical-convergence 3`" in help_workflow
+    assert 'Usage: `gpd:discover "finite-temperature RG flow" --depth deep`' in help_workflow
+    assert "Usage: `gpd:dimensional-analysis results/01-SUMMARY.md`" in help_workflow
+    assert "Usage: `gpd:limiting-cases results/01-SUMMARY.md`" in help_workflow
+    assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_workflow
+    assert "Usage: `gpd:parameter-sweep results/mesh-study.py --param coupling --range 0:1:20`" in help_workflow
     assert "Usage: `gpd:compare-experiment predictions.csv experiment.csv`" in help_workflow
+    assert "Usage: `gpd:compare-results results/01-SUMMARY.md`" in help_workflow
+    assert 'Usage: `gpd:explain "Ward identity"`' in help_workflow
+    assert 'Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`' in help_workflow
+    assert 'Usage: `gpd:digest-knowledge "renormalization group fixed points"`' in help_workflow
+    assert (
+        "Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md` or "
+        "`gpd:review-knowledge K-renormalization-group-fixed-points`"
+    ) in help_workflow
     assert (
         "Usage: `gpd:sensitivity-analysis --target cross_section --params g,m,Lambda --method numerical`"
         in help_workflow
     )
+
+def test_help_surfaces_frame_relaxed_technical_analysis_lane_honestly() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "Project-aware technical-analysis lane:" in help_workflow
+    assert "GPD/analysis/" in help_workflow
+    assert "GPD/sweeps/" in help_workflow
+    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit derivation target" in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path" in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/sweeps/`; outside a project, rerun with one explicit computation anchor plus `--param` and `--range`" in help_workflow
+    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with explicit `--target` and `--params`" in help_workflow
 
 
 def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> None:
@@ -4360,7 +4552,7 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
     peer_review_help_block = _extract_between(
         help_workflow,
         "**`gpd:peer-review [paper directory | manuscript path | explicit artifact path]`**",
-        "**`gpd:respond-to-referees`**",
+        "**`gpd:respond-to-referees [path to referee report or 'paste']`**",
     )
 
     assert (

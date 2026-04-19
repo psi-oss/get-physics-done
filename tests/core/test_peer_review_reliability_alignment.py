@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
@@ -68,6 +69,56 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "`REFEREE-DECISION.json`" not in reliability
     assert "`REVIEW-LEDGER.json`" not in reliability
     assert ".gpd/" not in reliability
+
+def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_review() -> None:
+    command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+
+    assert "current GPD project or an explicit external artifact" in command
+    assert "standalone external artifact review" in command
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command
+    assert "do not infer a full publication-tree migration from that one continuation path" in command
+    assert "standalone skeptical peer review" not in workflow
+    assert "current GPD project manuscript" in workflow
+    assert "explicit manuscript artifact" in workflow
+    assert "reviewing the current GPD project manuscript" in reliability
+    assert "explicit external artifact review" in reliability
+
+
+def test_publication_reference_docs_keep_gpd_aux_outputs_separate_from_manuscript_root_contract() -> None:
+    preflight = (
+        REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md"
+    ).read_text(encoding="utf-8")
+    bootstrap = (REFERENCES_DIR / "publication" / "publication-bootstrap-preflight.md").read_text(
+        encoding="utf-8"
+    )
+    round_artifacts = (REFERENCES_DIR / "publication" / "publication-review-round-artifacts.md").read_text(
+        encoding="utf-8"
+    )
+    response_artifacts = (REFERENCES_DIR / "publication" / "publication-response-artifacts.md").read_text(
+        encoding="utf-8"
+    )
+    reliability = (REFERENCES_DIR / "publication" / "peer-review-reliability.md").read_text(encoding="utf-8")
+    wrapper_guidance = (
+        REFERENCES_DIR / "publication" / "publication-review-wrapper-guidance.md"
+    ).read_text(encoding="utf-8")
+
+    assert "does not by itself authorize standalone external-subject support for every publication command" in preflight
+    assert "Keep GPD-authored auxiliary review, response, and packaging outputs under `GPD/`" in preflight
+    assert "It does not decide whether a command may accept a standalone external manuscript/artifact" in bootstrap
+    assert "Do not infer standalone external-artifact support from this pack alone." in bootstrap
+    assert "current project-backed canonical layout" in round_artifacts
+    assert "GPD-authored auxiliary outputs for a review round live under `GPD/` or `GPD/review/`" in round_artifacts
+    assert "subject-owned publication root `GPD/publication/{subject_slug}`" in round_artifacts
+    assert "does not by itself promise a full relocation" in round_artifacts
+    assert "Do not copy manuscript-local artifacts into `GPD/` to satisfy strict review or submission gates." in round_artifacts
+    assert "optional manuscript-local response-letter companion such as `response-letter.tex` is additive only" in response_artifacts
+    assert "same paired response artifacts may instead bind under the subject-owned publication root" in response_artifacts
+    assert "does not imply a full relocation" in response_artifacts
+    assert "That output policy does not relocate the manuscript draft or manuscript-root manifests" in reliability
+    assert "copied stand-ins under `GPD/` do not satisfy strict gates" in reliability
+    assert "Do not imply full external-subject support or manuscript-root migration unless the workflow/runtime actually provides it." in wrapper_guidance
 
 
 def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_referee() -> None:

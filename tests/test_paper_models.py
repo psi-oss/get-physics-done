@@ -13,6 +13,7 @@ from gpd.mcp.paper.models import (
     FigureRef,
     JournalSpec,
     PaperConfig,
+    PublicationPathSemantics,
     Section,
 )
 
@@ -471,3 +472,25 @@ class TestTemplates:
 
         with pytest.raises(FileNotFoundError):
             load_template("nonexistent")
+
+
+def test_publication_path_semantics_derives_project_and_subject_relative_views(tmp_path: Path) -> None:
+    manuscript_root = tmp_path / "paper"
+    manuscript_entrypoint = manuscript_root / "sections" / "main.tex"
+    manuscript_entrypoint.parent.mkdir(parents=True)
+    manuscript_entrypoint.write_text("\\documentclass{article}\n", encoding="utf-8")
+
+    semantics = PublicationPathSemantics.from_paths(
+        tmp_path,
+        subject_path=manuscript_root,
+        artifact_base_path=manuscript_root,
+        manuscript_root_path=manuscript_root,
+        manuscript_entrypoint_path=manuscript_entrypoint,
+    )
+
+    assert semantics is not None
+    assert semantics.subject_path == "paper"
+    assert semantics.artifact_base_path == "paper"
+    assert semantics.manuscript_root_path == "paper"
+    assert semantics.manuscript_entrypoint_path == "paper/sections/main.tex"
+    assert semantics.subject_relative_entrypoint_path == "sections/main.tex"

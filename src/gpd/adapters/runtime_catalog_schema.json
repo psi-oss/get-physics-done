@@ -101,6 +101,8 @@
     "notify_event_types",
     "workspace_keys",
     "project_dir_keys",
+    "target_path_keys",
+    "target_root_keys",
     "runtime_session_id_keys",
     "model_keys",
     "provider_keys",

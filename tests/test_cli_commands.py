@@ -12,6 +12,7 @@ they verify the CLI → core function argument wiring works.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import json
 import re
@@ -26,11 +27,13 @@ import pytest
 from typer.testing import CliRunner
 
 import gpd.cli as cli_module
+import gpd.registry as registry_module
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors, list_runtime_names
 from gpd.cli import app
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import StateUpdateResult, default_state_dict, generate_state_markdown
+from gpd.registry import _parse_command_file
 from tests.manuscript_test_support import (
     CANONICAL_MANUSCRIPT_STEM,
     write_proof_review_package,
@@ -58,6 +61,23 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
+
+
+def _command_with_analysis_output_policy(command_name: str):
+    command = registry_module.get_command(command_name)
+    command_policy = command.command_policy or registry_module.CommandPolicy()
+    return dataclasses.replace(
+        command,
+        command_policy=dataclasses.replace(
+            command_policy,
+            output_policy=registry_module.CommandOutputPolicy(
+                output_mode="subtree",
+                managed_root_kind="gpd_managed_durable",
+                default_output_subtree="GPD/analysis",
+                stage_artifact_policy="disallowed",
+            ),
+        ),
+    )
 
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "stage0"
@@ -369,6 +389,80 @@ def _manuscript_entrypoint_relpath(
     suffix: str = ".tex",
 ) -> str:
     return f"{root_name}/{CANONICAL_MANUSCRIPT_STEM}{suffix}"
+
+
+def _write_write_paper_authoring_input(
+    workspace: Path,
+    *,
+    file_name: str = "write-paper-authoring-input.json",
+    subject_slug: str = "external-authoring-test",
+) -> Path:
+    intake_path = workspace / file_name
+    intake_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "External Authoring Bounds",
+                "authors": [
+                    {
+                        "name": "A. Researcher",
+                        "affiliation": "Example University",
+                    }
+                ],
+                "target_journal": "prl",
+                "subject_slug": subject_slug,
+                "central_claim": "The controlled benchmark supports a stable external-authoring draft.",
+                "claims": [
+                    {
+                        "id": "CLM-main",
+                        "statement": "The benchmarked bound is stable across the resolved regime.",
+                        "evidence": {
+                            "source_note_ids": ["NOTE-main"],
+                            "result_ids": ["RES-main"],
+                            "figure_ids": ["FIG-main"],
+                            "citation_source_ids": ["cite-main"],
+                        },
+                    }
+                ],
+                "source_notes": [
+                    {
+                        "id": "NOTE-main",
+                        "path": "notes/main-result.md",
+                        "summary": "Summarizes the decisive benchmark and fit stability.",
+                    }
+                ],
+                "results": [
+                    {
+                        "id": "RES-main",
+                        "summary": "Main fitted bound with uncertainty band.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "figures": [
+                    {
+                        "id": "FIG-main",
+                        "path": "figures/main-bound.pdf",
+                        "caption": "Benchmark comparison supporting the main bound.",
+                        "source_note_ids": ["NOTE-main"],
+                    }
+                ],
+                "citation_sources": [
+                    {
+                        "source_type": "paper",
+                        "reference_id": "cite-main",
+                        "title": "Benchmark Recovery in a Controlled Regime",
+                        "authors": ["A. Author", "B. Author"],
+                        "year": "2024",
+                        "arxiv_id": "2401.12345",
+                    }
+                ],
+                "notation_note": "Use c = ħ = 1 throughout the draft.",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return intake_path
 
 
 def _write_binary_pdf(path: Path) -> Path:
@@ -739,6 +833,166 @@ def _write_secondary_manuscript_root(project_root: Path, *, root_name: str = "ma
     return manuscript
 
 
+def _write_managed_publication_manuscript(
+    project_root: Path,
+    *,
+    subject_slug: str = "curvature-flow",
+    stem: str = "managed_manuscript",
+) -> Path:
+    manuscript_dir = project_root / "GPD" / "publication" / subject_slug / "manuscript"
+    manuscript_dir.mkdir(parents=True, exist_ok=True)
+    manuscript = manuscript_dir / f"{stem}.tex"
+    manuscript.write_text(
+        "\\documentclass{article}\n\\begin{document}\nManaged manuscript.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    compiled_manuscript = manuscript.with_suffix(".pdf")
+    compiled_manuscript.write_bytes(b"%PDF-1.4\n% fake managed arxiv submission pdf\n")
+    (manuscript_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Managed Manuscript",
+                "output_filename": stem,
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"heading": "Introduction", "content": "Managed manuscript."}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Managed Manuscript",
+                "journal": "prl",
+                "created_at": "2026-03-10T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "managed-manuscript",
+                        "category": "tex",
+                        "path": f"{stem}.tex",
+                        "sha256": compute_sha256(manuscript),
+                        "produced_by": "tests.test_cli_commands",
+                        "sources": [],
+                        "metadata": {"role": "manuscript"},
+                    },
+                    {
+                        "artifact_id": "managed-compiled-manuscript",
+                        "category": "pdf",
+                        "path": f"{stem}.pdf",
+                        "sha256": compute_sha256(compiled_manuscript),
+                        "produced_by": "tests.test_cli_commands",
+                        "sources": [{"path": f"{stem}.tex", "role": "compiled_from"}],
+                        "metadata": {"role": "compiled_manuscript"},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (manuscript_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-10T00:00:00+00:00",
+                "total_sources": 0,
+                "resolved_sources": 0,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (manuscript_dir / "reproducibility-manifest.json").write_text(
+        json.dumps(
+            {
+                "paper_title": "Managed Manuscript",
+                "date": "2026-03-10",
+                "environment": {
+                    "python_version": "3.12.1",
+                    "package_manager": "uv",
+                    "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                    "lock_file": "pyproject.toml",
+                    "system_requirements": {},
+                },
+                "execution_steps": [{"name": "run", "command": "python scripts/run.py"}],
+                "expected_results": [
+                    {"quantity": "x", "expected_value": "1", "tolerance": "0.1", "script": "scripts/run.py"}
+                ],
+                "output_files": [{"path": "results/out.json", "checksum_sha256": "a" * 64}],
+                "resource_requirements": [{"step": "run", "cpu_cores": 1, "memory_gb": 1.0}],
+                "verification_steps": ["rerun", "compare", "inspect"],
+                "minimum_viable": "1 core",
+                "recommended": "2 cores",
+                "last_verified": "2026-03-10T00:00:00+00:00",
+                "last_verified_platform": "macOS-15-arm64",
+                "random_seeds": [],
+                "seeding_strategy": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript
+
+
+def _write_publication_response_round(
+    project_root: Path,
+    *,
+    round_number: int,
+    subject_slug: str = "curvature-flow",
+) -> None:
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    subject_root = project_root / "GPD" / "publication" / subject_slug
+    review_dir = subject_root / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (subject_root / f"AUTHOR-RESPONSE{round_suffix}.md").write_text(
+        "# Author Response\n",
+        encoding="utf-8",
+    )
+    (review_dir / f"REFEREE_RESPONSE{round_suffix}.md").write_text(
+        "# Referee Response\n",
+        encoding="utf-8",
+    )
+
+
+def _write_draft_knowledge_document(
+    workspace: Path,
+    *,
+    knowledge_id: str = "K-renormalization-group-fixed-points",
+    relative_dir: str = "GPD/knowledge",
+) -> Path:
+    """Create a minimal reviewable knowledge document in one workspace."""
+    knowledge_dir = workspace / relative_dir
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    knowledge_path = knowledge_dir / f"{knowledge_id}.md"
+    knowledge_path.write_text(
+        "---\n"
+        "knowledge_schema_version: 1\n"
+        f"knowledge_id: {knowledge_id}\n"
+        "title: Renormalization Group Fixed Points\n"
+        "topic: renormalization-group\n"
+        "status: draft\n"
+        "created_at: 2026-04-07T12:00:00Z\n"
+        "updated_at: 2026-04-07T12:00:00Z\n"
+        "sources:\n"
+        "  - source_id: source-main\n"
+        "    kind: paper\n"
+        "    locator: Doe et al., 2024\n"
+        "    title: Renormalization Group Fixed Points\n"
+        "    why_it_matters: Trusted source for the topic\n"
+        "coverage_summary:\n"
+        "  covered_topics: [fixed points]\n"
+        "  excluded_topics: [implementation]\n"
+        "  open_gaps: [review approval]\n"
+        "---\n\n"
+        "Draft knowledge body.\n",
+        encoding="utf-8",
+    )
+    return knowledge_path
+
+
 def _write_publication_review_outcome(
     project_root: Path,
     *,
@@ -1104,6 +1358,82 @@ class TestInitCommands:
         assert payload["roadmap_exists"] is True
         assert payload["state_exists"] is True
 
+    def test_init_phase_op_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "phase-op", "1"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["planning_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+        assert payload["phase_found"] is True
+        assert payload["phase_number"] == "01"
+        assert str(payload["phase_dir"]).startswith("GPD/phases/01-")
+
+    def test_init_literature_review_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        literature_dir = gpd_project / "GPD" / "literature"
+        literature_dir.mkdir(parents=True)
+        (literature_dir / "benchmark-REVIEW.md").write_text("# Benchmark Review\n", encoding="utf-8")
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "literature-review", "Curvature", "flow", "bounds"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["topic"] == "Curvature flow bounds"
+        assert payload["slug"] == "curvature-flow-bounds"
+        assert payload["project_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+        assert "GPD/literature/benchmark-REVIEW.md" in payload["literature_review_files"]
+
+    def test_init_map_research_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        map_dir = gpd_project / "GPD" / "research-map"
+        map_dir.mkdir(parents=True)
+        (map_dir / "theory.md").write_text("# Theory Map\n", encoding="utf-8")
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "map-research"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["planning_exists"] is True
+        assert payload["research_map_dir_exists"] is True
+        assert payload["has_maps"] is True
+        assert "theory.md" in payload["existing_maps"]
+
     def test_init_progress_can_skip_recent_project_reentry_for_projectless_config_bootstrap(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -1407,6 +1737,9 @@ review_summary:
         assert "reference_artifacts_content" not in payload
         assert "state_content" not in payload
         assert "derived_manuscript_reference_status" in payload
+        assert payload["publication_subject_status"] == "resolved"
+        assert payload["publication_bootstrap_mode"] == "resume_existing_manuscript"
+        assert payload["publication_bootstrap_root"] == "paper"
 
 
 class TestRoadmapCommands:
@@ -1662,7 +1995,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:write-paper"
-        assert payload["context_mode"] == "project-required"
+        assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert "${PAPER_DIR}/ARTIFACT-MANIFEST.json" in payload["review_contract"]["required_outputs"]
         assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in payload["review_contract"]["required_outputs"]
@@ -1671,7 +2004,11 @@ class TestReviewValidationCommands:
         assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
-        assert payload["review_contract"]["required_evidence"] == []
+        assert payload["review_contract"]["required_evidence"] == [
+            "project-backed lane: research artifacts and verification reports",
+            "external-authoring lane: explicit `--intake` manifest with claim-to-evidence bindings",
+            "bibliography / citation-source input",
+        ]
         assert payload["review_contract"]["preflight_checks"] == [
             "command_context",
             "project_state",
@@ -1697,6 +2034,38 @@ class TestReviewValidationCommands:
                 "preflight_checks": [],
                 "blocking_preflight_checks": [],
                 "stage_artifacts": [],
+            }
+        ]
+        assert payload["review_contract"]["scope_variants"] == [
+            {
+                "scope": "explicit_intake_manifest",
+                "activation": "validated explicit external authoring intake manifest was supplied outside a project",
+                "relaxed_preflight_checks": [
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "research_artifacts",
+                    "verification_reports",
+                    "manuscript_proof_review",
+                ],
+                "optional_preflight_checks": [
+                    "artifact_manifest",
+                    "bibliography_audit",
+                    "bibliography_audit_clean",
+                    "reproducibility_manifest",
+                    "reproducibility_ready",
+                ],
+                "required_outputs_override": [
+                    "${PAPER_DIR}/{topic_specific_stem}.tex",
+                    "${PAPER_DIR}/PAPER-CONFIG.json",
+                    "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                    "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                    "${PAPER_DIR}/reproducibility-manifest.json",
+                ],
+                "required_evidence_override": [
+                    "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                ],
+                "blocking_conditions_override": ["invalid or incomplete external authoring intake manifest"],
             }
         ]
 
@@ -1747,6 +2116,39 @@ class TestReviewValidationCommands:
         assert "requires_fresh_context_per_stage" not in payload["review_contract"]
         assert "max_review_rounds" not in payload["review_contract"]
 
+    def test_review_contract_review_knowledge_supports_strict_standalone_canonical_targets(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-contract", "review-knowledge"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:review-knowledge"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["review_contract"]["review_mode"] == "review"
+        assert payload["review_contract"]["required_outputs"] == [
+            "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md",
+            "GPD/knowledge/{knowledge_id}.md",
+        ]
+        assert payload["review_contract"]["required_evidence"] == [
+            "current-workspace canonical knowledge document",
+            "knowledge sources and coverage summary",
+            "current knowledge frontmatter/body snapshot",
+            "prior review artifact when revisiting a document",
+        ]
+        assert payload["review_contract"]["preflight_checks"] == [
+            "command_context",
+            "knowledge_target",
+            "knowledge_document",
+            "knowledge_review_freshness",
+        ]
+        assert "missing project state" not in payload["review_contract"]["blocking_conditions"]
+        assert "missing knowledge document" in payload["review_contract"]["blocking_conditions"]
+        assert "ambiguous knowledge target" in payload["review_contract"]["blocking_conditions"]
+        assert "stale approved review evidence" in payload["review_contract"]["blocking_conditions"]
+
     def test_review_contract_accepts_public_command_label(self) -> None:
         result = runner.invoke(
             app,
@@ -1769,7 +2171,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:respond-to-referees"
-        assert payload["context_mode"] == "project-required"
+        assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
@@ -1780,17 +2182,40 @@ class TestReviewValidationCommands:
         )
         assert "command_context" in payload["review_contract"]["preflight_checks"]
         assert "referee_report_source" in payload["review_contract"]["preflight_checks"]
+        scope_variants = {variant["scope"]: variant for variant in payload["review_contract"]["scope_variants"]}
+        assert "explicit_external_manuscript" in scope_variants
+        explicit_external = scope_variants["explicit_external_manuscript"]
+        assert (
+            explicit_external["activation"]
+            == "explicit `--manuscript` subject outside the current project's canonical manuscript roots"
+        )
+        assert explicit_external["relaxed_preflight_checks"] == ["project_state", "conventions"]
+        assert explicit_external["required_evidence_override"] == [
+            "explicit manuscript subject",
+            "one or more referee report sources",
+        ]
+        assert explicit_external["blocking_conditions_override"] == [
+            "missing manuscript subject",
+            "missing referee report source",
+            "degraded review integrity",
+        ]
 
     def test_review_contract_arxiv_submission_surfaces_latest_review_outcome_gate(self) -> None:
-        result = runner.invoke(
-            app,
-            ["--raw", "validate", "review-contract", "arxiv-submission"],
-            catch_exceptions=False,
-        )
+        command_path = Path(__file__).resolve().parents[1] / "src/gpd/commands/arxiv-submission.md"
+        command = _parse_command_file(command_path, source="commands")
+        assert command.review_contract is not None
 
-        assert result.exit_code == 0, result.output
-        payload = json.loads(result.output)
+        payload = {
+            "command": command.name,
+            "context_mode": command.context_mode,
+            "review_contract": dataclasses.asdict(command.review_contract),
+        }
         assert payload["command"] == "gpd:arxiv-submission"
+        assert payload["context_mode"] == "project-aware"
+        assert (
+            "GPD/publication/{subject_slug}/arxiv/arxiv-submission.tar.gz"
+            in payload["review_contract"]["required_outputs"]
+        )
         assert "manuscript-root artifact manifest" in payload["review_contract"]["required_evidence"]
         assert "manuscript-root bibliography audit" in payload["review_contract"]["required_evidence"]
         assert "latest peer-review review ledger" in payload["review_contract"]["required_evidence"]
@@ -1812,6 +2237,8 @@ class TestReviewValidationCommands:
             "artifact_manifest",
             "bibliography_audit",
             "bibliography_audit_clean",
+            "reproducibility_manifest",
+            "reproducibility_ready",
             "compiled_manuscript",
             "conventions",
             "publication_blockers",
@@ -1822,6 +2249,7 @@ class TestReviewValidationCommands:
             "publication_review_outcome",
             "manuscript_proof_review",
         ]
+        assert payload["review_contract"]["scope_variants"] == []
         assert payload["review_contract"]["conditional_requirements"] == [
             {
                 "when": "theorem-bearing manuscripts are present",
@@ -1906,6 +2334,39 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-required"
         assert payload["passed"] is True
         assert checks["project_exists"]["passed"] is True
+
+    def test_command_context_literature_review_resolves_ancestor_project_root_for_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested),
+                "validate",
+                "command-context",
+                "literature-review",
+                "Curvature flow bounds",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:literature-review"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert payload["project_exists"] is True
+        assert checks["project_exists"]["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
 
     def test_command_context_resume_work_requires_literal_files_in_project_root(self, gpd_project: Path) -> None:
         (gpd_project / "GPD" / "ROADMAP.md").unlink()
@@ -2300,18 +2761,18 @@ class TestReviewValidationCommands:
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "discover"],
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "digest-knowledge"],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert payload["command"] == "gpd:discover"
+        assert payload["command"] == "gpd:digest-knowledge"
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is False
-        assert payload["explicit_inputs"] == ["phase number or standalone topic"]
+        assert payload["explicit_inputs"] == ["knowledge document path", "source path", "arxiv id", "topic"]
         assert payload["guidance"] == (
-            "Either provide phase number or standalone topic explicitly, or initialize a project with "
+            "Either provide knowledge document path, source path, arxiv id, and topic explicitly, or initialize a project with "
             f"`{dollar_command_prefix}new-project` in the runtime surface or `gpd init new-project` in the local CLI."
         )
 
@@ -2549,7 +3010,6 @@ class TestReviewValidationCommands:
             "unsupported physical significance claims",
             "collapsed novelty or venue fit",
         ]
-
     def test_command_required_files_override_detail_uses_contract_metadata_not_command_name(
         self, tmp_path: Path
     ) -> None:
@@ -2618,6 +3078,168 @@ class TestReviewValidationCommands:
         assert passed is True
         assert "fresh bootstrap is allowed" in detail
 
+    def test_command_context_publication_policy_overrides_legacy_required_context_and_suffixes(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path / "publication-policy"
+        workspace.mkdir()
+        (workspace / "notes.txt").write_text("Standalone publication artifact.\n", encoding="utf-8")
+        monkeypatch.chdir(workspace)
+
+        command = SimpleNamespace(
+            name="gpd:custom-publication-review",
+            context_mode="project-required",
+            argument_hint="",
+            project_reentry_capable=False,
+            requires={"files": ["paper/*.tex"]},
+            command_policy=SimpleNamespace(
+                subject_policy=SimpleNamespace(
+                    subject_kind="publication",
+                    resolution_mode="explicit_or_project_manuscript",
+                    explicit_input_kinds=["publication_artifact_path"],
+                    allow_external_subjects=True,
+                    allowed_suffixes=[".txt"],
+                ),
+                supporting_context_policy=SimpleNamespace(
+                    project_context_mode="project-aware",
+                    project_reentry_mode="disallowed",
+                    required_file_patterns=[],
+                ),
+            ),
+            review_contract=SimpleNamespace(
+                review_mode="publication",
+                preflight_checks=["command_context", "manuscript"],
+                required_outputs=[],
+                required_evidence=[],
+                blocking_conditions=[],
+                conditional_requirements=[],
+                scope_variants=[],
+            ),
+        )
+
+        monkeypatch.setattr(
+            cli_module,
+            "_resolve_registry_command",
+            lambda command_name: (command, "gpd:custom-publication-review"),
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "custom-publication-review", "notes.txt"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:custom-publication-review"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+        assert payload["resolved_subject"]["status"] == "resolved"
+        assert payload["resolved_subject"]["ownership_mode"] == "external_artifact"
+        assert payload["resolved_subject"]["target_path"].endswith("notes.txt")
+
+    def test_review_preflight_publication_scope_variants_drive_runtime_overrides(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path / "publication-scope-variant"
+        workspace.mkdir()
+        (workspace / "notes.txt").write_text("Standalone publication artifact.\n", encoding="utf-8")
+        monkeypatch.chdir(workspace)
+
+        command = SimpleNamespace(
+            name="gpd:custom-publication-review",
+            context_mode="project-required",
+            argument_hint="",
+            project_reentry_capable=False,
+            requires={"files": ["paper/*.tex"]},
+            command_policy=SimpleNamespace(
+                subject_policy=SimpleNamespace(
+                    subject_kind="publication",
+                    resolution_mode="explicit_or_project_manuscript",
+                    explicit_input_kinds=["publication_artifact_path"],
+                    allow_external_subjects=True,
+                    allowed_suffixes=[".txt"],
+                ),
+                supporting_context_policy=SimpleNamespace(
+                    project_context_mode="project-aware",
+                    project_reentry_mode="disallowed",
+                    required_file_patterns=[],
+                ),
+            ),
+            review_contract=SimpleNamespace(
+                review_mode="publication",
+                required_outputs=["GPD/review/DEFAULT-REPORT.md"],
+                required_evidence=["project-backed review evidence"],
+                blocking_conditions=["missing project state"],
+                preflight_checks=[
+                    "command_context",
+                    "project_state",
+                    "roadmap",
+                    "conventions",
+                    "manuscript",
+                    "artifact_manifest",
+                    "bibliography_audit",
+                ],
+                stage_artifacts=[],
+                conditional_requirements=[],
+                scope_variants=[
+                    SimpleNamespace(
+                        scope="explicit_artifact",
+                        activation="explicit external artifact subject was supplied",
+                        relaxed_preflight_checks=["project_state", "roadmap", "conventions"],
+                        optional_preflight_checks=["artifact_manifest", "bibliography_audit"],
+                        required_outputs_override=["GPD/review/ARTIFACT-REPORT.md"],
+                        required_evidence_override=["resolved explicit artifact subject"],
+                        blocking_conditions_override=["missing manuscript"],
+                    )
+                ],
+            ),
+        )
+
+        monkeypatch.setattr(
+            cli_module,
+            "_resolve_registry_command",
+            lambda command_name: (command, "gpd:custom-publication-review"),
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "custom-publication-review",
+                "notes.txt",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:custom-publication-review"
+        assert payload["passed"] is True
+        assert payload["required_outputs"] == ["GPD/review/ARTIFACT-REPORT.md"]
+        assert payload["required_evidence"] == ["resolved explicit artifact subject"]
+        assert payload["blocking_conditions"] == ["missing manuscript"]
+        assert checks["project_state"]["passed"] is True
+        assert checks["project_state"]["blocking"] is False
+        assert checks["roadmap"]["passed"] is True
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["passed"] is True
+        assert checks["conventions"]["blocking"] is False
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["artifact_manifest"]["blocking"] is False
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["bibliography_audit"]["blocking"] is False
     def test_review_preflight_falls_back_when_runtime_resolution_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", lambda cwd=None: None)
 
@@ -2634,89 +3256,345 @@ class TestReviewValidationCommands:
         assert payload["local_cli_equivalence_guaranteed"] is False
         assert "the active runtime command surface" in payload["dispatch_note"]
 
-    def test_command_context_project_aware_accepts_explicit_inputs_without_project(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize(
+        ("command_name", "args", "explicit_inputs"),
+        [
+            (
+                "compare-experiment",
+                ["predictions.csv", "experiment.csv"],
+                ["prediction, dataset path, phase identifier, or comparison target"],
+            ),
+            ("compare-results", ["results/01-SUMMARY.md"], ["comparison target, phase, artifact path, or source-a vs source-b"]),
+            ("discover", ["finite-temperature RG flow", "--depth", "deep"], ["phase number or standalone topic"]),
+            ("explain", ["Ward identity"], ["concept, result, method, notation, or paper"]),
+            ("literature-review", ["Sachdev-Ye-Kitaev model thermodynamics"], ["topic or research question"]),
+        ],
+    )
+    def test_command_context_phase3_helpers_accept_explicit_inputs_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_name: str,
+        args: list[str],
+        explicit_inputs: list[str],
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-explicit-phase3"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
 
         result = runner.invoke(
             app,
-            ["--raw", "validate", "command-context", "discover", "finite-temperature RG flow --depth deep"],
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name, *args],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["command"] == "gpd:discover"
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == f"gpd:{command_name}"
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is True
+        assert payload["explicit_inputs"] == explicit_inputs
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == "explicit standalone inputs detected"
 
-    def test_command_context_project_aware_rejects_short_flag_without_topic(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize(
+        ("command_name", "args", "explicit_inputs"),
+        [
+            ("derive-equation", ["derive the one-loop beta function"], ["equation or topic to derive"]),
+            ("dimensional-analysis", ["results.md"], ["phase number or file path"]),
+            ("limiting-cases", ["results.md"], ["phase number or file path"]),
+            ("numerical-convergence", ["results.csv"], ["phase number or file path"]),
+            (
+                "parameter-sweep",
+                ["results/mesh-study.py", "--param", "coupling", "--range", "0:1:20"],
+                ["computation anchor or file path", "--param name", "--range start:end:steps"],
+            ),
+            ("sensitivity-analysis", ["--target", "energy-gap", "--params", "g,m"], ["--target quantity", "--params p1,p2,..."]),
+        ],
+    )
+    def test_command_context_project_aware_analysis_wrappers_accept_explicit_inputs_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_name: str,
+        args: list[str],
+        explicit_inputs: list[str],
     ) -> None:
-        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-aware-short"
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-explicit"
         outside_dir.mkdir()
         monkeypatch.chdir(outside_dir)
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "discover", "-d", "deep"],
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name, *args],
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["command"] == "gpd:discover"
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == f"gpd:{command_name}"
         assert payload["context_mode"] == "project-aware"
-        assert payload["passed"] is False
+        assert payload["passed"] is True
+        assert payload["explicit_inputs"] == explicit_inputs
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
 
-    def test_command_context_explain_requires_explicit_inputs_without_project(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dollar_command_prefix: str
+    @pytest.mark.parametrize(
+        ("command_name", "explicit_inputs", "guidance_prefix"),
+        [
+            (
+                "derive-equation",
+                ["equation or topic to derive"],
+                "Either provide equation or topic to derive explicitly",
+            ),
+            (
+                "dimensional-analysis",
+                ["phase number or file path"],
+                "Either provide phase number or file path explicitly",
+            ),
+            (
+                "limiting-cases",
+                ["phase number or file path"],
+                "Either provide phase number or file path explicitly",
+            ),
+            (
+                "numerical-convergence",
+                ["phase number or file path"],
+                "Either provide phase number or file path explicitly",
+            ),
+            (
+                "parameter-sweep",
+                ["computation anchor or file path", "--param name", "--range start:end:steps"],
+                "Either provide computation anchor or file path, --param name, and --range start:end:steps explicitly",
+            ),
+            (
+                "sensitivity-analysis",
+                ["--target quantity", "--params p1,p2,..."],
+                "Either provide --target quantity and --params p1,p2,... explicitly",
+            ),
+        ],
+    )
+    def test_command_context_project_aware_analysis_wrappers_require_explicit_inputs_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        dollar_command_prefix: str,
+        command_name: str,
+        explicit_inputs: list[str],
+        guidance_prefix: str,
     ) -> None:
-        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-explain"
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-missing"
         outside_dir.mkdir()
         monkeypatch.chdir(outside_dir)
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "explain"],
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert payload["command"] == "gpd:explain"
+        assert payload["command"] == f"gpd:{command_name}"
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is False
-        assert payload["explicit_inputs"] == ["concept, result, method, notation, or paper"]
+        assert payload["explicit_inputs"] == explicit_inputs
         assert payload["guidance"] == (
-            "Either provide concept, result, method, notation, or paper explicitly, or initialize a project with "
-            f"`{dollar_command_prefix}new-project` in the runtime surface or `gpd init new-project` in the local CLI."
+            f"{guidance_prefix}, or initialize a project with `{dollar_command_prefix}new-project` "
+            "in the runtime surface or `gpd init new-project` in the local CLI."
         )
 
-    def test_command_context_compare_results_requires_explicit_inputs_without_project(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dollar_command_prefix: str
+    def test_command_context_parameter_sweep_rejects_bare_phase_anchor_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        dollar_command_prefix: str,
     ) -> None:
-        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-compare"
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-parameter-sweep-phase-only"
         outside_dir.mkdir()
         monkeypatch.chdir(outside_dir)
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "compare-results"],
+            [
+                "--raw",
+                "--cwd",
+                str(outside_dir),
+                "validate",
+                "command-context",
+                "parameter-sweep",
+                "3",
+                "--param",
+                "coupling",
+                "--range",
+                "0:1:20",
+            ],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert payload["command"] == "gpd:compare-results"
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:parameter-sweep"
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is False
-        assert payload["explicit_inputs"] == ["phase, artifact, or comparison target"]
-        assert payload["guidance"] == (
-            "Either provide phase, artifact, or comparison target explicitly, or initialize a project with "
-            f"`{dollar_command_prefix}new-project` in the runtime surface or `gpd init new-project` in the local CLI."
+        assert payload["explicit_inputs"] == ["computation anchor or file path", "--param name", "--range start:end:steps"]
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["detail"] == (
+            "missing explicit standalone inputs (computation anchor or file path, --param name, --range start:end:steps)"
         )
+        assert payload["guidance"] == (
+            f"Either provide computation anchor or file path, --param name, and --range start:end:steps explicitly, "
+            f"or initialize a project with `{dollar_command_prefix}new-project` in the runtime surface or "
+            "`gpd init new-project` in the local CLI."
+        )
+
+    @pytest.mark.parametrize(
+        "command_name",
+        [
+            "derive-equation",
+            "dimensional-analysis",
+            "limiting-cases",
+            "numerical-convergence",
+            "sensitivity-analysis",
+        ],
+    )
+    def test_command_context_phase4_analysis_managed_outputs_anchor_to_invoking_workspace_without_initialized_project(
+        self,
+        tmp_path: Path,
+        command_name: str,
+    ) -> None:
+        ancestor_root = tmp_path / "ancestor-root"
+        (ancestor_root / "GPD").mkdir(parents=True)
+        workspace = ancestor_root / "scratch" / command_name
+        workspace.mkdir(parents=True)
+        patched_command = _command_with_analysis_output_policy(command_name)
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=ancestor_root,
+            project_exists=False,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            patched_command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (workspace / "GPD" / "analysis").resolve(strict=False)
+        assert managed_output_root != (ancestor_root / "GPD" / "analysis").resolve(strict=False)
+
+    def test_command_context_phase4_analysis_managed_outputs_preserve_project_root_when_initialized_project_exists(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project_root = tmp_path / "project-root"
+        (project_root / "GPD").mkdir(parents=True)
+        (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        workspace = project_root / "notes" / "scratch"
+        workspace.mkdir(parents=True)
+        patched_command = _command_with_analysis_output_policy("derive-equation")
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=project_root,
+            project_exists=True,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            patched_command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (project_root / "GPD" / "analysis").resolve(strict=False)
+
+    def test_command_context_parameter_sweep_managed_outputs_anchor_to_invoking_workspace_without_initialized_project(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        ancestor_root = tmp_path / "ancestor-root"
+        (ancestor_root / "GPD").mkdir(parents=True)
+        workspace = ancestor_root / "scratch" / "parameter-sweep"
+        workspace.mkdir(parents=True)
+        command = registry_module.get_command("parameter-sweep")
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=ancestor_root,
+            project_exists=False,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (workspace / "GPD" / "sweeps").resolve(strict=False)
+        assert managed_output_root != (ancestor_root / "GPD" / "sweeps").resolve(strict=False)
+
+    def test_command_context_parameter_sweep_managed_outputs_preserve_project_root_when_initialized_project_exists(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project_root = tmp_path / "project-root"
+        (project_root / "GPD").mkdir(parents=True)
+        (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        workspace = project_root / "notes" / "scratch"
+        workspace.mkdir(parents=True)
+        command = registry_module.get_command("parameter-sweep")
+        managed_output_context_root = cli_module._command_managed_output_context_root(
+            workspace_root=workspace,
+            context_root=project_root,
+            project_exists=True,
+        )
+        managed_output_root = cli_module._command_managed_output_root(
+            command,
+            project_root=managed_output_context_root,
+        )
+
+        assert managed_output_root == (project_root / "GPD" / "sweeps").resolve(strict=False)
+
+    @pytest.mark.parametrize(
+        ("command_name", "args", "explicit_inputs"),
+        [
+            ("compare-experiment", [], ["prediction, dataset path, phase identifier, or comparison target"]),
+            ("compare-results", [], ["comparison target, phase, artifact path, or source-a vs source-b"]),
+            ("discover", [], ["phase number or standalone topic"]),
+            ("discover", ["-d", "deep"], ["phase number or standalone topic"]),
+            ("explain", [], ["concept, result, method, notation, or paper"]),
+            ("literature-review", [], ["topic or research question"]),
+        ],
+    )
+    def test_command_context_phase3_helpers_allow_interactive_standalone_intake_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_name: str,
+        args: list[str],
+        explicit_inputs: list[str],
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-{command_name}-interactive-phase3"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", command_name, *args],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == f"gpd:{command_name}"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert payload["project_exists"] is False
+        assert payload["explicit_inputs"] == explicit_inputs
+        assert payload["guidance"] == ""
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["blocking"] is False
+        assert "interactive" in checks["explicit_inputs"]["detail"]
+        assert "missing explicit standalone inputs" not in checks["explicit_inputs"]["detail"]
 
     def test_command_context_digest_knowledge_requires_explicit_inputs_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2938,7 +3816,78 @@ class TestReviewValidationCommands:
         assert checks["project_exists"]["passed"] is False
         assert checks["explicit_inputs"]["passed"] is True
 
-    def test_review_preflight_write_paper_strict(self) -> None:
+    @pytest.mark.parametrize("subject_kind", ["path", "knowledge_id"])
+    def test_review_preflight_review_knowledge_strict_accepts_standalone_canonical_targets(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        subject_kind: str,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-review-knowledge-{subject_kind}"
+        workspace.mkdir()
+        knowledge_path = _write_draft_knowledge_document(workspace)
+        monkeypatch.chdir(workspace)
+        subject = (
+            knowledge_path.relative_to(workspace).as_posix() if subject_kind == "path" else knowledge_path.stem
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "review-knowledge", subject, "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:review-knowledge"
+        assert payload["review_mode"] == "review"
+        assert payload["strict"] is True
+        assert payload["passed"] is True
+        assert "missing project state" not in payload["blocking_conditions"]
+        assert "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md" in payload["required_outputs"]
+        assert checks["command_context"]["passed"] is True
+        assert checks["project_state"]["passed"] is True
+        assert checks["project_state"]["blocking"] is False
+        assert checks["knowledge_target"]["passed"] is True
+        assert "GPD/knowledge/K-renormalization-group-fixed-points.md" in checks["knowledge_target"]["detail"]
+        assert checks["knowledge_document"]["passed"] is True
+        assert checks["knowledge_review_freshness"]["passed"] is True
+
+    def test_review_preflight_review_knowledge_strict_rejects_noncanonical_standalone_target(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-review-knowledge-noncanonical"
+        workspace.mkdir()
+        knowledge_path = _write_draft_knowledge_document(workspace, relative_dir="notes")
+        monkeypatch.chdir(workspace)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "review-knowledge",
+                knowledge_path.relative_to(workspace).as_posix(),
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:review-knowledge"
+        assert payload["passed"] is False
+        assert checks["knowledge_target"]["passed"] is False
+        assert "GPD/knowledge/" in checks["knowledge_target"]["detail"]
+
+    def test_review_preflight_write_paper_strict(self, gpd_project: Path) -> None:
         result = runner.invoke(
             app,
             ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "write-paper", "--strict"],
@@ -2960,6 +3909,30 @@ class TestReviewValidationCommands:
         } <= check_names
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["reproducibility_ready"]["passed"] is True
+
+    def test_review_preflight_write_paper_fails_closed_from_nested_workspace_without_intake(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        workspace = gpd_project / "nested-write-paper"
+        workspace.mkdir()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "write-paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["passed"] is False
+        assert checks["command_context"]["passed"] is False
+        assert checks["project_state"]["passed"] is False
+        assert checks["manuscript"]["passed"] is False
+        assert payload["resolved_subject"]["status"] == "missing"
+        assert payload["resolved_subject"]["ancestor_walked_up"] is False
 
     def test_review_preflight_write_paper_bootstraps_manuscript_proof_review_manifest(
         self,
@@ -3799,12 +4772,10 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:respond-to-referees"
         assert payload["passed"] is False
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["command_context"]["passed"] is False
+        assert checks["command_context"]["passed"] is True
         assert checks["referee_report_source"]["passed"] is True
         assert checks["manuscript"]["passed"] is False
-        assert (
-            "no manuscript entrypoint found under paper/, manuscript/, or draft/" in checks["command_context"]["detail"]
-        )
+        assert checks["command_context"]["detail"]
 
     def test_review_preflight_peer_review_resolves_ancestor_project_root_for_nested_workspace(
         self,
@@ -3822,10 +4793,15 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
         assert payload["command"] == "gpd:peer-review"
         assert payload["passed"] is True
         assert checks["manuscript"]["passed"] is True
         assert _CANONICAL_MANUSCRIPT_REL in checks["manuscript"]["detail"]
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["ownership_mode"] == "project_backed"
+        assert resolved_subject["ancestor_walked_up"] is True
+        assert resolved_subject["explicit_input"] is False
 
     def test_review_preflight_peer_review_strict_requires_artifact_audits(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"
@@ -4604,6 +5580,43 @@ class TestReviewValidationCommands:
         assert checks["review_ledger"]["passed"] is False
         assert "round 2" in checks["review_ledger"]["detail"]
 
+    def test_review_preflight_arxiv_submission_strict_requires_fresh_review_after_newer_managed_lane_response_round(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            round_number=1,
+            manuscript_path="GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+        )
+        _write_publication_response_round(gpd_project, round_number=2)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "review-preflight",
+                "arxiv-submission",
+                "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
+        assert checks["review_ledger"]["passed"] is False
+        assert "REVIEW-LEDGER-R2.json" in checks["review_ledger"]["detail"]
+        assert "latest response artifacts already reached round 2" in checks["review_ledger"]["detail"]
+        assert checks["referee_decision"]["passed"] is False
+        assert "REFEREE-DECISION-R2.json" in checks["referee_decision"]["detail"]
+
     def test_review_preflight_arxiv_submission_strict_rejects_stale_review_artifact_manuscript_paths(
         self,
         gpd_project: Path,
@@ -4623,8 +5636,8 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["review_ledger"]["passed"] is False
-        assert checks["referee_decision"]["passed"] is False
+        assert checks["review_ledger_valid"]["passed"] is False
+        assert checks["referee_decision_valid"]["passed"] is False
 
     def test_review_preflight_arxiv_submission_ignores_generic_non_publication_blockers(
         self, gpd_project: Path
@@ -4648,25 +5661,16 @@ class TestReviewValidationCommands:
         assert checks["review_ledger"]["passed"] is False
         assert checks["referee_decision"]["passed"] is False
 
-    def test_review_preflight_arxiv_submission_rejects_explicit_non_default_paper_directory(
+    def test_review_preflight_arxiv_submission_rejects_explicit_directory_outside_supported_roots(
         self,
         gpd_project: Path,
     ) -> None:
-        paper_dir = gpd_project / "paper"
-        (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-
         submission_dir = gpd_project / "submission"
         submission_dir.mkdir()
         (submission_dir / _CANONICAL_MANUSCRIPT_BASENAME).write_text(
             "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
             encoding="utf-8",
         )
-        (submission_dir / _CANONICAL_MANUSCRIPT_PDF_BASENAME).write_bytes(b"%PDF-1.4\n% fake arxiv submission pdf\n")
-        for artifact_name in ("PAPER-CONFIG.json", "ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json"):
-            (submission_dir / artifact_name).write_text(
-                (paper_dir / artifact_name).read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
 
         result = runner.invoke(
             app,
@@ -4678,24 +5682,15 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
-
-    def test_review_preflight_arxiv_submission_rejects_explicit_manuscript_file(self, gpd_project: Path) -> None:
-        paper_dir = gpd_project / "paper"
-        (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-
-        submission_dir = gpd_project / "submission"
-        submission_dir.mkdir()
-        (submission_dir / _CANONICAL_MANUSCRIPT_BASENAME).write_text(
-            "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
-            encoding="utf-8",
+        assert (
+            checks["manuscript"]["detail"]
+            == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
         )
-        (submission_dir / _CANONICAL_MANUSCRIPT_PDF_BASENAME).write_bytes(b"%PDF-1.4\n% fake arxiv submission pdf\n")
-        for artifact_name in ("PAPER-CONFIG.json", "ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json"):
-            (submission_dir / artifact_name).write_text(
-                (paper_dir / artifact_name).read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
+
+    def test_review_preflight_arxiv_submission_accepts_explicit_managed_publication_manuscript_subject(
+        self, gpd_project: Path
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
 
         result = runner.invoke(
             app,
@@ -4704,7 +5699,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "review-preflight",
                 "arxiv-submission",
-                _manuscript_entrypoint_relpath(root_name="submission"),
+                "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
                 "--strict",
             ],
             catch_exceptions=False,
@@ -4713,41 +5708,22 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["passed"] is True
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["reproducibility_manifest"]["passed"] is True
+        assert checks["review_ledger"]["passed"] is False
+        assert checks["referee_decision"]["passed"] is False
+        assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
 
     def test_command_context_arxiv_submission_rejects_explicit_target_outside_supported_roots(
         self,
         gpd_project: Path,
     ) -> None:
-        paper_dir = gpd_project / "paper"
-        (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
         submission_dir = gpd_project / "submission"
         submission_dir.mkdir()
         (submission_dir / _CANONICAL_MANUSCRIPT_BASENAME).write_text(
             "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
-            encoding="utf-8",
-        )
-        (submission_dir / "ARTIFACT-MANIFEST.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "paper_title": "Submission Manuscript",
-                    "journal": "jhep",
-                    "created_at": "2026-03-10T00:00:00+00:00",
-                    "artifacts": [
-                        {
-                            "artifact_id": "manuscript",
-                            "category": "tex",
-                            "path": _CANONICAL_MANUSCRIPT_BASENAME,
-                            "sha256": compute_sha256(submission_dir / _CANONICAL_MANUSCRIPT_BASENAME),
-                            "produced_by": "tests.test_cli_commands",
-                            "sources": [],
-                            "metadata": {"role": "manuscript"},
-                        }
-                    ],
-                }
-            ),
             encoding="utf-8",
         )
 
@@ -4757,11 +5733,58 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["required_files"]["passed"] is False
-        assert "explicit manuscript target satisfies command context" not in checks["required_files"]["detail"]
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is True
+        assert payload["resolved_subject"]["status"] == "invalid"
+        assert payload["resolved_subject"]["ownership_mode"] == "external_artifact"
+        assert payload["resolved_subject"]["explicit_input"] is True
+        assert payload["resolved_subject"]["target_path"].endswith("submission")
+        assert (
+            payload["resolved_subject"]["detail"]
+            == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
+        )
+
+    def test_command_context_arxiv_submission_resolves_managed_publication_lane_without_arguments(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        for artifact_name in (
+            _CANONICAL_MANUSCRIPT_BASENAME,
+            _CANONICAL_MANUSCRIPT_PDF_BASENAME,
+            "PAPER-CONFIG.json",
+            "ARTIFACT-MANIFEST.json",
+            "BIBLIOGRAPHY-AUDIT.json",
+            "reproducibility-manifest.json",
+        ):
+            artifact_path = paper_dir / artifact_name
+            if artifact_path.exists():
+                artifact_path.unlink()
+
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", "arxiv-submission"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is True
+        assert checks["explicit_inputs"]["passed"] is False
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["ownership_mode"] == "project_backed"
+        assert resolved_subject["explicit_input"] is False
+        assert resolved_subject["target_path"].endswith("GPD/publication/curvature-flow/manuscript/managed_manuscript.tex")
+        assert resolved_subject["detail"] == f"{cli_module._format_display_path(manuscript)} present"
 
     def test_command_context_peer_review_resolves_relative_manuscript_from_nested_workspace(
         self,
@@ -4787,9 +5810,15 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
         assert payload["passed"] is True
         assert checks["project_exists"]["passed"] is True
         assert checks["explicit_inputs"]["passed"] is True
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["ownership_mode"] == "project_backed"
+        assert resolved_subject["ancestor_walked_up"] is True
+        assert resolved_subject["explicit_input"] is True
+        assert resolved_subject["target_path"].endswith(f"paper/{_CANONICAL_MANUSCRIPT_BASENAME}")
 
     def test_command_context_peer_review_accepts_explicit_manuscript_outside_supported_roots(
         self,
@@ -4817,9 +5846,14 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
         assert payload["passed"] is True
         assert checks["project_exists"]["passed"] is True
         assert checks["explicit_inputs"]["passed"] is True
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["ownership_mode"] == "external_artifact"
+        assert resolved_subject["explicit_input"] is True
+        assert resolved_subject["target_path"].endswith(f"submission/{_CANONICAL_MANUSCRIPT_BASENAME}")
 
     def test_command_context_peer_review_without_arguments_allows_interactive_intake(
         self,
@@ -4845,6 +5879,149 @@ class TestReviewValidationCommands:
             "or use the current GPD project when available"
         )
 
+    def test_command_context_write_paper_fails_closed_outside_project_without_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper"
+        workspace.mkdir()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "write-paper"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == ["--intake path/to/write-paper-authoring-input.json"]
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert checks["explicit_inputs"]["detail"] == (
+            "missing explicit standalone inputs (--intake path/to/write-paper-authoring-input.json)"
+        )
+        assert payload["resolved_subject"]["status"] == "missing"
+        assert payload["resolved_subject"]["detail"] == (
+            "external authoring outside a project requires `--intake path/to/write-paper-authoring-input.json`"
+        )
+
+    def test_command_context_write_paper_accepts_valid_external_authoring_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper-intake"
+        workspace.mkdir()
+        intake_path = _write_write_paper_authoring_input(workspace)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "command-context",
+                "write-paper",
+                f"--intake {intake_path.name}",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert payload["explicit_inputs"] == ["--intake path/to/write-paper-authoring-input.json"]
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == "validated external authoring intake manifest"
+        assert resolved_subject["status"] == "bootstrap"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert resolved_subject["explicit_input"] is True
+        assert resolved_subject["target_path"].endswith(intake_path.name)
+        assert resolved_subject["target_root"].endswith("GPD/publication/external-authoring-test/manuscript")
+        assert "managed manuscript bootstrap will use" in resolved_subject["detail"]
+
+    def test_command_context_write_paper_rejects_invalid_external_authoring_intake(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper-invalid-intake"
+        workspace.mkdir()
+        intake_path = workspace / "write-paper-authoring-input.json"
+        intake_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "title": "Broken intake",
+                    "authors": [{"name": "A. Researcher"}],
+                    "target_journal": "prl",
+                    "claims": [],
+                    "source_notes": [],
+                    "citation_sources": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "command-context",
+                "write-paper",
+                f"--intake {intake_path.name}",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert "write-paper intake manifest is invalid" in checks["explicit_inputs"]["detail"]
+        assert resolved_subject["status"] == "invalid"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert "write_paper_authoring_input.central_claim is required" in resolved_subject["detail"]
+
+    def test_command_context_respond_to_referees_flagged_intake_uses_canonical_input_labels(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-respond"
+        workspace.mkdir()
+        explicit_intake = (
+            f"--manuscript submission/{_CANONICAL_MANUSCRIPT_BASENAME} "
+            "--report reports/referee-1.md --report reports/referee-2.md"
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "respond-to-referees", explicit_intake],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:respond-to-referees"
+        assert payload["passed"] is True
+        assert payload["explicit_inputs"] == ["manuscript path", "path to referee report", "`paste`"]
+        assert checks["explicit_inputs"]["passed"] is True
+        assert checks["explicit_inputs"]["detail"] == "explicit standalone inputs detected"
+
     def test_review_preflight_peer_review_accepts_external_txt_artifact(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"
         workspace.mkdir()
@@ -4860,10 +6037,133 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
         assert payload["passed"] is True
         assert "project_state" not in checks
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == "./notes.txt present"
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["ownership_mode"] == "external_artifact"
+        assert resolved_subject["explicit_input"] is True
+        assert resolved_subject["target_path"].endswith("notes.txt")
+
+    def test_review_preflight_write_paper_accepts_external_authoring_intake_outside_project(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "standalone-write-paper-preflight"
+        workspace.mkdir()
+        intake_path = _write_write_paper_authoring_input(workspace)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "write-paper",
+                f"--intake {intake_path.name}",
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["passed"] is True
+        assert payload["required_outputs"] == [
+            "${PAPER_DIR}/{topic_specific_stem}.tex",
+            "${PAPER_DIR}/PAPER-CONFIG.json",
+            "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+            "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+            "${PAPER_DIR}/reproducibility-manifest.json",
+        ]
+        assert payload["required_evidence"] == [
+            "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+        ]
+        assert payload["blocking_conditions"] == ["invalid or incomplete external authoring intake manifest"]
+        assert checks["command_context"]["passed"] is True
+        assert checks["project_state"]["passed"] is True
+        assert checks["project_state"]["blocking"] is False
+        assert "intake manifest is authoritative" in checks["project_state"]["detail"]
+        assert checks["roadmap"]["passed"] is True
+        assert checks["roadmap"]["blocking"] is False
+        assert checks["conventions"]["passed"] is True
+        assert checks["conventions"]["blocking"] is False
+        assert checks["research_artifacts"]["passed"] is True
+        assert checks["research_artifacts"]["blocking"] is False
+        assert checks["verification_reports"]["passed"] is True
+        assert checks["verification_reports"]["blocking"] is False
+        assert checks["manuscript"]["passed"] is True
+        assert "validated external authoring intake" in checks["manuscript"]["detail"]
+        assert "artifact_manifest" not in checks
+        assert "bibliography_audit" not in checks
+        assert "reproducibility_manifest" not in checks
+        assert "manuscript_proof_review" not in checks
+        assert resolved_subject["status"] == "bootstrap"
+        assert resolved_subject["ownership_mode"] == "external_authoring_intake"
+        assert checks["project_state"]["detail"] == (
+            "external authoring intake: project state is optional because the intake manifest is authoritative"
+        )
+        assert checks["roadmap"]["detail"] == (
+            "external authoring intake: roadmap is optional because the intake manifest supplies the draft scope"
+        )
+        assert checks["conventions"]["detail"] == (
+            "external authoring intake: project conventions are optional before the manuscript exists"
+        )
+        assert checks["research_artifacts"]["detail"] == (
+            "external authoring intake: milestone digests and phase summaries are optional because claims and evidence "
+            "come from the intake manifest"
+        )
+        assert checks["verification_reports"]["detail"] == (
+            "external authoring intake: project verification reports are optional because claim-to-evidence bindings "
+            "come from the intake manifest"
+        )
+
+    @pytest.mark.parametrize(
+        ("artifact_name", "content"),
+        [
+            ("draft.tex", "\\documentclass{article}\n\\begin{document}\nStandalone draft.\n\\end{document}\n"),
+            ("draft.md", "# Standalone draft\n"),
+        ],
+    )
+    def test_review_preflight_peer_review_accepts_external_tex_and_markdown_artifacts(
+        self,
+        tmp_path: Path,
+        artifact_name: str,
+        content: str,
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        workspace.mkdir()
+        (workspace / artifact_name).write_text(content, encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(workspace),
+                "validate",
+                "review-preflight",
+                "peer-review",
+                artifact_name,
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert "project_state" not in checks
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"./{artifact_name} present"
 
     @pytest.mark.parametrize(
         ("suffix", "writer", "expected_detail"),
@@ -4926,6 +6226,69 @@ class TestReviewValidationCommands:
         assert "project_state" not in checks
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == f"./{artifact.name} present; {expected_detail}"
+
+    def test_review_preflight_peer_review_accepts_external_manuscript_directory_with_manifest(
+        self, tmp_path: Path
+    ) -> None:
+        workspace = tmp_path / "standalone-review"
+        manuscript_root = workspace / "submission"
+        manuscript_root.mkdir(parents=True)
+        manuscript = manuscript_root / _CANONICAL_MANUSCRIPT_BASENAME
+        manuscript.write_text(
+            "\\documentclass{article}\n\\begin{document}\nStandalone directory manuscript.\n\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_root / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Standalone directory review",
+                    "journal": "jhep",
+                    "created_at": "2026-03-10T00:00:00+00:00",
+                    "artifacts": [
+                        {
+                            "artifact_id": "manuscript",
+                            "category": "tex",
+                            "path": _CANONICAL_MANUSCRIPT_BASENAME,
+                            "sha256": compute_sha256(manuscript),
+                            "produced_by": "tests.test_cli_commands",
+                            "sources": [],
+                            "metadata": {"role": "manuscript"},
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "review-preflight", "peer-review", "submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert (
+            checks["manuscript"]["detail"] == f"./submission resolved to ./submission/{_CANONICAL_MANUSCRIPT_BASENAME}"
+        )
+        if "artifact_manifest" in checks:
+            assert checks["artifact_manifest"]["detail"] == "./submission/ARTIFACT-MANIFEST.json present"
+        for optional_check in (
+            "project_state",
+            "roadmap",
+            "conventions",
+            "research_artifacts",
+            "verification_reports",
+            "bibliography_audit",
+            "reproducibility_manifest",
+            "manuscript_proof_review",
+        ):
+            if optional_check in checks:
+                assert checks[optional_check]["blocking"] is False
 
     def test_review_preflight_peer_review_accepts_external_pdf_artifact_with_companion_text(
         self, tmp_path: Path
@@ -5173,16 +6536,11 @@ class TestReviewValidationCommands:
         self,
         gpd_project: Path,
     ) -> None:
-        paper_dir = gpd_project / "paper"
-        (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-
-        submission_dir = gpd_project / "submission"
-        submission_dir.mkdir()
-        (submission_dir / _CANONICAL_MANUSCRIPT_BASENAME).write_text(
-            "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
-            encoding="utf-8",
-        )
-        (submission_dir / _CANONICAL_MANUSCRIPT_PDF_BASENAME).write_bytes(b"%PDF-1.4\n% fake arxiv submission pdf\n")
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+        managed_dir = manuscript.parent
+        (managed_dir / "ARTIFACT-MANIFEST.json").unlink()
+        (managed_dir / "BIBLIOGRAPHY-AUDIT.json").unlink()
+        (managed_dir / "reproducibility-manifest.json").unlink()
         _write_legacy_publication_artifacts(
             gpd_project,
             ("PAPER-CONFIG.json", "ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json"),
@@ -5195,7 +6553,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "review-preflight",
                 "arxiv-submission",
-                _manuscript_entrypoint_relpath(root_name="submission"),
+                "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
                 "--strict",
             ],
             catch_exceptions=False,
@@ -5204,19 +6562,23 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
+        assert checks["artifact_manifest"]["detail"].startswith("no ARTIFACT-MANIFEST.json found near the manuscript")
+        assert checks["artifact_manifest"]["blocking"] is True
+        assert checks["bibliography_audit"]["detail"].startswith("no BIBLIOGRAPHY-AUDIT.json found near the manuscript")
+        assert checks["bibliography_audit"]["blocking"] is True
+        assert checks["reproducibility_manifest"]["blocking"] is True
+        assert checks["review_ledger"]["passed"] is False
+        assert checks["referee_decision"]["passed"] is False
 
     def test_review_preflight_arxiv_submission_rejects_explicit_markdown_manuscript_file(
         self,
         gpd_project: Path,
     ) -> None:
-        paper_dir = gpd_project / "paper"
-        (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-
-        submission_dir = gpd_project / "submission"
-        submission_dir.mkdir()
-        (submission_dir / _CANONICAL_MARKDOWN_BASENAME).write_text("# Markdown manuscript\n", encoding="utf-8")
+        manuscript_dir = gpd_project / "GPD" / "publication" / "curvature-flow" / "manuscript"
+        manuscript_dir.mkdir(parents=True, exist_ok=True)
+        (manuscript_dir / _CANONICAL_MARKDOWN_BASENAME).write_text("# Markdown manuscript\n", encoding="utf-8")
 
         result = runner.invoke(
             app,
@@ -5225,7 +6587,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "review-preflight",
                 "arxiv-submission",
-                _manuscript_entrypoint_relpath(root_name="submission", suffix=".md"),
+                f"GPD/publication/curvature-flow/manuscript/{_CANONICAL_MARKDOWN_BASENAME}",
                 "--strict",
             ],
             catch_exceptions=False,
@@ -5235,22 +6597,29 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert (
+            checks["manuscript"]["detail"]
+            == f"explicit manuscript target must be a .tex file: ./GPD/publication/curvature-flow/manuscript/{_CANONICAL_MARKDOWN_BASENAME}"
+        )
 
     def test_review_preflight_arxiv_submission_rejects_directory_with_markdown_entrypoint(
         self,
         gpd_project: Path,
     ) -> None:
-        paper_dir = gpd_project / "paper"
-        (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
-
-        submission_dir = gpd_project / "submission"
-        submission_dir.mkdir()
-        (submission_dir / _CANONICAL_MARKDOWN_BASENAME).write_text("# Markdown manuscript\n", encoding="utf-8")
+        manuscript_dir = gpd_project / "GPD" / "publication" / "curvature-flow" / "manuscript"
+        manuscript_dir.mkdir(parents=True, exist_ok=True)
+        (manuscript_dir / _CANONICAL_MARKDOWN_BASENAME).write_text("# Markdown manuscript\n", encoding="utf-8")
 
         result = runner.invoke(
             app,
-            ["--raw", "validate", "review-preflight", "arxiv-submission", "submission", "--strict"],
+            [
+                "--raw",
+                "validate",
+                "review-preflight",
+                "arxiv-submission",
+                "GPD/publication/curvature-flow/manuscript",
+                "--strict",
+            ],
             catch_exceptions=False,
         )
 
@@ -5258,29 +6627,32 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["detail"] == (
+            "no manuscript entry point found under ./GPD/publication/curvature-flow/manuscript"
+        )
 
     def test_review_preflight_arxiv_submission_rejects_explicit_directory_without_main_entrypoint(
         self,
         gpd_project: Path,
     ) -> None:
-        paper_dir = gpd_project / "paper"
-        submission_dir = gpd_project / "submission"
-        submission_dir.mkdir()
-        (submission_dir / "alt.tex").write_text(
+        manuscript_dir = gpd_project / "GPD" / "publication" / "curvature-flow" / "manuscript"
+        manuscript_dir.mkdir(parents=True, exist_ok=True)
+        (manuscript_dir / "alt.tex").write_text(
             "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
             encoding="utf-8",
         )
-        (submission_dir / "alt.pdf").write_bytes(b"%PDF-1.4\n% fake arxiv submission pdf\n")
-        for artifact_name in ("PAPER-CONFIG.json", "ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json"):
-            (submission_dir / artifact_name).write_text(
-                (paper_dir / artifact_name).read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
+        (manuscript_dir / "alt.pdf").write_bytes(b"%PDF-1.4\n% fake arxiv submission pdf\n")
 
         result = runner.invoke(
             app,
-            ["--raw", "validate", "review-preflight", "arxiv-submission", "submission", "--strict"],
+            [
+                "--raw",
+                "validate",
+                "review-preflight",
+                "arxiv-submission",
+                "GPD/publication/curvature-flow/manuscript",
+                "--strict",
+            ],
             catch_exceptions=False,
         )
 
@@ -5288,7 +6660,9 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
-        assert "must stay under `paper/`, `manuscript/`, or `draft/`" in checks["manuscript"]["detail"]
+        assert checks["manuscript"]["detail"] == (
+            "no manuscript entry point found under ./GPD/publication/curvature-flow/manuscript"
+        )
 
     def test_review_preflight_arxiv_submission_default_markdown_only_project_fails_manuscript_check(
         self,
@@ -6802,8 +8176,6 @@ def test_cli_uninstall_and_resolution_paths(monkeypatch: pytest.MonkeyPatch, gpd
         )
         is True
     )
-
-
 def test_resolve_model_explain_surfaces_runtime_default_reason(
     monkeypatch: pytest.MonkeyPatch,
     gpd_project: Path,

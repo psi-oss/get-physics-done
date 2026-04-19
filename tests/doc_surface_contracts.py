@@ -131,6 +131,7 @@ __all__ = [
     "assert_beginner_hub_preflight_contract",
     "assert_beginner_router_bridge_contract",
     "assert_beginner_startup_routing_contract",
+    "assert_publication_lane_boundary_contract",
     "assert_recovery_ladder_contract",
     "assert_runtime_reset_rediscovery_contract",
     "assert_resume_authority_contract",
@@ -1287,6 +1288,137 @@ def assert_optional_paper_workflow_guidance_contract(content: str) -> None:
         ),
         label="optional paper workflow degradation guidance",
     )
+
+
+def assert_publication_lane_boundary_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "adds one bounded external-authoring lane",
+            "bounded external-authoring lane",
+            "explicit intake manifest only",
+        ),
+        label="bounded write-paper external-authoring lane surface",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Publication boundary:",
+            "Publication lane boundary:",
+        ),
+        label="publication lane boundary framing",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "explicit intake manifest only",
+            "one explicit intake manifest",
+            "one explicit external-authoring intake manifest",
+        ),
+        label="explicit intake manifest boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:peer-review` can review the current project manuscript or one explicit",
+            "`gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit",
+        ),
+        label="peer-review explicit artifact intake boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "subject-owned publication root under `GPD/publication/{subject_slug}`",
+            "subject-owned publication root at `GPD/publication/{subject_slug}`",
+            "subject-owned publication root under `GPD/publication/{subject_slug}/...`",
+            "outputs live under `GPD/publication/{subject_slug}/...`",
+        ),
+        label="subject-owned external continuation boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root",
+            "`GPD/publication/{subject_slug}/manuscript` is the only manuscript/build root",
+            "`GPD/publication/{subject_slug}/manuscript` as the only manuscript root",
+        ),
+        label="managed manuscript-root boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only",
+            "`GPD/publication/{subject_slug}/intake/` keeps intake/provenance state",
+            "`GPD/publication/{subject_slug}/intake/` as intake/provenance state only",
+        ),
+        label="managed intake-root boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "does not mine arbitrary folders",
+            "no generic folder mining",
+        ),
+        label="no folder-mining boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "infer claim/evidence bindings from loose notes",
+            "infer claim/evidence support from loose notes",
+        ),
+        label="no loose-note inference boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:peer-review` remains the standalone follow-on command",
+            "standalone follow-on command when the bounded external-authoring lane needs review",
+            "route authored-manuscript review to standalone `gpd:peer-review`",
+        ),
+        label="external review follow-on boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths.",
+            "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths",
+            "project-backed outputs on their current GPD paths",
+        ),
+        label="project-backed publication outputs stay put",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:respond-to-referees` stays tied to the resolved manuscript root",
+            "`gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root",
+            "`gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root",
+            "embedded external staged-review parity remains deferred",
+            "The later publication commands stay stricter:",
+        ),
+        label="resolved manuscript-root publication boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`gpd:arxiv-submission` only packages a GPD-owned manuscript root",
+            "resolved GPD-owned manuscript root",
+            "optional GPD-owned manuscript-root target",
+        ),
+        label="arxiv GPD-owned manuscript-root boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "this does not relocate the manuscript draft itself out of `paper/`, `manuscript/`, or `draft/`",
+            "this is not a full manuscript-root migration",
+            "This is not a full publication-root migration.",
+            "This is not a full publication-root migration",
+            "not a full publication-root migration",
+        ),
+        label="manuscript-root migration boundary",
+    )
+
 
 def assert_publication_toolchain_boundary_contract(content: str) -> None:
     _assert_contains_any(

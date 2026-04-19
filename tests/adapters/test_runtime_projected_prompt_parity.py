@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gpd import registry
-from gpd.adapters.install_utils import project_markdown_for_runtime
+from gpd.adapters.install_utils import expand_at_includes, project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, iter_runtime_descriptors
 from gpd.core.model_visible_text import (
     agent_visibility_note,
@@ -21,11 +20,6 @@ COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 
 RUNTIMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
-SPAWN_CONTRACT_COMMANDS = tuple(
-    command_name
-    for command_name in registry.list_commands()
-    if "<spawn_contract>" in registry.get_command(command_name).content
-)
 VERIFIER_BUDGET_BY_NATIVE_INCLUDE_SUPPORT = {
     True: (900, 60_000),
     False: (6_500, 430_000),
@@ -35,6 +29,11 @@ VERIFIER_BUDGET_BY_NATIVE_INCLUDE_SUPPORT = {
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
+
+def _command_names() -> tuple[str, ...]:
+    return tuple(path.stem for path in sorted(COMMANDS_DIR.glob("*.md")))
+
+
 def _command_frontmatter(command_name: str) -> dict[str, object]:
     frontmatter, _body = _frontmatter_parts(_read(COMMANDS_DIR / f"{command_name}.md"))
     assert frontmatter is not None, f"{command_name} is missing command frontmatter"
@@ -43,7 +42,7 @@ def _command_frontmatter(command_name: str) -> dict[str, object]:
 
 def _contract_bearing_command_surfaces() -> dict[str, tuple[str, ...]]:
     surfaces: dict[str, tuple[str, ...]] = {}
-    for command_name in registry.list_commands():
+    for command_name in _command_names():
         meta = _command_frontmatter(command_name)
         fragments = [command_visibility_note()]
         review_contract = meta.get("review-contract")
@@ -56,7 +55,12 @@ def _contract_bearing_command_surfaces() -> dict[str, tuple[str, ...]]:
     return surfaces
 
 
+def _spawn_contract_commands() -> tuple[str, ...]:
+    return tuple(command_name for command_name in _command_names() if "<spawn_contract>" in _read(COMMANDS_DIR / f"{command_name}.md"))
+
+
 COMMAND_SURFACES = _contract_bearing_command_surfaces()
+SPAWN_CONTRACT_COMMANDS = _spawn_contract_commands()
 PLAN_AGENT_SURFACES = {
     "gpd-planner": (
         agent_visibility_note(),
@@ -82,6 +86,10 @@ RESULT_AGENT_SURFACES = {
         "comparison_verdicts",
     ),
 }
+PEER_REVIEW_PUBLICATION_LANE_FRAGMENTS = (
+    "Keep GPD-authored auxiliary review artifacts under `GPD/` in the invoking workspace.",
+    "The manuscript itself and any manuscript-local publication manifests stay rooted at the resolved manuscript directory.",
+)
 
 
 def _project_markdown(path: Path, runtime: str, *, is_agent: bool) -> str:
@@ -112,6 +120,17 @@ def test_runtime_projected_commands_keep_model_visible_contract_wrappers(command
 
     for fragment in expected_fragments:
         assert fragment in projected, f"{runtime} {command_name} missing {fragment!r}"
+
+
+@pytest.mark.parametrize("runtime", RUNTIMES)
+def test_runtime_projected_peer_review_keeps_publication_lane_boundary_visible(runtime: str) -> None:
+    projected = _project_markdown(COMMANDS_DIR / "peer-review.md", runtime, is_agent=False)
+
+    _assert_fragments_visible(
+        projected,
+        PEER_REVIEW_PUBLICATION_LANE_FRAGMENTS,
+        label=f"{runtime} peer-review",
+    )
 
 
 @pytest.mark.parametrize("runtime", RUNTIMES)
@@ -164,12 +183,19 @@ def test_runtime_projected_spawn_contract_blocks_match_canonical_command_content
     command_name: str,
     runtime: str,
 ) -> None:
-    command = registry.get_command(command_name)
     projected = _project_markdown(COMMANDS_DIR / f"{command_name}.md", runtime, is_agent=False)
     descriptor = get_runtime_descriptor(runtime)
     projected_contracts = _extract_spawn_contracts(projected)
-    expanded_contracts = _extract_spawn_contracts(command.content)
-    source_contracts = _extract_spawn_contracts(_read(COMMANDS_DIR / f"{command_name}.md"))
+    source_text = _read(COMMANDS_DIR / f"{command_name}.md")
+    expanded_contracts = _extract_spawn_contracts(
+        expand_at_includes(
+            source_text,
+            REPO_ROOT / "src/gpd",
+            "/runtime/",
+            runtime=runtime,
+        )
+    )
+    source_contracts = _extract_spawn_contracts(source_text)
 
     if descriptor.native_include_support:
         assert projected_contracts == source_contracts

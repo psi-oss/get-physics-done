@@ -26,6 +26,8 @@ class HookPayloadPolicy:
     notify_event_types: tuple[str, ...] = ()
     workspace_keys: tuple[str, ...] = ()
     project_dir_keys: tuple[str, ...] = ()
+    target_path_keys: tuple[str, ...] = ()
+    target_root_keys: tuple[str, ...] = ()
     runtime_session_id_keys: tuple[str, ...] = ()
     model_keys: tuple[str, ...] = ()
     provider_keys: tuple[str, ...] = ()
@@ -618,6 +620,8 @@ def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
         notify_event_types=_require_string_tuple(payload.get("notify_event_types"), label=f"{label}.notify_event_types", allow_empty=True),
         workspace_keys=_require_string_tuple(payload.get("workspace_keys"), label=f"{label}.workspace_keys", allow_empty=True),
         project_dir_keys=_require_string_tuple(payload.get("project_dir_keys"), label=f"{label}.project_dir_keys", allow_empty=True),
+        target_path_keys=_require_string_tuple(payload.get("target_path_keys"), label=f"{label}.target_path_keys", allow_empty=True),
+        target_root_keys=_require_string_tuple(payload.get("target_root_keys"), label=f"{label}.target_root_keys", allow_empty=True),
         runtime_session_id_keys=_require_string_tuple(
             payload.get("runtime_session_id_keys"), label=f"{label}.runtime_session_id_keys", allow_empty=True
         ),
@@ -823,6 +827,8 @@ def get_hook_payload_policy(runtime: str | None = None) -> HookPayloadPolicy:
         notify_event_types=_merge_unique(descriptor.hook_payload.notify_event_types for descriptor in descriptors),
         workspace_keys=_merge_unique(descriptor.hook_payload.workspace_keys for descriptor in descriptors),
         project_dir_keys=_merge_unique(descriptor.hook_payload.project_dir_keys for descriptor in descriptors),
+        target_path_keys=_merge_unique(descriptor.hook_payload.target_path_keys for descriptor in descriptors),
+        target_root_keys=_merge_unique(descriptor.hook_payload.target_root_keys for descriptor in descriptors),
         runtime_session_id_keys=_merge_unique(
             descriptor.hook_payload.runtime_session_id_keys for descriptor in descriptors
         ),

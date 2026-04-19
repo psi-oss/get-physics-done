@@ -51,7 +51,7 @@ from gpd.core.health import (
     runtime_doctor_hint,
 )
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json
-from gpd.core.storage_paths import ProjectStorageLayout
+from gpd.core.storage_paths import ManagedOutputPolicy, ProjectStorageLayout
 from gpd.hooks.install_metadata import InstallTargetAssessment
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
 from tests.runtime_test_support import (
@@ -895,6 +895,25 @@ class TestCheckStoragePaths:
 
         assert result.status == CheckStatus.WARN
         assert any("GPD/phases/01-setup/results/out.json" in warning for warning in result.warnings)
+        assert any("GPD/tmp/final.csv" in warning for warning in result.warnings)
+
+    def test_policy_owned_gpd_managed_output_is_not_reported_as_storage_warning(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        paper_output = cwd / "GPD" / "paper" / "main.tex"
+        paper_output.parent.mkdir(parents=True)
+        paper_output.write_text("\\documentclass{article}\n", encoding="utf-8")
+        scratch_file = cwd / "GPD" / "tmp" / "final.csv"
+        scratch_file.parent.mkdir(parents=True)
+        scratch_file.write_text("x,y\n", encoding="utf-8")
+
+        result = check_storage_paths(
+            cwd,
+            managed_output_policies=(ManagedOutputPolicy.gpd_subtree("paper"),),
+        )
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["managed_output_policy_count"] == 1
+        assert not any("GPD/paper/main.tex" in warning for warning in result.warnings)
         assert any("GPD/tmp/final.csv" in warning for warning in result.warnings)
 
     def test_repo_gitignore_does_not_hide_checkpoint_outputs_under_gpd(self, tmp_path: Path) -> None:

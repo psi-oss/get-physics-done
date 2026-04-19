@@ -21,6 +21,8 @@ QUICK_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"quick{WORKFLOW_STAGE
 LITERATURE_REVIEW_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"literature-review{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 RESEARCH_PHASE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"research-phase{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 MAP_RESEARCH_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"map-research{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
+WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT = "GPD/publication/{subject_slug}/manuscript"
+WRITE_PAPER_MANAGED_INTAKE_ROOT = "GPD/publication/{subject_slug}/intake"
 RESUME_WORK_INIT_FIELDS = frozenset(
     {
         "workspace_root",
@@ -736,6 +738,31 @@ WRITE_PAPER_INIT_FIELDS = frozenset(
         "project_contract_gate",
         "project_contract_load_info",
         "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "publication_subject",
+        "publication_subject_status",
+        "publication_subject_source",
+        "publication_subject_detail",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "publication_artifact_base",
+        "selected_publication_root",
+        "publication_intake_root",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "managed_publication_root",
+        "managed_manuscript_root",
+        "publication_bootstrap",
+        "publication_bootstrap_mode",
+        "publication_bootstrap_root",
+        "publication_bootstrap_detail",
         "selected_protocol_bundle_ids",
         "protocol_bundle_context",
         "active_reference_context",
@@ -800,6 +827,12 @@ PEER_REVIEW_INIT_FIELDS = frozenset(
         "citation_source_warnings",
         "derived_citation_sources",
         "derived_citation_source_count",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",
@@ -847,6 +880,12 @@ ARXIV_SUBMISSION_BOOTSTRAP_FIELDS = frozenset(
 )
 ARXIV_SUBMISSION_SNAPSHOT_FIELDS = frozenset(
     {
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
         "manuscript_root",
@@ -1545,6 +1584,8 @@ __all__ = [
     "NewProjectStage",
     "NewProjectStageContract",
     "WRITE_PAPER_INIT_FIELDS",
+    "WRITE_PAPER_MANAGED_INTAKE_ROOT",
+    "WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT",
     "WORKFLOW_STAGE_MANIFEST_DIR",
     "WORKFLOW_STAGE_MANIFEST_SUFFIX",
     "VERIFY_WORK_INIT_FIELDS",

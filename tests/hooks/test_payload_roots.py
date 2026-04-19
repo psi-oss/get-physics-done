@@ -22,11 +22,15 @@ def _policy(
     *,
     workspace_keys: tuple[str, ...] = ("cwd",),
     project_dir_keys: tuple[str, ...] = ("project_dir",),
+    target_path_keys: tuple[str, ...] = ("target_path",),
+    target_root_keys: tuple[str, ...] = ("target_root",),
     root_resolution_service=None,
 ):
     return SimpleNamespace(
         workspace_keys=workspace_keys,
         project_dir_keys=project_dir_keys,
+        target_path_keys=target_path_keys,
+        target_root_keys=target_root_keys,
         root_resolution_service=root_resolution_service,
     )
 
@@ -171,8 +175,26 @@ def test_coerce_root_pair_accepts_tuple_and_list_payloads(tmp_path) -> None:
     assert tuple_roots.project_root == str(project.resolve(strict=False))
     assert tuple_roots.project_dir_present is False
     assert tuple_roots.project_dir_trusted is False
+    assert tuple_roots.target_path is None
+    assert tuple_roots.target_root is None
     assert list_roots.workspace_dir == tuple_roots.workspace_dir
     assert list_roots.project_root == tuple_roots.project_root
+
+
+def test_coerce_root_pair_accepts_optional_target_metadata(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+    target_path = workspace / "artifact.md"
+    target_root = project / "paper"
+
+    roots = _coerce_root_pair(
+        (str(workspace), str(project), str(target_path), str(target_root)),
+        fallback_workspace_dir=str(tmp_path / "fallback"),
+    )
+
+    assert roots is not None
+    assert roots.target_path == str(target_path.resolve(strict=False))
+    assert roots.target_root == str(target_root.resolve(strict=False))
 
 
 def test_coerce_root_pair_preserves_trust_flags_from_mapping_payload(tmp_path) -> None:
@@ -185,6 +207,8 @@ def test_coerce_root_pair_preserves_trust_flags_from_mapping_payload(tmp_path) -
             "project_root": str(project),
             "project_dir_present": True,
             "project_dir_trusted": False,
+            "target_path": str(workspace / "artifact.md"),
+            "target_root": str(project / "paper"),
         },
         fallback_workspace_dir=str(tmp_path / "fallback"),
     )
@@ -194,6 +218,8 @@ def test_coerce_root_pair_preserves_trust_flags_from_mapping_payload(tmp_path) -
     assert roots.project_root == str(project.resolve(strict=False))
     assert roots.project_dir_present is True
     assert roots.project_dir_trusted is False
+    assert roots.target_path == str((workspace / "artifact.md").resolve(strict=False))
+    assert roots.target_root == str((project / "paper").resolve(strict=False))
 
 
 def test_payload_roots_return_only_canonical_field_names(tmp_path) -> None:
@@ -213,6 +239,8 @@ def test_payload_roots_return_only_canonical_field_names(tmp_path) -> None:
     assert roots is not None
     assert roots.project_dir_present is True
     assert roots.project_dir_trusted is True
+    assert roots.target_path is None
+    assert roots.target_root is None
     for legacy_name in (
         "raw_workspace_dir",
         "resolved_project_root",
@@ -325,11 +353,20 @@ def test_project_root_from_payload_uses_workspace_dir_as_policy_context_when_cwd
 def test_resolve_payload_roots_returns_canonical_workspace_and_project_root(tmp_path) -> None:
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
+    target_path = workspace / "paper" / "draft.tex"
+    target_root = project / "paper"
     workspace.mkdir(parents=True)
     (project / "GPD").mkdir()
 
     roots = resolve_payload_roots(
-        {"workspace": {"cwd": str(workspace), "project_dir": str(project)}},
+        {
+            "workspace": {
+                "cwd": str(workspace),
+                "project_dir": str(project),
+                "target_path": str(target_path),
+                "target_root": str(target_root),
+            }
+        },
         policy_getter=lambda _cwd: _policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
     )
 
@@ -338,6 +375,8 @@ def test_resolve_payload_roots_returns_canonical_workspace_and_project_root(tmp_
     assert roots.workspace_dir != roots.project_root
     assert roots.project_dir_present is True
     assert roots.project_dir_trusted is True
+    assert roots.target_path == str(target_path.resolve(strict=False))
+    assert roots.target_root == str(target_root.resolve(strict=False))
 
 
 def test_resolve_payload_roots_marks_untrusted_project_dir_when_workspace_walkup_wins(tmp_path) -> None:
@@ -466,6 +505,8 @@ def test_resolve_payload_roots_accepts_canonical_fields_from_shared_service(tmp_
         return_value=SimpleNamespace(
             workspace_dir=str(workspace),
             project_root=str(project),
+            target_path=str(workspace / "paper" / "draft.tex"),
+            target_root=str(project / "paper"),
         )
     )
 
@@ -482,6 +523,8 @@ def test_resolve_payload_roots_accepts_canonical_fields_from_shared_service(tmp_
     assert roots.project_root == str(project.resolve(strict=False))
     assert roots.project_dir_present is True
     assert roots.project_dir_trusted is True
+    assert roots.target_path == str((workspace / "paper" / "draft.tex").resolve(strict=False))
+    assert roots.target_root == str((project / "paper").resolve(strict=False))
 
 
 def test_resolve_payload_roots_keeps_raw_workspace_when_service_only_returns_project_root(tmp_path) -> None:
@@ -503,3 +546,32 @@ def test_resolve_payload_roots_keeps_raw_workspace_when_service_only_returns_pro
     assert roots.workspace_dir == str(workspace.resolve(strict=False))
     assert roots.project_root == str(project.resolve(strict=False))
     assert roots.workspace_dir != roots.project_root
+
+
+def test_resolve_payload_roots_preserves_payload_target_metadata_when_shared_service_omits_it(tmp_path) -> None:
+    project = tmp_path / "project"
+    workspace = project / "src" / "notes"
+    target_path = workspace / "paper" / "draft.tex"
+    target_root = project / "paper"
+    workspace.mkdir(parents=True)
+    (project / "GPD").mkdir()
+    service = Mock(return_value={"workspace_dir": str(workspace), "project_root": str(project)})
+
+    roots = resolve_payload_roots(
+        {
+            "workspace": {
+                "cwd": str(workspace),
+                "project_dir": str(project),
+                "target_path": str(target_path),
+                "target_root": str(target_root),
+            }
+        },
+        policy_getter=lambda _cwd: _policy(
+            workspace_keys=("cwd",),
+            project_dir_keys=("project_dir",),
+            root_resolution_service=service,
+        ),
+    )
+
+    assert roots.target_path == str(target_path.resolve(strict=False))
+    assert roots.target_root == str(target_root.resolve(strict=False))

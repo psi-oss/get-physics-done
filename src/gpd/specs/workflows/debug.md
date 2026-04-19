@@ -198,7 +198,7 @@ Each agent returns one typed `gpd_return` envelope and points to `GPD/debug/{slu
 
 For each gap in the Gaps section, record the diagnosis fields the verifier actually consumes: `root_cause`, `missing`, `physics_impact`, and `debug_session`. Keep the update focused on the diagnosis rather than restating artifact inventories or path lists.
 
-Keep canonical verification `status` unchanged and set `session_status: diagnosed` in frontmatter.
+Keep canonical verification `status` unchanged and set `session_status: diagnosed` in that verification frontmatter. The debug session file at `GPD/debug/{slug}.md` keeps the debug-session `status` lifecycle and does not use `session_status`.
 
 Commit the updated VERIFICATION.md:
 

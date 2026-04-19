@@ -48,6 +48,7 @@ def test_literature_review_stage_manifest_defers_reference_artifacts_and_delegat
     )
     assert "GPD/literature/slug-REVIEW.md" in review_handoff.writes_allowed
     assert "GPD/literature/slug-CITATION-SOURCES.json" in review_handoff.writes_allowed
+    assert "GPD/literature/slug-CITATION-AUDIT.md" in review_handoff.writes_allowed
 
     assert completion_gate.loaded_authorities == ("workflows/literature-review.md",)
     assert completion_gate.writes_allowed == ()

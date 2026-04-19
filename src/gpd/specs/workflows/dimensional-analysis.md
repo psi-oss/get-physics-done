@@ -1,33 +1,35 @@
 <purpose>
 Perform a systematic dimensional analysis audit on every equation in a derivation, computation, or phase. Track dimensions through all algebraic steps, verify consistency, and flag any dimensional anomalies.
 
-Called from gpd:dimensional-analysis command. Produces DIMENSIONAL-ANALYSIS.md report.
+Called from gpd:dimensional-analysis command. Produces `GPD/analysis/dimensional-{slug}.md` rooted at the current workspace. Record whether the subject was a project phase or an explicit file target in the report frontmatter instead of silently relocating the durable artifact into an ancestor project or phase directory.
 
 Dimensional analysis is the cheapest and most powerful diagnostic in physics. It catches ~30% of errors at near-zero cost. This workflow applies it systematically rather than ad hoc.
 </purpose>
 
 <process>
 
-## 0. Load Project Context
+## 0. Load Current-Workspace Context
 
-Load project state and conventions to determine the unit system:
+Load project state and conventions to determine the unit system. Keep this init bound to the workspace the user invoked from. `dimensional-analysis` can run against an explicit current-workspace file target, so do not auto-reenter a different recent project here.
 
 - Run:
 
 ```bash
-INIT=$(gpd --raw init phase-op --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `derived_convention_lock`, especially `units` and `natural_units` settings. Extract `derived_intermediate_results` as the canonical equation registry for the current phase or project, and `derived_approximations` for context on what dimensions are independent.
-- **If init fails or `state_exists` is false** (standalone usage): Proceed — the unit system will be established explicitly in Step 1 via ask_user.
+- Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `current_phase`, `derived_convention_lock`, `derived_intermediate_results`, `derived_approximations`
+- **If `state_exists` is true:** Extract `derived_convention_lock`, especially `units` and `natural_units` settings. Extract `derived_intermediate_results` as the canonical equation registry for the current workspace project, and `derived_approximations` for context on what dimensions are independent.
+- **If `state_exists` is false in the current workspace: proceed in standalone mode.** Establish the unit system explicitly in Step 2 via ask_user instead of treating missing project state as a hard stop.
+- **If `derived_convention_lock` is missing or incomplete: treat it as advisory only** and ask explicitly for the missing unit/convention inputs before auditing. Do not pretend the workspace lacks enough context just because a project convention lock is partial.
 
 The `derived_convention_lock` unit system setting (natural units, SI, CGS, etc.) directly determines which dimensions are independent and what the dimensional assignments table looks like.
 
-**Convention verification** (if project exists):
+**Convention verification** (only when current-workspace project state exists):
 
 ```bash
 CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
@@ -37,9 +39,27 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Dimensional analysis results depend critically on the unit system. In natural units (hbar=c=1), energy and mass have the same dimension; in SI they don't. A convention mismatch here invalidates the entire analysis.
+Dimensional analysis results depend critically on the unit system. In natural units (hbar=c=1), energy and mass have the same dimension; in SI they don't. A convention mismatch here invalidates the entire analysis, but standalone/current-workspace runs should ask for missing conventions explicitly rather than synthesizing a project failure. If no project context exists, do not synthesize a project convention check.
 
-## 1. Establish Dimensional Framework
+## 1. Resolve The Audit Target And Durable Output Path
+
+Resolve the audit target from `$ARGUMENTS` after command-context preflight:
+
+- If the first positional token is numeric and current-workspace project state can resolve that phase, treat it as a phase audit target.
+- Otherwise resolve the explicit token as a file path relative to the current workspace.
+- Outside a project, do not invent a phase target from ambient state; audit only the explicit current-workspace target the user supplied.
+- Derive a stable report slug from the resolved phase identifier or file path and set `OUTPUT_PATH="GPD/analysis/dimensional-{slug}.md"`.
+
+Keep the durable audit artifact under the same current-workspace `GPD/analysis/` subtree for both standalone and project-backed runs. If the target is phase-scoped, record that phase in report frontmatter and body rather than claiming a phase-local `DIMENSIONAL-ANALYSIS.md` file that was never written.
+
+Ensure the managed output directory exists before writing:
+
+```bash
+mkdir -p GPD/analysis
+OUTPUT_PATH="GPD/analysis/dimensional-{slug}.md"
+```
+
+## 2. Establish Dimensional Framework
 
 Before checking any equations, establish the unit system in use.
 
@@ -72,9 +92,9 @@ Build dimensional lookup table:
 | {project-specific} | ...    | ...                  | ...               |
 ```
 
-## 2. Identify All Equations
+## 3. Identify All Equations
 
-Scan target for all equations:
+Scan the resolved target file(s) for all equations. For a phase target, iterate over the resolved phase file list and normalize the findings into one audit report. For a single-file target, the examples below apply directly to `$TARGET_FILE`:
 
 ```bash
 # LaTeX equations
@@ -89,7 +109,7 @@ grep -n "=.*\(Integrate\|Solve\|DSolve\|Eigenvalues\)" "$TARGET_FILE" 2>/dev/nul
 
 Number each equation for tracking.
 
-## 3. Analyze Each Equation
+## 4. Analyze Each Equation
 
 For every equation, perform the following checks:
 
@@ -147,7 +167,7 @@ For tensor equations:
 - Verify contracted indices appear once up and once down (or use metric for raising/lowering)
 - Check that the metric tensor is used consistently
 
-## 4. Track Dimensions Through Derivation
+## 5. Track Dimensions Through Derivation
 
 For multi-step derivations, track dimensions through the chain:
 
@@ -159,7 +179,7 @@ Step 3: [Result] = [LHS'] * [C]     Check: [Result] has expected final dimension
 
 Flag the first step where dimensions become inconsistent -- this is likely where the error was introduced.
 
-## 5. Special Checks
+## 6. Special Checks
 
 ### 5a. Natural units restoration
 
@@ -190,9 +210,9 @@ Probabilities and probability densities:
 - p(x) dx is dimensionless, so [p(x)] = [x]^{-1}
 - |psi(x)|^2 d^3x is dimensionless, so [psi] = [L^{-3/2}]
 
-## 6. Generate Report
+## 7. Generate Report
 
-Write DIMENSIONAL-ANALYSIS.md:
+Write the dimensional-analysis report:
 
 ```markdown
 ---
@@ -240,18 +260,9 @@ status: consistent | anomalies_found
 - {Assessment}
 ```
 
-Ensure output directory exists:
+Write the report to `${OUTPUT_PATH}`. The durable audit artifact stays under the same current-workspace `GPD/analysis/` subtree whether the target was phase-backed or standalone.
 
-```bash
-mkdir -p GPD/analysis
-```
-
-Save to appropriate location:
-
-- Phase target: `${phase_dir}/DIMENSIONAL-ANALYSIS.md`
-- File target: `GPD/analysis/dimensional-{slug}.md`
-
-## 7. Present Results
+## 8. Present Results
 
 If anomalies found:
 
@@ -273,23 +284,17 @@ If all consistent:
 No dimensional anomalies detected.
 ```
 
-**Commit the report:**
+## 9. Finalize Persistence Honestly
 
-```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${OUTPUT_PATH}" 2>&1) || true
-echo "$PRE_CHECK"
+Do not run an unconditional standalone docs commit for this workflow.
 
-gpd commit \
-  "docs: dimensional analysis audit — ${phase_slug:-standalone}" \
-  --files "${OUTPUT_PATH}"
-```
-
-Where `${OUTPUT_PATH}` is the path where DIMENSIONAL-ANALYSIS.md was written.
+- If `project_exists` is true and `commit_docs` is enabled, you may bundle `${OUTPUT_PATH}` into the project's normal documentation commit path after reviewing the diff.
+- If the audit is running in a standalone arbitrary workspace, skip the commit step entirely and report `${OUTPUT_PATH}` back to the user.
 
 </process>
 
 <output>
-DIMENSIONAL-ANALYSIS.md written with full audit results.
+`GPD/analysis/dimensional-{slug}.md` written to `${OUTPUT_PATH}` with full audit results.
 </output>
 
 <success_criteria>
@@ -303,5 +308,7 @@ DIMENSIONAL-ANALYSIS.md written with full audit results.
 - [ ] Delta function dimensions verified
 - [ ] Natural units restored for key results
 - [ ] Report generated with all anomalies classified
+- [ ] Durable audit artifact written under the current workspace `GPD/analysis/` subtree
+- [ ] Standalone runs skip unconditional commit steps; project-backed runs only commit through the normal docs path when enabled
 - [ ] Anomalies linked to specific locations in the derivation
 </success_criteria>

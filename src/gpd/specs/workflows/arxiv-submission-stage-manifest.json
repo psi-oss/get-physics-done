@@ -5,7 +5,7 @@
     {
       "id": "bootstrap",
       "order": 1,
-      "purpose": "publication bootstrap, manuscript target resolution, and fail-closed latest-review gating",
+      "purpose": "project-aware publication bootstrap, explicit manuscript target resolution, and fail-closed latest-review gating",
       "mode_paths": [
         "workflows/arxiv-submission.md"
       ],
@@ -27,6 +27,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "publication_blockers",
         "publication_blocker_count",
         "latest_review_round",
@@ -55,14 +61,16 @@
       "writes_allowed": [],
       "produced_state": [
         "bootstrap routing state",
-        "manuscript target state"
+        "manuscript target state",
+        "managed publication output root state"
       ],
       "next_stages": [
         "manuscript_preflight"
       ],
       "checkpoints": [
         "manuscript target resolved",
-        "latest review gate visible"
+        "latest review gate visible",
+        "managed publication output root identified"
       ]
     },
     {
@@ -90,6 +98,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "publication_blockers",
         "publication_blocker_count",
         "latest_review_round",
@@ -152,6 +166,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "publication_blockers",
         "publication_blocker_count",
         "latest_review_round",
@@ -207,6 +227,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "publication_blockers",
         "publication_blocker_count",
         "latest_review_round",
@@ -229,17 +255,21 @@
         "shell",
         "task"
       ],
-      "writes_allowed": [],
+      "writes_allowed": [
+        "GPD/publication/{subject_slug}/arxiv"
+      ],
       "produced_state": [
         "submission package state",
-        "submission artifact state"
+        "submission artifact state",
+        "managed arxiv package state"
       ],
       "next_stages": [
         "finalize"
       ],
       "checkpoints": [
         "submission tree assembled",
-        "tarball verifiable at root"
+        "tarball verifiable at root",
+        "managed tarball written under GPD/publication"
       ]
     },
     {
@@ -264,6 +294,12 @@
         "derived_manuscript_reference_status",
         "derived_manuscript_reference_status_count",
         "derived_manuscript_proof_review_status",
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "publication_lane_owner",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
         "publication_blockers",
         "publication_blocker_count",
         "latest_review_round",
@@ -282,10 +318,13 @@
         "shell",
         "task"
       ],
-      "writes_allowed": [],
+      "writes_allowed": [
+        "GPD/publication/{subject_slug}/arxiv"
+      ],
       "produced_state": [
         "submission checklist state",
-        "final submission state"
+        "final submission state",
+        "managed publication handoff state"
       ],
       "next_stages": [],
       "checkpoints": [

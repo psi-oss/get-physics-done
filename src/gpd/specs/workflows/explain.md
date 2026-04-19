@@ -1,5 +1,5 @@
 <workflow_goal>
-Explain a requested physics concept rigorously and in context. The command must work both inside an initialized GPD project and from a standalone question.
+Explain a requested physics concept rigorously and in context. The command supports project-backed explanations and standalone explanations only when the standalone request already names an explicit target.
 </workflow_goal>
 
 <step name="validate_context">
@@ -15,9 +15,9 @@ fi
 
 Parse the returned JSON.
 
-- If `project_exists=true`, operate in project-context mode.
-- If `project_exists=false`, require an explicit concept/topic from `$ARGUMENTS` and operate in standalone mode.
-- If the request is empty or too vague to explain meaningfully, ask one clarifying question.
+- If `project_exists=true`, operate in project-context mode. If `$ARGUMENTS` is empty, ask one focused question to identify the concept, result, method, notation, or paper to explain before continuing.
+- If `project_exists=false`, require an explicit concept/topic from `$ARGUMENTS` and operate in standalone mode. Do not promise that an empty standalone launch can be clarified later; centralized preflight should reject it.
+- If the request is non-empty but too vague to explain meaningfully, ask one clarifying question.
 - If structured citation-source fields are present in init payloads, treat them as the preferred paper catalog for follow-up links and reference IDs.
 - If the concept maps to a canonical stored result and the `result_id` is already known, prefer `gpd result show "{result_id}"` for the direct stored result view before dependency tracing. Use `gpd result deps "{result_id}"` when you need the upstream derivation chain, and `gpd result downstream "{result_id}"` when you need the reverse impact tree.
 </step>
@@ -25,7 +25,7 @@ Parse the returned JSON.
 <step name="scope_request">
 Determine what kind of explanation is needed.
 
-1. Extract the core concept, method, notation, result, or paper title from `$ARGUMENTS`.
+1. Extract the core concept, method, notation, result, or paper title from `$ARGUMENTS` or from the focused clarification answer collected in project-context mode.
 2. Infer the likely explanation goal:
    - Conceptual grounding for the active phase
    - Formal clarification of notation/equations
@@ -45,7 +45,7 @@ Determine what kind of explanation is needed.
 If project context exists, gather the minimum useful context packet before spawning the explainer.
 
 ```bash
-INIT=$(gpd --raw init progress --include project,state,roadmap,config)
+INIT=$(gpd --raw init progress --include project,state,roadmap,config --no-project-reentry)
 ```
 
 Use the init payload to extract:
@@ -79,6 +79,8 @@ Also check for nearby high-value context when present:
 - The recorded dependency chain from `gpd result deps "{result_id}"` when a canonical stored result is central to the explanation
 
 If no project context exists, gather only the user request plus any relevant local files in the current working directory.
+
+Keep all GPD-authored explanation artifacts rooted under `GPD/explanations/` in the current workspace. In project-context mode, that means the resolved project root's `GPD/explanations/`; in standalone mode, it means `./GPD/explanations/` in the invoking workspace.
 
 Create the output directory:
 

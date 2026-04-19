@@ -303,6 +303,8 @@ Extract `target_phase_dir` (the `directory` field) from the JSON result.
 
 Save to: `${target_phase_dir}/ERROR-BUDGET.md`.
 
+Do not create a second per-target `GPD/analysis/error-budget-{target}.md` report for this workflow. The project-wide record for propagated uncertainty stays in authoritative state (`propagated_uncertainties`) and any maintained `GPD/analysis/UNCERTAINTY-BUDGET.md` ledger.
+
 </step>
 
 <step name="update_state">

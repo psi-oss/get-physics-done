@@ -1,12 +1,13 @@
 <purpose>
 Execute discovery at the appropriate depth level for a physics research phase.
 Produces a Level 2-3 discovery artifact that informs planning: phase-scoped `RESEARCH.md` or standalone `GPD/analysis/discovery-{slug}.md`.
+Keep standalone GPD-authored outputs rooted under `GPD/analysis/` in the current workspace. In project-backed mode, phase-scoped discovery still writes inside the resolved phase directory.
 
 Can be invoked before plan-phase for deeper literature/method investigation, or run automatically during plan-phase's research step. Accepts a depth parameter.
 
 This workflow discovers the physics landscape: what is known, what is open, what tools exist, what methods are standard, what data is available, what approximations are valid.
 
-Level 1 (`--depth quick`) is verification-only and does not write a file. For a comprehensive literature survey ("what do experts know about this"), use gpd:research-phase instead.
+Level 1 (`--depth quick`) is verification-only and does not write a file or `RESEARCH.md`. For a comprehensive literature survey ("what do experts know about this"), use gpd:research-phase instead.
 </purpose>
 
 <depth_levels>
@@ -51,10 +52,11 @@ Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phas
 
 - Extract `convention_lock` for unit system and sign conventions (so discovered formulas can be matched to project conventions)
 - Extract active approximations (so discovery can focus on the relevant regime)
-- If no project context exists (standalone usage), proceed with user-specified topic
+- If no project context exists (standalone usage), proceed only with a user-specified topic
 
 **If `phase_found` is false and a phase was specified:** Error — phase not found.
-**If no phase specified:** Discovery is standalone; output goes to `GPD/analysis/`. Ensure the directory exists: `mkdir -p GPD/analysis`.
+**If no phase specified:** Discovery is topic-scoped, not auto-phase-selected. Require an explicit topic even inside a project. Standalone output goes to `GPD/analysis/` rooted at the current workspace; ensure the directory exists: `mkdir -p GPD/analysis`.
+**If neither a phase nor a topic was supplied:** Ask one focused question in project-backed mode; standalone preflight should already have rejected the empty invocation.
 </step>
 
 <step name="determine_depth">
@@ -245,6 +247,8 @@ Run the discovery:
 <step name="create_discovery_output">
 For Level 2-3, ensure the output directory exists and write the discovery artifact:
 
+Keep standalone discovery artifacts rooted under `GPD/analysis/` in the current workspace.
+
 **Phase-scoped:** `${phase_dir}/RESEARCH.md`
 **Standalone (no phase):**
 
@@ -318,6 +322,8 @@ What's next?
 ```
 
 NOTE: No discovery artifact is committed separately. Phase-scoped `RESEARCH.md` is committed with phase completion.
+
+The standalone artifact path above is always rooted at the current workspace `GPD/analysis/` directory.
 </step>
 
 </process>

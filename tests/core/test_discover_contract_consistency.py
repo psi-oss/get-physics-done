@@ -12,8 +12,11 @@ def test_discover_quick_depth_is_verification_only() -> None:
     command_text = COMMAND.read_text(encoding="utf-8")
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "`--depth quick` (`depth: quick`) is verification-only and returns without writing `RESEARCH.md`." in command_text
-    assert "Level 1 (`--depth quick`) is verification-only and does not write a file." in workflow_text
+    assert (
+        "`--depth quick` (`depth: quick`) is verification-only and returns without writing `RESEARCH.md` or any other discovery file."
+        in command_text
+    )
+    assert "Level 1 (`--depth quick`) is verification-only and does not write a file or `RESEARCH.md`." in workflow_text
     assert "- `--depth quick` or `depth=quick` -> Level 1 (Quick Verification)" in workflow_text
     assert "No RESEARCH.md needed." in workflow_text
     assert "depth=verify" not in workflow_text
@@ -63,3 +66,15 @@ def test_discover_follow_up_and_research_template_match_quick_no_file_behavior()
         "- For quick landscape scans, use `gpd:discover --depth quick` for verification-only checks, or `gpd:discover --depth medium` when you need a lightweight written artifact"
         in template_text
     )
+
+
+def test_discover_surface_requires_explicit_target_and_roots_standalone_outputs() -> None:
+    command_text = COMMAND.read_text(encoding="utf-8")
+    workflow_text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "explicit research phase or standalone topic" in command_text
+    assert "Standalone Level 2-3 artifacts live under `GPD/analysis/` in the invoking workspace" in command_text
+    assert "Do not treat the mere presence of a project as enough to choose a discovery target." in command_text
+    assert "Keep standalone GPD-authored outputs rooted under `GPD/analysis/` in the current workspace." in workflow_text
+    assert "Discovery is topic-scoped, not auto-phase-selected." in workflow_text
+    assert "The standalone artifact path above is always rooted at the current workspace `GPD/analysis/` directory." in workflow_text

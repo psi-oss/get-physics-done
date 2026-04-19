@@ -10,6 +10,7 @@ ERROR_PROPAGATION = REPO_ROOT / "src/gpd/specs/workflows/error-propagation.md"
 EXPLAIN_WORKFLOW = REPO_ROOT / "src/gpd/specs/workflows/explain.md"
 EXPLAIN_COMMAND = REPO_ROOT / "src/gpd/commands/explain.md"
 LIMITING_CASES = REPO_ROOT / "src/gpd/specs/workflows/limiting-cases.md"
+NUMERICAL_CONVERGENCE_COMMAND = REPO_ROOT / "src/gpd/commands/numerical-convergence.md"
 NUMERICAL_CONVERGENCE = REPO_ROOT / "src/gpd/specs/workflows/numerical-convergence.md"
 SENSITIVITY_ANALYSIS = REPO_ROOT / "src/gpd/specs/workflows/sensitivity-analysis.md"
 AGENT_INFRASTRUCTURE = REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md"
@@ -55,6 +56,13 @@ def test_lookup_first_validation_workflows_surface_result_show_after_search() ->
     assert 'gpd result show "{result_id}"' in numerical_text
     assert "gpd result search" in limiting_text
     assert 'gpd result show "{result_id}"' in limiting_text
+
+
+def test_numerical_convergence_command_doc_uses_centralized_command_context_gate() -> None:
+    text = NUMERICAL_CONVERGENCE_COMMAND.read_text(encoding="utf-8")
+
+    assert 'gpd --raw validate command-context numerical-convergence "$ARGUMENTS"' in text
+    assert "- If empty: prompt for target" not in text
 
 
 def test_sensitivity_analysis_prompts_for_result_deps_after_canonical_lookup() -> None:

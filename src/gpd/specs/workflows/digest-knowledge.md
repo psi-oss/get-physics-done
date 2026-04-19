@@ -1,5 +1,5 @@
 <purpose>
-Author or update a project knowledge document with a truthful, deterministic create/update workflow.
+Author or update a current-workspace knowledge document with a truthful, deterministic create/update workflow.
 
 This workflow handles the draft-authoring half of the knowledge-doc lifecycle only:
 
@@ -18,15 +18,17 @@ Called from `gpd:digest-knowledge`.
 A knowledge document is only useful if its identity is deterministic, its target is unambiguous, and its lifecycle claims are honest.
 
 If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target. Route that request to `gpd:review-knowledge` instead.
+The canonical standalone/current-workspace durable target always lives under `./GPD/knowledge/`, even when the source material itself lives somewhere else.
 </core_principle>
 
 <process>
 
 <step name="load_context" priority="first">
 Load the project and command context before choosing a target:
+Keep this init bound to the workspace the user invoked from. `digest-knowledge` may create or update `GPD/knowledge/` in the current workspace, so do not auto-reenter a different recent project here.
 
 ```bash
-INIT=$(gpd --raw init progress --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -68,7 +70,7 @@ Classify the command argument(s) into one of four input classes:
 
 Classification rules:
 
-- `knowledge_path` means an explicit path under `GPD/knowledge/` pointing to a `.md` file
+- `knowledge_path` means an explicit path under the current workspace `GPD/knowledge/` pointing to a `.md` file
 - `source_path` means an explicit file path outside the knowledge tree that exists and can be read as source material
 - supported `source_path` suffixes include `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when supplied explicitly
 - read `.md`, `.txt`, `.csv`, and `.tsv` directly as source surfaces
@@ -85,6 +87,8 @@ Examples of ambiguity that must stop:
 - a token that is both a plausible filename stem and a plausible topic
 - a path-like input that could point either to a knowledge doc or to a source artifact
 - multiple existing knowledge docs that could all be the intended update target
+
+Reject lookalike `K-*.md` paths outside `GPD/knowledge/` as canonical targets. Treat those as `source_path` only when the user explicitly wants to digest that external file as source material.
 </step>
 
 <step name="resolve_target">
@@ -99,10 +103,11 @@ Resolution order:
 
 Target rules:
 
-- The canonical knowledge directory is `GPD/knowledge/`
+- The canonical knowledge directory is the current workspace `GPD/knowledge/`
 - The canonical file name is `GPD/knowledge/{knowledge_id}.md`
 - `knowledge_id` must remain stable once chosen
 - use the shared ASCII slug normalizer and the shared arXiv normalizer rather than inventing new parsing logic
+- write the durable knowledge doc only under the current workspace `GPD/knowledge/` tree; never beside an external source path
 
 If a target resolves to more than one candidate, stop and ask one focused clarification question.
 Do not pick a candidate by ordering, recency, or filename heuristics.
@@ -166,6 +171,7 @@ Content rules:
 - record what is covered, what is excluded, and what remains open
 - if the source is an arXiv paper, normalize the arXiv identifier before writing it into source metadata
 - if the source is an explicit file path, keep it project-relative when possible and avoid inventing unsupported references
+- if the source file lives outside the current workspace, keep the durable output under `GPD/knowledge/` rather than writing beside that source
 - if the source began as `.pdf`, `.docx`, or `.xlsx`, preserve the original artifact path in metadata and do not replace it with the derived `.txt` intake surface
 
 If updating an existing draft, preserve the identity and revise only the content that changed.

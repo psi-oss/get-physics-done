@@ -7,6 +7,8 @@ include `bibtex_key` only when it is already known and verified. Extra keys are 
 Called from gpd:literature-review command.
 
 This workflow owns the staged init, scope fixing, deferred reference-artifact loading, and artifact gate. Do not frontload reference artifacts before the scope is fixed.
+
+Keep all durable review artifacts rooted under `GPD/literature/` in the current workspace. In project-backed mode, that is the resolved project root's `GPD/literature/`; in standalone mode, it is `./GPD/literature/` in the invoking workspace.
 </purpose>
 
 <core_principle>
@@ -74,6 +76,10 @@ fi
 
 Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `topic`, `slug`.
 
+- If `topic` is empty, do not invent or auto-derive it from project state, active references, or deferred artifacts.
+- In project-backed mode, ask one focused question to lock the topic before broadening the search or loading scoped reference artifacts.
+- In standalone mode, stop; centralized preflight should already have required explicit topic input.
+
 Do not use `reference_artifact_files` or `reference_artifacts_content` yet. Keep them deferred until the review scope is fixed so reference artifacts cannot broaden the topic before the user has chosen it.
 
 **Read mode settings:**
@@ -102,6 +108,8 @@ Project context helps focus the review on conventions and methods relevant to th
 
 <step name="scope_review">
 Establish scope from command context:
+
+The review topic must already be explicit or newly clarified; project existence alone does not satisfy subject selection.
 
 - **Topic and focus**: Specific physics question or subfield
 - **Depth**: Quick (~10 refs) | Standard (~30 refs) | Comprehensive (~50+ refs)

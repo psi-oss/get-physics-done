@@ -60,7 +60,7 @@ from gpd.core.state import (
     save_state_json,
     state_validate,
 )
-from gpd.core.storage_paths import ProjectStorageLayout
+from gpd.core.storage_paths import ManagedOutputPolicy, ProjectStorageLayout
 from gpd.core.utils import (
     atomic_write,
     phase_normalize,
@@ -317,14 +317,19 @@ def check_knowledge_inventory(cwd: Path) -> HealthCheck:
     return HealthCheck(status=status, label="Knowledge Inventory", details=details, warnings=warnings)
 
 
-def check_storage_paths(cwd: Path) -> HealthCheck:
+def check_storage_paths(
+    cwd: Path,
+    *,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
+) -> HealthCheck:
     """Warn on suspicious storage-policy violations without blocking the project."""
     layout = ProjectStorageLayout(cwd)
-    warnings = list(layout.audit_storage_warnings())
+    warnings = list(layout.audit_storage_warnings(managed_output_policies=managed_output_policies))
     details: dict[str, object] = {
         "project_root": str(layout.root),
         "internal_root": str(layout.internal_root),
         "temporary_project_root": layout.project_root_is_temporary(),
+        "managed_output_policy_count": len(managed_output_policies),
         "warning_count": len(warnings),
     }
     status = CheckStatus.WARN if warnings else CheckStatus.OK

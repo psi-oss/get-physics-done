@@ -56,6 +56,9 @@ def test_publication_review_round_artifacts_define_canonical_round_family() -> N
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in source
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in source
     assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in source
+    assert "current project-backed canonical layout" in source
+    assert "subject-owned publication root `GPD/publication/{subject_slug}`" in source
+    assert "does not by itself promise a full relocation" in source
     assert "review-round-artifact-contract.md" not in source
     assert "publication-artifact-gates.md" not in source
 
@@ -81,6 +84,9 @@ def test_publication_response_artifacts_define_paired_completion_gate() -> None:
     assert "status: checkpoint" in source
     assert "gpd_return.files_written" in source
     assert "Do not accept stale preexisting files" in source
+    assert "Project-backed response rounds use the exact global paths above." in source
+    assert "same paired response artifacts may instead bind under the subject-owned publication root" in source
+    assert "does not imply a full relocation" in source
     assert "response-artifact-contract.md" not in source
     assert "publication-artifact-gates.md" not in source
 
@@ -121,6 +127,7 @@ def test_paper_writer_and_referee_load_the_canonical_publication_response_contra
     assert "publication-response-writer-handoff.md" in write_paper
     assert "publication-bootstrap-preflight.md" in respond
     assert "publication-response-writer-handoff.md" in respond
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in respond
     assert "publication-response-artifacts.md" not in write_paper
     assert "publication-response-artifacts.md" not in respond
     assert "fresh child `gpd_return.files_written`" in respond

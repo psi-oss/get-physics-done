@@ -11,6 +11,8 @@ COMMAND_PATH = REPO_ROOT / "src/gpd/commands/debug.md"
 def test_debug_wrapper_routes_on_typed_child_return_contract() -> None:
     text = COMMAND_PATH.read_text(encoding="utf-8")
 
+    assert 'INIT=$(gpd --raw init progress --include state,roadmap,config --no-project-reentry)' in text
+    assert "Use a workspace-locked bootstrap here; do not auto-reenter a different recent project." in text
     assert "workflow-owned typed child-return contract" in text
     assert "gpd_return.status: completed" in text
     assert "gpd_return.status: checkpoint" in text

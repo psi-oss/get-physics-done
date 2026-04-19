@@ -22,6 +22,8 @@ class RuntimeLookupContext:
 
     lookup_dir: str
     active_runtime: str | None
+    target_path: str | None = None
+    target_root: str | None = None
 
 
 def _project_dir_is_trusted(explicit_project_dir: bool, project_dir_trusted: bool | None) -> bool:
@@ -104,6 +106,8 @@ def resolve_runtime_lookup_context(
     project_root: str,
     explicit_project_dir: bool,
     project_dir_trusted: bool | None = None,
+    target_path: str | None = None,
+    target_root: str | None = None,
     runtime_resolver: Callable[[str | None], str | None],
 ) -> RuntimeLookupContext:
     """Resolve both the runtime attribution and the lookup directory for one hook payload."""
@@ -123,6 +127,8 @@ def resolve_runtime_lookup_context(
             active_runtime=active_runtime,
         ),
         active_runtime=active_runtime,
+        target_path=_normalized_lookup_dir(target_path) if target_path else None,
+        target_root=_normalized_lookup_dir(target_root) if target_root else None,
     )
 
 
@@ -132,10 +138,14 @@ def resolve_runtime_lookup_context_from_payload_roots(
     runtime_resolver: Callable[[str | None], str | None],
 ) -> RuntimeLookupContext:
     """Resolve runtime lookup decisions from payload-root provenance."""
+    target_path = roots.target_path if hasattr(roots, "target_path") else None
+    target_root = roots.target_root if hasattr(roots, "target_root") else None
     return resolve_runtime_lookup_context(
         workspace_dir=roots.workspace_dir,
         project_root=roots.project_root,
-        explicit_project_dir=roots.project_dir_present,
+        explicit_project_dir=bool(roots.project_dir_present),
         project_dir_trusted=roots.project_dir_trusted,
+        target_path=target_path,
+        target_root=target_root,
         runtime_resolver=runtime_resolver,
     )

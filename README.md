@@ -297,9 +297,9 @@ Once the relevant phases are complete and verified, continue toward write-up wit
 
 ```text
 gpd:write-paper "3D Ising bootstrap bounds"
-gpd:arxiv-submission
 gpd:peer-review
 gpd:respond-to-referees
+gpd:arxiv-submission
 ```
 
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
@@ -325,6 +325,8 @@ Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase
 
 Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
 
+Publication boundary: `gpd:write-paper` keeps the legacy current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and adds one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target, and remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` still only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. This is not a full publication-root migration.
+
 Leave / return path: `gpd:pause-work` before leaving mid-phase, `gpd:resume-work` when you return in-runtime, `gpd:suggest-next` when you only need the next action, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue inside that workspace with the runtime `resume-work` command.
 
 ### Command Context
@@ -333,11 +335,20 @@ Not every GPD command needs the same amount of project state.
 
 | Command type | Meaning | Examples |
 |--------------|---------|----------|
+| `Global` | Does not depend on the current workspace or project state | `gpd:help`, `gpd:update` |
 | `Projectless` | Can run before `GPD/PROJECT.md` exists | `gpd:start`, `gpd:tour`, `gpd:new-project`, `gpd:map-research`, `gpd:add-todo` |
-| `Project-aware` | Uses project context when present, but can also run from explicit standalone inputs | `gpd:discover "finite-temperature RG flow"`, `gpd:explain "Ward identity"`, `gpd:literature-review "axion monodromy"` |
-| `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:write-paper`, `gpd:peer-review` |
+| `Project-aware` | Uses project context when present, but can also run from explicit current-workspace inputs without silently reentering another project | `gpd:compare-experiment predictions.csv data.csv`, `gpd:compare-results results/01-SUMMARY.md`, `gpd:discover "finite-temperature RG flow"`, `gpd:digest-knowledge 2401.12345v2`, `gpd:explain "Ward identity"`, `gpd:review-knowledge K-renormalization-group-fixed-points`, `gpd:literature-review "axion monodromy"`, `gpd:parameter-sweep results/mesh-study.py --param coupling --range 0:1:20`, `gpd:peer-review draft.pdf`, `gpd:write-paper --intake intake/paper-authoring-input.json` |
+| `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:execute-phase` |
 
-Passing a manuscript path to a project-required command such as `gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization.
+Project-aware commands stay rooted in the current workspace: explicit inputs can define the subject, but GPD-authored outputs still land under that workspace's `GPD/` tree. Use the runtime help for the per-command target and output rules.
+
+The relaxed technical-analysis lane lives here too: `gpd:derive-equation`, `gpd:dimensional-analysis`, `gpd:limiting-cases`, `gpd:numerical-convergence`, and `gpd:sensitivity-analysis` can run from explicit current-workspace targets or flags and still write GPD-authored durable outputs under that workspace's `GPD/analysis/` tree. `gpd:parameter-sweep` now follows the same current-workspace rule with one explicit computation anchor plus `--param` and `--range`, and it keeps durable outputs under that workspace's `GPD/sweeps/` tree. Phase-number shortcuts remain project-backed, so standalone/current-workspace runs still need honest explicit subjects. `gpd:graph` and `gpd:error-propagation` are not part of this relaxed current-workspace lane.
+
+For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
+
+`gpd:write-paper` is project-aware for one bounded external-authoring lane only: supply one explicit intake manifest, keep all GPD-authored durable outputs under `GPD/publication/{subject_slug}/...`, treat `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root, and reserve `GPD/publication/{subject_slug}/intake/` for intake/provenance state only. It does not mine arbitrary folders or infer publication-grade claim/evidence bindings from loose notes.
+
+The later publication commands stay stricter: `gpd:respond-to-referees` works from the active project's resolved manuscript root plus a referee report source, or from explicit external-manuscript continuation once GPD has anchored that subject under `GPD/publication/{subject_slug}`. `gpd:arxiv-submission` can take an optional GPD-owned manuscript-root target but still requires project state, `gpd paper-build`, and the latest staged review clearance for that manuscript; it is not a generic external-directory packager.
 
 The full in-runtime reference uses Claude Code / Gemini CLI syntax. Codex uses `$gpd-...` and OpenCode uses `/gpd-...`.
 
@@ -443,17 +454,19 @@ Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no o
 
 The `gpd` CLI also includes machine-readable validation, observability, and tracing commands for automation, review-grade checks, and debugging.
 
+Typed command metadata is not review-only. `gpd validate command-context` exposes the shared command applicability surface for public commands, while `gpd validate review-contract` and `gpd validate review-preflight` are the current specialized typed surfaces for commands that expose review/publication contracts.
+
 <details>
 <summary><strong>Validation commands</strong></summary>
 
 | Command | What it does |
 |---------|--------------|
 | `gpd validate consistency` | Run cross-phase consistency and project health checks for the current workspace |
-| `gpd validate command-context <command> [arguments]` | Report whether a command is global, projectless, project-aware, or project-required in the current workspace |
+| `gpd validate command-context <command> [arguments]` | Show the shared typed command context policy: whether a command is global, projectless, project-aware, or project-required in the current workspace |
 | `gpd validate unattended-readiness --runtime <runtime> [--autonomy <mode>]` | Return the unattended or overnight verdict for runtime permission alignment without replacing `gpd doctor` or plan preflight |
 | `gpd validate project-contract <file.json or -> [--mode approved|draft]` | Validate a project-scoping contract before downstream artifact generation |
-| `gpd validate review-contract <command>` | Show the typed review contract for publication and review workflows |
-| `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript or artifact presence, and review prerequisites |
+| `gpd validate review-contract <command>` | Show the specialized typed review/publication contract for commands that expose one |
+| `gpd validate review-preflight <command> [subject] --strict` | Run the specialized review/publication preflight for commands that expose a typed review contract against a resolved subject |
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |
 | `gpd validate paper-quality --from-project .` | Build paper-quality input from project artifacts, then score it conservatively |
 | `gpd validate plan-contract <PLAN.md>` | Validate PLAN frontmatter, including the embedded contract block and ID cross-links |

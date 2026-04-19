@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
+from gpd.core.storage_paths import ManagedOutputPolicy, ProjectStorageLayout, StoragePathError
 
 __all__ = [
     "CommitResult",
@@ -108,6 +108,23 @@ _ASSIGNMENT_NONFINITE_RE = re.compile(
     re.VERBOSE,
 )
 _DERIVATION_ASSERT_TARGET_RE = re.compile(r"(?i)^derivation-(?!state\.).+\.(?:md|py)$")
+_TEXT_VALIDATION_SUFFIXES = frozenset(
+    {
+        ".bib",
+        ".csv",
+        ".ipynb",
+        ".json",
+        ".markdown",
+        ".md",
+        ".py",
+        ".rst",
+        ".tex",
+        ".tsv",
+        ".txt",
+        ".yaml",
+        ".yml",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +209,11 @@ def _requires_assert_convention_check(file_path: str) -> bool:
 def _supports_assert_convention_validation(file_path: str) -> bool:
     """Return whether a file type supports ASSERT_CONVENTION parsing."""
     return Path(file_path).suffix.lower() in {".md", ".markdown", ".py", ".tex"}
+
+
+def _requires_utf8_text_validation(file_path: str) -> bool:
+    """Return whether a file should be decoded as UTF-8 and text-validated."""
+    return Path(file_path).suffix.lower() in _TEXT_VALIDATION_SUFFIXES
 
 
 def _has_assert_convention_marker(content: str) -> bool:
@@ -356,11 +378,17 @@ def _check_json(content: str, detail: FileCheckDetail) -> None:
         _mark_nonfinite(detail)
 
 
-def _check_storage_path(layout: ProjectStorageLayout, full_path: Path, detail: FileCheckDetail) -> None:
+def _check_storage_path(
+    layout: ProjectStorageLayout,
+    full_path: Path,
+    detail: FileCheckDetail,
+    *,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
+) -> None:
     """Validate that the file path itself is safe to commit."""
     detail.storage_class = layout.classify(full_path).value
     try:
-        layout.validate_commit_target(full_path)
+        layout.validate_commit_target(full_path, managed_output_policies=managed_output_policies)
         detail.storage_valid = True
     except StoragePathError as exc:
         detail.storage_valid = False
@@ -431,6 +459,7 @@ def _check_single_file(
     *,
     layout: ProjectStorageLayout,
     convention_lock: object | None = None,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
 ) -> FileCheckDetail:
     """Run pre-commit checks on a single file."""
     detail = FileCheckDetail(file=file_path)
@@ -446,13 +475,30 @@ def _check_single_file(
         detail.warnings.append(f"Not a regular file: {file_path}")
         return detail
 
-    _check_storage_path(layout, full_path.resolve(strict=False), detail)
+    _check_storage_path(
+        layout,
+        full_path.resolve(strict=False),
+        detail,
+        managed_output_policies=managed_output_policies,
+    )
 
-    try:
-        content = full_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        detail.readable = False
-        detail.warnings.append(f"Cannot read file: {exc}")
+    content: str | None = None
+    if _requires_utf8_text_validation(file_path):
+        try:
+            content = full_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            detail.readable = False
+            detail.warnings.append(f"Cannot read file: {exc}")
+            return detail
+    else:
+        try:
+            full_path.read_bytes()
+        except OSError as exc:
+            detail.readable = False
+            detail.warnings.append(f"Cannot read file: {exc}")
+            return detail
+
+    if content is None:
         return detail
 
     suffix = full_path.suffix.lower()
@@ -483,7 +529,12 @@ def _check_single_file(
 
 
 @instrument_gpd_function("git_ops.pre_commit_check")
-def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
+def cmd_pre_commit_check(
+    cwd: Path,
+    files: list[str],
+    *,
+    managed_output_policies: tuple[ManagedOutputPolicy, ...] = (),
+) -> PreCommitCheckResult:
     """Run pre-commit validation checks on planning files.
 
     Checks:
@@ -497,6 +548,7 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
     - If *files* is empty, validates the currently staged files.
     - Directory inputs are expanded recursively to regular files.
     - Blocks scratch/internal artifact paths while allowing normal `GPD` docs.
+    - Optional managed-output policies may explicitly allow durable `GPD/` outputs.
     """
     resolved_files = _expand_check_inputs(cwd, files)
     if not resolved_files:
@@ -513,6 +565,7 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
             file_path,
             layout=layout,
             convention_lock=convention_lock if convention_lock_active else None,
+            managed_output_policies=managed_output_policies,
         )
         details.append(detail)
         all_warnings.extend(detail.warnings)

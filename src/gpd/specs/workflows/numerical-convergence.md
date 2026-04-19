@@ -20,22 +20,36 @@ A numerical result without demonstrated convergence and error bars is not a resu
 <process>
 
 <step name="load_context" priority="first">
-**Load Project Context**
+**Load Current-Workspace Context**
 
-Load project state and conventions before beginning validation:
+Load project state and conventions before beginning validation. Keep this workflow rooted in the invoking workspace; numerical convergence can use project context when it exists there, but it must not silently reenter a different recent project.
 
 - Run:
 
 ```bash
-INIT=$(gpd --raw init phase-op --include state,config)
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
+- A nonzero init exit is a hard stop, not standalone mode.
+- Parse JSON for: `state_exists`, `project_exists`, `commit_docs`.
 - **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system (needed to verify dimensional consistency of benchmarks). Extract active approximations and their validity ranges (informs which convergence tests are most critical). Extract `intermediate_results` for previously computed quantities to validate. If you need to find a canonical prior result first, use `gpd result search`; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before reading supporting artifacts. Keep `gpd query search` for SUMMARY/frontmatter lookup.
-- **If init fails or `state_exists` is false** (standalone usage): Proceed with explicit specification of the computation to validate. The user must provide the unit system and computation details directly.
+- **If init succeeds** (non-empty JSON with `state_exists: false`): Proceed in standalone/current-workspace mode with explicit specification of the computation to validate. The user must provide the unit system and computation details directly. Standalone durable outputs live under `GPD/analysis/` in the invoking workspace and do not mutate `STATE.md` or `state.json`.
+
+Resolve authoritative phase context only after the target is known. If the target is a current-workspace phase number or a canonical stored result with phase metadata, load phase context explicitly:
+
+```bash
+PHASE_INIT=$(gpd --raw init phase-op --include state,config "{phase_number}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: phase initialization failed: $PHASE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use that follow-up phase init only when the phase number is authoritative for this run. If the user supplied a bare phase number but no initialized current-workspace project owns it, stop and ask for a file target or the correct project rather than pretending phase-local outputs exist.
 
 Convention context is important for numerical validation: unit system determines what "reasonable" values are, and approximation validity ranges determine the expected convergence behavior.
 
@@ -48,6 +62,32 @@ if [ $? -ne 0 ]; then
   echo "$CONV_CHECK"
 fi
 ```
+</step>
+
+<step name="resolve_target">
+**Resolve the validation target and durable output path from the current workspace**
+
+Use the command wrapper's centralized command-context preflight plus `$ARGUMENTS` to classify the target honestly before scanning physics content.
+
+- If `$ARGUMENTS` is empty and `project_exists` is true: ask one focused question for either a phase number or a file path in the current workspace.
+- If `$ARGUMENTS` is empty and `project_exists` is false: stop. Standalone empty launch is invalid; the wrapper should already have rejected it.
+- If the first positional token is a bare phase number:
+  - only treat it as a phase-backed target when an initialized current-workspace project exists and that phase resolves authoritatively through `gpd --raw init phase-op`
+  - otherwise stop and require an explicit file target; do not invent `phase_dir` or `phase_slug` from ambient workspace state
+- If the first positional token resolves to a file path, treat the run as a current-workspace file target and derive a stable ASCII `slug` from that path
+
+Set the durable output path only after this classification:
+
+- Authoritative phase target: `OUTPUT_PATH="${phase_dir}/NUMERICAL-VALIDATION.md"`
+- Standalone/current-workspace file target: `OUTPUT_PATH="GPD/analysis/numerical-{slug}.md"`
+
+Create `GPD/analysis/` only for the standalone/current-workspace branch:
+
+```bash
+mkdir -p GPD/analysis
+```
+
+Never write standalone/current-workspace numerical validation reports under `GPD/phases/**`.
 </step>
 
 <step name="identify_computations">
@@ -401,29 +441,22 @@ overall_status: validated | partially_validated | not_validated
 **Recommendation:** {what to improve if more precision needed}
 ```
 
-Ensure output directory exists:
+Save the report to `${OUTPUT_PATH}`. Standalone/current-workspace file-target runs end after writing the report; do not mutate `STATE.md` or `state.json`.
+Do not run an unconditional standalone docs commit for this workflow.
 
-```bash
-mkdir -p GPD/analysis
-```
-
-Save to:
-
-- Phase target: `${phase_dir}/NUMERICAL-VALIDATION.md`
-- File target: `GPD/analysis/numerical-{slug}.md`
-
-**Commit the report:**
+**Commit phase-scoped reports only when both `state_exists` and `phase_found` are true:**
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files "${OUTPUT_PATH}" 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
-  "docs: numerical convergence validation — ${phase_slug:-standalone}" \
+  "docs: numerical convergence validation — ${phase_slug}" \
   --files "${OUTPUT_PATH}"
 ```
 
-Where `${OUTPUT_PATH}` is the path where the report was written.
+If `commit_docs` is disabled, expect the CLI commit bridge to skip the commit cleanly.
+If the run is not phase-scoped, do not run `gpd pre-commit-check` or `gpd commit`. Leave `GPD/analysis/numerical-{slug}.md` in the working tree and present the findings directly.
 
 </step>
 
@@ -431,7 +464,8 @@ Where `${OUTPUT_PATH}` is the path where the report was written.
 
 <success_criteria>
 
-- [ ] Project context loaded (unit system, active approximations, intermediate results)
+- [ ] Current-workspace context loaded (unit system, active approximations, intermediate results)
+- [ ] `gpd --raw init phase-op` used only when authoritative phase context exists
 - [ ] All numerical computations identified and classified
 - [ ] Benchmarks tested against known analytical results
 - [ ] Conservation laws verified with drift quantified
@@ -443,5 +477,6 @@ Where `${OUTPUT_PATH}` is the path where the report was written.
 - [ ] Dominant error source identified
 - [ ] Report generated with full data tables
 - [ ] Overall validation status determined
+- [ ] Standalone/current-workspace runs stop after writing `GPD/analysis/numerical-{slug}.md` without state mutation or standalone commit
 
 </success_criteria>

@@ -30,4 +30,6 @@ def test_respond_to_referees_response_letter_generation_stays_file_backed_and_fr
         "Treat those files as complete only if the expected mirrored artifacts exist on disk and the orchestrator has aggregated every section handoff: the revised section file exists, both response artifacts exist, and the fresh child `gpd_return.files_written` for that section names all required outputs."
         in source
     )
+    assert "Those two GPD-owned response artifacts stay canonical even when the manuscript subject is explicit or external." in source
+    assert "If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under `GPD/`" in source
     assert "Do not rely on stale pre-existing edits or prose completion alone." in source

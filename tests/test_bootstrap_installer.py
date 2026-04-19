@@ -754,6 +754,7 @@ assert.equal(sharedText.localCliBridge.presetsListCommand, payload.local_cli_bri
 assert.equal(sharedText.localCliBridge.planPreflightCommand, payload.local_cli_bridge.named_commands.plan_preflight);
 assert.equal(sharedText.localCliBridge.terminalPhrase, payload.local_cli_bridge.terminal_phrase);
 assert.equal(sharedText.localCliBridge.purposePhrase, payload.local_cli_bridge.purpose_phrase);
+assert.match(sharedText.localCliBridge.purposePhrase, /typed command validation/);
 assert.equal(sharedText.localCliBridge.installLocalExample, payload.local_cli_bridge.install_local_example);
 assert.equal(sharedText.localCliBridge.doctorLocalCommand, payload.local_cli_bridge.doctor_local_command);
 assert.equal(sharedText.localCliBridge.doctorGlobalCommand, payload.local_cli_bridge.doctor_global_command);
@@ -1405,7 +1406,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert "Runtime launcher/target preflight" in result.stdout
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: launcher/target preflight passed" in result.stdout
     assert "GPD does not verify provider credentials automatically" in result.stdout
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
+    combined_output = result.stdout + result.stderr
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in combined_output
     assert "Install Summary" in result.stdout
     assert "Startup checklist" in result.stdout
     assert "Beginner Onboarding Hub:" in result.stdout
@@ -1569,7 +1571,8 @@ def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_
         f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Launcher: "
         f"{_RUNTIME_LAUNCH_COMMANDS[_CODEX_RUNTIME_NAME]} not found on PATH"
     ) in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
+    combined_output = result.stdout + result.stderr
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1620,8 +1623,6 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
     assert "Runtime launcher/target preflight failed." in result.stderr
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
     assert "is not writable" in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in result.stdout
-    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

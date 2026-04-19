@@ -15,10 +15,278 @@ from gpd.core.proof_review import (
     manuscript_proof_review_manifest_path,
     manuscript_requires_theorem_bearing_review,
     phase_proof_review_manifest_path,
+    publication_subject_slug,
     resolve_manuscript_proof_review_status,
     resolve_phase_proof_review_status,
 )
+from gpd.core.reproducibility import compute_sha256
 from tests.manuscript_test_support import CANONICAL_MANUSCRIPT_STEM, write_proof_review_package
+
+
+def _write_external_manuscript_review_anchor(project_root: Path) -> Path:
+    manuscript_path = project_root / "submission" / "external-subject.tex"
+    manuscript_path.parent.mkdir(parents=True, exist_ok=True)
+    manuscript_path.write_text(
+        "\\documentclass{article}\n\\begin{document}\nExternal submission draft.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (manuscript_path.parent / "references.bib").write_text("@article{demo,title={External Demo}}\n", encoding="utf-8")
+    manuscript_rel = "submission/external-subject.tex"
+    manuscript_sha256 = compute_sha256(manuscript_path)
+
+    review_dir = project_root / "GPD" / "publication" / publication_subject_slug(project_root, manuscript_path) / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "CLAIMS.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims": [
+                    {
+                        "claim_id": "CLM-EXT-001",
+                        "claim_type": "main_result",
+                        "claim_kind": "other",
+                        "text": "The manuscript reports a descriptive external result.",
+                        "artifact_path": manuscript_rel,
+                        "section": "Main Result",
+                        "equation_refs": [],
+                        "figure_refs": [],
+                        "supporting_artifacts": [],
+                        "theorem_assumptions": [],
+                        "theorem_parameters": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "STAGE-math.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "math",
+                "stage_kind": "math",
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims_reviewed": [],
+                "summary": "math review",
+                "strengths": ["checked manuscript"],
+                "findings": [],
+                "proof_audits": [],
+                "confidence": "high",
+                "recommendation_ceiling": "minor_revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript_path
+
+
+def _write_external_theorem_bearing_review_anchor(project_root: Path) -> tuple[Path, Path]:
+    manuscript_path = project_root / "submission" / "external-theorem.tex"
+    manuscript_path.parent.mkdir(parents=True, exist_ok=True)
+    manuscript_path.write_text(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{theorem}For every r_0 > 0, the orbit intersects the target annulus.\\end{theorem}\n"
+        "\\begin{proof}Carry r_0 through the argument.\\end{proof}\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (manuscript_path.parent / "references.bib").write_text("@article{demo,title={External Theorem Demo}}\n", encoding="utf-8")
+    manuscript_rel = "submission/external-theorem.tex"
+    manuscript_sha256 = compute_sha256(manuscript_path)
+    review_dir = project_root / "GPD" / "publication" / publication_subject_slug(project_root, manuscript_path) / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+
+    (review_dir / "CLAIMS.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims": [
+                    {
+                        "claim_id": "CLM-EXT-001",
+                        "claim_type": "main_result",
+                        "claim_kind": "theorem",
+                        "text": "For every r_0 > 0, the orbit intersects the target annulus.",
+                        "artifact_path": manuscript_rel,
+                        "section": "Main Result",
+                        "equation_refs": [],
+                        "figure_refs": [],
+                        "supporting_artifacts": [],
+                        "theorem_assumptions": ["chi > 0"],
+                        "theorem_parameters": ["r_0"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "STAGE-math.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "math",
+                "stage_kind": "math",
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims_reviewed": ["CLM-EXT-001"],
+                "summary": "math review",
+                "strengths": ["checked theorem coverage"],
+                "findings": [],
+                "proof_audits": [
+                    {
+                        "claim_id": "CLM-EXT-001",
+                        "theorem_assumptions_checked": ["chi > 0"],
+                        "theorem_parameters_checked": ["r_0"],
+                        "proof_locations": [f"{manuscript_rel}:1"],
+                        "uncovered_assumptions": [],
+                        "uncovered_parameters": [],
+                        "coverage_gaps": [],
+                        "alignment_status": "aligned",
+                        "notes": "Complete coverage.",
+                    }
+                ],
+                "confidence": "high",
+                "recommendation_ceiling": "minor_revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    proof_redteam_path = review_dir / "PROOF-REDTEAM.md"
+    proof_redteam_path.write_text(
+        (
+            "---\n"
+            "status: passed\n"
+            f"reviewer: {PROOF_AUDIT_REVIEWER}\n"
+            "claim_ids:\n"
+            "  - CLM-EXT-001\n"
+            "proof_artifact_paths:\n"
+            f"  - {manuscript_rel}\n"
+            f"manuscript_path: {manuscript_rel}\n"
+            f"manuscript_sha256: {manuscript_sha256}\n"
+            "round: 1\n"
+            "missing_parameter_symbols: []\n"
+            "missing_hypothesis_ids: []\n"
+            "coverage_gaps: []\n"
+            "scope_status: matched\n"
+            "quantifier_status: matched\n"
+            "counterexample_status: none_found\n"
+            "---\n\n"
+            "# Proof Redteam\n"
+            "## Proof Inventory\n"
+            "- Exact claim / theorem text: For every r_0 > 0, the orbit intersects the target annulus.\n"
+            "- Claim / theorem target: Annulus intersection for every target radius.\n"
+            "- Named parameters:\n"
+            "  - `r_0`: target radius\n"
+            "- Hypotheses:\n"
+            "  - `H1`: chi > 0\n"
+            "- Quantifier / domain obligations:\n"
+            "  - for every r_0 > 0\n"
+            "- Conclusion clauses:\n"
+            "  - annulus intersection holds\n"
+            "## Coverage Ledger\n"
+            "### Named-Parameter Coverage\n"
+            "| Parameter | Role / Domain | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `r_0` | target radius | {manuscript_rel}:1 | covered | Carried through the argument. |\n"
+            "### Hypothesis Coverage\n"
+            "| Hypothesis | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `H1` | {manuscript_rel}:1 | covered | Used in the positivity step. |\n"
+            "### Quantifier / Domain Coverage\n"
+            "| Obligation | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| `for every r_0 > 0` | {manuscript_rel}:1 | covered | No specialization introduced. |\n"
+            "### Conclusion-Clause Coverage\n"
+            "| Clause | Proof Location | Status | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            f"| annulus intersection holds | {manuscript_rel}:1 | covered | Final sentence states it. |\n"
+            "## Adversarial Probe\n"
+            "- Probe type: dropped-parameter test\n"
+            "- Result: The proof still references r_0, so the theorem remains global in the target radius.\n"
+            "## Verdict\n"
+            "- Scope status: `matched`\n"
+            "- Quantifier status: `matched`\n"
+            "- Counterexample status: `none_found`\n"
+            "- Blocking gaps:\n"
+            "  - None.\n"
+            "## Required Follow-Up\n"
+            "- None.\n"
+        ),
+        encoding="utf-8",
+    )
+    return manuscript_path, proof_redteam_path
+
+
+def _write_managed_manuscript_review_anchor(project_root: Path, *, project_backed: bool) -> Path:
+    manuscript_path = project_root / "GPD" / "publication" / "ising-bootstrap" / "manuscript" / "main.tex"
+    manuscript_path.parent.mkdir(parents=True, exist_ok=True)
+    manuscript_path.write_text(
+        "\\documentclass{article}\n\\begin{document}\nManaged publication draft.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (manuscript_path.parent / "references.bib").write_text("@article{demo,title={Managed Demo}}\n", encoding="utf-8")
+    manuscript_rel = "GPD/publication/ising-bootstrap/manuscript/main.tex"
+    manuscript_sha256 = compute_sha256(manuscript_path)
+
+    if project_backed:
+        (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        review_dir = project_root / "GPD" / "review"
+    else:
+        review_dir = project_root / "GPD" / "publication" / "ising-bootstrap" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "CLAIMS.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims": [
+                    {
+                        "claim_id": "CLM-MANAGED-001",
+                        "claim_type": "main_result",
+                        "claim_kind": "other",
+                        "text": "The manuscript reports a managed publication result.",
+                        "artifact_path": manuscript_rel,
+                        "section": "Main Result",
+                        "equation_refs": [],
+                        "figure_refs": [],
+                        "supporting_artifacts": [],
+                        "theorem_assumptions": [],
+                        "theorem_parameters": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "STAGE-math.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "math",
+                "stage_kind": "math",
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims_reviewed": [],
+                "summary": "math review",
+                "strengths": ["checked manuscript"],
+                "findings": [],
+                "proof_audits": [],
+                "confidence": "high",
+                "recommendation_ceiling": "minor_revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript_path
 
 
 def _write_binary_pdf(path: Path) -> Path:
@@ -598,6 +866,62 @@ def test_manuscript_proof_review_anchors_to_passed_proof_redteam_artifact(tmp_pa
     assert status.can_rely_on_prior_review is True
     assert status.anchor_artifact == tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
     assert manuscript_proof_review_manifest_path(manuscript_path).exists()
+
+
+def test_external_manuscript_proof_review_bootstraps_manifest_under_gpd_publication_root(tmp_path: Path) -> None:
+    manuscript_path = _write_external_manuscript_review_anchor(tmp_path)
+
+    manifest_path = manuscript_proof_review_manifest_path(manuscript_path, project_root=tmp_path)
+    fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
+
+    assert fresh.state == "fresh"
+    assert fresh.manifest_bootstrapped is True
+    assert fresh.manifest_path == manifest_path
+    assert manifest_path.exists()
+    assert manifest_path.is_relative_to(tmp_path / "GPD" / "publication")
+    assert not (manuscript_path.parent / "PROOF-REVIEW-MANIFEST.json").exists()
+
+
+def test_external_theorem_bearing_manuscript_proof_review_anchors_to_subject_owned_proof_redteam(
+    tmp_path: Path,
+) -> None:
+    manuscript_path, proof_redteam_path = _write_external_theorem_bearing_review_anchor(tmp_path)
+
+    status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
+
+    assert status.state == "fresh"
+    assert status.can_rely_on_prior_review is True
+    assert status.anchor_artifact == proof_redteam_path
+    assert proof_redteam_path.is_relative_to(tmp_path / "GPD" / "publication")
+
+
+def test_managed_publication_manuscript_proof_review_reuses_existing_subject_slug(tmp_path: Path) -> None:
+    manuscript_path = _write_managed_manuscript_review_anchor(tmp_path, project_backed=True)
+
+    manifest_path = manuscript_proof_review_manifest_path(manuscript_path, project_root=tmp_path)
+    fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
+
+    assert publication_subject_slug(tmp_path, manuscript_path) == "ising-bootstrap"
+    assert manifest_path == (
+        tmp_path / "GPD" / "publication" / "ising-bootstrap" / "proof-review" / "PROOF-REVIEW-MANIFEST.json"
+    )
+    assert fresh.state == "fresh"
+    assert fresh.manifest_bootstrapped is True
+    assert fresh.manifest_path == manifest_path
+    assert manifest_path.exists()
+    assert not (manuscript_path.parent / "PROOF-REVIEW-MANIFEST.json").exists()
+
+
+def test_standalone_managed_publication_manuscript_proof_review_uses_subject_owned_review_roots(
+    tmp_path: Path,
+) -> None:
+    manuscript_path = _write_managed_manuscript_review_anchor(tmp_path, project_backed=False)
+
+    status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
+
+    assert status.state == "fresh"
+    assert status.can_rely_on_prior_review is True
+    assert status.anchor_artifact == tmp_path / "GPD" / "publication" / "ising-bootstrap" / "review" / "STAGE-math.json"
 
 
 def test_manuscript_proof_review_uses_latest_matching_round_specific_proof_redteam(tmp_path: Path) -> None:

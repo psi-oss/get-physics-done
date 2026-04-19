@@ -218,7 +218,11 @@ def test_arxiv_submission_does_not_instruct_unsupported_explicit_submission_root
     workflow = _workflow_text("arxiv-submission.md")
 
     assert "submission/topic_stem.tex" not in workflow
-    assert "documented manuscript roots `paper/`, `manuscript/`, and `draft/`" in workflow
+    assert (
+        "inspect only the documented GPD-owned manuscript roots: `paper/`, `manuscript/`, `draft/`, "
+        "and a unique `GPD/publication/<subject_slug>/manuscript/` lane"
+        in workflow
+    )
 
 
 def test_paper_quality_scoring_reference_tracks_per_journal_gate_and_generic_fallback() -> None:

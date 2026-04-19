@@ -42,20 +42,40 @@ def test_write_paper_workflow_runs_centralized_review_preflight() -> None:
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "missing manuscript" not in workflow
-    assert 'PAPER_DIR="$DIR"' in workflow
-    assert 'PAPER_DIR="paper"' in workflow
+    assert 'PAPER_DIR="${publication_bootstrap_root}"' in workflow
+    assert '# e.g. PAPER_DIR="paper" or PAPER_DIR="GPD/publication/${subject_slug}/manuscript"' in workflow
     assert '${PAPER_DIR}/{topic_specific_stem}.tex' in workflow
 
 
 def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> None:
     workflow = _workflow_text("respond-to-referees.md")
+    command = _command_text("respond-to-referees.md")
     shared_preflight = (
         REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md"
     ).read_text(encoding="utf-8")
 
+    assert "context_mode: project-aware" in command
+    assert "command-policy:" in command
+    assert "subject_kind: publication" in command
+    assert "explicit_input_kinds:" in command
+    assert "- manuscript_path" in command
+    assert "- referee_report_path" in command
+    assert "- paste_referee_report" in command
+    assert "default_output_subtree: GPD" in command
+    assert "scope_variants:" in command
+    assert "scope: explicit_external_manuscript" in command
+    assert "Project-backed response rounds keep the current global `GPD/` / `GPD/review/` ownership." in command
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command
+    assert "Set `PREFLIGHT_ARGUMENTS` to the validator-safe normalized intake string before shelling out." in workflow
+    assert 'gpd --raw validate command-context respond-to-referees -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
+    assert 'gpd validate review-preflight respond-to-referees --strict -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert "gpd validate review-preflight respond-to-referees --strict" in workflow
+    assert "Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`" in workflow
+    assert "Treat a bare positional path as a referee-report source only." in workflow
+    assert "the end-of-options marker is mandatory in both validator calls" in workflow
     assert "missing referee report source when provided as a path" in workflow
+    assert "In explicit external-manuscript mode, `project_state` and `conventions` are advisory only." in workflow
     assert "Any spawned agent that needs user input must return `status: checkpoint` and stop" in workflow
     assert "Do not ask the child agent to wait inside the same run" in workflow
     assert "Apply the shared publication bootstrap preflight exactly:" in workflow
@@ -64,6 +84,11 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "Treat those files as complete only if the expected mirrored artifacts exist on disk" in workflow
+    assert "import or normalize it into `GPD/REFEREE-REPORT{round_suffix}.md` before parsing comments" in workflow
+    assert "Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source." in workflow
+    assert "keep auxiliary response outputs under `GPD/`" in workflow
+    assert "managed subject-owned publication root at `GPD/publication/{subject_slug}`" in workflow
+    assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in workflow
     assert "${PAPER_DIR}/response-letter.tex" in workflow
     assert "${PAPER_DIR}/{section}.tex" in workflow
 
@@ -89,13 +114,19 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point." in workflow
-    assert "Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input." in workflow
+    assert "Strict preflight also requires the latest round-specific staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair as authoritative submission-gate input." in workflow
     assert "latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues" in workflow
     assert "`manuscript_proof_review` must also already be cleared" in workflow
     assert "The same resolved manuscript root is also the strict preflight source of truth" in workflow
     assert "If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file" in workflow
-    assert "canonical manuscript `.tex` entrypoint under that directory" in workflow
+    assert "That file must already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
+    assert "canonical manuscript `.tex` entrypoint under that supported root" in workflow
+    assert "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots." in workflow
     assert 'MAIN_SOURCE="${resolved_main_tex}"' in workflow
+    assert 'PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"' in workflow
+    assert 'SUBMISSION_DIR="${PACKAGE_ROOT}/submission"' in workflow
+    assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
+    assert "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself." in workflow
 
 
 def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_arguments() -> None:
@@ -132,3 +163,23 @@ def test_verify_work_workflow_runs_centralized_review_preflight() -> None:
 
     assert 'gpd validate review-preflight verify-work "${PHASE_ARG}" --strict' in workflow
     assert "gpd validate review-preflight verify-work --strict" in workflow
+
+
+def test_review_knowledge_workflow_keeps_strict_current_workspace_canonical_target_contract() -> None:
+    workflow = _workflow_text("review-knowledge.md")
+    command = _command_text("review-knowledge.md")
+
+    assert "context_mode: project-aware" in command
+    assert "review_mode: review" in command
+    assert "knowledge_target" in command
+    assert "knowledge_document" in command
+    assert "knowledge_review_freshness" in command
+    assert "missing project state" not in command
+    assert "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md" in command
+    assert "Keep this init bound to the workspace the user invoked from." in workflow
+    assert "do not auto-reenter a different recent project here." in workflow
+    assert 'CONTEXT=$(gpd --raw validate command-context review-knowledge "$ARGUMENTS")' in workflow
+    assert "Accept only:" in workflow
+    assert "an exact current-workspace `GPD/knowledge/{knowledge_id}.md` path" in workflow
+    assert "a canonical `K-*` knowledge_id that resolves uniquely to that path" in workflow
+    assert "Do not guess from fuzzy topic text, stem similarity, or filename ordering." in workflow

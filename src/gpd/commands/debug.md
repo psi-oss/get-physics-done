@@ -39,10 +39,10 @@ ls GPD/debug/*.md 2>/dev/null | grep -v resolved | head -5
 ## 0. Initialize Context
 
 ```bash
-INIT=$(gpd --raw init progress --include state,roadmap,config)
+INIT=$(gpd --raw init progress --include state,roadmap,config --no-project-reentry)
 ```
 
-Extract `commit_docs` from init JSON. Resolve debugger model:
+Use a workspace-locked bootstrap here; do not auto-reenter a different recent project. Extract `commit_docs` from init JSON. Resolve debugger model:
 
 ```bash
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)

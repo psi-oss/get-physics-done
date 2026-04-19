@@ -1,5 +1,5 @@
 <purpose>
-Structure and write a physics paper from completed research results. Handles the full pipeline from outline through polished draft: section planning, equation presentation, figure integration, narrative flow, and internal consistency verification.
+Structure and write a physics paper from completed research results or a bounded explicit external-authoring intake. Handles the full pipeline from outline through polished draft: section planning, equation presentation, figure integration, narrative flow, and internal consistency verification.
 
 Called from gpd:write-paper command. Sections are drafted by gpd-paper-writer agents.
 </purpose>
@@ -51,7 +51,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `publication_subject`, `publication_subject_status`, `publication_subject_source`, `publication_subject_detail`, `publication_artifact_base`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_bootstrap`, `publication_bootstrap_mode`, `publication_bootstrap_root`, `publication_bootstrap_detail`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
 
 **Load mode settings:**
 
@@ -69,10 +69,25 @@ Mode effects on the write-paper pipeline:
 
 For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`.
 
+Normalize the launch into one of two lanes before preflight:
+
+- `project_backed` -- current GPD project, including a managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
+- `external_authoring_intake` -- explicit `--intake path/to/paper-authoring-input.json`
+
+The bounded external-authoring lane has one entrypoint only:
+
+- do not overload the paper-title positional
+- do not accept arbitrary folder discovery
+- do not treat `${PAPER_DIR}/PAPER-CONFIG.json` as the intake contract
+- fail closed unless the intake manifest supplies at least `schema_version`, `title`, `authors`, `target_journal`, optional explicit `subject_slug`, `central_claim`, `claims[]` with explicit evidence bindings, `source_notes[]`, optional `results[]`, optional `figures[]`, bibliography / citation-source input, and optional conventions / notation note
+
+If the normalized write-paper argument payload begins with `--`, pass it to the validators after an end-of-options marker so the validator CLI does not reinterpret intake flags as validator options.
+
 Run centralized context preflight before continuing:
 
 ```bash
-CONTEXT=$(gpd --raw validate command-context write-paper "$ARGUMENTS")
+WRITE_PAPER_ARGUMENTS="$ARGUMENTS"
+CONTEXT=$(gpd --raw validate command-context write-paper -- "$WRITE_PAPER_ARGUMENTS")
 if [ $? -ne 0 ]; then
   echo "$CONTEXT"
   exit 1
@@ -82,26 +97,41 @@ fi
 Run the centralized review preflight before continuing:
 
 ```bash
-gpd validate review-preflight write-paper --strict
+gpd validate review-preflight write-paper --strict -- "$WRITE_PAPER_ARGUMENTS"
 ```
 
-If review preflight exits nonzero because of missing project state, missing roadmap, degraded review integrity, missing research artifacts, or non-review-ready reproducibility coverage, STOP and show the blocking issues before drafting.
+If review preflight exits nonzero because of project-backed gaps (missing project state, missing roadmap, missing research artifacts, non-review-ready reproducibility coverage) or external-authoring intake gaps (missing `--intake`, missing claim-to-evidence bindings, missing bibliography / citation-source input), STOP and show the blocking issues before drafting.
 Apply the shared publication bootstrap preflight exactly:
 
 @{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md
 
-Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout the staged review; the contract is authoritative only when `project_contract_gate.authoritative` is true.
+For project-backed runs, keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout drafting and staged review; the contract is authoritative only when `project_contract_gate.authoritative` is true. For `external_authoring_intake`, the typed intake manifest and its claim/evidence bindings are the authoritative handoff until manuscript-root artifacts supersede them.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of proof-review freshness for theorem-bearing results; keep passed proof-redteam artifacts authoritative for strict drafting decisions.
 If the manuscript depends on any theorem-style or `proof_obligation` result, treat passed proof-redteam artifacts from the source phases as mandatory review inputs. Missing or open proof audits are CRITICAL blockers, not polish issues.
 
-**Resolve paper directory (if resuming):**
+**Resolve manuscript bootstrap and output roots explicitly:**
 
-If strict preflight or init already resolved an active manuscript under `paper/`, `manuscript/`, or `draft/`, keep that manuscript root as `PAPER_DIR`.
-Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`; do not satisfy that gate with legacy publication artifacts from a different manuscript directory.
-When strict preflight resolves a manuscript root, bind it explicitly as `PAPER_DIR="$DIR"` where `$DIR` is that resolved manuscript directory, and treat `${PAPER_DIR}/{topic_specific_stem}.tex` as the canonical emitted manuscript path recorded by `${PAPER_DIR}/ARTIFACT-MANIFEST.json`.
+Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight as the authoritative managed-manuscript bootstrap surface.
 
-If a manuscript root was resolved, the workflow is resuming or revising that manuscript directory. Keep every strict-review dependency rooted there.
-If no manuscript root was resolved, set `PAPER_DIR="paper"` and bootstrap a fresh scaffold there.
+- If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only. The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`; treat that as project-owned manuscript state rather than `external_artifact` mode.
+- If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the legacy `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
+- If `publication_bootstrap_mode` is `fresh_external_authoring_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root`, persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/`, and bootstrap the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
+- If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
+
+For compatibility with the longstanding shell-oriented workflow contract, keep the resolved manuscript-root binding visible when writing shell snippets:
+
+```bash
+PAPER_DIR="${publication_bootstrap_root}"
+# e.g. PAPER_DIR="paper" or PAPER_DIR="GPD/publication/${subject_slug}/manuscript"
+```
+
+Current publication-lane split:
+
+- manuscript scaffold files and manuscript-root builder artifacts stay in `${PAPER_DIR}/`
+- `GPD/publication/{subject_slug}/intake/` is intake/provenance state only; it must not participate in manuscript-root discovery
+- a resolved `${PAPER_DIR}` under `GPD/publication/{subject_slug}/manuscript` may be either the managed project lane or the bounded external-authoring lane, depending on preflight
+- GPD-authored staged review artifacts stay under `GPD/` / `GPD/review/`
+- do not mine generic folders or widen into arbitrary external-manuscript discovery; the only non-project lane is explicit `--intake`, fail-closed, with all durable outputs under `GPD/publication/{subject_slug}/...`
 
 **Check optional local LaTeX compiler availability for smoke tests (cross-platform):**
 
@@ -163,15 +193,27 @@ Use `protocol_bundle_context` from init JSON as additive specialized-publication
 
 - If `selected_protocol_bundle_ids` is non-empty, keep the bundle's decisive artifact guidance, estimator caveats, and reference prompts visible while choosing main-text figures, appendices, and related-work framing.
 - Use bundle guidance to check whether the manuscript surfaces the right decisive comparisons, benchmark anchors, and estimator limitations for this project.
-- Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true; otherwise the contract is visible but blocked, and drafting must pause for contract repair.
+- Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true; otherwise the contract is visible but blocked, and drafting must pause for contract repair. For `external_authoring_intake`, do not invent a project contract; keep the intake manifest's claim/evidence ledger authoritative instead.
 - Do **not** let bundle guidance invent new claims, replace `project_contract`, or override `contract_results`, `comparison_verdicts`, `GPD/comparisons/*-COMPARISON.md`, `${PAPER_DIR}/FIGURE_TRACKER.md`, or `active_reference_context`. Those remain authoritative.
-- If no bundle is selected, rely on shared publication guidance plus the contract-backed comparison artifacts already present in the project.
+- If no bundle is selected, rely on shared publication guidance plus the contract-backed comparison artifacts already present in the project, or the explicit intake-manifest evidence ledger for the bounded external-authoring lane.
 
 </step>
 
 <step name="load_research_digest">
 
-Check for research digests generated during milestone completion. These digests are the primary structured handoff from the research phase and should drive paper organization.
+If this run is `external_authoring_intake`, skip milestone digest lookup entirely. Use the explicit intake manifest and `GPD/publication/{subject_slug}/intake/` provenance state as the only authoritative research handoff:
+
+- `central_claim` -> narrative backbone
+- `claims[]` with explicit evidence bindings -> paper claims, supporting sections, and appendix candidates
+- `source_notes[]` -> setup, methods, and discussion inputs
+- optional `results[]` -> quantitative results and uncertainty tables
+- optional `figures[]` -> figure plan and tracker seeds
+- bibliography / citation-source input -> citation plan
+- optional conventions / notation note -> manuscript notation policy
+
+Do **not** scan `GPD/milestones/*`, `GPD/phases/*`, `GPD/state.json`, or arbitrary folders to fill missing evidence for this lane. Missing claim-to-evidence bindings are blockers, not prompts for heuristic discovery.
+
+For the project-backed lane, check for research digests generated during milestone completion. These digests are the primary structured handoff from the research phase and should drive paper organization.
 
 **Step 1 -- Locate digest files:**
 
@@ -265,6 +307,7 @@ From command context, determine:
 - Available research artifacts (derivations, data, figures)
 
 If a research digest was loaded, the key result is typically the highest-confidence entry in the Key Results table. The narrative arc paragraph often contains the one-sentence key result in condensed form.
+If this run is `external_authoring_intake`, determine scope only from the intake manifest and the files or notes it explicitly binds. Do not widen the paper's scope from unrelated workspace files.
 
 The key result drives everything. Every section exists to support, contextualize, or explain this result.
 </step>
@@ -272,9 +315,11 @@ The key result drives everything. Every section exists to support, contextualize
 <step name="catalog_artifacts">
 Gather all research outputs that could contribute to the paper:
 
+For `external_authoring_intake`, keep this catalog bounded to the explicit intake manifest, the files or notes it explicitly binds, and manuscript-root artifacts under `${PAPER_DIR}`. Do not widen into generic workspace mining.
+
 1. **Derivations** -- LaTeX, Python scripts, Mathematica notebooks
 
-   - Which results are ready for publication?
+   - Which intake-bound or project-backed results are ready for publication?
    - Which need polishing or additional steps?
 
 2. **Numerical results** -- Data files, convergence tests, benchmarks
@@ -287,16 +332,16 @@ Gather all research outputs that could contribute to the paper:
    - Which are publication quality?
    - Which need to be generated or improved?
 
-4. **Literature context** -- From `GPD/literature/*-REVIEW.md` or phase `RESEARCH.md`
+4. **Literature context** -- From intake-manifest bibliography / citation-source input, `GPD/literature/*-REVIEW.md`, or phase `RESEARCH.md`
 
    - What is the relevant prior work to cite?
    - How does our result compare with published values?
 
-5. **Verification results** -- From VERIFICATION.md
+5. **Verification results** -- From VERIFICATION.md or the external-authoring claim/evidence ledger
    - Which limiting cases were checked?
    - What is the confidence level of each result?
 
-6. **Internal comparisons and decisive evidence** -- From `GPD/comparisons/*-COMPARISON.md`, `${PAPER_DIR}/FIGURE_TRACKER.md`, and bundle context
+6. **Internal comparisons and decisive evidence** -- From `GPD/comparisons/*-COMPARISON.md`, the intake-manifest claim/evidence ledger, `${PAPER_DIR}/FIGURE_TRACKER.md`, and bundle context
 
    - Which comparisons carry decisive `comparison_verdicts` for the paper's core claims?
    - Which decisive comparisons are actually needed for the claims the manuscript intends to make, and which checks are merely supportive?
@@ -311,7 +356,16 @@ Map each artifact to the section where it will appear.
 
 Before committing to an outline, verify the research is publication-ready. This pre-flight gate catches gaps that would block or undermine the paper.
 
-Run checks across all contributing phases (from digest, `--from-phases`, or all completed phases):
+If this run is `external_authoring_intake`, run this bounded manifest audit first and skip the phase-enumeration path below:
+
+1. Every intended manuscript claim must appear in `claims[]` with an explicit evidence binding.
+2. Every cited `source_notes[]`, optional `results[]`, or optional `figures[]` item must be referenced by that claim/evidence ledger.
+3. Bibliography / citation-source input must exist before citation planning begins.
+4. Optional conventions / notation notes are the only conventions input unless later manuscript-root artifacts supersede them.
+5. Proof-style claims still require passed proof-review support when the intake says a theorem-style claim is being made.
+6. Do **not** enumerate `GPD/phases/*`, `GPD/milestones/*`, or loose workspace files to repair missing evidence.
+
+For the project-backed lane, run checks across all contributing phases (from digest, `--from-phases`, or all completed phases):
 
 ```bash
 # Identify contributing phases
@@ -371,7 +425,7 @@ find artifacts/phases figures "${PAPER_DIR}/figures" -maxdepth 3 \( -type f -o -
 ls "${PAPER_DIR}/FIGURE_TRACKER.md" 2>/dev/null
 ```
 
-Default bootstrap example:
+Current fresh-bootstrap example:
 
 ```bash
 find artifacts/phases figures "${PAPER_DIR}/figures" -maxdepth 3
@@ -546,6 +600,13 @@ gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 
 This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. `gpd paper-build` defines the build truth for the manuscript; local compiler runs are only smoke checks. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, set `output_filename` to a short topic-specific 2-3 word underscore stem, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require the emitted manuscript `.tex` file to exist.
 
+Keep this split explicit while bootstrapping:
+
+- `${PAPER_DIR}` is the manuscript-local scaffold root for the current subject or the current fresh-bootstrap root
+- for `external_authoring_intake`, `GPD/publication/{subject_slug}/intake/` stores intake/provenance/bootstrap state only and never becomes a second manuscript root
+- builder-owned manuscript artifacts remain beside that manuscript root in Phase 2
+- GPD-owned review and response auxiliaries remain under `GPD/` / `GPD/review/`; do not silently relocate them beside the manuscript
+
 After `gpd paper-build` runs, treat the `.tex` artifact recorded in `${PAPER_DIR}/ARTIFACT-MANIFEST.json` as the canonical manuscript entrypoint and refer to its basename as `MANUSCRIPT_BASENAME` in later smoke checks.
 
 When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
@@ -555,6 +616,7 @@ When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 - keep any custom funding/collaborator text in `acknowledgments`; `gpd paper-build` appends this exact sentence automatically if it is missing: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
 - keep `journal` to a supported builder key like `prl`, `apj`, `mnras`, `nature`, `jhep`, or `jfm`
 - do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
+- do not reuse `${PAPER_DIR}/PAPER-CONFIG.json` as the external-authoring intake contract; it is a manuscript-root builder artifact only
 
 Canonical schema for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`:
 @{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md
@@ -944,7 +1006,7 @@ Validate it before entering strict review:
 gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
 ```
 
-For the default bootstrap path, the validation command is:
+For the current fresh-bootstrap path, the validation command is:
 
 ```bash
 gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
@@ -954,11 +1016,13 @@ If validation fails, stop and fix the manifest now. Do not enter `pre_submission
 </step>
 
 <step name="pre_submission_review">
-Before finalizing, run the same staged peer-review panel used by `gpd:peer-review`. Do not fall back to a single generalist referee pass here, because that is precisely the failure mode this workflow is meant to avoid.
+Branch by write-paper lane before finalizing:
+
+**Project-backed lane:** run the same staged peer-review panel used by `gpd:peer-review`. Do not fall back to a single generalist referee pass here, because that is precisely the failure mode this workflow is meant to avoid.
 
 For theorem-style or `proof_obligation` claims, this stage also carries the mandatory auxiliary proof-redteam gate from `peer-review.md`. Missing or open proof-redteam artifacts are fail-closed blockers even if the rest of the manuscript review looks clean.
 
-**Standalone entrypoint:** `gpd:peer-review` is the first-class command for re-running this stage outside the write-paper pipeline. This embedded step must stay behaviorally aligned with that command and use the same six-agent panel:
+**Standalone entrypoint:** `gpd:peer-review` is the first-class command for re-running this stage outside the write-paper pipeline. The project-backed embedded step must stay behaviorally aligned with that command and use the same six-agent panel:
 
 1. `gpd-review-reader`
 2. `gpd-review-literature`
@@ -984,6 +1048,19 @@ Read `GPD/review/REFEREE-DECISION{round_suffix}.json` and `GPD/review/REVIEW-LED
   1. Address the issues now (spawn paper-writer agents to revise affected sections)
   2. Proceed to `final_review` anyway (accept the issues as known limitations)
   3. Stop and return to research phases to fix underlying problems
+
+**External-authoring lane:** do **not** run the embedded staged panel here. Embedded `write-paper` review parity for the bounded external-authoring lane is deferred until the managed publication lineage is unified end to end.
+
+Instead, verify the bounded manuscript-root handoff under `${PAPER_DIR}`:
+
+- `${PAPER_DIR}/{topic_specific_stem}.tex`
+- `${PAPER_DIR}/PAPER-CONFIG.json`
+- `${PAPER_DIR}/ARTIFACT-MANIFEST.json`
+- `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`
+- `${PAPER_DIR}/reproducibility-manifest.json`
+- `${PAPER_DIR}/FIGURE_TRACKER.md` when the manuscript uses tracked figures
+
+If any required manuscript-root artifact is missing, stop and fix it now. Otherwise, route the user to standalone `gpd:peer-review` against the resolved manuscript root or entrypoint. Do not claim full pre-submission review parity here, and do not recommend `gpd:arxiv-submission` directly from this lane.
 </step>
 
 <step name="final_review">
@@ -1000,9 +1077,13 @@ Before declaring the draft complete:
 
 Score the paper across 7 dimensions (equations, figures, citations, conventions, verification, completeness, results presentation) for a total out of 100. Apply journal-specific multipliers for the resolved journal profile, noting that the artifact-driven path only honors supported builder journals surfaced by `${PAPER_DIR}/ARTIFACT-MANIFEST.json` or `${PAPER_DIR}/PAPER-CONFIG.json`.
 
+For the project-backed lane, the artifact-driven command is:
+
 ```bash
 QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
 ```
+
+For `external_authoring_intake`, stay manuscript-root-local: use the same artifact set below, but do not claim project-backed `--from-project` scoring parity if that runtime path is unavailable. Present a bounded manuscript-readiness summary instead and route to `gpd:peer-review`.
 
 The score should be artifact-driven, not manually estimated. Use:
 - `${PAPER_DIR}/ARTIFACT-MANIFEST.json`
@@ -1013,7 +1094,7 @@ The score should be artifact-driven, not manually estimated. Use:
 
 Treat paper-support artifacts as scaffolding, not as proof that a claim is established. Missing decisive comparison evidence still blocks a strong submission recommendation even if manifests and audits are complete.
 
-Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum but no submission-clearing staged review exists yet, recommend `gpd:peer-review`. Recommend `gpd:arxiv-submission` only when the latest staged review already clears submission packaging.
+Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum but no submission-clearing staged review exists yet, recommend `gpd:peer-review`. Recommend `gpd:arxiv-submission` only when the current lane is project-backed and the latest staged review already clears submission packaging. For the bounded external-authoring lane, stop at `gpd:peer-review` rather than claiming arXiv readiness from this workflow.
 
 Present summary to user with build instructions, quality score, and next steps.
 </step>
@@ -1022,6 +1103,7 @@ Present summary to user with build instructions, quality score, and next steps.
 ## Revision Mode (Handling Referee Reports)
 
 **Note:** For a dedicated referee response workflow, use `gpd:respond-to-referees`. This step handles revision when invoked from within the write-paper pipeline.
+This in-workflow revision loop applies only after the project-backed embedded `pre_submission_review`. The bounded external-authoring lane exits earlier and should resume through standalone `gpd:peer-review` or `gpd:respond-to-referees` once review artifacts exist.
 
 When revising a paper in response to referee reports:
 
@@ -1104,9 +1186,10 @@ Options:
 
 <success_criteria>
 
-- [ ] Project context loaded via init (commit_docs, state_exists)
+- [ ] Managed write-paper lane resolved as either project-backed or explicit external-authoring intake
+- [ ] Project-backed runs loaded project context via init (commit_docs, state_exists); external-authoring runs resolved and validated the explicit `--intake` manifest
 - [ ] Local compilation smoke check run when available (skipped otherwise)
-- [ ] Research digest checked and loaded (if available from milestone completion)
+- [ ] Project-backed lane checked and loaded a research digest when available; external-authoring lane stayed bounded to the intake manifest and intake provenance state
 - [ ] Paper scope established (journal, type, key result, audience)
 - [ ] Research artifacts cataloged and mapped to sections
 - [ ] Paper-readiness audit passed (0 critical gaps, or user approved proceeding with gaps)
@@ -1117,14 +1200,16 @@ Options:
 - [ ] Every citation present in bibliography
 - [ ] All citations verified via gpd-bibliographer (no hallucinated references)
 - [ ] BibTeX formatting matches target journal requirements
-- [ ] Pre-submission mock peer review completed via gpd-referee
-- [ ] Major referee issues addressed or acknowledged before finalization
+- [ ] Project-backed lane: pre-submission staged peer-review round completed, including final `gpd-referee` adjudication and proof-redteam artifacts when required
+- [ ] External-authoring lane: authored manuscript plus manuscript-root artifacts exist under `GPD/publication/{subject_slug}/manuscript`, and the workflow routed to standalone `gpd:peer-review`
+- [ ] Major staged-review issues were addressed or acknowledged before finalization for project-backed runs
 - [ ] Internal consistency verified (notation, cross-references, conventions)
 - [ ] Notation audit includes NOTATION_GLOSSARY.md cross-reference (if glossary exists)
 - [ ] Narrative arc flows from motivation through result to significance
 - [ ] Paper directory created with buildable LaTeX scaffold via `gpd paper-build`
 - [ ] Abstract accurately reflects paper content
 - [ ] Word/page count within journal limits
+- [ ] The bounded external-authoring lane did not widen into generic folder mining or direct `gpd:arxiv-submission` claims
 </success_criteria>
 
 <community_contribution>

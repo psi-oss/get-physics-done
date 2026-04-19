@@ -1,29 +1,71 @@
 <purpose>
 Systematically identify all relevant limiting cases for a physics result and verify that each limit is correctly recovered. This is the single most powerful verification tool in theoretical physics.
 
-Called from gpd:limiting-cases command. Produces LIMITING-CASES.md report.
+Called from gpd:limiting-cases command. Produces either phase-scoped `LIMITING-CASES.md` or standalone `GPD/analysis/limits-{slug}.md` rooted at the current workspace.
+
+Keep standalone GPD-authored outputs rooted under `GPD/analysis/` in the current workspace. Do not silently reenter a different recent project just to recover a phase-like target or to own the output path.
 
 Every new result must reduce to known results in appropriate limits. If it doesn't, the new result is wrong (or the known result is wrong, which is rare but possible). There are no exceptions to this principle.
 </purpose>
 
 <process>
 
-## 0. Load Project Context
+## 0. Validate Context, Load Workspace State, and Resolve the Durable Target
 
-Load project state and conventions to identify applicable limits:
+Run centralized command-context preflight first.
 
 - Run:
 
 ```bash
-INIT=$(gpd --raw init phase-op --include state,config)
+CONTEXT=$(gpd --raw validate command-context limiting-cases "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+- Parse JSON for: `project_exists`, `checks`, and any surfaced `managed_output_root`.
+- Classify the requested target honestly from the current workspace:
+  - If `$ARGUMENTS` is empty and `project_exists` is true: ask one focused question asking for either a phase number or a file path, then continue with that clarified input.
+  - If `$ARGUMENTS` is empty and `project_exists` is false: stop. Standalone empty launch is invalid; centralized preflight should already have rejected it.
+  - If `project_exists` is false and the first positional token is a bare phase number like `3` or `4.1`: stop and tell the user standalone `gpd:limiting-cases` requires an explicit file path. Do not reinterpret a numeric token as a hidden phase selection.
+  - If the first positional token resolves to a file path, set `TARGET_KIND=file` and `TARGET_FILE` to that explicit path resolved from the invoking workspace.
+  - If `project_exists` is true and the first positional token is a bare phase number, set `TARGET_KIND=phase` and `PHASE_ARG` to that number.
+  - Otherwise stop and ask one focused clarification question instead of guessing.
+
+After classifying the target, load workspace-bound state and conventions without project reentry:
+
+```bash
+INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
+- A nonzero init exit is a hard stop, not standalone mode.
+- Parse JSON for: `commit_docs`, `project_exists`, `state_exists`.
 - **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system and sign conventions. Extract `intermediate_results` from state for previously verified expressions. If you need to find the canonical expression first, use `gpd result search` by identifier, equation, or description; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before checking limits. Keep `gpd query search` for SUMMARY/frontmatter lookup. Extract active approximations and their validity ranges — these define the limits to check.
-- **If init fails or `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via ask_user.
+- **If init succeeds** (non-empty JSON with `state_exists: false`): Proceed in standalone mode with explicit convention declarations required from user via ask_user.
+- If `TARGET_KIND=phase`, resolve authoritative phase context inside the current workspace:
+
+```bash
+PHASE_INIT=$(gpd --raw init phase-op --include state,config "${PHASE_ARG}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: limiting-cases phase resolution failed: $PHASE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+- Parse `PHASE_INIT` for `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`.
+- If `TARGET_KIND=phase` and `phase_found` is false: stop — the requested phase does not exist in the current workspace project.
+
+Set the canonical target/output variables before scanning physics content:
+
+- **Phase target:** `TARGET_LABEL="phase ${phase_number}"` and `OUTPUT_PATH="${phase_dir}/LIMITING-CASES.md"`.
+- **File target:** derive a stable ASCII `slug` from `TARGET_FILE`, set `TARGET_LABEL` to the resolved file path, and set `OUTPUT_PATH="GPD/analysis/limits-{slug}.md"` rooted at the current workspace.
+- Only when `TARGET_KIND=file`, ensure the current-workspace managed output root exists: `mkdir -p GPD/analysis`.
+- Do not use placeholder prose paths later in the workflow. Reuse the resolved `TARGET_KIND`, `TARGET_FILE`, `slug`, and `OUTPUT_PATH` variables consistently.
 
 Active approximations from the project state directly inform which limits are most important to verify (e.g., if a perturbative approximation is active, the free-theory limit g→0 is mandatory).
 
@@ -41,14 +83,21 @@ Limiting case checks depend on conventions — e.g., the sign of k^2 = m^2 vs k^
 
 ## 1. Identify the Result(s) to Check
 
-Scan the target for the main physics results:
+Work from the resolved target variables, not from raw `$ARGUMENTS`.
+
+- If `TARGET_KIND=phase`, enumerate the concrete phase files you will inspect under `${phase_dir}` first (typically `SUMMARY.md`, `VERIFICATION.md`, `RESEARCH.md`, and any numbered `*-SUMMARY.md` / `*-VERIFICATION.md` artifacts). Use those concrete files as `TARGET_FILES`.
+- If `TARGET_KIND=file`, set `TARGET_FILES` to just `${TARGET_FILE}`.
+
+Scan each concrete target file for the main physics results:
 
 ```bash
-# Final expressions, key results
-grep -n "result\|final\|=.*\\\\frac\|=.*\\\\sqrt\|=.*\\\\sum\|=.*\\\\int\|E\s*=\|Z\s*=\|sigma\s*=\|Gamma\s*=" "$TARGET_FILE" 2>/dev/null
+for path in "${TARGET_FILES[@]}"; do
+  # Final expressions, key results
+  grep -n "result\|final\|=.*\\\\frac\|=.*\\\\sqrt\|=.*\\\\sum\|=.*\\\\int\|E\s*=\|Z\s*=\|sigma\s*=\|Gamma\s*=" "$path" 2>/dev/null
 
-# Named equations
-grep -n "\\\\label\|\\\\tag\|# Eq\." "$TARGET_FILE" 2>/dev/null
+  # Named equations
+  grep -n "\\\\label\|\\\\tag\|# Eq\." "$path" 2>/dev/null
+done
 ```
 
 For each result, identify:
@@ -234,7 +283,7 @@ Write LIMITING-CASES.md:
 
 ```markdown
 ---
-target: { phase or file }
+target: {TARGET_LABEL}
 date: { YYYY-MM-DD }
 results_checked: { N }
 limits_checked: { M }
@@ -344,16 +393,11 @@ The limit N → ∞, V → ∞ with N/V fixed introduces subtleties that can inv
 4. For first-order transitions: the Maxwell construction (equal-area rule) applies only in the thermodynamic limit; at finite V, metastable states have finite lifetime
 5. For spontaneous symmetry breaking: the order parameter is zero at finite V (by symmetry) but nonzero in the thermodynamic limit. Take V → ∞ before removing the symmetry-breaking field
 
-Ensure output directory exists:
+Write the report to the already-resolved `${OUTPUT_PATH}`.
 
-```bash
-mkdir -p GPD/analysis
-```
-
-Save to:
-
-- Phase target: `${phase_dir}/LIMITING-CASES.md`
-- File target: `GPD/analysis/limits-{slug}.md`
+- If `TARGET_KIND=phase`, `${OUTPUT_PATH}` is `${phase_dir}/LIMITING-CASES.md`.
+- If `TARGET_KIND=file`, `${OUTPUT_PATH}` is `GPD/analysis/limits-{slug}.md` rooted at the current workspace.
+- Never write standalone/current-workspace limiting-cases reports under `GPD/phases/**`.
 
 ## 7. Present Results and Route
 
@@ -379,23 +423,31 @@ Suggested next steps:
 - Review derivation at {location} where the limit first diverges from expectation
 ```
 
-**Commit the report:**
+## 8. Finalize Persistence Honestly
+
+Do not run an unconditional standalone docs commit for this workflow.
+
+- If `TARGET_KIND=phase`, `state_exists` is true, and `commit_docs` is enabled, you may include `${OUTPUT_PATH}` in the phase's normal documentation commit path after reviewing the diff.
+- If the run is standalone/current-workspace file mode, skip the commit step entirely and report `${OUTPUT_PATH}` back to the user.
+- Do not mutate `STATE.md` or `state.json` from standalone/current-workspace file mode.
+
+Optional phase-backed commit flow:
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files "${OUTPUT_PATH}" 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
-  "docs: limiting cases verification — ${phase_slug:-standalone}" \
+  "docs: limiting cases verification — ${phase_slug}" \
   --files "${OUTPUT_PATH}"
 ```
 
-Where `${OUTPUT_PATH}` is the path where LIMITING-CASES.md was written.
+Only run the commit block above when the report is phase-backed and the project is already in its normal docs-commit path.
 
 </process>
 
 <output>
-LIMITING-CASES.md written with full verification results.
+`${OUTPUT_PATH}` written with full verification results.
 </output>
 
 <success_criteria>

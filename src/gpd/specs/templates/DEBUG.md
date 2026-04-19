@@ -14,6 +14,8 @@ Template for `GPD/debug/[slug].md` - active debug session tracking for physics c
 
 `GPD/debug/{slug}.md` is the session artifact. The lifecycle/status vocabulary is `gathering | investigating | fixing | verifying | resolved`, the goal vocabulary is `find_root_cause_only | find_and_fix`, and any fresh continuation must read this file first, then continue from next_action.
 
+`session_status` is not part of this debug-session frontmatter. Reserve `session_status: diagnosed` for verification artifacts such as `*-VERIFICATION.md`; debug sessions keep diagnosis progress in the debug-session `status` lifecycle plus `Resolution.root_cause`.
+
 ## File Template
 
 ```markdown
@@ -173,6 +175,7 @@ files_changed: []
   - Approximation validity (is the expansion parameter actually small?)
   - Numerical issues (convergence, precision, discretization artifacts)
 - Update timestamp in frontmatter
+- For `goal: find_root_cause_only`, stop here after the root cause is confirmed: keep `status: investigating`, record `Resolution.root_cause`, and leave `resolved` for sessions that actually applied and verified a fix.
 
 **During fixing:**
 
