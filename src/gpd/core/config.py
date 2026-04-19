@@ -282,32 +282,30 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
     },
 }
 
-# Default tier per agent (profile-independent fallback)
+_MODEL_PROFILE_KEYS = frozenset(profile.value for profile in ModelProfile)
+
+
+def _validate_model_profile_matrix() -> None:
+    """Fail closed when an agent/profile tier mapping drifts."""
+    for agent_name, profile_map in MODEL_PROFILES.items():
+        missing = sorted(_MODEL_PROFILE_KEYS - set(profile_map))
+        unknown = sorted(set(profile_map) - _MODEL_PROFILE_KEYS)
+        if missing or unknown:
+            parts: list[str] = []
+            if missing:
+                parts.append(f"missing profile(s): {', '.join(missing)}")
+            if unknown:
+                parts.append(f"unknown profile(s): {', '.join(unknown)}")
+            raise ConfigError(f"MODEL_PROFILES[{agent_name!r}] is incomplete: {'; '.join(parts)}")
+        for profile_name, tier in profile_map.items():
+            if not isinstance(tier, ModelTier):
+                raise ConfigError(f"MODEL_PROFILES[{agent_name!r}][{profile_name!r}] must be a ModelTier")
+
+
+# Profile-independent view retained for public callers; resolution uses the full matrix.
 AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
-    "gpd-planner": ModelTier.TIER_1,
-    "gpd-roadmapper": ModelTier.TIER_1,
-    "gpd-executor": ModelTier.TIER_2,
-    "gpd-phase-researcher": ModelTier.TIER_2,
-    "gpd-project-researcher": ModelTier.TIER_2,
-    "gpd-research-synthesizer": ModelTier.TIER_2,
-    "gpd-debugger": ModelTier.TIER_1,
-    "gpd-research-mapper": ModelTier.TIER_3,
-    "gpd-verifier": ModelTier.TIER_1,
-    "gpd-plan-checker": ModelTier.TIER_1,
-    "gpd-consistency-checker": ModelTier.TIER_1,
-    "gpd-paper-writer": ModelTier.TIER_2,
-    "gpd-literature-reviewer": ModelTier.TIER_2,
-    "gpd-bibliographer": ModelTier.TIER_2,
-    "gpd-explainer": ModelTier.TIER_2,
-    "gpd-review-reader": ModelTier.TIER_2,
-    "gpd-review-literature": ModelTier.TIER_1,
-    "gpd-review-math": ModelTier.TIER_1,
-    "gpd-check-proof": ModelTier.TIER_1,
-    "gpd-review-physics": ModelTier.TIER_1,
-    "gpd-review-significance": ModelTier.TIER_1,
-    "gpd-referee": ModelTier.TIER_1,
-    "gpd-experiment-designer": ModelTier.TIER_2,
-    "gpd-notation-coordinator": ModelTier.TIER_2,
+    agent_name: profile_map[ModelProfile.REVIEW.value]
+    for agent_name, profile_map in MODEL_PROFILES.items()
 }
 
 # ─── Config Model ───────────────────────────────────────────────────────────────
@@ -961,20 +959,22 @@ def _coalesce(value: object, default: object) -> object:
 def resolve_agent_tier(agent_name: str, profile: ModelProfile | str) -> ModelTier:
     """Resolve the model tier for an agent given a model profile.
 
-    Falls back to the agent's default tier, then to TIER_2.
+    Raises when the profile matrix is incomplete instead of silently
+    downgrading to a default tier.
     """
     validate_agent_name(agent_name)
+    _validate_model_profile_matrix()
     profile_str = profile.value if isinstance(profile, ModelProfile) else profile
+    if profile_str not in _MODEL_PROFILE_KEYS:
+        supported = ", ".join(sorted(_MODEL_PROFILE_KEYS))
+        raise ConfigError(f"Unknown model profile {profile_str!r}. Supported profiles: {supported}")
     agent_profiles = MODEL_PROFILES.get(agent_name)
-    if agent_profiles:
-        tier = agent_profiles.get(profile_str)
-        if tier:
-            return tier
-        # Try "review" as fallback profile
-        tier = agent_profiles.get("review")
-        if tier:
-            return tier
-    return AGENT_DEFAULT_TIERS.get(agent_name, ModelTier.TIER_2)
+    if agent_profiles is None:
+        raise ConfigError(f"No model tier mapping configured for agent {agent_name!r}")
+    tier = agent_profiles.get(profile_str)
+    if tier is None:
+        raise ConfigError(f"No model tier mapping configured for agent {agent_name!r} and profile {profile_str!r}")
+    return tier
 
 
 @instrument_gpd_function("config.resolve_project_tier")
@@ -1001,7 +1001,8 @@ def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None
     tier = resolve_agent_tier(agent_name, config.model_profile).value
     normalized_runtime = normalize_runtime_name(runtime)
     if normalized_runtime is None:
-        return None
+        supported = ", ".join(sorted(_valid_runtime_names()))
+        raise ConfigError(f"Unknown runtime {runtime!r}. Supported runtimes: {supported}")
     runtime_overrides = (config.model_overrides or {}).get(normalized_runtime)
     if not runtime_overrides:
         return None

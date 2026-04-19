@@ -464,7 +464,7 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         message = str(excinfo.value)
         assert f"Refusing to install into `{target}`" in message
         if manifest_state == "unknown":
-            assert "manifest cannot be trusted" in message
+            assert "belongs to not-a-runtime (`not-a-runtime`)" in message
         assert (target / "commands" / "gpd" / "help.md").exists()
         assert (target / "get-physics-done" / "VERSION").exists()
 
@@ -509,7 +509,7 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         message = str(excinfo.value)
         assert f"Refusing to uninstall from `{target}`" in message
         if manifest_state == "unknown":
-            assert "manifest cannot be trusted" in message
+            assert "belongs to not-a-runtime (`not-a-runtime`)" in message
         assert (target / "commands" / "gpd" / "help.md").exists()
         assert (target / "get-physics-done" / "VERSION").exists()
 

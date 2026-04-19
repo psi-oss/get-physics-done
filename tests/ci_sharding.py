@@ -103,6 +103,21 @@ def expected_ci_shard_matrix() -> tuple[tuple[str, str, int, int], ...]:
     )
 
 
+def synthetic_test_inventory() -> dict[str, tuple[str, ...]]:
+    """Return a small deterministic inventory that exercises all shard shapes."""
+
+    def _nodeids(rel_path: str, count: int) -> tuple[str, ...]:
+        return tuple(f"tests/{rel_path}::test_{index:02d}" for index in range(1, count + 1))
+
+    inventory: dict[str, tuple[str, ...]] = {
+        rel_path: _nodeids(rel_path, split_count)
+        for rel_path, split_count in CI_HOT_TEST_FILE_SPLITS.items()
+    }
+    inventory["test_smoke.py"] = _nodeids("test_smoke.py", 2)
+    inventory["mcp/test_wolfram.py"] = ("tests/mcp/test_wolfram.py::test_smoke",)
+    return inventory
+
+
 def _workflow_job(workflow: dict[str, object], job_name: str) -> dict[str, object]:
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -181,8 +196,9 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert pytest_steps[-1]["name"] == "Run pytest shard"
     assert pytest_steps[-1]["run"] == pytest_shard_command
-    assert pytest_steps[2]["uses"] == "actions/setup-node@v6"
-    assert pytest_steps[2]["with"]["node-version"] == "20"
+    node_step = next(step for step in pytest_steps if step.get("name") == "Set up Node.js")
+    assert node_step["uses"] == "actions/setup-node@v6"
+    assert node_step["with"]["node-version"] == "20"
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject_text
     assert 'pytest-xdist>=3.8.0' in pyproject_text
 

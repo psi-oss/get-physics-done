@@ -420,6 +420,25 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     assert _call_verification_tool("suggest_contract_checks", {"contract": contract}) == expected
 
 
+def test_run_contract_check_request_wrapper_surfaces_proof_contract_salvage_details() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+
+    request = {
+        "check_key": "contract.proof_parameter_coverage",
+        "contract": contract,
+        "metadata": {"theorem_parameter_symbols": ["r_0", "n"]},
+        "observed": {"covered_parameter_symbols": ["r_0", "n"]},
+    }
+
+    expected = {"error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str", "schema_version": 1}
+
+    assert run_contract_check(request) == expected
+    assert _call_verification_tool("run_contract_check", {"request": request}) == expected
+
+
 def test_contract_payload_schema_does_not_advertise_scalar_list_drift() -> None:
     from gpd.mcp.servers.verification_server import _CONTRACT_PAYLOAD_INPUT_SCHEMA
 

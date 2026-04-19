@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import gpd.cli as cli_module
 
 
@@ -89,3 +91,23 @@ def test_resume_recent_requests_only_the_bounded_recent_picker_window(monkeypatc
 
     assert rows == []
     assert captured["last"] == 20
+
+
+def test_recent_project_recovery_view_surfaces_introspection_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "recent-project"
+    gpd_dir = project_root / "GPD"
+    gpd_dir.mkdir(parents=True, exist_ok=True)
+    (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    monkeypatch.setattr("gpd.core.context.init_resume", lambda _cwd: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    view = cli_module._recent_project_recovery_view({"project_root": str(project_root)})
+
+    assert view is not None
+    assert view["recovery_status"] == "recovery-error"
+    assert view["recovery_status_label"] == "Recovery error"
+    assert view["recovery_error_type"] == "RuntimeError"

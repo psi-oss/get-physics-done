@@ -55,9 +55,9 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
     assert "gpd paper-build" in workflow
     assert "STOP and require an explicit manuscript path or a repaired manuscript-root state" in workflow
     assert "Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots." in workflow
-    assert "That file must already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
+    assert "it must match that resolved entrypoint and already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
     assert "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots." in workflow
-    assert 'PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"' in workflow
+    assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
     assert "latest-response discovery" in workflow
     assert "latest response artifacts already reached" not in workflow

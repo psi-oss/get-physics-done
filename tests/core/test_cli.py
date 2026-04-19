@@ -1817,6 +1817,95 @@ def test_resume_recent_surfaces_recovery_error_annotation_when_introspection_fai
     assert "boom" in project["recovery_note"]
 
 
+def test_resume_and_command_context_resume_work_do_not_migrate_root_planning_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (workspace / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    monkeypatch.chdir(workspace)
+    monkeypatch.setattr(
+        "gpd.core.context.init_resume",
+        lambda _cwd: {
+            "planning_exists": False,
+            "state_exists": False,
+            "roadmap_exists": False,
+            "project_exists": False,
+            "resume_candidates": [],
+            "has_live_execution": False,
+            "execution_paused_at": None,
+            "autonomy": None,
+            "research_mode": None,
+        },
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("read-only commands must not migrate root files")),
+    )
+
+    resume_result = runner.invoke(app, ["--raw", "--cwd", str(workspace), "resume"], catch_exceptions=False)
+    assert resume_result.exit_code == 0, resume_result.output
+
+    command_context_result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(workspace), "validate", "command-context", "resume-work"],
+        catch_exceptions=False,
+    )
+    assert command_context_result.exit_code == 1, command_context_result.output
+
+    assert not (workspace / "GPD" / "PROJECT.md").exists()
+    assert not (workspace / "GPD" / "ROADMAP.md").exists()
+
+
+def test_read_only_state_progress_and_suggest_resolve_ancestor_without_migration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "analysis" / "nested"
+    nested_cwd.mkdir(parents=True)
+    (project_root / "GPD").mkdir()
+    (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (nested_cwd / "PROJECT.md").write_text("# Nested note\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("read-only commands must not migrate planning files")),
+    )
+
+    with patch("gpd.core.state.state_snapshot", return_value={"state": "ok"}) as mock_snapshot:
+        snapshot_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested_cwd), "state", "snapshot"],
+            catch_exceptions=False,
+        )
+    with patch("gpd.core.phases.progress_render", return_value={"progress": "ok"}) as mock_progress:
+        progress_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested_cwd), "progress", "json"],
+            catch_exceptions=False,
+        )
+    mock_suggest_result = MagicMock()
+    mock_suggest_result.model_dump.return_value = {"suggestions": []}
+    with patch("gpd.core.suggest.suggest_next", return_value=mock_suggest_result) as mock_suggest:
+        suggest_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested_cwd), "suggest"],
+            catch_exceptions=False,
+        )
+
+    assert snapshot_result.exit_code == 0, snapshot_result.output
+    assert progress_result.exit_code == 0, progress_result.output
+    assert suggest_result.exit_code == 0, suggest_result.output
+    mock_snapshot.assert_called_once_with(project_root.resolve())
+    mock_progress.assert_called_once_with(project_root.resolve(), "json")
+    mock_suggest.assert_called_once_with(project_root.resolve())
+    assert not (nested_cwd / "GPD").exists()
+
+
 def test_resume_plain_output_surfaces_session_handoff_status(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(

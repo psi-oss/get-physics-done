@@ -278,6 +278,28 @@ def test_assess_install_target_classifies_foreign_and_untrusted_manifests(
     assert untrusted.manifest_state == "missing_runtime"
 
 
+def test_assess_install_target_preserves_unsupported_manifest_runtime(
+    tmp_path: Path,
+) -> None:
+    retired_dir = tmp_path / ".retired-runtime"
+    retired_dir.mkdir(parents=True, exist_ok=True)
+    (retired_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": "retired-runtime"}),
+        encoding="utf-8",
+    )
+
+    unsupported = assess_install_target(retired_dir)
+    foreign = assess_install_target(retired_dir, expected_runtime="codex")
+
+    assert unsupported.state == "unsupported_runtime"
+    assert unsupported.manifest_state == "unsupported_runtime"
+    assert unsupported.manifest_runtime == "retired-runtime"
+    assert unsupported.readiness_state == "blocked"
+    assert "not supported by this GPD version" in unsupported.readiness_message()
+    assert foreign.state == "foreign_runtime"
+    assert foreign.manifest_runtime == "retired-runtime"
+
+
 @pytest.mark.parametrize(
     ("manifest_content", "expected_state", "expected_runtime"),
     [
@@ -287,6 +309,7 @@ def test_assess_install_target_classifies_foreign_and_untrusted_manifests(
         (json.dumps({"install_scope": "local"}), "missing_runtime", None),
         (json.dumps({"install_scope": "local", "runtime": 123}), "malformed_runtime", None),
         (json.dumps({"install_scope": "local", "runtime": "Codex"}), "malformed_runtime", None),
+        (json.dumps({"install_scope": "local", "runtime": "retired-runtime"}), "unsupported_runtime", "retired-runtime"),
         (json.dumps({"install_scope": "local", "runtime": "codex"}), "ok", "codex"),
     ],
 )
@@ -312,7 +335,7 @@ def test_install_manifest_runtime_status_is_shared_across_surfaces(
     assert metadata_runtime == expected_runtime
     assert detect_state == expected_state
     assert detect_runtime == expected_runtime
-    if expected_state in {"ok", "missing_runtime", "malformed_runtime"}:
+    if expected_state in {"ok", "unsupported_runtime", "missing_runtime", "malformed_runtime"}:
         assert metadata_payload == json.loads(manifest_path.read_text(encoding="utf-8"))
     else:
         assert metadata_payload == {}

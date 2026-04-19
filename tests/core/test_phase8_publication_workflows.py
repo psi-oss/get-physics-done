@@ -121,13 +121,13 @@ def test_peer_review_workflow_requires_barriers_and_cleanup_before_downstream_st
     )
     assert (
         "After the Stage 4 typed return is captured and "
-        "`GPD/review/STAGE-physics{round_suffix}.json` validates, treat the finished Stage 4 "
+        "`${REVIEW_ROOT}/STAGE-physics{round_suffix}.json` validates, treat the finished Stage 4 "
         "handoff as closed and retired before spawning Stage 5." in workflow
     )
     assert "Stage 5 must start from the persisted stage artifacts and declared carry-forward inputs only." in workflow
     assert (
         "After the Stage 5 typed return is captured and "
-        "`GPD/review/STAGE-interestingness{round_suffix}.json` validates, treat the finished "
+        "`${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json` validates, treat the finished "
         "Stage 5 handoff as closed and retired before spawning Stage 6." in workflow
     )
     assert "Stage 6 must begin from the persisted stage artifacts and declared carry-forward inputs only." in workflow
@@ -142,10 +142,10 @@ def test_peer_review_stage_six_limits_writes_to_stage6_owned_artifacts() -> None
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
     assert "Your writable scope is limited to Stage 6-owned adjudication artifacts for this round:" in workflow
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in workflow
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in workflow
+    assert "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in workflow
+    assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in workflow
     assert "GPD/CONSISTENCY-REPORT.md" in workflow
-    assert "Do not modify `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`." in workflow
+    assert "Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`." in workflow
     assert "Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff" in workflow
     assert "Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist:" in workflow
     assert (

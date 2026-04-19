@@ -51,6 +51,7 @@ from gpd.core.constants import (
 )
 from gpd.core.continuation import (
     ContinuationBoundedSegment,
+    ContinuationResumeSource,
     ContinuationState,
     normalize_continuation,
     normalize_continuation_bounded_segment_with_issues,
@@ -189,9 +190,14 @@ def _project_recent_project_entry(
 ) -> RecentProjectEntry | None:
     try:
         projection = resolve_continuation(cwd, state=state_obj)
-    except Exception:
+    except FileNotFoundError:
         logger.debug(
-            "Skipping recent-project projection for %s because continuation resolution failed", cwd, exc_info=True
+            "Skipping recent-project projection for %s because continuation data is unavailable", cwd, exc_info=True
+        )
+        return None
+    except Exception:
+        logger.warning(
+            "Recent-project projection failed for %s while resolving continuation", cwd, exc_info=True
         )
         return None
 
@@ -200,6 +206,14 @@ def _project_recent_project_entry(
     continuation = projection.continuation
     handoff = continuation.handoff
     bounded_segment = continuation.bounded_segment
+    target_kind = None
+    if projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
+        target_kind = "bounded_segment"
+    elif projection.active_resume_source == ContinuationResumeSource.HANDOFF:
+        target_kind = "handoff"
+    elif projection.recorded_handoff_resume_file is not None:
+        target_kind = "handoff"
+    active_bounded_segment = bounded_segment if target_kind == "bounded_segment" else None
     machine = continuation.machine
 
     def _pick(*values: object) -> str | None:
@@ -226,19 +240,13 @@ def _project_recent_project_entry(
         label = " ".join(part for part in (phase_text, plan_text) if part is not None).strip()
         return label or fallback
 
-    target_kind: str | None = None
-    if bounded_segment is not None and bounded_segment.resume_file is not None:
-        target_kind = "bounded_segment"
-    elif handoff.resume_file is not None:
-        target_kind = "handoff"
-
     handoff_recorded_at = _pick(
         handoff.recorded_at,
         machine.recorded_at,
         session.get("last_date") if isinstance(session, dict) else None,
     )
     bounded_recorded_at = _pick(
-        bounded_segment.updated_at if bounded_segment is not None else None,
+        active_bounded_segment.updated_at if active_bounded_segment is not None else None,
         handoff_recorded_at,
     )
     resume_target_recorded_at = (
@@ -260,12 +268,12 @@ def _project_recent_project_entry(
     )
     last_seen_at = last_session_at or (existing.last_seen_at if existing is not None else None)
     recovery_phase = _pick(
-        bounded_segment.phase if bounded_segment is not None else None,
+        active_bounded_segment.phase if active_bounded_segment is not None else None,
         position.get("current_phase") if isinstance(position, dict) else None,
         existing.recovery_phase if existing is not None else None,
     )
     recovery_plan = _pick(
-        bounded_segment.plan if bounded_segment is not None else None,
+        active_bounded_segment.plan if active_bounded_segment is not None else None,
         position.get("current_plan") if isinstance(position, dict) else None,
         existing.recovery_plan if existing is not None else None,
     )
@@ -289,16 +297,14 @@ def _project_recent_project_entry(
         existing.platform if existing is not None else None,
     )
     last_result_id = _pick(
-        bounded_segment.last_result_id if bounded_segment is not None and target_kind == "bounded_segment" else None,
+        active_bounded_segment.last_result_id if active_bounded_segment is not None else None,
         handoff.last_result_id if target_kind == "handoff" else None,
         session.get("last_result_id") if isinstance(session, dict) else None,
         existing.last_result_id if existing is not None else None,
     )
-    resume_file = None
-    if bounded_segment is not None and bounded_segment.resume_file is not None:
-        resume_file = bounded_segment.resume_file
-    elif handoff.resume_file is not None:
-        resume_file = handoff.resume_file
+    resume_file = projection.active_resume_file
+    if resume_file is None and target_kind == "handoff":
+        resume_file = projection.recorded_handoff_resume_file
 
     source_kind = (
         "continuation.bounded_segment"
@@ -308,13 +314,13 @@ def _project_recent_project_entry(
         else None
     )
     source_session_id = (
-        bounded_segment.source_session_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+        active_bounded_segment.source_session_id if active_bounded_segment is not None else None
     )
     source_segment_id = (
-        bounded_segment.segment_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+        active_bounded_segment.segment_id if active_bounded_segment is not None else None
     )
     source_transition_id = (
-        bounded_segment.transition_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+        active_bounded_segment.transition_id if active_bounded_segment is not None else None
     )
     source_recorded_at = resume_target_recorded_at
     source_event_id = None
@@ -345,7 +351,7 @@ def _project_recent_project_entry(
         source_recorded_at=source_recorded_at,
         recovery_phase=recovery_phase,
         recovery_plan=recovery_plan,
-        resumable=bool(resume_file),
+        resumable=projection.resumable if target_kind == "bounded_segment" else bool(projection.active_resume_file),
         available=True,
         availability_reason=None,
     )
@@ -370,8 +376,10 @@ def _refresh_recent_project_projection(cwd: Path, state_obj: dict[str, object]) 
 
             index = RecentProjectIndex(rows=_sort_recent_project_rows(rows))
             atomic_write(index_path, index.model_dump_json(indent=2) + "\n")
+    except FileNotFoundError:
+        logger.debug("Skipping recent-project projection for %s because cache storage is unavailable", cwd, exc_info=True)
     except Exception:
-        logger.debug("Skipping recent-project projection for %s", cwd, exc_info=True)
+        logger.warning("Recent-project projection failed for %s while updating cache", cwd, exc_info=True)
 
 
 # ─── Pydantic State Models ────────────────────────────────────────────────────

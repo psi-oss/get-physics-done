@@ -143,11 +143,8 @@ def _normalize_latex_capability(
     latexmk_value = _capability_value(latex_capability, "latexmk_available", "latexmk")
     kpsewhich_value = _capability_value(latex_capability, "kpsewhich_available", "kpsewhich")
     pdftotext_value = _capability_value(latex_capability, "pdftotext_available", "pdftotext")
-    full_toolchain_value = _capability_value(latex_capability, "full_toolchain_available", "full_toolchain_ready")
-    full_toolchain_available = _strict_bool_value(full_toolchain_value)
     compiler_path = _capability_value(latex_capability, "compiler_path")
     distribution = _capability_value(latex_capability, "distribution")
-    readiness_value = _capability_value(latex_capability, "readiness_state")
     message_value = _capability_value(latex_capability, "message")
     warnings_value = _capability_value(latex_capability, "warnings")
     if isinstance(warnings_value, str):
@@ -158,13 +155,13 @@ def _normalize_latex_capability(
         warnings = []
 
     bibtex_ready = bibtex_available is True
-    pdftotext_ready = _strict_bool_value(pdftotext_value) is not False
+    latexmk_ready = _strict_bool_value(latexmk_value) is True
+    kpsewhich_ready = _strict_bool_value(kpsewhich_value) is True
+    pdftotext_ready = _strict_bool_value(pdftotext_value) is True
     bibliography_support_available = compiler_available and bibtex_ready
     paper_build_ready = compiler_available
-    arxiv_submission_ready = bibliography_support_available and kpsewhich_value is True
-    if isinstance(readiness_value, str) and readiness_value in {"blocked", "degraded", "ready"}:
-        readiness_state = readiness_value
-    elif not compiler_available:
+    arxiv_submission_ready = bibliography_support_available and kpsewhich_ready
+    if not compiler_available:
         readiness_state = "blocked"
     elif bibtex_ready:
         readiness_state = "ready"
@@ -184,11 +181,7 @@ def _normalize_latex_capability(
         "compiler": compiler_name,
         "available": compiler_available,
         "compiler_available": compiler_available,
-        "full_toolchain_available": (
-            full_toolchain_available
-            if full_toolchain_available is not None
-            else compiler_available and bibtex_ready and latexmk_value is True and kpsewhich_value is True
-        ),
+        "full_toolchain_available": compiler_available and bibtex_ready and latexmk_ready and kpsewhich_ready and pdftotext_ready,
         "compiler_path": compiler_path,
         "distribution": distribution,
         "bibtex_available": bibtex_available,

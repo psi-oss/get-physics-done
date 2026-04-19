@@ -70,7 +70,7 @@ def test_quick_publication_and_settings_surfaces_block_proof_bypass() -> None:
     assert "must not strengthen, generalize, or rhetorically smooth theorem-style claims" in write_paper
 
     assert "<step name=\"detect_proof_bearing_manuscript\">" in peer_review
-    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in peer_review
+    assert "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md" in peer_review
     assert "gpd-check-proof" in peer_review
     assert "may be running in parallel" in peer_review
     assert "do not wait on that artifact to begin the math review" in peer_review

@@ -108,6 +108,8 @@ class RuntimeDescriptor:
     config_dir_name: str
     install_flag: str
     launch_command: str
+    adapter_module: str
+    adapter_class: str
     command_prefix: str
     activation_env_vars: tuple[str, ...]
     selection_flags: tuple[str, ...]
@@ -575,6 +577,7 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
         selection_tokens_for_descriptor = {
             descriptor.runtime_name,
             descriptor.display_name,
+            descriptor.launch_command,
             *descriptor.selection_aliases,
             *(flag.removeprefix("--") for flag in descriptor.selection_flags),
             descriptor.install_flag.removeprefix("--"),
@@ -694,6 +697,8 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 config_dir_name=_require_string(payload["config_dir_name"], label=f"{label}.config_dir_name"),
                 install_flag=_require_string(payload["install_flag"], label=f"{label}.install_flag"),
                 launch_command=_require_string(payload["launch_command"], label=f"{label}.launch_command"),
+                adapter_module=_require_string(payload["adapter_module"], label=f"{label}.adapter_module"),
+                adapter_class=_require_string(payload["adapter_class"], label=f"{label}.adapter_class"),
                 command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
                 activation_env_vars=_require_string_tuple(
                     payload["activation_env_vars"],
@@ -815,7 +820,7 @@ def list_runtime_names() -> list[str]:
 
 
 def normalize_runtime_name(value: str | None) -> str | None:
-    """Resolve a runtime id, display name, alias, or install flag to a canonical runtime name."""
+    """Resolve a runtime id, display name, alias, launch command, or install flag to a canonical runtime name."""
     if not isinstance(value, str):
         return None
 
@@ -827,6 +832,7 @@ def normalize_runtime_name(value: str | None) -> str | None:
         if normalized in {
             descriptor.runtime_name.casefold(),
             descriptor.display_name.casefold(),
+            descriptor.launch_command.casefold(),
             descriptor.install_flag.casefold(),
             *(flag.casefold() for flag in descriptor.selection_flags),
             *(alias.casefold() for alias in descriptor.selection_aliases),
