@@ -39,7 +39,8 @@ const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
 const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
 const MIN_SUPPORTED_PYTHON_MAJOR = 3;
 const MIN_SUPPORTED_PYTHON_MINOR = 11;
-const PREFERRED_VERSIONED_PYTHON_MINORS = [13, 12, 11];
+const MIN_SUPPORTED_PYTHON_LABEL = `${MIN_SUPPORTED_PYTHON_MAJOR}.${MIN_SUPPORTED_PYTHON_MINOR}+`;
+const PREFERRED_VERSIONED_PYTHON_MINORS = [13, 12, MIN_SUPPORTED_PYTHON_MINOR];
 
 const red = "\x1b[31m";
 const green = "\x1b[32m";
@@ -97,7 +98,8 @@ function runtimeSelectionAliases(runtime) {
 }
 
 function runtimeCommandPrefix(runtime) {
-  return runtimeRecord(runtime).command_prefix || "";
+  const record = runtimeRecord(runtime);
+  return record.public_command_surface_prefix || record.command_prefix || "";
 }
 
 function runtimeSurfaceCommand(runtime, commandName) {
@@ -136,10 +138,6 @@ function loadSharedPublicSurfaceShape(contractPayload = PUBLIC_SURFACE_CONTRACT)
   return {
     topLevelKeys,
     sectionKeys,
-    localCliBridgeCommands: requireStrictStringList(
-      localCliBridge.commands,
-      "public surface contract.local_cli_bridge.commands"
-    ),
     localCliNamedCommandKeys: Object.keys(namedCommands),
   };
 }
@@ -162,6 +160,7 @@ const RUNTIME_CATALOG_CAPABILITY_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.capabilit
 const RUNTIME_CATALOG_CAPABILITY_ENUMS = Object.fromEntries(
   Object.entries(RUNTIME_CATALOG_SCHEMA.capability_enums).map(([fieldName, values]) => [fieldName, new Set(values)])
 );
+const RUNTIME_CAPABILITY_DEFAULTS = Object.freeze(RUNTIME_CATALOG_SCHEMA.capability_defaults);
 const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.hook_payload_keys);
 const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.install_help_example_scopes);
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
@@ -177,7 +176,6 @@ const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
   Object.entries(PUBLIC_SURFACE_CONTRACT_SECTION_KEYS).map(([section, keys]) => [section, new Set(keys)])
 );
 const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliNamedCommandKeys];
-const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliBridgeCommands];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
 
 function formatQuotedDisjunction(values) {
@@ -332,7 +330,7 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
 
   for (const [sectionName, expectedKeys] of Object.entries(PUBLIC_SURFACE_CONTRACT_SECTION_KEYS)) {
     const section = requireJsonObject(sections[sectionName], `public surface contract schema.sections.${sectionName}`);
-    const allowedKeys = sectionName === "local_cli_bridge" ? new Set(["keys", "commands", "named_commands"]) : new Set(["keys"]);
+    const allowedKeys = sectionName === "local_cli_bridge" ? new Set(["keys", "named_commands"]) : new Set(["keys"]);
     requireKnownKeys(section, allowedKeys, `public surface contract schema.sections.${sectionName}`);
     requirePresentKeys(section, [...allowedKeys], `public surface contract schema.sections.${sectionName}`);
     const sectionKeys = requireStrictStringList(
@@ -427,63 +425,97 @@ validateSharedPublicSurfaceSchemaShape(PUBLIC_SURFACE_CONTRACT_SCHEMA);
 function validateRuntimeCatalogCapabilities(capabilities, label) {
   const payload = requireJsonObject(capabilities, label);
   requireKnownKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
-  requirePresentKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
+  const capabilityValue = (fieldName) => (
+    Object.prototype.hasOwnProperty.call(payload, fieldName)
+      ? payload[fieldName]
+      : RUNTIME_CAPABILITY_DEFAULTS[fieldName]
+  );
+  const optionalPromptFreeModeValue = capabilityValue("prompt_free_mode_value");
 
   const validated = {
     permissions_surface: requireStrictEnumString(
-      payload.permissions_surface,
+      capabilityValue("permissions_surface"),
       `${label}.permissions_surface`,
       RUNTIME_CATALOG_CAPABILITY_ENUMS.permissions_surface
     ),
     permission_surface_kind: requireRuntimeSurfaceLabel(
-      payload.permission_surface_kind,
+      capabilityValue("permission_surface_kind"),
       `${label}.permission_surface_kind`,
       { allowSpecialValues: RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS }
     ),
-    prompt_free_mode_value: requireStrictString(payload.prompt_free_mode_value, `${label}.prompt_free_mode_value`),
+    prompt_free_mode_value: optionalPromptFreeModeValue === null
+      ? null
+      : requireStrictString(optionalPromptFreeModeValue, `${label}.prompt_free_mode_value`),
     supports_runtime_permission_sync: requireStrictBoolean(
-      payload.supports_runtime_permission_sync,
+      capabilityValue("supports_runtime_permission_sync"),
       `${label}.supports_runtime_permission_sync`
     ),
     supports_prompt_free_mode: requireStrictBoolean(
-      payload.supports_prompt_free_mode,
+      capabilityValue("supports_prompt_free_mode"),
       `${label}.supports_prompt_free_mode`
     ),
     prompt_free_requires_relaunch: requireStrictBoolean(
-      payload.prompt_free_requires_relaunch,
+      capabilityValue("prompt_free_requires_relaunch"),
       `${label}.prompt_free_requires_relaunch`
     ),
     statusline_surface: requireStrictEnumString(
-      payload.statusline_surface,
+      capabilityValue("statusline_surface"),
       `${label}.statusline_surface`,
       RUNTIME_CATALOG_CAPABILITY_ENUMS.statusline_surface
     ),
     statusline_config_surface: requireRuntimeSurfaceLabel(
-      payload.statusline_config_surface,
+      capabilityValue("statusline_config_surface"),
       `${label}.statusline_config_surface`
     ),
     notify_surface: requireStrictEnumString(
-      payload.notify_surface,
+      capabilityValue("notify_surface"),
       `${label}.notify_surface`,
       RUNTIME_CATALOG_CAPABILITY_ENUMS.notify_surface
     ),
     notify_config_surface: requireRuntimeSurfaceLabel(
-      payload.notify_config_surface,
+      capabilityValue("notify_config_surface"),
       `${label}.notify_config_surface`
     ),
     telemetry_source: requireStrictEnumString(
-      payload.telemetry_source,
+      capabilityValue("telemetry_source"),
       `${label}.telemetry_source`,
       RUNTIME_CATALOG_CAPABILITY_ENUMS.telemetry_source
     ),
     telemetry_completeness: requireStrictEnumString(
-      payload.telemetry_completeness,
+      capabilityValue("telemetry_completeness"),
       `${label}.telemetry_completeness`,
       RUNTIME_CATALOG_CAPABILITY_ENUMS.telemetry_completeness
     ),
-    supports_usage_tokens: requireStrictBoolean(payload.supports_usage_tokens, `${label}.supports_usage_tokens`),
-    supports_cost_usd: requireStrictBoolean(payload.supports_cost_usd, `${label}.supports_cost_usd`),
-    supports_context_meter: requireStrictBoolean(payload.supports_context_meter, `${label}.supports_context_meter`),
+    supports_usage_tokens: requireStrictBoolean(capabilityValue("supports_usage_tokens"), `${label}.supports_usage_tokens`),
+    supports_cost_usd: requireStrictBoolean(capabilityValue("supports_cost_usd"), `${label}.supports_cost_usd`),
+    supports_context_meter: requireStrictBoolean(capabilityValue("supports_context_meter"), `${label}.supports_context_meter`),
+    child_artifact_persistence_reliability: requireStrictEnumString(
+      capabilityValue("child_artifact_persistence_reliability"),
+      `${label}.child_artifact_persistence_reliability`,
+      RUNTIME_CATALOG_CAPABILITY_ENUMS.child_artifact_persistence_reliability
+    ),
+    supports_structured_child_results: requireStrictBoolean(
+      capabilityValue("supports_structured_child_results"),
+      `${label}.supports_structured_child_results`
+    ),
+    continuation_surface: requireStrictEnumString(
+      capabilityValue("continuation_surface"),
+      `${label}.continuation_surface`,
+      RUNTIME_CATALOG_CAPABILITY_ENUMS.continuation_surface
+    ),
+    checkpoint_stop_semantics: requireStrictEnumString(
+      capabilityValue("checkpoint_stop_semantics"),
+      `${label}.checkpoint_stop_semantics`,
+      RUNTIME_CATALOG_CAPABILITY_ENUMS.checkpoint_stop_semantics
+    ),
+    supports_runtime_session_payload_attribution: requireStrictBoolean(
+      capabilityValue("supports_runtime_session_payload_attribution"),
+      `${label}.supports_runtime_session_payload_attribution`
+    ),
+    supports_agent_payload_attribution: requireStrictBoolean(
+      capabilityValue("supports_agent_payload_attribution"),
+      `${label}.supports_agent_payload_attribution`
+    ),
   };
   if (validated.permissions_surface === "config-file") {
     if (
@@ -524,6 +556,9 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
   if (!validated.supports_prompt_free_mode && validated.prompt_free_requires_relaunch) {
     throw new Error(`${label}.prompt_free_requires_relaunch requires supports_prompt_free_mode=true`);
   }
+  if (validated.supports_structured_child_results && validated.continuation_surface !== "explicit") {
+    throw new Error(`${label}.continuation_surface must be explicit when supports_structured_child_results=true`);
+  }
   return validated;
 }
 
@@ -547,6 +582,12 @@ function validateRuntimeCatalogHookPayload(hookPayload, label) {
     ),
     model_keys: requireStrictStringList(payload.model_keys, `${label}.model_keys`, { allowEmpty: true }),
     provider_keys: requireStrictStringList(payload.provider_keys, `${label}.provider_keys`, { allowEmpty: true }),
+    target_path_keys: requireStrictStringList(payload.target_path_keys, `${label}.target_path_keys`, {
+      allowEmpty: true,
+    }),
+    target_root_keys: requireStrictStringList(payload.target_root_keys, `${label}.target_root_keys`, {
+      allowEmpty: true,
+    }),
     usage_keys: requireStrictStringList(payload.usage_keys, `${label}.usage_keys`, { allowEmpty: true }),
     input_tokens_keys: requireStrictStringList(payload.input_tokens_keys, `${label}.input_tokens_keys`, {
       allowEmpty: true,
@@ -587,12 +628,9 @@ function validateRuntimeCatalogHookPayload(hookPayload, label) {
 }
 
 function parsePublicCommandSurfacePrefix(value, label, commandPrefix) {
-  if (value === undefined || value === null) {
-    return commandPrefix;
-  }
-  const prefix = requireStrictString(value, label);
-  if (prefix !== commandPrefix) {
-    throw new Error(`${label} must match command_prefix`);
+  const prefix = value === undefined || value === null ? commandPrefix : requireStrictString(value, label);
+  if (!/^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$/.test(prefix)) {
+    throw new Error(`${label} must be a slash or dollar command prefix ending in ':' or '-'`);
   }
   return prefix;
 }
@@ -821,9 +859,6 @@ function validateSharedPublicSurfaceContract(contractPayload) {
   const beginnerCaveats = requireNonEmptyStringList(beginnerPayload, "caveats", "beginner_onboarding");
   const beginnerStartupLadder = requireNonEmptyStringList(beginnerPayload, "startup_ladder", "beginner_onboarding");
   const localCliBridgeCommands = requireNonEmptyStringList(localCliBridge, "commands", "local_cli_bridge");
-  for (const command of PUBLIC_SURFACE_LOCAL_CLI_COMMANDS) {
-    requireListedCommand(localCliBridgeCommands, "local_cli_bridge", command);
-  }
   const namedCommands = Object.fromEntries(
     PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS.map((key) => [
       key,
@@ -839,15 +874,6 @@ function validateSharedPublicSurfaceContract(contractPayload) {
   ) {
     throw new Error(
       "local_cli_bridge.commands must exactly match local_cli_bridge.named_commands in canonical order"
-    );
-  }
-  if (
-    localCliBridgeCommands.length !== PUBLIC_SURFACE_LOCAL_CLI_COMMANDS.length
-    || localCliBridgeCommands.some((command, index) => command !== PUBLIC_SURFACE_LOCAL_CLI_COMMANDS[index])
-  ) {
-    throw new Error(
-      "local_cli_bridge.commands must exactly match "
-      + "public_surface_contract_schema.sections.local_cli_bridge.commands"
     );
   }
   const terminalPhrase = requireNonEmptyString(localCliBridge, "terminal_phrase", "local_cli_bridge");
@@ -1566,7 +1592,7 @@ function ensureManagedEnvironment(basePython) {
     });
     if (venvResult.status !== 0) {
       error("Failed to create the managed Python environment.");
-      error("Install Python 3.11+ with the standard library `venv` module, then rerun the bootstrap installer.");
+      error(`Install Python ${MIN_SUPPORTED_PYTHON_LABEL} with the standard library \`venv\` module, then rerun the bootstrap installer.`);
       process.exit(1);
     }
   }
@@ -1859,6 +1885,40 @@ function collectDoctorBlockers(report) {
   return blockers;
 }
 
+function collectRepairableRuntimeTargetMessages(report) {
+  const messages = [];
+  const seen = new Set();
+  const checks = Array.isArray(report && report.checks) ? report.checks : [];
+
+  for (const check of checks) {
+    if ((check && check.status) !== "fail") {
+      continue;
+    }
+    if (typeof check.label !== "string" || check.label.trim() !== "Runtime Config Target") {
+      continue;
+    }
+    const details = check.details && typeof check.details === "object" ? check.details : null;
+    if (!details || details.install_state !== "owned_incomplete") {
+      continue;
+    }
+    const checkMessages = [
+      ...doctorCheckMessages(check, "issues"),
+      ...doctorCheckMessages(check, "warnings"),
+    ];
+    if (checkMessages.length === 0) {
+      checkMessages.push("Runtime Config Target: incomplete owned install will be repaired.");
+    }
+    for (const message of checkMessages) {
+      if (!seen.has(message)) {
+        seen.add(message);
+        messages.push(message);
+      }
+    }
+  }
+
+  return messages;
+}
+
 function extractDoctorErrorMessage(result) {
   const stderrJson = parseJsonText(result.stderr);
   if (stderrJson && typeof stderrJson.error === "string" && stderrJson.error.trim()) {
@@ -1932,8 +1992,10 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
     }
 
     const report = doctorCheck.report;
-    const reportBlockers = collectDoctorBlockers(report);
-    if (reportBlockers.length > 0 || report.overall === "fail") {
+    const repairableMessages = collectRepairableRuntimeTargetMessages(report);
+    const repairableSet = new Set(repairableMessages);
+    const reportBlockers = collectDoctorBlockers(report).filter((message) => !repairableSet.has(message));
+    if (reportBlockers.length > 0 || (report.overall === "fail" && repairableMessages.length === 0)) {
       const messages = reportBlockers.length > 0
         ? reportBlockers
         : ["Runtime readiness reported a failure without blocking details."];
@@ -1941,9 +2003,9 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
       continue;
     }
 
-    const advisories = collectDoctorAdvisories(report);
+    const advisories = [...collectDoctorAdvisories(report), ...repairableMessages];
     success(`${displayName}: launcher/target preflight passed${advisories.length > 0 ? " with advisories" : ""}.`);
-    advisories.forEach((message) => warn(`${displayName}: ${message}`));
+    [...new Set(advisories)].forEach((message) => warn(`${displayName}: ${message}`));
   }
 
   if (blockers.length > 0) {
@@ -2447,14 +2509,14 @@ async function main() {
 
   const basePython = checkPython();
   if (!basePython) {
-    error("Python 3.11+ is required but not found.");
+    error(`Python ${MIN_SUPPORTED_PYTHON_LABEL} is required but not found.`);
     error("Install from https://python.org or via your package manager.");
     process.exit(1);
   }
   success(`Found ${basePython.text}`);
 
   if (!hasVenvSupport(basePython.command)) {
-    error(`Python 3.11+ with the standard library 'venv' module is required, but ${basePython.command} cannot create virtual environments.`);
+    error(`Python ${MIN_SUPPORTED_PYTHON_LABEL} with the standard library 'venv' module is required, but ${basePython.command} cannot create virtual environments.`);
     error("Install venv support for that interpreter, then rerun the bootstrap installer.");
     process.exit(1);
   }

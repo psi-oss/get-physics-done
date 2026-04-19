@@ -738,6 +738,38 @@ def _unsupported_config_keys(parsed: dict[str, object]) -> list[str]:
     return sorted(unsupported)
 
 
+def _lookup_config_path(parsed: dict[str, object], alias: str) -> tuple[bool, object]:
+    segments = alias.split(".")
+    current: object = parsed
+    for segment in segments:
+        if not isinstance(current, dict) or segment not in current:
+            return False, None
+        current = current[segment]
+    return True, current
+
+
+def _conflicting_duplicate_config_aliases(parsed: dict[str, object]) -> list[str]:
+    """Return root/nested alias conflicts for the same canonical config key."""
+    conflicts: list[str] = []
+    for canonical_key, aliases in sorted(_ALIASES_BY_CANONICAL_KEY.items()):
+        present: list[tuple[str, object]] = []
+        for alias in aliases:
+            found, value = _lookup_config_path(parsed, alias)
+            if found:
+                present.append((alias, value))
+        if len(present) < 2:
+            continue
+
+        first_alias, first_value = present[0]
+        conflicting_aliases = [alias for alias, value in present[1:] if value != first_value]
+        if conflicting_aliases:
+            conflicts.append(
+                f"`{canonical_key}` has conflicting aliases: "
+                + ", ".join(f"`{alias}`" for alias in (first_alias, *conflicting_aliases))
+            )
+    return conflicts
+
+
 def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
     """Build the canonical config model from a parsed config payload."""
     if not isinstance(parsed, dict):
@@ -749,6 +781,14 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
             "Unsupported config.json keys: "
             + ", ".join(f"`{key}`" for key in unsupported_keys)
             + f". Update {PLANNING_DIR_NAME}/config.json to the current schema."
+        )
+
+    duplicate_alias_conflicts = _conflicting_duplicate_config_aliases(parsed)
+    if duplicate_alias_conflicts:
+        raise ConfigError(
+            "Conflicting duplicate config aliases: "
+            + "; ".join(duplicate_alias_conflicts)
+            + f". Keep only one spelling in {PLANNING_DIR_NAME}/config.json."
         )
 
     try:

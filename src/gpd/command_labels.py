@@ -32,12 +32,12 @@ def runtime_command_prefixes() -> tuple[str, ...]:
     prefixes: list[str] = []
     seen: set[str] = set()
     for descriptor in iter_runtime_descriptors():
-        prefix = descriptor.command_prefix
-        for prefix_variant in _prefix_variants(prefix):
-            if prefix_variant in seen:
-                continue
-            seen.add(prefix_variant)
-            prefixes.append(prefix_variant)
+        for prefix in (descriptor.command_prefix, validated_public_command_prefix(descriptor)):
+            for prefix_variant in _prefix_variants(prefix):
+                if prefix_variant in seen:
+                    continue
+                seen.add(prefix_variant)
+                prefixes.append(prefix_variant)
 
     for prefix in (CANONICAL_COMMAND_PREFIX, CANONICAL_SKILL_PREFIX):
         if prefix not in seen:

@@ -23,20 +23,6 @@
         "doctor_global_command",
         "validate_command_context_command"
       ],
-      "commands": [
-        "gpd --help",
-        "gpd doctor",
-        "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced",
-        "gpd permissions status --runtime <runtime> --autonomy balanced",
-        "gpd permissions sync --runtime <runtime> --autonomy balanced",
-        "gpd resume",
-        "gpd resume --recent",
-        "gpd observe execution",
-        "gpd cost",
-        "gpd presets list",
-        "gpd validate plan-preflight <PLAN.md>",
-        "gpd integrations status wolfram"
-      ],
       "named_commands": {
         "ordered_keys": [
           "help",

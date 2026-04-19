@@ -175,10 +175,13 @@ def test_review_knowledge_workflow_keeps_strict_current_workspace_canonical_targ
     assert "knowledge_document" in command
     assert "knowledge_review_freshness" in command
     assert "missing project state" not in command
-    assert "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md" in command
+    assert "GPD/knowledge/reviews/{knowledge_id}-R{review_round}-REVIEW.md" in command
+    assert "{round_suffix}" not in command
     assert "Keep this init bound to the workspace the user invoked from." in workflow
     assert "do not auto-reenter a different recent project here." in workflow
     assert 'CONTEXT=$(gpd --raw validate command-context review-knowledge "$ARGUMENTS")' in workflow
+    assert 'REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight review-knowledge "$ARGUMENTS" --strict)' in workflow
+    assert 'echo "$REVIEW_PREFLIGHT"' in workflow
     assert "Accept only:" in workflow
     assert "an exact current-workspace `GPD/knowledge/{knowledge_id}.md` path" in workflow
     assert "a canonical `K-*` knowledge_id that resolves uniquely to that path" in workflow

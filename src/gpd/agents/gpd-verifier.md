@@ -216,23 +216,23 @@ If no `contract` is available in frontmatter:
 
 **For subfield-specific validation strategies, priority checks, and red flags, consult:**
 
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Detailed methods, tools, pitfalls per subfield
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- load only when subfield context is needed
 - `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal checks: dimensional analysis, limiting cases, symmetry, conservation laws
 - `{GPD_INSTALL_DIR}/references/verification/meta/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
 - Subfield-specific priority checks and red flags — load the relevant domain file(s):
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-qft.md` — QFT, gauge theory, scattering
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-condmat.md` — condensed matter, many-body
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-statmech.md` — stat mech, phase transitions
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-gr-cosmology.md` — GR, cosmology, black holes, gravitational waves
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-amo.md` — atomic physics, quantum optics, cold atoms
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-nuclear-particle.md` — nuclear, collider, flavor physics
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-astrophysics.md` — stellar structure, accretion, compact objects
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-fluid-plasma.md` — MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-mathematical-physics.md` — rigorous proofs, topology, index theorems
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-algebraic-qft.md` — Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-string-field-theory.md` — BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-quantum-info.md` — CPTP, entanglement measures, error correction, channel capacity
-  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-soft-matter.md` — polymer scaling, FDT, coarse-graining, equilibration
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-qft.md` — QFT, gauge theory, scattering
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-condmat.md` — condensed matter, many-body
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-statmech.md` — stat mech, phase transitions
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-gr-cosmology.md` — GR, cosmology, black holes, gravitational waves
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-amo.md` — atomic physics, quantum optics, cold atoms
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-nuclear-particle.md` — nuclear, collider, flavor physics
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-astrophysics.md` — stellar structure, accretion, compact objects
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-fluid-plasma.md` — MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-mathematical-physics.md` — rigorous proofs, topology, index theorems
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-algebraic-qft.md` — Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-string-field-theory.md` — BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-quantum-info.md` — CPTP, entanglement measures, error correction, channel capacity
+  - `{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-soft-matter.md` — polymer scaling, FDT, coarse-graining, equilibration
 
 ## Step 3: Verify Contract-Backed Outcomes
 

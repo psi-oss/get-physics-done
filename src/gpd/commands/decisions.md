@@ -14,14 +14,7 @@ allowed-tools:
 
 
 <objective>
-Display the cumulative decision log from GPD/DECISIONS.md with optional filtering by phase number or keyword search.
-
-Routes to the decisions workflow which handles:
-
-- Loading and parsing the decision log table
-- Filtering by phase number (e.g., `gpd:decisions 3`)
-- Keyword search across all fields (e.g., `gpd:decisions regularization`)
-- Formatted display with summary statistics
+Display the cumulative decision log from `GPD/DECISIONS.md`, optionally filtered by phase number or keyword.
   </objective>
 
 <execution_context>
@@ -30,12 +23,5 @@ Routes to the decisions workflow which handles:
 </execution_context>
 
 <process>
-**Follow the decisions workflow** from `@{GPD_INSTALL_DIR}/workflows/decisions.md`.
-
-The workflow handles all logic including:
-
-1. Decision log existence checking
-2. Argument parsing (phase number vs keyword)
-3. Table filtering and display
-4. Summary statistics
+Follow `@{GPD_INSTALL_DIR}/workflows/decisions.md` exactly.
    </process>

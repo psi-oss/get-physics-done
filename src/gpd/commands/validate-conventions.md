@@ -13,14 +13,7 @@ allowed-tools:
 
 
 <objective>
-Validate that physics conventions (metric signature, Fourier convention, natural units, gauge choice, etc.) are used consistently across all completed phases. Detects convention drift where a symbol or convention is redefined in a later phase without updating earlier references.
-
-Routes to the validate-conventions workflow which handles:
-
-- Loading the convention lock from state.json
-- Scanning all phase artifacts for convention usage
-- Cross-checking consistency between phases
-- Reporting any mismatches or drift
+Validate that physics conventions are used consistently across completed phases, and detect convention drift where symbols or conventions are redefined without updating earlier references.
 
 The optional scope argument is real: if you pass a phase number, the workflow validates only that phase and fails closed if the phase cannot be resolved. If you pass nothing, it scans all completed phases.
 </objective>
@@ -40,12 +33,5 @@ Scope: $ARGUMENTS (optional)
 </context>
 
 <process>
-Execute the validate-conventions workflow from @{GPD_INSTALL_DIR}/workflows/validate-conventions.md end-to-end.
-
-The workflow checks:
-
-1. **Convention lock completeness** -- Are all relevant conventions explicitly locked in state.json?
-2. **Cross-phase consistency** -- Are locked conventions used consistently in all phase artifacts?
-3. **Symbol redefinition** -- Is any symbol defined differently in different phases?
-4. **Approximation compatibility** -- Are approximation regimes consistent with convention choices?
+Follow `@{GPD_INSTALL_DIR}/workflows/validate-conventions.md` exactly.
 </process>

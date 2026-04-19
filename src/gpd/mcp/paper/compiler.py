@@ -287,8 +287,11 @@ def _reference_bibtex_keys_from_audit(audit: BibliographyAudit | None) -> dict[s
 
     reference_bibtex_keys: dict[str, str] = {}
     for entry in audit.entries:
-        if entry.reference_id:
-            reference_bibtex_keys[entry.reference_id] = entry.key
+        reference_id = entry.reference_id.strip() if isinstance(entry.reference_id, str) else ""
+        if reference_id:
+            if reference_id in reference_bibtex_keys:
+                raise ValueError(f"duplicate bibliography reference_id {reference_id!r} in audit")
+            reference_bibtex_keys[reference_id] = entry.key
     return reference_bibtex_keys
 
 

@@ -18,7 +18,7 @@ def test_gpd_project_researcher_prompt_stays_within_expected_budget_and_keeps_on
     metrics = measure_prompt_surface(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
     expanded = expanded_prompt_text(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
 
-    assert metrics.raw_include_count == 2
+    assert metrics.raw_include_count == 3
     assert metrics.expanded_line_count < 2_250
     assert metrics.expanded_char_count < 115_000
 

@@ -4,8 +4,41 @@ from __future__ import annotations
 
 import pytest
 
-from gpd.mcp.paper.compiler import _compile_manual_multipass, _compile_with_latexmk
+from gpd.mcp.paper.bibliography import BibliographyAudit, CitationAuditRecord
+from gpd.mcp.paper.compiler import _compile_manual_multipass, _compile_with_latexmk, _reference_bibtex_keys_from_audit
 from gpd.utils.latex import AutoFixResult
+
+
+def test_reference_bibtex_keys_rejects_duplicate_reference_id() -> None:
+    audit = BibliographyAudit(
+        generated_at="2026-04-18T00:00:00+00:00",
+        total_sources=2,
+        resolved_sources=2,
+        partial_sources=0,
+        unverified_sources=0,
+        failed_sources=0,
+        entries=[
+            CitationAuditRecord(
+                key="first2024",
+                source_type="paper",
+                reference_id="ref-duplicate",
+                title="First",
+                resolution_status="provided",
+                verification_status="verified",
+            ),
+            CitationAuditRecord(
+                key="second2025",
+                source_type="paper",
+                reference_id="ref-duplicate",
+                title="Second",
+                resolution_status="provided",
+                verification_status="verified",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate bibliography reference_id 'ref-duplicate'"):
+        _reference_bibtex_keys_from_audit(audit)
 
 
 class _FakeProcess:

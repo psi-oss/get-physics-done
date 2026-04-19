@@ -110,9 +110,11 @@ class ArxivBridge:
         filtered = [tool for tool in upstream.tools if tool.name in UPSTREAM_CORE_TOOL_NAMES]
         if cursor in (None, ""):
             filtered.append(_DOWNLOAD_SOURCE_TOOL)
-        return types.ListToolsResult(tools=filtered, nextCursor=None)
+        return types.ListToolsResult(tools=filtered, nextCursor=upstream.nextCursor)
 
     async def call_tool(self, name: str, arguments: dict[str, object] | None) -> types.CallToolResult:
+        if name not in ADVERTISED_TOOL_NAMES:
+            return _tool_error(f"Tool {name!r} is not advertised by the GPD arXiv bridge")
         if name == DOWNLOAD_SOURCE_TOOL_NAME:
             return await self._call_download_source(arguments or {})
         return await self.session.call_tool(name, arguments or {})
@@ -124,13 +126,17 @@ class ArxivBridge:
         return await self.session.get_prompt(name, arguments)
 
     async def _call_download_source(self, arguments: dict[str, object]) -> types.CallToolResult:
+        extra_args = sorted(set(arguments) - set(_DOWNLOAD_SOURCE_SCHEMA["properties"]))
+        if extra_args:
+            return _tool_error(f"download_source got unsupported arguments: {', '.join(extra_args)}")
+
         paper_id = arguments.get("paper_id")
-        overwrite = bool(arguments.get("overwrite", False))
         if not isinstance(paper_id, str) or not paper_id.strip():
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text="Error: paper_id must be a non-empty string")],
-            )
+            return _tool_error("paper_id must be a non-empty string")
+
+        overwrite = arguments.get("overwrite", False)
+        if not isinstance(overwrite, bool):
+            return _tool_error("overwrite must be a boolean")
 
         try:
             result = download_arxiv_source_archive(
@@ -139,10 +145,7 @@ class ArxivBridge:
                 overwrite=overwrite,
             )
         except Exception as exc:
-            return types.CallToolResult(
-                isError=True,
-                content=[types.TextContent(type="text", text=f"Error: {exc}")],
-            )
+            return _tool_error(str(exc))
 
         summary = (
             f"Downloaded source archive for {result.arxiv_id} to {result.path}"
@@ -151,8 +154,22 @@ class ArxivBridge:
         )
         return types.CallToolResult(
             content=[types.TextContent(type="text", text=summary)],
-            structuredContent=result.as_dict(),
+            structuredContent={
+                "schema_version": 1,
+                "tool": DOWNLOAD_SOURCE_TOOL_NAME,
+                "result": result.as_dict(),
+            },
         )
+
+
+def _tool_error(message: str) -> types.CallToolResult:
+    """Return a stable MCP tool-error result."""
+
+    return types.CallToolResult(
+        isError=True,
+        content=[types.TextContent(type="text", text=f"Error: {message}")],
+        structuredContent={"schema_version": 1, "error": message},
+    )
 
 
 def build_server(config: ArxivBridgeConfig) -> tuple[Server, ArxivBridge]:

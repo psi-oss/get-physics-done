@@ -205,6 +205,49 @@ def test_ingest_reference_artifacts_parses_citation_source_sidecar(tmp_path: Pat
     assert citation_sources[1].arxiv_id == "2301.12345"
 
 
+def test_ingest_reference_artifacts_reads_only_selected_review_citation_sidecars(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "A-REVIEW.md").write_text("# Review A\n", encoding="utf-8")
+    (literature_dir / "B-REVIEW.md").write_text("# Review B\n", encoding="utf-8")
+    _write_citation_sources_sidecar(
+        literature_dir,
+        "A-REVIEW.md",
+        [
+            {
+                "reference_id": "ref-a",
+                "source_type": "paper",
+                "title": "Selected Paper",
+                "authors": ["A. Researcher"],
+                "year": "2024",
+            },
+        ],
+    )
+    _write_citation_sources_sidecar(
+        literature_dir,
+        "B-REVIEW.md",
+        [
+            {
+                "reference_id": "ref-b",
+                "source_type": "paper",
+                "title": "Stale Paper",
+                "authors": ["B. Researcher"],
+                "year": "2023",
+            },
+        ],
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/A-REVIEW.md"],
+        research_map_reference_files=[],
+    )
+
+    assert result.citation_source_files == ["GPD/literature/A-REVIEW-CITATION-SOURCES.json"]
+    assert [source.reference_id for source in result.citation_sources] == ["ref-a"]
+
+
 def test_ingest_manuscript_reference_status_reads_current_audit(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
     paper_dir = tmp_path / "paper"
@@ -455,6 +498,44 @@ def test_ingest_reference_artifacts_rejects_unknown_citation_source_fields(tmp_p
     assert result.citation_sources == []
     assert result.citation_source_files == ["GPD/literature/REVIEW-CITATION-SOURCES.json"]
     assert any("Extra inputs are not permitted" in warning for warning in result.citation_source_warnings)
+
+
+def test_ingest_reference_artifacts_rejects_duplicate_citation_reference_id(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "REVIEW.md").write_text("# Review\n", encoding="utf-8")
+    _write_citation_sources_sidecar(
+        literature_dir,
+        "REVIEW.md",
+        [
+            {
+                "reference_id": "ref-duplicate",
+                "source_type": "paper",
+                "title": "First Paper",
+                "year": "2024",
+            },
+            {
+                "reference_id": "ref-duplicate",
+                "source_type": "paper",
+                "title": "Second Paper",
+                "year": "2025",
+            },
+        ],
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/REVIEW.md"],
+        research_map_reference_files=[],
+    )
+
+    assert [source.reference_id for source in result.citation_sources] == ["ref-duplicate"]
+    assert result.citation_source_files == ["GPD/literature/REVIEW-CITATION-SOURCES.json"]
+    assert result.citation_source_warnings == [
+        "skipping citation source GPD/literature/REVIEW-CITATION-SOURCES.json[1]: "
+        "duplicate reference_id 'ref-duplicate'"
+    ]
 
 
 def test_literature_review_surfaces_publish_closed_citation_source_contract() -> None:

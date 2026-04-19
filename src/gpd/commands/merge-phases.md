@@ -14,15 +14,7 @@ allowed-tools:
 
 
 <objective>
-Merge the results, artifacts, and state updates from a source phase into a target phase. Useful when phases are reorganized, when a decimal phase (e.g., 2.1) needs to be folded back into its parent, or when parallel investigation branches converge.
-
-Routes to the merge-phases workflow which handles:
-
-- Validating both phases exist
-- Copying artifacts (summaries, plans, data files)
-- Merging intermediate results and decisions
-- Updating the roadmap to reflect the merge
-- Updating STATE.md with merge record
+Merge results, artifacts, and state updates from a source phase into a target phase.
 </objective>
 
 <execution_context>
@@ -39,16 +31,5 @@ Target phase: second argument (e.g., "2")
 </context>
 
 <process>
-Execute the merge-phases workflow from @{GPD_INSTALL_DIR}/workflows/merge-phases.md end-to-end.
-
-This wrapper runs the merge workflow directly. Any stopping points come from the workflow's own validation gates.
-
-The workflow handles:
-
-1. **Validation** -- Both phases exist, source has completed work, target is compatible
-2. **Artifact merge** -- Copy summaries, plans, data files from source to target
-3. **Result merge** -- Combine intermediate results, avoiding duplicates
-4. **Decision merge** -- Merge decisions with phase attribution preserved
-5. **Roadmap update** -- Mark source phase as merged, update target description
-6. **State update** -- Record the merge as a decision in STATE.md
+This wrapper runs the merge workflow directly. Follow `@{GPD_INSTALL_DIR}/workflows/merge-phases.md` exactly; any stopping points come from that workflow's validation gates.
 </process>

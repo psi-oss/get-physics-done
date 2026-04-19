@@ -50,3 +50,12 @@ def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:
     assert "execute-plan.md owns plan-local execution semantics" in workflow_text
     assert "# task(subagent_type=\"gpd-notation-coordinator\"" not in workflow_text
     assert "# task(subagent_type=\"gpd-experiment-designer\"" not in workflow_text
+
+
+def test_execute_phase_single_sources_runtime_delegation_boilerplate() -> None:
+    workflow_text = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+
+    assert workflow_text.count("@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md") == 1
+    assert "Canonical runtime delegation convention for every `task()` block in this workflow:" in workflow_text
+    assert "Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism." not in workflow_text
+    assert "preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback" in workflow_text

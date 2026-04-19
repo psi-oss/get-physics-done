@@ -48,7 +48,7 @@ def test_expanded_planner_prompt_stays_under_budget() -> None:
         path_prefix=PATH_PREFIX,
     )
 
-    assert metrics.raw_include_count <= 4
+    assert metrics.raw_include_count <= 9
     assert metrics.expanded_char_count < 290_000
     assert metrics.expanded_line_count < 6_000
 

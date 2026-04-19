@@ -22,6 +22,8 @@ from pydantic import ValidationError as PydanticValidationError
 
 logger = logging.getLogger(__name__)
 
+_BIBTEX_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]*$")
+
 
 class CitationSource(BaseModel):
     """A citation source from the research provenance chain."""
@@ -118,8 +120,17 @@ def parse_citation_source_sidecar_payload(
         raise ValueError(f"{label} must be a JSON array")
 
     sources: list[CitationSource] = []
+    seen_reference_ids: dict[str, int] = {}
     for index, item in enumerate(payload):
-        sources.append(parse_citation_source_payload(item, source_path=source_path, index=index))
+        source = parse_citation_source_payload(item, source_path=source_path, index=index)
+        reference_id = source.reference_id or ""
+        if reference_id in seen_reference_ids:
+            raise ValueError(
+                f"{label}[{index}].reference_id duplicates {reference_id!r} "
+                f"from entry {seen_reference_ids[reference_id]}"
+            )
+        seen_reference_ids[reference_id] = index
+        sources.append(source)
     return sources
 
 
@@ -169,7 +180,36 @@ def _preferred_bibtex_key(source: CitationSource) -> str | None:
         return None
 
     preferred = source.bibtex_key.strip()
-    return preferred or None
+    if not preferred:
+        return None
+    if not _BIBTEX_KEY_RE.fullmatch(preferred):
+        raise ValueError(
+            "preferred bibtex_key must start with an ASCII letter and contain only "
+            "ASCII letters, digits, '.', '_', ':', or '-'"
+        )
+    return preferred
+
+
+def _safe_bibtex_key_suffix(value: str) -> str:
+    """Return a BibTeX-key-safe suffix component."""
+
+    return re.sub(r"[^A-Za-z0-9_.:-]", "", value)
+
+
+def _validate_unique_reference_ids(sources: list[CitationSource]) -> None:
+    """Reject duplicate citation reference ids before a mapping can overwrite them."""
+
+    seen: dict[str, int] = {}
+    for index, source in enumerate(sources):
+        reference_id = source.reference_id.strip() if isinstance(source.reference_id, str) else ""
+        if not reference_id:
+            continue
+        if reference_id in seen:
+            raise ValueError(
+                f"citation source reference_id {reference_id!r} duplicates entries "
+                f"{seen[reference_id]} and {index}"
+            )
+        seen[reference_id] = index
 
 
 def _create_bib_key(source: CitationSource, existing_keys: set[str]) -> str:
@@ -193,7 +233,9 @@ def _create_bib_key(source: CitationSource, existing_keys: set[str]) -> str:
         base_key = "unknown"
 
     if not preferred_key:
-        base_key = f"{base_key}{source.year}"
+        base_key = f"{base_key}{_safe_bibtex_key_suffix(source.year)}"
+        if not _BIBTEX_KEY_RE.fullmatch(base_key):
+            raise ValueError("generated BibTeX key is not safe")
 
     if base_key not in existing_keys:
         return base_key
@@ -432,6 +474,8 @@ def _resolve_sources_for_bibliography(
     existing_keys: set[str] | None = None,
 ) -> tuple[list[CitationSource], list[CitationAuditRecord]]:
     """Resolve citation sources and reserve keys exactly as bibliography emission will."""
+    _validate_unique_reference_ids(sources)
+
     audited_sources: list[CitationSource] = []
     audit_entries: list[CitationAuditRecord] = []
     reserved_keys = set(existing_keys or ())
@@ -454,6 +498,8 @@ def bibliography_entries_from_sources(
     This is the single key-generation path for bibliography emission so
     other parts of the pipeline can reuse the exact emitted citation keys.
     """
+    _validate_unique_reference_ids(sources)
+
     entries: list[tuple[str, Entry]] = []
     reserved_keys = set(existing_keys or ())
 

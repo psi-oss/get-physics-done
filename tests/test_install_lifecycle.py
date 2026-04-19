@@ -10,6 +10,7 @@ import pytest
 from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.hooks.install_metadata import assess_install_target
 
 
 def _install_and_finalize(adapter, gpd_root: Path, target: Path, **install_kwargs: object) -> dict[str, object]:
@@ -133,3 +134,72 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     assert not any((skills_dir / name).exists() for name in manifest["codex_generated_skill_dirs"])
     assert not (target / "get-physics-done").exists()
     assert not (target / MANIFEST_NAME).exists()
+
+
+def test_install_readiness_treats_same_runtime_incomplete_install_as_repairable(tmp_path: Path) -> None:
+    descriptor = _INSTALL_LIFECYCLE_DESCRIPTORS[0]
+    other_descriptor = _INSTALL_LIFECYCLE_DESCRIPTORS[1]
+    target = tmp_path / descriptor.config_dir_name
+    target.mkdir()
+    (target / MANIFEST_NAME).write_text(
+        json.dumps({"runtime": descriptor.runtime_name, "install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    assessment = assess_install_target(target, expected_runtime=descriptor.runtime_name)
+    foreign = assess_install_target(target, expected_runtime=other_descriptor.runtime_name)
+
+    assert assessment.state == "owned_incomplete"
+    assert assessment.readiness_state == "blocked"
+    assert foreign.state == "foreign_runtime"
+    assert foreign.readiness_state == "blocked"
+
+
+def test_install_preflight_allows_same_runtime_incomplete_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd.cli import _run_install_readiness_preflight
+    from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
+
+    descriptor = _INSTALL_LIFECYCLE_DESCRIPTORS[0]
+    issue = "Incomplete GPD install for this runtime; repair it with gpd install."
+    report = DoctorReport(
+        overall=CheckStatus.FAIL,
+        summary=HealthSummary(ok=0, warn=0, fail=1, total=1),
+        checks=[
+            HealthCheck(
+                status=CheckStatus.FAIL,
+                label="Runtime Config Target",
+                details={
+                    "install_state": "owned_incomplete",
+                    "target_assessment": {
+                        "manifest_runtime": descriptor.runtime_name,
+                        "expected_runtime": descriptor.runtime_name,
+                    },
+                },
+                issues=[issue],
+            )
+        ],
+    )
+
+    monkeypatch.setattr("gpd.core.health.run_doctor", lambda **_kwargs: report)
+
+    failures, advisories = _run_install_readiness_preflight(
+        [descriptor.runtime_name],
+        install_scope="local",
+        target_dir=None,
+    )
+
+    assert failures == []
+    assert advisories == {descriptor.runtime_name: [issue]}
+
+
+def test_install_readiness_still_blocks_non_directory_target(tmp_path: Path) -> None:
+    from gpd.core.health import CheckStatus, _doctor_check_runtime_target
+
+    descriptor = _INSTALL_LIFECYCLE_DESCRIPTORS[0]
+    target = tmp_path / descriptor.config_dir_name
+    target.write_text("not a directory\n", encoding="utf-8")
+
+    check = _doctor_check_runtime_target(target, runtime=descriptor.runtime_name)
+
+    assert check.status == CheckStatus.FAIL
+    assert any("exists but is not a directory" in issue for issue in check.issues)

@@ -1536,6 +1536,21 @@ class TestDiscovery:
         monkeypatch.setattr(registry, "COMMANDS_DIR", tmp_path / "nonexistent-commands")
         assert registry._discover_commands() == {}
 
+    def test_local_cli_bridge_workflow_exemptions_are_explicit_and_covered(self) -> None:
+        command_stems = {path.stem for path in registry.COMMANDS_DIR.glob("*.md")}
+        workflow_stems = {path.stem for path in (CANONICAL_SPECS_DIR / "workflows").glob("*.md")}
+
+        assert command_stems - workflow_stems == set(registry.LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS)
+        assert registry.LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS == frozenset({"health", "suggest-next"})
+
+        health_text = (registry.COMMANDS_DIR / "health.md").read_text(encoding="utf-8")
+        suggest_next_text = (registry.COMMANDS_DIR / "suggest-next.md").read_text(encoding="utf-8")
+        assert "gpd --raw health" in health_text
+        assert "@{GPD_INSTALL_DIR}/workflows/health.md" not in health_text
+        assert "gpd --raw suggest" in suggest_next_text
+        assert "Local CLI fallback: `gpd --raw suggest`" in suggest_next_text
+        assert "@{GPD_INSTALL_DIR}/workflows/suggest-next.md" not in suggest_next_text
+
     def test_commands_keyed_by_stem_not_frontmatter_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
@@ -1676,6 +1691,25 @@ class TestDiscovery:
             assert command.name == f"gpd:{command_name}"
             assert command.context_mode == "project-aware"
             assert command.project_reentry_capable is False
+
+    def test_command_skill_categories_cover_current_registry_without_other_fallbacks(self) -> None:
+        registry.invalidate_cache()
+
+        expected_categories = {
+            "gpd-review-knowledge": "research",
+            "gpd-digest-knowledge": "research",
+            "gpd-autonomous": "execution",
+            "gpd-tangent": "planning",
+        }
+        for skill_name, expected_category in expected_categories.items():
+            assert registry.get_skill(skill_name).category == expected_category
+
+        command_fallbacks = [
+            skill.name
+            for skill in (registry.get_skill(name) for name in registry.list_skills())
+            if skill.source_kind == "command" and skill.category == "other"
+        ]
+        assert command_fallbacks == []
 
 
 class TestSkillDiscovery:
@@ -2212,6 +2246,10 @@ class TestPublicAPI:
         registry.invalidate_cache()
 
         assert registry.list_commands() == ["apple", "zebra"]
+        assert registry.list_commands(name_format="slug") == ["apple", "zebra"]
+        assert registry.list_commands(name_format="label") == ["gpd:apple", "gpd:zebra"]
+        with pytest.raises(ValueError, match="name_format"):
+            registry.list_commands(name_format="runtime")  # type: ignore[arg-type]
 
     def test_list_skills_returns_sorted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
@@ -2254,6 +2292,10 @@ class TestPublicAPI:
         registry.invalidate_cache()
 
         assert registry.list_review_commands() == ["gpd:peer-review"]
+        assert registry.list_review_commands(name_format="label") == ["gpd:peer-review"]
+        assert registry.list_review_commands(name_format="slug") == ["peer-review"]
+        with pytest.raises(ValueError, match="name_format"):
+            registry.list_review_commands(name_format="runtime")  # type: ignore[arg-type]
 
     def test_get_agent_returns_correct_def(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
@@ -2465,7 +2507,7 @@ class TestPublicAPI:
                                 "allowed_tools": ["file_read"],
                                 "writes_allowed": [],
                                 "produced_state": [],
-                                "next_stages": ["research_routing"],
+                                "next_stages": ["planner_authoring"],
                                 "checkpoints": [],
                             },
                             {

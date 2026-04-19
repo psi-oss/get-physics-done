@@ -573,23 +573,27 @@ def _ingest_citation_source_sidecar(cwd: Path, path: Path, result: ArtifactRefer
             continue
         record = _citation_source_to_record(source, source_path=rel_path)
         if record.reference_id in seen_ids:
+            result.citation_source_warnings.append(
+                f"skipping citation source {rel_path}[{index}]: duplicate reference_id {record.reference_id!r}"
+            )
             continue
         result.citation_sources.append(record)
         seen_ids.add(record.reference_id)
     result.citation_source_files.append(rel_path)
 
 
-def _review_root_from_files(review_files: list[str]) -> Path | None:
-    """Return the review directory implied by the selected review files."""
-    for rel_path in review_files:
-        parts = Path(rel_path).parts
-        if len(parts) >= 2 and parts[0] == "GPD" and parts[1] == "literature":
-            return Path("GPD") / "literature"
-    for rel_path in review_files:
-        parts = Path(rel_path).parts
-        if len(parts) >= 2 and parts[0] == "GPD" and parts[1] == "research":
-            return Path("GPD") / "research"
-    return None
+def _citation_source_sidecar_paths_for_review_file(rel_path: str) -> tuple[Path, ...]:
+    """Return citation sidecars that belong to one selected review file."""
+    review_path = Path(rel_path)
+    parts = review_path.parts
+    if len(parts) < 3 or parts[0] != "GPD" or parts[1] not in {"literature", "research"}:
+        return ()
+    if review_path.suffix.lower() != ".md":
+        return ()
+    sidecars = [review_path.with_name(f"{review_path.stem}-CITATION-SOURCES.json")]
+    if review_path.stem.endswith("-REVIEW"):
+        sidecars.append(review_path.with_name(f"{review_path.stem.removesuffix('-REVIEW')}-CITATION-SOURCES.json"))
+    return tuple(sidecars)
 
 
 def _ingest_citation_source_sidecars(
@@ -598,14 +602,15 @@ def _ingest_citation_source_sidecars(
     review_files: list[str],
     result: ArtifactReferenceIngestion,
 ) -> None:
-    review_root = _review_root_from_files(review_files)
-    if review_root is None:
-        return
-    literature_dir = cwd / review_root
-    if not literature_dir.exists():
-        return
-    for path in sorted(literature_dir.glob("*-CITATION-SOURCES.json")):
-        _ingest_citation_source_sidecar(cwd, path, result)
+    sidecar_paths = {
+        sidecar
+        for rel_path in review_files
+        for sidecar in _citation_source_sidecar_paths_for_review_file(rel_path)
+    }
+    for rel_path in sorted(sidecar_paths, key=lambda path: path.as_posix()):
+        path = cwd / rel_path
+        if path.exists():
+            _ingest_citation_source_sidecar(cwd, path, result)
 
 
 def _ingest_knowledge_docs(

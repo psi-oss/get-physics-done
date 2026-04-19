@@ -32,7 +32,7 @@ review-contract:
   review_mode: review
   schema_version: 1
   required_outputs:
-    - "GPD/knowledge/reviews/{knowledge_id}-R{round_suffix}-REVIEW.md"
+    - "GPD/knowledge/reviews/{knowledge_id}-R{review_round}-REVIEW.md"
     - "GPD/knowledge/{knowledge_id}.md"
   required_evidence:
     - current-workspace canonical knowledge document

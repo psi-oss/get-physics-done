@@ -24,6 +24,8 @@ def test_plan_checker_prompt_uses_typed_status_and_concise_presentation_language
     assert "This is a one-shot handoff. If user input is needed, return `status: checkpoint`; do not wait inside the same run." in source
     assert "artifact_write_authority: read_only" in source
     assert "file_write" not in source
+    assert "\n{GPD_INSTALL_DIR}/references/shared/shared-protocols.md\n" not in source
+    assert "Shared protocols live at `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`" in source
     assert "Headings above are presentation only. Route on `gpd_return.status`, the approved/blocked plan lists, and `issues`." in source
     assert "Headings above are presentation only; route on gpd_return.status." not in source
     assert "status: completed | checkpoint | blocked | failed" in envelope

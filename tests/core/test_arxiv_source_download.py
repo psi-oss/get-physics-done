@@ -87,18 +87,99 @@ def test_download_arxiv_source_archive_uses_existing_file_when_present(tmp_path:
     with patch("gpd.core.arxiv_source_download.urlopen", return_value=response):
         first = download_arxiv_source_archive("2401.12345", storage_path=tmp_path)
 
-    second_response = _FakeResponse(
+    with patch("gpd.core.arxiv_source_download.urlopen") as second_urlopen:
+        second = download_arxiv_source_archive("2401.12345", storage_path=tmp_path, overwrite=False)
+
+    assert first.path == second.path
+    assert second.cached is True
+    second_urlopen.assert_not_called()
+
+
+def test_download_arxiv_source_archive_names_content_disposition_by_arxiv_id(tmp_path: Path) -> None:
+    payload_a = b"\x1f\x8bpaper-a"
+    payload_b = b"\x1f\x8bpaper-b"
+    headers = {
+        "Content-Type": "application/gzip",
+        "Content-Disposition": 'attachment; filename="source.tar.gz"',
+    }
+
+    with patch(
+        "gpd.core.arxiv_source_download.urlopen",
+        side_effect=[
+            _FakeResponse(payload_a, headers=headers),
+            _FakeResponse(payload_b, headers=headers),
+        ],
+    ) as mocked_urlopen:
+        first = download_arxiv_source_archive("2401.11111", storage_path=tmp_path)
+        second = download_arxiv_source_archive("2401.22222", storage_path=tmp_path)
+
+    assert mocked_urlopen.call_count == 2
+    assert first.path != second.path
+    assert first.path.name == "2401.11111-source.tar.gz"
+    assert second.path.name == "2401.22222-source.tar.gz"
+    assert first.cached is False
+    assert second.cached is False
+    assert first.path.read_bytes() == payload_a
+    assert second.path.read_bytes() == payload_b
+
+
+def test_download_arxiv_source_archive_uses_existing_candidate_before_urlopen(tmp_path: Path) -> None:
+    storage_dir = resolve_source_storage_dir(tmp_path)
+    cached_path = storage_dir / "2401.12345-source.tar.gz"
+    cached_path.write_bytes(b"cached-source")
+
+    with patch("gpd.core.arxiv_source_download.urlopen") as mocked_urlopen:
+        result = download_arxiv_source_archive("2401.12345", storage_path=tmp_path, overwrite=False)
+
+    mocked_urlopen.assert_not_called()
+    assert result.cached is True
+    assert result.path == cached_path
+    assert result.size_bytes == len(b"cached-source")
+    assert result.content_type is None
+
+
+def test_download_arxiv_source_archive_ignores_non_archive_cache_lookalikes(tmp_path: Path) -> None:
+    storage_dir = resolve_source_storage_dir(tmp_path)
+    (storage_dir / "2401.12345-source.txt").write_text("not an archive\n", encoding="utf-8")
+    (storage_dir / "2401.12345-source.zip").write_bytes(b"")
+    payload = b"\x1f\x8bpretend-gzip"
+    response = _FakeResponse(
         payload,
         headers={
             "Content-Type": "application/gzip",
             "Content-Length": str(len(payload)),
         },
     )
-    with patch("gpd.core.arxiv_source_download.urlopen", return_value=second_response):
-        second = download_arxiv_source_archive("2401.12345", storage_path=tmp_path, overwrite=False)
 
-    assert first.path == second.path
-    assert second.cached is True
+    with patch("gpd.core.arxiv_source_download.urlopen", return_value=response) as mocked_urlopen:
+        result = download_arxiv_source_archive("2401.12345", storage_path=tmp_path, overwrite=False)
+
+    mocked_urlopen.assert_called_once()
+    assert result.cached is False
+    assert result.path.name == "2401.12345-source.gz"
+
+
+def test_download_arxiv_source_archive_replaces_empty_deterministic_target(tmp_path: Path) -> None:
+    storage_dir = resolve_source_storage_dir(tmp_path)
+    empty_target = storage_dir / "2401.12345-source.gz"
+    empty_target.write_bytes(b"")
+    payload = b"\x1f\x8bpretend-gzip"
+    response = _FakeResponse(
+        payload,
+        headers={
+            "Content-Type": "application/gzip",
+            "Content-Length": str(len(payload)),
+        },
+    )
+
+    with patch("gpd.core.arxiv_source_download.urlopen", return_value=response) as mocked_urlopen:
+        result = download_arxiv_source_archive("2401.12345", storage_path=tmp_path, overwrite=False)
+
+    mocked_urlopen.assert_called_once()
+    assert result.cached is False
+    assert result.path == empty_target
+    assert result.path.read_bytes() == payload
+    assert result.size_bytes == len(payload)
 
 
 def test_download_arxiv_source_archive_rejects_large_content_length(tmp_path: Path) -> None:

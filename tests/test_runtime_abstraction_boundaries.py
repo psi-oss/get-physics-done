@@ -372,9 +372,14 @@ def test_runtime_pattern_includes_capability_surface_literals() -> None:
 
 def test_loaded_runtime_descriptors_keep_public_command_surfaces_descriptor_owned() -> None:
     public_prefixes = {descriptor.public_command_surface_prefix for descriptor in _RUNTIME_DESCRIPTORS}
+    command_prefixes = {descriptor.command_prefix for descriptor in _RUNTIME_DESCRIPTORS}
 
     assert all(public_prefixes)
-    assert public_prefixes == {descriptor.command_prefix for descriptor in _RUNTIME_DESCRIPTORS}
+    assert all(command_prefixes)
+    assert all(
+        descriptor.public_command_surface_prefix
+        for descriptor in _RUNTIME_DESCRIPTORS
+    )
 
 
 def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypatch) -> None:

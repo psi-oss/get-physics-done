@@ -544,6 +544,8 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
    Pass paths only -- executors read files themselves with fresh context.
    This keeps orchestrator context lean (~10-15%).
 
+   Canonical runtime delegation convention for every `task()` block in this workflow:
+
    @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
    ```
@@ -619,7 +621,7 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 
    After a proof-bearing executor has written its proof artifact(s) and `SUMMARY.md`, but before the wave-level spot-check accepts the plan, spawn `gpd-check-proof` in a fresh context:
 
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
 
    ```
    task(
@@ -1469,7 +1471,7 @@ TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$' "
 
 **For localized failures (1 contract target):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
 
 ```
 task(
@@ -1505,7 +1507,7 @@ task(
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 ```
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
 
 ```
 task(
@@ -1514,7 +1516,7 @@ task(
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.
 
-  Use {GPD_INSTALL_DIR}/specs/templates/debug-subagent-prompt.md as the explicit one-shot debug contract. Populate it from the failed verification file, the gap-closure summary, and the original summary; set `goal: find_root_cause_only`, `symptoms_prefilled: true`, and `Create: GPD/debug/{FAILED_PLAN}.md`.
+  Use {GPD_INSTALL_DIR}/templates/debug-subagent-prompt.md as the explicit one-shot debug contract. Populate it from the failed verification file, the gap-closure summary, and the original summary; set `goal: find_root_cause_only`, `symptoms_prefilled: true`, and `Create: GPD/debug/{FAILED_PLAN}.md`.
 
   Return exactly one typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, include the session file, and stop. Do not route on heading markers or continue the investigation interactively inside the child.",
   description="Diagnose persistent verification failure"
@@ -1559,7 +1561,7 @@ Automatically re-verify the phase to confirm gaps are closed:
 VERIFIER_MODEL=$(gpd resolve-model gpd-verifier)
 ```
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
 
 ```
 task(
@@ -1627,7 +1629,7 @@ CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker)
 
 Spawn the consistency checker in rapid mode:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
 
@@ -1677,7 +1679,7 @@ If the user chooses convention repair in a fresh continuation, spawn `gpd-notati
 NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
 
 ```
 task(

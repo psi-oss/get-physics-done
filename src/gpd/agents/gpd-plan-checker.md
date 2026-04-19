@@ -21,7 +21,7 @@ Goal-backward verification of PLANS before execution. Start from what the phase 
 
 This is a one-shot handoff. If user input is needed, return `status: checkpoint`; do not wait inside the same run.
 
-{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
+Shared protocols live at `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`; load them only when source hierarchy, forbidden files, or convention tracking details matter.
 
 **Critical mindset:** Plans describe research intent. You verify they deliver. A plan can have all tasks filled in but still miss the goal if:
 

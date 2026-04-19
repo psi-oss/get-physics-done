@@ -1,6 +1,6 @@
 # Execute-Plan: Checkpoint Protocol
 
-Referenced by `src/gpd/specs/workflows/execute-plan.md`. Governs checkpoint creation, previous attempt detection, checkpoint handling during execution, and cleanup.
+Referenced by `{GPD_INSTALL_DIR}/workflows/execute-plan.md`. Governs checkpoint creation, previous attempt detection, checkpoint handling during execution, and cleanup.
 
 ## Create Rollback Tag
 

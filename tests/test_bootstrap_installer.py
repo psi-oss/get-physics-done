@@ -226,6 +226,11 @@ FAIL_BRANCH_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_BRANCH_ARCHIVE") == "1"
 FAIL_TAG_GIT = os.environ.get("FAKE_PIP_FAIL_TAG_GIT") == "1"
 FAIL_MAIN_GIT = os.environ.get("FAKE_PIP_FAIL_MAIN_GIT") == "1"
 EMIT_PIP_SUCCESS_NOISE = os.environ.get("FAKE_PIP_SUCCESS_NOISE") == "1"
+INCOMPLETE_TARGET_RUNTIMES = {{
+    token.strip().lower()
+    for token in os.environ.get("FAKE_INCOMPLETE_TARGET_RUNTIMES", "").split(",")
+    if token.strip()
+}}
 PYPI_SPEC = {PYPI_SPEC!r}
 TAG_ARCHIVE_SPEC = {TAG_ARCHIVE_SPEC!r}
 MAIN_ARCHIVE_SPEC = {MAIN_ARCHIVE_SPEC!r}
@@ -326,12 +331,24 @@ def doctor_check_runtime_launcher(runtime: str) -> dict[str, object]:
 
 def doctor_check_runtime_target(target: pathlib.Path) -> dict[str, object]:
     resolved = target.expanduser().resolve()
+    runtime = os.environ.get("FAKE_CURRENT_DOCTOR_RUNTIME", "")
     details: dict[str, object] = {{
         "target": str(resolved),
         "exists": resolved.exists(),
     }}
     issues: list[str] = []
     warnings: list[str] = []
+
+    if runtime.lower() in INCOMPLETE_TARGET_RUNTIMES:
+        details["install_state"] = "owned_incomplete"
+        issues.append(f"{{resolved}} contains an incomplete owned GPD install")
+        return {{
+            "status": "fail",
+            "label": "Runtime Config Target",
+            "details": details,
+            "issues": issues,
+            "warnings": warnings,
+        }}
 
     if resolved.exists() and not resolved.is_dir():
         issues.append(f"{{resolved}} exists but is not a directory")
@@ -387,6 +404,7 @@ def doctor_check_provider_auth(runtime: str, target: pathlib.Path) -> dict[str, 
 
 def doctor_report(argv: list[str]) -> dict[str, object]:
     runtime = option_value(argv, "--runtime")
+    os.environ["FAKE_CURRENT_DOCTOR_RUNTIME"] = runtime or ""
     scope = selected_scope(argv)
     target = doctor_target(runtime, scope, option_value(argv, "--target-dir"))
     checks = [
@@ -973,6 +991,8 @@ def test_bootstrap_public_surface_contract_schema_validator_stays_in_parity_with
     canonical_schema = json.loads(
         (REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract_schema.json").read_text(encoding="utf-8")
     )
+    assert "commands" not in canonical_schema["sections"]["local_cli_bridge"]
+    assert "gpd --help" not in json.dumps(canonical_schema)
     drifted_payload = json.loads(json.dumps(canonical_payload))
     drifted_schema = json.loads(json.dumps(canonical_schema))
     drifted_payload["beginner_onboarding"]["legacy_note"] = "unexpected"
@@ -1087,6 +1107,18 @@ const validatedSurfaceCatalog = validateRuntimeCatalog(explicitSurfaceCatalog);
 assert.equal(
   validatedSurfaceCatalog[0].public_command_surface_prefix,
   explicitSurfaceCatalog[0].command_prefix
+);
+assert.deepEqual(
+  Object.keys(validatedSurfaceCatalog[0].hook_payload).sort(),
+  [...runtimeCatalogSchema.hook_payload_keys].sort()
+);
+assert.deepEqual(
+  validatedSurfaceCatalog[0].hook_payload.target_path_keys,
+  explicitSurfaceCatalog[0].hook_payload.target_path_keys
+);
+assert.deepEqual(
+  validatedSurfaceCatalog[0].hook_payload.target_root_keys,
+  explicitSurfaceCatalog[0].hook_payload.target_root_keys
 );
 
 const unknownKeyCatalog = JSON.parse(JSON.stringify(catalog));
@@ -1264,11 +1296,48 @@ assert.throws(
   /runtime catalog entry 0\.capabilities\.permission_surface_kind must be "none" when permissions_surface=unsupported/
 );
 
-const mismatchedSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
-mismatchedSurfaceCatalog[0].public_command_surface_prefix = `${mismatchedSurfaceCatalog[0].command_prefix}x`;
+const publicSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
+publicSurfaceCatalog[0].public_command_surface_prefix = "/public:";
+const normalizedPublicSurface = validateRuntimeCatalog(publicSurfaceCatalog);
+assert.equal(normalizedPublicSurface[0].public_command_surface_prefix, "/public:");
+for (const badPrefix of [" public:", "public", "/bad space:", "gpd:"]) {
+  const badPublicSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
+  badPublicSurfaceCatalog[0].public_command_surface_prefix = badPrefix;
+  assert.throws(
+    () => validateRuntimeCatalog(badPublicSurfaceCatalog),
+    /runtime catalog entry 0\.public_command_surface_prefix must be (a non-empty string|a slash or dollar command prefix)/
+  );
+}
+
+const partialCapabilitiesCatalog = JSON.parse(JSON.stringify(catalog));
+const originalCapabilities = partialCapabilitiesCatalog[0].capabilities;
+partialCapabilitiesCatalog[0].capabilities = {
+  permissions_surface: originalCapabilities.permissions_surface,
+  permission_surface_kind: originalCapabilities.permission_surface_kind,
+  prompt_free_mode_value: originalCapabilities.prompt_free_mode_value,
+  supports_runtime_permission_sync: originalCapabilities.supports_runtime_permission_sync,
+  supports_prompt_free_mode: originalCapabilities.supports_prompt_free_mode,
+  prompt_free_requires_relaunch: originalCapabilities.prompt_free_requires_relaunch,
+};
+const normalizedPartialCapabilities = validateRuntimeCatalog(partialCapabilitiesCatalog);
+assert.deepEqual(
+  Object.keys(normalizedPartialCapabilities[0].capabilities).sort(),
+  runtimeCatalogSchema.capability_keys.slice().sort()
+);
+assert.equal(
+  normalizedPartialCapabilities[0].capabilities.supports_context_meter,
+  runtimeCatalogSchema.capability_defaults.supports_context_meter
+);
+assert.equal(normalizedPartialCapabilities[0].capabilities.statusline_surface, "none");
+assert.equal(normalizedPartialCapabilities[0].capabilities.continuation_surface, "none");
+assert.equal(normalizedPartialCapabilities[0].capabilities.checkpoint_stop_semantics, "stop");
+
+const badStructuredChildCatalog = JSON.parse(JSON.stringify(partialCapabilitiesCatalog));
+badStructuredChildCatalog[0].capabilities.supports_structured_child_results = true;
+badStructuredChildCatalog[0].capabilities.continuation_surface = "none";
 assert.throws(
-  () => validateRuntimeCatalog(mismatchedSurfaceCatalog),
-  /runtime catalog entry 0\.public_command_surface_prefix must match command_prefix/
+  () => validateRuntimeCatalog(badStructuredChildCatalog),
+  /runtime catalog entry 0\.capabilities\.continuation_surface must be explicit when supports_structured_child_results=true/
 );
 """
     )
@@ -1623,6 +1692,33 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
     assert "Runtime launcher/target preflight failed." in result.stderr
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
     assert "is not writable" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_install_repairs_selected_runtime_incomplete_target(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={"FAKE_INCOMPLETE_TARGET_RUNTIMES": _CODEX_RUNTIME_NAME},
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "--raw", "doctor", "--runtime", _CODEX_RUNTIME_NAME, "--local"]
+    ]
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
+    ]
+    assert len(managed_runtime_doctor) == 1
+    assert len(managed_runtime_installs) == 1
+    combined_output = result.stdout + result.stderr
+    assert "Runtime launcher/target preflight failed." not in combined_output
+    assert "launcher/target preflight passed with advisories" in combined_output
+    assert "incomplete owned GPD install" in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

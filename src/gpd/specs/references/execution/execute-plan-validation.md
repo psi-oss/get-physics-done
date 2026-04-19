@@ -1,6 +1,6 @@
 # Execute-Plan: Physics Validation & Deviation Rules
 
-Referenced by `src/gpd/specs/workflows/execute-plan.md`. Governs physics validation gates, deviation handling, and verification failures during plan execution.
+Referenced by `{GPD_INSTALL_DIR}/workflows/execute-plan.md`. Governs physics validation gates, deviation handling, and verification failures during plan execution.
 
 ## Physics Execution Discipline
 

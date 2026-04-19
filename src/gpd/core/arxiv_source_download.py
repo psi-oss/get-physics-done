@@ -37,6 +37,7 @@ _CONTENT_TYPE_TO_SUFFIX = {
     "application/zip": ".zip",
     "application/x-zip-compressed": ".zip",
 }
+_SOURCE_ARCHIVE_SUFFIX_CANDIDATES = (".tar.gz", ".tgz", ".zip", ".tar", ".gz", ".src")
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +154,17 @@ def _safe_filename_component(value: str) -> str:
     return collapsed or "arxiv-source"
 
 
+def _existing_source_archive_candidate(storage_dir: Path, normalized_id: str) -> Path | None:
+    """Return an existing deterministic target archive for *normalized_id*."""
+
+    safe_id = _safe_filename_component(normalized_id)
+    for suffix in _SOURCE_ARCHIVE_SUFFIX_CANDIDATES:
+        candidate = storage_dir / f"{safe_id}-source{suffix}"
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+    return None
+
+
 def _content_length(headers: object) -> int | None:
     if not hasattr(headers, "get"):
         return None
@@ -178,6 +190,19 @@ def download_arxiv_source_archive(
     normalized_id = normalize_arxiv_id(arxiv_id)
     download_url = build_source_download_url(normalized_id)
     storage_dir = resolve_source_storage_dir(storage_path)
+
+    if not overwrite:
+        cached_path = _existing_source_archive_candidate(storage_dir, normalized_id)
+        if cached_path is not None:
+            return ArxivSourceDownload(
+                arxiv_id=normalized_id,
+                download_url=download_url,
+                path=cached_path,
+                filename=cached_path.name,
+                size_bytes=cached_path.stat().st_size,
+                content_type=None,
+                cached=True,
+            )
 
     request = Request(download_url, headers={"User-Agent": ARXIV_SOURCE_USER_AGENT})
     try:
@@ -226,27 +251,22 @@ def download_arxiv_source_archive(
 
     filename_hint = _content_disposition_filename(headers)
     suffix = _archive_suffix_from_content(_content_type(headers), filename_hint, sniff_bytes)
-    default_name = f"{_safe_filename_component(normalized_id)}-source{suffix}"
-    filename = _safe_filename_component(Path(filename_hint).name) if filename_hint else default_name
-    if filename == _safe_filename_component(filename) and Path(filename).suffix == "" and suffix != ".src":
-        filename = f"{filename}{suffix}"
-    if filename == _safe_filename_component(filename) and filename == _safe_filename_component(Path(filename).stem):
-        if not any(filename.lower().endswith(known) for known in (".tar.gz", ".zip", ".tar", ".gz", ".src")):
-            filename = default_name
-
+    filename = f"{_safe_filename_component(normalized_id)}-source{suffix}"
     target_path = storage_dir / filename
     if target_path.exists() and not overwrite:
         cached_size = target_path.stat().st_size
-        tmp_path.unlink(missing_ok=True)
-        return ArxivSourceDownload(
-            arxiv_id=normalized_id,
-            download_url=download_url,
-            path=target_path,
-            filename=target_path.name,
-            size_bytes=cached_size,
-            content_type=_content_type(headers),
-            cached=True,
-        )
+        if cached_size > 0:
+            tmp_path.unlink(missing_ok=True)
+            return ArxivSourceDownload(
+                arxiv_id=normalized_id,
+                download_url=download_url,
+                path=target_path,
+                filename=target_path.name,
+                size_bytes=cached_size,
+                content_type=_content_type(headers),
+                cached=True,
+            )
+        target_path.unlink(missing_ok=True)
 
     tmp_path.replace(target_path)
     logger.info("Downloaded arXiv source for %s to %s", normalized_id, target_path)

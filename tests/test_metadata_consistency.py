@@ -13,8 +13,11 @@ from pathlib import Path
 import pytest
 
 from gpd import registry as content_registry
+from gpd._python_compat import MIN_SUPPORTED_PYTHON, MIN_SUPPORTED_PYTHON_LABEL
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
+from gpd.core.constants import MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
 from gpd.registry import VALID_CONTEXT_MODES
@@ -130,6 +133,59 @@ def _project_script_targets(repo_root: Path) -> dict[str, str]:
     return script_targets
 
 
+def _python_floor_from_requires_python(specifier: str) -> tuple[int, int]:
+    match = re.fullmatch(r">=(\d+)\.(\d+)", specifier)
+    assert match is not None
+    return int(match.group(1)), int(match.group(2))
+
+
+def _installer_js_int_constant(installer: str, name: str) -> int:
+    match = re.search(rf"^const {re.escape(name)} = (\d+);$", installer, re.M)
+    assert match is not None
+    return int(match.group(1))
+
+
+def _installer_preferred_python_minors(installer: str) -> tuple[int, ...]:
+    match = re.search(r"^const PREFERRED_VERSIONED_PYTHON_MINORS = \[(.*?)\];$", installer, re.M)
+    assert match is not None
+    constants = {
+        "MIN_SUPPORTED_PYTHON_MINOR": _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MINOR"),
+    }
+    minors: list[int] = []
+    for raw_token in match.group(1).split(","):
+        token = raw_token.strip()
+        minors.append(constants[token] if token in constants else int(token))
+    return tuple(minors)
+
+
+def _metadata_keyword_forms(value: str) -> set[str]:
+    normalized = re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
+    if not normalized:
+        return set()
+    return {normalized, normalized.replace(" ", "")}
+
+
+def _runtime_metadata_keyword_forms() -> set[str]:
+    forms: set[str] = set()
+    for descriptor in iter_runtime_descriptors():
+        for value in (descriptor.runtime_name, descriptor.display_name, *descriptor.selection_aliases):
+            forms.update(_metadata_keyword_forms(value))
+    return forms
+
+
+def _metadata_keywords(project: dict[str, object], package_json: dict[str, object]) -> dict[str, list[str]]:
+    pyproject_keywords = project["keywords"]
+    package_keywords = package_json["keywords"]
+    assert isinstance(pyproject_keywords, list)
+    assert isinstance(package_keywords, list)
+    assert all(isinstance(item, str) for item in pyproject_keywords)
+    assert all(isinstance(item, str) for item in package_keywords)
+    return {
+        "pyproject.toml": pyproject_keywords,
+        "package.json": package_keywords,
+    }
+
+
 def test_readme_ci_badge_points_to_existing_workflow() -> None:
     repo_root = _repo_root()
     workflow = repo_root / ".github" / "workflows" / "test.yml"
@@ -141,16 +197,33 @@ def test_readme_ci_badge_points_to_existing_workflow() -> None:
 
 def test_python_floor_is_consistent_across_install_surfaces() -> None:
     project = tomllib.loads(_read("pyproject.toml"))["project"]
-    assert project["requires-python"] == ">=3.11"
+    assert _python_floor_from_requires_python(project["requires-python"]) == MIN_SUPPORTED_PYTHON
+    assert (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR) == MIN_SUPPORTED_PYTHON
 
     readme = _read("README.md")
     installer = _read("bin/install.js")
 
-    assert "Python 3.11+" in readme
-    assert "MIN_SUPPORTED_PYTHON_MINOR = 11" in installer
-    assert "PREFERRED_VERSIONED_PYTHON_MINORS = [13, 12, 11]" in installer
+    assert f"Python {MIN_SUPPORTED_PYTHON_LABEL}+" in readme
+    assert _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MAJOR") == MIN_SUPPORTED_PYTHON[0]
+    assert _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MINOR") == MIN_SUPPORTED_PYTHON[1]
+    assert MIN_SUPPORTED_PYTHON[1] in _installer_preferred_python_minors(installer)
+    assert "Python 3.11+ is required" not in installer
+    assert "Python ${MIN_SUPPORTED_PYTHON_LABEL} is required" in installer
     assert "preferredPythonCommands" in installer
-    assert "Python 3.11+ is required" in installer
+
+
+def test_public_package_keywords_do_not_hand_maintain_runtime_names() -> None:
+    project = tomllib.loads(_read("pyproject.toml"))["project"]
+    package_json = json.loads(_read("package.json"))
+    runtime_keyword_forms = _runtime_metadata_keyword_forms()
+
+    for source, keywords in _metadata_keywords(project, package_json).items():
+        leaked = sorted(
+            keyword
+            for keyword in keywords
+            if _metadata_keyword_forms(keyword) & runtime_keyword_forms
+        )
+        assert leaked == [], f"{source} should not hand-maintain runtime catalog names in package keywords"
 
 
 def test_canonical_registry_skill_inventory_counts_match_repo_contents() -> None:

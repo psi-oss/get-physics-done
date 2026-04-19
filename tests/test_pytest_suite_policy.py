@@ -11,9 +11,10 @@ from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_HOT_TEST_FILE_SPLITS,
     all_test_relpaths,
+    assert_ci_workflow_pytest_shard_policy,
+    assert_tests_readme_documents_ci_shard_policy,
     build_ci_work_units,
     category_for_test_relpath,
-    ci_shard_specs,
     collected_test_counts_by_file,
     collected_test_inventory,
     expand_ci_targets_to_nodeids,
@@ -31,17 +32,6 @@ def _repo_root() -> Path:
 
 def _workflow_data() -> dict[str, object]:
     return yaml.safe_load((_repo_root() / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
-
-
-def _workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, object]]:
-    jobs = workflow["jobs"]
-    assert isinstance(jobs, dict)
-    job = jobs[job_name]
-    assert isinstance(job, dict)
-    steps = job["steps"]
-    assert isinstance(steps, list)
-    assert all(isinstance(step, dict) for step in steps)
-    return steps
 
 
 def test_root_conftest_keeps_default_collection_as_full_suite() -> None:
@@ -99,62 +89,8 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     workflow = _workflow_data()
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
     tests_readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
-    jobs = workflow["jobs"]
-    assert isinstance(jobs, dict)
-    pytest_steps = _workflow_job_steps(workflow, "pytest")
-    pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
-    pytest_run_steps = {
-        str(step.get("name", "")): str(step.get("run", ""))
-        for step in pytest_steps
-        if "run" in step
-    }
-    pytest_job = jobs["pytest"]
-    assert isinstance(pytest_job, dict)
-    strategy = pytest_job["strategy"]
-    assert isinstance(strategy, dict)
-    matrix = strategy["matrix"]
-    assert isinstance(matrix, dict)
-    include = matrix["include"]
-    assert isinstance(include, list)
-
-    assert jobs["pytest"].get("needs") is None
-    # trigger-staging-rebuild moved to staging-rebuild.yml (workflow_run trigger)
-    assert "trigger-staging-rebuild" not in jobs
-
-    assert strategy["fail-fast"] is False
-    assert len(include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
-    assert tuple(
-        (
-            str(entry["display_name"]),
-            str(entry["category"]),
-            int(entry["shard_index"]),
-            int(entry["shard_total"]),
-        )
-        for entry in include
-    ) == tuple(
-        (spec.display_name, spec.category, spec.shard_index, spec.shard_total)
-        for spec in ci_shard_specs()
-    )
-
-    assert "Set up Node.js" in pytest_step_names
-    assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
-    assert 'addopts = "-n auto --dist=worksteal"' in pyproject
-    assert 'pytest-xdist>=3.8.0' in pyproject
-    resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
-    pytest_shard_command = pytest_run_steps["Run pytest shard"]
-    assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
-    assert "PYTEST_CATEGORY" in resolve_targets_command
-    assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
-    assert "`uv run pytest -q` does the same with quieter output" in tests_readme
-    assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
-    assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
-    assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
-    assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
-    assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
-    assert "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
-    assert "greedily rebalances those work units inside each category" in tests_readme
+    assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
+    assert_tests_readme_documents_ci_shard_policy(tests_readme)
 
 
 def test_hotspot_files_are_split_into_multiple_work_units() -> None:

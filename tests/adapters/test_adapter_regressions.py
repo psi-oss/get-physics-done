@@ -222,6 +222,48 @@ def test_runtime_shell_rewriters_handle_metacharacter_terminated_gpd_commands(
     assert expected_fragment in result
 
 
+def test_shared_runtime_shell_rewriter_handles_fenced_command_positions() -> None:
+    from gpd.adapters.install_utils import rewrite_gpd_cli_invocations_to_runtime_bridge
+
+    content = (
+        "Prose keeps `gpd status` unchanged.\n"
+        "```bash\n"
+        "gpd status\n"
+        "echo 'gpd status'\n"
+        "echo $(gpd status)\n"
+        "```\n"
+    )
+
+    result = rewrite_gpd_cli_invocations_to_runtime_bridge(content, "/runtime/gpd")
+
+    assert "Prose keeps `gpd status` unchanged." in result
+    assert "/runtime/gpd status" in result
+    assert "echo 'gpd status'" in result
+    assert "echo $(/runtime/gpd status)" in result
+
+
+def test_shared_runtime_shell_rewriter_handles_reserved_word_command_positions() -> None:
+    from gpd.adapters.install_utils import rewrite_gpd_cli_invocations_to_runtime_bridge
+
+    content = (
+        "```bash\n"
+        "if gpd status; then\n"
+        "  while gpd config ensure-section; do\n"
+        "    time gpd state add-decision\n"
+        "    { gpd graph; }\n"
+        "  done\n"
+        "fi\n"
+        "```\n"
+    )
+
+    result = rewrite_gpd_cli_invocations_to_runtime_bridge(content, "/runtime/gpd")
+
+    assert "if /runtime/gpd status; then" in result
+    assert "while /runtime/gpd config ensure-section; do" in result
+    assert "time /runtime/gpd state add-decision" in result
+    assert "{ /runtime/gpd graph; }" in result
+
+
 @pytest.mark.parametrize(
     ("module_name", "function_name"),
     [

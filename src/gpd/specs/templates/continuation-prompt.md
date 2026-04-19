@@ -147,12 +147,11 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 task(
   subagent_type="gpd-executor",
   model="{executor_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.\n\n" + filled_template,
   description="Continue {phase}-{plan} from task {resume_task_number}"
 )
 ```
-
-<!-- task() subagent_type and model parameters are runtime-specific. The installer adapts these to the target platform's delegation mechanism. -->
 
 **Why fresh agent, not resume:** Resume relies on internal serialization that can break with parallel tool calls. Fresh agents with explicit prior state and an explicit `execution_segment` block are more reliable and produce consistent results across platforms.
 

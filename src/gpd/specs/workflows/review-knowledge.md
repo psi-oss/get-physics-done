@@ -58,6 +58,11 @@ if [ $? -ne 0 ]; then
   echo "$CONTEXT"
   exit 1
 fi
+REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight review-knowledge "$ARGUMENTS" --strict)
+if [ $? -ne 0 ]; then
+  echo "$REVIEW_PREFLIGHT"
+  exit 1
+fi
 ```
 
 Treat strict knowledge review preflight as current-workspace and target-specific: it must resolve `knowledge_target`, validate the `knowledge_document`, and check `knowledge_review_freshness` against the explicit canonical target. Missing `STATE.md` alone is advisory background context, not a standalone blocker.

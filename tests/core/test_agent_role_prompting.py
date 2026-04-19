@@ -65,8 +65,18 @@ def test_internal_agents_explicitly_identify_internal_specialist_surface() -> No
         if agent.surface != "internal":
             continue
         content = _read_agent(name)
-        assert "Agent surface: internal specialist subagent." in content, name
+        assert content.count("Agent surface: internal specialist subagent.") == 1, name
         assert "Do not act as the default writable implementation agent" in content, name
+
+
+def test_source_agent_surface_boilerplate_does_not_conflict_with_frontmatter() -> None:
+    for name in registry.list_agents():
+        agent = registry.get_agent(name)
+        content = _read_agent(name)
+        if agent.surface == "internal":
+            assert "Agent surface: public writable production agent" not in content, name
+        if agent.surface == "public":
+            assert "Agent surface: internal specialist subagent." not in content, name
 
 
 def test_consistency_checker_stays_one_shot_and_does_not_claim_resolution_work() -> None:

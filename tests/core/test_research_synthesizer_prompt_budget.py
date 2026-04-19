@@ -17,7 +17,7 @@ def test_gpd_research_synthesizer_prompt_stays_within_expected_budget_and_keeps_
     source = path.read_text(encoding="utf-8")
     metrics = measure_prompt_surface(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
 
-    assert metrics.raw_include_count == 1
+    assert metrics.raw_include_count == 2
     assert metrics.expanded_line_count < 2_500
     assert metrics.expanded_char_count < 125_000
 

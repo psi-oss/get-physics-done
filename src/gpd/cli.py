@@ -26,7 +26,6 @@ import shlex
 import sys
 from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, NoReturn
 
 import typer
@@ -8746,19 +8745,7 @@ def _build_command_context_preflight(
     from gpd.core.constants import ProjectLayout
 
     cwd = _get_cwd()
-    try:
-        command, public_command_name = _resolve_registry_command(command_name)
-    except Exception:
-        canonical_command_name = _canonical_command_name(command_name)
-        if canonical_command_name != "gpd:review-knowledge":
-            raise
-        command = SimpleNamespace(
-            name=canonical_command_name,
-            context_mode="project-aware",
-            argument_hint="knowledge document path or canonical K-* knowledge id",
-            project_reentry_capable=False,
-        )
-        public_command_name = canonical_command_name
+    command, public_command_name = _resolve_registry_command(command_name)
     context_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=arguments)
     layout = ProjectLayout(context_cwd)
     project_exists = layout.project_md.exists()
@@ -9328,6 +9315,15 @@ def _build_review_preflight(
             knowledge_record = knowledge_inventory.by_id().get(knowledge_target_id)
         return knowledge_target_path, knowledge_target_id, knowledge_record
 
+    def knowledge_target_warnings(target_path: Path | None) -> list[str]:
+        if knowledge_inventory is None or target_path is None:
+            return []
+        try:
+            relative_path = target_path.relative_to(project_cwd.resolve(strict=False)).as_posix()
+        except ValueError:
+            return []
+        return [warning for warning in knowledge_inventory.warnings if relative_path in warning]
+
     effective_required_outputs = (
         list(subject_preflight_policy.required_outputs)
         if subject_preflight_policy.required_outputs
@@ -9408,20 +9404,25 @@ def _build_review_preflight(
 
     if "knowledge_document" in contract.preflight_checks:
         target_path, target_id, record = load_knowledge_context()
-        document_exists = record is not None or (target_path is not None and target_path.exists())
+        document_exists = record is not None
+        target_warnings = knowledge_target_warnings(target_path)
         detail = (
             f"{_format_display_path(target_path)} present and parsed"
             if record is not None and target_path is not None
             else (
-                f"{_format_display_path(target_path)} present"
-                if target_path is not None and target_path.exists()
+                f"{_format_display_path(target_path)} present but failed strict parsing: {'; '.join(target_warnings)}"
+                if target_path is not None and target_path.exists() and target_warnings
                 else (
-                    f"missing canonical knowledge document {_format_display_path(target_path)}"
-                    if target_path is not None
+                    f"{_format_display_path(target_path)} present but failed strict parsing"
+                    if target_path is not None and target_path.exists()
                     else (
-                        f"missing canonical knowledge document for {target_id}"
-                        if target_id
-                        else "missing canonical knowledge document"
+                        f"missing canonical knowledge document {_format_display_path(target_path)}"
+                        if target_path is not None
+                        else (
+                            f"missing canonical knowledge document for {target_id}"
+                            if target_id
+                            else "missing canonical knowledge document"
+                        )
                     )
                 )
             )
@@ -11842,6 +11843,31 @@ def _doctor_advisory_messages(report: object) -> list[str]:
     return messages
 
 
+def _install_repairable_runtime_target_messages(report: object, runtime_name: str) -> list[str]:
+    """Return install-preflight messages for same-runtime incomplete targets."""
+    messages: list[str] = []
+    canonical_runtime = normalize_runtime_name(runtime_name) or runtime_name
+
+    for check in getattr(report, "checks", []) or []:
+        if str(getattr(check, "status", None)) != "fail":
+            continue
+        if str(getattr(check, "label", "")).strip() != "Runtime Config Target":
+            continue
+        details = getattr(check, "details", {}) or {}
+        if not isinstance(details, dict) or details.get("install_state") != "owned_incomplete":
+            continue
+        target_assessment = details.get("target_assessment")
+        assessment_payload = target_assessment if isinstance(target_assessment, dict) else details
+        manifest_runtime = normalize_runtime_name(str(assessment_payload.get("manifest_runtime") or "")) or None
+        expected_runtime = normalize_runtime_name(str(assessment_payload.get("expected_runtime") or "")) or canonical_runtime
+        if manifest_runtime not in {None, canonical_runtime} or expected_runtime != canonical_runtime:
+            continue
+        issues = [str(issue) for issue in getattr(check, "issues", []) or [] if str(issue).strip()]
+        messages.extend(issues or ["Incomplete same-runtime GPD install will be repaired during install."])
+
+    return messages
+
+
 def _build_unattended_readiness(
     *,
     runtime: str,
@@ -11935,7 +11961,11 @@ def _run_install_readiness_preflight(
             continue
 
         blocker_messages = _doctor_blocker_messages(report)
-        if getattr(report, "overall", None) == CheckStatus.FAIL and not blocker_messages:
+        repairable_messages = _install_repairable_runtime_target_messages(report, runtime_name)
+        if repairable_messages:
+            repairable_set = set(repairable_messages)
+            blocker_messages = [message for message in blocker_messages if message not in repairable_set]
+        if getattr(report, "overall", None) == CheckStatus.FAIL and not blocker_messages and not repairable_messages:
             blocker_messages = ["Runtime readiness reported a failure without blocking details."]
 
         if blocker_messages:
@@ -11943,8 +11973,9 @@ def _run_install_readiness_preflight(
             continue
 
         advisory_messages = _doctor_advisory_messages(report)
+        advisory_messages.extend(repairable_messages)
         if advisory_messages:
-            advisories[runtime_name] = advisory_messages
+            advisories[runtime_name] = list(dict.fromkeys(advisory_messages))
 
     return failures, advisories
 

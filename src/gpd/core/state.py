@@ -4665,54 +4665,41 @@ def state_record_session(
         if (desired_last_result_id or EM_DASH) != (existing_handoff.last_result_id or EM_DASH):
             updated.append("Last result ID")
 
-        if updated:
-            updated_continuation = current_continuation.model_copy(
-                update={
-                    "handoff": current_continuation.handoff.model_copy(
-                        update={
-                            "recorded_at": now,
-                            "stopped_at": desired_stopped_at,
-                            "resume_file": normalized_resume_file,
-                            "last_result_id": desired_last_result_id,
-                            "recorded_by": "state_record_session",
-                        }
-                    ),
-                    "machine": current_continuation.machine.model_copy(
-                        update={
-                            "recorded_at": now,
-                            "hostname": machine["hostname"],
-                            "platform": machine["platform"],
-                        }
-                    ),
-                }
-            ).model_dump(mode="python")
-            state_obj["continuation"] = updated_continuation
-            state_obj["session"] = _session_from_continuation_payload(updated_continuation)
-            save_state_json_locked(cwd, state_obj)
-            with gpd_span(
-                "session.continuity.recorded",
-                cwd=str(cwd),
-                updated_fields=",".join(updated),
-                stopped_at=desired_stopped_at or "",
-                resume_file=normalized_resume_file or EM_DASH,
-                last_result_id=desired_last_result_id or EM_DASH,
-                hostname=machine["hostname"] or EM_DASH,
-                platform=machine["platform"] or EM_DASH,
-            ):
-                pass
-            return RecordSessionResult(recorded=True, updated=updated)
-
+        updated_continuation = current_continuation.model_copy(
+            update={
+                "handoff": current_continuation.handoff.model_copy(
+                    update={
+                        "recorded_at": now,
+                        "stopped_at": desired_stopped_at,
+                        "resume_file": normalized_resume_file,
+                        "last_result_id": desired_last_result_id,
+                        "recorded_by": "state_record_session",
+                    }
+                ),
+                "machine": current_continuation.machine.model_copy(
+                    update={
+                        "recorded_at": now,
+                        "hostname": machine["hostname"],
+                        "platform": machine["platform"],
+                    }
+                ),
+            }
+        ).model_dump(mode="python")
+        state_obj["continuation"] = updated_continuation
+        state_obj["session"] = _session_from_continuation_payload(updated_continuation)
+        save_state_json_locked(cwd, state_obj)
         with gpd_span(
-            "session.continuity.noop",
+            "session.continuity.recorded",
             cwd=str(cwd),
-            stopped_at=stopped_at or "",
+            updated_fields=",".join(updated),
+            stopped_at=desired_stopped_at or "",
             resume_file=normalized_resume_file or EM_DASH,
             last_result_id=desired_last_result_id or EM_DASH,
             hostname=machine["hostname"] or EM_DASH,
             platform=machine["platform"] or EM_DASH,
         ):
             pass
-        return RecordSessionResult(recorded=False, reason="No session fields found in STATE.md")
+        return RecordSessionResult(recorded=True, updated=updated)
 
 
 @instrument_gpd_function("state.snapshot")
