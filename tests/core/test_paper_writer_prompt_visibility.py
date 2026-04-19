@@ -61,4 +61,5 @@ def test_paper_writer_prompt_keeps_required_gpd_acknowledgment_visible() -> None
     source = _read_paper_writer()
 
     assert "This research made use of Get Physics Done (GPD)" in source
-    assert "GPD Research Grant from Physical Superintelligence PBC (PSI)." in source
+    assert "developed by Physical Superintelligence PBC (PSI)." in source
+    assert "supported in part by" not in source

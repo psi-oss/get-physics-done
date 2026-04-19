@@ -525,8 +525,8 @@ def _opencode_permission_is_yolo(permission_value: object) -> bool:
 def configure_opencode_permissions(config_dir: Path) -> bool:
     """Configure OpenCode permissions to allow reading GPD reference docs.
 
-    Modifies opencode.json to add permission.read and permission.external_directory
-    grants for the GPD path. Returns True if config was modified.
+    Modifies opencode.json to allow permission.read and permission.external_directory
+    access for the managed GPD path. Returns True if config was modified.
     """
     config_state, config_parse_error = _read_opencode_config_state(config_dir)
     if config_parse_error is not None:
