@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
@@ -12,11 +13,13 @@ from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
     get_shared_install_metadata,
     list_runtime_names,
+    normalize_runtime_name,
 )
 
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
 MANIFEST_NAME = _SHARED_INSTALL_METADATA.manifest_name
+_MANIFEST_RUNTIME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 def get_adapter(runtime: str):
@@ -51,6 +54,17 @@ def _canonical_manifest_runtime_name(value: str) -> str | None:
     return normalized if normalized in list_runtime_names() else None
 
 
+def _unsupported_manifest_runtime_name(value: str) -> str | None:
+    """Return a well-formed retired runtime id, or ``None`` for malformed drift."""
+
+    normalized = value.strip()
+    if not normalized or _MANIFEST_RUNTIME_ID_RE.fullmatch(normalized) is None:
+        return None
+    if normalize_runtime_name(normalized) is not None:
+        return None
+    return normalized
+
+
 @dataclass(frozen=True, slots=True)
 class InstallTargetAssessment:
     """Shared classification of a runtime config dir's GPD install state."""
@@ -79,6 +93,9 @@ class InstallTargetAssessment:
             return f"{self.config_dir} belongs to {owner}, not {runtime_label}."
         if self.state == "untrusted_manifest":
             return f"{self.config_dir} has an untrusted GPD manifest and cannot be treated as a ready install target."
+        if self.state == "unsupported_runtime":
+            owner = f"`{self.manifest_runtime}`" if self.manifest_runtime else "an unsupported runtime"
+            return f"{self.config_dir} belongs to {owner}, which is not supported by this GPD version."
         if self.state == "owned_complete":
             owner = f"`{self.manifest_runtime}`" if self.manifest_runtime else "the selected runtime"
             return f"{self.config_dir} already contains a complete GPD install for {owner}."
@@ -164,7 +181,7 @@ def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object
 
 
 def load_install_manifest_runtime_status(config_dir: Path) -> tuple[str, dict[str, object], str | None]:
-    """Return the manifest parse state, payload, and canonical runtime when available."""
+    """Return the manifest parse state, payload, and runtime id when available."""
 
     state, payload = load_install_manifest_state(config_dir)
     if state != "ok":
@@ -182,9 +199,13 @@ def load_install_manifest_runtime_status(config_dir: Path) -> tuple[str, dict[st
         return "malformed_runtime", payload, None
 
     canonical_runtime = _canonical_manifest_runtime_name(normalized_runtime)
-    if canonical_runtime is None:
-        return "malformed_runtime", payload, None
-    return "ok", payload, canonical_runtime
+    if canonical_runtime is not None:
+        return "ok", payload, canonical_runtime
+
+    unsupported_runtime = _unsupported_manifest_runtime_name(normalized_runtime)
+    if unsupported_runtime is not None:
+        return "unsupported_runtime", payload, unsupported_runtime
+    return "malformed_runtime", payload, None
 
 
 def load_install_manifest_scope_status(config_dir: Path) -> tuple[str, dict[str, object], str | None]:
@@ -235,6 +256,7 @@ def assess_install_target(
     - ``clean``: target path exists but contains no managed GPD surface
     - ``owned_complete``: valid manifest for the owning runtime and complete install
     - ``owned_incomplete``: valid manifest for the owning runtime but missing install artifacts
+    - ``unsupported_runtime``: valid manifest for a runtime no longer supported by this GPD version
     - ``foreign_runtime``: valid manifest, but ownership belongs to another runtime
     - ``untrusted_manifest``: manifest missing/corrupt/malformed on a managed surface
     """
@@ -269,6 +291,17 @@ def assess_install_target(
             manifest_runtime=manifest_runtime,
             has_managed_markers=True,
             missing_install_artifacts=missing_install_artifacts,
+        )
+
+    if manifest_state == "unsupported_runtime" and manifest_runtime is not None:
+        state = "foreign_runtime" if expected_runtime is not None else "unsupported_runtime"
+        return InstallTargetAssessment(
+            config_dir=resolved,
+            expected_runtime=expected_runtime,
+            state=state,
+            manifest_state=manifest_state,
+            manifest_runtime=manifest_runtime,
+            has_managed_markers=True,
         )
 
     if manifest_state == "missing" and not has_managed_markers:

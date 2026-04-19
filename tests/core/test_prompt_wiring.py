@@ -1027,7 +1027,7 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
 
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in peer_review
     assert "GPD/AUTHOR-RESPONSE{ROUND_SUFFIX}.md" in peer_review
-    assert "GPD/review/REFEREE_RESPONSE{ROUND_SUFFIX}.md" in peer_review
+    assert "${REVIEW_ROOT}/REFEREE_RESPONSE{ROUND_SUFFIX}.md" in peer_review
     assert 'ROUND_SUFFIX="-R${ROUND}"' in peer_review
     assert "Repair the target-bound response artifacts before advancing." in peer_review
     assert "without a paired author/referee response package" in peer_review
@@ -1092,6 +1092,7 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
 def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     write_paper = (COMMANDS_DIR / "write-paper.md").read_text(encoding="utf-8")
     peer_review = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    publication_modes = (REFERENCES_DIR / "publication" / "publication-pipeline-modes.md").read_text(encoding="utf-8")
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     respond_command = registry.get_command("respond-to-referees")
@@ -1101,8 +1102,9 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
     assert "GPD-owned review/response auxiliaries remain under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
-    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in peer_review
-    assert "current global `GPD/` / `GPD/review/` round-artifact layout" in peer_review
+    assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in peer_review
+    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in publication_modes
+    assert "current global `GPD/` / `GPD/review/` round-artifact layout" not in peer_review
     assert respond_command.argument_hint == "[--manuscript PATH] (--report PATH [--report PATH...] | paste)"
     assert respond_command.command_policy is not None
     assert respond_command.command_policy.subject_policy is not None
@@ -1162,7 +1164,7 @@ def test_proof_contract_prompts_surface_explicit_theorem_fields_and_review_bindi
         "the `gpd-check-proof` task must carry the active `manuscript_path`, `manuscript_sha256`, `round`, theorem-bearing `claim_ids`, and `proof_artifact_paths`"
         in peer_review
     )
-    assert "copy exactly from `GPD/review/CLAIMS{round_suffix}.json`" in peer_review
+    assert "copy exactly from `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`" in peer_review
     assert "theorem-binding frontmatter (`claim_ids` and non-empty `proof_artifact_paths`)" in peer_review
     assert (
         "the Stage 3 math artifact must emit exactly one `proof_audits[]` entry for each reviewed theorem-bearing claim"
@@ -2673,10 +2675,10 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "gpd validate review-claim-index" in peer_review
     assert "gpd validate review-stage-report" in peer_review
     assert "gpd validate review-ledger" in peer_review
-    assert "--ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in peer_review
+    assert "--ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in peer_review
     assert "before trusting any final recommendation" in peer_review
     assert (
-        "Keep `manuscript_path` non-empty and identical across `GPD/review/REVIEW-LEDGER{round_suffix}.json`"
+        "Keep `manuscript_path` non-empty and identical across `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`"
         in peer_review
     )
     assert "REPRODUCIBILITY-MANIFEST.json" not in peer_review
@@ -3088,7 +3090,7 @@ def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:
         in peer_review
     )
     assert "before trusting any final recommendation" in peer_review
-    assert "Treat blank `manuscript_path` values in either `GPD/review/REVIEW-LEDGER{round_suffix}.json`" in peer_review
+    assert "Treat blank `manuscript_path` values in either `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`" in peer_review
     assert "Do not fall back to standalone review" in referee
     assert "fall back to direct standalone review" not in referee
     assert "passes `gpd validate referee-decision ... --strict --ledger ...`" in reliability
@@ -4591,7 +4593,7 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
         "discovery rules." in peer_review_workflow
     )
     assert (
-        'gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output GPD/review/MANUSCRIPT-TEXT.txt'
+        'gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt'
         in peer_review_workflow
     )
     assert "pdftotext" not in peer_review_workflow
@@ -4636,14 +4638,39 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
     )
 
 
+def test_peer_review_and_arxiv_use_subject_aware_publication_roots() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    arxiv_submission = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+
+    for field in (
+        "publication_subject_slug",
+        "publication_lane_kind",
+        "managed_publication_root",
+        "selected_publication_root",
+        "selected_review_root",
+    ):
+        assert field in peer_review
+        assert field in arxiv_submission
+    assert "- `REVIEW_ROOT` = `selected_review_root`" in peer_review
+    assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in peer_review
+    assert "GPD/review/STAGE-reader{round_suffix}.json" not in peer_review
+    assert 'gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt' in peer_review
+
+    assert "REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission" in arxiv_submission
+    assert "Set `subject_slug` from `publication_subject_slug`" in arxiv_submission
+    assert 'PUBLICATION_ROOT="${selected_publication_root:-GPD/publication/${subject_slug}}"' in arxiv_submission
+    assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in arxiv_submission
+    assert "Derive a stable ASCII `subject_slug`" not in arxiv_submission
+
+
 def test_generated_peer_review_skill_surface_uses_artifact_text_helper_for_non_plaintext_intake() -> None:
     from gpd.mcp.servers.skills_server import get_skill
 
     peer_review_skill_content = get_skill("gpd-peer-review")["content"]
 
     assert (
-        "If none exists, create `GPD/review/` if needed, run `gpd validate artifact-text "
-        '"$RESOLVED_MANUSCRIPT" --output GPD/review/MANUSCRIPT-TEXT.txt`, and use that extracted file as the '
+        "If none exists, create `${REVIEW_ROOT}/` if needed, run `gpd validate artifact-text "
+        '"$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt`, and use that extracted file as the '
         "manuscript review surface while keeping the original artifact as the canonical `RESOLVED_MANUSCRIPT`."
         in peer_review_skill_content
     )

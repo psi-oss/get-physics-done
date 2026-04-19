@@ -74,9 +74,10 @@ class TestModelProfiles:
         assert len(MODEL_PROFILES) == 24
 
     def test_all_agents_have_5_profiles(self):
-        profiles = {"deep-theory", "numerical", "exploratory", "review", "paper-writing"}
+        profiles = {profile.value for profile in ModelProfile}
         for agent, mapping in MODEL_PROFILES.items():
             assert set(mapping.keys()) == profiles, f"{agent} missing profiles"
+            assert all(isinstance(tier, ModelTier) for tier in mapping.values())
 
     def test_planner_always_tier_1(self):
         for profile, tier in MODEL_PROFILES["gpd-planner"].items():
@@ -89,6 +90,10 @@ class TestModelProfiles:
 
     def test_agent_default_tiers_match_agents(self):
         assert set(AGENT_DEFAULT_TIERS.keys()) == set(MODEL_PROFILES.keys())
+        assert AGENT_DEFAULT_TIERS == {
+            agent: mapping[ModelProfile.REVIEW.value]
+            for agent, mapping in MODEL_PROFILES.items()
+        }
 
 
 # ─── GPDProjectConfig defaults ────────────────────────────────────────────────────────
@@ -380,18 +385,23 @@ class TestResolveAgentTier:
         with pytest.raises(ConfigError, match="Unknown agent 'gpd-unknown'"):
             resolve_agent_tier("gpd-unknown", "review")
 
-    def test_unknown_profile_falls_back_to_review(self):
-        tier = resolve_agent_tier("gpd-planner", "nonexistent")
-        assert tier == ModelTier.TIER_1  # planner review is tier-1
+    def test_unknown_profile_fails_closed(self):
+        with pytest.raises(ConfigError, match="Unknown model profile 'nonexistent'"):
+            resolve_agent_tier("gpd-planner", "nonexistent")
 
-    def test_registry_only_agent_falls_back_to_default_tier(self, monkeypatch: pytest.MonkeyPatch):
+    def test_registry_only_agent_without_model_profile_mapping_fails_closed(self, monkeypatch: pytest.MonkeyPatch):
         import gpd.registry as content_registry
 
         monkeypatch.setattr(content_registry, "list_agents", lambda: ["gpd-registry-only"])
 
-        tier = resolve_agent_tier("gpd-registry-only", "review")
+        with pytest.raises(ConfigError, match="No model tier mapping configured for agent 'gpd-registry-only'"):
+            resolve_agent_tier("gpd-registry-only", "review")
 
-        assert tier == ModelTier.TIER_2
+    def test_missing_agent_profile_mapping_fails_closed(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setitem(MODEL_PROFILES["gpd-planner"], ModelProfile.REVIEW.value, None)
+
+        with pytest.raises(ConfigError, match=r"MODEL_PROFILES\['gpd-planner'\]\['review'\] must be a ModelTier"):
+            resolve_agent_tier("gpd-planner", ModelProfile.REVIEW)
 
     def test_registry_import_failure_falls_back_to_default_agent_names(
         self,
@@ -465,6 +475,10 @@ class TestResolveModel:
         )
         model = resolve_model(tmp_path, "gpd-planner", runtime=descriptor.runtime_name)
         assert model is None
+
+    def test_unknown_runtime_argument_raises_config_error(self, tmp_path: Path) -> None:
+        with pytest.raises(ConfigError, match="Unknown runtime 'not-a-runtime'"):
+            resolve_model(tmp_path, "gpd-planner", runtime="not-a-runtime")
 
     @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
     def test_normalizes_runtime_display_names_before_override_lookup(self, tmp_path: Path, descriptor) -> None:

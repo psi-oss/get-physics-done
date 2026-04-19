@@ -168,10 +168,10 @@ def test_peer_review_later_stages_restart_from_fresh_context_and_written_artifac
 
     assert "Operate in physical-soundness stage mode with a fresh context." in workflow
     assert "Operate in interestingness-and-venue-fit stage mode with a fresh context." in workflow
-    assert "GPD/review/STAGE-math{round_suffix}.json" in workflow
-    assert "GPD/review/STAGE-literature{round_suffix}.json" in workflow
-    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active" in workflow
-    assert "GPD/review/STAGE-physics{round_suffix}.json" in workflow
+    assert "${REVIEW_ROOT}/STAGE-math{round_suffix}.json" in workflow
+    assert "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json" in workflow
+    assert "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active" in workflow
+    assert "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json" in workflow
     assert "Stage 4 recovery -- Validate the physics output before proceeding." in workflow
     assert "Do not proceed to Stage 5." in workflow
     assert "Stage 5 recovery -- Validate the significance output before proceeding." in workflow

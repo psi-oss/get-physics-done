@@ -80,6 +80,8 @@ class TestRegistry:
             config_dir_name=".alpha",
             install_flag="--alpha",
             launch_command="alpha",
+            adapter_module="gpd.adapters.shared_fake_runtime",
+            adapter_class="AlphaAdapter",
             command_prefix="/gpd:",
             activation_env_vars=(),
             selection_flags=("--alpha",),
@@ -94,6 +96,8 @@ class TestRegistry:
             config_dir_name=".beta",
             install_flag="--beta",
             launch_command="beta",
+            adapter_module="gpd.adapters.shared_fake_runtime",
+            adapter_class="BetaAdapter",
             command_prefix="/gpd:",
             activation_env_vars=(),
             selection_flags=("--beta",),
@@ -116,10 +120,8 @@ class TestRegistry:
 
         def fake_import_module(name: str) -> object:
             imported_modules.append(name)
-            return {
-                "gpd.adapters.alpha_runtime": SimpleNamespace(AlphaAdapter=AlphaAdapter),
-                "gpd.adapters.beta_runtime": SimpleNamespace(BetaAdapter=BetaAdapter),
-            }[name]
+            assert name == "gpd.adapters.shared_fake_runtime"
+            return SimpleNamespace(AlphaAdapter=AlphaAdapter, BetaAdapter=BetaAdapter)
 
         monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (beta_descriptor, alpha_descriptor))
         monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
@@ -128,9 +130,10 @@ class TestRegistry:
 
         adapters_module._ensure_loaded()
 
-        assert imported_modules == ["gpd.adapters.beta_runtime", "gpd.adapters.alpha_runtime"]
+        assert imported_modules == ["gpd.adapters.shared_fake_runtime", "gpd.adapters.shared_fake_runtime"]
         assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
-        assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
+        assert isinstance(adapters_module.get_adapter("alpha-runtime"), AlphaAdapter)
+        assert isinstance(adapters_module.get_adapter("beta-runtime"), BetaAdapter)
 
     def test_loader_rejects_duplicate_runtime_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
         duplicate_descriptor = RuntimeDescriptor(
@@ -140,6 +143,8 @@ class TestRegistry:
             config_dir_name=".duplicate",
             install_flag="--duplicate",
             launch_command="duplicate",
+            adapter_module="gpd.adapters.duplicate_runtime",
+            adapter_class="DuplicateAdapter",
             command_prefix="/gpd:",
             activation_env_vars=(),
             selection_flags=("--duplicate",),
@@ -158,11 +163,11 @@ class TestRegistry:
             "iter_runtime_descriptors",
             lambda: (duplicate_descriptor, duplicate_descriptor),
         )
-        monkeypatch.setattr(
-            adapters_module,
-            "import_module",
-            lambda name: SimpleNamespace(DuplicateAdapter=DuplicateAdapter),
-        )
+        def fake_import_module(name: str) -> object:
+            assert name == "gpd.adapters.duplicate_runtime"
+            return SimpleNamespace(DuplicateAdapter=DuplicateAdapter)
+
+        monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
         monkeypatch.setattr(adapters_module, "_LOADED", False)
 

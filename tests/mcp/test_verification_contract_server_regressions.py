@@ -218,14 +218,6 @@ def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_contex
     assert "suggested_checks" in result
 
 
-def test_contract_server_singleton_drift_classifier_matches_core_contract_policy() -> None:
-    from gpd.mcp.servers.verification_server import _is_defaultable_singleton_contract_error
-
-    assert _is_defaultable_singleton_contract_error("context_intake must be an object, not list") is False
-    assert _is_defaultable_singleton_contract_error("uncertainty_markers must be an object, not list") is False
-    assert _is_defaultable_singleton_contract_error("approach_policy must be an object, not list") is False
-
-
 def _derived_template_contract() -> dict[str, object]:
     contract = copy.deepcopy(_load_project_contract_fixture())
     contract["observables"][0]["regime"] = "large-k"
@@ -2156,7 +2148,21 @@ def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_proof_bearin
     assert (runtime_result.get("status") == "pass") is expected_valid
 
 
-def test_run_contract_check_blocks_proof_checks_for_repair_relevant_salvaged_contracts() -> None:
+def test_run_contract_check_blocks_proof_checks_when_contract_payload_is_missing() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.proof_parameter_coverage",
+            "metadata": {"theorem_parameter_symbols": ["r_0", "n"]},
+            "observed": {"covered_parameter_symbols": ["r0", "n"]},
+        }
+    )
+
+    assert result == {"error": "Proof checks require a contract payload", "schema_version": 1}
+
+
+def test_run_contract_check_reports_salvage_relevant_proof_contract_details() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
     contract = _proof_contract()
@@ -2171,7 +2177,7 @@ def test_run_contract_check_blocks_proof_checks_for_repair_relevant_salvaged_con
         }
     )
 
-    assert result == {"error": "Proof checks require an authoritative contract payload", "schema_version": 1}
+    assert result == {"error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str", "schema_version": 1}
 
 
 def test_run_contract_check_allows_case_only_salvage_for_proof_checks() -> None:

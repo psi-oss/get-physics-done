@@ -184,6 +184,12 @@ def test_contract_results_schema_and_verification_template_surface_canonical_res
     tokens = _field_tokens(*RESULT_MODELS)
     _assert_tokens_visible(contract_results_schema, tokens, label="contract-results-schema.md")
     _assert_phrases_visible(contract_results_schema, _choice_phrases(*RESULT_MODELS), label="contract-results-schema.md")
+    assert (
+        "Inside `evidence[]`, list-typed proof coverage fields (`covered_hypothesis_ids`, "
+        "`missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, "
+        "`uncovered_quantifiers`, `uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item."
+        in contract_results_schema
+    )
     assert "contract-results-schema.md" in verification_report
     for token in ("contract_results", "suggested_contract_checks"):
         assert token in verification_report

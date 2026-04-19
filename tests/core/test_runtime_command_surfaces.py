@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.command_labels import validated_public_command_prefix
 from gpd.core import public_surface_contract as public_surface_contract_module
 from gpd.core import runtime_command_surfaces as runtime_command_surfaces_module
 from gpd.core.runtime_command_surfaces import format_active_runtime_command, resolve_active_runtime_descriptor
@@ -31,6 +32,16 @@ def test_format_active_runtime_command_uses_descriptor_public_surface(monkeypatc
     )
 
     assert format_active_runtime_command("help") == "/public:help"
+
+
+@pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda descriptor: descriptor.runtime_name)
+def test_settings_command_is_catalog_surface_backed(descriptor) -> None:
+    command = format_active_runtime_command(
+        "settings",
+        detect_runtime=lambda **_kwargs: descriptor.launch_command,
+    )
+
+    assert command == f"{validated_public_command_prefix(descriptor)}settings"
 
 
 def test_resolve_active_runtime_descriptor_normalizes_aliases_before_lookup() -> None:

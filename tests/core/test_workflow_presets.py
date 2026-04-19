@@ -263,6 +263,29 @@ def test_workflow_preset_readiness_degrades_peer_review_pdf_intake_when_pdftotex
     assert any("pdftotext is missing" in warning for warning in publication["warnings"])
 
 
+def test_workflow_preset_readiness_ignores_malformed_pdftotext_and_contradictory_state_overrides() -> None:
+    readiness = resolve_workflow_preset_readiness(
+        base_ready=True,
+        latex_capability={
+            "compiler_available": False,
+            "pdftotext_available": "yes",
+            "full_toolchain_available": True,
+            "readiness_state": "ready",
+        },
+    )
+    publication = next(preset for preset in readiness["presets"] if preset["id"] == "publication-manuscript")
+
+    assert readiness["latex_capability"]["available"] is False
+    assert readiness["latex_capability"]["compiler_available"] is False
+    assert readiness["latex_capability"]["pdftotext_available"] is None
+    assert readiness["latex_capability"]["pdf_review_ready"] is False
+    assert readiness["latex_capability"]["paper_build_ready"] is False
+    assert readiness["latex_capability"]["full_toolchain_available"] is False
+    assert readiness["latex_capability"]["readiness_state"] == "blocked"
+    assert publication["status"] == "degraded"
+    assert publication["ready_workflows"] == []
+
+
 def test_workflow_preset_readiness_does_not_backfill_legacy_paper_build_flag_to_ready() -> None:
     readiness = resolve_workflow_preset_readiness(base_ready=True, latex_capability={"paper_build_ready": True})
     publication = next(preset for preset in readiness["presets"] if preset["id"] == "publication-manuscript")

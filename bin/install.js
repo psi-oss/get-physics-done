@@ -663,6 +663,8 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
     config_dir_name: requireStrictString(payload.config_dir_name, `${label}.config_dir_name`),
     install_flag: requireStrictString(payload.install_flag, `${label}.install_flag`),
     launch_command: requireStrictString(payload.launch_command, `${label}.launch_command`),
+    adapter_module: requireStrictString(payload.adapter_module, `${label}.adapter_module`),
+    adapter_class: requireStrictString(payload.adapter_class, `${label}.adapter_class`),
     command_prefix: requireStrictString(payload.command_prefix, `${label}.command_prefix`),
     activation_env_vars: requireStrictStringList(payload.activation_env_vars, `${label}.activation_env_vars`),
     selection_flags: requireStrictStringList(payload.selection_flags, `${label}.selection_flags`),
@@ -770,6 +772,7 @@ function validateRuntimeCatalog(catalogPayload) {
     const tokens = new Set([
       entry.runtime_name,
       entry.display_name.toLowerCase(),
+      entry.launch_command,
       ...entry.selection_aliases,
       ...entry.selection_flags.map((flag) => flag.replace(/^--/, "")),
       entry.install_flag.replace(/^--/, ""),

@@ -59,6 +59,7 @@ class _BridgeFailureKind(StrEnum):
     INVALID_MANIFEST = "invalid_manifest"
     MISSING_RUNTIME = "missing_runtime"
     MALFORMED_RUNTIME = "malformed_runtime"
+    UNSUPPORTED_RUNTIME = "unsupported_runtime"
     RUNTIME_MISMATCH = "runtime_mismatch"
     INSTALL_SCOPE_MISMATCH = "install_scope_mismatch"
     MISSING_INSTALL_ARTIFACTS = "missing_install_artifacts"
@@ -411,6 +412,30 @@ def _malformed_manifest_runtime_error_message(
     )
 
 
+def _unsupported_manifest_runtime_error_message(
+    *,
+    runtime: str,
+    manifest_runtime: str,
+    config_dir: Path,
+    install_scope: str,
+    explicit_target: bool,
+    cli_cwd: Path,
+) -> str:
+    """Return repair guidance for a retired runtime id in the install manifest."""
+    repair_command = _build_repair_command(
+        runtime=runtime,
+        config_dir=config_dir,
+        install_scope=install_scope,
+        explicit_target=explicit_target,
+        cli_cwd=cli_cwd,
+    )
+    return (
+        f"GPD runtime bridge found unsupported runtime `{manifest_runtime}` at `{config_dir}`.\n"
+        "The manifest `runtime` field is well formed, but this GPD version has no adapter for it.\n"
+        f"Repair or reinstall with {_runtime_display_name(runtime)}: `{repair_command}`"
+    )
+
+
 def _missing_manifest_runtime_error_message(
     *,
     runtime: str,
@@ -551,6 +576,18 @@ def _classify_bridge_failure(
             _BridgeFailureKind.MALFORMED_RUNTIME,
             _malformed_manifest_runtime_error_message(
                 runtime=runtime,
+                config_dir=config_dir,
+                install_scope=install_scope,
+                explicit_target=explicit_target,
+                cli_cwd=cli_cwd,
+            ),
+        )
+    if manifest_status == "unsupported_runtime" and manifest_runtime is not None:
+        return _bridge_failure(
+            _BridgeFailureKind.UNSUPPORTED_RUNTIME,
+            _unsupported_manifest_runtime_error_message(
+                runtime=runtime,
+                manifest_runtime=manifest_runtime,
                 config_dir=config_dir,
                 install_scope=install_scope,
                 explicit_target=explicit_target,

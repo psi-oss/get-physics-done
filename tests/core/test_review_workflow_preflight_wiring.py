@@ -102,8 +102,8 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
         REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md"
     ).read_text(encoding="utf-8")
 
-    assert 'gpd validate review-preflight arxiv-submission "$ARGUMENTS" --strict' in workflow
-    assert "gpd validate review-preflight arxiv-submission --strict" in workflow
+    assert 'gpd --raw validate review-preflight arxiv-submission "$ARGUMENTS" --strict' in workflow
+    assert "gpd --raw validate review-preflight arxiv-submission --strict" in workflow
     assert "Use the shared publication bootstrap reference as the source of truth" in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md" in workflow
     assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow
@@ -121,12 +121,12 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert "latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues" in workflow
     assert "`manuscript_proof_review` must also already be cleared" in workflow
     assert "The same resolved manuscript root is also the strict preflight source of truth" in workflow
-    assert "If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file" in workflow
-    assert "That file must already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
-    assert "canonical manuscript `.tex` entrypoint under that supported root" in workflow
+    assert "Set `resolved_main_tex` from `manuscript_entrypoint` and `resolved_dir` from `manuscript_root`" in workflow
+    assert "it must match that resolved entrypoint and already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`." in workflow
+    assert "the centralized preflight-resolved entrypoint under that directory is authoritative" in workflow
     assert "Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots." in workflow
     assert 'MAIN_SOURCE="${resolved_main_tex}"' in workflow
-    assert 'PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"' in workflow
+    assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in workflow
     assert 'SUBMISSION_DIR="${PACKAGE_ROOT}/submission"' in workflow
     assert 'PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"' in workflow
     assert "Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself." in workflow

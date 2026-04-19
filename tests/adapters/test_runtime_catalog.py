@@ -163,6 +163,9 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
         for field_name in (
             "display_name",
             "install_flag",
+            "launch_command",
+            "adapter_module",
+            "adapter_class",
             "selection_flags",
             "selection_aliases",
             "command_prefix",
@@ -178,6 +181,7 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
         assert normalize_runtime_name(runtime_name) == runtime_name
         assert normalize_runtime_name(descriptor.display_name) == runtime_name
         assert normalize_runtime_name(descriptor.install_flag) == runtime_name
+        assert normalize_runtime_name(descriptor.launch_command) == runtime_name
         for selection_flag in descriptor.selection_flags:
             assert normalize_runtime_name(selection_flag) == runtime_name
         for selection_alias in descriptor.selection_aliases:
@@ -286,6 +290,25 @@ def test_normalize_runtime_name_accepts_install_flags_outside_selection_flags(
         runtime_catalog._load_catalog.cache_clear()
 
 
+def test_normalize_runtime_name_accepts_launch_command_from_fake_catalog_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["launch_command"] = "codex-launch"
+
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+    try:
+        assert normalize_runtime_name("codex-launch") == "codex"
+        assert normalize_runtime_name("CODEX-LAUNCH") == "codex"
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
+
+
 def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:
     claude_policy = get_managed_install_surface_policy("claude-code")
     opencode_policy = get_managed_install_surface_policy("opencode")
@@ -312,6 +335,7 @@ def test_runtime_catalog_runtime_keys_are_unique() -> None:
     assert len({descriptor.priority for descriptor in descriptors}) == len(descriptors)
     assert len({descriptor.config_dir_name for descriptor in descriptors}) == len(descriptors)
     assert len({descriptor.install_flag for descriptor in descriptors}) == len(descriptors)
+    assert len({descriptor.launch_command for descriptor in descriptors}) == len(descriptors)
 
     selection_flags = [flag for descriptor in descriptors for flag in descriptor.selection_flags]
     selection_aliases = [alias for descriptor in descriptors for alias in descriptor.selection_aliases]

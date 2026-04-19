@@ -267,7 +267,6 @@ def _migrate_planning_files(cwd: Path) -> None:
 def _status_command_reentry(cwd: Path | None = None) -> ProjectReentryResolution:
     """Resolve the shared re-entry contract for recovery/status commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
     return resolve_project_reentry(workspace_cwd)
 
 
@@ -288,6 +287,13 @@ def _state_command_cwd(cwd: Path | None = None) -> Path:
     if resolved is not None:
         return resolved
     return workspace_cwd
+
+
+def _read_only_project_scoped_cwd(cwd: Path | None = None) -> Path:
+    """Resolve a project root for read-only commands without migration writes."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    return resolved if resolved is not None else workspace_cwd
 
 
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
@@ -1087,7 +1093,7 @@ def state_load() -> None:
     """Load and display current research state."""
     from gpd.core.state import state_load
 
-    _output(state_load(_state_command_cwd()))
+    _output(state_load(_read_only_project_scoped_cwd()))
 
 
 @state_app.command("get")
@@ -1097,7 +1103,7 @@ def state_get(
     """Get a specific state section or the full state."""
     from gpd.core.state import state_get
 
-    _output(state_get(_state_command_cwd(), section))
+    _output(state_get(_read_only_project_scoped_cwd(), section))
 
 
 @state_app.command("patch")
@@ -1192,7 +1198,7 @@ def state_snapshot() -> None:
     """Return a fast read-only snapshot of current state for progress and routing."""
     from gpd.core.state import state_snapshot
 
-    _output(state_snapshot(_state_command_cwd()))
+    _output(state_snapshot(_read_only_project_scoped_cwd()))
 
 
 @state_app.command("active-hypothesis")
@@ -1200,7 +1206,7 @@ def state_active_hypothesis() -> None:
     """Extract the active hypothesis branch note from STATE.md, if present."""
     from gpd.core.state import state_get
 
-    result = state_get(_state_command_cwd(), "Active Hypothesis")
+    result = state_get(_read_only_project_scoped_cwd(), "Active Hypothesis")
     section = result.value or ""
     if result.error or not section.strip():
         _output(
@@ -2736,7 +2742,7 @@ def progress(
     """Render progress in the specified format."""
     from gpd.core.phases import progress_render
 
-    _output(progress_render(_project_scoped_cwd(), fmt))
+    _output(progress_render(_read_only_project_scoped_cwd(), fmt))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3749,11 +3755,7 @@ def suggest(
     kwargs: dict[str, int] = {}
     if limit is not None:
         kwargs["limit"] = limit
-    # NOTE: _project_scoped_cwd() runs migration before resolution. If run
-    # from a subfolder that has its own PROJECT.md, migration may create a
-    # spurious GPD/ there and resolve to the wrong project root. This is a
-    # known limitation shared with progress/state/status commands.
-    suggest_cwd = _project_scoped_cwd()
+    suggest_cwd = _read_only_project_scoped_cwd()
     _output(suggest_next(suggest_cwd, **kwargs))
 
 

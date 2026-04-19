@@ -3360,11 +3360,6 @@ def _is_authoritative_contract_parse_error(error: str) -> bool:
     return is_authoritative_project_contract_schema_finding(error)
 
 
-def _is_defaultable_singleton_contract_error(error: str) -> bool:
-    del error
-    return False
-
-
 def _recoverable_collection_list_shape_error(error: str, *, contract_raw: dict[str, object]) -> bool:
     if " must be a list, not str" not in error:
         return False
@@ -3442,7 +3437,6 @@ def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, 
             _recoverable_collection_list_shape_error(error, contract_raw=contract_raw),
             _recoverable_mapping_list_shape_error(error, contract_raw=contract_raw),
             _is_case_drift_contract_parse_error(error),
-            _is_defaultable_singleton_contract_error(error),
         )
     )
 
@@ -3936,9 +3930,9 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 if proof_claim_issue is None and len(proof_claim_candidates) == 1:
                     proof_claim_id = proof_claim_candidates[0]
             if check_meta.check_key in _PROOF_CHECK_KEYS and contract is None:
-                return _error_result("Proof checks require an authoritative contract payload")
+                return _error_result("Proof checks require a contract payload")
             if check_meta.check_key in _PROOF_CHECK_KEYS and _contract_salvage_requires_repair(contract_salvage_errors):
-                return _error_result("Proof checks require an authoritative contract payload")
+                return _contract_payload_error(contract_salvage_errors)
             if check_meta.check_key in _PROOF_CHECK_KEYS:
                 proof_metadata_errors = _proof_metadata_contract_mismatch_errors(
                     check_meta.check_key,

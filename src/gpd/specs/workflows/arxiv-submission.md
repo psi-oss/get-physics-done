@@ -36,13 +36,13 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Run the centralized review preflight before continuing:
+Run the centralized review preflight before continuing and keep its raw routing fields:
 
 ```bash
 if [ -n "$ARGUMENTS" ]; then
-  REVIEW_PREFLIGHT=$(gpd validate review-preflight arxiv-submission "$ARGUMENTS" --strict)
+  REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission "$ARGUMENTS" --strict)
 else
-  REVIEW_PREFLIGHT=$(gpd validate review-preflight arxiv-submission --strict)
+  REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission --strict)
 fi
 if [ $? -ne 0 ]; then
   echo "$REVIEW_PREFLIGHT"
@@ -50,23 +50,24 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Use the shared publication bootstrap reference as the source of truth for manuscript-root resolution, latest-review discovery, latest-response discovery, and paired response gating. Do not duplicate those contracts here.
+Parse `REVIEW_PREFLIGHT` for `publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`, `manuscript_root`, and `manuscript_entrypoint`. Use the shared publication bootstrap reference as the source of truth for manuscript-root resolution, latest-review discovery, latest-response discovery, and paired response gating. Do not duplicate those contracts here.
 If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, a newer response round without fresh staged review clearance, or stale theorem-proof review state, STOP and fix those blockers before packaging.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof review artifacts authoritative for strict packaging decisions.
 Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging.
 If the latest completed `gpd:respond-to-referees` round changed manuscript text, equations, figures, citations, or reproducibility evidence, do not treat older staged review artifacts as packaging clearance. That revised manuscript must go back through `gpd:peer-review` before `gpd:arxiv-submission` can continue.
 
-Resolve the manuscript target from `$ARGUMENTS`:
+Resolve the manuscript target from raw preflight plus `$ARGUMENTS`:
 
-1. If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file and `resolved_dir` to its parent directory. That file must already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`.
-2. If `$ARGUMENTS` specifies a directory, resolve the canonical manuscript `.tex` entrypoint under that supported root from `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json` if needed.
-3. Otherwise inspect only the documented GPD-owned manuscript roots: `paper/`, `manuscript/`, `draft/`, and a unique `GPD/publication/<subject_slug>/manuscript/` lane when centralized preflight resolves one.
-4. If the manuscript root is ambiguous or missing, STOP and require an explicit manuscript path or a repaired manuscript-root state.
-5. Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots.
-6. Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots.
+1. Set `resolved_main_tex` from `manuscript_entrypoint` and `resolved_dir` from `manuscript_root` in `REVIEW_PREFLIGHT`.
+2. If `$ARGUMENTS` specifies a `.tex` file, it must match that resolved entrypoint and already live under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`.
+3. If `$ARGUMENTS` specifies a directory, the centralized preflight-resolved entrypoint under that directory is authoritative.
+4. Otherwise inspect only the documented GPD-owned manuscript roots: `paper/`, `manuscript/`, `draft/`, and a unique `GPD/publication/<subject_slug>/manuscript/` lane when centralized preflight resolves one.
+5. If the manuscript root is ambiguous or missing, STOP and require an explicit manuscript path or a repaired manuscript-root state.
+6. Do not accept arbitrary external directories or standalone `.tex` entrypoints outside those supported roots.
+7. Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots.
 
 Then run the centralized publication preflight and review preflight checks. If the latest review artifacts are missing, incomplete, stale, or blocked, or if the manuscript-root gates fail, stop before any packaging work starts.
-Derive a stable ASCII `subject_slug` from the resolved manuscript entrypoint path and keep all GPD-authored package outputs rooted at `GPD/publication/${subject_slug}/arxiv/`. Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself.
+Set `subject_slug` from `publication_subject_slug`. If it is missing, STOP and repair preflight routing instead of deriving a new slug. Keep all GPD-authored package outputs rooted at `${selected_publication_root}/arxiv/` when present, otherwise `GPD/publication/${subject_slug}/arxiv/`. Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself.
 
 Set:
 
@@ -75,7 +76,9 @@ PAPER_DIR="${resolved_dir}"
 MAIN_SOURCE="${resolved_main_tex}"
 MAIN_BASENAME="$(basename "${MAIN_SOURCE}")"
 MAIN_STEM="${MAIN_BASENAME%.*}"
-PACKAGE_ROOT="GPD/publication/${subject_slug}/arxiv"
+PUBLICATION_ROOT="${selected_publication_root:-GPD/publication/${subject_slug}}"
+REVIEW_ROOT="${selected_review_root:-GPD/review}"
+PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"
 SUBMISSION_DIR="${PACKAGE_ROOT}/submission"
 PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"
 ```

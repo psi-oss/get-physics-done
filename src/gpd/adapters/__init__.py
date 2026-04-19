@@ -9,7 +9,12 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from gpd.adapters.runtime_catalog import get_runtime_descriptor, iter_runtime_descriptors, list_runtime_names
+from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
+    get_runtime_descriptor,
+    iter_runtime_descriptors,
+    list_runtime_names,
+)
 
 if TYPE_CHECKING:
     from gpd.adapters.base import RuntimeAdapter
@@ -18,28 +23,25 @@ _REGISTRY: dict[str, type[RuntimeAdapter]] = {}
 _LOADED = False
 
 
-def _module_name_for_runtime(runtime_name: str) -> str:
-    """Return the adapter module path segment for a runtime id."""
-    return runtime_name.replace("-", "_")
-
-
-def _load_adapter_class(runtime_name: str) -> type[RuntimeAdapter]:
-    """Import and return the adapter class that owns *runtime_name*."""
+def _load_adapter_class(descriptor: RuntimeDescriptor) -> type[RuntimeAdapter]:
+    """Import and return the adapter class declared by *descriptor*."""
     from gpd.adapters.base import RuntimeAdapter
 
-    module = import_module(f"gpd.adapters.{_module_name_for_runtime(runtime_name)}")
+    module = import_module(descriptor.adapter_module)
+    try:
+        adapter_class = getattr(module, descriptor.adapter_class)
+    except AttributeError as exc:
+        raise RuntimeError(
+            f"Adapter class {descriptor.adapter_class!r} not found in module {descriptor.adapter_module!r} "
+            f"for runtime {descriptor.runtime_name!r}"
+        ) from exc
 
-    matches: list[type[RuntimeAdapter]] = []
-    for value in vars(module).values():
-        if not isinstance(value, type) or not issubclass(value, RuntimeAdapter) or value is RuntimeAdapter:
-            continue
-        matches.append(value)
-
-    if len(matches) == 1:
-        return matches[0]
-    if not matches:
-        raise RuntimeError(f"No RuntimeAdapter implementation found for runtime {runtime_name!r}")
-    raise RuntimeError(f"Multiple RuntimeAdapter implementations found for runtime {runtime_name!r}")
+    if not isinstance(adapter_class, type) or not issubclass(adapter_class, RuntimeAdapter) or adapter_class is RuntimeAdapter:
+        raise RuntimeError(
+            f"Adapter class {descriptor.adapter_class!r} in module {descriptor.adapter_module!r} "
+            f"for runtime {descriptor.runtime_name!r} is not a RuntimeAdapter subclass"
+        )
+    return adapter_class
 
 
 def _ensure_loaded() -> None:
@@ -53,7 +55,7 @@ def _ensure_loaded() -> None:
         if descriptor.runtime_name in seen_runtime_names:
             raise RuntimeError(f"Duplicate runtime name in runtime catalog: {descriptor.runtime_name!r}")
         seen_runtime_names.add(descriptor.runtime_name)
-        registry[descriptor.runtime_name] = _load_adapter_class(descriptor.runtime_name)
+        registry[descriptor.runtime_name] = _load_adapter_class(descriptor)
 
     _REGISTRY.clear()
     _REGISTRY.update(registry)
@@ -71,7 +73,8 @@ def _ensure_runtime_loaded(runtime_name: str) -> type[RuntimeAdapter]:
         supported = ", ".join(sorted(supported_runtime_names))
         raise KeyError(f"Unknown runtime {runtime_name!r}. Supported: {supported}")
 
-    adapter_class = _load_adapter_class(runtime_name)
+    descriptor = get_runtime_descriptor(runtime_name)
+    adapter_class = _load_adapter_class(descriptor)
     _REGISTRY[runtime_name] = adapter_class
     return adapter_class
 

@@ -385,9 +385,13 @@ def test_runtime_cli_fails_when_manifest_runtime_is_missing_or_unrecognized(
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert "GPD runtime bridge rejected malformed install manifest" in captured.err
-    assert "The manifest `runtime` field must be a recognized non-empty runtime string." in captured.err
-    assert "Repair or reinstall with:" in captured.err
+    if runtime_value == "not-a-runtime":
+        assert "GPD runtime bridge found unsupported runtime `not-a-runtime`" in captured.err
+        assert "this GPD version has no adapter for it" in captured.err
+    else:
+        assert "GPD runtime bridge rejected malformed install manifest" in captured.err
+        assert "The manifest `runtime` field must be a recognized non-empty runtime string." in captured.err
+    assert "Repair or reinstall with" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

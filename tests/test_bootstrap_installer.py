@@ -1142,6 +1142,20 @@ assert.throws(
   /runtime catalog entry 0\.native_include_support must be a boolean/
 );
 
+const badAdapterModuleCatalog = JSON.parse(JSON.stringify(catalog));
+badAdapterModuleCatalog[0].adapter_module = 123;
+assert.throws(
+  () => validateRuntimeCatalog(badAdapterModuleCatalog),
+  /runtime catalog entry 0\.adapter_module must be a non-empty string/
+);
+
+const badAdapterClassCatalog = JSON.parse(JSON.stringify(catalog));
+badAdapterClassCatalog[0].adapter_class = [];
+assert.throws(
+  () => validateRuntimeCatalog(badAdapterClassCatalog),
+  /runtime catalog entry 0\.adapter_class must be a non-empty string/
+);
+
 const badHelpScopeCatalog = JSON.parse(JSON.stringify(catalog));
 badHelpScopeCatalog[0].installer_help_example_scope = "sideways";
 assert.throws(
@@ -1192,6 +1206,13 @@ const duplicateAliasCatalog = JSON.parse(JSON.stringify(catalog));
 duplicateAliasCatalog[1].selection_aliases = [duplicateAliasCatalog[0].selection_aliases[0]];
 assert.throws(
   () => validateRuntimeCatalog(duplicateAliasCatalog),
+  /runtime catalog contains duplicate runtime selection token/
+);
+
+const duplicateLaunchCommandCatalog = JSON.parse(JSON.stringify(catalog));
+duplicateLaunchCommandCatalog[1].launch_command = duplicateLaunchCommandCatalog[0].launch_command;
+assert.throws(
+  () => validateRuntimeCatalog(duplicateLaunchCommandCatalog),
   /runtime catalog contains duplicate runtime selection token/
 );
 

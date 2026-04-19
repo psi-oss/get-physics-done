@@ -9,6 +9,9 @@ REFERENCES_DIR = Path("src/gpd/specs/references")
 TEMPLATES_DIR = Path("src/gpd/specs/templates")
 PUBLICATION_SHARED_PREFLIGHT = TEMPLATES_DIR / "paper" / "publication-manuscript-root-preflight.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT = REFERENCES_DIR / "publication" / "publication-bootstrap-preflight.md"
+PUBLICATION_PIPELINE_MODES_INCLUDE = (
+    "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md"
+)
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 )
@@ -94,6 +97,9 @@ def test_write_paper_workflow_drops_authoring_note_placeholders() -> None:
 def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrappers() -> None:
     shared_preflight = PUBLICATION_SHARED_PREFLIGHT.read_text(encoding="utf-8")
     bootstrap_preflight = PUBLICATION_BOOTSTRAP_PREFLIGHT.read_text(encoding="utf-8")
+    publication_artifact_gates = (
+        REFERENCES_DIR / "publication" / "publication-artifact-gates.md"
+    ).read_text(encoding="utf-8")
 
     assert (
         "strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and "
@@ -106,6 +112,9 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
     assert "publication-manuscript-root-preflight.md" in bootstrap_preflight
     assert "publication-review-round-artifacts.md" in bootstrap_preflight
     assert "publication-response-artifacts.md" in bootstrap_preflight
+    assert PUBLICATION_PIPELINE_MODES_INCLUDE in publication_artifact_gates
+    assert "claim full publication-root migration" not in publication_artifact_gates.lower()
+    assert "current global `gpd/` / `gpd/review/` round-artifact layout" not in publication_artifact_gates.lower()
 
     for path in (
         COMMANDS_DIR / "write-paper.md",
@@ -118,6 +127,10 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
         assert text.count(PUBLICATION_ROUND_ARTIFACTS_INCLUDE) == 0, path
         assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) == 0, path
         assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) == 0, path
+        if path.name in {"write-paper.md", "peer-review.md"}:
+            assert PUBLICATION_PIPELINE_MODES_INCLUDE in text, path
+            assert "embedded review/submission parity" not in text, path
+            assert "current global `GPD/` / `GPD/review/` round-artifact layout" not in text, path
 
     for path in (
         WORKFLOWS_DIR / "write-paper.md",

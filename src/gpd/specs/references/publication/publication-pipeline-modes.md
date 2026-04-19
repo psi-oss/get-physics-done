@@ -49,6 +49,7 @@ For the bounded `gpd:write-paper` external-authoring lane:
 - keep all GPD-authored durable outputs under `GPD/publication/{subject_slug}/...`
 - treat `GPD/publication/{subject_slug}/manuscript/` as the only manuscript/build root
 - treat `GPD/publication/{subject_slug}/intake/` as intake/provenance state only
+- during bounded write-paper authoring, keep the subject-owned publication root at `GPD/publication/{subject_slug}` bounded to manuscript and intake state; later standalone peer-review or response workflows may bind their own round-artifact family there explicitly
 - do not mine arbitrary folders or infer claim/evidence bindings from loose notes
 - do not widen `gpd:arxiv-submission`, claim full publication-root migration, or claim embedded external staged-review parity; route authored-manuscript review to standalone `gpd:peer-review` when that bounded lane needs review
 

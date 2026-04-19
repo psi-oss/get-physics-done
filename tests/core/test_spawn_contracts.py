@@ -551,19 +551,19 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert "fresh context" in check_proof.text
     assert "fresh context" in physics.text
     assert "fresh context" in significance.text
-    assert "GPD/review/CLAIMS{round_suffix}.json" in referee.text
-    assert "GPD/review/STAGE-reader{round_suffix}.json" in referee.text
-    assert "GPD/review/STAGE-literature{round_suffix}.json" in literature.text
-    assert "GPD/review/STAGE-math{round_suffix}.json" in math.text
-    assert "GPD/review/STAGE-physics{round_suffix}.json" in physics.text
-    assert "GPD/review/STAGE-interestingness{round_suffix}.json" in significance.text
-    assert "GPD/review/STAGE-literature{round_suffix}.json" in referee.text
-    assert "GPD/review/STAGE-math{round_suffix}.json" in referee.text
-    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in check_proof.text
-    assert "GPD/review/STAGE-physics{round_suffix}.json" in referee.text
-    assert "GPD/review/STAGE-interestingness{round_suffix}.json" in referee.text
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in referee.text
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json" in literature.text
+    assert "${REVIEW_ROOT}/STAGE-math{round_suffix}.json" in math.text
+    assert "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json" in physics.text
+    assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in significance.text
+    assert "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/STAGE-math{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md" in check_proof.text
+    assert "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in referee.text
+    assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in referee.text
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee.text
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in referee.text
 

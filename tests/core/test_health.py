@@ -686,9 +686,9 @@ class TestDoctorCheckLatexToolchain:
             "degraded without bibliography tooling: draft/review remain usable, while paper-build and "
             "arxiv-submission may fail for manuscripts that require bibliography processing"
         )
-        assert publication["ready_workflows"] == ["write-paper", "peer-review"]
+        assert publication["ready_workflows"] == ["write-paper"]
         assert publication["blocked_workflows"] == []
-        assert publication["degraded_workflows"] == ["paper-build", "arxiv-submission"]
+        assert publication["degraded_workflows"] == ["paper-build", "arxiv-submission", "peer-review"]
         assert result.details["latex_capability"]["full_toolchain_available"] is False
 
 
