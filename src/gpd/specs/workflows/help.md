@@ -14,6 +14,7 @@ When a state-aware help view is requested, show only the commands relevant to th
 Getting started:
   gpd:start               — Guided router for create, map, resume, or explain decisions
   gpd:tour               — Read-only guided tour of the main commands
+  gpd:ideate             — Interactive ideation intake and launch configuration before project scoping
   gpd:new-project         — Start a new research project with full scoping
   gpd:new-project --minimal — Faster one-question project bootstrap
   gpd:map-research        — Map an existing research project
@@ -155,8 +156,9 @@ Use the path that matches your current situation:
 **New work**
 1. `gpd:start` - Guided first-run router that chooses the safest first step for this folder
 2. `gpd:tour` - Get a read-only overview before choosing
-3. `gpd:new-project` - Create a full GPD project
-4. `gpd:new-project --minimal` - Create a project through the shortest setup path
+3. `gpd:ideate` - Sharpen a research direction, question, or constraints before committing to project artifacts
+4. `gpd:new-project` - Create a full GPD project
+5. `gpd:new-project --minimal` - Create a project through the shortest setup path
 
 **Existing work**
 1. `gpd:map-research` - Map an existing folder before turning it into a GPD project
@@ -186,6 +188,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:help` - Show the quick start or command index
 - `gpd:start` - Guided first-run router for the safest first path in the current folder
 - `gpd:tour` - Show a read-only overview of the main commands
+- `gpd:ideate` - Start an interactive ideation intake and launch-configuration flow before project scoping
 - `gpd:new-project` - Create a full GPD project
 - `gpd:new-project --minimal` - Create a GPD project through the shortest setup path
 - `gpd:map-research` - Map an existing research folder before planning
@@ -305,6 +308,17 @@ Show a guided beginner tour of the core GPD commands without taking action.
 - Good optional first stop if you want a quick orientation before choosing a path
 
 Usage: `gpd:tour`
+
+**`gpd:ideate`**
+Start an interactive ideation intake for a research problem, direction, or open-ended domain before committing to a project-backed workflow.
+
+- Works from any folder; you do not need an initialized GPD project first
+- Lets you bring a concrete question, a broader domain, or a rough starting point
+- Clarifies framing, constraints, and execution preferences through questioning
+- Shows an editable launch/config summary before ideation starts
+- Current phase-1 surface focuses on launch framing and configuration; use `gpd:new-project` when you are ready to create durable project artifacts
+
+Usage: `gpd:ideate`
 
 **`gpd:new-project`**
 Initialize a new research project through questioning, optional survey, scoping, and roadmap generation.

@@ -3428,6 +3428,32 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     return staged_payload
 
 
+def init_ideate(cwd: Path) -> dict:
+    """Assemble lean bootstrap context for ideation intake."""
+    effective_cwd = _resolve_workspace_locked_cwd(cwd)
+    config = load_config(effective_cwd)
+
+    return {
+        # Models
+        "researcher_model": _resolve_model(effective_cwd, "gpd-project-researcher", config),
+        "literature_reviewer_model": _resolve_model(effective_cwd, "gpd-literature-reviewer", config),
+        "synthesizer_model": _resolve_model(effective_cwd, "gpd-research-synthesizer", config),
+        "init_root_policy": InitRootPolicy.WORKSPACE_LOCKED.value,
+        # Config
+        "autonomy": config["autonomy"],
+        "research_mode": config["research_mode"],
+        "research_enabled": config["research"],
+        "parallelization": config["parallelization"],
+        # Workspace state
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
+        # Platform
+        "platform": _detect_platform(effective_cwd),
+    }
+
+
 def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new milestone creation."""
     config = load_config(cwd)

@@ -328,7 +328,7 @@ def _command_preflight_cwd(
         return _status_command_cwd(workspace_cwd)
 
     command_name = str(getattr(command, "name", "") or "")
-    if command_name == "gpd:write-paper":
+    if command_name in {"gpd:ideate", "gpd:write-paper"}:
         return _workspace_locked_cwd(workspace_cwd)
 
     return _project_scoped_cwd(workspace_cwd)
@@ -4632,6 +4632,14 @@ def init_new_project(
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
+
+
+@init_app.command("ideate")
+def init_ideate() -> None:
+    """Assemble lean bootstrap context for ideation intake."""
+    from gpd.core.context import init_ideate as _init_ideate
+
+    _output(_init_ideate(_get_cwd()))
 
 
 @init_app.command("new-milestone")
