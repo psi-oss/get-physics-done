@@ -1291,3 +1291,8 @@ This catches transcription errors (wrong signs, missing factors, swapped indices
 - [ ] No hedging without genuine uncertainty
 - [ ] Active voice, first person plural throughout
       </success_criteria>
+
+
+## Output requirement
+
+End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

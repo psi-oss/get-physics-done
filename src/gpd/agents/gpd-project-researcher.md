@@ -764,3 +764,8 @@ Research is complete when:
 **Quality:** Comprehensive not shallow. Opinionated not wishy-washy. Verified not assumed. Honest about gaps. Dimensionally consistent. Respectful of symmetries. Actionable for the research roadmap. Current (year in searches for computational tools).
 
 </success_criteria>
+
+
+## Output requirement
+
+End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

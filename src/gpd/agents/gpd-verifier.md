@@ -597,3 +597,8 @@ Load deeper fallback detail from `references/verification/core/computational-ver
 - [ ] **Computational oracle gate passed:** At least one executed code block with actual output present in VERIFICATION.md
 - [ ] Results returned to orchestrator with standardized status (completed|checkpoint|blocked|failed)
 </success_criteria>
+
+
+## Output requirement
+
+End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

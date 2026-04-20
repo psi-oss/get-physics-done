@@ -243,3 +243,8 @@ After a verified root cause that looks reusable across the project, record it in
 - Any fix is verified against the original symptom and the relevant limit or downstream check.
 - The returned envelope matches the selected status.
 </success_criteria>
+
+
+## Output requirement
+
+End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

@@ -52,3 +52,8 @@ Literature-specific deltas:
 - Do not accept "to the best of our knowledge" at face value.
 - Do not confuse an uncited overlap with a trivial citation fix if the overlap undermines the paper's central claim.
 </anti_patterns>
+
+
+## Output requirement
+
+End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

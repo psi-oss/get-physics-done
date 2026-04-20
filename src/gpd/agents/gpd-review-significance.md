@@ -53,3 +53,8 @@ Significance-specific deltas:
 - Do not reward a paper for being internally consistent if it makes no convincing scientific advance.
 - Do not let venue-fit failure hide inside soft language like "could be of interest" when the evidence points to weak significance.
 </anti_patterns>
+
+
+## Output requirement
+
+End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.
