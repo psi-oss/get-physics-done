@@ -318,7 +318,8 @@ Run structured, projectless multi-agent ideation for a research problem, directi
 - Shows an editable launch/config summary before ideation starts
 - Runs bounded ideation rounds with configurable agents and explicit user review gates between rounds
 - Lets you continue, add your own thoughts, adjust configuration, review the raw round, or stop cleanly at round boundaries
-- Keeps phase-2 orchestration in memory only; it does not promise durable session storage, resumable ideation sessions, tags, or imported-document persistence
+- Offers temporary bounded subgroup work only from that existing round-boundary `Adjust configuration` gate, with parent-owned bounded execution and summary-only rejoin through the same control surface
+- Keeps ideation orchestration in memory only; it does not promise durable session storage, resumable ideation sessions, subgroup transcripts, `GPD/ideation/` storage, subgroup promotion, tags, or imported-document persistence
 - Stays projectless and lightweight; use `gpd:new-project` when you are ready to create durable project artifacts
 
 Usage: `gpd:ideate`

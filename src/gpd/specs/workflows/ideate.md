@@ -1,7 +1,7 @@
 <purpose>
 Launch an ideation session through interactive intake, preset selection, an editable launch summary, and bounded multi-agent ideation rounds.
 
-Phase 2 proves the core loop only. Run the launch, then run bounded rounds with explicit user review gates. Keep the parent workflow responsible for the launch brief, the round state, and any fresh continuation handoff. Do not create durable ideation session files or artifact directories in this phase.
+Phase 3 keeps the core loop from Phase 2 and adds optional temporary subgroup micro-loops. Run the launch, then run bounded rounds with explicit user review gates. Offer subgroup work only from the existing round-boundary gate through `Adjust configuration`, not as a separate launch path. Only create subgroups from the parent round gate after round synthesis. Keep the parent workflow responsible for the launch brief, the round state, any subgroup routing, and any fresh continuation handoff. Do not create durable ideation session files, subgroup files, or artifact directories in this phase.
 </purpose>
 
 <required_reading>
@@ -115,7 +115,7 @@ The user may bypass further questions at any time. If they say "draft it," "good
 <step name="resolve_launch_preferences">
 After the main intake is clear enough, ask one compact freeform preference question for the execution knobs that are useful to capture now:
 
-`Any launch preferences I should lock now, such as agent count, stronger skepticism, a looser creative posture, or specific next-round tasks you already know you want certain agents to handle? If not, I will keep those flexible.`
+`Any launch preferences I should lock now, such as agent count, stronger skepticism, a looser creative posture, whether temporary subgroup work should stay available, or specific next-round tasks you already know you want certain agents to handle? If not, I will keep those flexible.`
 
 Defaults unless the user overrides them:
 
@@ -148,7 +148,7 @@ Render it as:
 | Anchors | [must-keep references, prior outputs, examples, or "None supplied yet"] |
 | Constraints | [scope boundaries, time/rigor limits, exclusions, or "None supplied yet"] |
 | Risks / Open Questions | [weakest assumptions, unresolved gaps, false-progress warnings] |
-| Execution Preferences | `Preset: ...`; `Posture: ...`; `Agent count: ...`; `Project context: ...` |
+| Execution Preferences | `Preset: ...`; `Posture: ...`; `Agent count: ...`; `Project context: ...`; `Subgroups: ...` |
 | Initial Agent Shape | [one hard critic by default, plus the starting theorist pool and any user-locked overrides] |
 ```
 
@@ -303,7 +303,7 @@ Do not create files or claim durable session ownership in this phase.
 </step>
 
 <step name="round_review_gate">
-After each round, present the compact round synthesis first. Raw round details are review-on-demand.
+After each round, present the compact round synthesis first. Raw round details are review-on-demand. Subgroup creation happens only after this round synthesis at the parent gate.
 
 The round gate must offer:
 
@@ -317,7 +317,7 @@ Interpretation:
 
 - `Continue to next round`: increment the round counter and run the next bounded ideation round.
 - `Add my thoughts`: capture the user's injection, restate how it changes the shared discussion, and include it in the next round brief.
-- `Adjust configuration`: capture only the requested changes such as preset, agent count, posture, skepticism, creativity, or per-agent assignments. Preserve everything else.
+- `Adjust configuration`: capture only the requested changes such as preset, agent count, posture, skepticism, creativity, per-agent assignments, or a temporary subgroup batch for the next bounded segment. Preserve everything else.
 - `Review raw round`: show the raw worker takeaways plus the synthesized round view, then return to the same gate.
 - `Pause/Stop`: pause or stop cleanly without claiming durable persistence.
 
@@ -325,6 +325,50 @@ If the user adds thoughts or adjusts configuration, treat that as a fresh contin
 Rebuild the next round brief from the approved launch brief, prior round syntheses, and the new user input, then spawn a fresh set of one-shot workers. Do not resume a prior child run.
 
 If a round is ambiguous or a worker returns a checkpoint-worthy blocker, surface the ambiguity at the round gate instead of letting a worker linger.
+</step>
+
+<step name="subgroup_micro_loop">
+Subgroups are optional and only user-initiated from the existing parent round gate. Do not create them at launch, mid-worker, or automatically. Route subgroup setup through `Adjust configuration` so the main gate stays stable. Only create subgroups from the parent round gate after round synthesis.
+
+When the user asks for subgroup work through `Adjust configuration`:
+
+1. confirm the subgroup objective in one compact prompt
+2. confirm the subgroup members by stable lane labels such as `Agent 1`, `Agent 2`, and `Agent 3`
+3. confirm the bounded subgroup round count
+
+Keep one active subgroup batch at a time in this phase. Treat it as a temporary parent-owned configuration change inside the current ideation session, not as a new top-level ideation path. Do not route subgroup formation through launch intake, worker-local decisions, or any mid-worker branch.
+
+Subgroup defaults and boundaries:
+
+- subgroup rounds must stay bounded; default to `2` if the user does not specify a count
+- keep each subgroup batch to `1-3` rounds in this phase
+- if the user wants more subgroup exploration after that, return to the parent gate and let them launch another subgroup batch explicitly
+
+While a subgroup batch is active:
+
+- Pause the main group while the subgroup runs.
+- pause main-loop progression
+- keep the parent workflow responsible for subgroup state, synthesis, and any checkpoint routing
+- build each subgroup round brief from the approved launch brief, the relevant slice of shared discussion, the subgroup objective, any locked assignments, and any user-specified subgroup instructions
+- reuse `gpd-ideation-worker` for subgroup lanes
+- reuse fresh one-shot `gpd-ideation-worker` handoffs for subgroup lanes; do not create a long-lived child conversation
+- subgroup workers remain one-shot handoffs
+- Do not keep a long-lived subgroup child conversation.
+- if a subgroup lane needs user input, surface it at the parent gate as a fresh continuation rather than waiting in place
+
+Subgroup execution stays fileless in this phase. Do not add `<spawn_contract>` blocks, do not create durable subgroup transcripts, and do not claim subgroup resumability, subgroup promotion, or independent subgroup sessions. Subgroups stay inside the parent ideation run in this phase. Do not promote a subgroup into its own session in this phase. Do not create durable subgroup artifacts or promotion surfaces in this phase. Do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence, dedicated ideation state, or ideation files in this phase.
+
+At subgroup completion, synthesize one compact rejoin packet instead of replaying raw subgroup transcripts. Rejoin is summary-only in this phase. Reintegrate only a subgroup summary into the main shared discussion. The rejoin packet should include:
+
+- subgroup objective
+- subgroup members
+- subgroup rounds completed
+- strongest idea or hypothesis
+- strongest critique or failure mode
+- what changed for the main discussion
+- the remaining open question or recommended next focus
+
+Fold only that subgroup summary into the main shared discussion, then return to the normal parent round gate. Do not auto-start the next main round after subgroup completion.
 </step>
 
 <step name="session_finish">
@@ -336,7 +380,7 @@ When the user stops, end with a compact discussion summary:
 - open questions
 - suggested follow-up commands or actions
 
-The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, resumable session files, tags, imported-document state, or archived artifacts.
+The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, subgroup transcripts, resumable session files, tags, imported-document state, or archived artifacts.
 
 End with:
 
@@ -382,7 +426,8 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] One hard critic is present by default unless the user changes the roster
 - [ ] User thought injection happens at round boundaries through the parent gate
 - [ ] Per-agent assignments can be updated between rounds without restarting the session
+- [ ] Optional subgroup work stays parent-owned, bounded, fileless, and summary-first on rejoin
 - [ ] The review gate supports continue, add thoughts, adjust configuration, review raw round, and pause-stop
-- [ ] The workflow stays fileless for ideation state in phase 2
+- [ ] The workflow stays fileless for ideation and subgroup state in this phase
 - [ ] No durable ideation history, resumable session files, tags, imported-document state, or archived artifacts.
 </success_criteria>

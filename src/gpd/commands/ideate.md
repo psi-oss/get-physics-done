@@ -1,6 +1,6 @@
 ---
 name: gpd:ideate
-description: Run projectless multi-agent ideation through interactive intake, bounded rounds, and user review
+description: Run projectless multi-agent ideation through interactive intake, bounded rounds, temporary subgroups, and user review
 argument-hint: "[topic, question, or domain] [--preset fast|balanced|deep]"
 context_mode: projectless
 allowed-tools:
@@ -12,9 +12,9 @@ allowed-tools:
 
 
 <objective>
-Run an ideation session cleanly: gather the scientific problem or open discussion space, clarify the desired outcome, capture the constraints and anchors that must stay visible, show an editable launch summary, and then guide bounded multi-agent ideation rounds with explicit user review gates.
+Run an ideation session cleanly: gather the scientific problem or open discussion space, clarify the desired outcome, capture the constraints and anchors that must stay visible, show an editable launch summary, and then guide bounded multi-agent ideation rounds with explicit user review gates and optional temporary subgroup loops.
 
-Keep `gpd:ideate` projectless and lightweight. It should not auto-ingest project state unless the user explicitly asks for specific context, and it should not claim durable session storage, resumable ideation state, or other later-phase persistence features. Keep orchestration in memory for this phase and do not promise durable ideation storage.
+Keep `gpd:ideate` projectless and lightweight. It should not auto-ingest project state unless the user explicitly asks for specific context, and it should not claim durable session storage, resumable ideation state, or other later-phase persistence features. Keep orchestration in memory for this phase and do not promise durable ideation storage, subgroup transcripts, subgroup session promotion, or a separate subgroup launch surface.
 </objective>
 
 <context>
@@ -45,8 +45,10 @@ Keep the wrapper thin. The execution context owns round orchestration, worker fa
 - bounded ideation rounds across configurable agents
 - per-round synthesis and user review before continuing
 - explicit round-boundary options such as `Continue`, `Add my thoughts`, `Adjust configuration`, `Review raw round`, and `Pause or stop`
+- any temporary bounded subgrouping offered only as an `Adjust configuration` choice at that existing round gate, with parent-owned, bounded, fileless, summary-only rejoin behavior
+- subgroup rejoin routed back through that existing round-boundary control surface rather than transcript replay or a promoted subgroup session
 
-Do not claim durable ideation session storage, resumable ideation state, tagging, imported-document handling, or other later-phase persistence systems unless a later workflow phase explicitly adds them. The phase-2 contract is an in-memory session, not a durable ideation artifact system.
+Do not claim durable ideation session storage, resumable ideation state, subgroup transcripts, subgroup promotion, tagging, imported-document handling, or other later-phase persistence systems unless a later workflow phase explicitly adds them. Do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence, or dedicated ideation state. The contract here is an in-memory session routed through the existing round-boundary controls, not a durable ideation artifact system.
 </process>
 
 <success_criteria>
@@ -56,6 +58,7 @@ Do not claim durable ideation session storage, resumable ideation state, tagging
 - [ ] Bounded multi-agent rounds happen behind explicit user checkpoints
 - [ ] Existing project context remains opt-in rather than auto-loaded
 - [ ] The user can continue, add thoughts, adjust configuration, review the raw round, or stop cleanly
+- [ ] The user can launch a temporary bounded subgroup from the round boundary and rejoin through a subgroup summary
 - [ ] No durable ideation session files, resumable state, or later-phase persistence systems are required in this phase
 
 </success_criteria>

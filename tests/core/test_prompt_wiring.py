@@ -77,6 +77,7 @@ COMMAND_SPAWN_TOKENS = {
 WORKFLOW_SPAWN_TOKENS = {
     "derive-equation.md": ["gpd-check-proof"],
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
+    "ideate.md": ["gpd-ideation-worker"],
     "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker", "gpd-experiment-designer"],
     "execute-phase.md": [
         "gpd-executor",
@@ -157,6 +158,11 @@ AGENT_REFERENCE_TOKENS = {
         "references/shared/shared-protocols.md",
         "references/orchestration/agent-infrastructure.md",
         "references/examples/ising-experiment-design-example.md",
+    ],
+    "gpd-ideation-worker.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
     ],
     "gpd-notation-coordinator.md": [
         "references/shared/shared-protocols.md",
