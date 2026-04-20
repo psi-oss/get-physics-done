@@ -20,3 +20,4 @@ tmp/
 .gemini/
 .opencode/
 .playwright-mcp/
+node_modules/
