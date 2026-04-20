@@ -97,6 +97,7 @@ _COLOR_NAME_TO_HEX: dict[str, str] = {
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$")
 _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GPD_SLASH_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9/_.-])/gpd:(?P<command>[A-Za-z][A-Za-z0-9-]*)\b")
+_GPD_BARE_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b")
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
 _OPENCODE_YOLO_PERMISSION = "allow"
 _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_files"
@@ -174,6 +175,7 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = _GPD_SLASH_COMMAND_RE.sub(r"/gpd-\g<command>", converted)
+    converted = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", converted)
     converted = re.sub(r"~/\.claude\b", lambda m: resolved_config_dir, converted)
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
@@ -974,7 +976,9 @@ class OpenCodeAdapter(RuntimeAdapter):
         return convert_claude_to_opencode_frontmatter(content, path_prefix)
 
     def translate_shared_command_references(self, content: str) -> str:
-        return content.replace("/gpd:", self.public_command_surface_prefix)
+        result = content.replace("/gpd:", self.public_command_surface_prefix)
+        result = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", result)
+        return result
 
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """OpenCode opts out when `disable_ai_attribution` is enabled."""

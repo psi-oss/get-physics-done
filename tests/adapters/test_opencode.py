@@ -122,6 +122,18 @@ class TestConvertFrontmatter:
         assert "https://example.test//gpd:help" in result
         assert "/tmp//gpd:help.txt" in result
 
+    def test_bare_gpd_command_conversion_is_boundary_aware(self) -> None:
+        content = (
+            "---\ndescription: D\n---\n"
+            "Use gpd:start for routing.\n"
+            "See https://example.test/gpd:help for docs.\n"
+            "Do not rewrite mygpd:command inside a word.\n"
+        )
+        result = convert_claude_to_opencode_frontmatter(content)
+        assert "gpd-start" in result
+        assert "https://example.test/gpd:help" in result
+        assert "mygpd:command" in result
+
     def test_claude_path_conversion(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
         result = convert_claude_to_opencode_frontmatter(content)
@@ -524,7 +536,7 @@ class TestInstall:
         assert "Check for a newer GPD release" in content
         assert "<!-- [included: update.md] -->" in content
         assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
-        assert "gpd:reapply-patches" in content
+        assert "gpd-reapply-patches" in content
 
     def test_complete_milestone_command_inlines_bullet_list_includes(
         self,

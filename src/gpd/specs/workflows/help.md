@@ -129,7 +129,6 @@ Use the shared onboarding surfaces in the README or installer output for the lon
 ## Invocation Surfaces
 
 This reference lists the canonical in-runtime command names for the installed runtime's public command surface.
-Depending on the runtime, those names may be rendered with slash prefixes, dollar prefixes, or another adapter-specific convention.
 
 - If you are new to terminals or runtime setup, start with the Beginner Onboarding Hub linked from the README and installer output.
 - That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
