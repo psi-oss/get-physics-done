@@ -803,6 +803,8 @@ class PaperToolchainCapability(BaseModel):
     latexmk_available: bool | None = None
     kpsewhich_available: bool | None = None
     pdftotext_available: bool | None = None
+    tectonic_available: bool = False
+    tectonic_path: str | None = None
     available: bool = False
     full_toolchain_available: bool = False
     paper_build_ready: bool = False
@@ -818,23 +820,32 @@ class PaperToolchainCapability(BaseModel):
         bibtex_available = self.bibtex_available is True
         latexmk_available = self.latexmk_available is True
         kpsewhich_available = self.kpsewhich_available is True
-        pdftotext_available = self.pdftotext_available is True
+        # pdftotext_available is retained for backward compatibility but PDF
+        # extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        # pdf_review_ready is set by the caller (e.g. detect_latex_toolchain)
+        # based on fitz availability; it is preserved here if already set.
+        pdf_review_ready = self.pdf_review_ready
+        tectonic_available = bool(self.tectonic_available)
 
-        self.available = compiler_available
-        self.bibliography_support_available = compiler_available and bibtex_available
-        self.paper_build_ready = compiler_available
+        # Tectonic acts as a self-contained compiler+bibtex+latexmk stack.
+        effective_compiler_available = compiler_available or tectonic_available
+        effective_bibliography_available = bibtex_available or tectonic_available
+
+        self.available = effective_compiler_available
+        self.bibliography_support_available = effective_compiler_available and effective_bibliography_available
+        self.paper_build_ready = effective_compiler_available
         self.full_toolchain_available = (
-            compiler_available
-            and bibtex_available
-            and latexmk_available
+            effective_compiler_available
+            and effective_bibliography_available
+            and (latexmk_available or tectonic_available)
             and kpsewhich_available
-            and pdftotext_available
+            and pdf_review_ready
         )
         self.arxiv_submission_ready = self.bibliography_support_available and kpsewhich_available
-        self.pdf_review_ready = pdftotext_available
-        if not compiler_available:
+        self.pdf_review_ready = pdf_review_ready
+        if not effective_compiler_available:
             self.readiness_state = "blocked"
-        elif bibtex_available:
+        elif effective_bibliography_available:
             self.readiness_state = "ready"
         else:
             self.readiness_state = "degraded"

@@ -240,10 +240,12 @@ def test_workflow_preset_readiness_degrades_publication_family_when_bibtex_is_mi
     assert any("BibTeX support is missing" in warning for warning in publication["warnings"])
 
 
-def test_workflow_preset_readiness_degrades_peer_review_pdf_intake_when_pdftotext_is_missing() -> None:
+def test_workflow_preset_readiness_degrades_peer_review_pdf_intake_when_pymupdf_is_missing() -> None:
+    # Pass pdf_review_ready=False directly; pdftotext_available is kept for
+    # backward-compat but pdf_review_ready takes precedence when present.
     readiness = resolve_workflow_preset_readiness(
         base_ready=True,
-        latex_capability=_latex_capability(pdftotext_available=False),
+        latex_capability=_latex_capability(pdf_review_ready=False),
     )
     statuses = {preset["id"]: preset["status"] for preset in readiness["presets"]}
     publication = next(preset for preset in readiness["presets"] if preset["id"] == "publication-manuscript")
@@ -260,7 +262,7 @@ def test_workflow_preset_readiness_degrades_peer_review_pdf_intake_when_pdftotex
     assert publication["ready_workflows"] == ["write-paper", "paper-build", "arxiv-submission"]
     assert publication["degraded_workflows"] == ["peer-review"]
     assert publication["blocked_workflows"] == []
-    assert any("pdftotext is missing" in warning for warning in publication["warnings"])
+    assert any("PyMuPDF is missing" in warning for warning in publication["warnings"])
 
 
 def test_workflow_preset_readiness_ignores_malformed_pdftotext_and_contradictory_state_overrides() -> None:

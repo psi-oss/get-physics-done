@@ -6097,7 +6097,7 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
         "bibtex_available": True,
         "bibliography_support_available": True,
         "kpsewhich_available": True,
-        "pdftotext_available": True,
+        "pdftotext_available": None,
         "readiness_state": "ready",
         "message": "pdflatex found (TeX Live): /usr/bin/pdflatex",
         "paper_build_ready": True,

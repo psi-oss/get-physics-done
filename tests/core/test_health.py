@@ -573,7 +573,6 @@ class TestDoctorCheckLatexToolchain:
         assert result.details["latexmk_available"] is True
         assert result.details["bibtex_available"] is True
         assert result.details["kpsewhich_available"] is True
-        assert result.details["pdftotext_available"] is True
         assert result.details["paper_build_ready"] is True
         assert result.details["arxiv_submission_ready"] is True
         assert result.details["pdf_review_ready"] is True
@@ -602,7 +601,6 @@ class TestDoctorCheckLatexToolchain:
         assert result.details["latexmk_available"] is False
         assert result.details["bibtex_available"] is True
         assert result.details["kpsewhich_available"] is False
-        assert result.details["pdftotext_available"] is True
         assert result.details["paper_build_ready"] is True
         assert result.details["arxiv_submission_ready"] is False
         assert result.details["missing_components"] == ["latexmk", "kpsewhich"]
@@ -1750,7 +1748,6 @@ trigger:
             return {
                 "pdflatex": "/usr/bin/pdflatex",
                 "bibtex": "/usr/bin/bibtex",
-                "pdftotext": None,
                 "wolframscript": None,
             }.get(binary)
 
@@ -1782,14 +1779,13 @@ trigger:
         assert probe_check.details["enabled"] is True
         assert probe_check.details["timeout_seconds"] == 5
         assert probe_check.details["mandatory_probe"] == "python -m gpd.cli --help"
-        assert probe_check.details["skipped"] == ["latexmk", "kpsewhich", "pdftotext", "wolframscript"]
+        assert probe_check.details["skipped"] == ["latexmk", "kpsewhich", "wolframscript"]
         assert [probe["label"] for probe in probe_check.details["probed"]] == [
             "gpd-cli",
             "pdflatex",
             "bibtex",
             "latexmk",
             "kpsewhich",
-            "pdftotext",
             "wolframscript",
         ]
         assert probe_check.details["probed"][0]["status"] == "ok"
@@ -1798,10 +1794,8 @@ trigger:
         assert probe_check.details["probed"][3]["status"] == "skipped"
         assert probe_check.details["probed"][4]["status"] == "skipped"
         assert probe_check.details["probed"][5]["status"] == "skipped"
-        assert probe_check.details["probed"][6]["status"] == "skipped"
         assert "latexmk not found on PATH" in probe_check.warnings
         assert "kpsewhich not found on PATH" in probe_check.warnings
-        assert "pdftotext not found on PATH" in probe_check.warnings
         assert "wolframscript not found on PATH" in probe_check.warnings
 
     def test_runtime_mode_records_virtualenv_state_without_blocking(self, tmp_path: Path):

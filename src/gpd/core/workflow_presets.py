@@ -143,6 +143,9 @@ def _normalize_latex_capability(
     latexmk_value = _capability_value(latex_capability, "latexmk_available", "latexmk")
     kpsewhich_value = _capability_value(latex_capability, "kpsewhich_available", "kpsewhich")
     pdftotext_value = _capability_value(latex_capability, "pdftotext_available", "pdftotext")
+    # pdf_review_ready may be set explicitly (PyMuPDF-based); fall back to
+    # pdftotext_available for backward-compatibility with legacy payloads.
+    pdf_review_value = _capability_value(latex_capability, "pdf_review_ready")
     compiler_path = _capability_value(latex_capability, "compiler_path")
     distribution = _capability_value(latex_capability, "distribution")
     message_value = _capability_value(latex_capability, "message")
@@ -157,7 +160,10 @@ def _normalize_latex_capability(
     bibtex_ready = bibtex_available is True
     latexmk_ready = _strict_bool_value(latexmk_value) is True
     kpsewhich_ready = _strict_bool_value(kpsewhich_value) is True
+    # Prefer the explicit pdf_review_ready field; fall back to pdftotext_available.
+    pdf_review_strict = _strict_bool_value(pdf_review_value)
     pdftotext_ready = _strict_bool_value(pdftotext_value) is True
+    pdf_review_ready = (pdf_review_strict is True) if pdf_review_strict is not None else pdftotext_ready
     bibliography_support_available = compiler_available and bibtex_ready
     paper_build_ready = compiler_available
     arxiv_submission_ready = bibliography_support_available and kpsewhich_ready
@@ -181,7 +187,7 @@ def _normalize_latex_capability(
         "compiler": compiler_name,
         "available": compiler_available,
         "compiler_available": compiler_available,
-        "full_toolchain_available": compiler_available and bibtex_ready and latexmk_ready and kpsewhich_ready and pdftotext_ready,
+        "full_toolchain_available": compiler_available and bibtex_ready and latexmk_ready and kpsewhich_ready and pdf_review_ready,
         "compiler_path": compiler_path,
         "distribution": distribution,
         "bibtex_available": bibtex_available,
@@ -194,7 +200,7 @@ def _normalize_latex_capability(
         "warnings": warnings,
         "paper_build_ready": paper_build_ready,
         "arxiv_submission_ready": arxiv_submission_ready,
-        "pdf_review_ready": pdftotext_ready,
+        "pdf_review_ready": pdf_review_ready,
     }
     return normalized
 
@@ -498,8 +504,8 @@ def resolve_workflow_preset_readiness(
             if not pdf_review_ready:
                 if status == "ready":
                     summary = (
-                        "degraded without pdftotext: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
-                        "but PDF intake for peer-review requires pdftotext or a companion text file"
+                        "degraded without PyMuPDF: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
+                        "but PDF intake for peer-review requires PyMuPDF or a companion text file"
                     )
                 status = "degraded"
                 ready_workflows = [workflow for workflow in ready_workflows if workflow != "peer-review"]
@@ -534,19 +540,14 @@ def resolve_workflow_preset_readiness(
                 warnings.append("kpsewhich is missing: paper-build remains usable, but arxiv-submission stays blocked.")
             elif not pdf_review_ready:
                 warnings.append(
-                    "pdftotext is missing: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
-                    "but PDF-backed peer-review intake requires pdftotext or a nearby `.txt` companion file."
+                    "PyMuPDF is missing: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
+                    "but PDF-backed peer-review intake requires PyMuPDF or a nearby `.txt` companion file. "
+                    "Install with: pip install 'get-physics-done[arxiv]'"
                 )
             if latexmk_available is False:
                 warnings.append("latexmk is missing: paper builds will fall back to manual multipass compilation.")
             if kpsewhich_available is False:
                 warnings.append("kpsewhich is missing: TeX resource checks are best-effort only.")
-            if capability.get("pdftotext_available") is False and not any(
-                "pdftotext is missing:" in warning for warning in warnings
-            ):
-                warnings.append(
-                    "pdftotext is missing: PDF-backed peer-review intake requires pdftotext or a nearby `.txt` companion file."
-                )
 
         entries.append(
             {

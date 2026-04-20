@@ -101,28 +101,95 @@ def find_latex_compiler(compiler: str = "pdflatex") -> str | None:
     return None
 
 
+def find_tectonic() -> str | None:
+    """Locate the Tectonic TeX engine on the current system.
+
+    First tries the standard PATH via :func:`shutil.which`.  On Windows, also
+    checks ``%LOCALAPPDATA%\\Programs\\Tectonic\\tectonic.exe`` and
+    ``~/.cargo/bin/tectonic.exe`` — the two most common non-PATH install
+    locations for Tectonic on Windows.
+
+    Returns the full path to the tectonic binary, or ``None`` if not found.
+    """
+    found = _which("tectonic")
+    if found:
+        return found
+    if platform.system() == "Windows":
+        candidates = [
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Tectonic", "tectonic.exe"),
+            os.path.join(os.path.expanduser("~"), ".cargo", "bin", "tectonic.exe"),
+        ]
+        for candidate in candidates:
+            if candidate and os.path.isfile(candidate):
+                return candidate
+    return None
+
+
 LatexToolchainStatus = PaperToolchainCapability
 
 
-def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
+def detect_latex_toolchain(compiler: str = "pdflatex", *, prefer_tectonic: bool = True) -> LatexToolchainStatus:
     """Detect whether a usable paper toolchain is present.
 
     Returns a :class:`LatexToolchainStatus` summarising compiler availability,
     the resolved compiler path, helper-tool availability, the likely
     distribution name, and a human-readable readiness summary.
+
+    Args:
+        compiler: The pdflatex-family compiler to probe (default ``"pdflatex"``).
+        prefer_tectonic: When ``True`` (the default), probe for Tectonic first.
+            If Tectonic is found, it is reported as the active engine and the
+            toolchain is considered ``"ready"`` without requiring separate
+            bibtex / latexmk binaries — Tectonic handles them internally.
     """
+    tectonic_path = find_tectonic() if prefer_tectonic else None
+    tectonic_available = tectonic_path is not None
+
     path = find_latex_compiler(compiler)
     bibtex_path = find_latex_compiler("bibtex")
     latexmk_path = find_latex_compiler("latexmk")
     kpsewhich_path = find_latex_compiler("kpsewhich")
-    pdftotext_path = find_latex_compiler("pdftotext")
 
     compiler_available = path is not None
     bibtex_available = bibtex_path is not None
     latexmk_available = latexmk_path is not None
     kpsewhich_available = kpsewhich_path is not None
-    pdftotext_available = pdftotext_path is not None
+    # PDF extraction now uses PyMuPDF (fitz) — no pdftotext binary required.
+    try:
+        import fitz  # noqa: F401  # PyMuPDF
+
+        fitz_available = True
+    except ImportError:
+        fitz_available = False
     warnings: list[str] = []
+
+    if not fitz_available:
+        warnings.append(
+            "PyMuPDF (fitz) not found; PDF peer-review intake will require a nearby `.txt` companion file, "
+            "but TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX intake remain available. "
+            "Install with: pip install 'get-physics-done[arxiv]'"
+        )
+
+    # When Tectonic is available and preferred, it replaces pdflatex + bibtex +
+    # latexmk entirely — no separate install guidance needed for those.
+    if tectonic_available and prefer_tectonic:
+        summary = f"Tectonic found: {tectonic_path}; handles bibliography and multi-pass internally"
+        summary += "; readiness=ready"
+        return LatexToolchainStatus(
+            compiler="tectonic",
+            compiler_available=True,
+            compiler_path=tectonic_path,
+            distribution="Tectonic",
+            bibtex_available=bibtex_available,
+            latexmk_available=latexmk_available,
+            kpsewhich_available=kpsewhich_available,
+            tectonic_available=True,
+            tectonic_path=tectonic_path,
+            pdf_review_ready=fitz_available,
+            readiness_state="ready",
+            message=summary,
+            warnings=warnings,
+        )
 
     if compiler_available:
         if not bibtex_available:
@@ -134,11 +201,6 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
             warnings.append("latexmk not found; multi-pass compilation will fall back to manual passes.")
         if not kpsewhich_available:
             warnings.append("kpsewhich not found; TeX resource checks will assume installed resources.")
-    if not pdftotext_available:
-        warnings.append(
-            "pdftotext not found; PDF peer-review intake will require a nearby `.txt` companion file, "
-            "but TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX intake remain available."
-        )
     if not compiler_available:
         warnings.append("Install a LaTeX distribution to enable paper compilation.")
 
@@ -166,7 +228,9 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
             bibtex_available=bibtex_available,
             latexmk_available=latexmk_available,
             kpsewhich_available=kpsewhich_available,
-            pdftotext_available=pdftotext_available,
+            tectonic_available=False,
+            tectonic_path=None,
+            pdf_review_ready=fitz_available,
             readiness_state="blocked",
             message=get_latex_install_guidance(),
             warnings=warnings,
@@ -187,10 +251,6 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
         summary += "; kpsewhich available"
     else:
         summary += "; kpsewhich unavailable"
-    if pdftotext_available:
-        summary += "; pdftotext available"
-    else:
-        summary += "; pdftotext unavailable"
     summary += f"; readiness={readiness_state}"
 
     return LatexToolchainStatus(
@@ -201,7 +261,9 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
         bibtex_available=bibtex_available,
         latexmk_available=latexmk_available,
         kpsewhich_available=kpsewhich_available,
-        pdftotext_available=pdftotext_available,
+        tectonic_available=False,
+        tectonic_path=None,
+        pdf_review_ready=fitz_available,
         readiness_state=readiness_state,
         message=summary,
         warnings=warnings,
@@ -211,11 +273,17 @@ def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
 def get_latex_install_guidance() -> str:
     """Return platform-specific guidance for installing a LaTeX distribution."""
     system = platform.system()
+    tectonic_guidance = (
+        "  - Tectonic (recommended, lightweight ~80MB, single binary):\n"
+        "      https://tectonic-typesetting.github.io/en-US/install.html\n"
+        "    Handles pdflatex + bibtex + multi-pass in one self-contained binary.\n"
+    )
     if system == "Windows":
         return (
             "No LaTeX compiler found.\n"
-            "Install one of the following LaTeX distributions:\n"
-            "  - MiKTeX (recommended): https://miktex.org/download\n"
+            "Install one of the following:\n"
+            + tectonic_guidance
+            + "  - MiKTeX: https://miktex.org/download\n"
             "    After install, open the MiKTeX Console and enable automatic\n"
             "    package installation so missing .sty/.cls files are fetched\n"
             "    on demand.\n"
@@ -226,19 +294,21 @@ def get_latex_install_guidance() -> str:
     if system == "Darwin":
         return (
             "No LaTeX compiler found.\n"
-            "Install a LaTeX distribution:\n"
-            "  - MacTeX (recommended): brew install --cask mactex\n"
-            "  - BasicTeX (smaller):    brew install --cask basictex\n"
-            "  - TeX Live:              https://tug.org/texlive/"
+            "Install one of the following:\n"
+            + tectonic_guidance
+            + "  - MacTeX (full, ~4.5GB): brew install --cask mactex\n"
+            "  - BasicTeX (smaller, ~100MB): brew install --cask basictex\n"
+            "  - TeX Live:                   https://tug.org/texlive/"
         )
     # Linux / other
     return (
         "No LaTeX compiler found.\n"
-        "Install TeX Live via your package manager:\n"
-        "  - Debian/Ubuntu: sudo apt install texlive-latex-base\n"
+        "Install one of the following:\n"
+        + tectonic_guidance
+        + "  - Debian/Ubuntu: sudo apt install texlive-latex-base\n"
         "  - Fedora:        sudo dnf install texlive-scheme-basic\n"
         "  - Arch:          sudo pacman -S texlive-basic\n"
-        "  - Or full suite:  https://tug.org/texlive/"
+        "  - Or full suite: https://tug.org/texlive/"
     )
 
 
@@ -494,13 +564,26 @@ class CompilationResult:
     warning: str | None = None
 
 
-async def compile_paper(tex_path: Path, output_dir: Path, compiler: str = "pdflatex") -> CompilationResult:
-    """Compile a .tex file to PDF using latexmk or manual multi-pass.
+async def compile_paper(
+    tex_path: Path,
+    output_dir: Path,
+    compiler: str = "pdflatex",
+    *,
+    prefer_tectonic: bool = True,
+) -> CompilationResult:
+    """Compile a .tex file to PDF.
+
+    Routes through Tectonic when available and *prefer_tectonic* is ``True``
+    (the default).  Falls back to latexmk or manual multi-pass when only a
+    pdflatex-family compiler is present.
 
     Args:
         tex_path: Path to the .tex file.
         output_dir: Directory for output files.
-        compiler: TeX compiler to use (pdflatex or xelatex).
+        compiler: pdflatex-family compiler to use when Tectonic is not
+            available (``"pdflatex"`` or ``"xelatex"``).
+        prefer_tectonic: When ``True``, route through Tectonic if it is found
+            on the system PATH (or in well-known install locations on Windows).
 
     Uses :func:`find_latex_compiler` for cross-platform compiler detection,
     including Windows MiKTeX and TeX Live installations that may not be on
@@ -508,7 +591,13 @@ async def compile_paper(tex_path: Path, output_dir: Path, compiler: str = "pdfla
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Pre-check: is the compiler available at all?
+    # Prefer Tectonic when available — it handles bibtex + multi-pass itself.
+    if prefer_tectonic:
+        tectonic_path = find_tectonic()
+        if tectonic_path:
+            return await _compile_with_tectonic(tex_path, output_dir, tectonic_path=tectonic_path)
+
+    # Pre-check: is the pdflatex-family compiler available at all?
     if find_latex_compiler(compiler) is None:
         guidance = get_latex_install_guidance()
         return CompilationResult(
@@ -520,6 +609,81 @@ async def compile_paper(tex_path: Path, output_dir: Path, compiler: str = "pdfla
     if latexmk_path:
         return await _compile_with_latexmk(tex_path, output_dir, compiler, latexmk_path=latexmk_path)
     return await _compile_manual_multipass(tex_path, output_dir, compiler)
+
+
+async def _compile_with_tectonic(
+    tex_path: Path,
+    output_dir: Path,
+    *,
+    tectonic_path: str,
+) -> CompilationResult:
+    """Compile a .tex file using Tectonic.
+
+    Tectonic resolves bibliography and performs all necessary passes in a
+    single invocation — no separate bibtex / latexmk steps required.
+
+    Command: ``tectonic --outdir <output_dir> --keep-logs <tex_path>``
+    """
+    cmd = [
+        tectonic_path,
+        "--outdir",
+        str(output_dir),
+        "--keep-logs",
+        str(tex_path),
+    ]
+    logger.info("Compiling with Tectonic: %s", " ".join(cmd))
+
+    pdf_path = output_dir / f"{tex_path.stem}.pdf"
+
+    def _pdf_signature() -> tuple[int, int] | None:
+        if not pdf_path.exists():
+            return None
+        try:
+            stat = pdf_path.stat()
+        except OSError:
+            return None
+        return stat.st_size, stat.st_mtime_ns
+
+    initial_signature = _pdf_signature()
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(tex_path.parent),
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            return CompilationResult(success=False, error="Tectonic compilation timed out after 120 seconds")
+
+        log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
+
+        current_signature = _pdf_signature()
+        pdf_is_fresh = current_signature is not None and (
+            initial_signature is None or current_signature != initial_signature
+        )
+
+        if pdf_is_fresh:
+            if process.returncode == 0:
+                return CompilationResult(success=True, pdf_path=pdf_path)
+            return CompilationResult(
+                success=True,
+                pdf_path=pdf_path,
+                warning=f"tectonic exited with code {process.returncode} — PDF was produced but check the log for issues",
+                log=log_content[-5000:],
+            )
+
+        if process.returncode != 0:
+            error = f"tectonic exited with code {process.returncode}"
+        else:
+            error = "tectonic finished without producing a PDF"
+        return CompilationResult(success=False, error=error, log=log_content[-5000:])
+    except FileNotFoundError:
+        return CompilationResult(success=False, error="tectonic not found")
 
 
 async def _compile_with_latexmk(

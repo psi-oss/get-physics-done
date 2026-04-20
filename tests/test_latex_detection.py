@@ -91,9 +91,10 @@ class TestDetectLatexToolchain:
                 "bibtex": "/usr/bin/bibtex",
                 "latexmk": "/usr/bin/latexmk",
                 "kpsewhich": "/usr/bin/kpsewhich",
-                "pdftotext": "/usr/bin/pdftotext",
             }
             return mapping.get(binary)
+
+        import fitz as _fitz  # noqa: F401  # ensure PyMuPDF is importable
 
         monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
 
@@ -105,11 +106,12 @@ class TestDetectLatexToolchain:
         assert status.bibliography_support_available is True
         assert status.latexmk_available is True
         assert status.kpsewhich_available is True
-        assert status.pdftotext_available is True
+        # pdftotext_available is no longer set by detect_latex_toolchain —
+        # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        assert status.pdftotext_available is None
         assert status.readiness_state == "ready"
         assert status.paper_build_ready is True
         assert status.arxiv_submission_ready is True
-        assert status.pdf_review_ready is True
         assert "readiness=ready" in status.message
 
     def test_degrades_when_bibtex_is_missing_but_compiler_is_present(
@@ -135,15 +137,16 @@ class TestDetectLatexToolchain:
         assert status.bibliography_support_available is False
         assert status.latexmk_available is False
         assert status.kpsewhich_available is False
-        assert status.pdftotext_available is False
+        # pdftotext_available is no longer set by detect_latex_toolchain —
+        # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        assert status.pdftotext_available is None
         assert status.readiness_state == "degraded"
         assert status.paper_build_ready is True
         assert status.arxiv_submission_ready is False
-        assert status.pdf_review_ready is False
         assert "BibTeX missing" in status.message
         assert status.warnings
         assert any("citation-bearing builds" in warning for warning in status.warnings)
-        assert any("pdftotext not found" in warning for warning in status.warnings)
+        assert not any("pdftotext not found" in warning for warning in status.warnings)
 
 
 class TestPaperToolchainCapability:
@@ -180,7 +183,6 @@ class TestPaperToolchainCapability:
                 "bibtex": "/usr/bin/bibtex",
                 "latexmk": "/usr/bin/latexmk",
                 "kpsewhich": "/usr/bin/kpsewhich",
-                "pdftotext": "/usr/bin/pdftotext",
             }
             return mapping.get(binary)
 
@@ -195,11 +197,12 @@ class TestPaperToolchainCapability:
         assert status.bibliography_support_available is False
         assert status.latexmk_available is True
         assert status.kpsewhich_available is True
-        assert status.pdftotext_available is True
+        # pdftotext_available is no longer set by detect_latex_toolchain —
+        # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        assert status.pdftotext_available is None
         assert status.readiness_state == "blocked"
         assert status.paper_build_ready is False
         assert status.arxiv_submission_ready is False
-        assert status.pdf_review_ready is True
         assert "No LaTeX compiler found" in status.message
 
     def test_detects_miktex_distribution(self, monkeypatch: pytest.MonkeyPatch) -> None:

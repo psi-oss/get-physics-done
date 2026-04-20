@@ -1644,7 +1644,7 @@ def _doctor_check_package_imports() -> HealthCheck:
 
 
 _DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS = 5
-_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS = ("pdflatex", "bibtex", "latexmk", "kpsewhich", "pdftotext", "wolframscript")
+_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS = ("tectonic", "pdflatex", "bibtex", "latexmk", "kpsewhich", "wolframscript")
 
 
 def _doctor_run_executable_probe(argv: list[str], *, timeout_seconds: int) -> dict[str, object]:
@@ -1985,7 +1985,6 @@ def _doctor_check_latex_toolchain() -> HealthCheck:
     latexmk_available = bool(capability_details["latexmk_available"])
     bibtex_available = bool(capability_details["bibtex_available"])
     kpsewhich_available = bool(capability_details["kpsewhich_available"])
-    pdftotext_available = bool(capability_details["pdftotext_available"])
     full_toolchain_available = bool(capability_details["full_toolchain_available"])
     missing_components: list[str] = []
     if not compiler_available:
@@ -1996,8 +1995,6 @@ def _doctor_check_latex_toolchain() -> HealthCheck:
         missing_components.append("bibtex")
     if compiler_available and not kpsewhich_available:
         missing_components.append("kpsewhich")
-    if compiler_available and not pdftotext_available:
-        missing_components.append("pdftotext")
 
     warnings = (
         list(capability_details.get("warnings", [])) if isinstance(capability_details.get("warnings"), list) else []
@@ -2061,10 +2058,10 @@ def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool
         )
     elif not bool(capability_details.get("pdf_review_ready", False)):
         warnings.append(
-            "Publication / manuscript and full research presets are degraded without pdftotext: "
+            "Publication / manuscript and full research presets are degraded without PyMuPDF: "
             "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, and `peer-review` still accepts "
             "TeX/Markdown/TXT/CSV/TSV plus built-in DOCX/XLSX intake, but PDF-backed `peer-review` intake requires "
-            "`pdftotext` or a nearby `.txt` companion file."
+            "PyMuPDF (`pip install 'get-physics-done[arxiv]'`) or a nearby `.txt` companion file."
         )
 
     status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN
