@@ -77,8 +77,3 @@ Do not mark `status: passed` if any inventory item is uncovered, any adversarial
 - Do not accept phrases like "similarly", "by symmetry", or "the general case follows" without tracing the missing logic.
 - Do not convert a proof gap into a stylistic suggestion.
 </anti_patterns>
-
-
-## Output requirement
-
-End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

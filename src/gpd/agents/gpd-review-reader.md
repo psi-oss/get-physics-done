@@ -51,8 +51,3 @@ Reader-specific deltas:
 - Do not excuse overclaiming as a later presentation issue if it appears central to the paper's framing.
 - Do not collapse theorem hypotheses or free parameters into vague prose. If a theorem statement names them, index them explicitly.
 </anti_patterns>
-
-
-## Output requirement
-
-End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.

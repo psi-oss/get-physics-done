@@ -53,8 +53,3 @@ Math-specific deltas:
 - Do not soften a mathematically central gap into a presentation issue.
 - Do not treat a silently specialized proof as if it proved the stated theorem.
 </anti_patterns>
-
-
-## Output requirement
-
-End your response with a one- to three-sentence text summary of what you accomplished, even if your last substantive action was a tool call. Include: what files you changed or created, what you verified, and any surprises or open questions.
