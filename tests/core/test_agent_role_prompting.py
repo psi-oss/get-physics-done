@@ -69,6 +69,24 @@ def test_internal_agents_explicitly_identify_internal_specialist_surface() -> No
         assert "Do not act as the default writable implementation agent" in content, name
 
 
+def test_ideation_worker_stays_internal_one_shot_and_return_only() -> None:
+    agent = registry.get_agent("gpd-ideation-worker")
+    source = _read_agent("gpd-ideation-worker")
+
+    assert agent.surface == "internal"
+    assert agent.role_family == "analysis"
+    assert agent.commit_authority == "orchestrator"
+    assert agent.artifact_write_authority == "read_only"
+    assert agent.shared_state_authority == "return_only"
+    assert "This is a one-shot handoff. If user input is needed, return `gpd_return.status: checkpoint` and stop." in source
+    assert "Your posture is controlled by the orchestrator prompt." in source
+    assert "Treat those as prompt-level lane instructions, not suggestions." in source
+    assert "You do not own durable session state" in source
+    assert "Do not write files in this phase." in source
+    assert "keep `files_written: []`" in source
+    assert "Do not write files or invent artifact paths." in source
+
+
 def test_source_agent_surface_boilerplate_does_not_conflict_with_frontmatter() -> None:
     for name in registry.list_agents():
         agent = registry.get_agent(name)

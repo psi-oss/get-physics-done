@@ -1,19 +1,20 @@
 ---
 name: gpd:ideate
-description: Launch a structured ideation session through interactive intake and launch approval
+description: Run projectless multi-agent ideation through interactive intake, bounded rounds, and user review
 argument-hint: "[topic, question, or domain] [--preset fast|balanced|deep]"
 context_mode: projectless
 allowed-tools:
   - file_read
   - shell
   - ask_user
+  - task
 ---
 
 
 <objective>
-Launch an ideation session cleanly: gather the scientific problem or open discussion space, clarify the desired outcome, capture the constraints and anchors that must stay visible, and show an editable launch summary before any ideation begins.
+Run an ideation session cleanly: gather the scientific problem or open discussion space, clarify the desired outcome, capture the constraints and anchors that must stay visible, show an editable launch summary, and then guide bounded multi-agent ideation rounds with explicit user review gates.
 
-Phase 1 of `gpd:ideate` is launch-surface only. It does **not** run the multi-agent ideation loop yet, does **not** write durable artifacts, and does **not** auto-ingest project state unless the user explicitly asks for specific context.
+Keep `gpd:ideate` projectless and lightweight. It should not auto-ingest project state unless the user explicitly asks for specific context, and it should not claim durable session storage, resumable ideation state, or other later-phase persistence features. Keep orchestration in memory for this phase and do not promise durable ideation storage.
 </objective>
 
 <context>
@@ -34,23 +35,27 @@ Interpretation:
 <process>
 Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-end.
 
-Keep the wrapper thin. Preserve the workflow-owned gates:
+Keep the wrapper thin. The execution context owns round orchestration, worker fan-out, synthesis, and user gating. Preserve the workflow-owned gates:
 
 - plain-English launch orientation
 - one dense intake prompt
 - adaptive clarification only where needed
 - editable launch/config summary
 - explicit `Start ideation / Adjust launch / Review raw context / Stop here` approval loop
+- bounded ideation rounds across configurable agents
+- per-round synthesis and user review before continuing
+- explicit round-boundary options such as `Continue`, `Add my thoughts`, `Adjust configuration`, `Review raw round`, and `Pause or stop`
 
-Phase 1 stops after the launch summary is approved or the user stops. Do not invent the later multi-agent round engine, do not claim that a durable ideation session was created, and do not write files unless a later workflow phase explicitly adds that behavior.
+Do not claim durable ideation session storage, resumable ideation state, tagging, imported-document handling, or other later-phase persistence systems unless a later workflow phase explicitly adds them. The phase-2 contract is an in-memory session, not a durable ideation artifact system.
 </process>
 
 <success_criteria>
 
 - [ ] `gpd:ideate` starts projectlessly from any folder
-- [ ] The workflow owns the interactive intake and launch-summary loop
+- [ ] The workflow owns the interactive intake, launch summary, round execution, and round-review loop
+- [ ] Bounded multi-agent rounds happen behind explicit user checkpoints
 - [ ] Existing project context remains opt-in rather than auto-loaded
-- [ ] The user can approve, adjust, review raw context, or stop cleanly
-- [ ] No durable artifacts are created in this phase
+- [ ] The user can continue, add thoughts, adjust configuration, review the raw round, or stop cleanly
+- [ ] No durable ideation session files, resumable state, or later-phase persistence systems are required in this phase
 
 </success_criteria>

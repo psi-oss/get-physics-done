@@ -147,6 +147,13 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
         "review": ModelTier.TIER_2,
         "paper-writing": ModelTier.TIER_3,
     },
+    "gpd-ideation-worker": {
+        "deep-theory": ModelTier.TIER_1,
+        "numerical": ModelTier.TIER_2,
+        "exploratory": ModelTier.TIER_1,
+        "review": ModelTier.TIER_2,
+        "paper-writing": ModelTier.TIER_3,
+    },
     "gpd-research-synthesizer": {
         "deep-theory": ModelTier.TIER_1,
         "numerical": ModelTier.TIER_2,

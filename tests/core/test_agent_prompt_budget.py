@@ -22,6 +22,7 @@ AGENT_BUDGETS = {
     "gpd-executor": (3_500, 230_000),
     "gpd-experiment-designer": (2_400, 130_000),
     "gpd-explainer": (1_900, 100_000),
+    "gpd-ideation-worker": (1_400, 75_000),
     "gpd-literature-reviewer": (1_800, 90_000),
     "gpd-notation-coordinator": (2_100, 115_000),
     "gpd-paper-writer": (1_500, 75_000),

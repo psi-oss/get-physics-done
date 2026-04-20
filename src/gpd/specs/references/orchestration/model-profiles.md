@@ -25,6 +25,7 @@ If no override is configured for the active runtime, `gpd resolve-model` returns
 | gpd-executor             | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-phase-researcher     | tier-1        | tier-1      | tier-1        | tier-2   | tier-2          |
 | gpd-project-researcher   | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
+| gpd-ideation-worker      | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
 | gpd-research-synthesizer | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-debugger             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
 | gpd-research-mapper      | tier-2        | tier-3      | tier-3        | tier-3   | tier-3          |
@@ -156,6 +157,16 @@ Profiles affect agent behavior, not just model selection. When a profile is acti
 | **exploratory**   | Maximum breadth. Surveys adjacent fields for cross-pollination opportunities. Identifies unconventional approaches (e.g., machine learning for physics, information-theoretic methods). Casts a wide net. |
 | **review**        | Gap-identification focus. Maps what is established vs contested vs unknown. Identifies specific claims in the literature that lack independent verification. Flags reproducibility concerns. |
 | **paper-writing** | Lightweight survey. Quick identification of the 10-15 most relevant references. Focuses on positioning the project within the existing literature rather than exhaustive coverage.            |
+
+### gpd-ideation-worker
+
+| Profile           | Behavioral Change                                                                                                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **deep-theory**   | High-rigor ideation. Pushes for mechanism-level explanations, explicit assumptions, and stronger mathematical structure before accepting a direction as promising.                                |
+| **numerical**     | Computation-aware ideation. Prefers ideas that can be stress-tested with calculation, simulation, benchmark comparison, or tractable estimation in later workflow phases.                        |
+| **exploratory**   | Breadth-first ideation. Generates more candidate framings and cross-domain analogies, then surfaces which ones look novel enough to keep in the shared discussion.                               |
+| **review**        | Critique-weighted ideation. Emphasizes weak assumptions, false-progress risks, missing baselines, and disconfirming paths while still returning usable hypotheses.                                |
+| **paper-writing** | Positioning-aware ideation. Prefers ideas that can later be articulated as claims, open questions, or narrative arcs relative to prior literature, without turning the phase into paper drafting. |
 
 ### gpd-research-synthesizer
 
