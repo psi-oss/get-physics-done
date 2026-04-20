@@ -372,21 +372,21 @@ Fold only that subgroup summary into the main shared discussion, then return to 
 </step>
 
 <step name="session_finish">
-When the user stops, end with a compact discussion summary:
+When the user stops, end with one compact structured closeout summary. Keep it lightweight and conversational, but make the structure explicit with short labeled bullets or equivalent headings that cover:
 
 - main ideas explored
 - unresolved disagreements or confusions
 - promising next steps
 - open questions
-- suggested follow-up commands or actions
+- suggested follow-up actions
 
-The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, subgroup transcripts, resumable session files, tags, imported-document state, or archived artifacts.
+This v1 closeout is in-memory only. Do not add or imply durable ideation history, session IDs, subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
 
-After presenting the summary, ask one short explicit closing question:
+Immediately after the summary, ask this exact short closing question:
 
 `What do you want to do next?`
 
-Offer a short list of relevant GPD actions based on the session outcome, such as:
+Then offer a short list of only the most relevant GPD follow-up actions for the session outcome, such as:
 
 - `gpd:suggest-next`
 - `gpd:ideate [topic or question]`
@@ -402,7 +402,7 @@ End with:
 
 ## > Next Up
 
-**gpd:suggest-next** -- choose the best follow-up from this ideation session
+**gpd:suggest-next** -- ask GPD for the best next move from here
 
 `gpd:suggest-next`
 

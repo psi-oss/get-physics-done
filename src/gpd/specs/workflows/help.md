@@ -14,7 +14,7 @@ When a state-aware help view is requested, show only the commands relevant to th
 Getting started:
   gpd:start               — Guided router for create, map, resume, or explain decisions
   gpd:tour               — Read-only guided tour of the main commands
-  gpd:ideate             — Projectless multi-agent ideation with bounded rounds and review gates before project scoping
+  gpd:ideate             — Projectless multi-agent ideation with bounded rounds, review gates, and a structured closeout that suggests GPD or non-GPD next steps
   gpd:new-project         — Start a new research project with full scoping
   gpd:new-project --minimal — Faster one-question project bootstrap
   gpd:map-research        — Map an existing research project
@@ -156,7 +156,7 @@ Use the path that matches your current situation:
 **New work**
 1. `gpd:start` - Guided first-run router that chooses the safest first step for this folder
 2. `gpd:tour` - Get a read-only overview before choosing
-3. `gpd:ideate` - Sharpen a research direction through projectless multi-agent ideation with bounded rounds before committing to project artifacts
+3. `gpd:ideate` - Sharpen a research direction through projectless multi-agent ideation with bounded rounds and a structured closeout before committing to project artifacts
 4. `gpd:new-project` - Create a full GPD project
 5. `gpd:new-project --minimal` - Create a project through the shortest setup path
 
@@ -188,7 +188,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:help` - Show the quick start or command index
 - `gpd:start` - Guided first-run router for the safest first path in the current folder
 - `gpd:tour` - Show a read-only overview of the main commands
-- `gpd:ideate` - Run projectless multi-agent ideation with bounded rounds and review gates before project scoping
+- `gpd:ideate` - Run projectless multi-agent ideation with bounded rounds, review gates, and a structured closeout that suggests GPD or non-GPD next steps
 - `gpd:new-project` - Create a full GPD project
 - `gpd:new-project --minimal` - Create a GPD project through the shortest setup path
 - `gpd:map-research` - Map an existing research folder before planning

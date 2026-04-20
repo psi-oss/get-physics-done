@@ -47,6 +47,13 @@ def _phase3_subgroup_surface_is_documented(content: str) -> bool:
     )
 
 
+def _step_body(content: str, step_name: str) -> str:
+    marker = f'<step name="{step_name}">'
+    start = content.index(marker) + len(marker)
+    end = content.index("</step>", start)
+    return content[start:end]
+
+
 def test_ideate_surfaces_land_together() -> None:
     assert IDEATE_COMMAND_PATH.exists() == IDEATE_WORKFLOW_PATH.exists()
 
@@ -277,7 +284,31 @@ def test_ideate_public_surfaces_keep_phase3_subgroups_bounded_and_non_durable() 
         assert forbidden_claim not in public_surfaces.lower()
 
 
-def test_ideate_closeout_contract_asks_what_next_and_allows_non_gpd_requests() -> None:
+def test_ideate_phase4_closeout_keeps_structured_summary_shape_when_present() -> None:
+    if not IDEATE_COMMAND_PATH.exists():
+        pytest.skip("ideate command/workflow has not landed yet")
+
+    workflow = _read(IDEATE_WORKFLOW_PATH)
+    session_finish_marker = '<step name="session_finish">'
+
+    if session_finish_marker not in workflow:
+        pytest.skip("ideate phase-4 closeout has not landed yet")
+
+    session_finish = _step_body(workflow, "session_finish")
+
+    assert "When the user stops, end with one compact structured closeout summary." in session_finish
+    assert "make the structure explicit with short labeled bullets or equivalent headings" in session_finish
+    for fragment in (
+        "main ideas explored",
+        "unresolved disagreements or confusions",
+        "promising next steps",
+        "open questions",
+    ):
+        assert fragment in session_finish
+    assert "suggested follow-up actions" in session_finish
+
+
+def test_ideate_phase4_closeout_requires_explicit_what_next_prompt_and_follow_up_suggestions_when_present() -> None:
     if not IDEATE_COMMAND_PATH.exists():
         pytest.skip("ideate command/workflow has not landed yet")
 
@@ -288,22 +319,61 @@ def test_ideate_closeout_contract_asks_what_next_and_allows_non_gpd_requests() -
     if not _ideate_round_loop_is_documented(command, workflow):
         pytest.skip("ideate round loop has not landed yet")
 
-    combined = f"{command}\n{workflow}\n{help_workflow}"
+    if '<step name="session_finish">' not in workflow:
+        pytest.skip("ideate phase-4 closeout has not landed yet")
 
-    assert _contains_any_lower(
-        combined,
-        "what do you want to do next",
-        "what do you want to do next?",
+    session_finish = _step_body(workflow, "session_finish")
+
+    assert "Immediately after the summary, ask this exact short closing question:" in session_finish
+    assert "`What do you want to do next?`" in session_finish
+    assert "Then offer a short list of only the most relevant GPD follow-up actions for the session outcome" in session_finish
+    assert (
+        "Stopping the session produces a structured summary, an explicit what-next prompt, relevant suggested GPD actions, and room for non-GPD next steps without implying durable persistence"
+        in command
     )
-    assert _contains_any_lower(
-        combined,
-        "non-gpd next step",
-        "non-gpd next steps",
+    assert (
+        "Ends with a structured summary, asks what you want to do next, and suggests relevant GPD actions while still allowing non-GPD next steps"
+        in help_workflow
     )
-    assert _contains_any_lower(
-        combined,
-        "structured summary",
-        "compact discussion summary",
-    )
+
     for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
-        assert fragment in combined
+        assert fragment in session_finish
+
+
+def test_ideate_phase4_closeout_allows_non_gpd_next_steps_and_stays_non_durable_when_present() -> None:
+    if not IDEATE_COMMAND_PATH.exists():
+        pytest.skip("ideate command/workflow has not landed yet")
+
+    command = _read(IDEATE_COMMAND_PATH)
+    workflow = _read(IDEATE_WORKFLOW_PATH)
+    help_workflow = _read(WORKFLOWS_DIR / "help.md")
+
+    if not _ideate_round_loop_is_documented(command, workflow):
+        pytest.skip("ideate round loop has not landed yet")
+
+    if '<step name="session_finish">' not in workflow:
+        pytest.skip("ideate phase-4 closeout has not landed yet")
+
+    session_finish = _step_body(workflow, "session_finish")
+
+    assert (
+        "Also say plainly that the user can ask for a non-GPD next step instead if that is more useful."
+        in session_finish
+    )
+    assert "This v1 closeout is in-memory only." in session_finish
+    assert _contains_any_lower(
+        session_finish,
+        "do not add or imply durable ideation history",
+        "session ids",
+        "save-resume-session-management machinery",
+    )
+    assert _contains_any_lower(
+        command,
+        "keep orchestration in memory",
+        "in-memory session",
+        "do not promise durable ideation storage",
+    )
+    assert (
+        "Keeps ideation orchestration in memory only; it does not promise durable session storage, resumable ideation sessions, subgroup transcripts, `GPD/ideation/` storage, subgroup promotion, tags, or imported-document persistence"
+        in help_workflow
+    )

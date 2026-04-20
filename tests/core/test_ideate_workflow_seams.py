@@ -189,6 +189,7 @@ def test_ideate_phase2_stays_fileless_and_does_not_claim_durable_session_artifac
         workflow,
         "The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, resumable session files, tags, imported-document state, or archived artifacts.",
         "The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, subgroup transcripts, resumable session files, tags, imported-document state, or archived artifacts.",
+        "This v1 closeout is in-memory only. Do not add or imply durable ideation history, session IDs, subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.",
         "No durable ideation session files, artifact directories, tag ledgers, or document-library claims are required in Phase 2",
     )
 
@@ -286,28 +287,58 @@ def test_ideate_workflow_reintegrates_subgroup_output_by_summary_without_persist
     assert "gpd_return.files_written" not in workflow
 
 
-def test_ideate_session_finish_keeps_structured_summary_and_explicit_next_step_prompt() -> None:
+def test_ideate_session_finish_locks_the_compact_closeout_summary_shape() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     session_finish = _step_body(workflow, "session_finish")
 
-    for fragment in (
-        "main ideas explored",
-        "unresolved disagreements or confusions",
-        "promising next steps",
-        "open questions",
-        "suggested follow-up commands or actions",
-    ):
-        assert fragment in session_finish
+    assert (
+        "When the user stops, end with one compact structured closeout summary. "
+        "Keep it lightweight and conversational, but make the structure explicit with short labeled bullets "
+        "or equivalent headings that cover:\n\n"
+        "- main ideas explored\n"
+        "- unresolved disagreements or confusions\n"
+        "- promising next steps\n"
+        "- open questions\n"
+        "- suggested follow-up actions\n"
+    ) in session_finish
 
-    assert _contains_any(
-        session_finish,
-        "What do you want to do next?",
-        "`What do you want to do next?`",
-    )
-    assert _contains_any(
-        session_finish,
-        "the user can ask for a non-GPD next step instead",
-        "the user can ask for a non-GPD next step",
-    )
-    for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
-        assert fragment in session_finish
+
+def test_ideate_session_finish_keeps_the_explicit_next_step_prompt_and_canonical_follow_up_list() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    session_finish = _step_body(workflow, "session_finish")
+
+    assert (
+        "Immediately after the summary, ask this exact short closing question:\n\n"
+        "`What do you want to do next?`\n"
+    ) in session_finish
+    assert "Then offer a short list of only the most relevant GPD follow-up actions for the session outcome, such as:" in session_finish
+    assert "Also say plainly that the user can ask for a non-GPD next step instead if that is more useful." in session_finish
+    assert (
+        "End with:\n\n"
+        "```markdown\n"
+        "---\n\n"
+        "## > Next Up\n\n"
+        "**gpd:suggest-next** -- ask GPD for the best next move from here\n\n"
+        "`gpd:suggest-next`\n\n"
+        "<sub>`/clear` first, then run `gpd:suggest-next`</sub>\n\n"
+        "---\n\n"
+        "**Also available:**\n"
+        "- `gpd:ideate [topic or question]` -- run another ideation session or revise the launch\n"
+        "- `gpd:new-project` -- turn a strong direction into a project-backed workflow\n"
+        "- `gpd:help --all` -- inspect the current command surface\n\n"
+        "---\n"
+        "```"
+    ) in session_finish
+
+
+def test_ideate_session_finish_stays_conversational_and_non_durable() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    session_finish = _step_body(workflow, "session_finish")
+
+    assert (
+        "This v1 closeout is in-memory only. Do not add or imply durable ideation history, session IDs, "
+        "subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, "
+        "or any save-resume-session-management machinery."
+    ) in session_finish
+    for forbidden in ("session.json", "GPD/ideation/", "gpd_return.files_written", "<spawn_contract>"):
+        assert forbidden not in session_finish

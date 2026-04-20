@@ -1,6 +1,6 @@
 ---
 name: gpd:ideate
-description: Run projectless multi-agent ideation through interactive intake, bounded rounds, temporary subgroups, and user review
+description: Run projectless multi-agent ideation through interactive intake, bounded rounds, user review, and a structured closeout
 argument-hint: "[topic, question, or domain] [--preset fast|balanced|deep]"
 context_mode: projectless
 allowed-tools:
@@ -44,7 +44,7 @@ Keep the wrapper thin. The execution context owns round orchestration, worker fa
 - explicit `Start ideation / Adjust launch / Review raw context / Stop here` approval loop
 - bounded ideation rounds across configurable agents
 - per-round synthesis and user review before continuing
-- structured end-of-session summary with an explicit what-next prompt
+- structured end-of-session summary with an explicit what-next prompt, relevant suggested GPD actions, and allowance for non-GPD next steps
 - explicit round-boundary options such as `Continue`, `Add my thoughts`, `Adjust configuration`, `Review raw round`, and `Pause or stop`
 - any temporary bounded subgrouping offered only as an `Adjust configuration` choice at that existing round gate, with parent-owned, bounded, fileless, summary-only rejoin behavior
 - subgroup rejoin routed back through that existing round-boundary control surface rather than transcript replay or a promoted subgroup session
@@ -60,7 +60,7 @@ Do not claim durable ideation session storage, resumable ideation state, subgrou
 - [ ] Existing project context remains opt-in rather than auto-loaded
 - [ ] The user can continue, add thoughts, adjust configuration, review the raw round, or stop cleanly
 - [ ] The user can launch a temporary bounded subgroup from the round boundary and rejoin through a subgroup summary
-- [ ] Stopping the session produces a structured summary and an explicit what-next prompt with relevant follow-up suggestions
+- [ ] Stopping the session produces a structured summary, an explicit what-next prompt, relevant suggested GPD actions, and room for non-GPD next steps without implying durable persistence
 - [ ] No durable ideation session files, resumable state, or later-phase persistence systems are required in this phase
 
 </success_criteria>
