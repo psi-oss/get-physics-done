@@ -463,7 +463,7 @@ def test_manuscript_theorem_language_scan_reads_binary_pdf_companion_text(tmp_pa
     assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is True
 
 
-def test_manuscript_theorem_language_scan_uses_pdftotext_for_binary_pdf(
+def test_manuscript_theorem_language_scan_uses_pymupdf_for_binary_pdf(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -473,11 +473,29 @@ def test_manuscript_theorem_language_scan_uses_pdftotext_for_binary_pdf(
         "Theorem. Every admissible orbit reaches the annulus.\nProof. The extractor preserves the proof body.\n"
     )
 
-    monkeypatch.setattr(
-        "gpd.mcp.paper.compiler.find_latex_compiler",
-        lambda compiler: "/usr/bin/pdftotext" if compiler == "pdftotext" else None,
-    )
-    monkeypatch.setattr(subprocess, "run", _fake_pdftotext_run(extracted_text))
+    class _FakePage:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def get_text(self) -> str:
+            return self._text
+
+    class _FakeDoc:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def __iter__(self):
+            yield _FakePage(self._text)
+
+        def close(self) -> None:
+            pass
+
+    import sys as _sys
+    import types as _types
+
+    fake_fitz = _types.ModuleType("fitz")
+    fake_fitz.open = lambda _p: _FakeDoc(extracted_text)  # type: ignore[attr-defined]
+    monkeypatch.setitem(_sys.modules, "fitz", fake_fitz)
 
     assert manuscript_has_theorem_bearing_language(tmp_path, manuscript_path) is True
 

@@ -192,6 +192,42 @@ def _canonicalize_runtime_markdown(content: str, *, runtime: str) -> str:
     content = content.replace("$gpd-", "gpd:")
     content = content.replace("/gpd:", "gpd:")
     content = content.replace("/gpd-", "gpd:")
+    if runtime == "opencode":
+        # The opencode adapter rewrites bare `gpd:X` command references in
+        # markdown body text to `gpd-X` during install (see
+        # `_GPD_BARE_COMMAND_RE` in gpd.adapters.opencode). Reverse that here
+        # for contract-assertion purposes so tests can use the canonical
+        # `gpd:X` form regardless of runtime. This list enumerates the
+        # command stems we know to rewrite, to avoid accidentally touching
+        # CLI tool or agent names like `gpd-check-proof` that legitimately
+        # use the hyphenated form.
+        _OPENCODE_REWRITTEN_STEMS = (
+            "add-phase", "add-todo", "arxiv-submission", "audit-milestone",
+            "autonomous", "branch-hypothesis", "check-todos", "compact-state",
+            "compare-branches", "compare-experiment", "compare-results",
+            "complete-milestone", "debug", "decisions", "derive-equation",
+            "digest-knowledge", "dimensional-analysis", "discover",
+            "discuss-phase", "error-patterns", "error-propagation",
+            "execute-phase", "explain", "export-logs", "export", "graph",
+            "health", "help", "insert-phase", "limiting-cases",
+            "list-phase-assumptions", "literature-review", "map-research",
+            "merge-phases", "new-milestone", "new-project",
+            "numerical-convergence", "parameter-sweep", "pause-work",
+            "peer-review", "plan-milestone-gaps", "plan-phase", "progress",
+            "quick", "reapply-patches", "record-insight", "regression-check",
+            "remove-phase", "research-phase", "respond-to-referees",
+            "resume-work", "review-knowledge", "revise-phase",
+            "sensitivity-analysis", "set-profile", "set-tier-models",
+            "settings", "show-phase", "slides", "start", "suggest-next",
+            "sync-state", "tangent", "tour", "undo", "update",
+            "validate-conventions", "verify-work", "write-paper",
+        )
+        for stem in _OPENCODE_REWRITTEN_STEMS:
+            content = re.sub(
+                rf"(?<![A-Za-z0-9_./:$-])gpd-{re.escape(stem)}\b",
+                f"gpd:{stem}",
+                content,
+            )
     return content
 
 
