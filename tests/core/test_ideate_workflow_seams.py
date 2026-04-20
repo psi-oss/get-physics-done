@@ -48,7 +48,12 @@ def test_ideate_command_stays_thin_and_leaves_round_orchestration_to_the_workflo
 def test_ideate_workflow_keeps_the_launch_summary_and_approval_surface_before_rounds() -> None:
     workflow = _read(IDEATE_WORKFLOW)
 
-    assert _contains_any(workflow, "## Phase 2: Ideation Launch", "## Ideation Launch")
+    assert _contains_any(
+        workflow,
+        "## Phase 2: Ideation Launch",
+        "## Phase 3: Ideation Launch",
+        "## Ideation Launch",
+    )
 
     for fragment in (
         "| Idea |",
@@ -279,3 +284,30 @@ def test_ideate_workflow_reintegrates_subgroup_output_by_summary_without_persist
         "promotion to independent sessions",
     )
     assert "gpd_return.files_written" not in workflow
+
+
+def test_ideate_session_finish_keeps_structured_summary_and_explicit_next_step_prompt() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    session_finish = _step_body(workflow, "session_finish")
+
+    for fragment in (
+        "main ideas explored",
+        "unresolved disagreements or confusions",
+        "promising next steps",
+        "open questions",
+        "suggested follow-up commands or actions",
+    ):
+        assert fragment in session_finish
+
+    assert _contains_any(
+        session_finish,
+        "What do you want to do next?",
+        "`What do you want to do next?`",
+    )
+    assert _contains_any(
+        session_finish,
+        "the user can ask for a non-GPD next step instead",
+        "the user can ask for a non-GPD next step",
+    )
+    for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
+        assert fragment in session_finish

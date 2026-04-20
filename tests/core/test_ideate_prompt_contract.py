@@ -1,4 +1,4 @@
-"""Focused phase-2 contract guardrails for the ideate command/workflow surface."""
+"""Focused ideate contract guardrails for the ideate command/workflow surface."""
 
 from __future__ import annotations
 
@@ -275,3 +275,35 @@ def test_ideate_public_surfaces_keep_phase3_subgroups_bounded_and_non_durable() 
         "resumable subgroup session",
     ):
         assert forbidden_claim not in public_surfaces.lower()
+
+
+def test_ideate_closeout_contract_asks_what_next_and_allows_non_gpd_requests() -> None:
+    if not IDEATE_COMMAND_PATH.exists():
+        pytest.skip("ideate command/workflow has not landed yet")
+
+    command = _read(IDEATE_COMMAND_PATH)
+    workflow = _read(IDEATE_WORKFLOW_PATH)
+    help_workflow = _read(WORKFLOWS_DIR / "help.md")
+
+    if not _ideate_round_loop_is_documented(command, workflow):
+        pytest.skip("ideate round loop has not landed yet")
+
+    combined = f"{command}\n{workflow}\n{help_workflow}"
+
+    assert _contains_any_lower(
+        combined,
+        "what do you want to do next",
+        "what do you want to do next?",
+    )
+    assert _contains_any_lower(
+        combined,
+        "non-gpd next step",
+        "non-gpd next steps",
+    )
+    assert _contains_any_lower(
+        combined,
+        "structured summary",
+        "compact discussion summary",
+    )
+    for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
+        assert fragment in combined

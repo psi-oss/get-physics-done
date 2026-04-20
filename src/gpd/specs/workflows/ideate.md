@@ -139,7 +139,7 @@ Synthesize a concise structured launch brief that preserves the user's own frami
 Render it as:
 
 ```markdown
-## Phase 2: Ideation Launch
+## Phase 3: Ideation Launch
 
 | Section | Current launch brief |
 | --- | --- |
@@ -382,6 +382,19 @@ When the user stops, end with a compact discussion summary:
 
 The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, subgroup transcripts, resumable session files, tags, imported-document state, or archived artifacts.
 
+After presenting the summary, ask one short explicit closing question:
+
+`What do you want to do next?`
+
+Offer a short list of relevant GPD actions based on the session outcome, such as:
+
+- `gpd:suggest-next`
+- `gpd:ideate [topic or question]`
+- `gpd:new-project`
+- `gpd:help --all`
+
+Also say plainly that the user can ask for a non-GPD next step instead if that is more useful.
+
 End with:
 
 ```markdown
@@ -428,6 +441,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] Per-agent assignments can be updated between rounds without restarting the session
 - [ ] Optional subgroup work stays parent-owned, bounded, fileless, and summary-first on rejoin
 - [ ] The review gate supports continue, add thoughts, adjust configuration, review raw round, and pause-stop
+- [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
 - [ ] The workflow stays fileless for ideation and subgroup state in this phase
 - [ ] No durable ideation history, resumable session files, tags, imported-document state, or archived artifacts.
 </success_criteria>
