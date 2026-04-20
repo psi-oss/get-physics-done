@@ -21,7 +21,6 @@ import sys
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -6412,8 +6411,8 @@ class TestReviewValidationCommands:
         _write_binary_pdf(artifact)
 
         # Simulate pypdf being unavailable (no PDF extraction support at all).
-        import sys as _sys
         import importlib.abc as _abc
+        import sys as _sys
 
         _original_pypdf = _sys.modules.pop("pypdf", None)
 

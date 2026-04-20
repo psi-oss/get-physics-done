@@ -94,8 +94,6 @@ class TestDetectLatexToolchain:
             }
             return mapping.get(binary)
 
-        import pypdf as _pypdf  # noqa: F401  # ensure pypdf is importable
-
         monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
 
         status = detect_latex_toolchain()

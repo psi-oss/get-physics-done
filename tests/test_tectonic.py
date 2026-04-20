@@ -11,10 +11,7 @@ Verifies:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, patch
 
 from gpd.mcp.paper.compiler import (
     compile_paper,
@@ -22,7 +19,6 @@ from gpd.mcp.paper.compiler import (
     find_tectonic,
 )
 from gpd.mcp.paper.models import PaperToolchainCapability
-
 
 # ---------------------------------------------------------------------------
 # find_tectonic
