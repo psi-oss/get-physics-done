@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import posixpath
-import subprocess
-import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -134,10 +132,14 @@ def _pdf_companion_text(path: Path) -> Path | None:
     return companion if companion.exists() and companion.is_file() else None
 
 
-def _pdftotext_path() -> str | None:
-    from gpd.mcp.paper.compiler import find_latex_compiler
+def _pypdf_available() -> bool:
+    """Return True when pypdf can be imported."""
+    try:
+        import pypdf  # noqa: F401
 
-    return find_latex_compiler("pdftotext")
+        return True
+    except ImportError:
+        return False
 
 
 def _normalize_zip_target(base_name: str, target: str) -> str:
@@ -284,25 +286,18 @@ def _extract_pdf_text(path: Path) -> str:
     companion = _pdf_companion_text(path)
     if companion is not None:
         return _read_text_like_artifact(companion)
-    pdftotext_path = _pdftotext_path()
-    if pdftotext_path is None:
-        raise ArtifactTextError(
-            "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
-        )
     try:
-        with tempfile.TemporaryDirectory(prefix="gpd-pdf-text-") as tmpdir:
-            output_path = Path(tmpdir) / f"{path.stem}.txt"
-            result = subprocess.run(
-                [pdftotext_path, "-enc", "UTF-8", str(path), str(output_path)],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0 and not output_path.exists():
-                detail = (result.stderr or result.stdout).strip() or f"pdftotext exited with code {result.returncode}"
-                raise ArtifactTextError(f"PDF text extraction failed: {detail}")
-            return _read_text_like_artifact(output_path)
-    except OSError as exc:
+        import pypdf
+    except ImportError as exc:
+        raise ArtifactTextError(
+            "PDF text extraction requires pypdf. "
+            "Install it with: pip install 'get-physics-done[arxiv]'"
+        ) from exc
+    try:
+        reader = pypdf.PdfReader(str(path))
+        text_parts = [page.extract_text() or "" for page in reader.pages]
+        return "\n".join(text_parts)
+    except Exception as exc:
         raise ArtifactTextError(f"PDF text extraction failed: {exc}") from exc
 
 
@@ -326,17 +321,18 @@ def probe_artifact_text_surface(path: Path) -> ArtifactTextProbe:
                 surface_kind="companion",
                 surface_path=companion,
             )
-        pdftotext_path = _pdftotext_path()
-        if pdftotext_path is not None:
+        if _pypdf_available():
             return ArtifactTextProbe(
                 ready=True,
-                detail=f"pdftotext available at {pdftotext_path} for PDF review intake",
+                detail="pypdf available for PDF review intake",
                 surface_kind="generated",
-                helper_path=Path(pdftotext_path),
             )
         return ArtifactTextProbe(
             ready=False,
-            detail="PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file",
+            detail=(
+                "PDF text extraction requires pypdf. "
+                "Install it with: pip install 'get-physics-done[arxiv]'"
+            ),
         )
     if suffix in OOXML_DOCUMENT_SUFFIXES:
         _read_docx_text(path)
@@ -378,7 +374,7 @@ def load_artifact_text_surface(path: Path) -> ArtifactTextSurface:
         return ArtifactTextSurface(
             source_path=path,
             text=_extract_pdf_text(path),
-            detail=f"pdftotext available at {_pdftotext_path()} for PDF review intake",
+            detail="pypdf available for PDF review intake",
             surface_kind="generated",
         )
     if suffix in OOXML_DOCUMENT_SUFFIXES:

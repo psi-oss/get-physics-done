@@ -21,7 +21,6 @@ import sys
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -552,6 +551,55 @@ def _write_minimal_xlsx(path: Path) -> Path:
             ),
         )
     return path
+
+
+def _fake_pypdf_module(extracted_text: str):
+    """Return a fake pypdf module whose PdfReader yields one page with *extracted_text*."""
+    import sys
+    import types
+
+    class _FakePage:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def extract_text(self) -> str:
+            return self._text
+
+    class _FakeReader:
+        def __init__(self, _path: object) -> None:
+            self.pages = [_FakePage(extracted_text)]
+
+    fake = types.ModuleType("pypdf")
+    fake.PdfReader = _FakeReader  # type: ignore[attr-defined]
+
+    def _install() -> None:
+        sys.modules["pypdf"] = fake
+
+    def _uninstall() -> None:
+        sys.modules.pop("pypdf", None)
+
+    return fake, _install, _uninstall
+
+
+def _fake_pypdf_failure_module(error_message: str):
+    """Return a fake pypdf module whose PdfReader raises *error_message*."""
+    import sys
+    import types
+
+    class _FailingReader:
+        def __init__(self, _path: object) -> None:
+            raise RuntimeError(error_message)
+
+    fake = types.ModuleType("pypdf")
+    fake.PdfReader = _FailingReader  # type: ignore[attr-defined]
+
+    def _install() -> None:
+        sys.modules["pypdf"] = fake
+
+    def _uninstall() -> None:
+        sys.modules.pop("pypdf", None)
+
+    return fake, _install, _uninstall
 
 
 def _fake_pdftotext_run(extracted_text: str):
@@ -6362,7 +6410,21 @@ class TestReviewValidationCommands:
         artifact = workspace / "draft.pdf"
         _write_binary_pdf(artifact)
 
-        with patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value=None):
+        # Simulate pypdf being unavailable (no PDF extraction support at all).
+        import importlib.abc as _abc
+        import sys as _sys
+
+        _original_pypdf = _sys.modules.pop("pypdf", None)
+
+        class _BlockPypdf(_abc.MetaPathFinder):
+            def find_spec(self, fullname: str, path, target=None):
+                if fullname == "pypdf" or fullname.startswith("pypdf."):
+                    raise ImportError("pypdf is disabled for this test")
+                return None
+
+        blocker = _BlockPypdf()
+        _sys.meta_path.insert(0, blocker)
+        try:
             result = runner.invoke(
                 app,
                 [
@@ -6377,17 +6439,20 @@ class TestReviewValidationCommands:
                 ],
                 catch_exceptions=False,
             )
+        finally:
+            _sys.meta_path.remove(blocker)
+            if _original_pypdf is not None:
+                _sys.modules["pypdf"] = _original_pypdf
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["passed"] is False
         assert checks["manuscript"]["passed"] is False
-        assert checks["manuscript"]["detail"] == (
-            "PDF review target requires `pdftotext` on PATH or a same-directory `.txt` companion file"
-        )
+        detail = checks["manuscript"]["detail"]
+        assert "pypdf" in detail.lower() or "companion" in detail
 
-    def test_review_preflight_peer_review_rejects_external_pdf_when_pdftotext_extraction_fails(
+    def test_review_preflight_peer_review_rejects_external_pdf_when_pypdf_extraction_fails(
         self,
         tmp_path: Path,
     ) -> None:
@@ -6396,10 +6461,9 @@ class TestReviewValidationCommands:
         artifact = workspace / "draft.pdf"
         _write_binary_pdf(artifact)
 
-        with (
-            patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"),
-            patch("subprocess.run", side_effect=_fake_pdftotext_failure_run("malformed trailer")) as run_mock,
-        ):
+        _fake_mod, install, uninstall = _fake_pypdf_failure_module("malformed trailer")
+        install()
+        try:
             result = runner.invoke(
                 app,
                 [
@@ -6414,14 +6478,15 @@ class TestReviewValidationCommands:
                 ],
                 catch_exceptions=False,
             )
+        finally:
+            uninstall()
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["passed"] is False
         assert checks["manuscript"]["passed"] is False
-        assert checks["manuscript"]["detail"] == "PDF text extraction failed: malformed trailer"
-        assert run_mock.call_count >= 1
+        assert "malformed trailer" in checks["manuscript"]["detail"]
 
     def test_review_preflight_peer_review_strict_materializes_generated_pdf_surface_with_validate_artifact_text(
         self,
@@ -6437,10 +6502,9 @@ class TestReviewValidationCommands:
             "Proof. The extracted text keeps the theorem body intact.\n"
         )
 
-        with (
-            patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"),
-            patch("subprocess.run", side_effect=_fake_pdftotext_run(extracted_text)) as run_mock,
-        ):
+        _fake_mod, install, uninstall = _fake_pypdf_module(extracted_text)
+        install()
+        try:
             preflight = runner.invoke(
                 app,
                 [
@@ -6455,7 +6519,6 @@ class TestReviewValidationCommands:
                 ],
                 catch_exceptions=False,
             )
-            preflight_run_calls = run_mock.call_count
             materialized = runner.invoke(
                 app,
                 [
@@ -6470,6 +6533,8 @@ class TestReviewValidationCommands:
                 ],
                 catch_exceptions=False,
             )
+        finally:
+            uninstall()
 
         assert preflight.exit_code == 0, preflight.output
         assert materialized.exit_code == 0, materialized.output
@@ -6481,12 +6546,10 @@ class TestReviewValidationCommands:
         assert preflight_payload["passed"] is True
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == f"./draft.pdf present; {materialized_payload['detail']}"
-        assert materialized_payload["detail"] == "pdftotext available at /usr/bin/pdftotext for PDF review intake"
+        assert "pypdf" in materialized_payload["detail"]
         assert materialized_payload["surface_kind"] == "generated"
         assert materialized_payload["text_length"] == len(extracted_text)
         assert output_path.read_text(encoding="utf-8").strip() == extracted_text.strip()
-        assert preflight_run_calls >= 1
-        assert run_mock.call_count >= preflight_run_calls + 1
 
     def test_validate_artifact_text_uses_companion_text_for_binary_pdf(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"
@@ -6516,7 +6579,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         assert output_path.read_text(encoding="utf-8").strip() == companion_text.strip()
 
-    def test_validate_artifact_text_uses_pdftotext_for_binary_pdf(self, tmp_path: Path) -> None:
+    def test_validate_artifact_text_uses_pypdf_for_binary_pdf(self, tmp_path: Path) -> None:
         workspace = tmp_path / "standalone-review"
         workspace.mkdir()
         artifact = _write_binary_pdf(workspace / "draft.pdf")
@@ -6526,13 +6589,9 @@ class TestReviewValidationCommands:
             "Proof. The extracted text keeps the theorem body intact.\n"
         )
 
-        with (
-            patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdftotext"),
-            patch(
-                "subprocess.run",
-                side_effect=_fake_pdftotext_run(extracted_text),
-            ),
-        ):
+        _fake_mod, install, uninstall = _fake_pypdf_module(extracted_text)
+        install()
+        try:
             result = runner.invoke(
                 app,
                 [
@@ -6546,6 +6605,8 @@ class TestReviewValidationCommands:
                 ],
                 catch_exceptions=False,
             )
+        finally:
+            uninstall()
 
         assert result.exit_code == 0, result.output
         assert output_path.read_text(encoding="utf-8").strip() == extracted_text.strip()
@@ -6555,24 +6616,46 @@ class TestReviewValidationCommands:
         workspace.mkdir()
         artifact = _write_binary_pdf(workspace / "draft.pdf")
 
-        with patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value=None):
-            result = runner.invoke(
-                app,
-                [
-                    "--raw",
-                    "--cwd",
-                    str(workspace),
-                    "validate",
-                    "artifact-text",
-                    artifact.name,
-                ],
-                catch_exceptions=False,
-            )
+        import sys as _sys
+
+        # Simulate pypdf being unavailable by removing it from sys.modules and
+        # blocking its import via a finder.
+        _original_pypdf = _sys.modules.pop("pypdf", None)
+        try:
+            import importlib.abc
+            import importlib.util
+
+            class _BlockPypdf(importlib.abc.MetaPathFinder):
+                def find_spec(self, fullname: str, path, target=None):
+                    if fullname == "pypdf" or fullname.startswith("pypdf."):
+                        raise ImportError("pypdf is disabled for this test")
+                    return None
+
+            blocker = _BlockPypdf()
+            _sys.meta_path.insert(0, blocker)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "--raw",
+                        "--cwd",
+                        str(workspace),
+                        "validate",
+                        "artifact-text",
+                        artifact.name,
+                    ],
+                    catch_exceptions=False,
+                )
+            finally:
+                _sys.meta_path.remove(blocker)
+        finally:
+            if _original_pypdf is not None:
+                _sys.modules["pypdf"] = _original_pypdf
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert "pdftotext" in payload["error"]
-        assert "companion file" in payload["error"]
+        assert "pypdf" in payload["error"]
+        assert "companion" in payload["error"] or "get-physics-done[arxiv]" in payload["error"]
 
     def test_review_preflight_arxiv_submission_strict_does_not_fall_back_to_legacy_gpd_paper_artifacts(
         self,

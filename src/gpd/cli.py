@@ -3639,7 +3639,7 @@ def doctor(
     live_executable_probes: bool = typer.Option(
         False,
         "--live-executable-probes",
-        help="Run cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`",
+        help="Run cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`",
     ),
 ) -> None:
     """Check GPD installation and environment health, or inspect runtime readiness."""
@@ -10314,7 +10314,7 @@ def validate_unattended_readiness_cmd(
     live_executable_probes: bool = typer.Option(
         False,
         "--live-executable-probes",
-        help="Run cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`",
+        help="Run cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`",
     ),
 ) -> None:
     """Check whether one runtime surface is ready for unattended use."""
