@@ -1779,9 +1779,10 @@ trigger:
         assert probe_check.details["enabled"] is True
         assert probe_check.details["timeout_seconds"] == 5
         assert probe_check.details["mandatory_probe"] == "python -m gpd.cli --help"
-        assert probe_check.details["skipped"] == ["latexmk", "kpsewhich", "wolframscript"]
+        assert probe_check.details["skipped"] == ["tectonic", "latexmk", "kpsewhich", "wolframscript"]
         assert [probe["label"] for probe in probe_check.details["probed"]] == [
             "gpd-cli",
+            "tectonic",
             "pdflatex",
             "bibtex",
             "latexmk",
@@ -1789,11 +1790,13 @@ trigger:
             "wolframscript",
         ]
         assert probe_check.details["probed"][0]["status"] == "ok"
-        assert probe_check.details["probed"][1]["status"] == "ok"
+        assert probe_check.details["probed"][1]["status"] == "skipped"
         assert probe_check.details["probed"][2]["status"] == "ok"
-        assert probe_check.details["probed"][3]["status"] == "skipped"
+        assert probe_check.details["probed"][3]["status"] == "ok"
         assert probe_check.details["probed"][4]["status"] == "skipped"
         assert probe_check.details["probed"][5]["status"] == "skipped"
+        assert probe_check.details["probed"][6]["status"] == "skipped"
+        assert "tectonic not found on PATH" in probe_check.warnings
         assert "latexmk not found on PATH" in probe_check.warnings
         assert "kpsewhich not found on PATH" in probe_check.warnings
         assert "wolframscript not found on PATH" in probe_check.warnings
