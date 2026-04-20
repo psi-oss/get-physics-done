@@ -296,7 +296,7 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.source_meta["latex_capability"]["latexmk_available"] is False
     assert payload.source_meta["latex_capability"]["kpsewhich_available"] is False
     # pdftotext_available is no longer populated by the toolchain helper —
-    # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+    # PDF extraction now uses pypdf instead of the pdftotext binary.
     assert payload.source_meta["latex_capability"]["pdftotext_available"] is None
     assert payload.source_meta["latex_capability"]["readiness_state"] == "ready"
     assert payload.source_meta["latex_capability"]["message"] == "pdflatex found (TeX Live): /usr/bin/pdflatex"

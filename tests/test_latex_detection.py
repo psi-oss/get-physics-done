@@ -94,7 +94,7 @@ class TestDetectLatexToolchain:
             }
             return mapping.get(binary)
 
-        import fitz as _fitz  # noqa: F401  # ensure PyMuPDF is importable
+        import pypdf as _pypdf  # noqa: F401  # ensure pypdf is importable
 
         monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
 
@@ -107,7 +107,7 @@ class TestDetectLatexToolchain:
         assert status.latexmk_available is True
         assert status.kpsewhich_available is True
         # pdftotext_available is no longer set by detect_latex_toolchain —
-        # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        # PDF extraction now uses pypdf instead of the pdftotext binary.
         assert status.pdftotext_available is None
         assert status.readiness_state == "ready"
         assert status.paper_build_ready is True
@@ -138,7 +138,7 @@ class TestDetectLatexToolchain:
         assert status.latexmk_available is False
         assert status.kpsewhich_available is False
         # pdftotext_available is no longer set by detect_latex_toolchain —
-        # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        # PDF extraction now uses pypdf instead of the pdftotext binary.
         assert status.pdftotext_available is None
         assert status.readiness_state == "degraded"
         assert status.paper_build_ready is True
@@ -198,7 +198,7 @@ class TestPaperToolchainCapability:
         assert status.latexmk_available is True
         assert status.kpsewhich_available is True
         # pdftotext_available is no longer set by detect_latex_toolchain —
-        # PDF extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        # PDF extraction now uses pypdf instead of the pdftotext binary.
         assert status.pdftotext_available is None
         assert status.readiness_state == "blocked"
         assert status.paper_build_ready is False

@@ -143,7 +143,7 @@ def _normalize_latex_capability(
     latexmk_value = _capability_value(latex_capability, "latexmk_available", "latexmk")
     kpsewhich_value = _capability_value(latex_capability, "kpsewhich_available", "kpsewhich")
     pdftotext_value = _capability_value(latex_capability, "pdftotext_available", "pdftotext")
-    # pdf_review_ready may be set explicitly (PyMuPDF-based); fall back to
+    # pdf_review_ready may be set explicitly (pypdf-based); fall back to
     # pdftotext_available for backward-compatibility with legacy payloads.
     pdf_review_value = _capability_value(latex_capability, "pdf_review_ready")
     compiler_path = _capability_value(latex_capability, "compiler_path")
@@ -504,8 +504,8 @@ def resolve_workflow_preset_readiness(
             if not pdf_review_ready:
                 if status == "ready":
                     summary = (
-                        "degraded without PyMuPDF: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
-                        "but PDF intake for peer-review requires PyMuPDF or a companion text file"
+                        "degraded without pypdf: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
+                        "but PDF intake for peer-review requires pypdf or a companion text file"
                     )
                 status = "degraded"
                 ready_workflows = [workflow for workflow in ready_workflows if workflow != "peer-review"]
@@ -540,8 +540,8 @@ def resolve_workflow_preset_readiness(
                 warnings.append("kpsewhich is missing: paper-build remains usable, but arxiv-submission stays blocked.")
             elif not pdf_review_ready:
                 warnings.append(
-                    "PyMuPDF is missing: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
-                    "but PDF-backed peer-review intake requires PyMuPDF or a nearby `.txt` companion file. "
+                    "pypdf is missing: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
+                    "but PDF-backed peer-review intake requires pypdf or a nearby `.txt` companion file. "
                     "Install with: pip install 'get-physics-done[arxiv]'"
                 )
             if latexmk_available is False:

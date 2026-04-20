@@ -6,7 +6,7 @@ from gpd.mcp.paper.models import PaperToolchainCapability
 def latex_capability_payload(**overrides: object) -> dict[str, object]:
     # pdf_review_ready defaults to True here because tests construct this payload
     # to represent a fully-capable toolchain. In production, detect_latex_toolchain()
-    # sets pdf_review_ready based on whether PyMuPDF (fitz) is importable.
+    # sets pdf_review_ready based on whether pypdf is importable.
     capability: dict[str, object] = {
         "compiler": "pdflatex",
         "compiler_available": True,

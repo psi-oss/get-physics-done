@@ -821,9 +821,9 @@ class PaperToolchainCapability(BaseModel):
         latexmk_available = self.latexmk_available is True
         kpsewhich_available = self.kpsewhich_available is True
         # pdftotext_available is retained for backward compatibility but PDF
-        # extraction now uses PyMuPDF (fitz) instead of the pdftotext binary.
+        # extraction now uses pypdf instead of the pdftotext binary.
         # pdf_review_ready is set by the caller (e.g. detect_latex_toolchain)
-        # based on fitz availability; it is preserved here if already set.
+        # based on pypdf availability; it is preserved here if already set.
         pdf_review_ready = self.pdf_review_ready
         tectonic_available = bool(self.tectonic_available)
 

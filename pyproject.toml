@@ -43,7 +43,7 @@ dependencies = [
 [project.optional-dependencies]
 arxiv = [
     "arxiv-mcp-server>=0.4.11",
-    "pymupdf>=1.24",
+    "pypdf>=5.0",
 ]
 
 [project.scripts]

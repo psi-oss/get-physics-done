@@ -2058,10 +2058,10 @@ def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool
         )
     elif not bool(capability_details.get("pdf_review_ready", False)):
         warnings.append(
-            "Publication / manuscript and full research presets are degraded without PyMuPDF: "
+            "Publication / manuscript and full research presets are degraded without pypdf: "
             "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, and `peer-review` still accepts "
             "TeX/Markdown/TXT/CSV/TSV plus built-in DOCX/XLSX intake, but PDF-backed `peer-review` intake requires "
-            "PyMuPDF (`pip install 'get-physics-done[arxiv]'`) or a nearby `.txt` companion file."
+            "pypdf (`pip install 'get-physics-done[arxiv]'`) or a nearby `.txt` companion file."
         )
 
     status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN

@@ -132,10 +132,10 @@ def _pdf_companion_text(path: Path) -> Path | None:
     return companion if companion.exists() and companion.is_file() else None
 
 
-def _fitz_available() -> bool:
-    """Return True when PyMuPDF (fitz) can be imported."""
+def _pypdf_available() -> bool:
+    """Return True when pypdf can be imported."""
     try:
-        import fitz  # noqa: F401  # PyMuPDF
+        import pypdf  # noqa: F401
 
         return True
     except ImportError:
@@ -287,18 +287,15 @@ def _extract_pdf_text(path: Path) -> str:
     if companion is not None:
         return _read_text_like_artifact(companion)
     try:
-        import fitz  # PyMuPDF
+        import pypdf
     except ImportError as exc:
         raise ArtifactTextError(
-            "PDF text extraction requires PyMuPDF. "
+            "PDF text extraction requires pypdf. "
             "Install it with: pip install 'get-physics-done[arxiv]'"
         ) from exc
     try:
-        doc = fitz.open(str(path))
-        text_parts = []
-        for page in doc:
-            text_parts.append(page.get_text())
-        doc.close()
+        reader = pypdf.PdfReader(str(path))
+        text_parts = [page.extract_text() or "" for page in reader.pages]
         return "\n".join(text_parts)
     except Exception as exc:
         raise ArtifactTextError(f"PDF text extraction failed: {exc}") from exc
@@ -324,16 +321,16 @@ def probe_artifact_text_surface(path: Path) -> ArtifactTextProbe:
                 surface_kind="companion",
                 surface_path=companion,
             )
-        if _fitz_available():
+        if _pypdf_available():
             return ArtifactTextProbe(
                 ready=True,
-                detail="PyMuPDF (fitz) available for PDF review intake",
+                detail="pypdf available for PDF review intake",
                 surface_kind="generated",
             )
         return ArtifactTextProbe(
             ready=False,
             detail=(
-                "PDF text extraction requires PyMuPDF. "
+                "PDF text extraction requires pypdf. "
                 "Install it with: pip install 'get-physics-done[arxiv]'"
             ),
         )
@@ -377,7 +374,7 @@ def load_artifact_text_surface(path: Path) -> ArtifactTextSurface:
         return ArtifactTextSurface(
             source_path=path,
             text=_extract_pdf_text(path),
-            detail="PyMuPDF (fitz) available for PDF review intake",
+            detail="pypdf available for PDF review intake",
             surface_kind="generated",
         )
     if suffix in OOXML_DOCUMENT_SUFFIXES:

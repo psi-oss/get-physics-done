@@ -154,18 +154,18 @@ def detect_latex_toolchain(compiler: str = "pdflatex", *, prefer_tectonic: bool 
     bibtex_available = bibtex_path is not None
     latexmk_available = latexmk_path is not None
     kpsewhich_available = kpsewhich_path is not None
-    # PDF extraction now uses PyMuPDF (fitz) — no pdftotext binary required.
+    # PDF extraction now uses pypdf (BSD-3-Clause) — no pdftotext binary required.
     try:
-        import fitz  # noqa: F401  # PyMuPDF
+        import pypdf  # noqa: F401
 
-        fitz_available = True
+        pdf_lib_available = True
     except ImportError:
-        fitz_available = False
+        pdf_lib_available = False
     warnings: list[str] = []
 
-    if not fitz_available:
+    if not pdf_lib_available:
         warnings.append(
-            "PyMuPDF (fitz) not found; PDF peer-review intake will require a nearby `.txt` companion file, "
+            "pypdf not found; PDF peer-review intake will require a nearby `.txt` companion file, "
             "but TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX intake remain available. "
             "Install with: pip install 'get-physics-done[arxiv]'"
         )
@@ -185,7 +185,7 @@ def detect_latex_toolchain(compiler: str = "pdflatex", *, prefer_tectonic: bool 
             kpsewhich_available=kpsewhich_available,
             tectonic_available=True,
             tectonic_path=tectonic_path,
-            pdf_review_ready=fitz_available,
+            pdf_review_ready=pdf_lib_available,
             readiness_state="ready",
             message=summary,
             warnings=warnings,
@@ -230,7 +230,7 @@ def detect_latex_toolchain(compiler: str = "pdflatex", *, prefer_tectonic: bool 
             kpsewhich_available=kpsewhich_available,
             tectonic_available=False,
             tectonic_path=None,
-            pdf_review_ready=fitz_available,
+            pdf_review_ready=pdf_lib_available,
             readiness_state="blocked",
             message=get_latex_install_guidance(),
             warnings=warnings,
@@ -263,7 +263,7 @@ def detect_latex_toolchain(compiler: str = "pdflatex", *, prefer_tectonic: bool 
         kpsewhich_available=kpsewhich_available,
         tectonic_available=False,
         tectonic_path=None,
-        pdf_review_ready=fitz_available,
+        pdf_review_ready=pdf_lib_available,
         readiness_state=readiness_state,
         message=summary,
         warnings=warnings,
