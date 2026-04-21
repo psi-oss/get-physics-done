@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 0 ideate workflow seam."""
+"""Focused regressions for the Phase 2 ideate workflow seam."""
 
 from __future__ import annotations
 
@@ -164,6 +164,105 @@ def test_ideate_workflow_keeps_a_launch_brief_and_explicit_start_gate_before_rou
         "continue directly into the bounded round loop",
         "continue directly into the bounded multi-agent round loop",
     )
+
+
+def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    orient_and_parse = _step_body(workflow, "orient_and_parse")
+    capture_core_brief = _step_body(workflow, "capture_core_brief")
+    adaptive_clarification = _step_body(workflow, "adaptive_clarification")
+    resolve_launch_preferences = _step_body(workflow, "resolve_launch_preferences")
+    intake = "\n".join(
+        (
+            orient_and_parse,
+            capture_core_brief,
+            adaptive_clarification,
+            resolve_launch_preferences,
+        )
+    )
+
+    assert _contains_any_lower(
+        orient_and_parse,
+        "sharpen the question",
+        "sharpen the research question",
+        "clarify the research target",
+        "clarify the question",
+    )
+    assert _contains_any_lower(
+        orient_and_parse,
+        "keep constraints in view",
+        "keep constraints visible",
+        "constraints in view",
+    )
+    assert "lock the brief" not in orient_and_parse.lower()
+
+    assert _contains_any_lower(
+        capture_core_brief,
+        "scientific question or domain",
+        "question or domain",
+    )
+    assert _contains_any_lower(
+        capture_core_brief,
+        "what outcome would be useful",
+        "useful outcome",
+    )
+    assert _contains_any_lower(
+        capture_core_brief,
+        "references/examples/prior outputs",
+        "references, examples, or prior outputs",
+        "anchors / references / examples",
+    )
+    assert _contains_any_lower(
+        capture_core_brief,
+        "constraints or boundaries",
+        "constraints / approximations / boundaries",
+        "constraints or approximations",
+    )
+    assert "false progress" not in intake.lower()
+    assert "real progress" not in intake.lower()
+    assert _contains_any_lower(
+        intake,
+        "mislead",
+        "miss the point",
+        "dead end",
+        "weak point",
+    )
+
+    assert _contains_any_lower(
+        adaptive_clarification,
+        "no clear outcome or useful end product",
+        "no clear outcome",
+    )
+    assert _contains_any_lower(
+        adaptive_clarification,
+        "no anchor, baseline, reference, or prior output to keep visible",
+        "no anchor",
+    )
+    assert _contains_any_lower(
+        adaptive_clarification,
+        "no explicit constraint or boundary",
+        "no explicit constraint",
+    )
+    assert _contains_any_lower(
+        adaptive_clarification,
+        "weak point",
+        "mislead",
+        "dead end",
+    )
+    assert "no initial execution posture" not in adaptive_clarification.lower()
+    assert "no usable agent count" not in adaptive_clarification.lower()
+    assert "first, resolve the preset" not in adaptive_clarification.lower()
+    assert "then resolve the worker count" not in adaptive_clarification.lower()
+
+    assert _contains_any_lower(
+        resolve_launch_preferences,
+        "first-pass preferences",
+        "launch preferences",
+        "preferences",
+        "lock now",
+    )
+    assert "temporary subgroup work should stay available" not in resolve_launch_preferences.lower()
+    assert "specific next-round tasks" not in resolve_launch_preferences.lower()
 
 
 def test_ideate_workflow_keeps_bounded_parent_owned_rounds_and_default_skepticism() -> None:

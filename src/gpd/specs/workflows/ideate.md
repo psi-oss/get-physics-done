@@ -15,7 +15,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="orient_and_parse" priority="first">
 Open with one short plain-English line:
 
-`I will clarify the research target, lock the brief, then run one bounded multi-agent round at a time with review between rounds.`
+`I will help sharpen the question, keep the constraints in view, and explore a first pass.`
 
 Then parse the optional preset and separate it from the seed text:
 
@@ -47,11 +47,11 @@ Ask for one dense freeform research brief in the user's own words.
 
 If `SEED_TEXT` is usable, weave it into the prompt rather than restarting from scratch:
 
-`Using "{SEED_TEXT}" as the starting point, give me the research brief in your own words. Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what would count as real progress versus false progress.`
+`Using "{SEED_TEXT}" as the starting point, give me the research brief in your own words. Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what might look promising at first but would actually miss the point or mislead the session.`
 
 If there is no usable seed, ask:
 
-`What should this research session be about? Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what would count as real progress versus false progress.`
+`What should this research session be about? Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what might look promising at first but would actually miss the point or mislead the session.`
 
 Preserve the user's wording for decisive items. If the user wants an open-ended discussion instead of a sharply scoped problem, capture that explicitly rather than forcing premature precision.
 </step>
@@ -74,20 +74,30 @@ Target at most two clarification rounds before drafting unless the user explicit
 
 Prioritize these gaps:
 
+- no clear research question, confusion, or direction to examine
 - no clear outcome or useful end product
 - no anchor, baseline, reference, or prior output to keep visible
 - no explicit constraint or boundary
-- no success signal or false-progress warning
-- no initial execution posture
-- no usable agent count
+- no weak point, tempting dead end, or misleading direction to keep visible
+
+Treat execution posture and agent count as secondary intake details. Ask about them only if they would materially improve the first launch summary or the user is clearly deciding between options.
 
 If `ask_user` is available, use it for low-cardinality choices and keep freeform follow-ups compact.
 
-First, resolve the preset if it is still missing or uncertain:
+Ask at most one targeted clarification round first for the most important remaining research gap. Examples:
+
+- outcome focus: generate hypotheses / resolve a confusion / compare candidate directions / define next research steps
+- anchors: name the paper, result, example, or prior output that should stay in frame
+- boundaries: say what to ignore, approximate, or refuse to optimize for
+- weak points: call out the assumption, attractive dead end, or misleading analogy that should stay visible
+
+If the intake is already strong enough to draft, do not ask extra setup questions just to fill every slot.
+
+If preset depth would help and it is still missing or uncertain, resolve it with a compact choice:
 
 ```text
 header: "Preset"
-question: "What session depth fits this run?"
+question: "What kind of first pass do you want?"
 options:
 - "Balanced (Recommended)" -- standard round depth with enough structure to keep the ideation grounded
 - "Fast" -- shorter rounds, fewer defaults, useful when the problem is already crisp
@@ -95,20 +105,19 @@ options:
 - "Keep it flexible" -- do not lock a preset yet
 ```
 
-Then resolve the worker count if it is still missing or obviously undecided:
+If the number of perspectives would help and the worker count is still missing or obviously undecided, resolve it with a compact choice:
 
 ```text
 header: "Agents"
-question: "How many agents do you want in the first round?"
+question: "How many perspectives do you want in the first round?"
 options:
 - "Use the default" -- let the workflow pick a preset-shaped starting count
 - "I will choose a number" -- provide the exact count in the next reply
 - "Keep it flexible" -- decide after seeing the draft summary
 ```
 
-Ask at most one more targeted clarification round for the most important remaining gap. Examples:
+If execution posture is still worth resolving before the draft summary, keep it light. Example:
 
-- outcome focus: generate hypotheses / resolve a confusion / compare candidate directions / define next research steps
 - posture: rigorous by default / allow looser exploration / leave posture undecided
 
 The user may bypass further questions at any time. If they say "draft it," "good enough," or equivalent, move to the summary with the remaining gaps made explicit instead of continuing to probe.
@@ -117,7 +126,7 @@ The user may bypass further questions at any time. If they say "draft it," "good
 <step name="resolve_launch_preferences">
 After the main intake is clear enough, ask one compact freeform preference question for the execution knobs that are useful to capture now:
 
-`Any launch preferences I should lock now, such as agent count, stronger skepticism, a looser creative posture, whether temporary subgroup work should stay available, or specific next-round tasks you already know you want certain agents to handle? If not, I will keep those flexible.`
+`Any first-pass preferences I should lock now, such as a faster or deeper pass, stronger skepticism, a looser exploratory posture, or a specific number of perspectives? If not, I will keep the defaults and leave the rest flexible.`
 
 Defaults unless the user overrides them:
 
@@ -141,7 +150,7 @@ Synthesize a concise structured research brief that preserves the user's own fra
 Render it as:
 
 ```markdown
-## Phase 3: Research Brief
+## Research Brief
 
 | Section | Current research brief |
 | --- | --- |
@@ -149,14 +158,14 @@ Render it as:
 | Outcome | [what useful result this research session should aim to produce] |
 | Anchors | [must-keep references, prior outputs, examples, or "None supplied yet"] |
 | Constraints | [scope boundaries, time/rigor limits, exclusions, or "None supplied yet"] |
-| Risks / Open Questions | [weakest assumptions, unresolved gaps, false-progress warnings] |
+| Risks / Open Questions | [weakest assumptions, unresolved gaps, tempting dead ends, or misleading directions] |
 | Execution Preferences | `Preset: ...`; `Posture: ...`; `Agent count: ...`; `Project context: ...`; `Subgroups: ...` |
 | Initial Agent Shape | [one skeptical reviewer by default in the current hard-critic slot, plus the starting theorist pool and any user-locked overrides] |
 ```
 
 Before the approval gate, add one short side-effect note:
 
-`Approval starts the bounded multi-agent rounds, but it does not create durable session files.`
+`Approving this framing starts the bounded multi-agent rounds, but it does not create durable session files.`
 </step>
 
 <step name="approval_gate">
@@ -166,7 +175,7 @@ If `ask_user` is available:
 
 ```text
 header: "Ideate Launch"
-question: "Does this look right before I start the bounded multi-agent rounds?"
+question: "Does this first-pass framing look right before I start the bounded multi-agent rounds?"
 options:
 - "Start ideation"
 - "Adjust launch"
