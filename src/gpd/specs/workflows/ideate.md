@@ -1,7 +1,7 @@
 <purpose>
 Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
-Phase 3 keeps that contract and its non-goals while reducing pre-round launch ceremony only. Add a conservative fast-start path when the user's first message is already sufficient, keep launch preferences conditional, use a lighter pre-round brief, and keep any fallback launch gate minimal. Preserve the bounded round engine, optional subgroup breakouts, structured closeout, and the parent workflow's ownership of the research brief, round state, subgroup routing, and any fresh continuation handoff.
+Phase 4 keeps that contract and its non-goals while preserving the bounded parent-owned round engine under the hood but shifting the visible surface toward an agent-first conversational turn loop. Keep the fast-start launch path, keep launch preferences conditional, add one bounded optional reaction layer inside each turn, make visible synthesis secondary rather than mandatory as the first thing shown, and replace the explicit round menu with a lighter conversational handoff. Preserve optional subgroup breakouts, structured closeout, and the parent workflow's ownership of the research brief, round state, subgroup routing, and any fresh continuation handoff.
 
 Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and subgroup promotion into durable sessions.
 </purpose>
@@ -50,11 +50,11 @@ Treat the current seed plus any named context as sufficient for a fast start whe
 - a clear enough research focus, question, or discussion target
 - a useful outcome or an explicit open-ended exploration mode
 - at least one anchor, constraint, or risk to keep visible, or an explicit statement that none is available yet
-- no unresolved blocker that would obviously misdirect Round 1
+- no unresolved blocker that would obviously misdirect the first bounded discussion turn
 
-If the seed is already sufficient, preserve it as the working brief and ask only for the single most important missing detail if one lightweight clarification would materially improve Round 1. Do not ask for a fresh dense rewrite just to normalize the intake.
+If the seed is already sufficient, preserve it as the working brief and ask only for the single most important missing detail if one lightweight clarification would materially improve the first bounded discussion turn. Do not ask for a fresh dense rewrite just to normalize the intake.
 
-Ask for one dense freeform research brief only when the seed is too thin or too ambiguous to support even a conservative Round 1.
+Ask for one dense freeform research brief only when the seed is too thin or too ambiguous to support even a conservative first bounded discussion turn.
 
 If `SEED_TEXT` is usable but not yet sufficient on its own, weave it into the prompt rather than restarting from scratch:
 
@@ -91,11 +91,11 @@ Prioritize these gaps:
 - no explicit constraint or boundary
 - no weak point, tempting dead end, or misleading direction to keep visible
 
-Treat execution posture and agent count as secondary intake details. Ask about them only if they would materially improve Round 1 or the user is clearly deciding between options.
+Treat execution posture and agent count as secondary intake details. Ask about them only if they would materially improve the first bounded discussion turn or the user is clearly deciding between options.
 
 If `ask_user` is available, use it for low-cardinality choices and keep freeform follow-ups compact.
 
-Use a conservative fast-start check after the initial intake and again after the first clarification. If the brief is now sufficient, stop clarifying, skip any unnecessary launch ceremony, and move to a short working frame for Round 1.
+Use a conservative fast-start check after the initial intake and again after the first clarification. If the brief is now sufficient, stop clarifying, skip any unnecessary launch ceremony, and move to a short working frame for the first bounded discussion turn.
 
 Ask at most one targeted clarification round first for the most important remaining research gap. Examples:
 
@@ -122,7 +122,7 @@ If the number of perspectives would help and the worker count is still missing o
 
 ```text
 header: "Agents"
-question: "How many perspectives do you want in the first round?"
+question: "How many perspectives do you want in the first turn?"
 options:
 - "Use the default" -- let the workflow pick a preset-shaped starting count
 - "I will choose a number" -- provide the exact count in the next reply
@@ -137,7 +137,7 @@ The user may bypass further questions at any time. If they say "draft it," "good
 </step>
 
 <step name="resolve_launch_preferences">
-Run this step only when the user clearly wants to shape the defaults or when a missing preference would materially change Round 1. Do not foreground this as a separate setup step in the happy path.
+Run this step only when the user clearly wants to shape the defaults or when a missing preference would materially change the first bounded discussion turn. Do not foreground this as a separate setup step in the happy path.
 
 If a preference check is warranted, ask one compact freeform preference question for the execution knobs that are useful to capture now:
 
@@ -176,11 +176,11 @@ If the brief is sufficient for a fast start, render a short working frame instea
 - Risks / Watchouts: [weakest assumptions, unresolved gaps, tempting dead ends, or misleading directions]
 ```
 
-Only mention execution defaults here if the user explicitly shaped them or if one setting materially affects how Round 1 should be interpreted. Otherwise keep preset, posture, worker count, and roster defaults backstage.
+Only mention execution defaults here if the user explicitly shaped them or if one setting materially affects how the first bounded discussion turn should be interpreted. Otherwise keep preset, posture, worker count, and roster defaults backstage.
 
 Before a fast start, add one short note such as:
 
-`I have enough to start a first bounded ideation round from this frame.`
+`I have enough to start a first bounded discussion turn from this frame.`
 
 If the brief is not yet strong enough for an immediate start, render a slightly fuller but still lightweight session brief:
 
@@ -198,21 +198,21 @@ Include only the execution preferences that the user explicitly set or that must
 
 Before any fallback gate, add one short side-effect note:
 
-`Approving this framing starts the bounded multi-agent rounds, but it does not create durable session files.`
+`Approving this framing starts the bounded multi-agent discussion turns, but it does not create durable session files.`
 </step>
 
 <step name="approval_gate">
 Use a two-path launch rule.
 
-If the brief is sufficient and there is no remaining risk that needs explicit user confirmation, do not present a launch menu. Restate the short working frame compactly, say you are starting Round 1, and continue directly into the bounded round loop.
+If the brief is sufficient and there is no remaining risk that needs explicit user confirmation, do not present a launch menu. Restate the short working frame compactly, say you are starting the first discussion turn, and continue directly into the bounded round loop.
 
-If the brief is incomplete, materially risky, or the user is still clearly deciding between framing options, present a lighter fallback gate for the session brief. Keep the gate light and focused on the minimum pre-Round-1 decision.
+If the brief is incomplete, materially risky, or the user is still clearly deciding between framing options, present a lighter fallback gate for the session brief. Keep the gate light and focused on the minimum pre-first-turn decision.
 
 If `ask_user` is available for the fallback gate:
 
 ```text
 header: "Ideate Launch"
-question: "This looks workable but still has a few launch choices or gaps. What do you want to do before Round 1?"
+question: "This looks workable but still has a few launch choices or gaps. What do you want to do before the first turn?"
 options:
 - "Start"
 - "Adjust"
@@ -268,7 +268,7 @@ On `Start`:
 <step name="run_round_loop">
 If the launch is approved, begin the conversational multi-agent research session using the current bounded round engine.
 
-Run one bounded ideation round at a time under the hood.
+Run one bounded ideation round at a time under the hood, but present each bounded segment to the user as a conversational turn rather than a moderator-led round ceremony.
 Spawn ideation workers as one-shot handoffs.
 Reserve one default skeptical-reviewer / hard-critic slot unless the user overrides it.
 Rounds are one-shot and use the current default hard critic unless overridden.
@@ -283,15 +283,15 @@ IDEATION_WORKER_MODEL=$(gpd resolve-model gpd-ideation-worker)
 
 If `IDEATION_WORKER_MODEL` is empty or `null`, omit the `model` parameter and let the runtime use its default model.
 
-Treat each round as one bounded parent-owned execution segment with this visible shape:
+Keep the internal execution sequence parent-owned: `round_bootstrap`, `round_fanout`, `round_collect`, bounded optional reaction handling, synthesis/state update, and the user handoff still happen each cycle. Do not foreground that choreography as visible headings or make `Round 1`, `Round 2`, and so on the primary visible shape unless clarity requires a light reference.
 
-1. `round_bootstrap` -- finalize the round brief, active configuration, and lane assignments
-2. `round_fanout` -- spawn the one-shot ideation workers for this round
-3. `round_collect` -- gather the typed worker returns and surface any checkpoint-worthy ambiguity
-4. `round_synthesis` -- synthesize the round into compact shareable takeaways
-5. `user_review_gate` -- let the user choose the next move before any further work runs
+The visible default should feel like an ongoing scientific discussion:
 
-Keep round numbers explicit in presentation: `Round 1`, `Round 2`, and so on.
+- agent contributions are the primary visible unit
+- each active agent contributes a short research-facing message in the first pass
+- after that first pass, allow one bounded optional reaction layer where an agent may respond selectively to another agent's point or stay silent
+- visible synthesis is secondary and lightweight; use it only when it helps orient the next move or the user asks for it
+- end the turn with a conversational handoff instead of a rigid control menu
 
 For each round:
 
@@ -299,20 +299,18 @@ For each round:
    - the approved research brief
    - the current round number
    - the shared discussion so far
-   - any user-injected thoughts from the prior round gate
+   - any user-injected thoughts from the prior parent handoff
    - any per-agent assignments the user has locked
    - current preset and posture settings
 2. Decide the round lanes. If the user left the count flexible, choose a bounded lane count that matches the current preset. Keep one lane reserved as the hard critic by default unless the user explicitly overrides it.
 3. Fan out the configured ideation agents. Use the same ideation-worker surface for all lanes, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
    If you are the hard critic, pressure-test assumptions, contradictions, missing baselines, and weak causal stories.
-4. Require each worker to return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. Completed lanes feed synthesis. Any `checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity for the round gate. No worker waits for user input in place.
-5. Synthesize the round before asking the user what to do next. The synthesis should highlight:
-   - strongest candidate ideas or hypotheses
-   - strongest critiques or failure modes
-   - points of agreement or divergence across lanes
-   - open questions that matter for the next round
-   - a recommended next-round focus when one is clear
-6. After each round, produce a compact round summary and ask what to do next.
+4. Require each worker to return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. Completed lanes feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
+5. Surface the first-pass agent messages before any orchestrator recap. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary.
+6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
+7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, subgroup setup, and fresh continuation semantics stay intact, but do not require a visible synthesis block to be the first thing the user sees after every turn. If a visible synthesis is useful, keep it brief and place it after the agent messages and any reactions, or provide it on request.
+8. End each turn with a lightweight conversational handoff that preserves the same capabilities as the prior handoff: continue, add or redirect with user thoughts, adjust configuration, inspect raw details, launch a temporary subgroup batch through the configuration path, or stop cleanly.
+9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger.
 
 When using task delegation, keep it lightweight and parent-owned. Reuse the repo's one-shot handoff semantics:
 
@@ -328,7 +326,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-ideation-worker.md for your role and instructions.
 
 <objective>
-Contribute one bounded agent perspective for Round {round_number} of this projectless research session.
+Contribute one bounded agent perspective for discussion turn {round_number} of this projectless research session.
 </objective>
 
 <context>
@@ -341,7 +339,7 @@ Lane instructions: {lane_instructions}
 <contract>
 This is a one-shot handoff. Return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. If human input is required, return `gpd_return.status: checkpoint` and stop. Do not wait in place. The parent orchestrator owns any fresh continuation handoff.
 </contract>",
-  description="Research round {round_number}: {lane_role}"
+  description="Research turn {round_number}: {lane_role}"
 )
 ```
 
@@ -350,34 +348,39 @@ Do not create files or claim durable session ownership in this phase.
 </step>
 
 <step name="round_review_gate">
-After each round, present the compact round recap first. Raw round details are review-on-demand. Subgroup creation happens only after this round recap at the parent gate.
+After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. If a brief recap is helpful, make it compact and secondary. Raw turn details remain review-on-demand. Subgroup creation happens only from this parent handoff, not mid-turn.
 
-The round gate must offer:
+Do not present a rigid fixed menu by default. Instead, end with a conversational handoff that makes these capabilities available in natural language:
 
-- `Continue to next round`
-- `Add my thoughts`
-- `Adjust configuration`
-- `Review raw round`
-- `Pause/Stop`
+- continue to the next bounded turn
+- add or redirect with the user's own thoughts
+- adjust configuration
+- review raw turn details
+- pause or stop
 
 Interpretation:
 
-- `Continue to next round`: increment the round counter and run the next bounded ideation round.
-- `Add my thoughts`: capture the user's injection, restate how it changes the shared discussion, and include it in the next round brief.
-- `Adjust configuration`: capture only the requested changes such as preset, agent count, posture, skepticism, creativity, per-agent assignments, or a temporary subgroup batch for the next bounded segment. Preserve everything else.
-- `Review raw round`: show the raw worker takeaways plus the synthesized round view, then return to the same gate.
-- `Pause/Stop`: pause or stop cleanly without claiming durable persistence.
+- continue: increment the round counter and run the next bounded ideation round under the hood
+- add or redirect: capture the user's injection, restate how it changes the shared discussion, and include it in the next turn brief
+- adjust configuration: capture only the requested changes such as preset, agent count, posture, skepticism, creativity, per-agent assignments, or a temporary subgroup batch for the next bounded segment; preserve everything else
+- review raw details: show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff
+- pause or stop: pause or stop cleanly without claiming durable persistence
+
+Prefer handoff language such as:
+
+- `If you want, I can keep pushing on this line, fold in your reaction, retune the agent mix, show the raw turn details, or stop here.`
+- `If you want to redirect, tell me what to change and I will rebuild the next brief from there.`
 
 If the user adds thoughts or adjusts configuration, treat that as a fresh continuation rather than resuming workers in place.
-Rebuild the next round brief from the approved research brief, prior round syntheses, and the new user input, then spawn a fresh set of one-shot workers. Do not resume a prior child run.
+Rebuild the next turn brief from the approved research brief, prior turn syntheses, and the new user input, then spawn a fresh set of one-shot workers. Do not resume a prior child run.
 
-If a round is ambiguous or a worker returns a checkpoint-worthy blocker, surface the ambiguity at the round gate instead of letting a worker linger.
+If a turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface the ambiguity at the parent handoff instead of letting a worker linger.
 </step>
 
 <step name="subgroup_micro_loop">
-Subgroups are optional focused breakouts and only user-initiated from the existing parent round gate. Do not create them at launch, mid-worker, or automatically. Route subgroup setup through `Adjust configuration` so the main gate stays stable. Only create subgroups from the parent round gate after round synthesis.
+Subgroups are optional focused breakouts and only user-initiated from the existing parent handoff. Do not create them at launch, mid-worker, or automatically. Route subgroup setup through the configuration-adjustment path so the main handoff stays stable. Only create subgroups from the parent handoff after the current turn's agent exchange.
 
-When the user asks for subgroup work through `Adjust configuration`:
+When the user asks for subgroup work through the configuration-adjustment path:
 
 1. confirm the subgroup objective in one compact prompt
 2. confirm the subgroup members by stable lane labels such as `Agent 1`, `Agent 2`, and `Agent 3`
@@ -389,7 +392,7 @@ Subgroup defaults and boundaries:
 
 - subgroup rounds must stay bounded; default to `2` if the user does not specify a count
 - keep each subgroup batch to `1-3` rounds in this phase
-- if the user wants more subgroup exploration after that, return to the parent gate and let them launch another subgroup batch explicitly
+- if the user wants more subgroup exploration after that, return to the parent handoff and let them launch another subgroup batch explicitly
 
 While a subgroup batch is active:
 
@@ -401,7 +404,7 @@ While a subgroup batch is active:
 - reuse fresh one-shot `gpd-ideation-worker` handoffs for subgroup lanes; do not create a long-lived child conversation
 - subgroup workers remain one-shot handoffs
 - Do not keep a long-lived subgroup child conversation.
-- if a subgroup lane needs user input, surface it at the parent gate as a fresh continuation rather than waiting in place
+- if a subgroup lane needs user input, surface it at the parent handoff as a fresh continuation rather than waiting in place
 
 Subgroup execution stays fileless in this phase. Do not add `<spawn_contract>` blocks, do not create durable subgroup transcripts, and do not claim subgroup resumability, subgroup promotion, or independent subgroup sessions. Subgroups stay inside the parent ideation run in this phase. Do not promote a subgroup into its own session in this phase. Do not create durable subgroup artifacts or promotion surfaces in this phase. Do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence, dedicated ideation state, or ideation files in this phase.
 
@@ -415,7 +418,7 @@ At subgroup completion, synthesize one compact breakout recap instead of replayi
 - what changed for the main discussion
 - the remaining open question or recommended next focus
 
-Fold only that subgroup summary into the main shared discussion, then return to the normal parent round gate. Do not auto-start the next main round after subgroup completion.
+Fold only that subgroup summary into the main shared discussion, then return to the normal parent handoff. Do not auto-start the next main round after subgroup completion.
 </step>
 
 <step name="session_finish">
@@ -473,7 +476,7 @@ Keep the ideation loop aligned with repo-native orchestration rules:
 - ideation workers are one-shot handoffs
 - route on typed `gpd_return.status`
 - do not let a worker wait in place for user input
-- if user input is required, surface it at the parent round gate and spawn a fresh worker on the next round
+- if user input is required, surface it at the parent handoff and spawn a fresh worker on the next turn
 
 Human-readable labels in worker text are presentation only. Do not route on them.
 </step>
@@ -483,17 +486,20 @@ Human-readable labels in worker text are presentation only. Do not route on them
 <success_criteria>
 - [ ] The workflow frames `gpd:ideate` as a projectless conversational multi-agent research session before any durable project workflow
 - [ ] Existing project context remains opt-in and is never auto-loaded into the session
-- [ ] A strong first message can reach Round 1 with substantially less launch ceremony
+- [ ] A strong first message can reach the first bounded discussion turn with substantially less launch ceremony
 - [ ] When the brief is already sufficient, defaults stay mostly backstage unless the user asks to shape them
 - [ ] A lighter pre-round brief still preserves focus, outcome, anchors, constraints, and key risks
-- [ ] Revise and stop paths still exist before Round 1 when the framing needs explicit confirmation
+- [ ] Revise and stop paths still exist before the first turn when the framing needs explicit confirmation
 - [ ] Raw-context review stays available on demand without being a mandatory front-stage launch option
-- [ ] The working research brief leads into a bounded multi-agent round loop
+- [ ] The working research brief leads into a bounded multi-agent turn loop with the bounded round engine kept internal
 - [ ] One hard critic is present by default unless the user changes the roster
-- [ ] User thought injection happens at round boundaries through the parent gate
-- [ ] Per-agent assignments can be updated between rounds without restarting the session
+- [ ] Agent contributions are the primary visible unit of each turn
+- [ ] One bounded optional reaction layer is available inside a turn without opening unbounded back-and-forth
+- [ ] Visible synthesis is secondary and not mandatory as the first visible surface after every turn
+- [ ] User thought injection happens at turn boundaries through the parent handoff
+- [ ] Per-agent assignments can be updated between turns without restarting the session
 - [ ] Optional subgroup work stays parent-owned, bounded, fileless, and summary-first on rejoin
-- [ ] The review gate supports continue, add thoughts, adjust configuration, review raw round, and pause-stop
+- [ ] The conversational handoff preserves continue, add or redirect, adjust configuration, review raw details, and pause-stop capabilities without a rigid menu
 - [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
 - [ ] The workflow stays fileless for ideation and subgroup state in this phase
 - [ ] No `RESEARCH.md`, `GPD/ideation/`, durable ideation history, session IDs, transcript storage or replay, resumable session files, tags, imported-document state, subgroup promotion, or archived artifacts.

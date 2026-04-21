@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 3 ideate workflow seam."""
+"""Focused regressions for the Phase 4 ideate workflow seam."""
 
 from __future__ import annotations
 
@@ -22,6 +22,17 @@ def _contains_any(content: str, *phrases: str) -> bool:
 def _contains_any_lower(content: str, *phrases: str) -> bool:
     lowered = content.lower()
     return any(phrase.lower() in lowered for phrase in phrases)
+
+
+def _contains_in_order_lower(content: str, *phrases: str) -> bool:
+    lowered = content.lower()
+    cursor = 0
+    for phrase in phrases:
+        idx = lowered.find(phrase.lower(), cursor)
+        if idx < 0:
+            return False
+        cursor = idx + len(phrase)
+    return True
 
 
 def _step_body(content: str, step_name: str) -> str:
@@ -198,8 +209,9 @@ def test_ideate_workflow_keeps_a_launch_brief_seam_before_rounds() -> None:
     )
     assert _contains_any_lower(
         launch_summary,
-        "starts the bounded multi-agent rounds",
-        "starts the bounded rounds",
+        "starts the bounded multi-agent discussion turns",
+        "starts the bounded discussion turns",
+        "start a first bounded discussion turn",
         "starts ideation",
         "before i start the bounded multi-agent rounds",
     )
@@ -259,16 +271,27 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
     )
     assert _contains_any_lower(
         approval_gate,
-        "\"start\"",
-        "\"adjust\"",
-        "\"stop here\"",
+        "continue directly into the bounded round loop",
+        "continue directly into the bounded multi-agent round loop",
+        "say you are starting the first discussion turn",
+        "start the first bounded round",
+        "move straight into the bounded round loop",
     )
     assert _contains_any_lower(
         approval_gate,
-        "continue directly into the bounded round loop",
-        "continue directly into the bounded multi-agent round loop",
-        "start the first bounded round",
-        "move straight into the bounded round loop",
+        "what do you want to do before the first turn",
+        "minimum pre-first-turn decision",
+        "approved for launch",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "rebuild the summary and return to the approval gate",
+        "reopen only the section the user wants to revise",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "no files were created and the research brief was not finalized",
+        "no files were created",
     )
 
 
@@ -371,7 +394,7 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
     assert "specific next-round tasks" not in resolve_launch_preferences.lower()
 
 
-def test_ideate_workflow_keeps_bounded_parent_owned_rounds_and_default_skepticism() -> None:
+def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_default_skepticism() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
 
@@ -384,10 +407,38 @@ def test_ideate_workflow_keeps_bounded_parent_owned_rounds_and_default_skepticis
     )
     assert _contains_any_lower(
         round_loop,
+        "present each bounded segment to the user as a conversational turn",
+        "agent-first conversational turn loop",
+        "conversational turn rather than a moderator-led round ceremony",
+    )
+    assert _contains_any_lower(
+        round_loop,
         "spawn ideation workers as one-shot handoffs.",
         "one-shot handoffs",
     )
     assert 'subagent_type="gpd-ideation-worker"' in round_loop
+    assert _contains_in_order_lower(
+        round_loop,
+        "round_bootstrap",
+        "round_fanout",
+        "round_collect",
+        "bounded optional reaction handling",
+        "synthesis/state update",
+        "user handoff",
+    )
+    assert _contains_in_order_lower(
+        round_loop,
+        "agent contributions are the primary visible unit",
+        "each active agent contributes a short research-facing message in the first pass",
+        "allow one bounded optional reaction layer",
+        "visible synthesis is secondary and lightweight",
+        "end the turn with a conversational handoff",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "contribute one bounded agent perspective for discussion turn {round_number}",
+        "bounded agent perspective",
+    )
     assert _contains_any_lower(
         round_loop,
         "the parent workflow owns the launch brief, round counter, shared discussion, current configuration, and any fresh continuation handoff.",
@@ -415,50 +466,60 @@ def test_ideate_workflow_keeps_bounded_parent_owned_rounds_and_default_skepticis
         "no worker waits for user input in place.",
         "do not wait in place.",
     )
+    assert _contains_any_lower(
+        round_loop,
+        "end each turn with a lightweight conversational handoff",
+        "conversational handoff",
+    )
 
 
-def test_ideate_round_gate_preserves_user_control_and_fresh_continuations() -> None:
+def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_continuations() -> None:
     workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
     round_review_gate = _step_body(workflow, "round_review_gate")
 
     assert _contains_any_lower(
         round_review_gate,
-        "present the compact round synthesis first. raw round details are review-on-demand.",
-        "present a compact round summary",
-        "present the compact round recap first. raw round details are review-on-demand.",
-    )
-
-    assert _contains_any_lower(
-        round_review_gate,
-        "continue to next round",
-        "continue",
-        "run the next bounded ideation round",
+        "after each conversational turn, keep the user handoff light and natural.",
+        "agent messages should already be on screen",
+        "raw turn details remain review-on-demand.",
     )
     assert _contains_any_lower(
         round_review_gate,
-        "add my thoughts",
+        "do not present a rigid fixed menu by default",
+        "makes these capabilities available in natural language",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "continue to the next bounded turn",
+        "increment the round counter and run the next bounded ideation round",
+        "run the next bounded ideation round under the hood",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "add or redirect with the user's own thoughts",
         "capture the user's injection",
-        "user-injected thoughts",
+        "user's injection",
+        "include it in the next turn brief",
     )
     assert _contains_any_lower(
         round_review_gate,
-        "adjust configuration",
         "capture only the requested changes",
+        "preserve everything else",
         "requested changes such as preset",
     )
     assert _contains_any_lower(
         round_review_gate,
-        "review raw round",
-        "show the raw worker takeaways",
-        "raw round",
+        "review raw turn details",
+        "show the raw worker takeaways plus any compact synthesized view",
+        "raw worker takeaways",
+        "return to the same conversational handoff",
     )
     assert _contains_any_lower(
         round_review_gate,
-        "pause/stop",
+        "pause or stop cleanly without claiming durable persistence",
         "pause or stop cleanly",
-        "stop cleanly",
     )
-
     assert "temporary subgroup batch" in round_review_gate
     assert _contains_any_lower(
         round_review_gate,
@@ -468,12 +529,55 @@ def test_ideate_round_gate_preserves_user_control_and_fresh_continuations() -> N
     assert _contains_any_lower(
         round_review_gate,
         "rebuild the next round brief",
+        "rebuild the next turn brief",
         "spawn a fresh worker on the next round",
     )
     assert _contains_any_lower(
         round_review_gate,
-        "surface the ambiguity at the round gate",
-        "surface the ambiguity at the parent round gate",
+        "surface the ambiguity at the parent handoff",
+        "surface the ambiguity in the conversational handoff",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "allow one bounded optional reaction layer",
+        "fold in your reaction",
+        "optional reaction layer",
+    )
+
+
+def test_ideate_round_review_surface_stays_synthesis_first_with_optional_raw_details() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
+    round_review_gate = _step_body(workflow, "round_review_gate")
+    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
+
+    assert _contains_in_order_lower(
+        round_loop,
+        "each active agent contributes a short research-facing message in the first pass",
+        "allow one bounded optional reaction layer",
+        "visible synthesis is secondary and lightweight",
+        "end the turn with a conversational handoff",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "synthesis/state update",
+        "visible synthesis is secondary and lightweight",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "agent messages should already be on screen",
+        "if a brief recap is helpful, make it compact and secondary",
+        "raw turn details remain review-on-demand",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "raw worker takeaways plus any compact synthesized view",
+        "return to the same conversational handoff",
+    )
+    assert _contains_any_lower(
+        subgroup_loop,
+        "synthesize one compact breakout recap instead of replaying raw subgroup transcripts",
+        "rejoin is summary-only in this phase",
     )
 
 
@@ -520,13 +624,13 @@ def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() 
 
     assert _contains_any_lower(
         subgroup_loop,
-        "subgroups are optional and only user-initiated from the existing parent round gate.",
-        "only user-initiated from the existing parent round gate",
+        "subgroups are optional focused breakouts and only user-initiated from the existing parent handoff.",
+        "only user-initiated from the existing parent handoff",
     )
     assert _contains_any_lower(
         subgroup_loop,
-        "route subgroup setup through `adjust configuration` so the main gate stays stable.",
-        "route subgroup setup through `adjust configuration`",
+        "route subgroup setup through the configuration-adjustment path so the main handoff stays stable.",
+        "configuration-adjustment path",
     )
     assert _contains_any_lower(
         subgroup_loop,
@@ -552,7 +656,7 @@ def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() 
     assert _contains_any_lower(
         subgroup_loop,
         "do not auto-start the next main round after subgroup completion.",
-        "return to the normal parent round gate",
+        "return to the normal parent handoff",
     )
     assert _contains_any_lower(
         subgroup_loop,
@@ -564,6 +668,7 @@ def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() 
 
 def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None:
     workflow = _read(IDEATE_WORKFLOW)
+    round_review_gate = _step_body(workflow, "round_review_gate")
     session_finish = _step_body(workflow, "session_finish")
 
     assert _contains_any_lower(
@@ -582,6 +687,12 @@ def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None
 
     assert "`What do you want to do next?`" in session_finish
     assert "non-GPD next step" in session_finish
+    assert _contains_any_lower(
+        round_review_gate,
+        "keep the user handoff light and natural",
+        "conversational handoff",
+        "if you want, i can keep pushing on this line",
+    )
 
     for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
         assert fragment in session_finish
@@ -590,4 +701,9 @@ def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None
         session_finish,
         "this v1 closeout is in-memory only.",
         "do not add or imply durable ideation history",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "lightweight and conversational",
+        "also say plainly that the user can ask for a non-gpd next step instead",
     )
