@@ -445,6 +445,8 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
 def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_on_demand() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
+    task_objective = _tag_body(round_loop, "objective")
+    task_contract = _tag_body(round_loop, "contract")
 
     assert _contains_any_lower(
         round_loop,
@@ -491,6 +493,20 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
     )
     assert _contains_any_lower(
         round_loop,
+        "structured research contributions",
+        "`research_contributions`",
+        "research contributions plus `gpd_return.status`",
+        "typed research-contribution list",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "respond directly to prior agent output",
+        "respond directly to earlier agent output",
+        "prior agent output from the shared discussion",
+        "`responds_to`",
+    )
+    assert _contains_any_lower(
+        round_loop,
         "no automatic recap after a clean turn",
         "do not add an automatic recap after a clean turn",
         "clean turns do not require a visible recap",
@@ -511,9 +527,10 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
         "conversational handoff",
     )
     assert _contains_any_lower(
-        round_loop,
-        "contribute one bounded agent perspective for discussion turn {round_number}",
-        "bounded agent perspective",
+        task_objective,
+        "contribute one bounded research contribution",
+        "contribute one bounded research-turn contribution",
+        "contribute one bounded research-session contribution",
     )
     assert _contains_any_lower(
         round_loop,
@@ -533,9 +550,22 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
         "high skepticism",
     )
     assert _contains_any_lower(
-        round_loop,
+        task_contract,
         "typed `gpd_return` envelope",
         "route on typed `gpd_return.status`",
+    )
+    assert _contains_any_lower(
+        task_contract,
+        "structured research contributions",
+        "`research_contributions`",
+        "research contributions plus `gpd_return.status`",
+    )
+    assert _contains_any_lower(
+        f"{task_objective}\n{task_contract}",
+        "respond directly to prior agent output",
+        "respond directly to earlier agent output",
+        "prior agent output from the shared discussion",
+        "`responds_to`",
     )
     assert _contains_any_lower(
         round_loop,
@@ -547,6 +577,10 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
         "end each turn with a lightweight conversational handoff",
         "conversational handoff",
     )
+
+    for legacy in ("shareable ideas", "shareable critiques"):
+        assert legacy not in round_loop.lower()
+        assert legacy not in task_contract.lower()
 
 
 def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_continuations() -> None:
@@ -735,6 +769,7 @@ def test_ideate_non_durable_contract_covers_rounds_subgroups_and_closeout() -> N
 def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
+    breakout_recap = _bullet_list_after_marker(subgroup_loop, "The breakout recap should include:")
 
     assert _contains_any_lower(
         subgroup_loop,
@@ -767,6 +802,36 @@ def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() 
         "fold only that subgroup summary into the main shared discussion",
         "compact rejoin packet",
     )
+    assert any(
+        _contains_any_lower(
+            item,
+            "strongest research contribution",
+            "most consequential research contribution",
+            "most useful research contribution",
+        )
+        for item in breakout_recap
+    )
+    assert any(
+        _contains_any_lower(
+            item,
+            "strongest critique, evidence check, or next probe",
+            "strongest critique, decisive check, or next probe",
+            "strongest critique, check, or failure mode",
+            "strongest critique or decisive check",
+            "strongest critique or failure mode",
+            "strongest critique or next probe",
+        )
+        for item in breakout_recap
+    )
+    assert any(
+        _contains_any_lower(
+            item,
+            "remaining question or recommended next probe",
+            "remaining open question or recommended next probe",
+            "recommended next probe",
+        )
+        for item in breakout_recap
+    )
     assert _contains_any_lower(
         subgroup_loop,
         "do not auto-start the next main round after subgroup completion.",
@@ -778,6 +843,8 @@ def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() 
         "independent subgroup sessions",
         "subgroup promotion",
     )
+    assert all("strongest idea or hypothesis" not in item.lower() for item in breakout_recap)
+    assert all("recommended next focus" not in item.lower() for item in breakout_recap)
 
 
 def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None:

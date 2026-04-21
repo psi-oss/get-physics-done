@@ -269,7 +269,7 @@ On `Start`:
 <step name="run_round_loop">
 If the launch is approved, begin the conversational multi-agent research session using the current bounded round engine.
 
-Run one bounded ideation round at a time under the hood, but present each bounded segment to the user as a conversational turn rather than a moderator-led round ceremony.
+Run one bounded research turn at a time under the hood, but present each bounded segment to the user as a conversational turn rather than a moderator-led round ceremony.
 Spawn ideation workers as one-shot handoffs.
 Reserve one default skeptical-reviewer / hard-critic slot unless the user overrides it.
 Rounds are one-shot and use the current default hard critic unless overridden.
@@ -307,7 +307,7 @@ For each round:
 2. Decide the round lanes. If the user left the count flexible, choose a bounded lane count that matches the current preset. Keep one lane reserved as the hard critic by default unless the user explicitly overrides it.
 3. Fan out the configured ideation agents. Use the same ideation-worker surface for all lanes, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
    If you are the hard critic, pressure-test assumptions, contradictions, missing baselines, and weak causal stories.
-4. Require each worker to return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. Completed lanes feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
+4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Completed lanes feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
 5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
 7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, subgroup setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
@@ -328,7 +328,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-ideation-worker.md for your role and instructions.
 
 <objective>
-Contribute one bounded agent perspective for discussion turn {round_number} of this projectless research session.
+Contribute one bounded research contribution for discussion turn {round_number} of this projectless research session.
 </objective>
 
 <context>
@@ -339,13 +339,13 @@ Lane instructions: {lane_instructions}
 </context>
 
 <contract>
-This is a one-shot handoff. Return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. If human input is required, return `gpd_return.status: checkpoint` and stop. Do not wait in place. The parent orchestrator owns any fresh continuation handoff.
+This is a one-shot handoff. Return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Use typed contributions such as `hypothesis`, `critique`, `evidence_check`, `computational_check`, `clarifying_question`, or `next_probe`; respond directly to earlier agent output when useful; include confidence and `responds_to` or `decisive_check` when they materially help. If human input is required, return `gpd_return.status: checkpoint` and stop. Do not wait in place. The parent orchestrator owns any fresh continuation handoff.
 </contract>",
   description="Research turn {round_number}: {lane_role}"
 )
 ```
 
-Do not add spawn-contract blocks for Phase 2. Do not rely on file-writing freshness checks in this phase. Child work is fileless and return-only here.
+Do not add spawn-contract blocks in this phase. Do not rely on file-writing freshness checks in this phase. Child work is fileless and return-only here.
 Do not create files or claim durable session ownership in this phase.
 </step>
 
@@ -418,10 +418,10 @@ At subgroup completion, synthesize one compact breakout recap instead of replayi
 - subgroup objective
 - subgroup members
 - subgroup rounds completed
-- strongest idea or hypothesis
-- strongest critique or failure mode
+- strongest research contribution or hypothesis
+- strongest critique, check, or failure mode
 - what changed for the main discussion
-- the remaining open question or recommended next focus
+- the remaining open question, uncertainty, or recommended next probe
 
 Fold only that subgroup summary into the main shared discussion, then return to the normal parent handoff. Do not auto-start the next main round after subgroup completion.
 </step>
@@ -501,7 +501,9 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] The `Deep` preset implies richer agent exploration rather than guaranteed orchestrator synthesis
 - [ ] One hard critic is present by default unless the user changes the roster
 - [ ] Agent contributions are the primary visible unit of each turn
+- [ ] Worker-facing turn contracts use structured `research_contributions` plus `gpd_return.status` instead of legacy idea/critique/open-question fields
 - [ ] One bounded optional reaction layer is available inside a turn without opening unbounded back-and-forth
+- [ ] Workers may respond directly to prior agent output when that materially advances, clarifies, or pressure-tests the discussion
 - [ ] There is no automatic recap after a clean turn, and visible synthesis is on-demand or exception-driven when routing pressure makes it necessary
 - [ ] User thought injection happens at turn boundaries through the parent handoff
 - [ ] Per-agent assignments can be updated between turns without restarting the session
