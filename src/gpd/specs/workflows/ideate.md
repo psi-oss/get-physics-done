@@ -1,9 +1,9 @@
 <purpose>
 Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
-Phase 7 keeps that contract and its non-goals while pushing the orchestrator further backstage and making cheap research operations first-class inside the same bounded parent-owned engine. Preserve the bounded parent-owned round engine under the hood, but make clean turns read as agent-first conversation: keep the fast-start path light, keep launch preferences conditional and mostly off-screen, show agent exchange first, allow one bounded optional reaction layer, and end with a short natural handoff instead of a visible moderator loop. Visible summaries, recaps, and raw-detail review are secondary and should surface only when the user asks, when a blocker or checkpoint needs routing, when agent output diverges enough to need a short frame, or at session close. Preserve optional subgroup breakouts, structured closeout, and the parent workflow's ownership of the research brief, round state, subgroup routing, and any fresh continuation handoff.
+Phase 7 keeps that contract and its non-goals while pushing the orchestrator further backstage and making cheap research operations first-class inside the same bounded parent-owned engine. Preserve the bounded parent-owned round engine under the hood, but make clean turns read as agent-first conversation: keep the fast-start path light, keep launch preferences conditional and mostly off-screen, show agent exchange first, allow one bounded optional reaction layer, and end with a short natural handoff instead of a visible moderator loop. Visible summaries, recaps, and raw-detail review are secondary and should surface only when the user asks, when a blocker or checkpoint needs routing, when agent output diverges enough to need a short frame, or at session close. Preserve structured closeout, any optional narrower follow-up as a light parent-owned extension of the current turn, and the parent workflow's ownership of the research brief, round state, follow-up routing, and any fresh continuation handoff.
 
-Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and subgroup promotion into durable sessions.
+Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and promotion of temporary focused follow-up into durable sessions.
 </purpose>
 
 <required_reading>
@@ -309,8 +309,8 @@ For each round:
 4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Substantive items should distinguish `sourced`, `computed`, `speculative`, or `mixed` provenance when the worker can support that distinction. Failed or partial lookups and calculations should remain explicit in the returned contribution rather than being silently dropped. Completed participants feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` participant becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
 5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
-7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, subgroup setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
-8. End each turn with a lightweight conversational handoff centered on: continue, add or redirect with user thoughts, tune the setup if needed, ask for synthesis, or stop cleanly. Temporary subgroup work remains available through the configuration-adjustment path when the user asks for it. Raw worker detail remains available only when the user explicitly asks for it.
+7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, optional focused follow-up setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
+8. End each turn with a lightweight conversational handoff centered on: continue, add or redirect with user thoughts, tune the setup if needed, ask for synthesis, or stop cleanly. If the user wants narrower follow-up after the turn, route it through the configuration-adjustment path and run at most one bounded focused fan-out or targeted check before folding the result back into the parent discussion. Raw worker detail remains available only when the user explicitly asks for it.
 9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger.
 
 When using task delegation, keep it lightweight and parent-owned. Reuse the repo's one-shot handoff semantics:
@@ -355,7 +355,7 @@ Do not create files or claim durable session ownership in this phase.
 </step>
 
 <step name="round_review_gate">
-After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. On a clean turn, default to a short natural handoff with no recap. If a brief synthesis is helpful, make it compact, secondary, and request-driven or exception-driven. Raw turn details remain available only on demand. Subgroup creation happens only from this parent handoff, not mid-turn.
+After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. On a clean turn, default to a short natural handoff with no recap. If a brief synthesis is helpful, make it compact, secondary, and request-driven or exception-driven. Raw turn details remain available only on demand. Any narrower follow-up happens only from this parent handoff, not mid-turn.
 
 Do not present a rigid fixed menu by default. Instead, end with a conversational handoff that makes these capabilities available in natural language:
 
@@ -369,7 +369,7 @@ Interpretation:
 
 - continue: increment the round counter and run the next bounded ideation round under the hood
 - add or redirect: capture the user's injection, restate how it changes the shared discussion, and include it in the next turn brief
-- tune the setup: capture only the requested changes such as preset, participant count, posture, skepticism, creativity, per-participant assignments, or a temporary subgroup batch for the next bounded segment; preserve everything else
+- tune the setup: capture only the requested changes such as preset, participant count, posture, skepticism, creativity, per-participant assignments, or one temporary focused follow-up or selective fan-out for the next bounded segment; preserve everything else
 - ask for synthesis: show one compact synthesis keyed to the current turn, then return to the same conversational handoff
 - stop: stop cleanly without claiming durable persistence
 - raw details on demand: if the user explicitly asks, show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff
@@ -387,48 +387,12 @@ Rebuild the next turn brief from the approved research brief, prior turn synthes
 If a turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface the ambiguity at the parent handoff instead of letting a worker linger.
 </step>
 
-<step name="subgroup_micro_loop">
-Subgroups are optional focused breakouts and only user-initiated from the existing parent handoff. Do not create them at launch, mid-worker, or automatically. Route subgroup setup through the configuration-adjustment path so the main handoff stays stable. Only create subgroups from the parent handoff after the current turn's agent exchange.
+<step name="focused_follow_up_note">
+Do not run a dedicated subgroup mode as part of the default workflow contract.
 
-When the user asks for subgroup work through the configuration-adjustment path:
+If the user asks for a narrower follow-up after a turn, route it through the normal adjustment path from the parent handoff. Keep that follow-up user-initiated, parent-owned, bounded, and fileless. Run at most one short focused fan-out or targeted check using fresh one-shot workers, then fold the result back as a short reintegration note rather than a dedicated subgroup artifact or transcript.
 
-1. confirm the subgroup objective in one compact prompt
-2. confirm the subgroup members by stable lane labels such as `Agent 1`, `Agent 2`, and `Agent 3`
-3. confirm the bounded subgroup round count
-
-Keep one active subgroup batch at a time in this phase. Treat it as a temporary parent-owned configuration change inside the current research session, not as a new top-level ideation path. Do not route subgroup formation through launch intake, worker-local decisions, or any mid-worker branch.
-
-Subgroup defaults and boundaries:
-
-- subgroup rounds must stay bounded; default to `2` if the user does not specify a count
-- keep each subgroup batch to `1-3` rounds in this phase
-- if the user wants more subgroup exploration after that, return to the parent handoff and let them launch another subgroup batch explicitly
-
-While a subgroup batch is active:
-
-- Pause the main group while the subgroup runs.
-- pause main-loop progression
-- keep the parent workflow responsible for subgroup state, synthesis, and any checkpoint routing
-- build each subgroup round brief from the approved research brief, the relevant slice of shared discussion, the subgroup objective, any locked assignments, and any user-specified subgroup instructions
-- reuse `gpd-ideation-worker` for subgroup lanes
-- reuse fresh one-shot `gpd-ideation-worker` handoffs for subgroup lanes; do not create a long-lived child conversation
-- subgroup workers remain one-shot handoffs
-- Do not keep a long-lived subgroup child conversation.
-- if a subgroup lane needs user input, surface it at the parent handoff as a fresh continuation rather than waiting in place
-
-Subgroup execution stays fileless in this phase. Do not add `<spawn_contract>` blocks, do not create durable subgroup transcripts, and do not claim subgroup resumability, subgroup promotion, or independent subgroup sessions. Subgroups stay inside the parent ideation run in this phase. Do not promote a subgroup into its own session in this phase. Do not create durable subgroup artifacts or promotion surfaces in this phase. Do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence, dedicated ideation state, or ideation files in this phase.
-
-At subgroup completion, synthesize one compact breakout recap instead of replaying raw subgroup transcripts. Rejoin is summary-only in this phase. Reintegrate only a subgroup summary into the main shared discussion. The breakout recap should include:
-
-- subgroup objective
-- subgroup members
-- subgroup rounds completed
-- strongest research contribution or hypothesis
-- strongest critique, check, or failure mode
-- what changed for the main discussion
-- the remaining open question, uncertainty, or recommended next probe
-
-Fold only that subgroup summary into the main shared discussion, then return to the normal parent handoff. Do not auto-start the next main round after subgroup completion.
+Do not create a separate subgroup session, long-lived child conversation, durable file, resumable state, or promotion path. Keep the main turn loop paused only for the duration of that bounded follow-up, then return to the same parent handoff with the summary-first reintegration note and any remaining open question or next probe.
 </step>
 
 <step name="session_finish">
@@ -440,7 +404,7 @@ When the user stops, end with one compact structured closeout summary. Keep it l
 - open questions
 - suggested follow-up actions
 
-This projectless research-session closeout is in-memory only. Do not add or imply durable ideation history, session IDs, subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
+This projectless research-session closeout is in-memory only. Do not add or imply durable ideation history, session IDs, focused-follow-up transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
 
 Immediately after the summary, ask this exact short closing question:
 
@@ -516,10 +480,10 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] There is no automatic recap after a clean turn, and visible synthesis is on-demand or exception-driven when routing pressure makes it necessary
 - [ ] User thought injection happens at turn boundaries through the parent handoff
 - [ ] Per-agent assignments can be updated between turns without restarting the session
-- [ ] Optional subgroup work stays parent-owned, bounded, fileless, and summary-first on rejoin
+- [ ] Optional focused follow-up stays parent-owned, bounded, fileless, and summary-first when folded back into the main discussion
 - [ ] The conversational handoff preserves continue, add or redirect, setup tuning, ask for synthesis, and stop, while raw details stay available on demand without a rigid menu
 - [ ] Raw details remain available on demand and do not return as a default visible handoff affordance
 - [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
-- [ ] The workflow stays fileless for ideation and subgroup state in this phase
-- [ ] No `RESEARCH.md`, `GPD/ideation/`, durable ideation history, session IDs, transcript storage or replay, resumable session files, tags, imported-document state, subgroup promotion, or archived artifacts.
+- [ ] The workflow stays fileless for ideation and temporary focused follow-up state in this phase
+- [ ] No `RESEARCH.md`, `GPD/ideation/`, durable ideation history, session IDs, transcript storage or replay, resumable session files, tags, imported-document state, promotion of temporary focused follow-up into durable sessions, or archived artifacts.
 </success_criteria>

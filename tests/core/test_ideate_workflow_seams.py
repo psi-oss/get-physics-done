@@ -759,7 +759,6 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
         "pause or stop cleanly without claiming durable persistence",
         "pause or stop cleanly",
     )
-    assert "temporary subgroup batch" in round_review_gate
     assert _contains_any_lower(
         round_review_gate,
         "treat that as a fresh continuation",
@@ -788,7 +787,6 @@ def test_ideate_round_review_surface_keeps_synthesis_on_demand_and_updates_succe
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
     round_review_gate = _step_body(workflow, "round_review_gate")
-    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
     success_criteria = _tag_body(workflow, "success_criteria")
 
     assert _contains_any_lower(
@@ -813,11 +811,6 @@ def test_ideate_round_review_surface_keeps_synthesis_on_demand_and_updates_succe
         "visible synthesis only when the user asks",
         "visible synthesis only when needed for blocker routing",
         "visible synthesis only when needed for divergence routing",
-    )
-    assert _contains_any_lower(
-        subgroup_loop,
-        "synthesize one compact breakout recap instead of replaying raw subgroup transcripts",
-        "rejoin is summary-only in this phase",
     )
     assert _contains_any_lower(
         success_criteria,
@@ -846,11 +839,11 @@ def test_ideate_round_review_surface_keeps_synthesis_on_demand_and_updates_succe
     )
 
 
-def test_ideate_non_durable_contract_covers_rounds_subgroups_and_closeout() -> None:
+def test_ideate_non_durable_contract_covers_rounds_focused_follow_up_and_closeout() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     orient_and_parse = _step_body(workflow, "orient_and_parse")
     round_loop = _step_body(workflow, "run_round_loop")
-    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
+    round_review_gate = _step_body(workflow, "round_review_gate")
     session_finish = _step_body(workflow, "session_finish")
 
     assert _contains_any_lower(
@@ -865,9 +858,10 @@ def test_ideate_non_durable_contract_covers_rounds_subgroups_and_closeout() -> N
         "do not create durable ideation session files, `research.md`, `gpd/ideation/`, or artifact directories in this phase.",
     )
     assert _contains_any_lower(
-        subgroup_loop,
-        "subgroup execution stays fileless in this phase.",
-        "do not create durable subgroup transcripts",
+        round_review_gate,
+        "no files were created",
+        "pause or stop cleanly without claiming durable persistence",
+        "pause or stop cleanly",
     )
     assert _contains_any_lower(
         session_finish,
@@ -883,85 +877,61 @@ def test_ideate_non_durable_contract_covers_rounds_subgroups_and_closeout() -> N
     assert "\n</spawn_contract>\n" not in workflow
 
 
-def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() -> None:
+def test_ideate_focused_follow_up_stays_parent_owned_fileless_and_summary_first() -> None:
     workflow = _read(IDEATE_WORKFLOW)
-    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
-    breakout_recap = _bullet_list_after_marker(subgroup_loop, "The breakout recap should include:")
+    round_review_gate = _step_body(workflow, "round_review_gate")
+    focused_follow_up_note = _step_body(workflow, "focused_follow_up_note")
+    success_criteria = _tag_body(workflow, "success_criteria")
+    combined = f"{round_review_gate}\n{focused_follow_up_note}\n{success_criteria}"
 
+    assert 'name="subgroup_micro_loop"' not in workflow
+    assert "subgroup rounds" not in workflow.lower()
+    assert "subgroup members" not in workflow.lower()
+    assert "temporary subgroup batch" not in combined.lower()
     assert _contains_any_lower(
-        subgroup_loop,
-        "subgroups are optional focused breakouts and only user-initiated from the existing parent handoff.",
-        "only user-initiated from the existing parent handoff",
-    )
-    assert _contains_any_lower(
-        subgroup_loop,
-        "route subgroup setup through the configuration-adjustment path so the main handoff stays stable.",
-        "configuration-adjustment path",
-    )
-    assert _contains_any_lower(
-        subgroup_loop,
-        "subgroup rounds must stay bounded",
-        "keep each subgroup batch to `1-3` rounds in this phase",
+        combined,
+        "focused follow-up",
+        "focused fan-out",
+        "targeted check",
+        "narrower follow-up",
+        "selective fan-out",
     )
     assert _contains_any_lower(
-        subgroup_loop,
-        "keep one active subgroup batch at a time in this phase.",
-        "temporary parent-owned configuration change",
+        combined,
+        "user asks",
+        "user-directed",
+        "user-initiated",
+        "when the user wants",
     )
     assert _contains_any_lower(
-        subgroup_loop,
-        "reuse fresh one-shot `gpd-ideation-worker` handoffs for subgroup lanes",
-        "do not create a long-lived child conversation",
+        combined,
+        "fresh continuation",
+        "parent handoff",
+        "parent-owned",
+        "do not resume",
     )
     assert _contains_any_lower(
-        subgroup_loop,
-        "rejoin is summary-only in this phase.",
-        "fold only that subgroup summary into the main shared discussion",
-        "compact rejoin packet",
-    )
-    assert any(
-        _contains_any_lower(
-            item,
-            "strongest research contribution",
-            "most consequential research contribution",
-            "most useful research contribution",
-        )
-        for item in breakout_recap
-    )
-    assert any(
-        _contains_any_lower(
-            item,
-            "strongest critique, evidence check, or next probe",
-            "strongest critique, decisive check, or next probe",
-            "strongest critique, check, or failure mode",
-            "strongest critique or decisive check",
-            "strongest critique or failure mode",
-            "strongest critique or next probe",
-        )
-        for item in breakout_recap
-    )
-    assert any(
-        _contains_any_lower(
-            item,
-            "remaining question or recommended next probe",
-            "remaining open question or recommended next probe",
-            "recommended next probe",
-        )
-        for item in breakout_recap
+        combined,
+        "fileless",
+        "no files were created",
+        "in-memory",
+        "non-durable",
     )
     assert _contains_any_lower(
-        subgroup_loop,
-        "do not auto-start the next main round after subgroup completion.",
-        "return to the normal parent handoff",
+        combined,
+        "short reintegration note",
+        "short summary",
+        "summary-only",
+        "fold the result back",
+        "fold back",
     )
-    assert _contains_any_lower(
-        subgroup_loop,
-        "do not claim subgroup resumability",
-        "independent subgroup sessions",
-        "subgroup promotion",
+    assert not _contains_any_lower(
+        combined,
+        "subgroup recap",
+        "breakout recap",
+        "subgroup objective",
+        "subgroup rounds completed",
     )
-    assert all("strongest idea or hypothesis" not in item.lower() for item in breakout_recap)
-    assert all("recommended next focus" not in item.lower() for item in breakout_recap)
 
 
 def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None:
