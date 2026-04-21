@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 2 ideate workflow seam."""
+"""Focused regressions for the Phase 0 ideate workflow seam."""
 
 from __future__ import annotations
 
@@ -19,108 +19,198 @@ def _contains_any(content: str, *phrases: str) -> bool:
     return any(phrase in content for phrase in phrases)
 
 
-def _contains_all(content: str, *phrases: str) -> bool:
-    return all(phrase in content for phrase in phrases)
+def _contains_any_lower(content: str, *phrases: str) -> bool:
+    lowered = content.lower()
+    return any(phrase.lower() in lowered for phrase in phrases)
 
 
 def _step_body(content: str, step_name: str) -> str:
-    marker = f'<step name="{step_name}">'
-    start = content.index(marker) + len(marker)
+    marker = f'<step name="{step_name}"'
+    start = content.index(marker)
+    start = content.index(">", start) + 1
     end = content.index("</step>", start)
     return content[start:end]
 
 
-def test_ideate_command_stays_thin_and_leaves_round_orchestration_to_the_workflow() -> None:
+def test_ideate_command_stays_thin_projectless_and_workflow_owned() -> None:
     command = _read(IDEATE_COMMAND)
 
+    assert "name: gpd:ideate" in command
+    assert "context_mode: projectless" in command
     assert "@{GPD_INSTALL_DIR}/workflows/ideate.md" in command
     assert "Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-end." in command
     assert "Keep the wrapper thin." in command
-    assert "The execution context owns round orchestration, worker fan-out, synthesis, and user gating." in command
-    assert "<spawn_contract>" not in command
-    assert 'subagent_type="gpd-ideation-worker"' not in command
-    assert "fresh continuation" not in command
-    assert "gpd_return.status" not in command
-    assert "shareable_thoughts" not in command
-    assert "GPD/ideation/" not in command
-
-
-def test_ideate_workflow_keeps_the_launch_summary_and_approval_surface_before_rounds() -> None:
-    workflow = _read(IDEATE_WORKFLOW)
-
-    assert _contains_any(
-        workflow,
-        "## Phase 2: Ideation Launch",
-        "## Phase 3: Ideation Launch",
-        "## Ideation Launch",
+    assert _contains_any_lower(
+        command,
+        "the execution context owns round orchestration, worker fan-out, synthesis, and user gating.",
+        "the execution context owns orchestration",
     )
 
-    for fragment in (
-        "| Idea |",
-        "| Outcome |",
-        "| Anchors |",
-        "| Constraints |",
-        "| Risks / Open Questions |",
-        "| Execution Preferences |",
+    for forbidden in (
+        "<spawn_contract>",
+        'subagent_type="gpd-ideation-worker"',
+        "gpd_return.status",
+        "shareable_thoughts",
     ):
-        assert fragment in workflow
+        assert forbidden not in command
 
-    assert _contains_any(
-        workflow,
-        'question: "Does this look right before I start the ideation rounds?"',
-        'question: "Does this look right before I start the bounded ideation round?"',
+
+def test_ideate_surface_locks_the_projectless_opt_in_context_and_non_durable_boundary() -> None:
+    command = _read(IDEATE_COMMAND)
+    workflow = _read(IDEATE_WORKFLOW)
+    optional_context_pull = _step_body(workflow, "optional_context_pull")
+    combined = f"{command}\n{workflow}"
+
+    assert "context_mode: projectless" in command
+    assert _contains_any_lower(
+        command,
+        "existing `gpd/` project files are optional supporting context only.",
+        "existing gpd project files are optional supporting context only.",
     )
+    assert _contains_any_lower(
+        command,
+        "do not read them unless the user explicitly asks for specific files or artifacts to be included.",
+        "do not read them unless the user explicitly asks",
+    )
+    assert "Do not auto-read project files or local documents." in optional_context_pull
+    assert _contains_any_lower(
+        optional_context_pull,
+        "only if the user explicitly asks to include existing context",
+        "read only those named artifacts",
+    )
+    assert _contains_any_lower(
+        combined,
+        "projectless conversational multi-agent research session",
+        "conversational multi-agent research session",
+        "keep orchestration in memory",
+        "in-memory session",
+        "does not create durable session artifacts",
+        "do not create durable ideation session files",
+    )
+    assert _contains_any_lower(
+        combined,
+        "`research.md`",
+        "`gpd/ideation/`",
+        "transcript storage or replay",
+        "session ids",
+        "`resume-work`",
+        "resume-work integration",
+    )
+    assert "session.json" not in combined.lower()
+    assert "\n<spawn_contract>\n" not in workflow
+    assert "\n</spawn_contract>\n" not in workflow
+
+
+def test_ideate_surface_keeps_room_for_research_style_discussion_without_auto_promoting_to_project_work() -> None:
+    command = _read(IDEATE_COMMAND)
+    workflow = _read(IDEATE_WORKFLOW)
+    combined = f"{command}\n{workflow}"
+
+    assert _contains_any_lower(
+        combined,
+        "scientific problem or open discussion space",
+        "open-ended discussion space",
+        "open-ended discussion instead of a sharply scoped problem",
+        "shared discussion",
+    )
+    assert _contains_any_lower(
+        combined,
+        "research-oriented",
+        "literature-aware",
+        "scientific question or domain",
+    )
+    assert _contains_any_lower(
+        combined,
+        "before durable project work",
+        "before committing to durable project artifacts",
+        "before deciding whether it should become durable project work",
+    )
+    assert _contains_any_lower(
+        combined,
+        "projectless and lightweight",
+        "starts projectlessly from any folder",
+        "context_mode: projectless",
+    )
+
+
+def test_ideate_workflow_keeps_a_launch_brief_and_explicit_start_gate_before_rounds() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    launch_summary = _step_body(workflow, "draft_launch_summary")
+    approval_gate = _step_body(workflow, "approval_gate")
+
+    for fragment in ("| Outcome |", "| Anchors |", "| Constraints |"):
+        assert fragment in launch_summary
+
+    assert _contains_any(launch_summary, "| Research Focus |", "| Idea |")
+    assert _contains_any(launch_summary, "| Risks / Open Questions |", "| Open Questions |")
+    assert _contains_any(launch_summary, "| Execution Preferences |", "| Mode |")
+    assert _contains_any(launch_summary, "| Initial Agent Shape |", "| Initial Participant Shape |")
 
     for fragment in ("Start ideation", "Adjust launch", "Review raw context", "Stop here"):
-        assert fragment in workflow
+        assert fragment in approval_gate
 
-    assert _contains_any(
-        workflow,
-        "Continue directly into the bounded round loop. Do not stop at a launch-packet-only state.",
-        "continue immediately into the bounded multi-agent round loop",
+    assert _contains_any_lower(
+        approval_gate,
+        "continue directly into the bounded round loop",
+        "continue directly into the bounded multi-agent round loop",
     )
 
 
-def test_ideate_workflow_owns_bounded_rounds_one_shot_workers_and_the_default_hard_critic() -> None:
+def test_ideate_workflow_keeps_bounded_parent_owned_rounds_and_default_skepticism() -> None:
     workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
 
-    assert _contains_any(
-        workflow,
-        "Run one bounded ideation round at a time.",
-        "The bounded ideation round structure is:",
+    assert _contains_any_lower(
+        round_loop,
+        "begin the conversational multi-agent research session using the current bounded round engine.",
+        "run one bounded ideation round at a time.",
+        "run one bounded ideation round at a time under the hood.",
+        "run one bounded round at a time.",
     )
-    assert _contains_any(
-        workflow,
-        "Spawn ideation workers as one-shot handoffs.",
-        "2. `round_fanout` -- spawn the one-shot ideation workers for this round",
-        "2. fan out to one-shot ideation workers",
+    assert _contains_any_lower(
+        round_loop,
+        "spawn ideation workers as one-shot handoffs.",
+        "one-shot handoffs",
     )
-    assert 'subagent_type="gpd-ideation-worker"' in workflow
-    assert _contains_any(
-        workflow,
-        "ideation workers are one-shot handoffs",
-        "This is a one-shot handoff.",
+    assert 'subagent_type="gpd-ideation-worker"' in round_loop
+    assert _contains_any_lower(
+        round_loop,
+        "the parent workflow owns the launch brief, round counter, shared discussion, current configuration, and any fresh continuation handoff.",
+        "the parent workflow owns the research brief, round counter, shared discussion, current configuration, and any fresh continuation handoff.",
+        "the parent workflow owns the launch brief",
+        "the parent workflow owns the research brief",
     )
-    assert _contains_any(
-        workflow,
-        "Reserve one default hard-critic lane unless the user overrides it.",
-        "Keep one lane reserved as the hard critic by default unless the user explicitly overrides it.",
-        "if the user did not override it, assign one agent as the hard critic for every round",
+    assert _contains_any_lower(
+        round_loop,
+        "hard critic",
+        "skeptical reviewer",
     )
-    assert _contains_any(
-        workflow,
-        "If you are the hard critic, pressure-test assumptions, contradictions, missing baselines, and weak causal stories.",
-        "Rounds are one-shot, use a default hard critic unless overridden",
+    assert _contains_any_lower(
+        round_loop,
+        "pressure-test assumptions, contradictions, missing baselines, and weak causal stories.",
+        "high skepticism",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "typed `gpd_return` envelope",
+        "route on typed `gpd_return.status`",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "no worker waits for user input in place.",
+        "do not wait in place.",
     )
 
 
-def test_ideate_workflow_keeps_the_round_user_gate_and_fresh_continuation_contract() -> None:
+def test_ideate_round_gate_preserves_user_control_and_fresh_continuations() -> None:
     workflow = _read(IDEATE_WORKFLOW)
+    round_review_gate = _step_body(workflow, "round_review_gate")
 
-    assert _contains_any(
-        workflow,
-        "After each round, present the compact round synthesis first. Raw round details are review-on-demand.",
-        "After each round, present a compact round summary and route through the bounded review gate.",
+    assert _contains_any_lower(
+        round_review_gate,
+        "present the compact round synthesis first. raw round details are review-on-demand.",
+        "present a compact round summary",
+        "present the compact round recap first. raw round details are review-on-demand.",
     )
 
     for fragment in (
@@ -130,215 +220,137 @@ def test_ideate_workflow_keeps_the_round_user_gate_and_fresh_continuation_contra
         "Review raw round",
         "Pause/Stop",
     ):
-        assert fragment in workflow
+        assert fragment in round_review_gate
 
-    assert "If the user adds thoughts or adjusts configuration, treat that as a fresh continuation" in workflow
-    assert _contains_any(
-        workflow,
-        "rather than resuming workers in place.",
-        "Do not resume a prior child run.",
+    assert "temporary subgroup batch" in round_review_gate
+    assert _contains_any_lower(
+        round_review_gate,
+        "treat that as a fresh continuation",
+        "do not resume a prior child run.",
     )
-    assert _contains_any(
-        workflow,
-        "Rebuild the next round brief from the approved launch brief, prior round syntheses, and the new user input, then spawn a fresh set of one-shot workers.",
-        "if user input is required, surface it at the parent round gate and spawn a fresh worker on the next round",
+    assert _contains_any_lower(
+        round_review_gate,
+        "rebuild the next round brief",
+        "spawn a fresh worker on the next round",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "surface the ambiguity at the round gate",
+        "surface the ambiguity at the parent round gate",
     )
 
 
-def test_ideate_phase2_stays_fileless_and_does_not_claim_durable_session_artifacts() -> None:
+def test_ideate_non_durable_contract_covers_rounds_subgroups_and_closeout() -> None:
     workflow = _read(IDEATE_WORKFLOW)
+    orient_and_parse = _step_body(workflow, "orient_and_parse")
+    round_loop = _step_body(workflow, "run_round_loop")
+    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
+    session_finish = _step_body(workflow, "session_finish")
 
-    assert _contains_any(
-        workflow,
-        "This phase keeps orchestration in memory and does not create durable session artifacts or ideation files.",
-        "Keep orchestration in memory for this run.",
-        "Keep orchestration in memory for this phase.",
+    assert _contains_any_lower(
+        orient_and_parse,
+        "this phase keeps orchestration in memory and does not create durable session artifacts or ideation files.",
+        "this is a projectless, in-memory research session",
     )
-    assert _contains_any(
-        workflow,
-        "Do not create durable ideation session files or artifact directories in this phase.",
-        "Do not create durable ideation session files, dedicated ideation directories under `GPD/`, tag ledgers, or document-library state in this phase.",
-        "Do not create durable session artifacts",
+    assert _contains_any_lower(
+        round_loop,
+        "keep orchestration in memory for this phase.",
+        "do not create durable ideation session files or artifact directories in this phase.",
+        "do not create durable ideation session files, `research.md`, `gpd/ideation/`, or artifact directories in this phase.",
     )
-    assert _contains_any(
-        workflow,
-        "Approval starts bounded ideation rounds, but it does not create durable session files.",
-        "This run keeps ideation state in memory. It does not create or update durable session files in this phase.",
+    assert _contains_any_lower(
+        subgroup_loop,
+        "subgroup execution stays fileless in this phase.",
+        "do not create durable subgroup transcripts",
     )
-    assert _contains_any(
-        workflow,
-        "Do not add `<spawn_contract>` blocks for Phase 2.",
-        "Do not create files or claim durable session ownership in this phase.",
+    assert _contains_any_lower(
+        session_finish,
+        "this v1 closeout is in-memory only.",
+        "this projectless research-session closeout is in-memory only.",
+        "do not add or imply durable ideation history",
     )
-    assert _contains_any(
-        workflow,
-        "Child work is fileless and return-only here.",
-        "Do not rely on `gpd_return.files_written` in this phase.",
-        "Do not invent durable artifact checks here because this phase intentionally avoids file-producing ideation workers.",
-    )
+
+    for forbidden in ("session.json", "gpd_return.files_written"):
+        assert forbidden not in workflow.lower()
+
     assert "\n<spawn_contract>\n" not in workflow
     assert "\n</spawn_contract>\n" not in workflow
-    assert "session.json" not in workflow
-    assert _contains_any(
-        workflow,
-        "Do not create durable ideation session files or artifact directories in this phase.",
-        "Do not create durable ideation session files, subgroup files, or artifact directories in this phase.",
-        "Do not promise durable subgroup transcripts, promotion, spawn contracts, `GPD/ideation/` state, resumable subgroup persistence, GPD/ideation state, or ideation files in this phase.",
-    )
-    assert _contains_any(
-        workflow,
-        "The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, resumable session files, tags, imported-document state, or archived artifacts.",
-        "The summary in this phase is conversational and in-memory only. Do not claim durable ideation history, subgroup transcripts, resumable session files, tags, imported-document state, or archived artifacts.",
-        "This v1 closeout is in-memory only. Do not add or imply durable ideation history, session IDs, subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.",
-        "No durable ideation session files, artifact directories, tag ledgers, or document-library claims are required in Phase 2",
-    )
 
 
-def test_ideate_workflow_allows_temporary_subgroup_creation_only_from_the_parent_round_gate() -> None:
+def test_ideate_subgroups_stay_optional_parent_owned_bounded_and_summary_only() -> None:
     workflow = _read(IDEATE_WORKFLOW)
-    gate = _step_body(workflow, "round_review_gate")
     subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
 
-    assert "Adjust configuration" in gate
-    assert "temporary subgroup batch" in gate
-    assert _contains_all(
+    assert _contains_any_lower(
         subgroup_loop,
-        "existing parent round gate",
-        "Adjust configuration",
-        "Do not create them at launch, mid-worker, or automatically.",
-    )
-    assert _contains_any(
-        subgroup_loop,
-        "Subgroups are optional and only user-initiated from the existing parent round gate.",
+        "subgroups are optional and only user-initiated from the existing parent round gate.",
         "only user-initiated from the existing parent round gate",
     )
-    assert _contains_any(
+    assert _contains_any_lower(
         subgroup_loop,
-        "Route subgroup setup through `Adjust configuration` so the main gate stays stable.",
-        "Route subgroup setup through `Adjust configuration`",
+        "route subgroup setup through `adjust configuration` so the main gate stays stable.",
+        "route subgroup setup through `adjust configuration`",
     )
-
-
-def test_ideate_workflow_runs_subgroups_as_bounded_nested_one_shot_rounds() -> None:
-    workflow = _read(IDEATE_WORKFLOW)
-    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
-
-    assert _contains_all(
+    assert _contains_any_lower(
         subgroup_loop,
         "subgroup rounds must stay bounded",
-        "default to `2`",
-        "`1-3` rounds",
+        "keep each subgroup batch to `1-3` rounds in this phase",
     )
-    assert _contains_all(
+    assert _contains_any_lower(
         subgroup_loop,
-        "pause main-loop progression",
+        "keep one active subgroup batch at a time in this phase.",
+        "temporary parent-owned configuration change",
+    )
+    assert _contains_any_lower(
+        subgroup_loop,
         "reuse fresh one-shot `gpd-ideation-worker` handoffs for subgroup lanes",
         "do not create a long-lived child conversation",
     )
-    assert _contains_all(
+    assert _contains_any_lower(
         subgroup_loop,
-        "Keep one active subgroup batch at a time in this phase.",
-        "return to the parent gate",
-        "launch another subgroup batch explicitly",
+        "rejoin is summary-only in this phase.",
+        "fold only that subgroup summary into the main shared discussion",
+        "compact rejoin packet",
     )
-    assert _contains_any(
+    assert _contains_any_lower(
         subgroup_loop,
-        "if a subgroup lane needs user input, surface it at the parent gate as a fresh continuation rather than waiting in place",
-        "surface it at the parent gate as a fresh continuation rather than waiting in place",
+        "do not auto-start the next main round after subgroup completion.",
+        "return to the normal parent round gate",
     )
-    assert "subgroup rounds" in workflow
-    assert "one-shot" in workflow
-
-
-def test_ideate_workflow_reintegrates_subgroup_output_by_summary_without_persistence_or_promotion() -> None:
-    workflow = _read(IDEATE_WORKFLOW)
-    subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
-
-    assert _contains_all(
+    assert _contains_any_lower(
         subgroup_loop,
-        "At subgroup completion, synthesize one compact rejoin packet instead of replaying raw subgroup transcripts.",
-        "Rejoin is summary-only in this phase.",
-        "Fold only that subgroup summary into the main shared discussion",
-    )
-    for fragment in (
-        "strongest idea",
-        "strongest critique",
-        "what changed for the main discussion",
-        "remaining open question",
-    ):
-        assert fragment in subgroup_loop
-    assert _contains_any(
-        subgroup_loop,
-        "Do not auto-start the next main round after subgroup completion.",
-        "Do not auto-start the next main round",
-    )
-    assert _contains_all(
-        subgroup_loop,
-        "Subgroup execution stays fileless in this phase.",
-        "do not create durable subgroup transcripts",
+        "do not claim subgroup resumability",
+        "independent subgroup sessions",
         "subgroup promotion",
     )
-    assert "\n<spawn_contract>\n" not in workflow
-    assert _contains_any(
-        subgroup_loop,
-        "independent subgroup sessions",
-        "promotion to independent sessions",
+
+
+def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    session_finish = _step_body(workflow, "session_finish")
+
+    assert _contains_any_lower(
+        session_finish,
+        "compact structured closeout summary",
+        "structured closeout summary",
     )
-    assert "gpd_return.files_written" not in workflow
+    for fragment in (
+        "main ideas explored",
+        "unresolved disagreements or confusions",
+        "promising next steps",
+        "open questions",
+        "suggested follow-up actions",
+    ):
+        assert fragment in session_finish
 
+    assert "`What do you want to do next?`" in session_finish
+    assert "non-GPD next step" in session_finish
 
-def test_ideate_session_finish_locks_the_compact_closeout_summary_shape() -> None:
-    workflow = _read(IDEATE_WORKFLOW)
-    session_finish = _step_body(workflow, "session_finish")
+    for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
+        assert fragment in session_finish
 
-    assert (
-        "When the user stops, end with one compact structured closeout summary. "
-        "Keep it lightweight and conversational, but make the structure explicit with short labeled bullets "
-        "or equivalent headings that cover:\n\n"
-        "- main ideas explored\n"
-        "- unresolved disagreements or confusions\n"
-        "- promising next steps\n"
-        "- open questions\n"
-        "- suggested follow-up actions\n"
-    ) in session_finish
-
-
-def test_ideate_session_finish_keeps_the_explicit_next_step_prompt_and_canonical_follow_up_list() -> None:
-    workflow = _read(IDEATE_WORKFLOW)
-    session_finish = _step_body(workflow, "session_finish")
-
-    assert (
-        "Immediately after the summary, ask this exact short closing question:\n\n"
-        "`What do you want to do next?`\n"
-    ) in session_finish
-    assert "Then offer a short list of only the most relevant GPD follow-up actions for the session outcome, such as:" in session_finish
-    assert "Also say plainly that the user can ask for a non-GPD next step instead if that is more useful." in session_finish
-    assert (
-        "End with:\n\n"
-        "```markdown\n"
-        "---\n\n"
-        "## > Next Up\n\n"
-        "**gpd:suggest-next** -- ask GPD for the best next move from here\n\n"
-        "`gpd:suggest-next`\n\n"
-        "<sub>`/clear` first, then run `gpd:suggest-next`</sub>\n\n"
-        "---\n\n"
-        "**Also available:**\n"
-        "- `gpd:ideate [topic or question]` -- run another ideation session or revise the launch\n"
-        "- `gpd:new-project` -- turn a strong direction into a project-backed workflow\n"
-        "- `gpd:help --all` -- inspect the current command surface\n\n"
-        "---\n"
-        "```"
-    ) in session_finish
-
-
-def test_ideate_session_finish_stays_conversational_and_non_durable() -> None:
-    workflow = _read(IDEATE_WORKFLOW)
-    session_finish = _step_body(workflow, "session_finish")
-
-    assert (
-        "This v1 closeout is in-memory only. Do not add or imply durable ideation history, session IDs, "
-        "subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, "
-        "or any save-resume-session-management machinery."
-    ) in session_finish
-    for forbidden in ("session.json", "GPD/ideation/", "gpd_return.files_written", "<spawn_contract>"):
-        assert forbidden not in session_finish
+    assert _contains_any_lower(
+        session_finish,
+        "this v1 closeout is in-memory only.",
+        "do not add or imply durable ideation history",
+    )

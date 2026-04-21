@@ -1,6 +1,6 @@
 ---
 name: gpd:ideate
-description: Run projectless multi-agent ideation through interactive intake, bounded rounds, user review, and a structured closeout
+description: Run a projectless conversational multi-agent research session to explore, pressure-test, and refine a direction before durable project work
 argument-hint: "[topic, question, or domain] [--preset fast|balanced|deep]"
 context_mode: projectless
 allowed-tools:
@@ -12,9 +12,9 @@ allowed-tools:
 
 
 <objective>
-Run an ideation session cleanly: gather the scientific problem or open discussion space, clarify the desired outcome, capture the constraints and anchors that must stay visible, show an editable launch summary, and then guide bounded multi-agent ideation rounds with explicit user review gates and optional temporary subgroup loops.
+Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before deciding whether it should become durable project work.
 
-Keep `gpd:ideate` projectless and lightweight. It should not auto-ingest project state unless the user explicitly asks for specific context, and it should not claim durable session storage, resumable ideation state, or other later-phase persistence features. Keep orchestration in memory for this phase and do not promise durable ideation storage, subgroup transcripts, subgroup session promotion, or a separate subgroup launch surface.
+Keep the contract lightweight and non-durable. Existing project files, notes, and artifacts are opt-in context only and must not be auto-ingested unless the user explicitly asks for specific context. Do not claim or imply `RESEARCH.md`, `GPD/ideation/`, durable ideation artifacts, resumable session state, transcript storage or replay, session ids, subgroup promotion into durable sessions, `resume-work`, staged init, artifact freshness gating, or other persistence-heavy `research-phase` semantics. Phase 0 locks that product boundary only; it does not redesign the current workflow-owned round structure.
 </objective>
 
 <context>
@@ -54,13 +54,12 @@ Do not claim durable ideation session storage, resumable ideation state, subgrou
 
 <success_criteria>
 
-- [ ] `gpd:ideate` starts projectlessly from any folder
-- [ ] The workflow owns the interactive intake, launch summary, round execution, and round-review loop
-- [ ] Bounded multi-agent rounds happen behind explicit user checkpoints
-- [ ] Existing project context remains opt-in rather than auto-loaded
-- [ ] The user can continue, add thoughts, adjust configuration, review the raw round, or stop cleanly
-- [ ] The user can launch a temporary bounded subgroup from the round boundary and rejoin through a subgroup summary
-- [ ] Stopping the session produces a structured summary, an explicit what-next prompt, relevant suggested GPD actions, and room for non-GPD next steps without implying durable persistence
-- [ ] No durable ideation session files, resumable state, or later-phase persistence systems are required in this phase
+- [ ] `gpd:ideate` is defined as a projectless conversational multi-agent research session rather than a persistence-backed ideation surface
+- [ ] The command can start from any folder without requiring project initialization or durable session setup
+- [ ] Existing project files and prior GPD state remain opt-in context instead of auto-loaded session state
+- [ ] The session stays non-durable: no `RESEARCH.md`, no `GPD/ideation/`, no durable ideation artifact directory, no resumable ideation state, and no transcript storage or replay are required
+- [ ] The command does not import `research-phase` semantics such as staged init, artifact gating, or `resume-work`
+- [ ] Multi-agent contributions help the user explore, pressure-test, and refine a direction before they choose whether to move into a durable GPD workflow
+- [ ] Phase 0 preserves the existing workflow-owned round mechanics instead of redesigning them here
 
 </success_criteria>

@@ -1,7 +1,9 @@
 <purpose>
-Launch an ideation session through interactive intake, preset selection, an editable launch summary, and bounded multi-agent ideation rounds.
+Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
-Phase 3 keeps the core loop from Phase 2 and adds optional temporary subgroup micro-loops. Run the launch, then run bounded rounds with explicit user review gates. Offer subgroup work only from the existing round-boundary gate through `Adjust configuration`, not as a separate launch path. Only create subgroups from the parent round gate after round synthesis. Keep the parent workflow responsible for the launch brief, the round state, any subgroup routing, and any fresh continuation handoff. Do not create durable ideation session files, subgroup files, or artifact directories in this phase.
+Phase 0 locks that contract and its non-goals while preserving the current launch, approval, bounded round, optional subgroup, and closeout mechanics. Keep the editable launch summary, explicit review gates, bounded multi-agent rounds, optional temporary subgroup breakouts, and structured closeout in place for now. Keep the parent workflow responsible for the research brief, round state, any subgroup routing, and any fresh continuation handoff.
+
+Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and subgroup promotion into durable sessions.
 </purpose>
 
 <required_reading>
@@ -13,7 +15,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="orient_and_parse" priority="first">
 Open with one short plain-English line:
 
-`I will clarify the ideation target, lock the launch brief, then run one bounded ideation round at a time with review between rounds.`
+`I will clarify the research target, lock the brief, then run one bounded multi-agent round at a time with review between rounds.`
 
 Then parse the optional preset and separate it from the seed text:
 
@@ -34,22 +36,22 @@ fi
 
 Use the parsed state to set expectations:
 
-- If `SEED_TEXT` is non-empty, briefly repeat it back as the current ideation seed.
+- If `SEED_TEXT` is non-empty, briefly repeat it back as the current session seed.
 - If `PRESET` is non-empty, say you will treat it as the initial ideation preset unless the user edits it.
-- If `HAS_GPD_PROJECT=true`, add one sentence: `I can use existing GPD project context if you want, but I will not pull it in automatically.`
-- Always add one explicit boundary sentence: `This phase keeps orchestration in memory and does not create durable session artifacts or ideation files.`
+- If `HAS_GPD_PROJECT=true`, add one sentence: `I can use existing GPD project context if you want, but I will not pull it in automatically into this projectless session.`
+- Always add one explicit boundary sentence: `This is a projectless, in-memory research session: I will not auto-load project state or create durable ideation files, session artifacts, or resumable session state.`
 </step>
 
 <step name="capture_core_brief">
-Ask for one dense freeform brief in the user's own words.
+Ask for one dense freeform research brief in the user's own words.
 
 If `SEED_TEXT` is usable, weave it into the prompt rather than restarting from scratch:
 
-`Using "{SEED_TEXT}" as the starting point, give me the ideation brief in your own words. Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what would count as real progress versus false progress.`
+`Using "{SEED_TEXT}" as the starting point, give me the research brief in your own words. Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what would count as real progress versus false progress.`
 
 If there is no usable seed, ask:
 
-`What should this ideation session be about? Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what would count as real progress versus false progress.`
+`What should this research session be about? Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what would count as real progress versus false progress.`
 
 Preserve the user's wording for decisive items. If the user wants an open-ended discussion instead of a sharply scoped problem, capture that explicitly rather than forcing premature precision.
 </step>
@@ -60,15 +62,15 @@ Do not auto-read project files or local documents.
 Only if the user explicitly asks to include existing context, ask which exact artifact(s) should be included. Keep this bounded:
 
 - named `GPD/` files such as `PROJECT.md`, `ROADMAP.md`, `RESEARCH.md`, or `STATE.md`
-- an explicitly named local file the user wants to ground the ideation launch
+- an explicitly named local file the user wants to ground the research brief
 
-Read only those named artifacts. Fold only decisive constraints, anchors, or framing details into the launch brief. Do not silently widen scope by loading broad project context "just in case."
+Read only those named artifacts. Fold only decisive constraints, anchors, or framing details into the research brief. Do not silently widen scope by loading broad project context "just in case."
 </step>
 
 <step name="adaptive_clarification">
-Ask only the clarification needed to draft a usable launch summary.
+Ask only the clarification needed to draft a usable research brief and launch summary.
 
-Target at most two clarification rounds before drafting unless the user explicitly wants more. The goal is to tighten the launch, not to run the ideation itself.
+Target at most two clarification rounds before drafting unless the user explicitly wants more. The goal is to tighten the brief, not to run the discussion itself.
 
 Prioritize these gaps:
 
@@ -77,7 +79,7 @@ Prioritize these gaps:
 - no explicit constraint or boundary
 - no success signal or false-progress warning
 - no initial execution posture
-- no usable ideation worker count
+- no usable agent count
 
 If `ask_user` is available, use it for low-cardinality choices and keep freeform follow-ups compact.
 
@@ -85,7 +87,7 @@ First, resolve the preset if it is still missing or uncertain:
 
 ```text
 header: "Preset"
-question: "What ideation depth fits this run?"
+question: "What session depth fits this run?"
 options:
 - "Balanced (Recommended)" -- standard round depth with enough structure to keep the ideation grounded
 - "Fast" -- shorter rounds, fewer defaults, useful when the problem is already crisp
@@ -97,7 +99,7 @@ Then resolve the worker count if it is still missing or obviously undecided:
 
 ```text
 header: "Agents"
-question: "How many ideation agents do you want in the first round?"
+question: "How many agents do you want in the first round?"
 options:
 - "Use the default" -- let the workflow pick a preset-shaped starting count
 - "I will choose a number" -- provide the exact count in the next reply
@@ -127,44 +129,44 @@ Defaults unless the user overrides them:
   - `balanced` -> `4`
   - `deep` -> `5`
 - default worker roster:
-  - one hard critic with high skepticism and medium creativity
+  - one skeptical reviewer by default in the current hard-critic slot, with high skepticism and medium creativity
   - all remaining agents are literature-aware theorists with medium skepticism and medium-to-high creativity
 
 If the user provides partial per-agent preferences but not a full roster, preserve the explicit overrides and fill the remaining slots with these defaults.
 </step>
 
 <step name="draft_launch_summary">
-Synthesize a concise structured launch brief that preserves the user's own framing and makes the initial ideation roster legible.
+Synthesize a concise structured research brief that preserves the user's own framing and makes the initial agent roster legible.
 
 Render it as:
 
 ```markdown
-## Phase 3: Ideation Launch
+## Phase 3: Research Brief
 
-| Section | Current launch brief |
+| Section | Current research brief |
 | --- | --- |
-| Idea | [core question, domain, or open discussion framing] |
-| Outcome | [what useful result this ideation session should aim to produce] |
+| Research Focus | [core question, domain, or open discussion framing] |
+| Outcome | [what useful result this research session should aim to produce] |
 | Anchors | [must-keep references, prior outputs, examples, or "None supplied yet"] |
 | Constraints | [scope boundaries, time/rigor limits, exclusions, or "None supplied yet"] |
 | Risks / Open Questions | [weakest assumptions, unresolved gaps, false-progress warnings] |
 | Execution Preferences | `Preset: ...`; `Posture: ...`; `Agent count: ...`; `Project context: ...`; `Subgroups: ...` |
-| Initial Agent Shape | [one hard critic by default, plus the starting theorist pool and any user-locked overrides] |
+| Initial Agent Shape | [one skeptical reviewer by default in the current hard-critic slot, plus the starting theorist pool and any user-locked overrides] |
 ```
 
 Before the approval gate, add one short side-effect note:
 
-`Approval starts bounded ideation rounds, but it does not create durable session files.`
+`Approval starts the bounded multi-agent rounds, but it does not create durable session files.`
 </step>
 
 <step name="approval_gate">
-Present the repo-style approval gate.
+Present the repo-style approval gate for the research brief.
 
 If `ask_user` is available:
 
 ```text
 header: "Ideate Launch"
-question: "Does this look right before I start the ideation rounds?"
+question: "Does this look right before I start the bounded multi-agent rounds?"
 options:
 - "Start ideation"
 - "Adjust launch"
@@ -176,7 +178,7 @@ If `ask_user` is not available, present the same four options as a short numbere
 
 On `Review raw context`:
 
-- show the raw launch packet in a more literal form: seed text, preserved phrases, imported anchors, resolved preset, worker count assumptions, per-agent overrides, and unresolved gaps
+- show the raw launch details in a more literal form: seed text, preserved phrases, imported anchors, resolved preset, worker count assumptions, per-agent overrides, and unresolved gaps
 - then return to the same approval gate
 
 On `Adjust launch`:
@@ -188,7 +190,7 @@ On `Adjust launch`:
 On `Stop here`:
 
 - end cleanly
-- say no files were created and the ideation launch was not finalized
+- say no files were created and the research brief was not finalized
 - end with the standard continuation block:
 
 ```markdown
@@ -196,7 +198,7 @@ On `Stop here`:
 
 ## > Next Up
 
-**gpd:ideate** -- restart the ideation launch when you want to continue refining the brief
+**gpd:ideate** -- restart the session setup when you want to continue refining the brief
 
 `gpd:ideate [topic or question]`
 
@@ -213,20 +215,20 @@ On `Stop here`:
 
 On `Start ideation`:
 
-- confirm that the launch brief is approved
+- confirm that the research brief is approved
 - restate the final approved summary compactly
-- Continue directly into the bounded round loop. Do not stop at a launch-packet-only state.
+- Continue directly into the bounded round loop. Do not stop at a launch-summary-only state.
 </step>
 
 <step name="run_round_loop">
-If the launch is approved, begin the ideation engine.
+If the launch is approved, begin the conversational multi-agent research session using the current bounded round engine.
 
-Run one bounded ideation round at a time.
+Run one bounded ideation round at a time under the hood.
 Spawn ideation workers as one-shot handoffs.
-Reserve one default hard-critic lane unless the user overrides it.
-Rounds are one-shot, use a default hard critic unless overridden.
+Reserve one default skeptical-reviewer / hard-critic slot unless the user overrides it.
+Rounds are one-shot and use the current default hard critic unless overridden.
 
-Keep orchestration in memory for this phase. The parent workflow owns the launch brief, round counter, shared discussion, current configuration, and any fresh continuation handoff. Do not create durable ideation session files or artifact directories in this phase.
+Keep orchestration in memory for this phase. The parent workflow owns the research brief, round counter, shared discussion, current configuration, and any fresh continuation handoff. Do not create durable ideation session files, `RESEARCH.md`, `GPD/ideation/`, or artifact directories in this phase.
 
 Resolve the ideation-worker model through the existing profile-and-tier path before the first round:
 
@@ -249,7 +251,7 @@ Keep round numbers explicit in presentation: `Round 1`, `Round 2`, and so on.
 For each round:
 
 1. Build a round brief from:
-   - the approved launch summary
+   - the approved research brief
    - the current round number
    - the shared discussion so far
    - any user-injected thoughts from the prior round gate
@@ -281,11 +283,11 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-ideation-worker.md for your role and instructions.
 
 <objective>
-Contribute one bounded ideation lane for Round {round_number}.
+Contribute one bounded agent perspective for Round {round_number} of this projectless research session.
 </objective>
 
 <context>
-Approved launch brief: {launch_brief}
+Approved research brief: {launch_brief}
 Current round brief: {round_brief}
 Shared discussion so far: {shared_discussion}
 Lane instructions: {lane_instructions}
@@ -294,7 +296,7 @@ Lane instructions: {lane_instructions}
 <contract>
 This is a one-shot handoff. Return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. If human input is required, return `gpd_return.status: checkpoint` and stop. Do not wait in place. The parent orchestrator owns any fresh continuation handoff.
 </contract>",
-  description="Ideation round {round_number}: {lane_role}"
+  description="Research round {round_number}: {lane_role}"
 )
 ```
 
@@ -303,7 +305,7 @@ Do not create files or claim durable session ownership in this phase.
 </step>
 
 <step name="round_review_gate">
-After each round, present the compact round synthesis first. Raw round details are review-on-demand. Subgroup creation happens only after this round synthesis at the parent gate.
+After each round, present the compact round recap first. Raw round details are review-on-demand. Subgroup creation happens only after this round recap at the parent gate.
 
 The round gate must offer:
 
@@ -322,13 +324,13 @@ Interpretation:
 - `Pause/Stop`: pause or stop cleanly without claiming durable persistence.
 
 If the user adds thoughts or adjusts configuration, treat that as a fresh continuation rather than resuming workers in place.
-Rebuild the next round brief from the approved launch brief, prior round syntheses, and the new user input, then spawn a fresh set of one-shot workers. Do not resume a prior child run.
+Rebuild the next round brief from the approved research brief, prior round syntheses, and the new user input, then spawn a fresh set of one-shot workers. Do not resume a prior child run.
 
 If a round is ambiguous or a worker returns a checkpoint-worthy blocker, surface the ambiguity at the round gate instead of letting a worker linger.
 </step>
 
 <step name="subgroup_micro_loop">
-Subgroups are optional and only user-initiated from the existing parent round gate. Do not create them at launch, mid-worker, or automatically. Route subgroup setup through `Adjust configuration` so the main gate stays stable. Only create subgroups from the parent round gate after round synthesis.
+Subgroups are optional focused breakouts and only user-initiated from the existing parent round gate. Do not create them at launch, mid-worker, or automatically. Route subgroup setup through `Adjust configuration` so the main gate stays stable. Only create subgroups from the parent round gate after round synthesis.
 
 When the user asks for subgroup work through `Adjust configuration`:
 
@@ -336,7 +338,7 @@ When the user asks for subgroup work through `Adjust configuration`:
 2. confirm the subgroup members by stable lane labels such as `Agent 1`, `Agent 2`, and `Agent 3`
 3. confirm the bounded subgroup round count
 
-Keep one active subgroup batch at a time in this phase. Treat it as a temporary parent-owned configuration change inside the current ideation session, not as a new top-level ideation path. Do not route subgroup formation through launch intake, worker-local decisions, or any mid-worker branch.
+Keep one active subgroup batch at a time in this phase. Treat it as a temporary parent-owned configuration change inside the current research session, not as a new top-level ideation path. Do not route subgroup formation through launch intake, worker-local decisions, or any mid-worker branch.
 
 Subgroup defaults and boundaries:
 
@@ -349,7 +351,7 @@ While a subgroup batch is active:
 - Pause the main group while the subgroup runs.
 - pause main-loop progression
 - keep the parent workflow responsible for subgroup state, synthesis, and any checkpoint routing
-- build each subgroup round brief from the approved launch brief, the relevant slice of shared discussion, the subgroup objective, any locked assignments, and any user-specified subgroup instructions
+- build each subgroup round brief from the approved research brief, the relevant slice of shared discussion, the subgroup objective, any locked assignments, and any user-specified subgroup instructions
 - reuse `gpd-ideation-worker` for subgroup lanes
 - reuse fresh one-shot `gpd-ideation-worker` handoffs for subgroup lanes; do not create a long-lived child conversation
 - subgroup workers remain one-shot handoffs
@@ -358,7 +360,7 @@ While a subgroup batch is active:
 
 Subgroup execution stays fileless in this phase. Do not add `<spawn_contract>` blocks, do not create durable subgroup transcripts, and do not claim subgroup resumability, subgroup promotion, or independent subgroup sessions. Subgroups stay inside the parent ideation run in this phase. Do not promote a subgroup into its own session in this phase. Do not create durable subgroup artifacts or promotion surfaces in this phase. Do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence, dedicated ideation state, or ideation files in this phase.
 
-At subgroup completion, synthesize one compact rejoin packet instead of replaying raw subgroup transcripts. Rejoin is summary-only in this phase. Reintegrate only a subgroup summary into the main shared discussion. The rejoin packet should include:
+At subgroup completion, synthesize one compact breakout recap instead of replaying raw subgroup transcripts. Rejoin is summary-only in this phase. Reintegrate only a subgroup summary into the main shared discussion. The breakout recap should include:
 
 - subgroup objective
 - subgroup members
@@ -380,7 +382,7 @@ When the user stops, end with one compact structured closeout summary. Keep it l
 - open questions
 - suggested follow-up actions
 
-This v1 closeout is in-memory only. Do not add or imply durable ideation history, session IDs, subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
+This projectless research-session closeout is in-memory only. Do not add or imply durable ideation history, session IDs, subgroup transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
 
 Immediately after the summary, ask this exact short closing question:
 
@@ -411,7 +413,7 @@ End with:
 ---
 
 **Also available:**
-- `gpd:ideate [topic or question]` -- run another ideation session or revise the launch
+- `gpd:ideate [topic or question]` -- run another research session or revise the brief
 - `gpd:new-project` -- turn a strong direction into a project-backed workflow
 - `gpd:help --all` -- inspect the current command surface
 
@@ -434,8 +436,10 @@ Human-readable labels in worker text are presentation only. Do not route on them
 </process>
 
 <success_criteria>
+- [ ] The workflow frames `gpd:ideate` as a projectless conversational multi-agent research session before any durable project workflow
+- [ ] Existing project context remains opt-in and is never auto-loaded into the session
 - [ ] The launch intake and editable summary remain intact before ideation starts
-- [ ] The approved launch brief leads into a bounded multi-agent round loop
+- [ ] The approved research brief leads into a bounded multi-agent round loop
 - [ ] One hard critic is present by default unless the user changes the roster
 - [ ] User thought injection happens at round boundaries through the parent gate
 - [ ] Per-agent assignments can be updated between rounds without restarting the session
@@ -443,5 +447,5 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] The review gate supports continue, add thoughts, adjust configuration, review raw round, and pause-stop
 - [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
 - [ ] The workflow stays fileless for ideation and subgroup state in this phase
-- [ ] No durable ideation history, resumable session files, tags, imported-document state, or archived artifacts.
+- [ ] No `RESEARCH.md`, `GPD/ideation/`, durable ideation history, session IDs, transcript storage or replay, resumable session files, tags, imported-document state, subgroup promotion, or archived artifacts.
 </success_criteria>

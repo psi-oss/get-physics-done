@@ -1,4 +1,4 @@
-"""Focused ideate contract guardrails for the ideate command/workflow surface."""
+"""Phase 0 contract guardrails for the ideate prompt surfaces."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 IDEATE_COMMAND_PATH = COMMANDS_DIR / "ideate.md"
 IDEATE_WORKFLOW_PATH = WORKFLOWS_DIR / "ideate.md"
+HELP_WORKFLOW_PATH = WORKFLOWS_DIR / "help.md"
 
 
 def _read(path: Path) -> str:
@@ -26,25 +27,9 @@ def _contains_any_lower(content: str, *phrases: str) -> bool:
     return any(phrase.lower() in lowered for phrase in phrases)
 
 
-def _ideate_round_loop_is_documented(command: str, workflow: str) -> bool:
-    return _contains_any_lower(
-        workflow,
-        "continue to next round",
-        "add my thoughts",
-        "review raw round",
-        "pause/stop",
-        "pause or stop",
-    )
-
-
-def _phase3_subgroup_surface_is_documented(content: str) -> bool:
-    return _contains_any_lower(
-        content,
-        "temporary bounded subgroup",
-        "temporary subgroup work",
-        "subgroup micro-loop",
-        "subgroup rejoin",
-    )
+def _contains_all_lower(content: str, *phrases: str) -> bool:
+    lowered = content.lower()
+    return all(phrase.lower() in lowered for phrase in phrases)
 
 
 def _step_body(content: str, step_name: str) -> str:
@@ -54,8 +39,18 @@ def _step_body(content: str, step_name: str) -> str:
     return content[start:end]
 
 
+def _help_command_entry(content: str, command_name: str) -> str:
+    marker = f"**`{command_name}`**"
+    start = content.index(marker)
+    next_heading = content.find("\n**`", start + len(marker))
+    if next_heading == -1:
+        return content[start:]
+    return content[start:next_heading]
+
+
 def test_ideate_surfaces_land_together() -> None:
     assert IDEATE_COMMAND_PATH.exists() == IDEATE_WORKFLOW_PATH.exists()
+    assert HELP_WORKFLOW_PATH.exists()
 
 
 def test_ideate_command_is_registered_and_projectless_when_present() -> None:
@@ -72,308 +67,163 @@ def test_ideate_command_is_registered_and_projectless_when_present() -> None:
         assert f"  - {tool}" in raw_command
 
 
-def test_ideate_command_keeps_launch_plus_round_loop_contract_when_present() -> None:
+def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> None:
+    if not IDEATE_COMMAND_PATH.exists():
+        pytest.skip("ideate command/workflow has not landed yet")
+
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
+
+    assert _contains_all_lower(help_entry, "projectless", "non-durable", "multi-agent")
+    assert _contains_any_lower(
+        help_entry,
+        "conversational multi-agent research session",
+        "multi-agent research discussion",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "before committing to durable project artifacts",
+        "pre-project refinement",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "works from any folder",
+        "do not need an initialized gpd project first",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "pressure-test assumptions",
+        "pressure-testing",
+    )
+
+
+def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
     if not IDEATE_COMMAND_PATH.exists():
         pytest.skip("ideate command/workflow has not landed yet")
 
     command = _read(IDEATE_COMMAND_PATH)
     workflow = _read(IDEATE_WORKFLOW_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
 
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
-    assert _contains_any_lower(command, "launch summary", "launch brief", "launch packet")
     assert _contains_any_lower(
         command,
-        "multi-agent ideation loop",
-        "multi-agent round loop",
-        "bounded ideation round",
-        "bounded multi-agent round",
-    )
-    assert _contains_any_lower(
-        command,
-        "do not create durable session artifacts",
-        "do not write durable session files",
-        "keep orchestration in memory",
-        "in-memory session",
-        "should not promise durable ideation storage",
-        "later-phase artifact management",
-        "no durable ideation artifact system is required",
+        "opt-in context only",
+        "must not be auto-ingested unless the user explicitly asks for specific context",
+        "opt-in context instead of auto-loaded session state",
     )
     assert _contains_any_lower(
         workflow,
-        "temporary subgroup micro-loops",
-        "subgroup micro-loops",
-        "optional subgroup work",
+        "do not auto-read project files or local documents",
+        "do not silently widen scope by loading broad project context",
+    )
+    assert _contains_any_lower(
+        workflow,
+        "only if the user explicitly asks to include existing context",
+        "read only those named artifacts",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "keeps project context opt-in rather than auto-loading project state into the session",
+        "project context opt-in",
     )
 
 
-def test_ideate_workflow_preserves_launch_summary_and_round_boundary_controls_when_present() -> None:
+def test_ideate_contract_makes_persistence_non_goals_explicit_and_routes_outward() -> None:
+    if not IDEATE_COMMAND_PATH.exists():
+        pytest.skip("ideate command/workflow has not landed yet")
+
+    command = _read(IDEATE_COMMAND_PATH)
+    workflow = _read(IDEATE_WORKFLOW_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
+    ideate_surfaces = f"{command}\n{workflow}\n{help_entry}"
+
+    assert _contains_any_lower(
+        ideate_surfaces,
+        "keep orchestration in memory",
+        "in-memory session",
+    )
+    assert _contains_any_lower(
+        ideate_surfaces,
+        "do not claim durable ideation session storage",
+        "do not create durable session artifacts",
+        "no durable ideation session files",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "does not create `research.md`",
+        "does not create `gpd/ideation/`",
+        "session transcripts",
+        "resumable ideate state",
+    )
+    assert _contains_any_lower(
+        ideate_surfaces,
+        "subgroup transcripts",
+        "subgroup promotion",
+    )
+    assert _contains_any_lower(
+        ideate_surfaces,
+        "do not add spawn-contract blocks",
+        "spawn contracts",
+    )
+    assert "\n<spawn_contract>\n" not in ideate_surfaces
+    assert "\n</spawn_contract>\n" not in ideate_surfaces
+    assert _contains_any_lower(
+        ideate_surfaces,
+        "resume-work",
+        "staged init",
+        "artifact freshness gating",
+    )
+    assert _contains_all_lower(
+        help_entry,
+        "gpd:new-project",
+        "gpd:discover",
+        "gpd:research-phase",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "when you want durable artifacts",
+        "more structured investigation flow",
+    )
+
+
+def test_ideate_closeout_stays_structured_non_durable_and_next_step_oriented_when_present() -> None:
     if not IDEATE_WORKFLOW_PATH.exists():
         pytest.skip("ideate command/workflow has not landed yet")
 
     command = _read(IDEATE_COMMAND_PATH)
     workflow = _read(IDEATE_WORKFLOW_PATH)
 
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
-    for fragment in ("Start ideation", "Adjust launch", "Review raw context", "Stop here"):
-        assert fragment in workflow
-
-    for fragment in ("Idea", "Outcome", "Anchors", "Constraints"):
-        assert fragment in workflow
-
-    assert _contains_any(workflow, "Risks / Open Questions", "Risks/Open Questions", "Open Questions")
-    assert _contains_any(workflow, "Execution Preferences", "Mode")
-    assert _contains_any_lower(
-        workflow,
-        "multi-agent ideation loop",
-        "multi-agent round loop",
-        "bounded ideation round",
-        "bounded multi-agent round",
-        "ideation round",
-    )
-
-    for fragment in (
-        "Continue to next round",
-        "Add my thoughts",
-        "Adjust configuration",
-        "Review raw round",
-    ):
-        assert fragment in workflow
-
-    assert _contains_any(workflow, "Pause/Stop", "Pause / Stop", "pause/stop")
-
-
-def test_ideate_workflow_allows_only_bounded_temporary_subgroup_rejoin_when_present() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
-
-    command = _read(IDEATE_COMMAND_PATH)
-    workflow = _read(IDEATE_WORKFLOW_PATH)
-
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
-    if "subgroup_micro_loop" not in workflow and "subgroup" not in workflow.lower():
-        pytest.skip("ideate phase-3 subgroup loop has not landed yet")
-
-    assert _contains_any_lower(
-        workflow,
-        "subgroups are optional and only user-initiated from the existing parent round gate",
-        "optional temporary subgroup micro-loops",
-    )
-    assert _contains_any_lower(
-        workflow,
-        "route subgroup setup through `adjust configuration`",
-        "route subgroup setup through adjust configuration",
-    )
-    assert _contains_any_lower(
-        workflow,
-        "subgroup rounds must stay bounded; default to `2` if the user does not specify a count",
-        "subgroup rounds must stay bounded; default to 2 if the user does not specify a count",
-    )
-    assert _contains_any_lower(
-        workflow,
-        "keep each subgroup batch to `1-3` rounds in this phase",
-        "keep each subgroup batch to 1-3 rounds in this phase",
-    )
-    assert _contains_any_lower(
-        workflow,
-        "fold only that subgroup summary into the main shared discussion",
-        "summary-first on rejoin",
-        "compact rejoin packet",
-    )
-
-
-def test_ideate_phase3_contract_rejects_durable_subgroup_persistence_promotion_and_other_v11_features() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
-
-    command = _read(IDEATE_COMMAND_PATH)
-    workflow = _read(IDEATE_WORKFLOW_PATH)
-
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
-    combined = f"{command}\n{workflow}"
-
-    assert "launch-surface only" not in combined
-    assert "stops after the launch summary" not in combined
-    assert "no multi-agent rounds have run" not in combined
-    assert _contains_any_lower(
-        combined,
-        "do not create durable session artifacts",
-        "do not write durable session files",
-        "keep orchestration in memory",
-        "in-memory session",
-        "should not promise durable ideation storage",
-        "later-phase artifact management",
-        "no durable ideation artifact system is required",
-    )
-    assert _contains_any_lower(
-        combined,
-        "do not add `<spawn_contract>` blocks",
-        "do not add spawn-contract blocks",
-    )
-    assert _contains_any_lower(
-        combined,
-        "do not create durable subgroup transcripts",
-        "subgroup execution stays fileless in this phase",
-    )
-    assert _contains_any_lower(
-        combined,
-        "do not claim subgroup resumability, subgroup promotion, or independent subgroup sessions",
-        "do not claim durable ideation history, subgroup transcripts, resumable session files, tags, imported-document state, or archived artifacts",
-    )
-    assert _contains_any_lower(
-        combined,
-        "do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence",
-        "do not promise durable subgroup transcripts, promotion, spawn contracts, resumable subgroup persistence, dedicated ideation state",
-        "do not promise durable subgroup transcripts, promotion, spawn contracts, a dedicated ideation subtree, resumable subgroup persistence",
-        "do not promise durable subgroup transcripts, promotion, spawn contracts, `gpd/ideation/` state, resumable subgroup persistence, gpd/ideation state, or ideation files in this phase",
-        "do not promise durable subgroup transcripts, promotion, spawn contracts, gpd/ideation state, resumable subgroup persistence, or ideation files in this phase",
-    )
-    assert "resume-work" not in combined.lower()
-    assert "session.json" not in combined.lower()
-    assert "gpd/ideation/" not in combined.lower()
-
-
-def test_ideate_public_surfaces_keep_phase3_subgroups_bounded_and_non_durable() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
-
-    command = _read(IDEATE_COMMAND_PATH)
-    workflow = _read(IDEATE_WORKFLOW_PATH)
-    help_workflow = _read(WORKFLOWS_DIR / "help.md")
-
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
-    assert _phase3_subgroup_surface_is_documented(command)
-    assert _phase3_subgroup_surface_is_documented(help_workflow)
-    assert _contains_any_lower(
-        command,
-        "adjust configuration",
-        "existing round-boundary control surface",
-        "existing round-boundary controls",
-    )
-    assert _contains_any_lower(
-        help_workflow,
-        "adjust configuration",
-        "summary-only rejoin",
-        "gpd/ideation/",
-    )
-
-    public_surfaces = f"{command}\n{help_workflow}"
-    assert _contains_any_lower(
-        public_surfaces,
-        "subgroup transcripts",
-        "subgroup promotion",
-        "gpd/ideation/",
-    )
-
-    for forbidden_claim in (
-        "durable subgroup transcript is available",
-        "subgroup transcripts are stored",
-        "promote a subgroup session",
-        "subgroup session promotion in true v1",
-        "resumable subgroup session",
-    ):
-        assert forbidden_claim not in public_surfaces.lower()
-
-
-def test_ideate_phase4_closeout_keeps_structured_summary_shape_when_present() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
-
-    workflow = _read(IDEATE_WORKFLOW_PATH)
-    session_finish_marker = '<step name="session_finish">'
-
-    if session_finish_marker not in workflow:
-        pytest.skip("ideate phase-4 closeout has not landed yet")
-
-    session_finish = _step_body(workflow, "session_finish")
-
-    assert "When the user stops, end with one compact structured closeout summary." in session_finish
-    assert "make the structure explicit with short labeled bullets or equivalent headings" in session_finish
-    for fragment in (
-        "main ideas explored",
-        "unresolved disagreements or confusions",
-        "promising next steps",
-        "open questions",
-    ):
-        assert fragment in session_finish
-    assert "suggested follow-up actions" in session_finish
-
-
-def test_ideate_phase4_closeout_requires_explicit_what_next_prompt_and_follow_up_suggestions_when_present() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
-
-    command = _read(IDEATE_COMMAND_PATH)
-    workflow = _read(IDEATE_WORKFLOW_PATH)
-    help_workflow = _read(WORKFLOWS_DIR / "help.md")
-
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
     if '<step name="session_finish">' not in workflow:
-        pytest.skip("ideate phase-4 closeout has not landed yet")
+        pytest.skip("ideate closeout contract has not landed yet")
 
     session_finish = _step_body(workflow, "session_finish")
 
-    assert "Immediately after the summary, ask this exact short closing question:" in session_finish
-    assert "`What do you want to do next?`" in session_finish
-    assert "Then offer a short list of only the most relevant GPD follow-up actions for the session outcome" in session_finish
-    assert (
-        "Stopping the session produces a structured summary, an explicit what-next prompt, relevant suggested GPD actions, and room for non-GPD next steps without implying durable persistence"
-        in command
-    )
-    assert (
-        "Ends with a structured summary, asks what you want to do next, and suggests relevant GPD actions while still allowing non-GPD next steps"
-        in help_workflow
-    )
-
-    for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
-        assert fragment in session_finish
-
-
-def test_ideate_phase4_closeout_allows_non_gpd_next_steps_and_stays_non_durable_when_present() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
-
-    command = _read(IDEATE_COMMAND_PATH)
-    workflow = _read(IDEATE_WORKFLOW_PATH)
-    help_workflow = _read(WORKFLOWS_DIR / "help.md")
-
-    if not _ideate_round_loop_is_documented(command, workflow):
-        pytest.skip("ideate round loop has not landed yet")
-
-    if '<step name="session_finish">' not in workflow:
-        pytest.skip("ideate phase-4 closeout has not landed yet")
-
-    session_finish = _step_body(workflow, "session_finish")
-
-    assert (
-        "Also say plainly that the user can ask for a non-GPD next step instead if that is more useful."
-        in session_finish
-    )
-    assert "This v1 closeout is in-memory only." in session_finish
     assert _contains_any_lower(
         session_finish,
+        "structured closeout summary",
+        "structured summary",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "lightweight and conversational",
+        "compact structured closeout",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "what do you want to do next?",
+        "what-next",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "in-memory only",
         "do not add or imply durable ideation history",
-        "session ids",
-        "save-resume-session-management machinery",
     )
     assert _contains_any_lower(
         command,
-        "keep orchestration in memory",
-        "in-memory session",
-        "do not promise durable ideation storage",
+        "explicit what-next prompt",
+        "non-gpd next steps",
     )
-    assert (
-        "Keeps ideation orchestration in memory only; it does not promise durable session storage, resumable ideation sessions, subgroup transcripts, `GPD/ideation/` storage, subgroup promotion, tags, or imported-document persistence"
-        in help_workflow
+    assert _contains_any(
+        session_finish,
+        "suggested follow-up actions",
+        "promising next steps",
     )
