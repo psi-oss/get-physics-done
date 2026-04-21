@@ -35,7 +35,7 @@ Interpretation:
 <process>
 Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-end.
 
-Keep the wrapper thin and public-facing. The execution context owns orchestration details, worker fan-out, synthesis, and any internal control flow. Describe the command as a live conversational session that helps the user explore a topic with multiple research perspectives, adapt the discussion as needed, and end with clear takeaways or next-step options.
+Keep the wrapper thin and public-facing. The execution context owns orchestration details, worker fan-out, synthesis, and any internal control flow. Describe the command as a live conversational session that helps the user explore a topic with multiple research perspectives, adapt the discussion as needed, and wrap up cleanly with takeaways or next moves when useful.
 
 Do not center or enumerate internal approval loops, bounded rounds, review gates, branch-specific coordination, or other workflow-specific control surfaces in the public command contract. Do not claim durable ideation session storage, resumable ideation state, transient branch transcripts, promotion of temporary internal branches, tagging, imported-document handling, or other persistence systems unless a later workflow explicitly adds them. The contract here is an in-memory conversational research session, not a durable ideation artifact system.
 </process>

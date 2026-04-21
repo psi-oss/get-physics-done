@@ -934,27 +934,69 @@ def test_ideate_focused_follow_up_stays_parent_owned_fileless_and_summary_first(
     )
 
 
-def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None:
+def test_ideate_closeout_keeps_a_clean_non_durable_optional_next_step_exit() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_review_gate = _step_body(workflow, "round_review_gate")
     session_finish = _step_body(workflow, "session_finish")
 
     assert _contains_any_lower(
         session_finish,
-        "compact structured closeout summary",
-        "structured closeout summary",
+        "if the user simply wants to stop, end cleanly",
+        "end cleanly in a short conversational way",
+        "short conversational stop",
+        "stop cleanly",
+        "end cleanly",
     )
-    for fragment in (
-        "main ideas explored",
-        "unresolved disagreements or confusions",
-        "promising next steps",
-        "open questions",
-        "suggested follow-up actions",
-    ):
-        assert fragment in session_finish
+    assert _contains_any_lower(
+        session_finish,
+        "offer a compact summary when it would help",
+        "compact summary when it would help",
+        "summary when it would help",
+        "optional synthesis",
+        "synthesis optional",
+        "optional helpful summary",
+        "when the user ends the session and wants one",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "next moves available rather than mandatory",
+        "keep next moves available rather than mandatory",
+        "ability to suggest next moves",
+        "next-step suggestions available",
+        "available rather than mandatory",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "non-gpd next step",
+        "non-gpd next steps",
+        "non-gpd next move",
+        "non-gpd next moves",
+        "ask for a non-gpd next step instead",
+    )
+    assert _contains_any_lower(
+        session_finish,
+        "gpd:suggest-next",
+        "gpd:new-project",
+        "gpd:research-phase",
+        "gpd:help --all",
+        "gpd:ideate [topic or question]",
+    )
 
-    assert "`What do you want to do next?`" in session_finish
-    assert "non-GPD next step" in session_finish
+    for forbidden in (
+        "Immediately after the summary, ask this exact short closing question:",
+        "ask this exact short closing question",
+        "End with:",
+        "## > Next Up",
+    ):
+        assert forbidden not in session_finish
+
+    assert _contains_any_lower(
+        session_finish,
+        "ask what the user wants to do next when that is useful",
+        "do not pin every stop to one exact closing question",
+        "remains available as a strong default",
+    )
+
     assert _contains_any_lower(
         round_review_gate,
         "keep the user handoff light and natural",
@@ -962,16 +1004,11 @@ def test_ideate_closeout_keeps_a_structured_non_durable_next_step_exit() -> None
         "if you want, i can keep pushing on this line",
     )
 
-    for fragment in ("gpd:suggest-next", "gpd:ideate [topic or question]", "gpd:new-project", "gpd:help --all"):
-        assert fragment in session_finish
-
     assert _contains_any_lower(
         session_finish,
         "this v1 closeout is in-memory only.",
+        "this projectless research-session closeout is in-memory only.",
         "do not add or imply durable ideation history",
-    )
-    assert _contains_any_lower(
-        session_finish,
-        "lightweight and conversational",
-        "also say plainly that the user can ask for a non-gpd next step instead",
+        "non-durable boundary",
+        "in-memory only",
     )

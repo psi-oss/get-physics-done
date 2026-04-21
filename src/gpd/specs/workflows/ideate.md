@@ -234,27 +234,7 @@ On `Stop here`:
 
 - end cleanly
 - say no files were created and the research brief was not finalized
-- end with the standard continuation block:
-
-```markdown
----
-
-## > Next Up
-
-**gpd:ideate** -- restart the session setup when you want to continue refining the brief
-
-`gpd:ideate [topic or question]`
-
-<sub>`/clear` first, then run `gpd:ideate [topic or question]`</sub>
-
----
-
-**Also available:**
-- `gpd:suggest-next` -- ask GPD for the best next move from here
-- `gpd:help --all` -- inspect the current command surface
-
----
-```
+- if a next move would help, suggest only the most relevant one in context, such as restarting `gpd:ideate`, asking `gpd:suggest-next`, or simply leaving it there
 
 On `Start`:
 
@@ -396,7 +376,11 @@ Do not create a separate subgroup session, long-lived child conversation, durabl
 </step>
 
 <step name="session_finish">
-When the user stops, end with one compact structured closeout summary. Keep it lightweight and conversational, but make the structure explicit with short labeled bullets or equivalent headings that cover:
+When the user stops, end cleanly and keep the stop path lighter by default.
+
+If the user simply wants to stop, close in a short conversational way. A brief natural wrap-up is enough. Do not force a compact structured closeout summary, a fixed closing question, or a fixed `Next Up` block every time.
+
+Offer a compact summary when it would help, when the user asks for one, or when the discussion surfaced enough divergence, uncertainty, or useful traction that a short synthesis would materially improve the handoff. When you do provide a structured closeout summary, keep it lightweight and conversational and use only the structure that fits the moment. Typical useful elements include:
 
 - main ideas explored
 - unresolved disagreements or confusions
@@ -404,43 +388,19 @@ When the user stops, end with one compact structured closeout summary. Keep it l
 - open questions
 - suggested follow-up actions
 
-This projectless research-session closeout is in-memory only. Do not add or imply durable ideation history, session IDs, focused-follow-up transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
+Keep next moves available rather than mandatory. Ask what the user wants to do next when that is useful, but do not pin every stop to one exact closing question. A direct handoff like "What do you want to do next?" remains available as a strong default when that explicit handoff helps.
 
-Immediately after the summary, ask this exact short closing question:
-
-`What do you want to do next?`
-
-Then offer a short list of only the most relevant GPD follow-up actions for the session outcome, such as:
+If suggesting follow-up actions, offer only the most relevant ones for the session outcome. Keep them concise and context-sensitive. Suggestions may include:
 
 - `gpd:suggest-next`
 - `gpd:ideate [topic or question]`
-- `gpd:new-project`
+- `gpd:new-project` only when the discussion has stabilized enough for durable project scaffolding
+- `gpd:research-phase` only when the user already has a project phase and wants artifacted phase research
 - `gpd:help --all`
 
-Also say plainly that the user can ask for a non-GPD next step instead if that is more useful.
+Also keep non-GPD next moves available when that is more useful than another command, and say plainly that the user can ask for a non-GPD next step instead if that is more useful.
 
-End with:
-
-```markdown
----
-
-## > Next Up
-
-**gpd:suggest-next** -- ask GPD for the best next move from here
-
-`gpd:suggest-next`
-
-<sub>`/clear` first, then run `gpd:suggest-next`</sub>
-
----
-
-**Also available:**
-- `gpd:ideate [topic or question]` -- run another research session or revise the brief
-- `gpd:new-project` -- turn a strong direction into a project-backed workflow
-- `gpd:help --all` -- inspect the current command surface
-
----
-```
+This projectless research-session closeout remains in-memory only. Keep the non-durable boundary explicit, but do not let it dominate the stop UX. Do not add or imply durable ideation history, session IDs, focused-follow-up transcripts, resumable session files, tags, imported-document state, archived artifacts, or any save-resume-session-management machinery.
 </step>
 
 <step name="typed_return_discipline">
@@ -483,7 +443,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] Optional focused follow-up stays parent-owned, bounded, fileless, and summary-first when folded back into the main discussion
 - [ ] The conversational handoff preserves continue, add or redirect, setup tuning, ask for synthesis, and stop, while raw details stay available on demand without a rigid menu
 - [ ] Raw details remain available on demand and do not return as a default visible handoff affordance
-- [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
+- [ ] Stopping the session stays lightweight by default, with compact closeout or next-move suggestions used only when they materially help and non-GPD next steps still allowed
 - [ ] The workflow stays fileless for ideation and temporary focused follow-up state in this phase
 - [ ] No `RESEARCH.md`, `GPD/ideation/`, durable ideation history, session IDs, transcript storage or replay, resumable session files, tags, imported-document state, promotion of temporary focused follow-up into durable sessions, or archived artifacts.
 </success_criteria>
