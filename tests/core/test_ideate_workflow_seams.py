@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 4 ideate workflow seam."""
+"""Focused regressions for the Phase 5 ideate workflow seam."""
 
 from __future__ import annotations
 
@@ -24,6 +24,11 @@ def _contains_any_lower(content: str, *phrases: str) -> bool:
     return any(phrase.lower() in lowered for phrase in phrases)
 
 
+def _contains_all_lower(content: str, *phrases: str) -> bool:
+    lowered = content.lower()
+    return all(phrase.lower() in lowered for phrase in phrases)
+
+
 def _contains_in_order_lower(content: str, *phrases: str) -> bool:
     lowered = content.lower()
     cursor = 0
@@ -41,6 +46,34 @@ def _step_body(content: str, step_name: str) -> str:
     start = content.index(">", start) + 1
     end = content.index("</step>", start)
     return content[start:end]
+
+
+def _tag_body(content: str, tag_name: str) -> str:
+    start_marker = f"<{tag_name}>"
+    end_marker = f"</{tag_name}>"
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
+def _bullet_list_after_marker(content: str, marker: str) -> list[str]:
+    lowered = content.lower()
+    start = lowered.index(marker.lower()) + len(marker)
+    bullets: list[str] = []
+
+    for line in content[start:].splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if bullets:
+                break
+            continue
+        if stripped.startswith("- "):
+            bullets.append(stripped[2:])
+            continue
+        if bullets:
+            break
+
+    return bullets
 
 
 def test_ideate_command_stays_thin_projectless_and_workflow_owned() -> None:
@@ -154,15 +187,16 @@ def test_ideate_surface_keeps_room_for_research_style_discussion_without_auto_pr
     )
 
 
-def test_ideate_workflow_keeps_a_launch_brief_seam_before_rounds() -> None:
+def test_ideate_workflow_keeps_a_light_launch_seam_before_rounds() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     launch_summary = _step_body(workflow, "draft_launch_summary")
 
     assert _contains_any_lower(
         launch_summary,
-        "pre-round launch brief",
-        "working frame",
-        "session brief",
+        "keeps the launch light",
+        "short paraphrase",
+        "short launch line",
+        "short launch restatement",
     )
     assert _contains_any_lower(
         launch_summary,
@@ -197,23 +231,25 @@ def test_ideate_workflow_keeps_a_launch_brief_seam_before_rounds() -> None:
     )
     assert _contains_any_lower(
         launch_summary,
+        "working frame internal",
+        "keep the working frame internal",
+        "internal working frame",
+        "move directly into the first agent turn",
+        "move directly into the first bounded discussion turn",
+    )
+    assert _contains_any_lower(
+        launch_summary,
         "only mention execution defaults here if the user explicitly shaped them",
+        "only surface execution preferences if the user explicitly shaped them",
         "execution preferences",
         "keep preset, posture, worker count, and roster defaults backstage",
     )
     assert _contains_any_lower(
         launch_summary,
-        "keep the initial agent shape concise when shown",
-        "initial agent shape concise",
-        "roster defaults backstage",
-    )
-    assert _contains_any_lower(
-        launch_summary,
-        "starts the bounded multi-agent discussion turns",
-        "starts the bounded discussion turns",
+        "launch line",
+        "short paraphrase",
         "start a first bounded discussion turn",
-        "starts ideation",
-        "before i start the bounded multi-agent rounds",
+        "start the first agent turn",
     )
     assert _contains_any_lower(
         launch_summary,
@@ -240,8 +276,9 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
         approval_gate,
         "two-path launch rule",
         "do not present a launch menu",
-        "restat the short working frame compactly",
-        "restate the short working frame compactly",
+        "short paraphrase",
+        "short launch line",
+        "compact restatement",
     )
     assert _contains_any_lower(
         approval_gate,
@@ -252,9 +289,10 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
     )
     assert _contains_any_lower(
         approval_gate,
-        "raw launch details",
-        "raw context",
-        "review raw",
+        "raw-context review remains available on demand",
+        "raw launch details remain available on demand",
+        "do not force it as a standard visible option",
+        "do not make raw review a default visible option",
     )
     assert _contains_any_lower(
         approval_gate,
@@ -273,6 +311,7 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
         approval_gate,
         "continue directly into the bounded round loop",
         "continue directly into the bounded multi-agent round loop",
+        "move directly into the first agent turn",
         "say you are starting the first discussion turn",
         "start the first bounded round",
         "move straight into the bounded round loop",
@@ -382,6 +421,15 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
     assert "no usable agent count" not in adaptive_clarification.lower()
     assert "first, resolve the preset" not in adaptive_clarification.lower()
     assert "then resolve the worker count" not in adaptive_clarification.lower()
+    assert (
+        _contains_all_lower(adaptive_clarification, "deep", "exploration")
+        or _contains_all_lower(adaptive_clarification, "deep", "agent work")
+        or _contains_all_lower(adaptive_clarification, "deep", "richer")
+        or _contains_all_lower(adaptive_clarification, "deep", "slower")
+        or _contains_all_lower(adaptive_clarification, "deep", "more thorough")
+    )
+    assert "fuller synthesis before each user checkpoint" not in adaptive_clarification.lower()
+    assert "heavier rounds with fuller synthesis" not in adaptive_clarification.lower()
 
     assert _contains_any_lower(
         resolve_launch_preferences,
@@ -394,7 +442,7 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
     assert "specific next-round tasks" not in resolve_launch_preferences.lower()
 
 
-def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_default_skepticism() -> None:
+def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_on_demand() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
 
@@ -426,13 +474,41 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_defaul
         "synthesis/state update",
         "user handoff",
     )
-    assert _contains_in_order_lower(
+    assert _contains_any_lower(
         round_loop,
         "agent contributions are the primary visible unit",
+        "surface the first-pass agent messages before any orchestrator recap",
+    )
+    assert _contains_any_lower(
+        round_loop,
         "each active agent contributes a short research-facing message in the first pass",
+        "each active agent visibly contributes a short message",
+    )
+    assert _contains_any_lower(
+        round_loop,
         "allow one bounded optional reaction layer",
-        "visible synthesis is secondary and lightweight",
+        "optional reaction layer",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "no automatic recap after a clean turn",
+        "do not add an automatic recap after a clean turn",
+        "clean turns do not require a visible recap",
+        "clean turns should default to agent exchange plus a short natural handoff",
+        "agent exchange plus a short natural handoff",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "visible synthesis only on explicit request",
+        "visible synthesis only when the user asks",
+        "visible synthesis only when needed for blocker routing",
+        "visible synthesis only when needed for divergence routing",
+        "visible synthesis only when needed to route a blocker or divergence",
+    )
+    assert _contains_any_lower(
+        round_loop,
         "end the turn with a conversational handoff",
+        "conversational handoff",
     )
     assert _contains_any_lower(
         round_loop,
@@ -477,18 +553,31 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
     round_review_gate = _step_body(workflow, "round_review_gate")
+    capabilities = _bullet_list_after_marker(
+        round_review_gate, "capabilities available in natural language:"
+    )
+    handoff_examples = _bullet_list_after_marker(round_review_gate, "Prefer handoff language such as:")
 
     assert _contains_any_lower(
         round_review_gate,
         "after each conversational turn, keep the user handoff light and natural.",
         "agent messages should already be on screen",
         "raw turn details remain review-on-demand.",
+        "raw worker detail remains available on demand.",
     )
     assert _contains_any_lower(
         round_review_gate,
         "do not present a rigid fixed menu by default",
         "makes these capabilities available in natural language",
     )
+    assert any("continue" in item.lower() for item in capabilities)
+    assert any("add" in item.lower() or "redirect" in item.lower() for item in capabilities)
+    assert any("adjust" in item.lower() for item in capabilities)
+    assert any("synthesis" in item.lower() or "recap" in item.lower() for item in capabilities)
+    assert any("stop" in item.lower() or "pause" in item.lower() for item in capabilities)
+    assert all("raw" not in item.lower() for item in capabilities)
+    assert any("synthesis" in item.lower() or "recap" in item.lower() for item in handoff_examples)
+    assert all("raw" not in item.lower() for item in handoff_examples)
     assert _contains_any_lower(
         round_review_gate,
         "continue to the next bounded turn",
@@ -510,9 +599,9 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
     )
     assert _contains_any_lower(
         round_review_gate,
-        "review raw turn details",
-        "show the raw worker takeaways plus any compact synthesized view",
-        "raw worker takeaways",
+        "ask for synthesis",
+        "request synthesis",
+        "show a brief synthesis",
         "return to the same conversational handoff",
     )
     assert _contains_any_lower(
@@ -545,39 +634,64 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
     )
 
 
-def test_ideate_round_review_surface_stays_synthesis_first_with_optional_raw_details() -> None:
+def test_ideate_round_review_surface_keeps_synthesis_on_demand_and_updates_success_criteria() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
     round_review_gate = _step_body(workflow, "round_review_gate")
     subgroup_loop = _step_body(workflow, "subgroup_micro_loop")
+    success_criteria = _tag_body(workflow, "success_criteria")
 
-    assert _contains_in_order_lower(
-        round_loop,
-        "each active agent contributes a short research-facing message in the first pass",
-        "allow one bounded optional reaction layer",
-        "visible synthesis is secondary and lightweight",
-        "end the turn with a conversational handoff",
-    )
     assert _contains_any_lower(
         round_loop,
-        "synthesis/state update",
-        "visible synthesis is secondary and lightweight",
+        "no automatic recap after a clean turn",
+        "do not add an automatic recap after a clean turn",
+        "clean turns do not require a visible recap",
+        "clean turns should default to agent exchange plus a short natural handoff",
+        "agent exchange plus a short natural handoff",
     )
     assert _contains_any_lower(
         round_review_gate,
         "agent messages should already be on screen",
-        "if a brief recap is helpful, make it compact and secondary",
+        "ask for synthesis",
+        "request synthesis",
         "raw turn details remain review-on-demand",
+        "raw worker detail remains available on demand",
     )
     assert _contains_any_lower(
-        round_review_gate,
-        "raw worker takeaways plus any compact synthesized view",
-        "return to the same conversational handoff",
+        round_loop,
+        "visible synthesis only on explicit request",
+        "visible synthesis only when the user asks",
+        "visible synthesis only when needed for blocker routing",
+        "visible synthesis only when needed for divergence routing",
     )
     assert _contains_any_lower(
         subgroup_loop,
         "synthesize one compact breakout recap instead of replaying raw subgroup transcripts",
         "rejoin is summary-only in this phase",
+    )
+    assert _contains_any_lower(
+        success_criteria,
+        "a strong first message can reach the first bounded discussion turn with substantially less launch ceremony",
+        "can reach the first bounded discussion turn with less launch ceremony",
+    )
+    assert _contains_any_lower(
+        success_criteria,
+        "visible synthesis happens on demand",
+        "visible synthesis is on-demand or exception-driven",
+        "no automatic recap after a clean turn",
+        "clean turns should default to agent exchange plus a short natural handoff",
+    )
+    assert _contains_any_lower(
+        success_criteria,
+        "continue, add or redirect, adjust configuration, ask for synthesis, and pause-stop",
+        "continue, add or redirect, adjust configuration, ask for synthesis, and stop",
+        "ask for synthesis while raw details stay available on demand",
+    )
+    assert _contains_any_lower(
+        success_criteria,
+        "raw details remain available on demand",
+        "raw review remains available on request",
+        "raw worker detail stays request-only",
     )
 
 

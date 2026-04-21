@@ -1,7 +1,7 @@
 <purpose>
 Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
-Phase 4 keeps that contract and its non-goals while preserving the bounded parent-owned round engine under the hood but shifting the visible surface toward an agent-first conversational turn loop. Keep the fast-start launch path, keep launch preferences conditional, add one bounded optional reaction layer inside each turn, make visible synthesis secondary rather than mandatory as the first thing shown, and replace the explicit round menu with a lighter conversational handoff. Preserve optional subgroup breakouts, structured closeout, and the parent workflow's ownership of the research brief, round state, subgroup routing, and any fresh continuation handoff.
+Phase 5 keeps that contract and its non-goals while pushing the orchestrator further backstage. Preserve the bounded parent-owned round engine under the hood, but make clean turns read as agent-first conversation: keep the fast-start path light, keep launch preferences conditional and mostly off-screen, show agent exchange first, allow one bounded optional reaction layer, and end with a short natural handoff instead of a visible moderator loop. Visible summaries, recaps, and raw-detail review are secondary and should surface only when the user asks, when a blocker or checkpoint needs routing, when agent output diverges enough to need a short frame, or at session close. Preserve optional subgroup breakouts, structured closeout, and the parent workflow's ownership of the research brief, round state, subgroup routing, and any fresh continuation handoff.
 
 Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and subgroup promotion into durable sessions.
 </purpose>
@@ -114,7 +114,7 @@ question: "What kind of first pass do you want?"
 options:
 - "Balanced (Recommended)" -- standard round depth with enough structure to keep the ideation grounded
 - "Fast" -- shorter rounds, fewer defaults, useful when the problem is already crisp
-- "Deep" -- heavier rounds with fuller synthesis before each user checkpoint
+- "Deep" -- richer, slower multi-agent exploration with more room for agents to develop and pressure-test ideas before each user checkpoint
 - "Keep it flexible" -- do not lock a preset yet
 ```
 
@@ -162,25 +162,26 @@ If the user provides partial per-agent preferences but not a full roster, preser
 </step>
 
 <step name="draft_launch_summary">
-Synthesize a concise pre-round launch brief that preserves the user's own framing and keeps the launch light.
+Synthesize a concise pre-round working brief that preserves the user's own framing and keeps the launch light.
 
-If the brief is sufficient for a fast start, render a short working frame instead of a formal launch packet:
+If the brief is sufficient for a fast start, keep the working frame internal by default on the happy path. Use it to anchor the first bounded discussion turn, but do not automatically render a visible `Working Frame` block plus a second launch restatement.
 
-```markdown
-## Working Frame
+Internally preserve:
 
 - Focus: [core question, domain, or open discussion framing]
 - Outcome: [what useful result this research session should aim to produce]
 - Anchors: [must-keep references, prior outputs, examples, or "None supplied yet"]
 - Constraints: [scope boundaries, exclusions, or "None supplied yet"]
 - Risks / Watchouts: [weakest assumptions, unresolved gaps, tempting dead ends, or misleading directions]
-```
+
+On the happy path, move directly into the first agent turn after one short paraphrase or launch line such as:
+
+- `Using that framing, I am starting a first bounded discussion turn.`
+- `I have enough to start, so I am moving straight into the first discussion turn.`
+
+Only surface a visible mini-frame before the first turn if the user asks for it or if one short frame is needed to avoid a real ambiguity.
 
 Only mention execution defaults here if the user explicitly shaped them or if one setting materially affects how the first bounded discussion turn should be interpreted. Otherwise keep preset, posture, worker count, and roster defaults backstage.
-
-Before a fast start, add one short note such as:
-
-`I have enough to start a first bounded discussion turn from this frame.`
 
 If the brief is not yet strong enough for an immediate start, render a slightly fuller but still lightweight session brief:
 
@@ -204,7 +205,7 @@ Before any fallback gate, add one short side-effect note:
 <step name="approval_gate">
 Use a two-path launch rule.
 
-If the brief is sufficient and there is no remaining risk that needs explicit user confirmation, do not present a launch menu. Restate the short working frame compactly, say you are starting the first discussion turn, and continue directly into the bounded round loop.
+If the brief is sufficient and there is no remaining risk that needs explicit user confirmation, do not present a launch menu. Do not default to a visible `Working Frame` block on the happy path. Give one short paraphrase or launch line, say you are starting the first discussion turn, and continue directly into the bounded round loop.
 
 If the brief is incomplete, materially risky, or the user is still clearly deciding between framing options, present a lighter fallback gate for the session brief. Keep the gate light and focused on the minimum pre-first-turn decision.
 
@@ -290,8 +291,9 @@ The visible default should feel like an ongoing scientific discussion:
 - agent contributions are the primary visible unit
 - each active agent contributes a short research-facing message in the first pass
 - after that first pass, allow one bounded optional reaction layer where an agent may respond selectively to another agent's point or stay silent
-- visible synthesis is secondary and lightweight; use it only when it helps orient the next move or the user asks for it
-- end the turn with a conversational handoff instead of a rigid control menu
+- do not add an automatic recap after a clean turn
+- visible synthesis is secondary and lightweight; use it only when the user asks for it or when blocker, divergence, or routing pressure makes a short frame necessary
+- end the turn with a conversational handoff instead of a rigid control menu; keep it short on clean turns
 
 For each round:
 
@@ -306,10 +308,10 @@ For each round:
 3. Fan out the configured ideation agents. Use the same ideation-worker surface for all lanes, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
    If you are the hard critic, pressure-test assumptions, contradictions, missing baselines, and weak causal stories.
 4. Require each worker to return a typed `gpd_return` envelope with shareable ideas, critiques, open questions, and `gpd_return.status`. Completed lanes feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
-5. Surface the first-pass agent messages before any orchestrator recap. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary.
+5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
-7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, subgroup setup, and fresh continuation semantics stay intact, but do not require a visible synthesis block to be the first thing the user sees after every turn. If a visible synthesis is useful, keep it brief and place it after the agent messages and any reactions, or provide it on request.
-8. End each turn with a lightweight conversational handoff that preserves the same capabilities as the prior handoff: continue, add or redirect with user thoughts, adjust configuration, inspect raw details, launch a temporary subgroup batch through the configuration path, or stop cleanly.
+7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, subgroup setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
+8. End each turn with a lightweight conversational handoff centered on: continue, add or redirect with user thoughts, adjust configuration, ask for synthesis, or stop cleanly. Temporary subgroup work remains available through the configuration-adjustment path when the user asks for it. Raw worker detail remains available only when the user explicitly asks for it.
 9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger.
 
 When using task delegation, keep it lightweight and parent-owned. Reuse the repo's one-shot handoff semantics:
@@ -348,27 +350,30 @@ Do not create files or claim durable session ownership in this phase.
 </step>
 
 <step name="round_review_gate">
-After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. If a brief recap is helpful, make it compact and secondary. Raw turn details remain review-on-demand. Subgroup creation happens only from this parent handoff, not mid-turn.
+After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. On a clean turn, default to a short natural handoff with no recap. If a brief synthesis is helpful, make it compact, secondary, and request-driven or exception-driven. Raw turn details remain available only on demand. Subgroup creation happens only from this parent handoff, not mid-turn.
 
 Do not present a rigid fixed menu by default. Instead, end with a conversational handoff that makes these capabilities available in natural language:
 
 - continue to the next bounded turn
 - add or redirect with the user's own thoughts
 - adjust configuration
-- review raw turn details
-- pause or stop
+- ask for synthesis
+- stop
 
 Interpretation:
 
 - continue: increment the round counter and run the next bounded ideation round under the hood
 - add or redirect: capture the user's injection, restate how it changes the shared discussion, and include it in the next turn brief
 - adjust configuration: capture only the requested changes such as preset, agent count, posture, skepticism, creativity, per-agent assignments, or a temporary subgroup batch for the next bounded segment; preserve everything else
-- review raw details: show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff
-- pause or stop: pause or stop cleanly without claiming durable persistence
+- ask for synthesis: show one compact synthesis keyed to the current turn, then return to the same conversational handoff
+- stop: stop cleanly without claiming durable persistence
+- raw details on demand: if the user explicitly asks, show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff
+
+If the user explicitly asks to pause instead of stopping, pause or stop cleanly without claiming durable persistence.
 
 Prefer handoff language such as:
 
-- `If you want, I can keep pushing on this line, fold in your reaction, retune the agent mix, show the raw turn details, or stop here.`
+- `If you want, I can keep pushing on this line, fold in your reaction, retune the setup, give a short synthesis, or stop here.`
 - `If you want to redirect, tell me what to change and I will rebuild the next brief from there.`
 
 If the user adds thoughts or adjusts configuration, treat that as a fresh continuation rather than resuming workers in place.
@@ -486,20 +491,23 @@ Human-readable labels in worker text are presentation only. Do not route on them
 <success_criteria>
 - [ ] The workflow frames `gpd:ideate` as a projectless conversational multi-agent research session before any durable project workflow
 - [ ] Existing project context remains opt-in and is never auto-loaded into the session
-- [ ] A strong first message can reach the first bounded discussion turn with substantially less launch ceremony
+- [ ] The orchestrator stays mostly backstage, with clean turns defaulting to agent exchange plus a short natural handoff
+- [ ] A strong first message can reach the first bounded discussion turn with substantially less launch ceremony and no default visible launch frame on the happy path
 - [ ] When the brief is already sufficient, defaults stay mostly backstage unless the user asks to shape them
 - [ ] A lighter pre-round brief still preserves focus, outcome, anchors, constraints, and key risks
 - [ ] Revise and stop paths still exist before the first turn when the framing needs explicit confirmation
 - [ ] Raw-context review stays available on demand without being a mandatory front-stage launch option
 - [ ] The working research brief leads into a bounded multi-agent turn loop with the bounded round engine kept internal
+- [ ] The `Deep` preset implies richer agent exploration rather than guaranteed orchestrator synthesis
 - [ ] One hard critic is present by default unless the user changes the roster
 - [ ] Agent contributions are the primary visible unit of each turn
 - [ ] One bounded optional reaction layer is available inside a turn without opening unbounded back-and-forth
-- [ ] Visible synthesis is secondary and not mandatory as the first visible surface after every turn
+- [ ] There is no automatic recap after a clean turn, and visible synthesis is on-demand or exception-driven when routing pressure makes it necessary
 - [ ] User thought injection happens at turn boundaries through the parent handoff
 - [ ] Per-agent assignments can be updated between turns without restarting the session
 - [ ] Optional subgroup work stays parent-owned, bounded, fileless, and summary-first on rejoin
-- [ ] The conversational handoff preserves continue, add or redirect, adjust configuration, review raw details, and pause-stop capabilities without a rigid menu
+- [ ] The conversational handoff preserves continue, add or redirect, adjust configuration, ask for synthesis, and stop, while raw details stay available on demand without a rigid menu
+- [ ] Raw details remain available on demand and do not return as a default visible handoff affordance
 - [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
 - [ ] The workflow stays fileless for ideation and subgroup state in this phase
 - [ ] No `RESEARCH.md`, `GPD/ideation/`, durable ideation history, session IDs, transcript storage or replay, resumable session files, tags, imported-document state, subgroup promotion, or archived artifacts.
