@@ -169,25 +169,32 @@ def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileles
             r"(participant|discussant|discussion turn|participant group)",
             lowered,
         ), name
-        assert re.search(
-            r"(prompt-level|temporary|current)\s+(stance|posture|assignment|instructions?)",
-            lowered,
-        ) or re.search(
-            r"(do not invent|not a durable|not durable|temporary rather than stable)",
-            lowered,
+        assert (
+            "Treat those as temporary prompt-level stance instructions for the current turn, not as a permanent persona or cast slot."
+            in content
+        ), name
+        assert (
+            "Do not invent a separate persona taxonomy, stable panel role, or durable lane identity."
+            in content
+        ), name
+        assert (
+            "Treat `lane_id` and `lane_role` as orchestrator bookkeeping fields when provided, not as evidence of a permanent persona."
+            in content
         ), name
 
         saw_participant_framing = True
-        _assert_contains_any(
-            lowered,
-            "fileless",
-            "do not write files",
-            "no files are written",
-            "return no files",
-            "no artifact is written",
-            "without writing files",
-            "files_written: []",
-        )
+        assert (
+            "This is a one-shot handoff. If user input is needed, return `gpd_return.status: checkpoint` and stop. Do not wait inside the same run."
+            in content
+        ), name
+        assert (
+            "For this fileless research turn, keep `files_written: []`"
+            in content
+        ), name
+        assert (
+            "Do not write files in this phase. Do not claim ownership of continuation, synthesis, or future rounds."
+            in content
+        ), name
         if "files_written:" in content:
             assert re.search(
                 r"(^|[\r\n])\s*files_written:\s*\[\s*\]",

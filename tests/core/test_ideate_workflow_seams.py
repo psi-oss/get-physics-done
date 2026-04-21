@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 7 ideate workflow seams."""
+"""Focused regressions for the current ideate workflow seam contract."""
 
 from __future__ import annotations
 
@@ -450,13 +450,11 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
         "creativity",
         "specific number of perspectives",
         "number of participants",
-        "worker count",
         "specialized roles",
         "specialization",
     )
     assert _contains_any_lower(
         config_surface,
-        "keep preset, posture, worker count, and roster defaults backstage",
         "keep preset, posture, participant count, and stance defaults backstage",
         "keep preset, posture, participant count, and participant-mix defaults backstage",
         "keep participant defaults backstage",
@@ -642,8 +640,7 @@ def test_ideate_workflow_keeps_checks_and_calculations_as_normal_visible_turn_wo
     )
     assert _contains_any_lower(
         round_loop,
-        "if a claim is cheaply checkable, at least one lane should check it instead of only discussing it",
-        "at least one lane should check it instead of only discussing it",
+        "at least one participant should check it with the lightest suitable tool instead of leaving every contribution in speculative discussion",
         "first-pass visible agent messages may be literature results, evidence checks, or calculation results",
         "each active agent should visibly contribute a short message",
     )
@@ -658,23 +655,23 @@ def test_ideate_workflow_contract_mirrors_worker_provenance_and_failure_rules_wh
 
     assert _contains_any_lower(
         workflow_contract,
-        "`checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity",
+        "`checkpoint`, `blocked`, or `failed` participant becomes a parent-owned ambiguity",
         "`gpd_return.status: checkpoint`",
         "do not wait in place",
     )
 
-    phase7_provenance_groups = (
+    worker_provenance_groups = (
         ("sourced",),
         ("computed",),
         ("mixed",),
         ("source_refs", "source refs"),
         ("computation_note", "computation note"),
     )
-    for group in phase7_provenance_groups:
+    for group in worker_provenance_groups:
         if any(option in worker for option in group):
             assert any(option in workflow_contract for option in group)
 
-    phase7_failure_groups = (
+    worker_failure_groups = (
         ("web search/fetch fails", "search/fetch fails", "web search fails"),
         ("paywalled",),
         ("garbled",),
@@ -684,7 +681,7 @@ def test_ideate_workflow_contract_mirrors_worker_provenance_and_failure_rules_wh
         ("install packages", "install package"),
         ("helper files", "write helper files"),
     )
-    for group in phase7_failure_groups:
+    for group in worker_failure_groups:
         if any(option in worker for option in group):
             assert any(option in workflow_contract for option in group)
 

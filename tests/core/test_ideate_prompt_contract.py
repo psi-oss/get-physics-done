@@ -1,10 +1,8 @@
-"""Phase 1 public contract guardrails for the ideate prompt surfaces."""
+"""Current public-contract guardrails for the post-Phase-10 ideate surfaces."""
 
 from __future__ import annotations
 
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
@@ -37,14 +35,19 @@ def _help_command_entry(content: str, command_name: str) -> str:
     return content[start:next_heading]
 
 
+def _assert_ideate_surfaces_exist() -> None:
+    assert IDEATE_COMMAND_PATH.exists()
+    assert IDEATE_WORKFLOW_PATH.exists()
+    assert HELP_WORKFLOW_PATH.exists()
+
+
 def test_ideate_surfaces_land_together() -> None:
     assert IDEATE_COMMAND_PATH.exists() == IDEATE_WORKFLOW_PATH.exists()
     assert HELP_WORKFLOW_PATH.exists()
 
 
-def test_ideate_command_exposes_a_projectless_public_entrypoint_when_present() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
+def test_ideate_command_exposes_a_projectless_public_entrypoint() -> None:
+    _assert_ideate_surfaces_exist()
 
     command = _read(IDEATE_COMMAND_PATH)
 
@@ -66,8 +69,7 @@ def test_ideate_command_exposes_a_projectless_public_entrypoint_when_present() -
 
 
 def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
+    _assert_ideate_surfaces_exist()
 
     help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
 
@@ -99,11 +101,15 @@ def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> 
         "broader research brief",
         "rough starting direction",
     )
+    assert _contains_any_lower(
+        help_entry,
+        "usage: `gpd:ideate`",
+        "usage: `gpd:ideate [topic, question, or domain] [--preset fast|balanced|deep]`",
+    )
 
 
 def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
+    _assert_ideate_surfaces_exist()
 
     command = _read(IDEATE_COMMAND_PATH)
     help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
@@ -132,8 +138,7 @@ def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
 
 
 def test_ideate_contract_makes_persistence_non_goals_explicit_and_routes_outward() -> None:
-    if not IDEATE_COMMAND_PATH.exists():
-        pytest.skip("ideate command/workflow has not landed yet")
+    _assert_ideate_surfaces_exist()
 
     command = _read(IDEATE_COMMAND_PATH)
     help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
