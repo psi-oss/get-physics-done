@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 5 ideate workflow seam."""
+"""Focused regressions for the Phase 7 ideate workflow seams."""
 
 from __future__ import annotations
 
@@ -6,8 +6,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
+AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 IDEATE_COMMAND = COMMANDS_DIR / "ideate.md"
+IDEATION_WORKER = AGENTS_DIR / "gpd-ideation-worker.md"
 IDEATE_WORKFLOW = WORKFLOWS_DIR / "ideate.md"
 
 
@@ -481,6 +483,11 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
         "agent contributions are the primary visible unit",
         "surface the first-pass agent messages before any orchestrator recap",
     )
+    assert _contains_in_order_lower(
+        round_loop,
+        "contributions may include grounded hypotheses, critiques, evidence checks, computational checks",
+        "surface the first-pass agent messages first",
+    )
     assert _contains_any_lower(
         round_loop,
         "each active agent contributes a short research-facing message in the first pass",
@@ -581,6 +588,87 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
     for legacy in ("shareable ideas", "shareable critiques"):
         assert legacy not in round_loop.lower()
         assert legacy not in task_contract.lower()
+
+
+def test_ideate_workflow_keeps_checks_and_calculations_as_normal_visible_turn_work() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
+    task_contract = _tag_body(round_loop, "contract")
+    visible_turn_contract = f"{round_loop}\n{task_contract}"
+
+    assert _contains_any_lower(
+        round_loop,
+        "evidence checks, computational checks",
+        "evidence checks or literature comparison",
+        "computational or analytic check",
+    )
+    assert _contains_any_lower(
+        task_contract,
+        "`evidence_check`",
+        "`computational_check`",
+        "evidence_check",
+        "computational_check",
+    )
+    assert _contains_in_order_lower(
+        visible_turn_contract,
+        "evidence checks",
+        "computational checks",
+        "surface the first-pass agent messages first",
+    )
+    assert _contains_any_lower(
+        round_loop,
+        "if a claim is cheaply checkable, at least one lane should check it instead of only discussing it",
+        "at least one lane should check it instead of only discussing it",
+        "first-pass visible agent messages may be literature results, evidence checks, or calculation results",
+        "each active agent should visibly contribute a short message",
+    )
+
+
+def test_ideate_workflow_contract_mirrors_worker_provenance_and_failure_rules_when_they_land() -> None:
+    worker = _read(IDEATION_WORKER).lower()
+    workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
+    task_contract = _tag_body(round_loop, "contract")
+    workflow_contract = f"{round_loop}\n{task_contract}".lower()
+
+    assert _contains_any_lower(
+        workflow_contract,
+        "`checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity",
+        "`gpd_return.status: checkpoint`",
+        "do not wait in place",
+    )
+
+    phase7_provenance_groups = (
+        ("sourced",),
+        ("computed",),
+        ("mixed",),
+        ("source_refs", "source refs"),
+        ("computation_note", "computation note"),
+    )
+    for group in phase7_provenance_groups:
+        if any(option in worker for option in group):
+            assert any(option in workflow_contract for option in group)
+
+    phase7_failure_groups = (
+        ("web search/fetch fails", "search/fetch fails", "web search fails"),
+        ("paywalled",),
+        ("garbled",),
+        ("shell is unavailable", "shell unavailable"),
+        ("binary", "interpreter", "library"),
+        ("cannot be completed trustworthily", "cannot complete it trustworthily"),
+        ("install packages", "install package"),
+        ("helper files", "write helper files"),
+    )
+    for group in phase7_failure_groups:
+        if any(option in worker for option in group):
+            assert any(option in workflow_contract for option in group)
+
+    if "never pretend a search/fetch/computation succeeded" in worker:
+        assert _contains_any_lower(
+            workflow_contract,
+            "never pretend a search/fetch/computation succeeded",
+            "never pretend a search, fetch, or computation succeeded",
+        )
 
 
 def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_continuations() -> None:

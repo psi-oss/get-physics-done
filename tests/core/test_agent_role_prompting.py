@@ -19,6 +19,21 @@ def _assert_contains_any(content: str, *needles: str) -> None:
     assert any(needle in content for needle in needles), needles
 
 
+def _assert_contains_any_lower(content: str, *needles: str) -> None:
+    lowered = content.lower()
+    assert any(needle.lower() in lowered for needle in needles), needles
+
+
+def _agent_body(content: str) -> str:
+    if not content.startswith("---"):
+        return content
+
+    parts = content.split("---", 2)
+    if len(parts) != 3:
+        return content
+    return parts[2]
+
+
 def _assert_mentions_handoff(content: str, target: str) -> None:
     assert target in content
     pattern = re.compile(
@@ -168,6 +183,82 @@ def test_research_discussants_preserve_one_shot_checkpoint_and_fileless_contract
         _assert_has_return_field(content, "assignment_status")
 
     assert saw_discussant_framing, "expected research discussant framing in at least one prompt"
+
+
+def test_ideation_worker_makes_web_and_shell_checks_first_class_turn_operations() -> None:
+    source = _read_agent("gpd-ideation-worker")
+    body = _agent_body(source)
+
+    assert "web_search" in body
+    assert "web_fetch" in body
+    assert "shell" in body
+    assert re.search(
+        r"(materially improve|materially advance|cheaply resolve|cheaply settle|prefer the lightest tool)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"`?web_search`?[\s\S]{0,220}?(recent|unstable|paper|benchmark|evidence|check)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"`?web_fetch`?[\s\S]{0,220}?(source-specific|citation|claim|source|fetch)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"`?shell`?[\s\S]{0,220}?(calculation|analytic|estimate|unit conversion|inline script|compute)",
+        body,
+        re.IGNORECASE,
+    )
+
+
+def test_ideation_worker_requires_provenance_and_honest_tool_failure_reporting() -> None:
+    source = _read_agent("gpd-ideation-worker")
+    body = _agent_body(source)
+
+    assert re.search(
+        r"provenance[\s\S]{0,220}?(sourced|computed|speculative|mixed)",
+        body,
+        re.IGNORECASE,
+    )
+    _assert_contains_any(body, "`source_refs`", "source_refs")
+    _assert_contains_any(body, "`computation_note`", "computation_note")
+    _assert_contains_any(body, "`assumptions`", "assumptions")
+
+    assert re.search(
+        r"(web_search|web_fetch)[\s\S]{0,260}?(fail|fails|failed|paywall|garbled|unavailable)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"`?shell`?[\s\S]{0,260}?(unavailable|missing|binary|interpreter|library|cannot be completed)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"(fail|fails|failed|paywall|garbled|unavailable|missing|cannot be completed)[\s\S]{0,220}?(confidence|partial|blocked|checkpoint|explicit)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"(never|do not)[\s\S]{0,120}?(pretend|bluff)[\s\S]{0,160}?(search|fetch|computation|calculation)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"(never|do not)[\s\S]{0,140}?(install packages|install libraries|write helper files|write files to rescue)",
+        body,
+        re.IGNORECASE,
+    )
+    _assert_contains_any_lower(
+        body,
+        "one-shot",
+        "fileless",
+        "do not write files",
+        "without writing files",
+    )
 
 
 def test_consistency_checker_stays_one_shot_and_does_not_claim_resolution_work() -> None:
