@@ -342,6 +342,7 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
     capture_core_brief = _step_body(workflow, "capture_core_brief")
     adaptive_clarification = _step_body(workflow, "adaptive_clarification")
     resolve_launch_preferences = _step_body(workflow, "resolve_launch_preferences")
+    draft_launch_summary = _step_body(workflow, "draft_launch_summary")
     intake = "\n".join(
         (
             orient_and_parse,
@@ -350,6 +351,7 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
             resolve_launch_preferences,
         )
     )
+    config_surface = "\n".join((resolve_launch_preferences, draft_launch_summary))
 
     assert _contains_any_lower(
         orient_and_parse,
@@ -439,6 +441,26 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
         "launch preferences",
         "preferences",
         "lock now",
+    )
+    assert _contains_any_lower(
+        resolve_launch_preferences,
+        "stronger skepticism",
+        "skepticism",
+        "looser exploratory posture",
+        "creativity",
+        "specific number of perspectives",
+        "number of participants",
+        "worker count",
+        "specialized roles",
+        "specialization",
+    )
+    assert _contains_any_lower(
+        config_surface,
+        "keep preset, posture, worker count, and roster defaults backstage",
+        "keep preset, posture, participant count, and stance defaults backstage",
+        "keep preset, posture, participant count, and participant-mix defaults backstage",
+        "keep participant defaults backstage",
+        "keep the defaults backstage",
     )
     assert "temporary subgroup work should stay available" not in resolve_launch_preferences.lower()
     assert "specific next-round tasks" not in resolve_launch_preferences.lower()
@@ -548,13 +570,16 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
     )
     assert _contains_any_lower(
         round_loop,
-        "hard critic",
-        "skeptical reviewer",
+        "participant in the discussion",
+        "participant in the discussion, not a hidden lane feeding an orchestrator summary",
+        "visible participant contributions",
+        "short message that feels like a participant in the discussion",
     )
     assert _contains_any_lower(
         round_loop,
-        "pressure-test assumptions, contradictions, missing baselines, and weak causal stories.",
-        "high skepticism",
+        "varying prompt-level posture, skepticism, creativity, and assignment instructions as needed",
+        "posture, skepticism, creativity",
+        "current configuration",
     )
     assert _contains_any_lower(
         task_contract,
@@ -694,7 +719,10 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
     )
     assert any("continue" in item.lower() for item in capabilities)
     assert any("add" in item.lower() or "redirect" in item.lower() for item in capabilities)
-    assert any("adjust" in item.lower() for item in capabilities)
+    assert any(
+        "adjust" in item.lower() or "tune" in item.lower()
+        for item in capabilities
+    )
     assert any("synthesis" in item.lower() or "recap" in item.lower() for item in capabilities)
     assert any("stop" in item.lower() or "pause" in item.lower() for item in capabilities)
     assert all("raw" not in item.lower() for item in capabilities)
@@ -807,6 +835,7 @@ def test_ideate_round_review_surface_keeps_synthesis_on_demand_and_updates_succe
         success_criteria,
         "continue, add or redirect, adjust configuration, ask for synthesis, and pause-stop",
         "continue, add or redirect, adjust configuration, ask for synthesis, and stop",
+        "continue, add or redirect, setup tuning, ask for synthesis, and stop",
         "ask for synthesis while raw details stay available on demand",
     )
     assert _contains_any_lower(

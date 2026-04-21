@@ -118,13 +118,13 @@ options:
 - "Keep it flexible" -- do not lock a preset yet
 ```
 
-If the number of perspectives would help and the worker count is still missing or obviously undecided, resolve it with a compact choice:
+If participant count would help and the first-turn group size is still missing or obviously undecided, resolve it with a compact choice:
 
 ```text
-header: "Agents"
-question: "How many perspectives do you want in the first turn?"
+header: "Participants"
+question: "How many participants do you want in the first turn?"
 options:
-- "Use the default" -- let the workflow pick a preset-shaped starting count
+- "Use the default" -- start with a small preset-shaped discussion group
 - "I will choose a number" -- provide the exact count in the next reply
 - "Keep it flexible" -- decide after seeing the draft summary
 ```
@@ -141,7 +141,7 @@ Run this step only when the user clearly wants to shape the defaults or when a m
 
 If a preference check is warranted, ask one compact freeform preference question for the execution knobs that are useful to capture now:
 
-`Any first-pass preferences I should lock now, such as a faster or deeper pass, stronger skepticism, a looser exploratory posture, or a specific number of perspectives? If not, I will keep the defaults and leave the rest flexible.`
+`Any first-pass preferences I should lock now, such as a faster or deeper pass, stronger skepticism, a looser exploratory posture, or a larger or smaller participant group? If not, I will keep the defaults and leave the rest flexible.`
 
 If the user has not asked to shape these knobs and the current brief is already sufficient, apply the defaults silently and leave them mostly backstage.
 
@@ -150,15 +150,12 @@ Defaults unless the user overrides them:
 - preset: `balanced`
 - posture: rigorous and research-oriented by default
 - existing project context: not loaded unless explicitly requested
-- worker count defaults:
-  - `fast` -> `3`
-  - `balanced` -> `4`
-  - `deep` -> `5`
-- default worker roster:
-  - one skeptical reviewer by default in the current hard-critic slot, with high skepticism and medium creativity
-  - all remaining agents are literature-aware theorists with medium skepticism and medium-to-high creativity
+- participant setup default:
+  - start with a small participant group shaped by the preset, without foregrounding an exact count unless the user asks
+  - keep internal posture diversity by default so the discussion includes both pressure-testing and exploratory idea generation unless the user overrides it
+  - preserve optional tuning for participant count, skepticism, creativity, and specialization when the user wants to shape them
 
-If the user provides partial per-agent preferences but not a full roster, preserve the explicit overrides and fill the remaining slots with these defaults.
+If the user provides partial participant or stance preferences but not a full setup, preserve the explicit overrides and fill the remaining discussant mix with these defaults.
 </step>
 
 <step name="draft_launch_summary">
@@ -181,7 +178,7 @@ On the happy path, move directly into the first agent turn after one short parap
 
 Only surface a visible mini-frame before the first turn if the user asks for it or if one short frame is needed to avoid a real ambiguity.
 
-Only mention execution defaults here if the user explicitly shaped them or if one setting materially affects how the first bounded discussion turn should be interpreted. Otherwise keep preset, posture, worker count, and roster defaults backstage.
+Only mention execution defaults here if the user explicitly shaped them or if one setting materially affects how the first bounded discussion turn should be interpreted. Otherwise keep preset, posture, participant count, and participant-mix defaults backstage.
 
 If the brief is not yet strong enough for an immediate start, render a slightly fuller but still lightweight session brief:
 
@@ -271,8 +268,8 @@ If the launch is approved, begin the conversational multi-agent research session
 
 Run one bounded research turn at a time under the hood, but present each bounded segment to the user as a conversational turn rather than a moderator-led round ceremony.
 Spawn ideation workers as one-shot handoffs.
-Reserve one default skeptical-reviewer / hard-critic slot unless the user overrides it.
-Rounds are one-shot and use the current default hard critic unless overridden.
+Maintain internal posture diversity, including a skeptical pass when useful, unless the user overrides it.
+Rounds are one-shot and use the current internal stance mix unless overridden.
 
 Keep orchestration in memory for this phase. The parent workflow owns the research brief, round counter, shared discussion, current configuration, and any fresh continuation handoff. Do not create durable ideation session files, `RESEARCH.md`, `GPD/ideation/`, or artifact directories in this phase.
 
@@ -286,11 +283,11 @@ If `IDEATION_WORKER_MODEL` is empty or `null`, omit the `model` parameter and le
 
 Keep the internal execution sequence parent-owned: `round_bootstrap`, `round_fanout`, `round_collect`, bounded optional reaction handling, synthesis/state update, and the user handoff still happen each cycle. Do not foreground that choreography as visible headings or make `Round 1`, `Round 2`, and so on the primary visible shape unless clarity requires a light reference.
 
-The visible default should feel like an ongoing scientific discussion:
+The visible default should feel like an ongoing scientific discussion among a small participant group:
 
 - agent contributions are the primary visible unit
 - each active agent contributes a short research-facing message in the first pass, and those visible first-pass messages may be grounded hypotheses, literature results, evidence checks, or bounded calculation results rather than commentary alone
-- if a claim is cheaply checkable, at least one lane should check it with the lightest suitable tool instead of leaving every lane in speculative discussion
+- if a claim is cheaply checkable, at least one participant should check it with the lightest suitable tool instead of leaving every contribution in speculative discussion
 - after that first pass, allow one bounded optional reaction layer where an agent may respond selectively to another agent's point or stay silent
 - do not add an automatic recap after a clean turn
 - visible synthesis is secondary and lightweight; use it only when the user asks for it or when blocker, divergence, or routing pressure makes a short frame necessary
@@ -306,14 +303,14 @@ For each round:
    - any per-agent assignments the user has locked
    - current preset and posture settings
    - any research guidance already present in context, such as `research_enabled`, `research_mode`, or soft source/tool-use limits
-2. Decide the round lanes. If the user left the count flexible, choose a bounded lane count that matches the current preset. Keep one lane reserved as the hard critic by default unless the user explicitly overrides it. If a material claim is cheaply checkable, assign at least one lane to run the check rather than leaving the point purely conversational.
-3. Fan out the configured ideation agents. Use the same ideation-worker surface for all lanes, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
-   If you are the hard critic, pressure-test assumptions, contradictions, missing baselines, and weak causal stories.
-4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Substantive items should distinguish `sourced`, `computed`, `speculative`, or `mixed` provenance when the worker can support that distinction. Failed or partial lookups and calculations should remain explicit in the returned contribution rather than being silently dropped. Completed lanes feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` lane becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
+2. Decide the round participants. If the user left the count flexible, choose a bounded participant count that matches the current preset. Maintain internal posture diversity by default unless the user explicitly overrides it. If a material claim is cheaply checkable, assign at least one participant to run the check rather than leaving the point purely conversational.
+3. Fan out the configured ideation agents. Use the same ideation-worker surface for all participants, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
+   If one participant is carrying the strongest skeptical stance for the turn, use that stance to pressure-test assumptions, contradictions, missing baselines, and weak causal stories without foregrounding it as a special visible panel role.
+4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Substantive items should distinguish `sourced`, `computed`, `speculative`, or `mixed` provenance when the worker can support that distinction. Failed or partial lookups and calculations should remain explicit in the returned contribution rather than being silently dropped. Completed participants feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` participant becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
 5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
 7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, subgroup setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
-8. End each turn with a lightweight conversational handoff centered on: continue, add or redirect with user thoughts, adjust configuration, ask for synthesis, or stop cleanly. Temporary subgroup work remains available through the configuration-adjustment path when the user asks for it. Raw worker detail remains available only when the user explicitly asks for it.
+8. End each turn with a lightweight conversational handoff centered on: continue, add or redirect with user thoughts, tune the setup if needed, ask for synthesis, or stop cleanly. Temporary subgroup work remains available through the configuration-adjustment path when the user asks for it. Raw worker detail remains available only when the user explicitly asks for it.
 9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger.
 
 When using task delegation, keep it lightweight and parent-owned. Reuse the repo's one-shot handoff semantics:
@@ -337,7 +334,7 @@ Contribute one bounded research contribution set for discussion turn {round_numb
 Approved research brief: {launch_brief}
 Current round brief: {round_brief}
 Shared discussion so far: {shared_discussion}
-Lane instructions: {lane_instructions}
+Participant instructions: {lane_instructions}
 </context>
 
 <contract>
@@ -349,7 +346,7 @@ If web search or fetch fails, a source is paywalled or garbled, `shell` is unava
 
 If human input is required, return `gpd_return.status: checkpoint` and stop. Do not wait in place. The parent orchestrator owns any fresh continuation handoff.
 </contract>",
-  description="Research turn {round_number}: {lane_role}"
+  description="Research turn {round_number}: participant stance"
 )
 ```
 
@@ -364,7 +361,7 @@ Do not present a rigid fixed menu by default. Instead, end with a conversational
 
 - continue to the next bounded turn
 - add or redirect with the user's own thoughts
-- adjust configuration
+- tune the setup
 - ask for synthesis
 - stop
 
@@ -372,7 +369,7 @@ Interpretation:
 
 - continue: increment the round counter and run the next bounded ideation round under the hood
 - add or redirect: capture the user's injection, restate how it changes the shared discussion, and include it in the next turn brief
-- adjust configuration: capture only the requested changes such as preset, agent count, posture, skepticism, creativity, per-agent assignments, or a temporary subgroup batch for the next bounded segment; preserve everything else
+- tune the setup: capture only the requested changes such as preset, participant count, posture, skepticism, creativity, per-participant assignments, or a temporary subgroup batch for the next bounded segment; preserve everything else
 - ask for synthesis: show one compact synthesis keyed to the current turn, then return to the same conversational handoff
 - stop: stop cleanly without claiming durable persistence
 - raw details on demand: if the user explicitly asks, show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff
@@ -381,7 +378,7 @@ If the user explicitly asks to pause instead of stopping, pause or stop cleanly 
 
 Prefer handoff language such as:
 
-- `If you want, I can keep pushing on this line, fold in your reaction, retune the setup, give a short synthesis, or stop here.`
+- `If you want, I can keep pushing on this line, fold in your reaction, retune the participant mix or posture, give a short synthesis, or stop here.`
 - `If you want to redirect, tell me what to change and I will rebuild the next brief from there.`
 
 If the user adds thoughts or adjusts configuration, treat that as a fresh continuation rather than resuming workers in place.
@@ -507,7 +504,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] Raw-context review stays available on demand without being a mandatory front-stage launch option
 - [ ] The working research brief leads into a bounded multi-agent turn loop with the bounded round engine kept internal
 - [ ] The `Deep` preset implies richer agent exploration rather than guaranteed orchestrator synthesis
-- [ ] One hard critic is present by default unless the user changes the roster
+- [ ] The default participant mix preserves some skeptical pressure-testing unless the user changes the setup
 - [ ] Agent contributions are the primary visible unit of each turn
 - [ ] Cheaply checkable claims are normalized as visible first-pass evidence or computational contributions rather than discussion-only commentary
 - [ ] First-pass visible agent messages may surface literature results, evidence checks, or bounded calculations, not only commentary
@@ -520,7 +517,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] User thought injection happens at turn boundaries through the parent handoff
 - [ ] Per-agent assignments can be updated between turns without restarting the session
 - [ ] Optional subgroup work stays parent-owned, bounded, fileless, and summary-first on rejoin
-- [ ] The conversational handoff preserves continue, add or redirect, adjust configuration, ask for synthesis, and stop, while raw details stay available on demand without a rigid menu
+- [ ] The conversational handoff preserves continue, add or redirect, setup tuning, ask for synthesis, and stop, while raw details stay available on demand without a rigid menu
 - [ ] Raw details remain available on demand and do not return as a default visible handoff affordance
 - [ ] Stopping the session yields a structured summary, an explicit what-next prompt, and relevant GPD follow-up suggestions while allowing non-GPD next steps
 - [ ] The workflow stays fileless for ideation and subgroup state in this phase

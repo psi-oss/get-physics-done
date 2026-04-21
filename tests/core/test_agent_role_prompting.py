@@ -63,7 +63,7 @@ def _assert_not_default_worker(content: str) -> None:
     )
 
 
-def _research_discussant_names() -> list[str]:
+def _research_participant_names() -> list[str]:
     names: list[str] = []
     for name in registry.list_agents():
         agent = registry.get_agent(name)
@@ -72,7 +72,19 @@ def _research_discussant_names() -> list[str]:
 
         content = _read_agent(name)
         lowered = content.lower()
-        if "discussant" in lowered and "research" in lowered:
+        if (
+            "gpd:ideate" in lowered
+            and "research" in lowered
+            and any(
+                needle in lowered
+                for needle in (
+                    "discussant",
+                    "participant",
+                    "discussion turn",
+                    "participant group",
+                )
+            )
+        ):
             names.append(name)
     return sorted(set(names))
 
@@ -140,11 +152,11 @@ def test_source_agent_surface_boilerplate_does_not_conflict_with_frontmatter() -
             assert "Agent surface: internal specialist subagent." not in content, name
 
 
-def test_research_discussants_preserve_one_shot_checkpoint_and_fileless_contract() -> None:
-    names = _research_discussant_names()
-    assert names, "expected at least one research discussant-style prompt"
+def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileless_contract() -> None:
+    names = _research_participant_names()
+    assert names, "expected at least one ideation research participant-style prompt"
 
-    saw_discussant_framing = False
+    saw_participant_framing = False
     for name in names:
         content = _read_agent(name)
         lowered = content.lower()
@@ -153,8 +165,19 @@ def test_research_discussants_preserve_one_shot_checkpoint_and_fileless_contract
         _assert_mentions_handoff(content, "gpd-executor")
         assert "one-shot" in lowered, name
         assert "checkpoint" in lowered, name
+        assert re.search(
+            r"(participant|discussant|discussion turn|participant group)",
+            lowered,
+        ), name
+        assert re.search(
+            r"(prompt-level|temporary|current)\s+(stance|posture|assignment|instructions?)",
+            lowered,
+        ) or re.search(
+            r"(do not invent|not a durable|not durable|temporary rather than stable)",
+            lowered,
+        ), name
 
-        saw_discussant_framing = True
+        saw_participant_framing = True
         _assert_contains_any(
             lowered,
             "fileless",
@@ -176,13 +199,13 @@ def test_research_discussants_preserve_one_shot_checkpoint_and_fileless_contract
         _assert_has_return_field(content, "issues")
         _assert_has_return_field(content, "next_actions")
         _assert_has_return_field(content, "round")
-        _assert_has_return_field(content, "lane_id")
-        _assert_has_return_field(content, "lane_role")
+        _assert_has_return_field(content, "lane_id", "participant_id")
+        _assert_has_return_field(content, "lane_role", "participant_role")
         _assert_has_return_field(content, "stance")
         _assert_has_return_field(content, "research_contributions")
         _assert_has_return_field(content, "assignment_status")
 
-    assert saw_discussant_framing, "expected research discussant framing in at least one prompt"
+    assert saw_participant_framing, "expected research participant framing in at least one prompt"
 
 
 def test_ideation_worker_makes_web_and_shell_checks_first_class_turn_operations() -> None:
