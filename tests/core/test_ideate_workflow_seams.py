@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 2 ideate workflow seam."""
+"""Focused regressions for the Phase 3 ideate workflow seam."""
 
 from __future__ import annotations
 
@@ -143,26 +143,132 @@ def test_ideate_surface_keeps_room_for_research_style_discussion_without_auto_pr
     )
 
 
-def test_ideate_workflow_keeps_a_launch_brief_and_explicit_start_gate_before_rounds() -> None:
+def test_ideate_workflow_keeps_a_launch_brief_seam_before_rounds() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     launch_summary = _step_body(workflow, "draft_launch_summary")
+
+    assert _contains_any_lower(
+        launch_summary,
+        "pre-round launch brief",
+        "working frame",
+        "session brief",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "focus",
+        "core question",
+        "open discussion framing",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "outcome",
+        "useful result",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "anchors",
+        "references",
+        "prior outputs",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "constraints",
+        "boundaries",
+        "exclusions",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "risks / watchouts",
+        "risks / open questions",
+        "open questions",
+        "weakest assumptions",
+        "misleading directions",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "only mention execution defaults here if the user explicitly shaped them",
+        "execution preferences",
+        "keep preset, posture, worker count, and roster defaults backstage",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "keep the initial agent shape concise when shown",
+        "initial agent shape concise",
+        "roster defaults backstage",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "starts the bounded multi-agent rounds",
+        "starts the bounded rounds",
+        "starts ideation",
+        "before i start the bounded multi-agent rounds",
+    )
+    assert _contains_any_lower(
+        launch_summary,
+        "does not create durable session files",
+        "does not create durable ideation files",
+    )
+
+
+def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighter() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    adaptive_clarification = _step_body(workflow, "adaptive_clarification")
+    draft_launch_summary = _step_body(workflow, "draft_launch_summary")
     approval_gate = _step_body(workflow, "approval_gate")
+    launch_path = "\n".join((adaptive_clarification, draft_launch_summary, approval_gate))
 
-    for fragment in ("| Outcome |", "| Anchors |", "| Constraints |"):
-        assert fragment in launch_summary
-
-    assert _contains_any(launch_summary, "| Research Focus |", "| Idea |")
-    assert _contains_any(launch_summary, "| Risks / Open Questions |", "| Open Questions |")
-    assert _contains_any(launch_summary, "| Execution Preferences |", "| Mode |")
-    assert _contains_any(launch_summary, "| Initial Agent Shape |", "| Initial Participant Shape |")
-
-    for fragment in ("Start ideation", "Adjust launch", "Review raw context", "Stop here"):
-        assert fragment in approval_gate
-
+    assert _contains_any_lower(
+        launch_path,
+        "fast-start",
+        "fast start",
+        "i have enough to start a first bounded ideation round from this frame",
+        "starting round 1",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "two-path launch rule",
+        "do not present a launch menu",
+        "restat the short working frame compactly",
+        "restate the short working frame compactly",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "lighter fallback gate",
+        "lightweight gate",
+        "lighter gate",
+        "keep the gate light",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "raw launch details",
+        "raw context",
+        "review raw",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "reopen only the section the user wants to revise",
+        "preserve all unchanged sections by default",
+        "adjust launch",
+        "revise",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "stop here",
+        "stop cleanly",
+        "end cleanly",
+    )
+    assert _contains_any_lower(
+        approval_gate,
+        "\"start\"",
+        "\"adjust\"",
+        "\"stop here\"",
+    )
     assert _contains_any_lower(
         approval_gate,
         "continue directly into the bounded round loop",
         "continue directly into the bounded multi-agent round loop",
+        "start the first bounded round",
+        "move straight into the bounded round loop",
     )
 
 
@@ -322,14 +428,36 @@ def test_ideate_round_gate_preserves_user_control_and_fresh_continuations() -> N
         "present the compact round recap first. raw round details are review-on-demand.",
     )
 
-    for fragment in (
-        "Continue to next round",
-        "Add my thoughts",
-        "Adjust configuration",
-        "Review raw round",
-        "Pause/Stop",
-    ):
-        assert fragment in round_review_gate
+    assert _contains_any_lower(
+        round_review_gate,
+        "continue to next round",
+        "continue",
+        "run the next bounded ideation round",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "add my thoughts",
+        "capture the user's injection",
+        "user-injected thoughts",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "adjust configuration",
+        "capture only the requested changes",
+        "requested changes such as preset",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "review raw round",
+        "show the raw worker takeaways",
+        "raw round",
+    )
+    assert _contains_any_lower(
+        round_review_gate,
+        "pause/stop",
+        "pause or stop cleanly",
+        "stop cleanly",
+    )
 
     assert "temporary subgroup batch" in round_review_gate
     assert _contains_any_lower(

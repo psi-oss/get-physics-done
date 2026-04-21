@@ -1,7 +1,7 @@
 <purpose>
 Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
-Phase 0 locks that contract and its non-goals while preserving the current launch, approval, bounded round, optional subgroup, and closeout mechanics. Keep the editable launch summary, explicit review gates, bounded multi-agent rounds, optional temporary subgroup breakouts, and structured closeout in place for now. Keep the parent workflow responsible for the research brief, round state, any subgroup routing, and any fresh continuation handoff.
+Phase 3 keeps that contract and its non-goals while reducing pre-round launch ceremony only. Add a conservative fast-start path when the user's first message is already sufficient, keep launch preferences conditional, use a lighter pre-round brief, and keep any fallback launch gate minimal. Preserve the bounded round engine, optional subgroup breakouts, structured closeout, and the parent workflow's ownership of the research brief, round state, subgroup routing, and any fresh continuation handoff.
 
 Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and subgroup promotion into durable sessions.
 </purpose>
@@ -43,9 +43,20 @@ Use the parsed state to set expectations:
 </step>
 
 <step name="capture_core_brief">
-Ask for one dense freeform research brief in the user's own words.
+Start from the user's first message instead of forcing a restart. A strong first message can become the working research brief directly.
 
-If `SEED_TEXT` is usable, weave it into the prompt rather than restarting from scratch:
+Treat the current seed plus any named context as sufficient for a fast start when it already gives:
+
+- a clear enough research focus, question, or discussion target
+- a useful outcome or an explicit open-ended exploration mode
+- at least one anchor, constraint, or risk to keep visible, or an explicit statement that none is available yet
+- no unresolved blocker that would obviously misdirect Round 1
+
+If the seed is already sufficient, preserve it as the working brief and ask only for the single most important missing detail if one lightweight clarification would materially improve Round 1. Do not ask for a fresh dense rewrite just to normalize the intake.
+
+Ask for one dense freeform research brief only when the seed is too thin or too ambiguous to support even a conservative Round 1.
+
+If `SEED_TEXT` is usable but not yet sufficient on its own, weave it into the prompt rather than restarting from scratch:
 
 `Using "{SEED_TEXT}" as the starting point, give me the research brief in your own words. Include the scientific question or domain, what outcome would be useful, any must-keep references/examples/prior outputs, any constraints or boundaries, and what might look promising at first but would actually miss the point or mislead the session.`
 
@@ -68,9 +79,9 @@ Read only those named artifacts. Fold only decisive constraints, anchors, or fra
 </step>
 
 <step name="adaptive_clarification">
-Ask only the clarification needed to draft a usable research brief and launch summary.
+Ask only the clarification needed to draft a usable research brief and decide whether to fast-start or use the fallback launch gate.
 
-Target at most two clarification rounds before drafting unless the user explicitly wants more. The goal is to tighten the brief, not to run the discussion itself.
+Default to zero clarification rounds when the intake is already sufficient. Otherwise target one targeted clarification round first. Use a second clarification round only if the user explicitly wants more setup before launch or the brief would still be too risky to start without it. The goal is to tighten the brief, not to run the discussion itself.
 
 Prioritize these gaps:
 
@@ -80,9 +91,11 @@ Prioritize these gaps:
 - no explicit constraint or boundary
 - no weak point, tempting dead end, or misleading direction to keep visible
 
-Treat execution posture and agent count as secondary intake details. Ask about them only if they would materially improve the first launch summary or the user is clearly deciding between options.
+Treat execution posture and agent count as secondary intake details. Ask about them only if they would materially improve Round 1 or the user is clearly deciding between options.
 
 If `ask_user` is available, use it for low-cardinality choices and keep freeform follow-ups compact.
+
+Use a conservative fast-start check after the initial intake and again after the first clarification. If the brief is now sufficient, stop clarifying, skip any unnecessary launch ceremony, and move to a short working frame for Round 1.
 
 Ask at most one targeted clarification round first for the most important remaining research gap. Examples:
 
@@ -124,9 +137,13 @@ The user may bypass further questions at any time. If they say "draft it," "good
 </step>
 
 <step name="resolve_launch_preferences">
-After the main intake is clear enough, ask one compact freeform preference question for the execution knobs that are useful to capture now:
+Run this step only when the user clearly wants to shape the defaults or when a missing preference would materially change Round 1. Do not foreground this as a separate setup step in the happy path.
+
+If a preference check is warranted, ask one compact freeform preference question for the execution knobs that are useful to capture now:
 
 `Any first-pass preferences I should lock now, such as a faster or deeper pass, stronger skepticism, a looser exploratory posture, or a specific number of perspectives? If not, I will keep the defaults and leave the rest flexible.`
+
+If the user has not asked to shape these knobs and the current brief is already sufficient, apply the defaults silently and leave them mostly backstage.
 
 Defaults unless the user overrides them:
 
@@ -145,52 +162,71 @@ If the user provides partial per-agent preferences but not a full roster, preser
 </step>
 
 <step name="draft_launch_summary">
-Synthesize a concise structured research brief that preserves the user's own framing and makes the initial agent roster legible.
+Synthesize a concise pre-round launch brief that preserves the user's own framing and keeps the launch light.
 
-Render it as:
+If the brief is sufficient for a fast start, render a short working frame instead of a formal launch packet:
 
 ```markdown
-## Research Brief
+## Working Frame
 
-| Section | Current research brief |
-| --- | --- |
-| Research Focus | [core question, domain, or open discussion framing] |
-| Outcome | [what useful result this research session should aim to produce] |
-| Anchors | [must-keep references, prior outputs, examples, or "None supplied yet"] |
-| Constraints | [scope boundaries, time/rigor limits, exclusions, or "None supplied yet"] |
-| Risks / Open Questions | [weakest assumptions, unresolved gaps, tempting dead ends, or misleading directions] |
-| Execution Preferences | `Preset: ...`; `Posture: ...`; `Agent count: ...`; `Project context: ...`; `Subgroups: ...` |
-| Initial Agent Shape | [one skeptical reviewer by default in the current hard-critic slot, plus the starting theorist pool and any user-locked overrides] |
+- Focus: [core question, domain, or open discussion framing]
+- Outcome: [what useful result this research session should aim to produce]
+- Anchors: [must-keep references, prior outputs, examples, or "None supplied yet"]
+- Constraints: [scope boundaries, exclusions, or "None supplied yet"]
+- Risks / Watchouts: [weakest assumptions, unresolved gaps, tempting dead ends, or misleading directions]
 ```
 
-Before the approval gate, add one short side-effect note:
+Only mention execution defaults here if the user explicitly shaped them or if one setting materially affects how Round 1 should be interpreted. Otherwise keep preset, posture, worker count, and roster defaults backstage.
+
+Before a fast start, add one short note such as:
+
+`I have enough to start a first bounded ideation round from this frame.`
+
+If the brief is not yet strong enough for an immediate start, render a slightly fuller but still lightweight session brief:
+
+```markdown
+## Session Brief
+
+- Focus: [core question, domain, or open discussion framing]
+- Outcome: [what useful result this research session should aim to produce]
+- Anchors: [must-keep references, prior outputs, examples, or "None supplied yet"]
+- Constraints: [scope boundaries, exclusions, or "None supplied yet"]
+- Risks / Open Questions: [weakest assumptions, unresolved gaps, tempting dead ends, or misleading directions]
+```
+
+Include only the execution preferences that the user explicitly set or that must be surfaced because they change launch behavior. Keep the initial agent shape concise when shown.
+
+Before any fallback gate, add one short side-effect note:
 
 `Approving this framing starts the bounded multi-agent rounds, but it does not create durable session files.`
 </step>
 
 <step name="approval_gate">
-Present the repo-style approval gate for the research brief.
+Use a two-path launch rule.
 
-If `ask_user` is available:
+If the brief is sufficient and there is no remaining risk that needs explicit user confirmation, do not present a launch menu. Restate the short working frame compactly, say you are starting Round 1, and continue directly into the bounded round loop.
+
+If the brief is incomplete, materially risky, or the user is still clearly deciding between framing options, present a lighter fallback gate for the session brief. Keep the gate light and focused on the minimum pre-Round-1 decision.
+
+If `ask_user` is available for the fallback gate:
 
 ```text
 header: "Ideate Launch"
-question: "Does this first-pass framing look right before I start the bounded multi-agent rounds?"
+question: "This looks workable but still has a few launch choices or gaps. What do you want to do before Round 1?"
 options:
-- "Start ideation"
-- "Adjust launch"
-- "Review raw context"
+- "Start"
+- "Adjust"
 - "Stop here"
 ```
 
-If `ask_user` is not available, present the same four options as a short numbered list and wait for the user's reply.
+If `ask_user` is not available, present the same three options as a short numbered list and wait for the user's reply.
 
-On `Review raw context`:
+Raw-context review remains available on demand, but do not force it as a standard visible option. If the user asks to inspect the raw context before starting:
 
 - show the raw launch details in a more literal form: seed text, preserved phrases, imported anchors, resolved preset, worker count assumptions, per-agent overrides, and unresolved gaps
 - then return to the same approval gate
 
-On `Adjust launch`:
+On `Adjust`:
 
 - reopen only the section the user wants to revise
 - preserve all unchanged sections by default
@@ -222,9 +258,9 @@ On `Stop here`:
 ---
 ```
 
-On `Start ideation`:
+On `Start`:
 
-- confirm that the research brief is approved
+- confirm that the current framing is approved for launch
 - restate the final approved summary compactly
 - Continue directly into the bounded round loop. Do not stop at a launch-summary-only state.
 </step>
@@ -447,8 +483,12 @@ Human-readable labels in worker text are presentation only. Do not route on them
 <success_criteria>
 - [ ] The workflow frames `gpd:ideate` as a projectless conversational multi-agent research session before any durable project workflow
 - [ ] Existing project context remains opt-in and is never auto-loaded into the session
-- [ ] The launch intake and editable summary remain intact before ideation starts
-- [ ] The approved research brief leads into a bounded multi-agent round loop
+- [ ] A strong first message can reach Round 1 with substantially less launch ceremony
+- [ ] When the brief is already sufficient, defaults stay mostly backstage unless the user asks to shape them
+- [ ] A lighter pre-round brief still preserves focus, outcome, anchors, constraints, and key risks
+- [ ] Revise and stop paths still exist before Round 1 when the framing needs explicit confirmation
+- [ ] Raw-context review stays available on demand without being a mandatory front-stage launch option
+- [ ] The working research brief leads into a bounded multi-agent round loop
 - [ ] One hard critic is present by default unless the user changes the roster
 - [ ] User thought injection happens at round boundaries through the parent gate
 - [ ] Per-agent assignments can be updated between rounds without restarting the session
