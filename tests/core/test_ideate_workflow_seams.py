@@ -39,11 +39,21 @@ def test_ideate_command_stays_thin_projectless_and_workflow_owned() -> None:
     assert "context_mode: projectless" in command
     assert "@{GPD_INSTALL_DIR}/workflows/ideate.md" in command
     assert "Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-end." in command
-    assert "Keep the wrapper thin." in command
     assert _contains_any_lower(
         command,
+        "keep the wrapper thin and public-facing.",
+        "keep the wrapper thin.",
+    )
+    assert _contains_any_lower(
+        command,
+        "the execution context owns orchestration details, worker fan-out, synthesis, and any internal control flow.",
         "the execution context owns round orchestration, worker fan-out, synthesis, and user gating.",
         "the execution context owns orchestration",
+    )
+    assert _contains_any_lower(
+        command,
+        "do not center or enumerate internal approval loops, bounded rounds, review gates, subgroup mechanics, or other workflow-specific control surfaces in the public command contract.",
+        "the public wrapper does not foreground internal approval loops",
     )
 
     for forbidden in (

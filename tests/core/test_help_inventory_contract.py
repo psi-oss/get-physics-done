@@ -57,6 +57,17 @@ def test_help_inventory_uses_runtime_neutral_framing_in_shared_source() -> None:
     assert all("slash-command" not in content for content in help_sources)
 
 
+def test_help_workflow_keeps_ideate_in_no_project_getting_started_inventory() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+    no_project_help = _section(help_workflow, "**No project exists:**", "**Project exists, paused or resumable:**")
+
+    assert (
+        "gpd:ideate             — Optional pre-project, projectless, non-durable conversational multi-agent "
+        "research session for exploring and pressure-testing a direction before opening a durable project"
+    ) in no_project_help
+    assert no_project_help.index("gpd:tour") < no_project_help.index("gpd:ideate") < no_project_help.index("gpd:new-project")
+
+
 def test_help_workflow_paper_toolchain_doctor_row_is_single_sourced() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 

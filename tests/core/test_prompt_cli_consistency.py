@@ -220,6 +220,8 @@ def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> N
     assert_help_workflow_runtime_reference_contract(help_workflow)
     quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Command Index")
     command_index = _extract_between(help_workflow, "## Command Index", "## Detailed Command Reference")
+    new_work = _extract_between(quick_start_reference, "**New work**", "**Existing work**")
+    starter_commands = _extract_between(command_index, "### Starter commands", "### Planning and execution")
     assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
     assert_help_workflow_command_index_contract(command_index)
     assert_beginner_startup_routing_contract(quick_start_reference)
@@ -227,6 +229,14 @@ def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> N
     assert "## Detailed Command Reference" in help_workflow
     assert "gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat" in help_workflow
     assert "gpd init new-project" not in help_workflow
+    ideate_summary = (
+        "`gpd:ideate` - Optional pre-project, projectless, non-durable conversational multi-agent research "
+        "session for exploring and pressure-testing a direction before opening a durable project"
+    )
+    assert ideate_summary in quick_start_reference
+    assert ideate_summary in command_index
+    assert new_work.index("`gpd:tour`") < new_work.index("`gpd:ideate`") < new_work.index("`gpd:new-project`")
+    assert starter_commands.index("`gpd:tour`") < starter_commands.index("`gpd:ideate`") < starter_commands.index("`gpd:new-project`")
     for token in ("gpd:discuss-phase", "gpd:write-paper", "gpd:tangent", "gpd:set-tier-models", "gpd:settings"):
         assert token in command_index
 
