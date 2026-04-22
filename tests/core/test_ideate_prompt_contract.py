@@ -67,6 +67,17 @@ def test_ideate_command_exposes_a_projectless_public_entrypoint() -> None:
         "before durable project work",
         "before committing to durable project artifacts",
     )
+    assert _contains_any_lower(
+        command,
+        "live conversational session",
+        "in-memory conversational research session",
+    )
+    assert _contains_all_lower(
+        command,
+        "internal approval loops",
+        "bounded rounds",
+        "review gates",
+    )
 
 
 def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> None:

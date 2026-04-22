@@ -1,7 +1,7 @@
 <purpose>
 Run `gpd:agentic-discussion` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
-Phase 7 keeps that contract and its non-goals while pushing the orchestrator further backstage and making cheap research operations first-class inside the same bounded parent-owned engine. Preserve the bounded parent-owned round engine under the hood, but make clean turns read as agent-first conversation: keep the fast-start path light, keep launch preferences conditional and mostly off-screen, show agent exchange first, allow one bounded optional reaction layer, and end with a short natural handoff instead of a visible moderator loop. Visible summaries, recaps, and raw-detail review are secondary and should surface only when the user asks, when a blocker or checkpoint needs routing, when agent output diverges enough to need a short frame, or at session close. Preserve structured closeout, any optional narrower follow-up as a light parent-owned extension of the current turn, and the parent workflow's ownership of the research brief, round state, follow-up routing, and any fresh continuation handoff.
+Phase 2 keeps that contract and its non-goals while pushing the orchestrator further backstage and making cheap research operations first-class inside the same bounded parent-owned engine. Preserve the bounded parent-owned round engine under the hood, but make clean turns read as agent-first conversation: keep the fast-start path light, keep launch preferences conditional and mostly off-screen, show agent exchange first, allow one bounded optional reaction layer, default clean turns to open continuation unless the user interrupts or a blocker/checkpoint needs routing, and end with a short natural handoff instead of a visible moderator loop. Visible summaries, recaps, and raw-detail review are secondary and should surface only when the user asks, when a blocker or checkpoint needs routing, when agent output diverges enough to need a short frame, or at session close. Preserve structured closeout, any optional narrower follow-up as a light parent-owned extension of the current turn, and the parent workflow's ownership of the research brief, round state, follow-up routing, and any fresh continuation handoff.
 
 Keep the boundary explicit from the start: project context is opt-in only, orchestration stays in memory, and this phase does not create durable ideation files or session artifacts. Non-goals for this phase include `RESEARCH.md` writes, `GPD/ideation/`, durable ideation artifact directories, resumable ideation session state, `resume-work` integration, staged init or stage-manifest semantics, automatic project-state ingestion, session IDs, transcript storage or replay, and promotion of temporary focused follow-up into durable sessions.
 </purpose>
@@ -162,6 +162,7 @@ If the user provides partial participant or stance preferences but not a full se
 Synthesize a concise pre-round working brief that preserves the user's own framing and keeps the launch light.
 
 If the brief is sufficient for a fast start, keep the working frame internal by default on the happy path. Use it to anchor the first bounded discussion turn, but do not automatically render a visible `Working Frame` block plus a second launch restatement.
+The visible happy path should read like the start of a transcript, not like the user is stepping through a launch menu.
 
 Internally preserve:
 
@@ -173,6 +174,7 @@ Internally preserve:
 
 On the happy path, move directly into the first agent turn after one short paraphrase or launch line such as:
 
+- `Using that framing, I am opening the discussion.`
 - `Using that framing, I am starting a first bounded discussion turn.`
 - `I have enough to start, so I am moving straight into the first discussion turn.`
 
@@ -196,13 +198,14 @@ Include only the execution preferences that the user explicitly set or that must
 
 Before any fallback gate, add one short side-effect note:
 
-`Approving this framing starts the first bounded multi-agent discussion turn under the same parent-owned handoff contract, but it does not create durable session files.`
+`Approving this framing starts the first bounded multi-agent discussion turn, but it does not create durable session files.`
 </step>
 
 <step name="approval_gate">
 Use a two-path launch rule.
 
 If the brief is sufficient and there is no remaining risk that needs explicit user confirmation, do not present a launch menu. Do not default to a visible `Working Frame` block on the happy path. Give one short paraphrase or launch line, say you are starting the first discussion turn, and continue directly into the bounded round loop.
+The happy path should feel like opening the transcript, not like asking the user to choose from a menu.
 
 If the brief is incomplete, materially risky, or the user is still clearly deciding between framing options, present a lighter fallback gate for the session brief. Keep the gate light and focused on the minimum pre-first-turn decision.
 
@@ -210,7 +213,7 @@ If `ask_user` is available for the fallback gate:
 
 ```text
 header: "Ideate Launch"
-question: "This looks workable but still has a few launch choices or gaps. What do you want to do before the first parent-owned turn handoff begins?"
+question: "This looks workable but still has a few launch choices or gaps. What do you want to do before the first discussion turn begins?"
 options:
 - "Start"
 - "Adjust"
@@ -240,7 +243,7 @@ On `Start`:
 
 - confirm that the current framing is approved for launch
 - restate the final approved summary compactly
-- continue directly into the bounded round loop and spawn fresh one-shot workers for the first turn
+- continue directly into the bounded round loop and spawn fresh one-shot workers for the first transcript-style turn
 - do not stop at a launch-summary-only state, and do not leave a worker waiting for user input in place
 </step>
 
@@ -267,11 +270,13 @@ Keep the internal execution sequence parent-owned: `round_bootstrap`, `round_fan
 The visible default should feel like an ongoing scientific discussion among a small participant group:
 
 - agent contributions are the primary visible unit
+- visible clean-turn render semantics are transcript-first: a completed participant may `speak` with a direct contribution, `ask` a natural question that still counts as completed-turn content, or `skip` with a brief explicit nothing-new-to-add; these are render semantics only and do not change `gpd_return.status`
 - each active agent contributes a short research-facing message in the first pass, and those visible first-pass messages may be grounded hypotheses, literature results, evidence checks, or bounded calculation results rather than commentary alone
 - if a claim is cheaply checkable, at least one participant should check it with the lightest suitable tool instead of leaving every contribution in speculative discussion
 - after that first pass, allow one bounded optional reaction layer where an agent may respond selectively to another agent's point or stay silent
 - do not add an automatic recap after a clean turn
 - visible synthesis is secondary and lightweight; use it only when the user asks for it or when blocker, divergence, or routing pressure makes a short frame necessary
+- on a clean turn, default the visible close to open continuation unless the user interrupts, redirects, or a blocker/checkpoint requires a more explicit routing question
 - end the turn with a conversational handoff instead of a rigid control menu; keep it short on clean turns
 
 For each round:
@@ -287,12 +292,12 @@ For each round:
 2. Decide the round participants. If the user left the count flexible, choose a bounded participant count that matches the current preset. Maintain internal posture diversity by default unless the user explicitly overrides it. If a material claim is cheaply checkable, assign at least one participant to run the check rather than leaving the point purely conversational.
 3. Fan out the configured ideation agents. Use the same ideation-worker surface for all participants, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
    If one participant is carrying the strongest skeptical stance for the turn, use that stance to pressure-test assumptions, contradictions, missing baselines, and weak causal stories without foregrounding it as a special visible panel role.
-4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Substantive items should distinguish `sourced`, `computed`, `speculative`, or `mixed` provenance when the worker can support that distinction. Failed or partial lookups and calculations should remain explicit in the returned contribution rather than being silently dropped. Completed participants feed parent-owned synthesis/state updates. Any `checkpoint`, `blocked`, or `failed` participant becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
-5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
+4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Substantive items should distinguish `sourced`, `computed`, `speculative`, or `mixed` provenance when the worker can support that distinction. Failed or partial lookups and calculations should remain explicit in the returned contribution rather than being silently dropped. Completed participants feed parent-owned synthesis/state updates. Keep `speak` / `ask` / `skip` as visible-turn render semantics inside completed-turn content rather than as new runtime statuses. Any `checkpoint`, `blocked`, or `failed` participant becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
+5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Render those first-pass messages as direct transcript turns with minimal stage directions. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
 7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, optional focused follow-up setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
-8. End each turn with a lightweight conversational handoff centered on: continue, add or redirect with user thoughts, tune the setup if needed, ask for synthesis, or stop cleanly. If the user wants narrower follow-up after the turn, route it through the configuration-adjustment path and run at most one bounded focused fan-out or targeted check before folding the result back into the parent discussion. Raw worker detail remains available only when the user explicitly asks for it.
-9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger.
+8. End each turn with a lightweight conversational handoff centered on open continuation by default. On clean turns, assume the discussion is ready to continue unless the user redirects with their own thoughts, tunes the setup, asks for synthesis, or stops cleanly. Keep those capabilities available in natural language instead of surfacing them as a front-stage menu unless clarity really requires it. If the user wants narrower follow-up after the turn, route it through the configuration-adjustment path and run at most one bounded focused fan-out or targeted check before folding the result back into the parent discussion. Raw worker detail remains available only when the user explicitly asks for it.
+9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger or pretending the normal open-continuation default still applies.
 
 When using task delegation, keep it lightweight and parent-owned. Reuse the repo's one-shot handoff semantics:
 
@@ -319,7 +324,7 @@ Participant instructions: {lane_instructions}
 </context>
 
 <contract>
-This is a one-shot handoff. Return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Use typed contributions such as `hypothesis`, `critique`, `evidence_check`, `computational_check`, `clarifying_question`, or `next_probe`; respond directly to earlier agent output when useful; include confidence and `responds_to` or `decisive_check` when they materially help. Treat `web_search`, `web_fetch`, and `shell` as first-class inline research instruments for this turn when they materially improve the contribution. Prefer the lightest tool that can settle the question. Use `web_search` for recent or unstable claims, candidate sources, benchmarks, or opposing evidence; use `web_fetch` before making source-specific or citation-bearing claims; use `shell` for bounded calculations, estimates, unit conversions, or tiny inline scripts. If a claim is cheaply checkable, check it instead of only discussing it. Keep tool use inline and fileless.
+This is a one-shot handoff. Return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Use typed contributions such as `hypothesis`, `critique`, `evidence_check`, `computational_check`, `clarifying_question`, or `next_probe`; respond directly to earlier agent output when useful; include confidence and `responds_to` or `decisive_check` when they materially help. For visible rendering, make completed-turn content easy to surface as one of three transcript-first shapes: direct contribution (`speak`), natural question (`ask`), or explicit nothing-new-to-add (`skip`). These are render semantics only; keep `gpd_return.status` unchanged, and keep non-blocking questions inside normal completed-turn content rather than promoting them to `checkpoint`. Treat `web_search`, `web_fetch`, and `shell` as first-class inline research instruments for this turn when they materially improve the contribution. Prefer the lightest tool that can settle the question. Use `web_search` for recent or unstable claims, candidate sources, benchmarks, or opposing evidence; use `web_fetch` before making source-specific or citation-bearing claims; use `shell` for bounded calculations, estimates, unit conversions, or tiny inline scripts. If a claim is cheaply checkable, check it instead of only discussing it. Keep tool use inline and fileless.
 
 For each substantive item, distinguish whether it is `sourced`, `computed`, `speculative`, or `mixed`, and include optional `source_refs`, `computation_note`, or `assumptions` when they materially clarify what the item rests on. If the round context includes `research_enabled`, `research_mode`, or soft source/tool-use limits, treat them as guidance for scope and depth rather than as a reason to widen the turn.
 
@@ -345,8 +350,9 @@ Do not create files or claim durable session ownership in this phase.
 
 <step name="round_review_gate">
 After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. On a clean turn, default to a short natural handoff with no recap. If a brief synthesis is helpful, make it compact, secondary, and request-driven or exception-driven. Raw turn details remain available only on demand. Any narrower follow-up happens only from this parent handoff, not mid-turn.
+On a clean turn, the visible default is open continuation. If the user replies with a normal reaction, follow-up thought, or new angle, treat that as continuation rather than asking them to explicitly say `continue`.
 
-Do not present a rigid fixed menu by default. Instead, end with a conversational handoff that makes these capabilities available in natural language:
+Do not present a rigid fixed menu by default. Do not end clean turns with a visible capability list unless clarity requires it. Instead, end with a conversational handoff that makes these capabilities available in natural language:
 
 - continue to the next bounded turn
 - add or redirect with the user's own thoughts
@@ -356,7 +362,7 @@ Do not present a rigid fixed menu by default. Instead, end with a conversational
 
 Interpretation:
 
-- continue: increment the round counter and run the next bounded ideation round under the hood
+- continue: increment the round counter and run the next bounded ideation round under the hood; if the user simply keeps engaging on the same line, treat that as `continue` by default rather than asking for an explicit menu choice
 - add or redirect: capture the user's injection, restate how it changes the shared discussion, and include it in the next turn brief
 - tune the setup: capture only the requested changes such as preset, participant count, posture, skepticism, creativity, per-participant assignments, or one temporary focused follow-up or selective fan-out for the next bounded segment; preserve everything else
 - ask for synthesis: show one compact synthesis keyed to the current turn, then return to the same conversational handoff
@@ -367,6 +373,7 @@ If the user explicitly asks to pause instead of stopping, pause or stop cleanly 
 
 Prefer handoff language such as:
 
+- `I can keep going from here; if you want to redirect, react, ask for a short synthesis, or stop, just say so.`
 - `If you want, I can keep pushing on this line, fold in your reaction, retune the participant mix or posture, give a short synthesis, or stop here.`
 - `If you want to redirect, tell me what to change and I will rebuild the next brief from there.`
 
@@ -430,6 +437,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] The workflow frames `gpd:agentic-discussion` as a projectless conversational multi-agent research session before any durable project workflow
 - [ ] Existing project context remains opt-in and is never auto-loaded into the session
 - [ ] The orchestrator stays mostly backstage, with clean turns defaulting to agent exchange plus a short natural handoff
+- [ ] Clean turns default to open continuation, so the user can keep engaging without selecting an explicit menu option
 - [ ] A strong first message can reach the first bounded discussion turn with substantially less launch ceremony and no default visible launch frame on the happy path
 - [ ] When the brief is already sufficient, defaults stay mostly backstage unless the user asks to shape them
 - [ ] A lighter pre-round brief still preserves focus, outcome, anchors, constraints, and key risks
@@ -439,6 +447,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] The `Deep` preset implies richer agent exploration rather than guaranteed orchestrator synthesis
 - [ ] The default participant mix preserves some skeptical pressure-testing unless the user changes the setup
 - [ ] Agent contributions are the primary visible unit of each turn
+- [ ] Visible clean-turn render semantics allow direct contributions, natural questions, or explicit skips without changing runtime statuses
 - [ ] Cheaply checkable claims are normalized as visible first-pass evidence or computational contributions rather than discussion-only commentary
 - [ ] First-pass visible agent messages may surface literature results, evidence checks, or bounded calculations, not only commentary
 - [ ] Worker-facing turn contracts use structured `research_contributions` plus `gpd_return.status` instead of legacy idea/critique/open-question fields, and they distinguish `sourced`, `computed`, `speculative`, or `mixed` items when supported

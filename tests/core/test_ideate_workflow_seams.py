@@ -514,6 +514,11 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
     )
     assert _contains_any_lower(
         round_loop,
+        "the visible default should feel like an ongoing scientific discussion among a small participant group",
+        "ongoing scientific discussion among a small participant group",
+    )
+    assert _contains_any_lower(
+        round_loop,
         "spawn ideation workers as one-shot handoffs.",
         "one-shot handoffs",
     )
@@ -576,6 +581,13 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
         "visible synthesis only when needed for blocker routing",
         "visible synthesis only when needed for divergence routing",
         "visible synthesis only when needed to route a blocker or divergence",
+    )
+    assert _contains_in_order_lower(
+        round_loop,
+        "surface the first-pass agent messages first",
+        "add one bounded optional reaction layer",
+        "keep synthesis secondary",
+        "end each turn with a lightweight conversational handoff",
     )
     assert _contains_any_lower(
         round_loop,
@@ -722,6 +734,80 @@ def test_ideate_workflow_contract_mirrors_worker_provenance_and_failure_rules_wh
         )
 
 
+def test_ideate_visible_turn_semantics_keep_control_statuses_separate_from_clean_turn_questions() -> None:
+    worker = _read(IDEATION_WORKER)
+    worker_process = _tag_body(worker, "process")
+    worker_return_contract = _tag_body(worker, "return_contract")
+    allowed_statuses = _bullet_list_after_marker(worker_return_contract, "Allowed statuses:")
+    workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
+    task_contract = _tag_body(round_loop, "contract")
+    workflow_contract = f"{round_loop}\n{task_contract}".lower()
+
+    assert any("completed" in item.lower() for item in allowed_statuses)
+    assert any("checkpoint" in item.lower() for item in allowed_statuses)
+    assert any("blocked" in item.lower() for item in allowed_statuses)
+    assert any("failed" in item.lower() for item in allowed_statuses)
+    assert all(
+        semantic not in item.lower()
+        for item in allowed_statuses
+        for semantic in ("speak", "ask", "skip")
+    )
+
+    assert _contains_any_lower(
+        worker_process,
+        "clarifying question",
+        "`clarifying_question`",
+    )
+    assert _contains_in_order_lower(
+        worker_process,
+        "clarifying question",
+        "return `gpd_return.status: checkpoint`",
+    )
+    assert _contains_in_order_lower(
+        task_contract,
+        "`clarifying_question`",
+        "if human input is required, return `gpd_return.status: checkpoint` and stop.",
+    )
+    assert _contains_any_lower(
+        worker_return_contract,
+        "`visible_turn`",
+        "visible turn requirements",
+    )
+    assert _contains_any_lower(
+        worker_return_contract,
+        "`speak`",
+        "`ask`",
+        "`skip`",
+    )
+    assert _contains_any_lower(
+        worker_return_contract,
+        "still counts as `completed`",
+        "use `checkpoint` only when the missing answer blocks a trustworthy turn",
+        "do not invent a new status for `ask` or `skip`",
+        "keep `gpd_return.status: completed`",
+    )
+    assert _contains_any_lower(
+        workflow_contract,
+        "`speak`",
+        "`ask`",
+        "`skip`",
+        "visible clean-turn render semantics",
+        "three transcript-first shapes",
+    )
+    assert _contains_any_lower(
+        workflow_contract,
+        "render semantics only",
+        "do not change `gpd_return.status`",
+        "keep `gpd_return.status` unchanged",
+    )
+    assert _contains_any_lower(
+        workflow_contract,
+        "non-blocking questions inside normal completed-turn content",
+        "ask a natural question that still counts as completed-turn content",
+    )
+
+
 def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_continuations() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
@@ -735,6 +821,7 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
         round_review_gate,
         "after each conversational turn, keep the user handoff light and natural.",
         "agent messages should already be on screen",
+        "on a clean turn, default to a short natural handoff with no recap.",
         "raw turn details remain review-on-demand.",
         "raw worker detail remains available on demand.",
     )
@@ -753,7 +840,13 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
     assert any("stop" in item.lower() or "pause" in item.lower() for item in capabilities)
     assert all("raw" not in item.lower() for item in capabilities)
     assert any("synthesis" in item.lower() or "recap" in item.lower() for item in handoff_examples)
+    assert any("keep pushing" in item.lower() for item in handoff_examples)
+    assert any("redirect" in item.lower() for item in handoff_examples)
     assert all("raw" not in item.lower() for item in handoff_examples)
+    assert all(
+        all(term not in item.lower() for term in ("menu", "option", "orchestrator", "moderator"))
+        for item in handoff_examples
+    )
     assert _contains_any_lower(
         round_review_gate,
         "continue to the next bounded turn",

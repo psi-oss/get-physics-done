@@ -310,11 +310,13 @@ Show a guided beginner tour of the core GPD commands without taking action.
 Usage: `gpd:tour`
 
 **`gpd:agentic-discussion`**
-Run an optional pre-project, projectless, non-durable conversational multi-agent research session for exploring and pressure-testing a research direction before you open a durable GPD project.
+Run an optional pre-project, projectless, non-durable transcript-first multi-agent research discussion for exploring and pressure-testing a research direction before you open a durable GPD project.
 
 - Works from any folder; you do not need an initialized GPD project first
 - Best for a concrete question, rough idea, or research brief that still needs conversational pre-project refinement
-- Uses a conversational multi-agent research discussion to surface promising directions, pressure-test assumptions, and identify concerns or next checks
+- The visible default is an agent-first discussion transcript rather than a moderator-led menu loop
+- Uses a conversational multi-agent research discussion to surface promising directions, pressure-test assumptions, identify concerns or next checks, and let participants ask natural follow-up questions inside the turn
+- Clean turns usually continue with a short natural handoff; synthesis or recap is secondary and appears when you ask for it or when a blocker, checkpoint, or divergence makes it useful
 - Keeps the session non-durable; it does not create `PROJECT.md`, `RESEARCH.md`, `ROADMAP.md`, `GPD/ideation/`, `GPD/quick/`, resumable ideate state, session transcripts, or other durable ideation artifacts
 - Keeps project context opt-in rather than auto-loading project state into the session
 - Use `gpd:new-project` when you want durable project setup, scoped objectives, and a roadmap

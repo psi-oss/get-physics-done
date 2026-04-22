@@ -2670,7 +2670,7 @@ class TestReviewValidationCommands:
         command = SimpleNamespace(
             name="gpd:agentic-discussion",
             context_mode="projectless",
-            argument_hint="[optional: topic or question]",
+            argument_hint="[topic, question, or domain] [--preset fast|balanced|deep]",
             project_reentry_capable=False,
             requires={},
             command_policy=None,

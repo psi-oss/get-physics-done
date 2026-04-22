@@ -109,64 +109,61 @@ If `web_search`, `web_fetch`, or `shell` fails, or a needed source, binary, inte
    - direct response to earlier agent output when useful
 3. Keep the output concise enough to survive multi-agent synthesis. Prefer a few strong, distinct points over exhaustive coverage.
 4. If asked to take a critic posture this turn, push hard on assumptions, contradictions, missing baselines, misleading paths, and weak validation paths.
-5. If the current turn cannot proceed without user judgment, return `gpd_return.status: checkpoint` with the missing decision framed clearly.
-6. Otherwise return `gpd_return.status: completed`.
+5. If the current turn cannot proceed without user judgment, return `gpd_return.status: checkpoint` with the missing decision framed clearly. Non-blocking questions stay `completed` and use `visible_turn.type: ask`.
+6. Otherwise return `gpd_return.status: completed`. On completed turns, set `visible_turn.type` to `speak`, `ask`, or `skip`. Do not invent a new status for `ask` or `skip`.
 
 Do not write files in this phase. Do not claim ownership of continuation, synthesis, or future rounds.
 </process>
 
 <return_contract>
 Return a typed `gpd_return` envelope. Headings are presentation only. Use `gpd_return.status` as the control surface.
-
 Allowed statuses:
-
 - `completed`
 - `checkpoint`
 - `blocked`
 - `failed`
-
 Required base fields:
-
 - `status`
 - `files_written`
 - `issues`
 - `next_actions`
-
 For this fileless research turn, keep `files_written: []` and extend the return with:
-
 - `round`
 - `lane_id`
 - `lane_role`
 - `stance`
 - `research_contributions`
 - `assignment_status`
+- `visible_turn` on `completed` turns
 - optional `supporting_rationale`
 - optional `uncertainty_flags`
-
+Visible turn requirements on `completed` turns:
+- `type`: `speak`, `ask`, or `skip`
+- `text`: short directly renderable transcript text
+- optional `to`: `user` or the claim / participant being addressed
+Use:
+- `speak` for a direct visible contribution
+- `ask` for a natural non-blocking question; use `checkpoint` only when the missing answer blocks a trustworthy turn
+- `skip` for a brief explicit "nothing new to add" turn; do not pad `research_contributions` just to avoid an empty list
 Contribution item requirements:
-
 - `kind`: one of `hypothesis`, `critique`, `evidence_check`, `computational_check`, `clarifying_question`, `next_probe`
 - `content`: the actual contribution
 - `provenance`: `sourced`, `computed`, `speculative`, or `mixed`
 - `confidence`: `high`, `medium`, or `low`
-
 Optional per-item fields:
-
 - `source_refs`: concise source identifiers, titles, URLs, or other references when the item relies on external evidence
 - `computation_note`: short note on the calculation, command shape, or estimation method when the item is computed
 - `assumptions`: explicit assumptions, approximations, or unresolved gaps when they materially affect the item
 - `responds_to`: earlier agent or user output this item addresses directly
 - `decisive_check`: decisive test, observation, or comparison when the item depends on one
 
-Use `research_contributions` instead of splitting the payload into separate idea, critique, and question lists. Direct responses to prior agent output are allowed and encouraged when that is the clearest contribution.
-Treat `lane_id` and `lane_role` as orchestrator bookkeeping fields when provided, not as evidence of a permanent persona. Keep the substantive emphasis in `stance` and `research_contributions`.
+Use `research_contributions` instead of splitting the payload into separate idea, critique, and question lists. Direct responses to prior agent output are allowed when that is the clearest contribution.
+Treat `lane_id` and `lane_role` as orchestrator bookkeeping fields when provided, not as evidence of a permanent persona. `visible_turn` is the short transcript rendering; `research_contributions` is the canonical structured payload.
 
 If you return `checkpoint`, make the blocker explicit and scoped to the current round.
 If you return `blocked`, explain why the lane should be rerouted, narrowed, or deferred.
 Do not wait in-run for a reply.
-
 Suggested shape:
-
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
@@ -183,6 +180,10 @@ gpd_return:
     creativity: high | medium | low
     mode: rigorous | creative
     critic: true | false
+  visible_turn:
+    type: speak | ask | skip
+    text: "The current mechanism still looks under-justified to me because the scale-separation assumption has not been established."
+    to: "Agent 2"
   research_contributions:
     - kind: critique
       content: "The proposed mechanism leans on an unstated separation of scales that the current brief has not justified."
@@ -194,18 +195,8 @@ gpd_return:
       assumptions:
         - "Assumes the cited regime is the same one implied by the current brief."
       decisive_check: "..."
-    - kind: computational_check
-      content: "A bounded scaling estimate puts the effect below the claimed regime, so treat the current mechanism as provisional."
-      provenance: computed
-      confidence: medium
-      computation_note: "Order-of-magnitude estimate only; note the parameter range and calculation shape if `shell` was used."
   assignment_status: satisfied | partial | blocked
-  supporting_rationale:
-    - "..."
-  uncertainty_flags:
-    - "..."
 ```
-
 Return only what this round actually supports. The orchestrator owns continuation, synthesis, and any durable state.
 </return_contract>
 

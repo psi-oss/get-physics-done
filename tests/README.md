@@ -28,7 +28,7 @@ This graph therefore includes:
 
 <!-- repo-graph-scope:start -->
 
-- `src/gpd/commands/*.md`: `69`
+- `src/gpd/commands/*.md`: `70`
 - `src/gpd/agents/*.md`: `25`
 - `src/gpd/specs/workflows/*.md`: `71`
 - `src/gpd/specs/templates/**/*.md`: `80`
