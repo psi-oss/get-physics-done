@@ -1434,6 +1434,32 @@ class TestInitCommands:
         assert payload["has_maps"] is True
         assert "theory.md" in payload["existing_maps"]
 
+    def test_init_ideate_stays_workspace_locked_and_surfaces_ideation_worker_model(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.core.config import resolve_model
+
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "ideate"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["init_root_policy"] == "workspace_locked"
+        assert payload["ideation_worker_model"] == resolve_model(nested, "gpd-ideation-worker")
+        assert payload["planning_exists"] is False
+        assert payload["project_exists"] is False
+        assert payload["roadmap_exists"] is False
+        assert payload["state_exists"] is False
+
     def test_init_progress_can_skip_recent_project_reentry_for_projectless_config_bootstrap(
         self,
         monkeypatch: pytest.MonkeyPatch,

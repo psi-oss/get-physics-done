@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.core.config import resolve_model
 from gpd.core.constants import ProjectLayout
 from gpd.core.context import (
     _WRITE_PAPER_INIT_FIELDS,
@@ -24,6 +25,7 @@ from gpd.core.context import (
     _state_exists,
     init_arxiv_submission,
     init_execute_phase,
+    init_ideate,
     init_literature_review,
     init_map_research,
     init_milestone_op,
@@ -3993,6 +3995,22 @@ class TestInitMapResearch:
             "reference_artifacts_content",
             "staged_loading",
         }
+
+
+class TestInitIdeate:
+    def test_stays_workspace_locked_and_surfaces_ideation_worker_model(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_ideate(nested)
+
+        assert ctx["init_root_policy"] == "workspace_locked"
+        assert ctx["ideation_worker_model"] == resolve_model(nested, "gpd-ideation-worker")
+        assert ctx["planning_exists"] is False
+        assert ctx["project_exists"] is False
+        assert ctx["roadmap_exists"] is False
+        assert ctx["state_exists"] is False
 
 
 class TestInitLiteratureReview:

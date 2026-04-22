@@ -68,6 +68,15 @@ def test_help_workflow_keeps_ideate_in_no_project_getting_started_inventory() ->
     assert no_project_help.index("gpd:tour") < no_project_help.index("gpd:ideate") < no_project_help.index("gpd:new-project")
 
 
+def test_readme_quick_start_table_keeps_ideate_in_pre_project_decision_surface() -> None:
+    readme = _read("README.md")
+
+    assert "| Want to pressure-test a research direction before opening a project | `ideate` |" in readme
+    assert readme.index("| Want a guided command walkthrough | `tour` |") < readme.index(
+        "| Want to pressure-test a research direction before opening a project | `ideate` |"
+    ) < readme.index("| New research project | `new-project --minimal` |")
+
+
 def test_help_workflow_paper_toolchain_doctor_row_is_single_sourced() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 

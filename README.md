@@ -128,6 +128,7 @@ Use the runtime syntax above for the command names below.
 |----------------|----------|
 | Not sure which path fits this folder | `start` |
 | Want a guided command walkthrough | `tour` |
+| Want to pressure-test a research direction before opening a project | `ideate` |
 | New research project | `new-project --minimal` |
 | Existing research folder or codebase | `map-research` |
 | Current-workspace recovery snapshot | `gpd resume` |

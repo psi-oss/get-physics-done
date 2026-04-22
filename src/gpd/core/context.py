@@ -3435,6 +3435,7 @@ def init_ideate(cwd: Path) -> dict:
 
     return {
         # Models
+        "ideation_worker_model": _resolve_model(effective_cwd, "gpd-ideation-worker", config),
         "researcher_model": _resolve_model(effective_cwd, "gpd-project-researcher", config),
         "literature_reviewer_model": _resolve_model(effective_cwd, "gpd-literature-reviewer", config),
         "synthesizer_model": _resolve_model(effective_cwd, "gpd-research-synthesizer", config),
