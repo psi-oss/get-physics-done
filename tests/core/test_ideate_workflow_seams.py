@@ -481,11 +481,14 @@ def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() 
         "number of participants",
         "specialized roles",
         "specialization",
+        "default cast",
+        "two-role default cast",
     )
     assert _contains_any_lower(
         config_surface,
         "keep preset, posture, participant count, and stance defaults backstage",
         "keep preset, posture, participant count, and participant-mix defaults backstage",
+        "keep preset, posture, participant count, and default-cast defaults backstage",
         "keep participant defaults backstage",
         "keep the defaults backstage",
     )
@@ -514,8 +517,9 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
     )
     assert _contains_any_lower(
         round_loop,
-        "the visible default should feel like an ongoing scientific discussion among a small participant group",
-        "ongoing scientific discussion among a small participant group",
+        "the visible default should feel like an ongoing scientific discussion",
+        "ongoing scientific discussion",
+        "transcript-style turn",
     )
     assert _contains_any_lower(
         round_loop,
@@ -652,6 +656,54 @@ def test_ideate_workflow_keeps_bounded_parent_owned_turns_agent_first_and_recap_
     for legacy in ("shareable ideas", "shareable critiques"):
         assert legacy not in round_loop.lower()
         assert legacy not in task_contract.lower()
+
+
+def test_ideate_workflow_locks_phase3_default_cast_and_visible_transcript_labels() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    resolve_launch_preferences = _step_body(workflow, "resolve_launch_preferences")
+    draft_launch_summary = _step_body(workflow, "draft_launch_summary")
+    round_loop = _step_body(workflow, "run_round_loop")
+    cast_surface = "\n".join((resolve_launch_preferences, draft_launch_summary, round_loop))
+
+    assert _contains_any_lower(
+        cast_surface,
+        "default participant count is `2`",
+        "default participant count: `2`",
+        "participant count default is `2`",
+        "keep the backstage default participant count explicitly `2`",
+        "default cast is exactly two roles",
+        "default visible cast is exactly two roles",
+    )
+    assert _contains_in_order_lower(
+        cast_surface,
+        "literature-aware skeptic",
+        "technical calculator",
+    )
+    assert _contains_any_lower(
+        cast_surface,
+        "full names on first appearance",
+        "use the full role names on first appearance",
+        "first appearance should use the full role names",
+    )
+    assert _contains_any_lower(
+        cast_surface,
+        "`skeptic` / `calculator`",
+        "`skeptic` and `calculator`",
+        "short labels `skeptic` and `calculator`",
+        "recurring short labels: `skeptic` and `calculator`",
+        "recurring short labels: skeptic and calculator",
+        "skeptic / calculator",
+        "skeptic and calculator as the lightweight recurring labels",
+    )
+    assert not _contains_any_lower(
+        cast_surface,
+        "small participant group",
+        "larger or smaller participant group",
+        "agent 1",
+        "agent 2",
+        "temporary-critic",
+        "lane_role",
+    )
 
 
 def test_ideate_workflow_keeps_checks_and_calculations_as_normal_visible_turn_work() -> None:

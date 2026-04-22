@@ -63,7 +63,7 @@ def _assert_not_default_worker(content: str) -> None:
     )
 
 
-def _research_participant_names() -> list[str]:
+def _ideation_research_turn_names() -> list[str]:
     names: list[str] = []
     for name in registry.list_agents():
         agent = registry.get_agent(name)
@@ -75,13 +75,19 @@ def _research_participant_names() -> list[str]:
         if (
             "gpd:ideate" in lowered
             and "research" in lowered
-            and any(
-                needle in lowered
-                for needle in (
-                    "discussant",
-                    "participant",
-                    "discussion turn",
-                    "participant group",
+            and (
+                any(
+                    needle in lowered
+                    for needle in (
+                        "discussant",
+                        "participant",
+                        "discussion turn",
+                        "participant group",
+                    )
+                )
+                or re.search(
+                    r"\b(literature-aware skeptic|technical calculator|skeptic|calculator)\b",
+                    lowered,
                 )
             )
         ):
@@ -153,10 +159,10 @@ def test_source_agent_surface_boilerplate_does_not_conflict_with_frontmatter() -
 
 
 def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileless_contract() -> None:
-    names = _research_participant_names()
-    assert names, "expected at least one ideation research participant-style prompt"
+    names = _ideation_research_turn_names()
+    assert names, "expected at least one ideation research turn prompt"
 
-    saw_participant_framing = False
+    saw_turn_framing = False
     for name in names:
         content = _read_agent(name)
         lowered = content.lower()
@@ -166,7 +172,7 @@ def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileles
         assert "one-shot" in lowered, name
         assert "checkpoint" in lowered, name
         assert re.search(
-            r"(participant|discussant|discussion turn|participant group)",
+            r"(participant|discussant|discussion turn|participant group|literature-aware skeptic|technical calculator|\bskeptic\b|\bcalculator\b)",
             lowered,
         ), name
         assert (
@@ -182,7 +188,7 @@ def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileles
             in content
         ), name
 
-        saw_participant_framing = True
+        saw_turn_framing = True
         assert (
             "This is a one-shot handoff. If user input is needed, return `gpd_return.status: checkpoint` and stop. Do not wait inside the same run."
             in content
@@ -212,7 +218,7 @@ def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileles
         _assert_has_return_field(content, "research_contributions")
         _assert_has_return_field(content, "assignment_status")
 
-    assert saw_participant_framing, "expected research participant framing in at least one prompt"
+    assert saw_turn_framing, "expected research turn framing in at least one prompt"
 
 
 def test_ideation_worker_makes_web_and_shell_checks_first_class_turn_operations() -> None:

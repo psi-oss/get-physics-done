@@ -124,7 +124,7 @@ If participant count would help and the first-turn group size is still missing o
 header: "Participants"
 question: "How many participants do you want in the first turn?"
 options:
-- "Use the default" -- start with a small preset-shaped discussion group
+- "Use the default" -- start with the default two-participant cast: `Literature-Aware Skeptic` and `Technical Calculator`
 - "I will choose a number" -- provide the exact count in the next reply
 - "Keep it flexible" -- decide after seeing the draft summary
 ```
@@ -141,7 +141,7 @@ Run this step only when the user clearly wants to shape the defaults or when a m
 
 If a preference check is warranted, ask one compact freeform preference question for the execution knobs that are useful to capture now:
 
-`Any first-pass preferences I should lock now, such as a faster or deeper pass, stronger skepticism, a looser exploratory posture, or a larger or smaller participant group? If not, I will keep the defaults and leave the rest flexible.`
+`Any first-pass preferences I should lock now, such as a faster or deeper pass, stronger skepticism, a looser exploratory posture, or whether you want to override the default two-role cast? If not, I will keep the defaults and leave the rest flexible.`
 
 If the user has not asked to shape these knobs and the current brief is already sufficient, apply the defaults silently and leave them mostly backstage.
 
@@ -151,7 +151,8 @@ Defaults unless the user overrides them:
 - posture: rigorous and research-oriented by default
 - existing project context: not loaded unless explicitly requested
 - participant setup default:
-  - start with a small participant group shaped by the preset, without foregrounding an exact count unless the user asks
+  - keep the default cast backstage unless the user asks to shape it: default participant count is `2`, and the default cast is exactly two roles, `Literature-Aware Skeptic` and `Technical Calculator`
+  - use the full role names on first appearance; after that, use `Skeptic` and `Calculator` as the recurring short labels
   - keep internal posture diversity by default so the discussion includes both pressure-testing and exploratory idea generation unless the user overrides it
   - preserve optional tuning for participant count, skepticism, creativity, and specialization when the user wants to shape them
 
@@ -224,7 +225,7 @@ If `ask_user` is not available, present the same three options as a short number
 
 Raw-context review remains available on demand, but do not force it as a standard visible option. If the user asks to inspect the raw context before starting:
 
-- show the raw launch details in a more literal form: seed text, preserved phrases, imported anchors, resolved preset, worker count assumptions, per-agent overrides, and unresolved gaps
+- show the raw launch details in a more literal form: seed text, preserved phrases, imported anchors, resolved preset, default cast assumptions, visible transcript labels, per-agent overrides, and unresolved gaps
 - then return to the same approval gate
 
 On `Adjust`:
@@ -267,9 +268,10 @@ If `IDEATION_WORKER_MODEL` is empty or `null`, omit the `model` parameter and le
 
 Keep the internal execution sequence parent-owned: `round_bootstrap`, `round_fanout`, `round_collect`, bounded optional reaction handling, synthesis/state update, and the user handoff still happen each cycle. Do not foreground that choreography as visible headings or make `Round 1`, `Round 2`, and so on the primary visible shape unless clarity requires a light reference.
 
-The visible default should feel like an ongoing scientific discussion among a small participant group:
+The visible default should feel like an ongoing scientific discussion between the two default participants, `Literature-Aware Skeptic` and `Technical Calculator`:
 
 - agent contributions are the primary visible unit
+- use the full role names on first appearance; recurring transcript labels use `Skeptic` and `Calculator`
 - visible clean-turn render semantics are transcript-first: a completed participant may `speak` with a direct contribution, `ask` a natural question that still counts as completed-turn content, or `skip` with a brief explicit nothing-new-to-add; these are render semantics only and do not change `gpd_return.status`
 - each active agent contributes a short research-facing message in the first pass, and those visible first-pass messages may be grounded hypotheses, literature results, evidence checks, or bounded calculation results rather than commentary alone
 - if a claim is cheaply checkable, at least one participant should check it with the lightest suitable tool instead of leaving every contribution in speculative discussion
@@ -289,11 +291,11 @@ For each round:
    - any per-agent assignments the user has locked
    - current preset and posture settings
    - any research guidance already present in context, such as `research_enabled`, `research_mode`, or soft source/tool-use limits
-2. Decide the round participants. If the user left the count flexible, choose a bounded participant count that matches the current preset. Maintain internal posture diversity by default unless the user explicitly overrides it. If a material claim is cheaply checkable, assign at least one participant to run the check rather than leaving the point purely conversational.
-3. Fan out the configured ideation agents. Use the same ideation-worker surface for all participants, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed.
+2. Decide the round participants. If the user left the count flexible, default participant count is `2`: `Literature-Aware Skeptic` and `Technical Calculator`. Maintain internal posture diversity by default unless the user explicitly overrides it. If a material claim is cheaply checkable, assign at least one participant to run the check rather than leaving the point purely conversational.
+3. Fan out the configured ideation agents. Use the same ideation-worker surface for all participants, varying prompt-level posture, skepticism, creativity, and assignment instructions as needed. Unless the user overrides the cast, keep the default participant roles explicit at this seam: `Literature-Aware Skeptic` and `Technical Calculator`.
    If one participant is carrying the strongest skeptical stance for the turn, use that stance to pressure-test assumptions, contradictions, missing baselines, and weak causal stories without foregrounding it as a special visible panel role.
 4. Require each worker to return a typed `gpd_return` envelope with structured `research_contributions` plus `gpd_return.status`. Contributions may include grounded hypotheses, critiques, evidence checks, computational checks, questions, next probes, or direct responses to earlier agent output when that materially advances, clarifies, or pressure-tests the discussion. Substantive items should distinguish `sourced`, `computed`, `speculative`, or `mixed` provenance when the worker can support that distinction. Failed or partial lookups and calculations should remain explicit in the returned contribution rather than being silently dropped. Completed participants feed parent-owned synthesis/state updates. Keep `speak` / `ask` / `skip` as visible-turn render semantics inside completed-turn content rather than as new runtime statuses. Any `checkpoint`, `blocked`, or `failed` participant becomes a parent-owned ambiguity for the turn handoff. No worker waits for user input in place.
-5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Render those first-pass messages as direct transcript turns with minimal stage directions. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
+5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Render those first-pass messages as direct transcript turns with minimal stage directions, use the full role names on first appearance, and use `Skeptic` / `Calculator` thereafter for the default cast. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
 7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, optional focused follow-up setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
 8. End each turn with a lightweight conversational handoff centered on open continuation by default. On clean turns, assume the discussion is ready to continue unless the user redirects with their own thoughts, tunes the setup, asks for synthesis, or stops cleanly. Keep those capabilities available in natural language instead of surfacing them as a front-stage menu unless clarity really requires it. If the user wants narrower follow-up after the turn, route it through the configuration-adjustment path and run at most one bounded focused fan-out or targeted check before folding the result back into the parent discussion. Raw worker detail remains available only when the user explicitly asks for it.
