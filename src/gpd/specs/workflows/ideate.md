@@ -1,5 +1,5 @@
 <purpose>
-Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
+Run `gpd:agentic-discussion` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before committing to durable project artifacts.
 
 Phase 7 keeps that contract and its non-goals while pushing the orchestrator further backstage and making cheap research operations first-class inside the same bounded parent-owned engine. Preserve the bounded parent-owned round engine under the hood, but make clean turns read as agent-first conversation: keep the fast-start path light, keep launch preferences conditional and mostly off-screen, show agent exchange first, allow one bounded optional reaction layer, and end with a short natural handoff instead of a visible moderator loop. Visible summaries, recaps, and raw-detail review are secondary and should surface only when the user asks, when a blocker or checkpoint needs routing, when agent output diverges enough to need a short frame, or at session close. Preserve structured closeout, any optional narrower follow-up as a light parent-owned extension of the current turn, and the parent workflow's ownership of the research brief, round state, follow-up routing, and any fresh continuation handoff.
 
@@ -234,7 +234,7 @@ On `Stop here`:
 
 - end cleanly
 - say no files were created and the research brief was not finalized
-- if a next move would help, suggest only the most relevant one in context, such as restarting `gpd:ideate`, asking `gpd:suggest-next`, or simply leaving it there
+- if a next move would help, suggest only the most relevant one in context, such as restarting `gpd:agentic-discussion`, asking `gpd:suggest-next`, or simply leaving it there
 
 On `Start`:
 
@@ -402,7 +402,7 @@ Keep next moves available rather than mandatory. Ask what the user wants to do n
 If suggesting follow-up actions, offer only the most relevant ones for the session outcome. Keep them concise and context-sensitive. Suggestions may include:
 
 - `gpd:suggest-next`
-- `gpd:ideate [topic or question]`
+- `gpd:agentic-discussion [topic or question]`
 - `gpd:new-project` only when the discussion has stabilized enough for durable project scaffolding
 - `gpd:research-phase` only when the user already has a project phase and wants artifacted phase research
 - `gpd:help --all`
@@ -427,7 +427,7 @@ Human-readable labels in worker text are presentation only. Do not route on them
 </process>
 
 <success_criteria>
-- [ ] The workflow frames `gpd:ideate` as a projectless conversational multi-agent research session before any durable project workflow
+- [ ] The workflow frames `gpd:agentic-discussion` as a projectless conversational multi-agent research session before any durable project workflow
 - [ ] Existing project context remains opt-in and is never auto-loaded into the session
 - [ ] The orchestrator stays mostly backstage, with clean turns defaulting to agent exchange plus a short natural handoff
 - [ ] A strong first message can reach the first bounded discussion turn with substantially less launch ceremony and no default visible launch frame on the happy path

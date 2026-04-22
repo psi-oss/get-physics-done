@@ -2661,14 +2661,14 @@ class TestReviewValidationCommands:
         assert payload["public_runtime_command_prefix"] == dollar_command_prefix
         assert f"public command surface rooted at `{dollar_command_prefix}`" in payload["dispatch_note"]
 
-    def test_command_context_synthetic_ideate_projectless_passes_without_project(
+    def test_command_context_synthetic_agentic_discussion_projectless_passes_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dollar_command_prefix: str
     ) -> None:
-        workspace = tmp_path / "ideate-phase1"
+        workspace = tmp_path / "agentic-discussion-phase1"
         workspace.mkdir()
         monkeypatch.chdir(workspace)
         command = SimpleNamespace(
-            name="gpd:ideate",
+            name="gpd:agentic-discussion",
             context_mode="projectless",
             argument_hint="[optional: topic or question]",
             project_reentry_capable=False,
@@ -2676,18 +2676,22 @@ class TestReviewValidationCommands:
             command_policy=None,
             review_contract=None,
         )
-        monkeypatch.setattr(cli_module, "_resolve_registry_command", lambda command_name: (command, "gpd:ideate"))
+        monkeypatch.setattr(
+            cli_module,
+            "_resolve_registry_command",
+            lambda command_name: (command, "gpd:agentic-discussion"),
+        )
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(workspace), "validate", "command-context", "ideate"],
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "agentic-discussion"],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert payload["command"] == "gpd:ideate"
+        assert payload["command"] == "gpd:agentic-discussion"
         assert payload["context_mode"] == "projectless"
         assert payload["passed"] is True
         assert payload["project_exists"] is False

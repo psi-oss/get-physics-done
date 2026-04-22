@@ -328,7 +328,7 @@ def _command_preflight_cwd(
         return _status_command_cwd(workspace_cwd)
 
     command_name = str(getattr(command, "name", "") or "")
-    if command_name in {"gpd:ideate", "gpd:write-paper"}:
+    if command_name in {"gpd:agentic-discussion", "gpd:write-paper"}:
         return _workspace_locked_cwd(workspace_cwd)
 
     return _project_scoped_cwd(workspace_cwd)

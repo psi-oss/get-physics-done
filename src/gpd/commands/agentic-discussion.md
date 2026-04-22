@@ -1,5 +1,5 @@
 ---
-name: gpd:ideate
+name: gpd:agentic-discussion
 description: Run a projectless conversational multi-agent research session to explore, pressure-test, and refine a direction before durable project work
 argument-hint: "[topic, question, or domain] [--preset fast|balanced|deep]"
 context_mode: projectless
@@ -12,7 +12,7 @@ allowed-tools:
 
 
 <objective>
-Run `gpd:ideate` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before deciding whether it should become durable project work.
+Run `gpd:agentic-discussion` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before deciding whether it should become durable project work.
 
 Keep the contract lightweight and non-durable. Existing project files, notes, and artifacts are opt-in context only and must not be auto-ingested unless the user explicitly asks for specific context. Do not claim or imply `RESEARCH.md`, `GPD/ideation/`, durable ideation artifacts, resumable session state, transcript storage or replay, session ids, promotion of temporary internal branches into durable sessions, `resume-work`, staged init, artifact freshness gating, or other persistence-heavy workflow semantics.
 </objective>
@@ -42,7 +42,7 @@ Do not center or enumerate internal approval loops, bounded rounds, review gates
 
 <success_criteria>
 
-- [ ] `gpd:ideate` is defined as a projectless conversational multi-agent research session rather than a persistence-backed ideation surface
+- [ ] `gpd:agentic-discussion` is defined as a projectless conversational multi-agent research session rather than a persistence-backed ideation surface
 - [ ] The command can start from any folder without requiring project initialization or durable session setup
 - [ ] Existing project files and prior GPD state remain opt-in context instead of auto-loaded session state
 - [ ] The session stays non-durable: no `RESEARCH.md`, no `GPD/ideation/`, no durable ideation artifact directory, no resumable ideation state, and no transcript storage or replay are required

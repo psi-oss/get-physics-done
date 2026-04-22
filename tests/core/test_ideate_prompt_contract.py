@@ -1,4 +1,4 @@
-"""Current public-contract guardrails for the post-Phase-10 ideate surfaces."""
+"""Current public-contract guardrails for the post-Phase-10 public ideate surfaces."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
-IDEATE_COMMAND_PATH = COMMANDS_DIR / "ideate.md"
+PUBLIC_COMMAND_NAME = "gpd:agentic-discussion"
+PUBLIC_COMMAND_PATH = COMMANDS_DIR / "agentic-discussion.md"
 IDEATE_WORKFLOW_PATH = WORKFLOWS_DIR / "ideate.md"
 HELP_WORKFLOW_PATH = WORKFLOWS_DIR / "help.md"
 
@@ -36,22 +37,22 @@ def _help_command_entry(content: str, command_name: str) -> str:
 
 
 def _assert_ideate_surfaces_exist() -> None:
-    assert IDEATE_COMMAND_PATH.exists()
+    assert PUBLIC_COMMAND_PATH.exists()
     assert IDEATE_WORKFLOW_PATH.exists()
     assert HELP_WORKFLOW_PATH.exists()
 
 
 def test_ideate_surfaces_land_together() -> None:
-    assert IDEATE_COMMAND_PATH.exists() == IDEATE_WORKFLOW_PATH.exists()
+    assert PUBLIC_COMMAND_PATH.exists() == IDEATE_WORKFLOW_PATH.exists()
     assert HELP_WORKFLOW_PATH.exists()
 
 
 def test_ideate_command_exposes_a_projectless_public_entrypoint() -> None:
     _assert_ideate_surfaces_exist()
 
-    command = _read(IDEATE_COMMAND_PATH)
+    command = _read(PUBLIC_COMMAND_PATH)
 
-    assert "name: gpd:ideate" in command
+    assert f"name: {PUBLIC_COMMAND_NAME}" in command
     assert 'argument-hint: "[topic, question, or domain] [--preset fast|balanced|deep]"' in command
     assert "context_mode: projectless" in command
     assert "@{GPD_INSTALL_DIR}/workflows/ideate.md" in command
@@ -71,7 +72,7 @@ def test_ideate_command_exposes_a_projectless_public_entrypoint() -> None:
 def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> None:
     _assert_ideate_surfaces_exist()
 
-    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), PUBLIC_COMMAND_NAME)
 
     assert _contains_all_lower(help_entry, "projectless", "non-durable", "multi-agent")
     assert _contains_any_lower(
@@ -103,16 +104,16 @@ def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> 
     )
     assert _contains_any_lower(
         help_entry,
-        "usage: `gpd:ideate`",
-        "usage: `gpd:ideate [topic, question, or domain] [--preset fast|balanced|deep]`",
+        "usage: `gpd:agentic-discussion`",
+        "usage: `gpd:agentic-discussion [topic, question, or domain] [--preset fast|balanced|deep]`",
     )
 
 
 def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
     _assert_ideate_surfaces_exist()
 
-    command = _read(IDEATE_COMMAND_PATH)
-    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
+    command = _read(PUBLIC_COMMAND_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), PUBLIC_COMMAND_NAME)
 
     assert _contains_any_lower(
         command,
@@ -140,8 +141,8 @@ def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
 def test_ideate_contract_makes_persistence_non_goals_explicit_and_routes_outward() -> None:
     _assert_ideate_surfaces_exist()
 
-    command = _read(IDEATE_COMMAND_PATH)
-    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), "gpd:ideate")
+    command = _read(PUBLIC_COMMAND_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), PUBLIC_COMMAND_NAME)
 
     assert _contains_any_lower(
         command,

@@ -57,23 +57,27 @@ def test_help_inventory_uses_runtime_neutral_framing_in_shared_source() -> None:
     assert all("slash-command" not in content for content in help_sources)
 
 
-def test_help_workflow_keeps_ideate_in_no_project_getting_started_inventory() -> None:
+def test_help_workflow_keeps_agentic_discussion_in_no_project_getting_started_inventory() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
     no_project_help = _section(help_workflow, "**No project exists:**", "**Project exists, paused or resumable:**")
 
     assert (
-        "gpd:ideate             — Optional pre-project, projectless, non-durable conversational multi-agent "
+        "gpd:agentic-discussion — Optional pre-project, projectless, non-durable conversational multi-agent "
         "research session for exploring and pressure-testing a direction before opening a durable project"
     ) in no_project_help
-    assert no_project_help.index("gpd:tour") < no_project_help.index("gpd:ideate") < no_project_help.index("gpd:new-project")
+    assert (
+        no_project_help.index("gpd:tour")
+        < no_project_help.index("gpd:agentic-discussion")
+        < no_project_help.index("gpd:new-project")
+    )
 
 
-def test_readme_quick_start_table_keeps_ideate_in_pre_project_decision_surface() -> None:
+def test_readme_quick_start_table_keeps_agentic_discussion_in_pre_project_decision_surface() -> None:
     readme = _read("README.md")
 
-    assert "| Want to pressure-test a research direction before opening a project | `ideate` |" in readme
+    assert "| Want to pressure-test a research direction before opening a project | `agentic-discussion` |" in readme
     assert readme.index("| Want a guided command walkthrough | `tour` |") < readme.index(
-        "| Want to pressure-test a research direction before opening a project | `ideate` |"
+        "| Want to pressure-test a research direction before opening a project | `agentic-discussion` |"
     ) < readme.index("| New research project | `new-project --minimal` |")
 
 

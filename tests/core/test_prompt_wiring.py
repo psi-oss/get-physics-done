@@ -52,6 +52,7 @@ REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 FIXTURES_STAGE0 = REPO_ROOT / "tests" / "fixtures" / "stage0"
 FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
 WORKFLOW_EXEMPT_COMMANDS = frozenset({"health", "suggest-next"})
+COMMAND_WORKFLOW_STEM_OVERRIDES = {"agentic-discussion": "ideate"}
 PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
@@ -489,9 +490,11 @@ def test_commands_reference_same_stem_workflows() -> None:
     workflow_stems = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
 
     for command_path in sorted(COMMANDS_DIR.glob("*.md")):
-        if command_path.stem not in workflow_stems:
+        if command_path.stem in WORKFLOW_EXEMPT_COMMANDS:
             continue
-        expected = f"@{{GPD_INSTALL_DIR}}/workflows/{command_path.stem}.md"
+        workflow_stem = COMMAND_WORKFLOW_STEM_OVERRIDES.get(command_path.stem, command_path.stem)
+        assert workflow_stem in workflow_stems, command_path
+        expected = f"@{{GPD_INSTALL_DIR}}/workflows/{workflow_stem}.md"
         assert expected in command_path.read_text(encoding="utf-8"), command_path
 
 
@@ -499,7 +502,8 @@ def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
     workflow_stems = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
     command_stems = {path.stem for path in COMMANDS_DIR.glob("*.md")}
 
-    assert command_stems - workflow_stems == WORKFLOW_EXEMPT_COMMANDS
+    assert command_stems - workflow_stems == WORKFLOW_EXEMPT_COMMANDS | set(COMMAND_WORKFLOW_STEM_OVERRIDES)
+    assert set(COMMAND_WORKFLOW_STEM_OVERRIDES.values()) <= workflow_stems
 
     for command_stem in sorted(WORKFLOW_EXEMPT_COMMANDS):
         command_text = (COMMANDS_DIR / f"{command_stem}.md").read_text(encoding="utf-8")

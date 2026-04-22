@@ -229,14 +229,14 @@ def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> N
     assert "## Detailed Command Reference" in help_workflow
     assert "gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat" in help_workflow
     assert "gpd init new-project" not in help_workflow
-    ideate_summary = (
-        "`gpd:ideate` - Optional pre-project, projectless, non-durable conversational multi-agent research "
+    agentic_discussion_summary = (
+        "`gpd:agentic-discussion` - Optional pre-project, projectless, non-durable conversational multi-agent research "
         "session for exploring and pressure-testing a direction before opening a durable project"
     )
-    assert ideate_summary in quick_start_reference
-    assert ideate_summary in command_index
-    assert new_work.index("`gpd:tour`") < new_work.index("`gpd:ideate`") < new_work.index("`gpd:new-project`")
-    assert starter_commands.index("`gpd:tour`") < starter_commands.index("`gpd:ideate`") < starter_commands.index("`gpd:new-project`")
+    assert agentic_discussion_summary in quick_start_reference
+    assert agentic_discussion_summary in command_index
+    assert new_work.index("`gpd:tour`") < new_work.index("`gpd:agentic-discussion`") < new_work.index("`gpd:new-project`")
+    assert starter_commands.index("`gpd:tour`") < starter_commands.index("`gpd:agentic-discussion`") < starter_commands.index("`gpd:new-project`")
     for token in ("gpd:discuss-phase", "gpd:write-paper", "gpd:tangent", "gpd:set-tier-models", "gpd:settings"):
         assert token in command_index
 

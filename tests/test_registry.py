@@ -1540,7 +1540,10 @@ class TestDiscovery:
         command_stems = {path.stem for path in registry.COMMANDS_DIR.glob("*.md")}
         workflow_stems = {path.stem for path in (CANONICAL_SPECS_DIR / "workflows").glob("*.md")}
 
-        assert command_stems - workflow_stems == set(registry.LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS)
+        assert command_stems - workflow_stems == {
+            *registry.LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS,
+            "agentic-discussion",
+        }
         assert registry.LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS == frozenset({"health", "suggest-next"})
 
         health_text = (registry.COMMANDS_DIR / "health.md").read_text(encoding="utf-8")

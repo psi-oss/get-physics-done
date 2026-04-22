@@ -8,7 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
-IDEATE_COMMAND = COMMANDS_DIR / "ideate.md"
+PUBLIC_COMMAND_NAME = "gpd:agentic-discussion"
+IDEATE_COMMAND = COMMANDS_DIR / "agentic-discussion.md"
 IDEATION_WORKER = AGENTS_DIR / "gpd-ideation-worker.md"
 IDEATE_WORKFLOW = WORKFLOWS_DIR / "ideate.md"
 
@@ -81,7 +82,7 @@ def _bullet_list_after_marker(content: str, marker: str) -> list[str]:
 def test_ideate_command_stays_thin_projectless_and_workflow_owned() -> None:
     command = _read(IDEATE_COMMAND)
 
-    assert "name: gpd:ideate" in command
+    assert f"name: {PUBLIC_COMMAND_NAME}" in command
     assert "context_mode: projectless" in command
     assert "@{GPD_INSTALL_DIR}/workflows/ideate.md" in command
     assert "Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-end." in command
@@ -1004,7 +1005,7 @@ def test_ideate_closeout_keeps_a_clean_non_durable_optional_next_step_exit() -> 
         "gpd:new-project",
         "gpd:research-phase",
         "gpd:help --all",
-        "gpd:ideate [topic or question]",
+        "gpd:agentic-discussion [topic or question]",
     )
 
     for forbidden in (
