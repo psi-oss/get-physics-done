@@ -196,7 +196,7 @@ Include only the execution preferences that the user explicitly set or that must
 
 Before any fallback gate, add one short side-effect note:
 
-`Approving this framing starts the bounded multi-agent discussion turns, but it does not create durable session files.`
+`Approving this framing starts the first bounded multi-agent discussion turn under the same parent-owned handoff contract, but it does not create durable session files.`
 </step>
 
 <step name="approval_gate">
@@ -210,7 +210,7 @@ If `ask_user` is available for the fallback gate:
 
 ```text
 header: "Ideate Launch"
-question: "This looks workable but still has a few launch choices or gaps. What do you want to do before the first turn?"
+question: "This looks workable but still has a few launch choices or gaps. What do you want to do before the first parent-owned turn handoff begins?"
 options:
 - "Start"
 - "Adjust"
@@ -228,7 +228,7 @@ On `Adjust`:
 
 - reopen only the section the user wants to revise
 - preserve all unchanged sections by default
-- rebuild the summary and return to the approval gate
+- rebuild the summary and return to the same approval gate without spawning workers yet
 
 On `Stop here`:
 
@@ -240,7 +240,8 @@ On `Start`:
 
 - confirm that the current framing is approved for launch
 - restate the final approved summary compactly
-- Continue directly into the bounded round loop. Do not stop at a launch-summary-only state.
+- continue directly into the bounded round loop and spawn fresh one-shot workers for the first turn
+- do not stop at a launch-summary-only state, and do not leave a worker waiting for user input in place
 </step>
 
 <step name="run_round_loop">
@@ -297,7 +298,7 @@ When using task delegation, keep it lightweight and parent-owned. Reuse the repo
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-> If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> If subagent spawning is unavailable, degrade explicitly to a clearly labeled single-context pass in the main context. In that fallback, keep the pass useful with shell/file-grounded checks, but do not present fresh web or literature/source checks as completed unless the main context actually has the worker-equivalent web tools needed to perform them.
 
 ```text
 task(
@@ -329,6 +330,14 @@ If human input is required, return `gpd_return.status: checkpoint` and stop. Do 
   description="Research turn {round_number}: participant stance"
 )
 ```
+
+If the quoted delegation note forces a main-context fallback, label that turn plainly as a `single-context fallback` so the user can distinguish it from the normal worker-backed path. In that fallback:
+
+- keep the turn bounded and useful with local shell checks, repo/file inspection, and other tools actually present in the parent context
+- treat fresh literature, source-validation, and opposing-evidence checks as provisional or deferred unless the parent context can really perform them with available web tools
+- do not claim a fresh web search, source fetch, literature scan, or citation-bearing check was completed when the main context lacks the worker's `web_search` / `web_fetch` surface
+- preserve honesty in visible agent-style output by naming the degraded mode and carrying forward any resulting confidence downgrade or unresolved verification gap
+- prefer explicit wording such as `single-context fallback: shell/file-grounded pass only` when that is the real capability boundary for the turn
 
 Do not add spawn-contract blocks in this phase. Do not rely on file-writing freshness checks in this phase. Child work is fileless and return-only here.
 Do not create files or claim durable session ownership in this phase.
@@ -436,6 +445,8 @@ Human-readable labels in worker text are presentation only. Do not route on them
 - [ ] One bounded optional reaction layer is available inside a turn without opening unbounded back-and-forth
 - [ ] Workers may respond directly to prior agent output when that materially advances, clarifies, or pressure-tests the discussion
 - [ ] Worker-facing turn contracts make `web_search`, `web_fetch`, and `shell` normal inline options when they materially improve the turn, while keeping tool use fileless and bounded
+- [ ] If subagent spawning is unavailable, the workflow degrades to a clearly labeled single-context fallback instead of silently implying the normal worker-backed research surface
+- [ ] In a single-context fallback that lacks worker web tools, fresh web or literature/source checks are marked provisional or deferred rather than presented as completed
 - [ ] Failed lookups, paywalls, missing tools, and untrustworthy calculations are surfaced honestly with downgraded confidence or typed blocker status rather than being implied away
 - [ ] There is no automatic recap after a clean turn, and visible synthesis is on-demand or exception-driven when routing pressure makes it necessary
 - [ ] User thought injection happens at turn boundaries through the parent handoff

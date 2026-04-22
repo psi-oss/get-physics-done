@@ -265,7 +265,11 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
     adaptive_clarification = _step_body(workflow, "adaptive_clarification")
     draft_launch_summary = _step_body(workflow, "draft_launch_summary")
     approval_gate = _step_body(workflow, "approval_gate")
+    round_loop = _step_body(workflow, "run_round_loop")
     launch_path = "\n".join((adaptive_clarification, draft_launch_summary, approval_gate))
+    pre_round_surface = "\n".join((draft_launch_summary, approval_gate)).lower()
+    round_review_gate = _step_body(workflow, "round_review_gate")
+    delegated_round_surface = f"{round_loop}\n{_tag_body(round_loop, 'contract')}\n{round_review_gate}".lower()
 
     assert _contains_any_lower(
         launch_path,
@@ -334,6 +338,30 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
         "no files were created and the research brief was not finalized",
         "no files were created",
     )
+    assert _contains_any_lower(
+        approval_gate,
+        "raw launch details in a more literal form",
+        "seed text",
+        "preserved phrases",
+        "imported anchors",
+        "worker count assumptions",
+        "unresolved gaps",
+    )
+
+    for delegated_only in (
+        "research_contributions",
+        "gpd_return.status",
+        "source_refs",
+        "computation_note",
+        "web_search",
+        "web_fetch",
+        "`shell`",
+        "agent messages should already be on screen",
+        "raw details on demand",
+        "failed or partial lookups and calculations",
+    ):
+        assert delegated_only not in pre_round_surface
+        assert delegated_only in delegated_round_surface
 
 
 def test_ideate_intake_stays_research_native_and_keeps_early_config_secondary() -> None:
