@@ -313,8 +313,9 @@ Usage: `gpd:tour`
 Run an optional pre-project, projectless, non-durable transcript-first multi-agent research discussion with the default two-role cast `Literature-Aware Skeptic` and `Technical Calculator` for exploring and pressure-testing a research direction before you open a durable GPD project.
 
 - Works from any folder; you do not need an initialized GPD project first
-- Best for a concrete question, rough idea, or research brief that still needs conversational pre-project refinement
-- The visible default is an agent-first discussion transcript rather than a moderator-led menu loop
+- Startup stays light: bring a concrete question, rough idea, or short research brief, optionally name exact files or GPD artifacts to include, keep any first-pass setup short, and move quickly into the discussion itself
+- If you pass `--preset fast|balanced|deep` or state a first-pass preference, that shapes the initial discussion; otherwise the defaults stay mostly backstage
+- The visible default is an agent-first discussion transcript rather than durable setup or a moderator-led launch menu
 - The visible default cast is `Literature-Aware Skeptic` and `Technical Calculator`; after first appearance, recurring turns may use the shorter `Skeptic` and `Calculator` labels
 - Uses that two-role discussion to surface promising directions, pressure-test assumptions, identify concerns or next checks, and let both roles ask natural follow-up questions inside the turn
 - If you jump in with a new question or redirect, the discussion follows that immediately; otherwise clean turns continue with a short natural handoff, and synthesis or recap is secondary until you ask for it or a blocker, checkpoint, or divergence makes it useful

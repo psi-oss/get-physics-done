@@ -60,6 +60,7 @@ def test_help_inventory_uses_runtime_neutral_framing_in_shared_source() -> None:
 def test_help_workflow_keeps_agentic_discussion_in_no_project_getting_started_inventory() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
     no_project_help = _section(help_workflow, "**No project exists:**", "**Project exists, paused or resumable:**")
+    detailed_entry = _section(help_workflow, "**`gpd:agentic-discussion`**", "**`gpd:new-project`**")
 
     assert (
         "gpd:agentic-discussion — Optional pre-project, projectless, non-durable conversational multi-agent "
@@ -70,6 +71,19 @@ def test_help_workflow_keeps_agentic_discussion_in_no_project_getting_started_in
         < no_project_help.index("gpd:agentic-discussion")
         < no_project_help.index("gpd:new-project")
     )
+    assert (
+        "- Startup stays light: bring a concrete question, rough idea, or short research brief, optionally name "
+        "exact files or GPD artifacts to include, keep any first-pass setup short, and move quickly into the "
+        "discussion itself"
+    ) in detailed_entry
+    assert (
+        "- If you pass `--preset fast|balanced|deep` or state a first-pass preference, that shapes the initial "
+        "discussion; otherwise the defaults stay mostly backstage"
+    ) in detailed_entry
+    assert (
+        "- The visible default is an agent-first discussion transcript rather than durable setup or a moderator-led "
+        "launch menu"
+    ) in detailed_entry
 
 
 def test_readme_quick_start_table_keeps_agentic_discussion_in_pre_project_decision_surface() -> None:

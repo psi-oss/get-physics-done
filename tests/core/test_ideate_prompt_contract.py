@@ -120,6 +120,64 @@ def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> 
     )
 
 
+def test_ideate_public_contract_keeps_startup_light_and_defaults_backstage() -> None:
+    _assert_ideate_surfaces_exist()
+
+    command = _read(PUBLIC_COMMAND_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), PUBLIC_COMMAND_NAME)
+
+    assert _contains_any_lower(
+        command,
+        "keep startup light",
+        "startup shape should read as",
+    )
+    assert _contains_any_lower(
+        command,
+        "question, rough brief, or domain as the seed",
+        "seed question or brief",
+    )
+    assert _contains_any_lower(
+        command,
+        "exact named files or artifacts",
+        "optional exact named context",
+    )
+    assert _contains_any_lower(
+        command,
+        "first-pass setup concise and mostly backstage",
+        "short first-pass setup when needed",
+    )
+    assert _contains_any_lower(
+        command,
+        "move quickly into the discussion itself",
+        "immediate discussion",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "startup stays light",
+        "move quickly into the discussion itself",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "exact files or gpd artifacts to include",
+        "exact named context",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "--preset fast|balanced|deep",
+        "first-pass preference",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "defaults stay mostly backstage",
+        "shapes the initial discussion",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "rather than durable setup or a moderator-led launch menu",
+        "durable setup",
+    )
+
+
 def test_ideate_public_contract_keeps_the_visible_flow_transcript_first_and_open() -> None:
     _assert_ideate_surfaces_exist()
 
