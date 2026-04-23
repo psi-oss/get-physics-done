@@ -110,7 +110,6 @@ __all__ = [
     "RecordSessionResult",
     "ResearchState",
     "ResolveBlockerResult",
-    "SessionInfo",
     "StateCompactResult",
     "StateGetResult",
     "StateLoadResult",
@@ -448,19 +447,6 @@ class PerformanceMetrics(BaseModel):
     rows: list[MetricRow] = Field(default_factory=list)
 
 
-class SessionInfo(BaseModel):
-    """Session continuity tracking."""
-
-    model_config = ConfigDict(frozen=True)
-
-    last_date: str | None = None
-    hostname: str | None = None
-    platform: str | None = None
-    stopped_at: str | None = None
-    resume_file: str | None = None
-    last_result_id: str | None = None
-
-
 class ResearchState(BaseModel):
     """Full research state — the schema for state.json.
 
@@ -746,7 +732,15 @@ def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str)
 
 
 def _blank_session_payload() -> dict[str, str | None]:
-    return SessionInfo().model_dump()
+    """Return the blank Session Continuity display payload consumed by STATE.md."""
+    return {
+        "last_date": None,
+        "hostname": None,
+        "platform": None,
+        "stopped_at": None,
+        "resume_file": None,
+        "last_result_id": None,
+    }
 
 
 def _project_contract_source_path(cwd: Path, source_path: Path) -> str:
@@ -1165,10 +1159,6 @@ def _load_or_rebuild_state_markdown_locked(cwd: Path) -> str | None:
         return md_path.read_text(encoding="utf-8")
     except (FileNotFoundError, OSError, UnicodeDecodeError):
         return None
-
-
-def _session_payload_has_values(payload: object) -> bool:
-    return isinstance(payload, dict) and any(payload.get(field) is not None for field in _blank_session_payload())
 
 
 def _continuation_payload_has_values(payload: object) -> bool:

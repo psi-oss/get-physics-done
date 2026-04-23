@@ -2209,7 +2209,7 @@ def test_resume_plain_output_surfaces_machine_change_as_advisory_status(tmp_path
 def test_resume_plain_output_keeps_machine_change_notice_when_session_handoff_is_primary(
     tmp_path: Path, monkeypatch
 ) -> None:
-    # Compatibility-only guard: exercise the compatibility session mirror alongside the public surface.
+    # Exercise the canonical continuation handoff path through the public resume surface.
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "gpd.core.context.init_resume",
