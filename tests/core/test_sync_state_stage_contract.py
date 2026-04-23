@@ -1,4 +1,4 @@
-"""Regression tests for the staged `sync-state` contract."""
+"""Assertions for the staged `sync-state` contract."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused regressions for dependency-aware canonical result reuse guidance."""
+"""Focused assertions for dependency-aware canonical result reuse guidance."""
 
 from __future__ import annotations
 

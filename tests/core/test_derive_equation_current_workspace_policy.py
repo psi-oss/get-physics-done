@@ -1,4 +1,4 @@
-"""Typed policy and current-workspace honesty regressions for derive-equation."""
+"""Typed policy and current-workspace honesty assertions for derive-equation."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused debugger vertical contract regressions."""
+"""Focused debugger vertical contract assertions."""
 
 from __future__ import annotations
 

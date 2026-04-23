@@ -1,4 +1,4 @@
-"""Focused consistency-checker vertical contract regressions."""
+"""Focused consistency-checker vertical contract assertions."""
 
 from __future__ import annotations
 

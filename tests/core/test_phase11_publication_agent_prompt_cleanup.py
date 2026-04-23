@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 11 publication-agent prompt cleanup."""
+"""Focused assertions for the Phase 11 publication-agent prompt cleanup."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Fast contract-validation stability regressions."""
+"""Fast contract-validation stability assertions."""
 
 from __future__ import annotations
 

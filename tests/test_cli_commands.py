@@ -8322,7 +8322,7 @@ def test_init_execute_phase_help_surfaces_stage_option() -> None:
 
 
 class TestNoDuplicateTestMethods:
-    """Regression: duplicate method names hide tests in Python."""
+    """Assert no duplicate test method names (duplicates silently hide tests in Python)."""
 
     def test_no_duplicate_test_method_in_review_validation(self) -> None:
         import ast

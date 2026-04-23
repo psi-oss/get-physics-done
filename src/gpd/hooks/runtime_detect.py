@@ -619,7 +619,7 @@ def should_consider_update_cache_candidate(
     if normalized_active_runtime in (None, "", RUNTIME_UNKNOWN):
         return True
 
-    # A caller may supply an active runtime hint that no longer matches the
+    # A caller may supply an active runtime hint that does not match the
     # actual filesystem. Only use that hint to suppress other runtime caches
     # when the hinted runtime still has a concrete install.
     if not _runtime_dir_has_gpd_install(normalized_active_runtime, cwd=cwd, home=home):

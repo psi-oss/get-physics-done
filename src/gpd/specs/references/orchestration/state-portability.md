@@ -15,7 +15,7 @@ How GPD project state travels between machines, survives session interruptions, 
 | Execution lineage | Append-only execution provenance | Authoritative for history only |
 | Derived execution head / `GPD/observability/current-execution.json` | Compatibility mirror showing the latest execution snapshot | Advisory unless canonical `continuation.bounded_segment` is absent |
 
-The shared resolver is `gpd --raw resume`. Canonical state in `state.json.continuation` wins first; bounded segments and recorded handoff fields define resume targets; derived execution heads, `.continue-here.md`, and legacy `session` data are compatibility projections used only to fill missing canonical state during migration or recovery.
+The shared resolver is `gpd --raw resume`. Canonical state in `state.json.continuation` wins first; bounded segments and recorded handoff fields define resume targets; derived execution heads, `.continue-here.md`, and nested `session` data are compatibility projections that only fill in when canonical state is missing or incomplete.
 
 ## What Is Portable
 

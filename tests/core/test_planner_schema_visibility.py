@@ -1,4 +1,4 @@
-"""Regression tests for explicit planner schema visibility."""
+"""Assertions for explicit planner schema visibility."""
 
 from __future__ import annotations
 

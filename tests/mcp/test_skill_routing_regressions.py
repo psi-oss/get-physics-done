@@ -1,4 +1,4 @@
-"""Focused regressions for skill-routing quality."""
+"""Focused assertions for skill-routing quality."""
 
 from __future__ import annotations
 

@@ -200,7 +200,7 @@ If the checker completed and the artifact gate passed, return the updated report
 - [ ] Checker prompt stays thin and delegates policy to `gpd-consistency-checker`
 - [ ] Expected `CONSISTENCY-CHECK.md` artifact is verified before success is accepted
 - [ ] Routing uses canonical `gpd_return.status`
-- [ ] Legacy checker-text routing is not used
+- [ ] Routing relies only on the canonical `gpd_return.status` (not checker prose)
 - [ ] Notation repair remains delegated to `gpd-notation-coordinator` when requested by the checker
 - [ ] Report presented with the selected scope and artifact gate result
 

@@ -1,4 +1,4 @@
-"""Focused regressions for Phase 20 verify-work child-return seams."""
+"""Focused assertions for Phase 20 verify-work child-return seams."""
 
 from __future__ import annotations
 

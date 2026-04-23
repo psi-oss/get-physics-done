@@ -1,4 +1,4 @@
-"""Phase 36 regressions for the new-project scout seam."""
+"""Phase 36 assertions for the new-project scout seam."""
 
 from __future__ import annotations
 

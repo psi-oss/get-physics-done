@@ -1,4 +1,4 @@
-"""Regression tests for complete-milestone prompt wiring."""
+"""Assertions for complete-milestone prompt wiring."""
 
 from __future__ import annotations
 

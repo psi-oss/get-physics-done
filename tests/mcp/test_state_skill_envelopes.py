@@ -1,4 +1,4 @@
-"""Regression tests for strict state/skills MCP response envelopes."""
+"""Assertions for strict state/skills MCP response envelopes."""
 
 from __future__ import annotations
 

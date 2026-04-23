@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 9 handoff contract unification."""
+"""Focused assertions for the Phase 9 handoff contract unification."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused regressions for derive-equation result persistence wiring."""
+"""Focused assertions for derive-equation result persistence wiring."""
 
 from __future__ import annotations
 

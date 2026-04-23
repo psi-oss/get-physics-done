@@ -1,4 +1,4 @@
-"""Regression checks for arxiv submission prompt/workflow alignment."""
+"""Assertions for arxiv submission prompt/workflow alignment."""
 
 from __future__ import annotations
 

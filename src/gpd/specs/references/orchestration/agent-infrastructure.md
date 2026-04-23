@@ -171,7 +171,7 @@ gpd pre-commit-check --files GPD/phases/03-foo/03-01-PLAN.md
 
 Some workflows also run an explicit `PRE_CHECK=$(gpd pre-commit-check ... 2>&1) || true` before calling `gpd commit`. Treat that explicit shell step as early visibility only: `gpd commit` re-runs the same validation on the requested commit paths and remains the blocking gate.
 
-`gpd pre-commit-check` now hard-blocks missing or mismatched `ASSERT_CONVENTION` headers on convention-gated artifacts (derivation files and canonical phase verification reports) when an active convention lock exists. Outside that gated set, any explicit `ASSERT_CONVENTION` line in checked Markdown / LaTeX / Python artifacts is still validated against the lock and will fail the check if it is wrong.
+`gpd pre-commit-check` hard-blocks missing or mismatched `ASSERT_CONVENTION` headers on convention-gated artifacts (derivation files and canonical phase verification reports) when an active convention lock exists. Outside that gated set, any explicit `ASSERT_CONVENTION` line in checked Markdown / LaTeX / Python artifacts is validated against the lock and fails the check if it is wrong.
 
 For stricter semantic checks, use the dedicated commands alongside `pre-commit-check`: `gpd verify plan`, `gpd verify summary`, `gpd verify artifacts`, `gpd convention check`, and `assert_convention_validate` through the conventions MCP surface when you need direct file-content assertion diagnostics.
 
@@ -578,7 +578,7 @@ Verification fails
   → If still persists after debugger: circuit breaker (STOP)
 ```
 
-This replaces the blunt "max 2 cycles" with targeted recovery that uses the minimum resources needed.
+This is targeted recovery that uses the minimum resources needed, rather than a blunt "max 2 cycles" limit.
 
 ### Context Budget Allocation by Phase Type
 

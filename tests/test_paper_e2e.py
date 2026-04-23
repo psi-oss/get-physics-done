@@ -727,7 +727,7 @@ class TestClassFileFallback:
 
     @pytest.mark.asyncio
     async def test_build_paper_warns_on_zero_citations(self, tmp_path, monkeypatch):
-        """BUG-076: build_paper warns when bib has entries but tex has no citations."""
+        """Assert build_paper warns when bib has entries but tex has no citations."""
         from gpd.mcp.paper.compiler import build_paper
 
         config = PaperConfig(

@@ -1619,7 +1619,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 	Focus on the gaps that were previously marked failed, partial, blocked, or otherwise unresolved in the previous verification. If the prior report carries `session_status: diagnosed`, use the recorded root causes and missing actions as the starting point for re-verification. For proof-bearing work, re-check every required `*-PROOF-REDTEAM.md` artifact and keep the phase blocked until those audits report `status: passed`.
 	Check whether the gap closure plans have resolved each issue.
 	Update VERIFICATION.md with new status for each gap.
-	Return exactly one typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, include `files_written`, and write `{phase_dir}/{phase}-VERIFICATION.md` before returning. Use the verifier's canonical `verification_status: passed | gaps_found | expert_needed | human_needed` inside the structured return or the written report; do not return legacy `passed | gaps_found` text as the routing surface.",
+	Return exactly one typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, include `files_written`, and write `{phase_dir}/{phase}-VERIFICATION.md` before returning. Use the verifier's canonical `verification_status: passed | gaps_found | expert_needed | human_needed` inside the structured return or the written report; do not return bare `passed | gaps_found` text as the routing surface.",
   description="Re-verify Phase {PHASE_NUMBER} after gap closure"
 )
 ```
@@ -1638,7 +1638,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 - `gpd_return.status: checkpoint`: stop, surface the checkpoint payload, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:verify-work {PHASE_NUMBER}` and `gpd:suggest-next`. Do not wait in place for user input inside this run.
 - `gpd_return.status: blocked` / `gpd_return.status: failed`: stop in a blocked state, surface the issues, keep gap-closure state intact, and end with `## > Next Up`: primary `gpd:verify-work {PHASE_NUMBER}`, plus `gpd:resume-work` and `gpd:suggest-next`.
 
-**If the verifier output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped legacy routing.
+**If the verifier output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped routing.
 
 </step>
 
@@ -1695,7 +1695,7 @@ fi
 - `gpd_return.status: checkpoint`: stop, surface the checkpoint payload from the checker, and end with `## > Next Up`: primary `gpd:resume-work`, plus `gpd:validate-conventions` and `gpd:suggest-next`. Do not wait in place for user input inside this run.
 - `gpd_return.status: blocked` / `gpd_return.status: failed`: stop execution, surface the returned issues, and end with `## > Next Up`: primary `gpd:validate-conventions`, plus `gpd:resume-work` and `gpd:suggest-next`. If the user wants convention repair, spawn `gpd-notation-coordinator` from a fresh continuation after the stop.
 
-**If the checker output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped legacy routing.
+**If the checker output is malformed or omits `gpd_return.status`:** Treat it as blocked. Do not infer success from prose headings or untyped routing.
 
 If the user chooses convention repair in a fresh continuation, spawn `gpd-notation-coordinator` to fix the conflicts:
 

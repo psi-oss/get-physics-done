@@ -1,4 +1,4 @@
-"""Regression coverage for schema-versioned MCP catalog envelopes."""
+"""Assertions for schema-versioned MCP catalog envelopes."""
 
 from __future__ import annotations
 

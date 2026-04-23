@@ -1,4 +1,4 @@
-"""Prompt/schema visibility regression for approved-mode project-contract grounding."""
+"""Prompt/schema visibility assertions for approved-mode project-contract grounding."""
 
 from __future__ import annotations
 

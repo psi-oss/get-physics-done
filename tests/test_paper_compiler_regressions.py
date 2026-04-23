@@ -1,4 +1,4 @@
-"""Regression tests for paper compilation error handling."""
+"""Assertions for paper compilation error handling."""
 
 from __future__ import annotations
 
@@ -366,7 +366,7 @@ async def test_manual_multipass_autofix_requires_fresh_pdf_after_fix(
     assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
 
 
-# ---- Regression tests for import and dead-code fixes ----
+# ---- Assertions for compiler imports and dead-code invariants ----
 
 
 def test_figureref_is_importable_from_compiler_module() -> None:

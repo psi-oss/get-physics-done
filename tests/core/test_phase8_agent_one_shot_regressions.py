@@ -1,4 +1,4 @@
-"""Phase 8 regressions for one-shot delegation cleanup."""
+"""Phase 8 assertions for one-shot delegation cleanup."""
 
 from __future__ import annotations
 

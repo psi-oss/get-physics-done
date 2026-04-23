@@ -1,4 +1,4 @@
-"""Prompt budget regression tests for the `gpd-plan-checker` surface."""
+"""Prompt budget assertions for the `gpd-plan-checker` surface."""
 
 from __future__ import annotations
 

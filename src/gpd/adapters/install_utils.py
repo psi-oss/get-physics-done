@@ -1180,8 +1180,8 @@ def compile_markdown_for_runtime(
 ) -> str:
     """Compile canonical markdown into a runtime-specific installed form.
 
-    This helper centralizes the shared install pipeline steps that were
-    previously duplicated across adapters:
+    This helper centralizes the shared install pipeline steps used by
+    every adapter:
 
     - runtime/path placeholder replacement
     - capability-driven ``@`` include expansion

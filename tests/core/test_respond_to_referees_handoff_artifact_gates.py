@@ -1,4 +1,4 @@
-"""Regression tests for respond-to-referees handoff and artifact-gate semantics."""
+"""Assertions for respond-to-referees handoff and artifact-gate semantics."""
 
 from __future__ import annotations
 

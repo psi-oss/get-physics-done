@@ -1,4 +1,4 @@
-"""Prompt budget regressions for the `gpd-consistency-checker` surface."""
+"""Prompt budget assertions for the `gpd-consistency-checker` surface."""
 
 from __future__ import annotations
 

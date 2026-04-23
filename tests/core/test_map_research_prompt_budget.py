@@ -1,4 +1,4 @@
-"""Prompt budget regressions for the `map-research` startup surface."""
+"""Prompt budget assertions for the `map-research` startup surface."""
 
 from __future__ import annotations
 

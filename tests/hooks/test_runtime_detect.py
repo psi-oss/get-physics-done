@@ -1436,7 +1436,7 @@ class TestHasGpdInstall:
         assert _has_gpd_install(tmp_path) is True
 
     def test_returns_false_for_partial_install_markers(self, tmp_path: Path) -> None:
-        """Partial markers no longer count as an installed runtime surface."""
+        """Partial markers do not count as an installed runtime surface."""
         tmp_path.mkdir(exist_ok=True)
         (tmp_path / "get-physics-done").mkdir()
         assert _has_gpd_install(tmp_path) is False

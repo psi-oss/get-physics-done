@@ -55,7 +55,7 @@ def _canonical_manifest_runtime_name(value: str) -> str | None:
 
 
 def _unsupported_manifest_runtime_name(value: str) -> str | None:
-    """Return a well-formed retired runtime id, or ``None`` for malformed drift."""
+    """Return a well-formed unsupported runtime id, or ``None`` for malformed drift."""
 
     normalized = value.strip()
     if not normalized or _MANIFEST_RUNTIME_ID_RE.fullmatch(normalized) is None:
@@ -256,7 +256,7 @@ def assess_install_target(
     - ``clean``: target path exists but contains no managed GPD surface
     - ``owned_complete``: valid manifest for the owning runtime and complete install
     - ``owned_incomplete``: valid manifest for the owning runtime but missing install artifacts
-    - ``unsupported_runtime``: valid manifest for a runtime no longer supported by this GPD version
+    - ``unsupported_runtime``: valid manifest for a runtime that this GPD version does not support
     - ``foreign_runtime``: valid manifest, but ownership belongs to another runtime
     - ``untrusted_manifest``: manifest missing/corrupt/malformed on a managed surface
     """
@@ -362,7 +362,7 @@ def installed_update_command(config_dir: Path) -> str | None:
         config_dir
     )
     if explicit_target_state != "ok" or explicit_target is None:
-        # Fail closed for legacy manifests that do not prove whether the
+        # Fail closed for manifests that do not prove whether the
         # install was explicitly targeted. Update-command synthesis is only
         # trusted when the manifest carries the authoritative flag.
         return None

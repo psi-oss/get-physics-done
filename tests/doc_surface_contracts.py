@@ -1383,6 +1383,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
         (
             "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths.",
             "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths",
+            "Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths",
             "project-backed outputs on their current GPD paths",
         ),
         label="project-backed publication outputs stay put",
@@ -1394,6 +1395,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` still operate on the resolved manuscript root",
             "`gpd:respond-to-referees` and `gpd:arxiv-submission` stay tied to the resolved manuscript root",
             "embedded external staged-review parity remains deferred",
+            "embedded external staged-review parity is out of scope",
             "The later publication commands stay stricter:",
         ),
         label="resolved manuscript-root publication boundary",
@@ -1402,6 +1404,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
         content,
         (
             "`gpd:arxiv-submission` only packages a GPD-owned manuscript root",
+            "`gpd:arxiv-submission` packages only a GPD-owned manuscript root",
             "resolved GPD-owned manuscript root",
             "optional GPD-owned manuscript-root target",
         ),
@@ -1415,6 +1418,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
             "This is not a full publication-root migration.",
             "This is not a full publication-root migration",
             "not a full publication-root migration",
+            "Publication-root handling is partial by design",
         ),
         label="manuscript-root migration boundary",
     )

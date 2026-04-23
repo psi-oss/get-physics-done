@@ -143,8 +143,8 @@ def command_visibility_note() -> str:
         f"must be {_join_disjunction(VALID_CONTEXT_MODES)} when present;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes like `.tex` or `.md` when present;",
         "Typed command policy is runtime-authoritative for command intake, supporting-context routing, and managed-output "
-        "surfaces when a command declares it. Keep legacy `context_mode`, `project_reentry_capable`, and `requires.files` "
-        "present as compatibility metadata even when typed policy refines runtime routing.",
+        "surfaces when a command declares it. Keep the baseline `context_mode`, `project_reentry_capable`, and `requires.files` "
+        "fields declared alongside typed policy so flat-field consumers keep a consistent view of runtime routing.",
         f"`context_mode` must be {_join_disjunction(VALID_CONTEXT_MODES)};",
         "`allowed_tools` is a list of tool names when present;",
         "`requires` is a closed mapping when present; only `files` is supported.",

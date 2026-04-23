@@ -1,4 +1,4 @@
-"""Phase 22 regressions for executor ownership cleanup."""
+"""Phase 22 assertions for executor ownership cleanup."""
 
 from __future__ import annotations
 

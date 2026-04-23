@@ -15,6 +15,6 @@ When `VERIFICATION.md` is contract-backed, keep the machine-readable surface lim
 
 When a contract requires decisive comparisons, surface `comparison_verdicts`; the canonical schema owns their exact shape.
 Proof-backed claims follow the proof-audit rules in the canonical schema, including stale-audit handling and the requirement for explicit proof-specific acceptance tests.
-Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
+Non-canonical frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
 Comparison verdicts must declare `subject_role` explicitly; decisive checks use `subject_role: decisive`.
 verification-side `suggested_contract_checks` remains the place for any unresolved decisive work.

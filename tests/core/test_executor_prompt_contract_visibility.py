@@ -1,4 +1,4 @@
-"""Focused regressions for contract-schema visibility in executor summary creation."""
+"""Focused assertions for contract-schema visibility in executor summary creation."""
 
 from __future__ import annotations
 

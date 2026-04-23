@@ -1,4 +1,4 @@
-"""Regression tests for model-visible resume backend naming."""
+"""Assertions for model-visible resume backend naming."""
 
 from __future__ import annotations
 

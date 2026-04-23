@@ -262,7 +262,7 @@ class TestUninstallBase:
 
 
 class TestInstallValidationAndHooks:
-    """Targeted regressions for base install validation and bundled hooks."""
+    """Targeted assertions for base install validation and bundled hooks."""
 
     def test_validate_target_runtime_rejects_manifestless_managed_surface(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")

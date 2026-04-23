@@ -2209,7 +2209,7 @@ def test_resume_plain_output_surfaces_machine_change_as_advisory_status(tmp_path
 def test_resume_plain_output_keeps_machine_change_notice_when_session_handoff_is_primary(
     tmp_path: Path, monkeypatch
 ) -> None:
-    # Compatibility-only guard: this still exercises the legacy session mirror while the public surface ages out.
+    # Compatibility-only guard: exercise the compatibility session mirror alongside the public surface.
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "gpd.core.context.init_resume",
@@ -6329,7 +6329,7 @@ def test_paper_build_rejects_explicit_legacy_planning_config_path(tmp_path: Path
 
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
-    assert "no longer supported" in payload["error"]
+    assert "are not supported" in payload["error"]
 
 
 def test_paper_build_rejects_explicit_legacy_hidden_planning_config_path(tmp_path: Path, capsys) -> None:
@@ -6357,7 +6357,7 @@ def test_paper_build_rejects_explicit_legacy_hidden_planning_config_path(tmp_pat
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
     assert ".gpd/paper" in payload["error"]
-    assert "no longer supported" in payload["error"]
+    assert "are not supported" in payload["error"]
 
 
 def test_paper_build_preserves_explicit_relative_config_path_from_nested_cwd(tmp_path: Path) -> None:

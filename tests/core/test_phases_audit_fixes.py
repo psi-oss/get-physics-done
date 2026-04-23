@@ -1,6 +1,6 @@
-"""Regression tests for 4 bugs fixed in gpd.core.phases (audit batch).
+"""Assertions for gpd.core.phases audit-batch invariants.
 
-Each test targets a specific fix:
+Each test targets a specific invariant:
 
 1. progress_render JSON output must NOT include a stale ``total_plans_in_phase`` field.
 2. validate_phase_waves must handle unreadable (invalid-UTF-8) plan files gracefully.

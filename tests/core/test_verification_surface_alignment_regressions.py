@@ -1,4 +1,4 @@
-"""Regression tests for verification scaffold and workflow surface alignment."""
+"""Assertions for verification scaffold and workflow surface alignment."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def test_verification_report_strict_pass_guidance_includes_reference_coverage_ru
 
     assert "status: passed` is strict" in verification_report
     assert "structured `suggested_contract_checks`" in verification_report
-    assert "Legacy frontmatter aliases are forbidden in model-facing output" in verification_report
+    assert "Non-canonical frontmatter aliases are forbidden in model-facing output" in verification_report
     assert "Proof-backed claims follow the proof-audit rules in the canonical schema" in verification_report
 
 
@@ -96,7 +96,7 @@ def test_research_verification_template_keeps_contract_results_and_scalar_exampl
     research_verification = _read("src/gpd/specs/templates/research-verification.md")
 
     assert "evidence:\n        - verifier: gpd-verifier" in research_verification
-    assert "Legacy frontmatter aliases are forbidden in model-facing output" in research_verification
+    assert "Non-canonical frontmatter aliases are forbidden in model-facing output" in research_verification
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
         assert legacy_alias not in research_verification
 
@@ -109,6 +109,6 @@ def test_summary_template_keeps_reference_action_ledger_and_legacy_alias_note() 
     assert "contract_results" in summary_template
     assert "comparison_verdicts" in summary_template
     assert "suggested_contract_checks" in summary_template
-    assert "Legacy frontmatter aliases are forbidden in model-facing output" in summary_template
+    assert "Non-canonical frontmatter aliases are forbidden in model-facing output" in summary_template
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
         assert legacy_alias not in summary_template

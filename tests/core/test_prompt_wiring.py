@@ -1,4 +1,4 @@
-"""Regression tests for prompt/template wiring."""
+"""Assertions for prompt/template wiring."""
 
 from __future__ import annotations
 
@@ -966,8 +966,8 @@ def test_compare_commands_expose_typed_policy_for_interactive_intake_and_gpd_out
 
 
 def test_list_review_commands_contains_all_expected_commands() -> None:
-    """Regression: line 307 duplicated the gpd:peer-review check instead of
-    testing gpd:respond-to-referees and gpd:verify-work."""
+    """Assert list_review_commands covers gpd:peer-review, gpd:write-paper,
+    gpd:respond-to-referees, and gpd:verify-work without duplication."""
     review_cmds = registry.list_review_commands()
     expected = {"gpd:peer-review", "gpd:write-paper", "gpd:respond-to-referees", "gpd:verify-work"}
     assert expected <= set(review_cmds), f"Missing review commands: {expected - set(review_cmds)}"
@@ -1100,7 +1100,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "context_mode: project-aware" in write_paper
     assert "--intake path/to/paper-authoring-input.json" in write_paper
     assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
-    assert "GPD-owned review/response auxiliaries remain under `GPD/`" in write_paper
+    assert "GPD-owned review/response auxiliaries stay under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in peer_review
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in publication_modes

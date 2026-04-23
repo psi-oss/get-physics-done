@@ -1,4 +1,4 @@
-"""Focused regressions for the execute-phase re-verification seam."""
+"""Focused assertions for the execute-phase re-verification seam."""
 
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ def test_execute_phase_reverification_routes_on_typed_status_not_legacy_verifier
     assert "verification_status: passed | gaps_found | expert_needed | human_needed" in workflow
     assert "After the artifact gate passes, use the canonical verifier verdict from `gpd_return.verification_status` or the written report frontmatter:" in workflow
     assert "Return verification status: passed | gaps_found." not in workflow
-    assert "legacy `passed | gaps_found` text as the routing surface" in workflow
-    assert "Do not infer success from prose headings or untyped legacy routing." in workflow
+    assert "bare `passed | gaps_found` text as the routing surface" in workflow
+    assert "Do not infer success from prose headings or untyped routing." in workflow
     assert "If the verifier output is malformed or omits `gpd_return.status`" in workflow
 
 

@@ -1,4 +1,4 @@
-"""Regression tests for shared workflow-stage manifest loading."""
+"""Assertions for shared workflow-stage manifest loading."""
 
 from __future__ import annotations
 

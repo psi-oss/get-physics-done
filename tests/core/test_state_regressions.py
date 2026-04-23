@@ -1,4 +1,4 @@
-"""Behavior-focused state regression coverage."""
+"""Behavior-focused state assertions."""
 
 from __future__ import annotations
 

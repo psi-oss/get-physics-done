@@ -1,4 +1,4 @@
-"""Regression tests for the debugger prompt/session template contract."""
+"""Assertions for the debugger prompt/session template contract."""
 
 from __future__ import annotations
 

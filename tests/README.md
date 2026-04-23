@@ -1667,13 +1667,13 @@ These are first-class parts of the operational graph, even though many are gener
 
 ## Completeness and Limits
 
-This section folds the former audit into the main graph file. The graph is the atlas; this appendix records the confidence level, the practical static-analysis ceiling, and the remaining boundaries that static reading still cannot cross.
+This section folds the audit into the main graph file. The graph is the atlas; this appendix records the confidence level, the practical static-analysis ceiling, and the remaining boundaries that static reading still cannot cross.
 
 ### Bottom Line
 
 The graph is an observed-and-inferred static dependency atlas for this repo.
 
-It is now at or extremely near the practical static-analysis ceiling for the current worktree.
+It sits at or extremely near the practical static-analysis ceiling for the current worktree.
 
 It is still **not** a proven exhaustive runtime graph of all file and object interdependencies.
 
@@ -1685,7 +1685,7 @@ This assessment combined:
 - repeated focused audit subagent deployments covering runtime, tests, docs/CI, adapters/mirrors, prompt/specs, release/build, and methodology
 - local verification of representative files where the graph was most likely to overclaim completeness
 
-The latest audit wave closed most of the remaining statically recoverable gaps that were still obvious in earlier revisions:
+The audit covers the statically recoverable gaps:
 
 - explicit prompt/spec include and spawn edges
 - ordered fallback and candidate-set precedence

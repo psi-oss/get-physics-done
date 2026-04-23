@@ -180,21 +180,21 @@ class TestConvertFrontmatterToGemini:
         assert "Task" not in result.split("---", 2)[1] if result.count("---") >= 2 else True
 
     def test_sub_tags_stripped_without_frontmatter(self) -> None:
-        """Regression: <sub> tags must be stripped even when there is no frontmatter."""
+        """Assert <sub> tags are stripped even when there is no frontmatter."""
         content = "Text with <sub>subscript</sub> here"
         result = _convert_frontmatter_to_gemini(content)
         assert "<sub>" not in result
         assert "*(subscript)*" in result
 
     def test_sub_tags_stripped_with_unclosed_frontmatter(self) -> None:
-        """Regression: <sub> tags stripped even with malformed (unclosed) frontmatter."""
+        """Assert <sub> tags are stripped even with malformed (unclosed) frontmatter."""
         content = "---\nname: test\nText with <sub>subscript</sub> here"
         result = _convert_frontmatter_to_gemini(content)
         assert "<sub>" not in result
         assert "*(subscript)*" in result
 
     def test_duplicate_tools_deduplicated(self) -> None:
-        """Regression: tools appearing in both tools: and allowed-tools: are deduplicated."""
+        """Assert tools appearing in both tools: and allowed-tools: are deduplicated."""
         content = "---\nname: test\ntools: Read, Write\nallowed-tools:\n  - Read\n  - Bash\n---\nBody"
         result = _convert_frontmatter_to_gemini(content)
         # read_file should appear exactly once
@@ -897,7 +897,7 @@ class TestInstall:
     def test_install_agents_replace_runtime_placeholders(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
-        """Regression: _copy_agents_gemini must pass runtime='gemini' to replace_placeholders."""
+        """Assert _copy_agents_gemini passes runtime='gemini' to replace_placeholders."""
         target = tmp_path / ".gemini"
         target.mkdir()
         adapter.install(gpd_root, target)
@@ -1047,9 +1047,9 @@ class TestInstall:
     ) -> None:
         """force_statusline=True must override a pre-existing non-GPD statusline.
 
-        Regression: previously install() called finalize_install internally
-        without forwarding force_statusline, so the CLI's subsequent call
-        with force_statusline=True was silently discarded.
+        install() must forward ``force_statusline`` into its internal
+        ``finalize_install`` call so that the CLI's subsequent call with
+        ``force_statusline=True`` is honored rather than silently discarded.
         """
         target = tmp_path / ".gemini"
         target.mkdir()
@@ -1116,7 +1116,7 @@ class TestInstall:
     def test_install_agents_at_includes_receive_runtime(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
-        """Regression: expand_at_includes in _copy_agents_gemini must receive runtime='gemini'.
+        """Assert expand_at_includes in _copy_agents_gemini receives runtime='gemini'.
 
         Agents with @ includes pointing at specs that contain {GPD_CONFIG_DIR}
         must have those placeholders replaced during include expansion.
@@ -1413,7 +1413,7 @@ class TestUninstall:
 
 
 class TestRewriteWindowsPathEscape:
-    """Regression: Windows paths with backslashes must not be interpreted as
+    """Assert Windows paths with backslashes are not interpreted as
     escape sequences by ``re.sub``.  See discussion #12."""
 
     def test_rewrite_gpd_cli_invocations_preserves_prose_and_quotes(self) -> None:
@@ -1454,7 +1454,7 @@ class TestRewriteWindowsPathEscape:
 
 
 class TestPolicyTomlWindowsPath:
-    """Regression: policy TOML must be valid even when bridge_command contains
+    """Assert policy TOML stays valid even when bridge_command contains
     Windows backslash paths.  See discussion #12."""
 
     def test_render_policy_toml_with_windows_path(self) -> None:

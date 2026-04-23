@@ -592,8 +592,8 @@ class RecordMetricResult(BaseModel):
 class UpdateProgressResult(BaseModel):
     """Returned by :func:`state_update_progress`.
 
-    Progress recomputation no longer synchronizes checkpoint shelf artifacts or
-    surfaces them through progress APIs.
+    Progress recomputation does not synchronize checkpoint shelf artifacts or
+    surface them through progress APIs.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1182,7 +1182,7 @@ def _continuation_payload_has_values(payload: object) -> bool:
 
 
 def _session_payload_has_legacy_recovery_values(payload: object) -> bool:
-    """Return whether a legacy session mirror carries a real recovery target."""
+    """Return whether a session-mirror payload carries a real recovery target."""
 
     if not isinstance(payload, dict):
         return False
@@ -1216,9 +1216,9 @@ def _session_from_continuation_payload(continuation: object) -> dict[str, str | 
 def _continuation_from_session_payload(
     session: object,
 ) -> dict[str, object]:
-    """Migrate a legacy session mirror into canonical continuation state.
+    """Project a session-mirror payload into canonical continuation state.
 
-    Only resume-relevant legacy handoff data is migrated. Identity-only session
+    Only resume-relevant handoff data is projected. Identity-only session
     mirrors should stay advisory metadata rather than minting canonical
     continuation authority on their own.
     """
@@ -1257,7 +1257,7 @@ def _continuation_from_session_payload(
 
 
 def _mirror_continuation_state(raw: dict[str, object]) -> dict[str, object]:
-    """Project canonical continuation into the legacy ``session`` mirror.
+    """Project canonical continuation into the ``session`` mirror payload.
 
     Canonical ``continuation`` stays authoritative. The ``session`` payload is
     a pure mirror and is blank when no canonical continuation exists.
@@ -1818,7 +1818,7 @@ def parse_state_md(content: str) -> dict:
 def _strip_placeholder(value: str | None) -> str | None:
     """Return None if *value* is a markdown placeholder.
 
-    Recognized placeholders: EM_DASH (legacy), 'none', 'no', 'not set',
+    Recognized placeholders: EM_DASH, 'none', 'no', 'not set',
     '[not set]'. Case-insensitive for word forms.
     """
     if value is None:
@@ -1895,7 +1895,7 @@ def _coerce_position_identifiers(
     normalized: dict[str, object],
     integrity_issues: list[str],
 ) -> None:
-    """Coerce legacy integer position identifiers without dropping the section."""
+    """Coerce integer position identifiers to strings without dropping the section."""
 
     position = normalized.get("position")
     if not isinstance(position, dict):

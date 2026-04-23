@@ -1,4 +1,4 @@
-"""Focused regressions for quick workflow typed return routing."""
+"""Focused assertions for quick workflow typed return routing."""
 
 from __future__ import annotations
 

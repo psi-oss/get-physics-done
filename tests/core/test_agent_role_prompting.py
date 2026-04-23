@@ -1,4 +1,4 @@
-"""Prompt regressions for agent taxonomy and execution routing."""
+"""Prompt assertions for agent taxonomy and execution routing."""
 
 from __future__ import annotations
 

@@ -1532,7 +1532,7 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     assert "single detailed rule source" in summary_template
     assert "contract_results" in summary_template
     assert "comparison_verdicts" in summary_template
-    assert "legacy frontmatter aliases" in summary_template.lower()
+    assert "non-canonical frontmatter aliases" in summary_template.lower()
     assert "forbidden_proxy_id" in contract_results
     assert "closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`" in contract_results
     assert "Blank-after-trim entries are invalid" in contract_results

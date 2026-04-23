@@ -1,4 +1,4 @@
-"""Focused regressions for the shared delegation reference contract."""
+"""Focused assertions for the shared delegation reference contract."""
 
 from __future__ import annotations
 

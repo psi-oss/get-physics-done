@@ -636,7 +636,7 @@ def test_help_prompt_surfaces_bounded_write_paper_external_authoring_lane() -> N
     assert "GPD-authored outputs live under `GPD/publication/{subject_slug}/...`" in help_workflow
     assert "`GPD/publication/{subject_slug}/intake/`" in help_workflow
     assert "does not mine arbitrary folders" in help_workflow
-    assert "embedded external staged-review parity remains deferred" in help_workflow
+    assert "embedded external staged-review parity is out of scope" in help_workflow
     assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
 
 

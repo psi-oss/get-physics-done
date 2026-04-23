@@ -1,4 +1,4 @@
-"""Focused regressions for the debug workflow seam."""
+"""Focused assertions for the debug workflow seam."""
 
 from __future__ import annotations
 

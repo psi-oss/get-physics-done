@@ -1,4 +1,4 @@
-"""Fast strictness regressions for the public surface contract loader."""
+"""Fast strictness assertions for the public surface contract loader."""
 
 from __future__ import annotations
 

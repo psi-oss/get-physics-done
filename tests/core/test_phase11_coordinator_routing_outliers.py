@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 11 coordinator-routing outliers."""
+"""Focused assertions for the Phase 11 coordinator-routing outliers."""
 
 from __future__ import annotations
 

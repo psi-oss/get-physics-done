@@ -153,7 +153,7 @@ Key accomplishments for this milestone:
 
 <step name="create_milestone_entry">
 
-**Note:** MILESTONES.md entry is now created automatically by `gpd milestone complete` in the archive_milestone step. The entry includes version, date, phase/plan/task counts, accomplishments extracted from summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`), and an `**Archived evidence:**` block listing the roadmap, requirements, research digest, and audit file archive paths. **Do NOT manually append content to a MILESTONES.md entry** — the Python writer is the single source of truth and already encodes whether the audit file and research digest were present. Never add "audit file: NOT PRESENT" or similar free-form prose; a missing audit is encoded as "(audit file is opt-in; run `gpd:audit-milestone` ...)".
+`gpd milestone complete` writes the MILESTONES.md entry during the archive_milestone step. The entry includes version, date, phase/plan/task counts, accomplishments extracted from summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`), and an `**Archived evidence:**` block listing the roadmap, requirements, research digest, and audit file archive paths. **Do NOT manually append content to a MILESTONES.md entry** — the Python writer is the single source of truth and already encodes whether the audit file and research digest were present. Never add "audit file: NOT PRESENT" or similar free-form prose; a missing audit is encoded as "(audit file is opt-in; run `gpd:audit-milestone` ...)".
 
 If additional details are needed (e.g., researcher-provided "Key Findings" summary, git range, LOC stats), add them manually after the CLI creates the base entry.
 

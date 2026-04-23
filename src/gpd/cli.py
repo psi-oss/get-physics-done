@@ -152,8 +152,8 @@ if TYPE_CHECKING:
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
-# BUG-013: On Windows, Rich Console emits Unicode characters (em-dash, arrows)
-# that cp1252 cannot encode. Reconfigure stdout/stderr to UTF-8 before Console
+# On Windows, Rich Console emits Unicode characters (em-dash, arrows) that
+# cp1252 cannot encode. Reconfigure stdout/stderr to UTF-8 before Console
 # objects are created so both CLI and test imports benefit.
 if sys.platform == "win32":
     for _stream in (sys.stdout, sys.stderr):
@@ -2085,7 +2085,7 @@ def _resume_candidate_projection(
     active_execution: dict[str, object] | None = None,
     current_execution: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Project one legacy candidate into a canonical recovery view."""
+    """Project one raw candidate into a canonical recovery view."""
     origin, origin_label = _resume_candidate_origin(
         candidate,
         active_execution=active_execution,
@@ -2420,7 +2420,7 @@ def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, object] |
 
 
 def _annotate_recent_project_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Add canonical recovery summaries to recent-project rows without removing legacy fields."""
+    """Add canonical recovery summaries to recent-project rows while keeping existing fields."""
     annotated: list[dict[str, object]] = []
     for row in rows:
         payload = dict(row)
@@ -7057,7 +7057,7 @@ def _reject_legacy_paper_config_location(config_file: Path, *, project_root: Pat
             continue
         planning_dir_name = legacy_config_root.parent.name
         raise GPDError(
-            f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
+            f"Paper configs under `{planning_dir_name}/paper/` are not supported. "
             "Move the config to `paper/`, `manuscript/`, or `draft/`."
         )
 

@@ -1,4 +1,4 @@
-"""Focused regression tests for approved-mode anchor-gap phrasing."""
+"""Focused assertions for approved-mode anchor-gap phrasing."""
 
 from __future__ import annotations
 

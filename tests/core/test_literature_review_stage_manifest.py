@@ -1,4 +1,4 @@
-"""Stage-manifest regressions for the `literature-review` startup surface."""
+"""Stage-manifest assertions for the `literature-review` startup surface."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Phase 9 regressions for runtime delegation capability surfacing."""
+"""Phase 9 assertions for runtime delegation capability surfacing."""
 
 from __future__ import annotations
 

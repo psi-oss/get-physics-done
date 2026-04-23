@@ -434,7 +434,7 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     - allowed-tools: optional tool restrictions
     - color: removed (not supported by Codex CLI)
     """
-    # Replace legacy /gpd: and canonical gpd: references with the Codex skill syntax.
+    # Replace /gpd: and gpd: references with the Codex skill syntax.
     converted = content.replace("/gpd:", "$gpd-")
     converted = re.sub(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b", r"$gpd-\1", converted)
 

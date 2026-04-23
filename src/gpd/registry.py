@@ -330,7 +330,7 @@ class CommandOutputPolicy:
 
 @dataclass(frozen=True, slots=True)
 class CommandPolicy:
-    """Typed additive command policy compiled from frontmatter and legacy fields."""
+    """Typed additive command policy compiled from frontmatter and companion fields."""
 
     schema_version: int = 1
     subject_policy: CommandSubjectPolicy | None = None
@@ -838,7 +838,7 @@ def _merge_command_policy_submapping(
             merged[key] = value
             continue
         if value != legacy_value:
-            raise ValueError(f"{field_name}.{key} for {command_name} must stay aligned with legacy command metadata")
+            raise ValueError(f"{field_name}.{key} for {command_name} must stay aligned with companion command metadata")
     return merged
 
 
@@ -1147,7 +1147,7 @@ def _parse_command_policy(
 
 
 def _parse_bool_field(raw: object, *, field_name: str, command_name: str, default: bool = False) -> bool:
-    """Parse a strict YAML boolean and reject legacy compatibility aliases."""
+    """Parse a strict YAML boolean and reject non-boolean coercion aliases."""
     if raw is None:
         return default
     if isinstance(raw, bool):
@@ -1161,7 +1161,7 @@ def _validate_raw_boolean_frontmatter_field(
     field_name: str,
     command_name: str,
 ) -> None:
-    """Reject legacy boolean spellings before YAML coercion can hide them."""
+    """Reject non-boolean scalar spellings before YAML coercion can hide them."""
 
     raw_value = _raw_scalar_frontmatter_value(frontmatter, field_name=field_name)
     if raw_value is None:
@@ -1188,7 +1188,7 @@ def _validate_raw_nonempty_string_frontmatter_field(
 
 
 def _validate_raw_command_frontmatter(frontmatter: str | None, *, command_name: str) -> None:
-    """Reject legacy raw frontmatter spellings for strict command metadata."""
+    """Reject loose raw frontmatter spellings for strict command metadata."""
 
     _validate_raw_nonempty_string_frontmatter_field(
         frontmatter,
@@ -2418,8 +2418,8 @@ def _format_command_name(command: CommandDef | str, *, name_format: CommandNameF
 def list_commands(*, name_format: CommandNameFormat = "slug") -> list[str]:
     """Return sorted command names.
 
-    Defaults to registry slugs for historical compatibility. Pass
-    ``name_format="label"`` to receive public ``gpd:<slug>`` command labels.
+    Defaults to registry slugs. Pass ``name_format="label"`` to receive public
+    ``gpd:<slug>`` command labels.
     """
     return sorted(_format_command_name(command, name_format=name_format) for command in _cache.commands().values())
 
@@ -2450,9 +2450,8 @@ def get_command(name: str) -> CommandDef:
 def list_review_commands(*, name_format: CommandNameFormat = "label") -> list[str]:
     """Return sorted review-contract command names.
 
-    Defaults to public ``gpd:<slug>`` labels for historical compatibility. Pass
-    ``name_format="slug"`` to align with ``list_commands()``'s default registry
-    key shape.
+    Defaults to public ``gpd:<slug>`` labels. Pass ``name_format="slug"`` to
+    align with ``list_commands()``'s default registry key shape.
     """
     return sorted(
         _format_command_name(command, name_format=name_format)

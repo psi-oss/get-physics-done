@@ -1,4 +1,4 @@
-"""Regression tests for current spawned-agent writeability semantics."""
+"""Assertions for current spawned-agent writeability semantics."""
 
 from __future__ import annotations
 

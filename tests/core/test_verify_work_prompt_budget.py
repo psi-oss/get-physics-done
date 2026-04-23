@@ -1,4 +1,4 @@
-"""Prompt-budget regressions for the `verify-work` startup surface."""
+"""Prompt-budget assertions for the `verify-work` startup surface."""
 
 from __future__ import annotations
 

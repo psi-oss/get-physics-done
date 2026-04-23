@@ -869,14 +869,14 @@ async def build_paper(
     tex_path = output_dir / f"{output_stem}.tex"
     if tex_path.exists():
         logger.warning("Skipping .tex write — %s already exists. Delete it to regenerate.", tex_path)
-        # BUG-076 fix: read on-disk content so the coherence check audits
-        # the file that will actually be compiled, not the freshly rendered
-        # string which may differ after manual edits or scaffold-once reruns.
+        # Read on-disk content so the coherence check audits the file that
+        # will actually be compiled, not the freshly rendered string which
+        # may differ after manual edits or scaffold-once reruns.
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
     else:
         await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
 
-    # --- Citation-bibliography coherence check (BUG-076) ---
+    # --- Citation-bibliography coherence check ---
     citation_warnings: list[str] = []
     if bib_content:
         coherence = check_citation_bib_coherence(tex_content, bib_content)

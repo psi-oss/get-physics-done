@@ -1,4 +1,4 @@
-"""Focused regressions for the quick command wrapper contract."""
+"""Focused assertions for the quick command wrapper contract."""
 
 from __future__ import annotations
 

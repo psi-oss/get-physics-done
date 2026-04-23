@@ -1,4 +1,4 @@
-"""Prompt metric helper regressions."""
+"""Prompt metric helper assertions."""
 
 from __future__ import annotations
 

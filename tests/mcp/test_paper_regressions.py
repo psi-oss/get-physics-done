@@ -1,4 +1,4 @@
-"""Behavior-focused paper regression coverage."""
+"""Behavior-focused paper assertions."""
 
 from __future__ import annotations
 

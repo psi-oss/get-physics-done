@@ -1,4 +1,4 @@
-"""Regression test for runtime wrapper dry-run contract truthfulness."""
+"""Assert runtime wrapper dry-run contract truthfulness."""
 
 from __future__ import annotations
 

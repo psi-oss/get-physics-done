@@ -1,4 +1,4 @@
-"""Focused regression for the sync-state wrapper and schema visibility."""
+"""Focused assertions for the sync-state wrapper and schema visibility."""
 
 from __future__ import annotations
 

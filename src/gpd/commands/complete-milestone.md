@@ -116,7 +116,7 @@ This wrapper runs the archive workflow directly. Any stopping points come from t
 
 7. **Commit and tag:**
 
-   Note: MILESTONES.md is CREATED by `gpd milestone complete` during this workflow. It does not need to exist beforehand.
+   MILESTONES.md is created by `gpd milestone complete` during this workflow.
 
    - Stage: MILESTONES.md, PROJECT.md, ROADMAP.md, STATE.md, archive files
    - Commit: `chore: archive v{version} research milestone`

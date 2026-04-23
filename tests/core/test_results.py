@@ -886,7 +886,7 @@ def test_result_update_not_found():
         result_update(state, "R-nonexistent", equation="new")
 
 
-# ─── Bug-fix regression tests ───────────────────────────────────────────────
+# ─── Focused invariant assertions ───────────────────────────────────────────
 
 
 def test_result_list_verified_and_unverified_raises_result_error():

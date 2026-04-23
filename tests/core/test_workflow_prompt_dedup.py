@@ -1,4 +1,4 @@
-"""Regression checks for planner workflow prompt deduplication."""
+"""Assertions for planner workflow prompt deduplication."""
 
 from __future__ import annotations
 
@@ -174,7 +174,7 @@ def test_state_portability_collapses_legacy_compatibility_prose() -> None:
         encoding="utf-8"
     )
 
-    assert "compatibility projections used only to fill missing canonical state during migration or recovery" in state_portability
+    assert "compatibility projections that only fill in when canonical state is missing or incomplete" in state_portability
     assert "Backend compatibility cues remain backend-only inputs and are stripped after canonicalization." in state_portability
     assert "Legacy `session` fields can still backfill missing canonical continuity" not in state_portability
     assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability

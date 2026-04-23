@@ -11,11 +11,11 @@ Reference document specifying all valid entity lifecycles, state ownership, and 
 
 ## Continuation Surfaces
 
-Phase 5 separates three layers that were previously blurred together:
+Phase 5 separates three distinct layers:
 
 1. An append-only execution lineage records what happened.
 2. A derived execution head projects the latest resumable execution state for compatibility surfaces.
-3. `state.json.continuation.bounded_segment` remains the durable bounded-resume authority.
+3. `state.json.continuation.bounded_segment` is the durable bounded-resume authority.
 
 Current public behavior exposes the canonical continuation decision through `gpd --raw resume`, which reads `state.json.continuation` first and only consults compatibility surfaces when canonical continuation is missing or incomplete. `session` is a compatibility mirror, and `.continue-here.md` plus `current-execution.json` are projections, not peer authorities.
 

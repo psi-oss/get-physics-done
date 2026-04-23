@@ -1539,7 +1539,7 @@ def test_phase_plan_index_not_found(tmp_path: Path) -> None:
     assert result.plans == []
 
 
-# ─── Bug-fix regression tests ────────────────────────────────────────────────
+# ─── Focused invariant assertions ────────────────────────────────────────────
 
 
 def test_phase_complete_sets_current_plan_to_inactive_sentinel(tmp_path: Path) -> None:

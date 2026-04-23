@@ -1,7 +1,7 @@
 """Shared resume-surface normalization helpers.
 
-The public resume surface is canonical-only: modern continuation fields stay at
-the top level and legacy raw aliases are stripped before payloads leave the
+The public resume surface is canonical-only: canonical continuation fields stay
+at the top level and raw alias keys are stripped before payloads leave the
 backend. This module centralizes that projection so ``init_resume()``, CLI raw
 output, and other public surfaces do not each reinvent resume normalization.
 """
@@ -355,7 +355,7 @@ def _strip_top_level_resume_surface_compatibility_keys(
     *,
     compat_fields: frozenset[str],
 ) -> dict[str, object]:
-    """Drop only top-level legacy aliases from one public resume payload."""
+    """Drop only top-level alias keys from one public resume payload."""
 
     cleaned: dict[str, object] = {}
     for key, value in payload.items():
@@ -370,7 +370,7 @@ def canonicalize_resume_public_payload(
     *,
     compat_fields: Sequence[str] = RESUME_COMPATIBILITY_ALIAS_FIELDS,
 ) -> dict[str, object]:
-    """Strip legacy resume aliases from one public payload."""
+    """Strip resume alias keys from one public payload."""
     return _strip_top_level_resume_surface_compatibility_keys(
         dict(payload),
         compat_fields=frozenset(compat_fields),

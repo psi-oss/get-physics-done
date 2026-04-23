@@ -3619,12 +3619,12 @@ def test_normalize_preserves_valid_list_entries_when_one_is_malformed():
 
 
 def test_normalize_preserves_empty_list_when_all_entries_malformed():
-    """Bug B (FULL-002): all-malformed entries should leave an empty list, not delete the section.
+    """Assert all-malformed entries leave an empty list rather than deleting the section.
 
-    Regression test for stale-index collision: after removing bad_0 at index 0,
-    bad_1 shifts to index 0.  Without clearing removed_validation_paths per pass,
-    the shifted element's loc collides with the already-recorded loc, causing it
-    to be skipped and the entire section to be removed instead.
+    Guards the stale-index collision path: after removing bad_0 at index 0,
+    bad_1 shifts to index 0.  Unless ``removed_validation_paths`` is cleared
+    per pass, the shifted element's loc collides with the already-recorded
+    loc, the element is skipped, and the entire section is removed.
     """
     bad_1 = {"label": "X", "description": "no name field"}
     bad_2 = {"scope": "global"}  # also missing required 'name'
@@ -3673,7 +3673,7 @@ def test_normalize_preserves_valid_uncertainties_when_one_is_malformed():
 
 
 def test_normalize_still_removes_top_level_section_for_non_list_errors():
-    """Regression guard: non-list validation errors still go through top-level removal."""
+    """Assert non-list validation errors go through top-level removal."""
     # 'position' is a dict (Position model), not a list. If it has a deeply invalid
     # field that can't be nested-removed, it should still be handled by the existing
     # top-level removal path.
@@ -3884,11 +3884,11 @@ def test_state_patch_rejects_all_session_mirror_fields(tmp_path: Path) -> None:
 
 
 def test_state_patch_underscore_field_with_dots_not_clobbered(tmp_path: Path) -> None:
-    """A literal **custom_field.status:** field must be found by its exact name.
+    """Assert a literal **custom_field.status:** field is found by its exact name.
 
-    Regression test for P3: underscore replacement must NOT run before the raw
-    field name is tried, otherwise custom_field.status -> custom field.status
-    (miss) -> dot-strip -> status (wrong field updated).
+    Underscore replacement must NOT run before the raw field name is tried,
+    otherwise custom_field.status -> custom field.status (miss) -> dot-strip
+    -> status (wrong field updated).
     """
     from gpd.core.state import state_patch
 

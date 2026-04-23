@@ -698,9 +698,9 @@ If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/r
 </templates>
 
 <REMOVED_INLINE_TEMPLATES>
-<!-- 843 lines of inline templates removed — now loaded from reference files above.
+<!-- Inline templates load from reference files above.
      See {GPD_INSTALL_DIR}/references/templates/research-mapper/ for the full templates.
-     This comment marks where they used to be, to prevent re-insertion by concurrent edits. -->
+     This marker blocks re-insertion by concurrent edits. -->
 </REMOVED_INLINE_TEMPLATES>
 
 <forbidden_files>

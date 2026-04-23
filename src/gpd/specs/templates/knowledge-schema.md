@@ -295,7 +295,7 @@ The following conditional rules are mandatory:
 
 ## Explicit Deferrals
 
-Public command registration and shared help coverage are part of the supported authoring surface now. Stable reviewed knowledge is already visible through the shared runtime reference surfaces. The remaining deferred behaviors are:
+Public command registration and shared help coverage are part of the supported authoring surface. Stable reviewed knowledge is visible through the shared runtime reference surfaces. The remaining deferred behaviors are:
 
 1. migration/backfill for older knowledge files
 2. alias repair or heuristic filename repair for legacy docs

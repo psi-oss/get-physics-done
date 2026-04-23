@@ -948,7 +948,7 @@ class TestCheckStoragePaths:
         ]
 
     def test_repo_gitignore_does_not_hide_gpd_state_surfaces(self, tmp_path: Path) -> None:
-        """Regression: GPD/ files must NOT be gitignored.
+        """Assert GPD/ files are not gitignored.
 
         Workflow commit commands include these files; gitignoring them causes
         ``git add`` failures (exit code 1) at commit time.  A pre-commit hook

@@ -10,5 +10,5 @@ Contract-backed summaries are user-visible outcome ledgers. When the source PLAN
 For contract-backed summaries, include `plan_contract_ref`, `contract_results`, and any required `comparison_verdicts`. Keep `uncertainty_markers` explicit. The canonical schema defines the exact list-trimming semantics, status vocabularies, and ID alignment; this wrapper should not restate them.
 
 `suggested_contract_checks` is verification-only and does not belong in summaries.
-Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
+Non-canonical frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
 If the ledger records a forbidden proxy, bind it through `forbidden_proxy_id` in the canonical schema rather than inventing a new field.

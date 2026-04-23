@@ -1,4 +1,4 @@
-"""Focused regressions for Phase 8 artifact gate hardening."""
+"""Focused assertions for Phase 8 artifact gate hardening."""
 
 from __future__ import annotations
 

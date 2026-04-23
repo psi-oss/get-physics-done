@@ -4562,7 +4562,7 @@ class TestInitProgress:
 
 
 class TestExtractFrontmatterField:
-    """Regression: \\s* in the field regex must not match newlines."""
+    """Assert \\s* in the field regex does not match newlines."""
 
     def test_empty_value_does_not_bleed_into_next_line(self, tmp_path: Path) -> None:
         """When a field has an empty value (e.g. 'title:\\n'), the regex must

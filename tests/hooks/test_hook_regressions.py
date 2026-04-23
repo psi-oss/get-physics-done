@@ -1,4 +1,4 @@
-"""Behavior-focused hook regression coverage."""
+"""Behavior-focused hook assertions."""
 
 from __future__ import annotations
 

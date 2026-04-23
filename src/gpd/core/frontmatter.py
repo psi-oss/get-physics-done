@@ -852,7 +852,8 @@ def _validate_knowledge_review_block(
             not isinstance(audit_artifact_path, str) or not audit_artifact_path.strip() or _is_absolute_path(audit_artifact_path)
         ):
             errors.append("knowledge.review.audit_artifact_path: must be a project-relative path")
-        # Legacy review records do not carry the Step 4 freshness contract.
+        # Non-canonical review records do not participate in the Step 4 freshness contract;
+        # ``stale`` is optional here, but when supplied it must still be a boolean.
         if review.get("stale") is not None and type(review.get("stale")) is not bool:
             errors.append("knowledge.review.stale: expected a boolean")
 
@@ -880,8 +881,8 @@ def _validate_knowledge_review_block(
                         "knowledge.review.reviewed_content_sha256 does not match the current trusted content hash"
                     )
             else:
-                # Legacy stable records remain accepted for backward compatibility, but they do not
-                # participate in the Step 4 freshness contract.
+                # Non-canonical stable records are accepted without the Step 4 freshness contract;
+                # they must still supply at least one concrete evidence pointer.
                 if not any(
                     isinstance(value, str) and value.strip()
                     for value in (

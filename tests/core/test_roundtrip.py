@@ -277,7 +277,7 @@ class TestPhaseRemoveRenumber:
         files = list((tmp_path / "GPD" / "phases" / renamed_dir).iterdir())
         assert any(f.name.startswith("02-") for f in files)
 
-        # ROADMAP.md should no longer mention Phase 2: Derivation
+        # ROADMAP.md must not mention Phase 2: Derivation after removal
         roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
         assert "Phase 2: Derivation" not in roadmap
 

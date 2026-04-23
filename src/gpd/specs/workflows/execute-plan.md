@@ -431,7 +431,7 @@ Context is finite (~80% usable before compression). After completing each task:
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and legacy `session` record are discovery surfaces that mirror canonical continuation; `continuation.bounded_segment` is the bounded authority for the pause.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and `session` record are discovery surfaces that mirror canonical continuation; `continuation.bounded_segment` is the bounded authority for the pause.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 

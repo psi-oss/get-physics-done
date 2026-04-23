@@ -283,7 +283,7 @@ Load the staged handoff slice needed to assemble the researcher prompt. Do not u
 
 ```bash
 INIT=$(gpd --raw init plan-phase "$PHASE" --stage planner_authoring)
-# Legacy routing slice: gpd --raw init plan-phase "$PHASE" --stage research_routing
+# Alternate lighter slice available at: gpd --raw init plan-phase "$PHASE" --stage research_routing
 if [ $? -ne 0 ]; then
   echo "ERROR: staged plan-phase init failed: $INIT"
   exit 1

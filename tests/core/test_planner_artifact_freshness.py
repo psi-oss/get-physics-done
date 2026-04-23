@@ -1,4 +1,4 @@
-"""Focused regressions for planner artifact freshness reconciliation helpers."""
+"""Focused assertions for planner artifact freshness reconciliation helpers."""
 
 from __future__ import annotations
 

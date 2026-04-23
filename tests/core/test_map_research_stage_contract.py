@@ -1,4 +1,4 @@
-"""Stage-contract regressions for the `map-research` workflow."""
+"""Stage-contract assertions for the `map-research` workflow."""
 
 from __future__ import annotations
 

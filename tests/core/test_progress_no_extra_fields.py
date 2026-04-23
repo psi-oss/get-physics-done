@@ -1,14 +1,15 @@
-"""Regression test: ProgressJsonResult should not have misleading extra fields."""
+"""Assert ProgressJsonResult rejects misleading extra fields."""
 from __future__ import annotations
 
 from gpd.core.phases import ProgressJsonResult
 
 
 def test_progress_json_result_no_total_plans_in_phase_field():
-    """The model should not define or accept total_plans_in_phase as it's misleading.
+    """Assert the model neither defines nor accepts ``total_plans_in_phase``.
 
-    The field was previously set to the total across ALL phases, not per-phase.
-    It was removed as a bug fix. This test prevents regression.
+    A per-phase total would be ambiguous because the value would actually be
+    the total across ALL phases, so the field must be absent from the
+    response model.
     """
     result = ProgressJsonResult(
         milestone_version="1.0",

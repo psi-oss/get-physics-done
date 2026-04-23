@@ -1246,7 +1246,7 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
 
 
 def _preferred_review_dir(cwd: Path) -> Path | None:
-    """Return the canonical review directory, falling back to legacy research only when needed."""
+    """Return the canonical literature review directory, falling back to the research directory when the canonical one is absent."""
     literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
     if literature_dir.is_dir():
         return literature_dir

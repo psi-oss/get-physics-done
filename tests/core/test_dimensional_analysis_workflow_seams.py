@@ -1,4 +1,4 @@
-"""Focused regressions for the dimensional-analysis standalone/workspace contract."""
+"""Focused assertions for the dimensional-analysis standalone/workspace contract."""
 
 from __future__ import annotations
 

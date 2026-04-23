@@ -72,7 +72,7 @@ def test_render_paper_adds_wasysym_support_for_planet_macros(journal: str) -> No
 
 
 class TestEscapeUserTextForLatex:
-    """Tests for BUG-068: LaTeX special character escaping in user metadata."""
+    """Assert LaTeX special characters in user metadata are escaped."""
 
     def test_tilde_escaped_in_plain_text(self) -> None:
         from gpd.utils.latex import escape_user_text_for_latex

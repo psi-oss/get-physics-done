@@ -1,4 +1,4 @@
-"""Focused regressions for the verifier return-contract surface."""
+"""Focused assertions for the verifier return-contract surface."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Workflow seam regressions for the project-researcher vertical."""
+"""Workflow seam assertions for the project-researcher vertical."""
 
 from __future__ import annotations
 

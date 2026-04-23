@@ -1,4 +1,4 @@
-"""Targeted regressions for install-metadata runtime boundary hardening."""
+"""Targeted assertions for install-metadata runtime boundary hardening."""
 
 from __future__ import annotations
 

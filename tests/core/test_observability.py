@@ -1,4 +1,4 @@
-"""Focused regression tests for session-scoped gpd.core.observability behavior."""
+"""Focused assertions for session-scoped gpd.core.observability behavior."""
 
 from __future__ import annotations
 

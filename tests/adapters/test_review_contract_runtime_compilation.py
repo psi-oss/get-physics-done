@@ -1,4 +1,4 @@
-"""Real-command review-contract compilation regressions across runtime wrappers."""
+"""Real-command review-contract compilation assertions across runtime wrappers."""
 
 from __future__ import annotations
 

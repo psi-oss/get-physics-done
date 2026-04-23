@@ -303,7 +303,7 @@ def _validate_model_profile_matrix() -> None:
                 raise ConfigError(f"MODEL_PROFILES[{agent_name!r}][{profile_name!r}] must be a ModelTier")
 
 
-# Profile-independent view retained for public callers; resolution uses the full matrix.
+# Profile-independent view for public callers; resolution itself uses the full matrix.
 AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
     agent_name: profile_map[ModelProfile.REVIEW.value]
     for agent_name, profile_map in MODEL_PROFILES.items()
