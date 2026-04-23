@@ -779,7 +779,7 @@ def test_result_persist_derived_bridge_seeds_canonical_continuity_for_later_reco
     assert reloaded["intermediate_results"][0]["id"] == "R-01"
     assert reloaded["intermediate_results"][0]["description"] == "Canonical description"
     assert reloaded["continuation"]["bounded_segment"]["last_result_id"] == "R-01"
-    assert reloaded["session"]["last_result_id"] == "R-01"
+    assert "session" not in reloaded
     assert reloaded["continuation"]["handoff"]["last_result_id"] == "R-01"
 
     record_session_result = runner.invoke(
@@ -803,7 +803,7 @@ def test_result_persist_derived_bridge_seeds_canonical_continuity_for_later_reco
     assert record_session_payload["recorded"] is True
 
     reread = json.loads(state_path.read_text(encoding="utf-8"))
-    assert reread["session"]["last_result_id"] == "R-01"
+    assert "session" not in reread
     assert reread["continuation"]["handoff"]["last_result_id"] == "R-01"
     current_execution = json.loads((planning / "observability" / "current-execution.json").read_text(encoding="utf-8"))
     assert current_execution["last_result_id"] == "R-01"
@@ -1174,7 +1174,7 @@ def test_state_record_session_persists_last_result_id_in_session_and_handoff(gpd
     assert payload["recorded"] is True
 
     state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
-    assert state["session"]["last_result_id"] == "R-bridge-01"
+    assert "session" not in state
     assert state["continuation"]["handoff"]["last_result_id"] == "R-bridge-01"
 
     state_md = (gpd_project / "GPD" / "STATE.md").read_text(encoding="utf-8")
@@ -1696,7 +1696,7 @@ class TestResume:
         state_path = gpd_project / "GPD" / "state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["position"]["status"] = "Paused"
-        state["session"]["resume_file"] = "GPD/phases/01-test-phase/.continue-here.md"
+        state["session"] = {"resume_file": "GPD/phases/01-test-phase/.continue-here.md"}
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
         result = _invoke("resume")

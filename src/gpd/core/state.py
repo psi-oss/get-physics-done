@@ -482,7 +482,6 @@ class ResearchState(BaseModel):
     propagated_uncertainties: list[PropagatedUncertainty] = Field(default_factory=list)
     pending_todos: list[str | dict] = Field(default_factory=list)
     blockers: list[str | dict] = Field(default_factory=list)
-    session: SessionInfo = Field(default_factory=SessionInfo)
     continuation: ContinuationState = Field(default_factory=ContinuationState)
 
     model_config = {"extra": "allow"}
@@ -1133,7 +1132,6 @@ def _load_state_snapshot_for_mutation(cwd: Path, *, recover_intent: bool = True)
         cwd,
         persist_recovery=False,
         recover_intent=recover_intent,
-        import_session_continuation_from_markdown=True,
         acquire_lock=False,
     )
     if isinstance(recovered_state, dict):
@@ -1157,7 +1155,6 @@ def _load_or_rebuild_state_markdown_locked(cwd: Path) -> str | None:
         cwd,
         persist_recovery=False,
         recover_intent=False,
-        import_session_continuation_from_markdown=True,
         acquire_lock=False,
     )
     if not isinstance(recovered_state, dict) or state_source is None:
@@ -1181,15 +1178,15 @@ def _continuation_payload_has_values(payload: object) -> bool:
         return False
 
 
-def _session_payload_has_legacy_recovery_values(payload: object) -> bool:
-    """Return whether a session-mirror payload carries a real recovery target."""
+def _session_payload_has_recovery_values(payload: object) -> bool:
+    """Return whether a session-display payload carries a real recovery target."""
 
     if not isinstance(payload, dict):
         return False
     return any(payload.get(field) is not None for field in ("stopped_at", "resume_file", "last_result_id"))
 
 
-def _session_from_continuation_payload(continuation: object) -> dict[str, str | None]:
+def _session_display_from_continuation(continuation: object) -> dict[str, str | None]:
     session = _blank_session_payload()
     normalized = _normalize_continuation_payload(continuation)
 
@@ -1213,20 +1210,21 @@ def _session_from_continuation_payload(continuation: object) -> dict[str, str | 
     return session
 
 
-def _continuation_from_session_payload(
+def _continuation_from_markdown_session(
     session: object,
 ) -> dict[str, object]:
-    """Project a session-mirror payload into canonical continuation state.
+    """Project a STATE.md Session Continuity block into canonical continuation.
 
-    Only resume-relevant handoff data is projected. Identity-only session
-    mirrors should stay advisory metadata rather than minting canonical
-    continuation authority on their own.
+    STATE.md renders the canonical ``continuation`` payload into a
+    human-readable ``## Session Continuity`` section. When the parser reads
+    that section back, it reconstructs canonical continuation directly; no
+    separate session mirror is stored anywhere.
     """
 
     continuation = _normalize_continuation_payload(None)
     if not isinstance(session, dict):
         return continuation
-    if not _session_payload_has_legacy_recovery_values(session):
+    if not _session_payload_has_recovery_values(session):
         return continuation
 
     recorded_at = _optional_state_text(session.get("last_date"))
@@ -1256,18 +1254,15 @@ def _continuation_from_session_payload(
     return continuation
 
 
-def _mirror_continuation_state(raw: dict[str, object]) -> dict[str, object]:
-    """Project canonical continuation into the ``session`` mirror payload.
+def _normalize_state_continuation(raw: dict[str, object]) -> dict[str, object]:
+    """Return *raw* with ``continuation`` normalized in place.
 
-    Canonical ``continuation`` stays authoritative. The ``session`` payload is
-    a pure mirror and is blank when no canonical continuation exists.
+    ``continuation`` is the sole storage surface for session-handoff state.
     """
 
-    mirrored = copy.deepcopy(raw)
-    continuation_payload = _normalize_continuation_payload(mirrored.get("continuation"))
-    mirrored["session"] = _session_from_continuation_payload(continuation_payload)
-    mirrored["continuation"] = continuation_payload
-    return mirrored
+    normalized = copy.deepcopy(raw)
+    normalized["continuation"] = _normalize_continuation_payload(normalized.get("continuation"))
+    return normalized
 
 
 # ─── Status Constants ──────────────────────────────────────────────────────────
@@ -1831,27 +1826,23 @@ def _strip_placeholder(value: str | None) -> str | None:
     return stripped
 
 
-def parse_state_to_json(content: str, *, import_legacy_session: bool = False) -> dict:
-    """Parse STATE.md content into JSON-sidecar format."""
+def parse_state_to_json(content: str) -> dict:
+    """Parse STATE.md content into JSON-sidecar format.
+
+    The STATE.md ``## Session Continuity`` block is projected directly into
+    canonical ``continuation``; there is no separate ``session`` field.
+    """
     parsed = parse_state_md(content)
 
-    last_date = _strip_placeholder(parsed["session"]["last_date"])
-    hostname = _strip_placeholder(parsed["session"]["hostname"])
-    platform_value = _strip_placeholder(parsed["session"]["platform"])
-    stopped_at = _strip_placeholder(parsed["session"]["stopped_at"])
-    resume_file = _strip_placeholder(parsed["session"]["resume_file"])
-    last_result_id = _strip_placeholder(parsed["session"]["last_result_id"])
-    session: dict[str, str | None] = {
-        "last_date": last_date,
-        "hostname": hostname,
-        "platform": platform_value,
-        "stopped_at": stopped_at,
-        "resume_file": resume_file,
-        "last_result_id": last_result_id,
+    session_block: dict[str, str | None] = {
+        "last_date": _strip_placeholder(parsed["session"]["last_date"]),
+        "hostname": _strip_placeholder(parsed["session"]["hostname"]),
+        "platform": _strip_placeholder(parsed["session"]["platform"]),
+        "stopped_at": _strip_placeholder(parsed["session"]["stopped_at"]),
+        "resume_file": _strip_placeholder(parsed["session"]["resume_file"]),
+        "last_result_id": _strip_placeholder(parsed["session"]["last_result_id"]),
     }
-    continuation = (
-        _continuation_from_session_payload(session) if import_legacy_session else _normalize_continuation_payload(None)
-    )
+    continuation = _continuation_from_markdown_session(session_block)
 
     return {
         "_version": 1,
@@ -1873,7 +1864,6 @@ def parse_state_to_json(content: str, *, import_legacy_session: bool = False) ->
             "progress_percent": parsed["position"]["progress_percent"],
             "paused_at": _strip_placeholder(parsed["position"]["paused_at"]),
         },
-        "session": session,
         "continuation": continuation,
         "decisions": parsed["decisions"],
         "blockers": parsed["blockers"],
@@ -1966,7 +1956,7 @@ def _normalize_state_schema(
             removed_validation_paths = set()
             validated = ResearchState.model_validate(normalized).model_dump()
             integrity_issues.extend(validation_findings)
-            return _mirror_continuation_state(validated), integrity_issues
+            return _normalize_state_continuation(validated), integrity_issues
         except PydanticValidationError as exc:
             nested_removed = False
             top_level_keys: set[str] = set()
@@ -2022,7 +2012,7 @@ def _normalize_state_schema(
             logger.warning("state.json had irrecoverable schema errors; resetting to defaults")
             integrity_issues.extend(validation_findings)
             integrity_issues.append("schema normalization: irrecoverable validation failure; reset to defaults")
-            return _mirror_continuation_state(default_state_dict()), integrity_issues
+            return _normalize_state_continuation(default_state_dict()), integrity_issues
 
 
 def _normalize_state_schema_with_backup_project_contract(
@@ -2102,7 +2092,7 @@ def _normalize_state_schema_with_backup_project_contract(
             normalized["continuation"] = copy.deepcopy(backup_normalized["continuation"])
             integrity_issues = [issue for issue in integrity_issues if issue not in primary_continuation_issues]
             recovered_continuation_from_backup = True
-    normalized = _mirror_continuation_state(normalized)
+    normalized = _normalize_state_continuation(normalized)
     return (
         normalized,
         integrity_issues,
@@ -2391,7 +2381,7 @@ def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | N
         project_root=project_root,
     )
     normalized = copy.deepcopy(normalized)
-    normalized["session"] = _session_from_continuation_payload(normalized.get("continuation"))
+    normalized.pop("session", None)
     if any("project_contract" in issue for issue in integrity_issues):
         logger.warning(
             "state.json persistence normalized project_contract with issue(s): %s", "; ".join(integrity_issues)
@@ -2835,7 +2825,7 @@ def generate_state_markdown(raw: dict) -> str:
 
     p("## Session Continuity")
     p("")
-    sess = s.get("session") or {}
+    sess = _session_display_from_continuation(s.get("continuation"))
     p(f"**Last session:** {sess.get('last_date') or INACTIVE_FIELD_SENTINEL}")
     p(f"**Stopped at:** {sess.get('stopped_at') or INACTIVE_FIELD_SENTINEL}")
     p(f"**Resume file:** {sess.get('resume_file') or INACTIVE_FIELD_SENTINEL}")
@@ -2955,15 +2945,17 @@ def _build_state_from_markdown(
     md_content: str,
     *,
     recover_intent: bool = True,
-    import_session_continuation_from_markdown: bool = False,
 ) -> dict:
-    """Merge markdown-derived state into the existing JSON state."""
+    """Merge markdown-derived state into the existing JSON state.
+
+    The Session Continuity block in STATE.md is projected directly into the
+    parsed dict's canonical ``continuation`` payload, so any values authored
+    in the markdown propagate when existing JSON has no continuation of its
+    own.
+    """
     json_path = _state_json_path(cwd)
     backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
-    parsed = parse_state_to_json(
-        md_content,
-        import_legacy_session=import_session_continuation_from_markdown,
-    )
+    parsed = parse_state_to_json(md_content)
     has_convention_lock = _has_bold_block(md_content, "Convention Lock")
     has_approximations = _has_subsection(md_content, "Active Approximations")
     has_uncertainties = _has_subsection(md_content, "Propagated Uncertainties")
@@ -2996,11 +2988,6 @@ def _build_state_from_markdown(
             backup_existing = None
         if isinstance(backup_existing, dict):
             existing = copy.deepcopy(backup_existing)
-            existing_continuation = existing.get("continuation")
-            if _continuation_payload_has_values(existing_continuation):
-                existing["session"] = _session_from_continuation_payload(existing_continuation)
-            else:
-                existing["session"] = _blank_session_payload()
 
     if existing and isinstance(existing, dict):
         if primary_unreadable and existing.get("project_contract") is not None:
@@ -3020,25 +3007,14 @@ def _build_state_from_markdown(
                 existing = copy.deepcopy(existing)
                 existing["project_contract"] = preserved_contract
         merged = {**existing}
+        merged.pop("session", None)
         merged["_version"] = parsed["_version"]
         merged["_synced_at"] = parsed["_synced_at"]
-        existing_session = (
-            {**_blank_session_payload(), **existing["session"]}
-            if isinstance(existing.get("session"), dict)
-            else _blank_session_payload()
-        )
-        parsed_session = (
-            {**_blank_session_payload(), **parsed["session"]}
-            if isinstance(parsed.get("session"), dict)
-            else _blank_session_payload()
-        )
-        parsed_session_has_values = _session_payload_has_values(parsed_session)
         if parsed.get("project_reference"):
             merged["project_reference"] = {**(merged.get("project_reference") or {}), **parsed["project_reference"]}
 
         if parsed.get("position"):
             merged["position"] = {**(merged.get("position") or {}), **parsed["position"]}
-        merged["session"] = parsed_session if parsed_session_has_values else existing_session
 
         if parsed.get("decisions") is not None:
             merged["decisions"] = parsed["decisions"]
@@ -3069,8 +3045,14 @@ def _build_state_from_markdown(
             if markdown_has_field and field in parsed:
                 merged[field] = parsed.get(field) or []
 
-        if "continuation" in existing:
-            merged["continuation"] = copy.deepcopy(existing.get("continuation"))
+        existing_continuation = existing.get("continuation")
+        parsed_continuation = parsed.get("continuation")
+        if _continuation_payload_has_values(existing_continuation):
+            merged["continuation"] = copy.deepcopy(existing_continuation)
+        elif _continuation_payload_has_values(parsed_continuation):
+            merged["continuation"] = copy.deepcopy(parsed_continuation)
+        elif "continuation" in existing:
+            merged["continuation"] = copy.deepcopy(existing_continuation)
     else:
         merged = parsed
 
@@ -3227,7 +3209,6 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         md_content,
         # Session Continuity is a compatibility mirror; markdown edits must
         # not mint canonical continuation authority on their own.
-        import_session_continuation_from_markdown=False,
     )
     if merged.get("project_contract") is None and isinstance(preserved_contract, dict):
         merged = copy.deepcopy(merged)
@@ -3279,7 +3260,6 @@ def _load_state_json_with_integrity_issues(
     integrity_mode: str = "standard",
     persist_recovery: bool = True,
     recover_intent: bool = True,
-    import_session_continuation_from_markdown: bool = False,
     surface_blocked_project_contract: bool = False,
     acquire_lock: bool = True,
 ) -> tuple[dict | None, list[str], str | None]:
@@ -3469,7 +3449,6 @@ def _load_state_json_with_integrity_issues(
                 cwd,
                 content,
                 recover_intent=recover_intent,
-                import_session_continuation_from_markdown=import_session_continuation_from_markdown,
             )
             integrity_issues = [
                 "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"
@@ -3508,7 +3487,6 @@ def peek_state_json(
         integrity_mode=integrity_mode,
         persist_recovery=False,
         recover_intent=recover_intent,
-        import_session_continuation_from_markdown=False,
         surface_blocked_project_contract=surface_blocked_project_contract,
         acquire_lock=acquire_lock,
     )
@@ -3689,7 +3667,6 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
         cwd,
         integrity_mode=integrity_mode,
         persist_recovery=True,
-        import_session_continuation_from_markdown=True,
         surface_blocked_project_contract=True,
     )
     if integrity_mode == "review" and integrity_issues:
@@ -3860,7 +3837,6 @@ def save_state_markdown_locked(cwd: Path, md_content: str) -> dict:
         md_content,
         # Session Continuity is a compatibility mirror; markdown edits must
         # not mint canonical continuation authority on their own.
-        import_session_continuation_from_markdown=False,
     )
     normalized_md_content = _canonicalize_session_continuity_section(md_content, merged)
     return _write_state_pair_locked(
@@ -3905,7 +3881,6 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         cwd,
         integrity_mode=integrity_mode,
         persist_recovery=True,
-        import_session_continuation_from_markdown=True,
         surface_blocked_project_contract=True,
     )
     validation = state_validate(cwd, integrity_mode=integrity_mode)
@@ -4326,7 +4301,7 @@ def state_carry_forward_continuation_last_result_id(
             )
 
         loaded_state_obj["continuation"] = desired_continuation
-        loaded_state_obj["session"] = _session_from_continuation_payload(desired_continuation)
+        loaded_state_obj.pop("session", None)
         return StateUpdateResult(updated=True)
 
     if state_obj is not None:
@@ -4361,7 +4336,7 @@ def state_clear_continuation_bounded_segment(cwd: Path) -> StateUpdateResult:
             },
         ).model_dump(mode="python")
         state_obj["continuation"] = desired_continuation
-        state_obj["session"] = _session_from_continuation_payload(desired_continuation)
+        state_obj.pop("session", None)
         save_state_json_locked(cwd, state_obj)
         return StateUpdateResult(updated=True)
 
@@ -4841,7 +4816,6 @@ def state_record_session(
             cwd,
             persist_recovery=False,
             recover_intent=False,
-            import_session_continuation_from_markdown=True,
             acquire_lock=False,
         )
         if not isinstance(state_obj, dict) or state_source is None:
@@ -4941,7 +4915,7 @@ def state_record_session(
             }
         ).model_dump(mode="python")
         state_obj["continuation"] = updated_continuation
-        state_obj["session"] = _session_from_continuation_payload(updated_continuation)
+        state_obj.pop("session", None)
         save_state_json_locked(cwd, state_obj)
         with gpd_span(
             "session.continuity.recorded",
@@ -5024,7 +4998,7 @@ def state_validate(
     try:
         content = md_path.read_text(encoding="utf-8")
         issues.extend(_state_markdown_structure_issues(content))
-        state_md = parse_state_to_json(content, import_legacy_session=False)
+        state_md = parse_state_to_json(content)
     except FileNotFoundError:
         issues.append("STATE.md not found")
     except (OSError, UnicodeDecodeError) as e:

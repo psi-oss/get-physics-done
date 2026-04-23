@@ -87,16 +87,16 @@ class TestStateRecordSession:
 
         assert "Phase 03 Plan 2" in markdown
         assert "next-step.md" in markdown
-        assert stored["session"]["stopped_at"] == "Phase 03 Plan 2"
-        assert stored["session"]["resume_file"] == "next-step.md"
-        assert stored["session"]["last_date"] is not None
-        assert stored["continuation"]["handoff"]["recorded_at"] == stored["session"]["last_date"]
-        assert stored["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
-        assert stored["continuation"]["handoff"]["resume_file"] == "next-step.md"
-        assert stored["continuation"]["handoff"]["recorded_by"] == "state_record_session"
-        assert stored["continuation"]["machine"]["recorded_at"] == stored["session"]["last_date"]
-        assert stored["continuation"]["machine"]["hostname"] == stored["session"]["hostname"]
-        assert stored["continuation"]["machine"]["platform"] == stored["session"]["platform"]
+        assert "session" not in stored
+        handoff = stored["continuation"]["handoff"]
+        machine = stored["continuation"]["machine"]
+        assert handoff["stopped_at"] == "Phase 03 Plan 2"
+        assert handoff["resume_file"] == "next-step.md"
+        assert handoff["recorded_at"] is not None
+        assert handoff["recorded_by"] == "state_record_session"
+        assert machine["recorded_at"] == handoff["recorded_at"]
+        assert machine["hostname"] is not None
+        assert machine["platform"] is not None
 
 
 def test_markdown_mutator_recovers_missing_state_markdown_from_state_json(

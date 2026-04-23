@@ -278,7 +278,8 @@ class TestEnsureStateSchema:
     def test_none_returns_defaults(self) -> None:
         result = ensure_state_schema(None)
         assert "position" in result
-        assert "session" in result
+        assert "continuation" in result
+        assert "session" not in result
 
     def test_empty_dict_returns_defaults(self) -> None:
         result = ensure_state_schema({})

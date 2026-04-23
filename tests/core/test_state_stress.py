@@ -82,7 +82,7 @@ def test_load_all_null_state_json(tmp_path: Path) -> None:
 
     assert loaded is not None
     assert "position" in loaded
-    assert "session" in loaded
+    assert "continuation" in loaded
 
 
 def test_extra_fields_survive_state_schema_normalization() -> None:
@@ -107,8 +107,8 @@ def test_missing_sections_get_default_shape() -> None:
 
     raw = {"position": {"current_phase": "05", "status": "Executing"}}
     result = ensure_state_schema(raw)
-    assert "session" in result
-    assert isinstance(result["session"], dict)
+    assert "continuation" in result
+    assert isinstance(result["continuation"], dict)
 
 
 class TestConcurrentAccess:
