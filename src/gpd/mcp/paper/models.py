@@ -498,6 +498,12 @@ class ArtifactManifest(BaseModel):
     journal: BuilderJournalKey
     created_at: str
     artifacts: list[ArtifactRecord] = Field(default_factory=list)
+    # Freshness fields so downstream consumers can detect manual manuscript
+    # edits that happened after the last build. If ``manuscript_sha256`` no
+    # longer matches the active `.tex`, the manifest is stale and its page
+    # count / journal / table-font claims must not be trusted.
+    manuscript_sha256: Sha256Hex | None = None
+    manuscript_mtime_ns: int | None = None
 
     @field_validator("paper_title")
     @classmethod

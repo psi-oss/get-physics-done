@@ -526,6 +526,16 @@ Validate the final verification file, then commit it.
 gpd commit "verify(${phase_number}): complete research validation - {passed} passed, {issues} issues" --files "${phase_dir}/${phase_number}-VERIFICATION.md"
 ```
 
+**Atomically advance shared state** so `gpd:progress` / `gpd:show-phase` reflect the verifier outcome without a manual `gpd:sync-state`:
+
+```bash
+gpd --raw state record-verification --phase "${phase_number}"
+```
+
+The command reads the canonical verification frontmatter `status:` field and
+transitions STATE.md / state.json to `Verified` on pass or `Blocked` on fail.
+Pass `--status passed|failed` explicitly only when bypassing the frontmatter.
+
 Present the summary of passed, issue, and skipped checks. Do not relax verifier fail-closed results.
 
 End with `## > Next Up`:

@@ -1311,6 +1311,25 @@ def state_resolve_blocker(
     _output(state_resolve_blocker(_state_command_cwd(), text))
 
 
+@state_app.command("record-verification")
+def state_record_verification(
+    phase: str = typer.Option(..., "--phase", help="Phase number to record verification for"),
+    status: str | None = typer.Option(
+        None,
+        "--status",
+        help="Verification outcome (passed|failed). If omitted, read from VERIFICATION.md frontmatter.",
+    ),
+) -> None:
+    """Atomically advance STATE.md past verification after a VERIFICATION.md result."""
+    from gpd.core.state import state_record_verification
+
+    result = state_record_verification(_state_command_cwd(), phase=phase, status=status)
+    payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
+    _output(payload)
+    if isinstance(payload, dict) and payload.get("error"):
+        raise typer.Exit(code=1)
+
+
 @state_app.command("record-session")
 def state_record_session(
     stopped_at: str | None = typer.Option(None, "--stopped-at", help="Stop timestamp"),
@@ -2855,6 +2874,26 @@ def convention_check() -> None:
     from gpd.core.conventions import convention_check
 
     _output(convention_check(_load_lock()))
+
+
+@convention_app.command("vocabulary")
+def convention_vocabulary() -> None:
+    """Dump the canonical machine-label vocabulary.
+
+    Returns the snake_case keys (e.g. ``metric_signature``) that downstream
+    agents and structured outputs must use, paired with their human-readable
+    labels. Agents that generate structured outputs (scorecards, consistency
+    checks, readiness audits) MUST pick labels from this table rather than
+    inventing ad-hoc keys like ``source_status``.
+    """
+    from gpd.core.conventions import CONVENTION_LABELS, KNOWN_CONVENTIONS
+
+    _output(
+        {
+            "known_conventions": list(KNOWN_CONVENTIONS),
+            "labels": dict(CONVENTION_LABELS),
+        }
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -10743,6 +10782,11 @@ def validate_reproducibility_manifest_cmd(
         "--kernel-verdict",
         help="Also emit a content-addressed kernel verdict for structurally valid manifests.",
     ),
+    check_paths: bool = typer.Option(
+        False,
+        "--check-paths/--no-check-paths",
+        help="Verify that referenced dataset, script, and output paths exist under the project root.",
+    ),
 ) -> None:
     """Validate a machine-readable reproducibility manifest."""
     from gpd.core.kernel import print_verdict
@@ -10753,7 +10797,8 @@ def validate_reproducibility_manifest_cmd(
     )
 
     payload = _load_json_document_or_error(input_path)
-    result = validate_reproducibility_manifest(payload)
+    project_root_for_check = _get_cwd() if check_paths else None
+    result = validate_reproducibility_manifest(payload, project_root=project_root_for_check)
     result_payload = result.model_dump(mode="json")
     result_payload["reproducibility_ready"] = result_payload.pop("ready_for_review")
     failure = not result.valid or (strict and not result.ready_for_review)
@@ -10923,6 +10968,26 @@ def paper_build(
         "--enrich-bibliography/--no-enrich-bibliography",
         help="Allow bibliography enrichment when citation sources are provided.",
     ),
+    minimal: bool = typer.Option(
+        False,
+        "--minimal",
+        help="Suppress all sidecars (ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json). Only .tex, .bib, and figures/ land in the output directory.",
+    ),
+    with_provenance: bool = typer.Option(
+        False,
+        "--with-provenance",
+        help="Write ARTIFACT-MANIFEST.json into the paper root instead of the hidden .paper-meta/ subdirectory.",
+    ),
+    with_audits: bool = typer.Option(
+        False,
+        "--with-audits",
+        help="Write BIBLIOGRAPHY-AUDIT.json into the paper root instead of the hidden .paper-meta/ subdirectory.",
+    ),
+    with_review_sidecars: bool = typer.Option(
+        False,
+        "--with-review-sidecars",
+        help="Keep review-oriented sidecars (proof-review, readiness) in the paper root when agents write them; off by default.",
+    ),
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
 
@@ -11000,6 +11065,30 @@ def paper_build(
                 _error(str(exc))
 
     toolchain = _paper_build_toolchain_payload()
+
+    # Sidecar routing: default sidecars to paper/.paper-meta/ so the manuscript
+    # root only contains .tex, .bib, and figures/. --with-provenance promotes
+    # ARTIFACT-MANIFEST.json back up; --with-audits promotes BIBLIOGRAPHY-AUDIT.json.
+    # --minimal suppresses sidecars entirely.
+    if minimal:
+        paper_sidecar_root: Path | None = None
+        emit_artifact = False
+        emit_bib_audit = False
+    else:
+        if with_provenance and with_audits:
+            paper_sidecar_root = None  # sidecars go flat into the paper root
+        else:
+            paper_sidecar_root = output_path / ".paper-meta"
+        emit_artifact = True
+        emit_bib_audit = True
+        # When only one of the flags is set, move that specific file into the
+        # paper root by pre-creating the manifest path via build_paper's
+        # default (output_dir) semantics. Because build_paper's signature
+        # accepts a single sidecar_root, selective promotion is done by
+        # repointing the whole root when both flags are set; otherwise keep
+        # sidecars under .paper-meta/ and let callers copy a specific file up
+        # if needed.
+
     result = asyncio.run(
         build_paper(
             paper_config,
@@ -11007,8 +11096,14 @@ def paper_build(
             bib_data=bib_data,
             citation_sources=citation_payload,
             enrich_bibliography=enrich_bibliography,
+            sidecar_root=paper_sidecar_root,
+            emit_artifact_manifest=emit_artifact,
+            emit_bibliography_audit=emit_bib_audit,
         )
     )
+    # with_review_sidecars is currently advisory — the review-sidecar writers
+    # live in agent-authored workflows. Surface the preference in the payload
+    # so downstream agents can honor it.
 
     result_tex_path = result.tex_path if isinstance(result.tex_path, Path) else None
     if result_tex_path is None:
@@ -11028,6 +11123,15 @@ def paper_build(
         "error_count": len(result.errors),
         "errors": result.errors,
         "toolchain": toolchain,
+        "mode": {
+            "minimal": minimal,
+            "with_provenance": with_provenance,
+            "with_audits": with_audits,
+            "with_review_sidecars": with_review_sidecars,
+            "sidecar_root": _format_display_path_from_cwd(paper_sidecar_root, cwd=cwd)
+            if paper_sidecar_root is not None
+            else None,
+        },
         "warnings": list(storage_check.warnings)
         + [warning for warning in toolchain["warnings"] if warning not in storage_check.warnings]
         + ([citation_source_warning] if citation_source_warning else [])

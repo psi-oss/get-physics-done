@@ -411,6 +411,18 @@ MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_mi
 CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
 CHECKPOINT_AFTER_FIRST_RESULT=$(echo "$INIT" | gpd json get .checkpoint_after_first_load_bearing_result --default true)
 CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_downstream_dependent_tasks --default true)
+STRICT_WAIT=$(gpd --raw config get strict_wait 2>/dev/null || echo false)
+NEVER_INTERRUPT_WORKERS=$(gpd --raw config get never_interrupt_running_workers 2>/dev/null || echo false)
+NEVER_AUTO_CLOSE_CHILDREN=$(gpd --raw config get never_auto_close_child_agents 2>/dev/null || echo false)
+
+# strict_wait disables the unattended-minutes timeouts entirely: workers are
+# allowed to run to natural completion rather than returning early checkpoints
+# at the 45 / 90 minute marks. never_interrupt_running_workers is a narrower
+# form of the same guarantee.
+if [ "$STRICT_WAIT" = "true" ] || [ "$NEVER_INTERRUPT_WORKERS" = "true" ]; then
+  MAX_UNATTENDED_MINUTES_PER_PLAN=0
+  MAX_UNATTENDED_MINUTES_PER_WAVE=0
+fi
 ```
 
 **Core invariant:** `autonomy` decides who gets interrupted. `review_cadence` decides when the system must stop, inspect, or re-question. Even in `yolo`, required first-result and pre-fanout gates still run; the difference is that a clean pass can auto-continue.
@@ -506,8 +518,14 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 2. **Create wave-level checkpoint** before any plan in the wave starts:
 
    ```bash
-   WAVE_CHECKPOINT="gpd-checkpoint/phase-${phase_number}-wave-${WAVE_NUM}-$(date +%s)-$$"
-   git tag "${WAVE_CHECKPOINT}"
+   WAVE_CHECKPOINT="gpd-checkpoint-phase-${phase_number}-wave-${WAVE_NUM}-$(date +%s)-$$"
+   if git rev-parse --verify "refs/tags/${WAVE_CHECKPOINT}" >/dev/null 2>&1; then
+     WAVE_CHECKPOINT="${WAVE_CHECKPOINT}-retry"
+   fi
+   if ! git tag "${WAVE_CHECKPOINT}"; then
+     echo "ERROR: failed to create wave checkpoint tag ${WAVE_CHECKPOINT}" >&2
+     exit 1
+   fi
    ```
 
    Store the tag for wave-level recovery.
@@ -1761,11 +1779,10 @@ gpd commit "docs(phase-${phase_number}): complete phase execution" --files GPD/R
 <step name="cleanup_phase_checkpoints">
 **After successful phase completion (all plans passed + verification passed):**
 
-Remove all `gpd-checkpoint/*` tags for this phase -- they are no longer needed.
+Remove all `gpd-checkpoint-phase-{phase}-*` tags for this phase -- they are no longer needed.
 
 ```bash
-# List all checkpoint tags for this phase
-PHASE_TAGS=$(git tag -l "gpd-checkpoint/phase-${phase_number}-*")
+PHASE_TAGS=$(git tag -l "gpd-checkpoint-phase-${phase_number}-*")
 
 if [ -n "${PHASE_TAGS}" ]; then
   echo "Cleaning up ${phase_number} checkpoint tags..."
@@ -1782,7 +1799,7 @@ fi
 
 | Condition                               | Action                                             |
 | --------------------------------------- | -------------------------------------------------- |
-| All plans passed + verification passed  | Delete all `gpd-checkpoint/phase-{X}-*` tags       |
+| All plans passed + verification passed  | Delete all `gpd-checkpoint-phase-{X}-*` tags       |
 | Any plans failed (even if kept partial) | Keep all checkpoint tags                           |
 | Verification found gaps                 | Keep all checkpoint tags                           |
 | Phase marked complete after gap closure | Delete checkpoint tags from successful re-run only |

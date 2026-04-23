@@ -66,10 +66,14 @@ Capture the selected phase directory and roadmap view for the downstream scan:
 ROADMAP=$(gpd --raw roadmap analyze)
 ```
 
-Load the convention ledger:
+Load the convention ledger and the canonical vocabulary:
 
 ```bash
 CONVENTIONS=$(gpd convention list)
+# Canonical snake_case machine labels + human display names. Pass this to the
+# consistency-checker so its structured output stays on the authoritative
+# vocabulary and does not invent ad-hoc keys like "source_status".
+CONVENTION_VOCABULARY=$(gpd --raw convention vocabulary 2>/dev/null || echo "{}")
 ```
 
 Read `GPD/CONVENTIONS.md` when present so the checker can compare the human-readable convention record against the structured lock. If the file is missing, continue with the structured lock and report the missing artifact as a limitation rather than inventing a fallback policy.

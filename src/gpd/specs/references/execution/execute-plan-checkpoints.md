@@ -7,8 +7,14 @@ Referenced by `{GPD_INSTALL_DIR}/workflows/execute-plan.md`. Governs checkpoint 
 **Create a git rollback tag before any plan execution begins.** This enables clean recovery if the plan fails partway through. The git tag is a rollback primitive, not the bounded execution checkpoint state itself.
 
 ```bash
-CHECKPOINT_TAG="gpd-checkpoint/phase-${PHASE}-plan-${PLAN}-$(date +%s)"
-git tag "${CHECKPOINT_TAG}"
+CHECKPOINT_TAG="gpd-checkpoint-phase-${PHASE}-plan-${PLAN}-$(date +%s)"
+if git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}" >/dev/null 2>&1; then
+  CHECKPOINT_TAG="${CHECKPOINT_TAG}-$$"
+fi
+if ! git tag "${CHECKPOINT_TAG}"; then
+  echo "ERROR: failed to create checkpoint tag ${CHECKPOINT_TAG}" >&2
+  exit 1
+fi
 ```
 
 Store the tag name for use in failure recovery:

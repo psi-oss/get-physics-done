@@ -1015,7 +1015,7 @@ def test_phase_remove_integer_removes_descendant_subtree_and_clears_removed_curr
     state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
     assert "**Current Phase:** 02" in state
     assert "**Current Phase Name:** Validation" in state
-    assert "**Current Plan:** \u2014" in state
+    assert "**Current Plan:** none" in state
     assert "**Total Plans in Phase:** 1" in state
 
 
@@ -1131,7 +1131,7 @@ def test_phase_remove_decimal_descendant_current_phase_falls_back_to_previous_ph
     state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
     assert "**Current Phase:** 03" in state
     assert "**Current Phase Name:** Base" in state
-    assert "**Current Plan:** \u2014" in state
+    assert "**Current Plan:** none" in state
 
 
 def test_phase_remove_with_summaries_needs_force(tmp_path: Path) -> None:
@@ -1333,7 +1333,7 @@ def test_phase_remove_remaps_current_phase_state_after_renumbering(tmp_path: Pat
     assert "**Current Phase:** 02" in state
     assert "**Current Phase Name:** Validation" in state
     assert "**Total Phases:** 2" in state
-    assert "**Current Plan:** \u2014" in state
+    assert "**Current Plan:** none" in state
     assert "**Total Plans in Phase:** 1" in state
 
     state_json = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
@@ -1542,8 +1542,8 @@ def test_phase_plan_index_not_found(tmp_path: Path) -> None:
 # ─── Bug-fix regression tests ────────────────────────────────────────────────
 
 
-def test_phase_complete_sets_current_plan_to_em_dash(tmp_path: Path) -> None:
-    """After phase_complete the Current Plan field must be the em-dash placeholder,
+def test_phase_complete_sets_current_plan_to_inactive_sentinel(tmp_path: Path) -> None:
+    """After phase_complete the Current Plan field must be the inactive sentinel,
     not the string 'Not started', so that state_advance_plan can parse it correctly."""
     _setup_project(tmp_path)
     _create_roadmap(
@@ -1579,7 +1579,7 @@ def test_phase_complete_sets_current_plan_to_em_dash(tmp_path: Path) -> None:
     phase_complete(tmp_path, "1")
 
     state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
-    assert "**Current Plan:** \u2014" in state
+    assert "**Current Plan:** none" in state
     assert "Not started" not in state
 
 

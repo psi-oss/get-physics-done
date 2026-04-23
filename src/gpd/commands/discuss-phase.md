@@ -1,7 +1,7 @@
 ---
 name: gpd:discuss-phase
 description: Gather phase context through adaptive questioning before planning
-argument-hint: "<phase> [--auto]"
+argument-hint: "<phase> [--auto|--compact]"
 context_mode: project-required
 allowed-tools:
   - file_read
@@ -25,6 +25,14 @@ Extract research decisions that downstream agents need -- researcher and planner
 
 **`--auto` mode:** Compress the discussion to 2-3 critical gray areas, 1 question each, then auto-proceed to planning. For researchers who want fast iteration with sensible defaults.
 
+**`--compact` mode:** Present a single-screen form instead of the Socratic multi-round dialogue. The form shows:
+
+1. The phase goal as read from the ROADMAP.
+2. The 4-6 controllable policy knobs (see workflow spec) with current defaults pre-filled.
+3. A free-text "intent" field for anything not captured by the knobs.
+
+Then render a one-screen summary of the resulting `{phase}-CONTEXT.md` and ask for a single confirm. Use `--compact` when you already know what you want and don't need the agent to lead you through gray-area discovery. `--auto` stays hands-off; `--compact` is hands-on but single-turn.
+
 **Output:** `{phase}-CONTEXT.md` -- decisions clear enough that downstream agents can act without asking the user again
 </objective>
 
@@ -44,13 +52,14 @@ Phase number: $ARGUMENTS (required)
 </context>
 
 <process>
-1. Validate phase number and detect `--auto` flag (error if phase missing or not in roadmap)
-2. Check if CONTEXT.md exists (offer update/view/skip if yes; in `--auto` mode: reuse existing, skip to planning)
-3. **Analyze phase** -- Identify domain and generate phase-specific gray areas
-4. **Present gray areas** -- Multi-select: which to discuss? (NO skip option; `--auto`: auto-select top 2-3)
-5. **Deep-dive each area** -- 4 questions per area, then offer more/next (`--auto`: 1 question per area, no follow-up rounds)
-6. **Write CONTEXT.md** -- Sections match areas discussed
-7. Offer next steps (`--auto`: auto-suggest `gpd:plan-phase` and proceed if user confirms)
+1. Validate phase number and detect `--auto` / `--compact` flag (error if phase missing or not in roadmap; flags are mutually exclusive)
+2. Check if CONTEXT.md exists (offer update/view/skip if yes; in `--auto` mode: reuse existing, skip to planning; in `--compact` mode: pre-fill the form from the existing CONTEXT.md)
+3. **Analyze phase** -- Identify domain and generate phase-specific gray areas (skipped in `--compact` mode)
+4. **Present gray areas** -- Multi-select: which to discuss? (NO skip option; `--auto`: auto-select top 2-3; `--compact`: skipped entirely in favor of the knobs form)
+5. **Deep-dive each area** -- 4 questions per area, then offer more/next (`--auto`: 1 question per area; `--compact`: skipped)
+6. **Compact form** (only in `--compact` mode): present phase goal + knobs + intent field; accept one batched answer
+7. **Write CONTEXT.md** -- Sections match areas discussed (in `--compact` mode: sections reflect the knob values plus intent)
+8. Offer next steps (`--auto` / `--compact`: auto-suggest `gpd:plan-phase` and proceed if user confirms)
 
 **CRITICAL: Scope guardrail**
 

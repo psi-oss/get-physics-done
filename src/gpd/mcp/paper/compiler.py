@@ -756,6 +756,10 @@ async def build_paper(
     bib_data: BibliographyData | None = None,
     citation_sources: list[CitationSource] | None = None,
     enrich_bibliography: bool = True,
+    *,
+    sidecar_root: Path | None = None,
+    emit_artifact_manifest: bool = True,
+    emit_bibliography_audit: bool = True,
 ) -> PaperOutput:
     """Orchestrate the full paper build pipeline.
 
@@ -764,11 +768,19 @@ async def build_paper(
     3. Render .tex from template
     4. Check required TeX resources
     5. Compile to PDF
+
+    Sidecar files (ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json) are written
+    to ``sidecar_root`` when provided, otherwise to ``output_dir`` alongside
+    the manuscript. ``emit_artifact_manifest`` and ``emit_bibliography_audit``
+    can be set to ``False`` to suppress those files entirely (minimal mode).
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    if sidecar_root is not None:
+        sidecar_root.mkdir(parents=True, exist_ok=True)
+    resolved_sidecar_root = sidecar_root if sidecar_root is not None else output_dir
     figures_dir: Path | None = None
     manifest = None
-    manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
+    manifest_path = resolved_sidecar_root / "ARTIFACT-MANIFEST.json" if emit_artifact_manifest else None
     bibliography_audit = None
     bibliography_audit_path: Path | None = None
     errors: list[str] = []
@@ -835,8 +847,9 @@ async def build_paper(
 
     if bib_data is not None:
         bibliography_audit = audit_bibliography(bib_data, source_audit_entries=citation_audit_entries)
-        bibliography_audit_path = output_dir / "BIBLIOGRAPHY-AUDIT.json"
-        await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
+        if emit_bibliography_audit:
+            bibliography_audit_path = resolved_sidecar_root / "BIBLIOGRAPHY-AUDIT.json"
+            await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
     reference_bibtex_keys = _reference_bibtex_keys_from_audit(bibliography_audit)
 
     # 2. Write .bib file
@@ -881,7 +894,8 @@ async def build_paper(
         bibliography_audit=bibliography_audit,
         figure_source_pairs=figure_source_pairs,
     )
-    await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    if emit_artifact_manifest and manifest_path is not None:
+        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
@@ -921,7 +935,8 @@ async def build_paper(
         figure_source_pairs=figure_source_pairs,
         pdf_path=result.pdf_path,
     )
-    await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+    if emit_artifact_manifest and manifest_path is not None:
+        await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     final_success = result.success and figures_prepared_successfully and not errors
 

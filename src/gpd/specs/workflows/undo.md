@@ -137,8 +137,14 @@ A safety checkpoint will be created first so this undo can itself be reversed.
 **Create safety checkpoint tag:**
 
 ```bash
-CHECKPOINT_TAG="gpd-checkpoint/$(date +%Y%m%d-%H%M%S)"
-git tag "${CHECKPOINT_TAG}"
+CHECKPOINT_TAG="gpd-checkpoint-undo-$(date +%Y%m%d-%H%M%S)"
+if git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}" >/dev/null 2>&1; then
+  CHECKPOINT_TAG="${CHECKPOINT_TAG}-$$"
+fi
+if ! git tag "${CHECKPOINT_TAG}"; then
+  echo "ERROR: failed to create undo checkpoint tag ${CHECKPOINT_TAG}" >&2
+  exit 1
+fi
 ```
 
 Confirm:

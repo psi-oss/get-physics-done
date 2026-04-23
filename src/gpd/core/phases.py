@@ -268,21 +268,23 @@ def _phase_remove_state_content(
         mapped_phase_entry = _get_roadmap_phase_by_number(cwd, mapped_phase)
         mapped_phase_name = mapped_phase_entry.name if mapped_phase_entry else None
 
-    replacement_phase = mapped_phase or "\u2014"
-    replacement_name = mapped_phase_name or "\u2014"
+    from gpd.core.state import INACTIVE_FIELD_SENTINEL
+
+    replacement_phase = mapped_phase or INACTIVE_FIELD_SENTINEL
+    replacement_name = mapped_phase_name or INACTIVE_FIELD_SENTINEL
     state_content = _replace_state_field(state_content, "Current Phase", replacement_phase)
     state_content = _replace_state_field(state_content, "Current Phase Name", replacement_name)
 
     current_was_removed = _phase_in_subtree(current_phase_before, target_phase)
     if current_was_removed:
-        state_content = _replace_state_field(state_content, "Current Plan", "\u2014")
+        state_content = _replace_state_field(state_content, "Current Plan", INACTIVE_FIELD_SENTINEL)
 
     if mapped_phase is not None:
         mapped_info = find_phase(cwd, mapped_phase)
         plan_total = len(mapped_info.plans) if mapped_info else 0
-        total_plans_value = str(plan_total) if plan_total else "\u2014"
+        total_plans_value = str(plan_total) if plan_total else INACTIVE_FIELD_SENTINEL
     else:
-        total_plans_value = "\u2014"
+        total_plans_value = INACTIVE_FIELD_SENTINEL
     return _replace_state_field(state_content, "Total Plans in Phase", total_plans_value)
 
 
@@ -297,28 +299,34 @@ def _phase_complete_state_content(
     is_last_phase: bool,
 ) -> str:
     """Rewrite STATE.md after completing a phase."""
+    from gpd.core.state import INACTIVE_FIELD_SENTINEL
+
     new_status = "Milestone complete" if is_last_phase else "Ready to plan"
     current_status = _extract_state_field(state_content, "Status") or ""
     _validate_transition(current_status, new_status)
 
-    state_content = _replace_state_field(state_content, "Current Phase", next_phase_num or phase_num)
-    phase_name_display = next_phase_name.replace("-", " ") if next_phase_name else (next_phase_num or "\u2014")
-    state_content = _replace_state_field(state_content, "Current Phase Name", phase_name_display)
-    state_content = _replace_state_field(
-        state_content,
-        "Status",
-        "Milestone complete" if is_last_phase else "Ready to plan",
-    )
-    state_content = _replace_state_field(state_content, "Current Plan", "\u2014")
+    if is_last_phase:
+        state_content = _replace_state_field(state_content, "Current Phase", INACTIVE_FIELD_SENTINEL)
+        state_content = _replace_state_field(state_content, "Current Phase Name", INACTIVE_FIELD_SENTINEL)
+    else:
+        state_content = _replace_state_field(state_content, "Current Phase", next_phase_num or phase_num)
+        phase_name_display = (
+            next_phase_name.replace("-", " ")
+            if next_phase_name
+            else (next_phase_num or INACTIVE_FIELD_SENTINEL)
+        )
+        state_content = _replace_state_field(state_content, "Current Phase Name", phase_name_display)
 
-    em_dash = "\u2014"
-    if next_phase_num:
+    state_content = _replace_state_field(state_content, "Status", new_status)
+    state_content = _replace_state_field(state_content, "Current Plan", INACTIVE_FIELD_SENTINEL)
+
+    if next_phase_num and not is_last_phase:
         next_info = find_phase(cwd, next_phase_num)
         next_plan_count = len(next_info.plans) if next_info else 0
-        replacement = str(next_plan_count) if next_plan_count else em_dash
+        replacement = str(next_plan_count) if next_plan_count else INACTIVE_FIELD_SENTINEL
         state_content = _replace_state_field(state_content, "Total Plans in Phase", replacement)
     else:
-        state_content = _replace_state_field(state_content, "Total Plans in Phase", em_dash)
+        state_content = _replace_state_field(state_content, "Total Plans in Phase", INACTIVE_FIELD_SENTINEL)
 
     state_content = _replace_state_field(state_content, "Last Activity", today)
 
@@ -329,10 +337,21 @@ def _phase_complete_state_content(
 
 
 def _milestone_complete_state_content(state_content: str, *, today: str, version: str) -> str:
-    """Rewrite STATE.md after completing a milestone."""
+    """Rewrite STATE.md after completing a milestone.
+
+    Clears Current Phase / Current Phase Name / Current Plan / Total Plans in
+    Phase to the inactive sentinel so end-of-milestone state is a real "no
+    active work" snapshot rather than a half-filled template.
+    """
+    from gpd.core.state import INACTIVE_FIELD_SENTINEL
+
     current_status = _extract_state_field(state_content, "Status") or ""
     _validate_transition(current_status, "Milestone complete")
     state_content = _replace_state_field(state_content, "Status", "Milestone complete")
+    state_content = _replace_state_field(state_content, "Current Phase", INACTIVE_FIELD_SENTINEL)
+    state_content = _replace_state_field(state_content, "Current Phase Name", INACTIVE_FIELD_SENTINEL)
+    state_content = _replace_state_field(state_content, "Current Plan", INACTIVE_FIELD_SENTINEL)
+    state_content = _replace_state_field(state_content, "Total Plans in Phase", INACTIVE_FIELD_SENTINEL)
     state_content = _replace_state_field(state_content, "Last Activity", today)
     return _replace_state_field(
         state_content, "Last Activity Description", f"{version} milestone completed and archived"
@@ -361,10 +380,68 @@ def _extract_state_field(state_content: str, field_name: str) -> str | None:
     if not match:
         return None
     value = match.group(1).strip()
-    return None if value == "\u2014" else value
+    if value == "\u2014" or value.lower() in {"none", "no", "not set", "[not set]"}:
+        return None
+    return value
 
 
 _CHECKPOINT_TASK_RE = re.compile(r'<task\s+[^>]*?type=["\']?checkpoint', re.IGNORECASE)
+
+
+_PLAN_CHECKBOX_RE = re.compile(
+    r"^(?P<indent>\s*-\s*)\[\s\](?P<body>\s+(?P<plan>\d{1,3}(?:\.\d+)?-\d{1,3})\b[^\n]*)$",
+    re.MULTILINE,
+)
+
+
+def _tick_completed_plan_checkboxes(cwd: Path, roadmap_content: str) -> str:
+    """Tick ``- [ ] NN-KK`` rows whose plan has a SUMMARY.md on disk.
+
+    Archive freezing requires the plan checklist to agree with the phase-level
+    "complete" markers. The live ROADMAP.md is authored by agents and often
+    carries stale unchecked rows. This reconciles them based on filesystem
+    truth at milestone completion.
+    """
+    if "- [ ]" not in roadmap_content:
+        return roadmap_content
+
+    phases_dir = _phases_dir(cwd)
+    if not phases_dir.exists():
+        return roadmap_content
+
+    completed_plans: set[str] = set()
+    for phase_dir in phases_dir.iterdir():
+        if not phase_dir.is_dir():
+            continue
+        for summary in phase_dir.glob("*-SUMMARY.md"):
+            stem = summary.name[: -len("-SUMMARY.md")]
+            # Canonicalize to the unpadded dotted-index form (e.g. "5-2", "05-02",
+            # "5.1-03" all reconcile to the same key).
+            m = re.match(r"^(\d+(?:\.\d+)?)-(\d+)$", stem)
+            if not m:
+                continue
+            phase_part = m.group(1).lstrip("0") or "0"
+            plan_part = str(int(m.group(2)))
+            completed_plans.add(f"{phase_part}-{plan_part}")
+
+    if not completed_plans:
+        return roadmap_content
+
+    def _normalize_plan_token(token: str) -> str:
+        m = re.match(r"^(\d+(?:\.\d+)?)-(\d+)$", token)
+        if not m:
+            return token
+        phase_part = m.group(1).lstrip("0") or "0"
+        plan_part = str(int(m.group(2)))
+        return f"{phase_part}-{plan_part}"
+
+    def _replace(match: re.Match) -> str:
+        token = _normalize_plan_token(match.group("plan"))
+        if token in completed_plans:
+            return f"{match.group('indent')}[x]{match.group('body')}"
+        return match.group(0)
+
+    return _PLAN_CHECKBOX_RE.sub(_replace, roadmap_content)
 
 
 def _upsert_milestone_entry(existing: str, version: str, milestone_entry: str) -> str:
@@ -596,6 +673,31 @@ class PhaseProgress(BaseModel):
     status: str
 
 
+class ProgressLiveExecution(BaseModel):
+    """Live execution telemetry surfaced next to static milestone progress.
+
+    Populated from ``derive_execution_visibility`` so ``gpd:progress`` can
+    answer "any idea of progress?" during long-running multi-plan executions.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    phase: str | None = None
+    plan: str | None = None
+    wave: str | None = None
+    current_task: str | None = None
+    current_task_index: int | None = None
+    current_task_total: int | None = None
+    segment_status: str | None = None
+    waiting_reason: str | None = None
+    last_result_label: str | None = None
+    last_artifact_path: str | None = None
+    last_updated_age_label: str | None = None
+    strict_wait: bool = False
+    never_interrupt_running_workers: bool = False
+    never_auto_close_child_agents: bool = False
+
+
 class ProgressJsonResult(BaseModel):
     """Progress data in JSON format."""
 
@@ -610,6 +712,7 @@ class ProgressJsonResult(BaseModel):
     state_progress_percent: int | None = None
     diverged: bool = False
     warnings: list[str] = Field(default_factory=list)
+    live_execution: ProgressLiveExecution | None = None
 
 
 class ProgressBarResult(BaseModel):
@@ -2322,6 +2425,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             try:
                 if roadmap_path.exists():
                     content = roadmap_path.read_text(encoding="utf-8")
+                    # Reconcile plan-level checkboxes so the archived roadmap is
+                    # self-consistent: "Phase complete" headers must agree with
+                    # the plan checklist below them.
+                    content = _tick_completed_plan_checkboxes(cwd, content)
                     atomic_write(roadmap_archive_path, content)
 
                 if req_path.exists():
@@ -2338,10 +2445,30 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     shutil.move(str(audit_file), str(archived_audit_path))
 
                 acc_list = "\n".join(f"- {a}" for a in accomplishments) if accomplishments else "- (none recorded)"
+                audit_line = (
+                    f"- `GPD/milestones/{version}-MILESTONE-AUDIT.md`"
+                    if archived_audit_path.exists()
+                    else "- (audit file is opt-in; run `gpd:audit-milestone` before completion to include one)"
+                )
+                digest_path = archive_dir / version / "RESEARCH-DIGEST.md"
+                digest_line = (
+                    f"- `GPD/milestones/{version}/RESEARCH-DIGEST.md`"
+                    if digest_path.exists()
+                    else "- (no research digest archived for this milestone)"
+                )
+                evidence_block = (
+                    "**Archived evidence:**\n"
+                    f"- `GPD/milestones/{version}-ROADMAP.md`\n"
+                    f"- `GPD/milestones/{version}-REQUIREMENTS.md`\n"
+                    f"{digest_line}\n"
+                    f"{audit_line}\n"
+                )
                 milestone_entry = (
                     f"## {version} {milestone_name} (Shipped: {today})\n\n"
                     f"**Phases completed:** {completion_snapshot.phase_count} phases, {completion_snapshot.total_plans} plans, {total_tasks} tasks\n\n"
-                    f"**Key accomplishments:**\n{acc_list}\n\n---\n\n"
+                    f"**Key accomplishments:**\n{acc_list}\n\n"
+                    f"{evidence_block}\n"
+                    f"---\n\n"
                 )
 
                 if milestones_path.exists():
@@ -2490,6 +2617,8 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
         except (FileNotFoundError, json.JSONDecodeError, OSError, KeyError, TypeError):
             logger.debug("state.json advisory read failed during progress render", exc_info=True)
 
+        live_execution = _build_progress_live_execution(cwd)
+
         return ProgressJsonResult(
             milestone_version=milestone.version,
             milestone_name=milestone.name,
@@ -2500,4 +2629,63 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
             state_progress_percent=state_pct,
             diverged=diverged,
             warnings=progress_warnings,
+            live_execution=live_execution,
         )
+
+
+def _build_progress_live_execution(cwd: Path) -> ProgressLiveExecution | None:
+    """Assemble the live-execution block from execution-visibility state."""
+    try:
+        from gpd.core.observability import derive_execution_visibility
+    except ImportError:  # pragma: no cover — defensive
+        return None
+
+    try:
+        snapshot = derive_execution_visibility(cwd)
+    except Exception:  # pragma: no cover — telemetry should never block progress
+        logger.debug("derive_execution_visibility failed during progress render", exc_info=True)
+        return None
+
+    # Execution prefs: read from GPDProjectConfig.
+    strict_wait = False
+    never_interrupt = False
+    never_auto_close = False
+    try:
+        from gpd.core.config import load_config
+
+        cfg = load_config(cwd)
+        exec_prefs = getattr(cfg, "execution_preferences", None)
+        if exec_prefs is not None:
+            strict_wait = bool(getattr(exec_prefs, "strict_wait", False))
+            never_interrupt = bool(getattr(exec_prefs, "never_interrupt_running_workers", False))
+            never_auto_close = bool(getattr(exec_prefs, "never_auto_close_child_agents", False))
+    except Exception:  # pragma: no cover
+        logger.debug("execution-preferences read failed during progress render", exc_info=True)
+
+    if snapshot is None and not (strict_wait or never_interrupt or never_auto_close):
+        return None
+
+    if snapshot is None:
+        return ProgressLiveExecution(
+            strict_wait=strict_wait,
+            never_interrupt_running_workers=never_interrupt,
+            never_auto_close_child_agents=never_auto_close,
+        )
+
+    wave = snapshot.wave
+    return ProgressLiveExecution(
+        phase=snapshot.phase,
+        plan=snapshot.plan,
+        wave=str(wave) if wave is not None else None,
+        current_task=snapshot.current_task,
+        current_task_index=snapshot.current_task_index,
+        current_task_total=snapshot.current_task_total,
+        segment_status=snapshot.segment_status,
+        waiting_reason=snapshot.waiting_reason_label or snapshot.waiting_reason,
+        last_result_label=snapshot.last_result_label,
+        last_artifact_path=snapshot.last_artifact_path,
+        last_updated_age_label=snapshot.last_updated_age_label,
+        strict_wait=strict_wait,
+        never_interrupt_running_workers=never_interrupt,
+        never_auto_close_child_agents=never_auto_close,
+    )

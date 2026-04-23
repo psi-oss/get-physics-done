@@ -141,7 +141,7 @@ def test_state_record_session_persists_machine_identity(
     assert (
         "**Stopped at:** Phase 03 Plan 2\n"
         "**Resume file:** next-step.md\n"
-        "**Last result ID:** —\n"
+        "**Last result ID:** none\n"
         "**Hostname:** builder-01\n"
         "**Platform:** Linux 6.1 x86_64\n"
     ) in markdown

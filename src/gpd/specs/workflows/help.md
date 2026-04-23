@@ -347,14 +347,24 @@ Usage: `gpd:map-research`
 
 ### Phase Planning
 
-**`gpd:discuss-phase <number>`**
+**`gpd:discuss-phase <number> [--auto|--compact]`**
 Help articulate your vision for a research phase before planning.
 
 - Captures how you imagine this phase proceeding
 - Creates CONTEXT.md with your approach, essentials, and boundaries
 - Use when you have specific ideas about methods or approximations
+- `--auto` compresses the discussion for fast iteration; `--compact` skips the Socratic flow and shows a single knobs-form you can fill in one turn
 
-Usage: `gpd:discuss-phase 2`
+Usage: `gpd:discuss-phase 2` / `gpd:discuss-phase 2 --compact`
+
+**`gpd:route [--frozen=yes|no] [--change=extend|revise] [--layer=new|change]`**
+Decide whether a scope change is a new phase, a revision, a new milestone, or a milestone-completion followed by a new one.
+
+- Asks three short routing questions about the intended scope change
+- Maps the answers to exactly one next command (`gpd:add-phase`, `gpd:revise-phase`, `gpd:new-milestone`, or `gpd:complete-milestone` + `gpd:new-milestone`)
+- Use it when you're not sure whether new work belongs in the current milestone
+
+Usage: `gpd:route`
 
 **`gpd:research-phase <number>`**
 Comprehensive literature survey for a specific phase.

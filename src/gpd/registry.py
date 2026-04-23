@@ -2311,6 +2311,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-referee": "paper",
     "gpd-revise-phase": "management",
     "gpd-roadmapper": "planning",
+    "gpd-route": "planning",
     "gpd-slides": "output",
     "gpd-research-mapper": "exploration",
     "gpd-verifier": "verification",

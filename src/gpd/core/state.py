@@ -144,6 +144,7 @@ __all__ = [
     "state_patch",
     "state_record_metric",
     "state_record_session",
+    "state_record_verification",
     "state_replace_field",
     "state_set_project_contract",
     "state_set_continuation_bounded_segment",
@@ -159,6 +160,12 @@ __all__ = [
 ]
 
 EM_DASH = "\u2014"
+
+# Inactive-state sentinel rendered into STATE.md when a field has no value.
+# `_strip_placeholder` and `state_extract_field` treat EM_DASH, "none", "no",
+# "not set", and "[not set]" as semantic null on re-parse, so round-trip
+# stability is preserved regardless of which form is on disk.
+INACTIVE_FIELD_SENTINEL = "none"
 
 
 def _recent_projects_index_path() -> Path:
@@ -642,6 +649,24 @@ class RecordSessionResult(BaseModel):
     error: str | None = None
     reason: str | None = None
     updated: list[str] = Field(default_factory=list)
+
+
+class RecordVerificationResult(BaseModel):
+    """Returned by :func:`state_record_verification`.
+
+    Writes the shared-state transition that corresponds to a VERIFICATION.md
+    result so ``gpd-progress`` / ``gpd-show-phase`` stop lagging behind the
+    verifier.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    recorded: bool
+    error: str | None = None
+    reason: str | None = None
+    phase: str | None = None
+    status: str | None = None
+    previous_status: str | None = None
 
 
 class StateSnapshotResult(BaseModel):
@@ -1256,6 +1281,7 @@ VALID_STATUSES: list[str] = [
     "Paused",
     "Phase complete \u2014 ready for verification",
     "Verifying",
+    "Verified",
     "Complete",
     "Blocked",
     "Ready to plan",
@@ -1282,6 +1308,7 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
     ],
     "phase complete \u2014 ready for verification": [
         "verifying",
+        "verified",
         "not started",
         "planning",
         "executing",
@@ -1289,8 +1316,24 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
         "ready to plan",
         "milestone complete",
     ],
-    "verifying": ["complete", "phase complete \u2014 ready for verification", "planning", "blocked", "paused"],
-    "complete": ["not started", "planning", "milestone complete"],
+    "verifying": [
+        "verified",
+        "complete",
+        "phase complete \u2014 ready for verification",
+        "planning",
+        "blocked",
+        "paused",
+    ],
+    "verified": [
+        "complete",
+        "ready to plan",
+        "milestone complete",
+        "not started",
+        "planning",
+        "blocked",
+        "paused",
+    ],
+    "complete": ["not started", "planning", "milestone complete", "ready to plan"],
     "milestone complete": ["not started", "planning"],
     "paused": None,
     "blocked": None,
@@ -1357,14 +1400,20 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 
 
 def state_extract_field(content: str, field_name: str) -> str | None:
-    """Extract a **Field:** value from STATE.md content."""
+    """Extract a **Field:** value from STATE.md content.
+
+    Placeholder forms (EM_DASH, "none", "no", "not set", "[not set]") are
+    returned as ``None`` so inactive-state snapshots round-trip cleanly.
+    """
     escaped = re.escape(field_name)
     pattern = re.compile(rf"\*\*{escaped}:\*\*[ \t]*(.+)", re.IGNORECASE)
     match = pattern.search(content)
     if not match:
         return None
     value = match.group(1).strip()
-    if value == "\u2014" or value.lower() in {"not set", "[not set]"}:
+    if value == "\u2014":
+        return None
+    if value.lower() in {"none", "no", "not set", "[not set]"}:
         return None
     return value
 
@@ -1767,11 +1816,17 @@ def parse_state_md(content: str) -> dict:
 
 
 def _strip_placeholder(value: str | None) -> str | None:
-    """Return None if *value* is a markdown placeholder (EM_DASH, 'not set', or '[not set]')."""
+    """Return None if *value* is a markdown placeholder.
+
+    Recognized placeholders: EM_DASH (legacy), 'none', 'no', 'not set',
+    '[not set]'. Case-insensitive for word forms.
+    """
     if value is None:
         return None
     stripped = value.strip()
-    if stripped == "\u2014" or stripped.lower() in {"not set", "[not set]"}:
+    if stripped == "\u2014":
+        return None
+    if stripped.lower() in {"none", "no", "not set", "[not set]"}:
         return None
     return stripped
 
@@ -2563,15 +2618,21 @@ def generate_state_markdown(raw: dict) -> str:
     p("")
 
     pos = s["position"]
-    p(f"**Current Phase:** {pos.get('current_phase') or EM_DASH}")
-    p(f"**Current Phase Name:** {pos.get('current_phase_name') or EM_DASH}")
-    p(f"**Total Phases:** {pos['total_phases'] if pos.get('total_phases') is not None else EM_DASH}")
-    p(f"**Current Plan:** {pos.get('current_plan') or EM_DASH}")
+    p(f"**Current Phase:** {pos.get('current_phase') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Current Phase Name:** {pos.get('current_phase_name') or INACTIVE_FIELD_SENTINEL}")
+    total_phases_value = pos.get("total_phases")
     p(
-        f"**Total Plans in Phase:** {pos['total_plans_in_phase'] if pos.get('total_plans_in_phase') is not None else EM_DASH}"
+        f"**Total Phases:** "
+        f"{total_phases_value if total_phases_value is not None else INACTIVE_FIELD_SENTINEL}"
+    )
+    p(f"**Current Plan:** {pos.get('current_plan') or INACTIVE_FIELD_SENTINEL}")
+    total_plans_value = pos.get("total_plans_in_phase")
+    p(
+        f"**Total Plans in Phase:** "
+        f"{total_plans_value if total_plans_value is not None else INACTIVE_FIELD_SENTINEL}"
     )
     p(f"**Status:** {pos.get('status') or EM_DASH}")
-    p(f"**Last Activity:** {pos.get('last_activity') or EM_DASH}")
+    p(f"**Last Activity:** {pos.get('last_activity') or INACTIVE_FIELD_SENTINEL}")
     if pos.get("last_activity_desc"):
         p(f"**Last Activity Description:** {pos['last_activity_desc']}")
     if pos.get("paused_at"):
@@ -2775,12 +2836,12 @@ def generate_state_markdown(raw: dict) -> str:
     p("## Session Continuity")
     p("")
     sess = s.get("session") or {}
-    p(f"**Last session:** {sess.get('last_date') or EM_DASH}")
-    p(f"**Stopped at:** {sess.get('stopped_at') or EM_DASH}")
-    p(f"**Resume file:** {sess.get('resume_file') or EM_DASH}")
-    p(f"**Last result ID:** {sess.get('last_result_id') or EM_DASH}")
-    p(f"**Hostname:** {sess.get('hostname') or EM_DASH}")
-    p(f"**Platform:** {sess.get('platform') or EM_DASH}")
+    p(f"**Last session:** {sess.get('last_date') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Stopped at:** {sess.get('stopped_at') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Resume file:** {sess.get('resume_file') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Last result ID:** {sess.get('last_result_id') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Hostname:** {sess.get('hostname') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Platform:** {sess.get('platform') or INACTIVE_FIELD_SENTINEL}")
     p("")
 
     return "\n".join(lines)
@@ -4358,6 +4419,135 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
         )
 
 
+@instrument_gpd_function("state.record_verification")
+def state_record_verification(
+    cwd: Path,
+    *,
+    phase: str | None = None,
+    status: str | None = None,
+    verification_path: Path | None = None,
+) -> RecordVerificationResult:
+    """Atomically update shared state after a VERIFICATION.md result.
+
+    Lets callers advance past ``Phase complete — ready for verification`` /
+    ``Verifying`` without requiring a later manual ``gpd-sync-state``. If
+    ``status`` is not provided, the function reads the ``status:`` field from
+    the phase's VERIFICATION.md frontmatter.
+    """
+    if not phase:
+        return RecordVerificationResult(recorded=False, error="phase required")
+
+    # Normalize user input: "passed" / "pass" / "failed" / "fail".
+    normalized_status: str | None = None
+    if status is not None:
+        normalized = status.strip().lower()
+        if normalized in {"passed", "pass", "ok", "success"}:
+            normalized_status = "passed"
+        elif normalized in {"failed", "fail", "blocked"}:
+            normalized_status = "failed"
+        elif normalized:
+            return RecordVerificationResult(
+                recorded=False,
+                error=f"unrecognized status '{status}' (expected passed|failed)",
+            )
+
+    if normalized_status is None:
+        # Try to read it from the VERIFICATION.md frontmatter.
+        phase_norm = phase.strip()
+        path = verification_path
+        if path is None:
+            phases_dir = ProjectLayout(cwd).phases_dir
+            if phases_dir.exists():
+                for phase_dir in phases_dir.iterdir():
+                    if not phase_dir.is_dir():
+                        continue
+                    name = phase_dir.name
+                    head = name.split("-", 1)[0]
+                    if head == phase_norm or head.lstrip("0") == phase_norm.lstrip("0"):
+                        candidate = phase_dir / f"{head}-VERIFICATION.md"
+                        if candidate.exists():
+                            path = candidate
+                            break
+                        candidate = phase_dir / "VERIFICATION.md"
+                        if candidate.exists():
+                            path = candidate
+                            break
+        if path is None or not path.exists():
+            return RecordVerificationResult(
+                recorded=False,
+                error=f"VERIFICATION.md not found for phase {phase}",
+            )
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return RecordVerificationResult(recorded=False, error=str(exc))
+        fm_match = re.match(r"^---\s*\n([\s\S]*?)\n---", text)
+        if fm_match:
+            for line in fm_match.group(1).splitlines():
+                m = re.match(r"\s*status\s*:\s*(\S+)", line)
+                if m:
+                    val = m.group(1).strip().strip("'\"").lower()
+                    if val in {"passed", "pass", "ok"}:
+                        normalized_status = "passed"
+                    elif val in {"failed", "fail"}:
+                        normalized_status = "failed"
+                    break
+        if normalized_status is None:
+            return RecordVerificationResult(
+                recorded=False,
+                reason="VERIFICATION.md has no 'status: passed|failed' frontmatter",
+            )
+
+    new_status = "Verified" if normalized_status == "passed" else "Blocked"
+
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        content = _load_or_rebuild_state_markdown_locked(cwd)
+        if content is None:
+            return RecordVerificationResult(recorded=False, error="STATE.md not found")
+        current_status = state_extract_field(content, "Status") or ""
+        # Accept re-recording from either the pre-verification status or the
+        # transient "Verifying" state. Also accept a re-assert from Verified.
+        if current_status.lower() not in {
+            "phase complete — ready for verification",
+            "verifying",
+            "verified",
+            "blocked",
+        }:
+            return RecordVerificationResult(
+                recorded=False,
+                error=(
+                    f"state_record_verification requires Status to be "
+                    f"'Phase complete — ready for verification' or 'Verifying', got '{current_status}'"
+                ),
+                previous_status=current_status,
+            )
+        transition_error = validate_state_transition(current_status, new_status)
+        if transition_error:
+            return RecordVerificationResult(
+                recorded=False,
+                error=transition_error,
+                previous_status=current_status,
+            )
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        content = state_replace_field(content, "Status", new_status)
+        content = state_replace_field(content, "Last Activity", today)
+        descriptor = (
+            f"Phase {phase} verification {normalized_status}"
+            if normalized_status in {"passed", "failed"}
+            else f"Phase {phase} verification recorded"
+        )
+        if state_has_field(content, "Last Activity Description"):
+            content = state_replace_field(content, "Last Activity Description", descriptor)
+        _write_state_markdown_locked(cwd, content)
+        return RecordVerificationResult(
+            recorded=True,
+            phase=phase,
+            status=new_status,
+            previous_status=current_status,
+        )
+
+
 @instrument_gpd_function("state.record_metric")
 def state_record_metric(
     cwd: Path,
@@ -4368,9 +4558,27 @@ def state_record_metric(
     tasks: str | None = None,
     files: str | None = None,
 ) -> RecordMetricResult:
-    """Record a performance metric in STATE.md."""
+    """Record a performance metric in STATE.md.
+
+    Rows are canonicalized to ``Phase NN PNN-KK``, idempotent on ``(phase,
+    plan)`` so retries and multi-surface return-applications do not duplicate
+    work, and sub-second durations render as ``<1s`` instead of ``0s``.
+    """
     if not phase or not plan or not duration:
         return RecordMetricResult(recorded=False, error="phase, plan, and duration required")
+
+    from gpd.core.utils import format_plan_duration, format_plan_label
+
+    canonical_label = format_plan_label(phase, plan)
+    if canonical_label is None:
+        return RecordMetricResult(
+            recorded=False,
+            error=(
+                f"Cannot normalize plan label from phase='{phase}', plan='{plan}'. "
+                "Expected phase like '01' and plan like 'NN-KK' or 'KK'."
+            ),
+        )
+    canonical_duration = format_plan_duration(duration)
 
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
@@ -4389,16 +4597,36 @@ def state_record_metric(
 
         table_header = match.group(1)
         table_body = match.group(2).rstrip()
-        new_row = f"| Phase {phase} P{plan} | {duration} | {tasks or '-'} tasks | {files or '-'} files |"
+        new_row = f"| {canonical_label} | {canonical_duration} | {tasks or '-'} tasks | {files or '-'} files |"
 
-        if not table_body.strip() or "None yet" in table_body or re.match(r"^\|\s*-\s*\|", table_body.strip()):
+        table_is_empty = (
+            not table_body.strip()
+            or "None yet" in table_body
+            or re.match(r"^\|\s*-\s*\|", table_body.strip())
+        )
+        if table_is_empty:
             table_body = new_row
         else:
-            table_body = table_body + "\n" + new_row
+            existing_rows = [line for line in table_body.splitlines() if line.strip()]
+            replaced = False
+            for i, row in enumerate(existing_rows):
+                # Match by canonical label as the dedup key.
+                if row.lstrip("|").strip().startswith(canonical_label):
+                    existing_rows[i] = new_row
+                    replaced = True
+                    break
+            if not replaced:
+                existing_rows.append(new_row)
+            table_body = "\n".join(existing_rows)
 
         new_content = pattern.sub(lambda _: f"{table_header}{table_body}\n", content, count=1)
         _write_state_markdown_locked(cwd, new_content)
-        return RecordMetricResult(recorded=True, phase=phase, plan=plan, duration=duration)
+        return RecordMetricResult(
+            recorded=True,
+            phase=phase,
+            plan=plan,
+            duration=canonical_duration,
+        )
 
 
 @instrument_gpd_function("state.update_progress")
@@ -4926,6 +5154,36 @@ def state_validate(
                     if not evidence_file.exists():
                         target = issues if integrity_mode == "review" else warnings
                         target.append(f'intermediate_results[{rid}]: evidence_path "{evidence_path}" does not exist')
+
+    # Performance metrics table hygiene
+    perf = state_json.get("performance_metrics") if isinstance(state_json, dict) else None
+    if isinstance(perf, dict):
+        rows_payload = perf.get("rows") or []
+        if isinstance(rows_payload, list):
+            from gpd.core.utils import is_canonical_plan_label
+
+            seen_labels: set[str] = set()
+            for index, row in enumerate(rows_payload):
+                if not isinstance(row, dict):
+                    continue
+                label = str(row.get("label") or "").strip()
+                if not label:
+                    issues.append(f"performance_metrics[{index}]: empty label")
+                    continue
+                if not is_canonical_plan_label(label):
+                    issues.append(
+                        f'performance_metrics[{index}]: label "{label}" does not match '
+                        "canonical 'Phase NN PNN-KK' format"
+                    )
+                if label in seen_labels:
+                    issues.append(f'performance_metrics: duplicate row for "{label}"')
+                seen_labels.add(label)
+                duration = str(row.get("duration") or "").strip()
+                if duration in {"0", "0s"}:
+                    warnings.append(
+                        f'performance_metrics[{label}]: duration "{duration}" is zero — '
+                        'use "<1s" for sub-second completed plans'
+                    )
 
     # Cross-check: phase directory exists
     current_phase = json_pos.get("current_phase") if isinstance(json_pos, dict) else None

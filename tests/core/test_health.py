@@ -1098,7 +1098,7 @@ class TestCheckGitStatus:
 class TestCheckCheckpointTags:
     def test_non_git_dir(self, tmp_path: Path):
         completed = subprocess.CompletedProcess(
-            args=["git", "tag", "-l", "gpd-checkpoint/*"],
+            args=["git", "tag", "-l", "gpd-checkpoint-*"],
             returncode=128,
             stdout="",
             stderr="fatal: not a git repository (or any of the parent directories): .git",
@@ -1114,7 +1114,7 @@ class TestCheckCheckpointTags:
     def test_warns_on_stale_checkpoint_tags(self, tmp_path: Path):
         def _run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
             if args[:3] == ["git", "tag", "-l"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint/old\n", stderr="")
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\n", stderr="")
             if args[:4] == ["git", "log", "-1", "--format=%ct"]:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
             raise AssertionError(f"Unexpected args: {args}")
@@ -1123,7 +1123,7 @@ class TestCheckCheckpointTags:
             result = check_checkpoint_tags(tmp_path)
 
         assert result.status == CheckStatus.WARN
-        assert result.details["stale_tags"] == ["gpd-checkpoint/old"]
+        assert result.details["stale_tags"] == ["gpd-checkpoint-old"]
         assert any("older than" in warning for warning in result.warnings)
 
 
@@ -1429,7 +1429,7 @@ class TestRunHealth:
             if args[:3] == ["git", "check-ignore", "--quiet"]:
                 return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
             if args[:3] == ["git", "tag", "-l"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint/old\n", stderr="")
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\n", stderr="")
             if args[:4] == ["git", "log", "-1", "--format=%ct"]:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
             if args[:3] == ["git", "tag", "-d"]:

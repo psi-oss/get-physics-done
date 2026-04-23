@@ -87,7 +87,12 @@ ls "${phase_dir}"/SUMMARY.md "${phase_dir}"/*-SUMMARY.md 2>/dev/null | sort
 Find the first plan artifact without a matching summary artifact. Canonical standalone pairing is `PLAN.md` <-> `SUMMARY.md`; numbered plans still pair by shared stem. Decimal phases are still supported for numbered files (`01.1-hotfix/`):
 
 ```bash
-phase=$(echo "$PLAN_PATH" | grep -oE '[0-9]+(\.[0-9]+)?-[0-9]+')
+# The plan filename is {phase}-{plan}-PLAN.md (e.g. 05-02-PLAN.md).
+# Extract phase and plan separately — do NOT collapse both digits into $phase,
+# or the metrics row will read "Phase 05 P02" instead of "Phase 05 P05-02".
+plan_stem=$(basename "$PLAN_PATH" -PLAN.md)
+phase=$(echo "$plan_stem" | grep -oE '^[0-9]+(\.[0-9]+)?')
+plan=$(echo "$plan_stem" | sed -E "s/^${phase}-//")
 # config_content already loaded via --include config in init_context
 ```
 
@@ -196,8 +201,14 @@ Clear transitions are reason-scoped: clearing `first_result` must not silently c
 Create a git checkpoint tag before plan execution. See `execute-plan-checkpoints.md` for full protocol.
 
 ```bash
-CHECKPOINT_TAG="gpd-checkpoint/phase-${phase}-plan-${plan}-$(date +%s)"
-git tag "${CHECKPOINT_TAG}"
+CHECKPOINT_TAG="gpd-checkpoint-phase-${phase}-plan-${plan}-$(date +%s)"
+if git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}" >/dev/null 2>&1; then
+  CHECKPOINT_TAG="${CHECKPOINT_TAG}-$$"
+fi
+if ! git tag "${CHECKPOINT_TAG}"; then
+  echo "ERROR: failed to create checkpoint tag ${CHECKPOINT_TAG}" >&2
+  exit 1
+fi
 ```
 </step>
 

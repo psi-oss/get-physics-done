@@ -218,15 +218,27 @@ For the project-backed lane, check for research digests generated during milesto
 **Step 1 -- Locate digest files:**
 
 ```bash
-ls GPD/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
+# Recursive search — mirrors the predicate used by gpd review preflight so the
+# write-paper workflow and preflight never disagree about whether a digest exists.
+find GPD/milestones -type f -name RESEARCH-DIGEST.md 2>/dev/null
 ```
+
+**Cross-check against the milestones index** before claiming "no digest":
+
+```bash
+# If MILESTONES.md lists archived digests but find returned nothing, treat it
+# as a consistency issue (not a permission to proceed without the digest).
+grep -E "RESEARCH-DIGEST\.md" GPD/MILESTONES.md 2>/dev/null
+```
+
+If `find` returns paths, use those. If `find` returns nothing but `MILESTONES.md` references a digest path, surface the inconsistency — do not silently downgrade to raw-phase mode.
 
 **If digest(s) found:**
 
 Read all available digests:
 
 ```bash
-cat GPD/milestones/*/RESEARCH-DIGEST.md
+find GPD/milestones -type f -name RESEARCH-DIGEST.md -exec cat {} +
 ```
 
 **Step 2 -- Map digest sections to paper structure:**
@@ -270,7 +282,7 @@ cat GPD/state.json
 Display a clear warning explaining why and offering alternatives:
 
 ```
-⚠ No RESEARCH-DIGEST.md found in GPD/milestones/.
+⚠ No RESEARCH-DIGEST.md found under GPD/milestones/ (recursive search). Also verify GPD/MILESTONES.md does not list a digest path — if it does, this is a consistency issue, not a missing file.
 
 Research digests are generated during gpd:complete-milestone. Without a digest,
 the paper will be built from raw phase data when needed, but the structured init payload should be used first for conventions, results, and approximations.

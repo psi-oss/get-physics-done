@@ -64,7 +64,7 @@ Disk status values (from `roadmap_analyze`): `no_directory`, `empty`, `discussed
 - **Researched → Planned**: `gpd:plan-phase` completes (`{NN}-{plan}-PLAN.md` files created with wave frontmatter)
 - **Planned → Executing**: `gpd:execute-phase` starts (STATE.md Status set to "Ready to execute", Current Plan set to 1)
 - **Executing → Phase complete**: `gpd state advance` when `currentPlan >= totalPlans` (Status set to "Phase complete — ready for verification")
-- **Phase complete → Verified**: `gpd:verify-work` completes (`{NN}-VERIFICATION.md` and/or `{NN}-VALIDATION.md` created)
+- **Phase complete → Verified**: `gpd:verify-work` completes (`{NN}-VERIFICATION.md` and/or `{NN}-VALIDATION.md` created), then `gpd state record-verification --phase {NN}` atomically sets Status to `Verified` (or `Blocked` on a failed verifier)
 - **Verified → Complete**: `gpd phase complete {N}` (ROADMAP checkbox marked `[x]`, STATE.md advances to next phase)
 - **Executing → Blocked**: Dependency not met or failure encountered (blocker added via `gpd state add-blocker`)
 - **Blocked → Executing**: Blocker resolved via `gpd state resolve-blocker`

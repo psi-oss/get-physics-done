@@ -129,15 +129,22 @@ Phase: "Renormalization group flow of phi-4 theory"
 <process>
 
 <step name="initialize" priority="first">
-Phase number from argument (required). Detect `--auto` flag.
+Phase number from argument (required). Detect `--auto` and `--compact` flags (mutually exclusive).
 
 ```bash
-# Parse --auto flag from arguments
 AUTO_MODE=false
+COMPACT_MODE=false
 if echo "$ARGUMENTS" | grep -q "\-\-auto"; then
   AUTO_MODE=true
-  PHASE=$(echo "$ARGUMENTS" | sed 's/--auto//g' | tr -s ' ' | xargs)
 fi
+if echo "$ARGUMENTS" | grep -q "\-\-compact"; then
+  COMPACT_MODE=true
+fi
+if [ "$AUTO_MODE" = "true" ] && [ "$COMPACT_MODE" = "true" ]; then
+  echo "ERROR: --auto and --compact are mutually exclusive"
+  exit 1
+fi
+PHASE=$(echo "$ARGUMENTS" | sed -E 's/\-\-(auto|compact)//g' | tr -s ' ' | xargs)
 
 INIT=$(gpd --raw init phase-op "${PHASE}")
 if [ $? -ne 0 ]; then
@@ -155,6 +162,13 @@ When AUTO_MODE=true, compress the entire discussion:
 - No follow-up rounds ("more questions?" is skipped)
 - Write lightweight CONTEXT.md immediately
 - Auto-suggest proceeding to plan-phase
+
+**`--compact` mode behavior:**
+When COMPACT_MODE=true, skip the multi-round Socratic flow entirely:
+- Do NOT generate or present gray areas
+- Do NOT run `discuss_areas` / `present_gray_areas` / `ask_user` question loops
+- Jump directly to the `compact_form` step below, which renders a single form with the phase goal, 4-6 policy knobs, and an intent textarea, then writes CONTEXT.md from the submitted answers
+- Use when the user already knows what they want and does not need guided discovery
 
 **If `phase_found` is false:** Check ROADMAP.md before exiting.
 
@@ -204,10 +218,45 @@ If "Update": Load existing, continue to analyze_phase
 If "View": Display CONTEXT.md, then offer update/skip
 If "Skip": Exit workflow
 
-**If doesn't exist:** Continue to analyze_phase.
+**If doesn't exist:** Continue to analyze_phase (or compact_form when `COMPACT_MODE=true`).
 </step>
 
-<step name="analyze_phase">
+<step name="compact_form" condition="COMPACT_MODE=true">
+Present a single one-screen form instead of the Socratic multi-round flow. Use `ask_user` with the full knob list embedded in the prompt body, and read one batched free-text response. Do not loop.
+
+**Screen to render:**
+
+```
+========================================
+ Phase ${phase_number}: ${phase_name}
+========================================
+
+Goal (from ROADMAP):
+  ${one_line_phase_goal}
+
+Knobs (current defaults shown; reply with "knob=value" pairs you want to change):
+
+  formalism       = ${default_formalism}        e.g. Lagrangian | Hamiltonian | EOM
+  conventions     = ${default_conventions}      e.g. (+---) | (-+++)
+  method          = ${default_method}           e.g. analytic | numerical | hybrid
+  precision       = ${default_precision}        e.g. leading-order | NLO | full
+  deliverable     = ${default_deliverable}      e.g. derivation | result-table | comparison-plot
+  skeptical_review= ${default_skeptical_review} e.g. on | off
+
+Intent (optional, free text):
+  <one paragraph describing what you want the phase to achieve>
+
+----------------------------------------
+Reply with any subset of:
+  knob=value
+  intent: ...
+Send "go" on its own line to accept all defaults and proceed.
+```
+
+Read exactly one response. Parse `knob=value` lines and an optional `intent: ...` block. Do not re-prompt; missing knobs keep their defaults. Skip the `analyze_phase`, `present_gray_areas`, and `discuss_areas` steps entirely and proceed directly to `write_context` using the submitted knob values as the CONTEXT.md payload.
+</step>
+
+<step name="analyze_phase" condition="COMPACT_MODE=false">
 Analyze the phase to identify gray areas worth discussing.
 
 **Read the phase description from ROADMAP.md and determine:**
@@ -237,7 +286,7 @@ Gray areas:
 
 </step>
 
-<step name="present_gray_areas">
+<step name="present_gray_areas" condition="COMPACT_MODE=false">
 Present the domain boundary and gray areas to user.
 
 **First, state the boundary:**
@@ -294,7 +343,7 @@ For "Critical exponents of 3D Ising model" (statistical mechanics):
 Continue to discuss_areas with selected areas.
 </step>
 
-<step name="discuss_areas">
+<step name="discuss_areas" condition="COMPACT_MODE=false">
 For each selected area, conduct a focused Socratic discussion loop.
 
 **`--auto` mode:** Compressed discussion — 1 question per area, no follow-up rounds.

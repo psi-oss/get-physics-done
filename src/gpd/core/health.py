@@ -803,7 +803,7 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
 
     try:
         result = subprocess.run(
-            ["git", "tag", "-l", "gpd-checkpoint/*"],
+            ["git", "tag", "-l", "gpd-checkpoint-*"],
             cwd=cwd,
             capture_output=True,
             text=True,
