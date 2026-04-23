@@ -55,6 +55,17 @@ Plans:
 - [ ] [N]-03: [Short task description]
 - [ ] [Add only if needed]
 
+### Alternative: stub phase block (when `shallow_mode=true` for Phases 2+)
+
+Use this shape for Phases 2+ when the initial roadmap is authored in shallow mode. The researcher fleshes each stub out later via `gpd:plan-phase N`.
+
+### Phase [N]: [Phase Title]
+
+**Goal:** [one-line outcome]
+**Plans:** 0 plans
+
+- [ ] TBD (run plan-phase [N] to break down)
+
 ## Progress
 
 **Execution Order:**
@@ -72,6 +83,7 @@ Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
 <guidelines>
 **Initial planning (first paper):**
 - Phase count depends on depth setting (quick: 3-5, standard: 5-8, comprehensive: 8-12)
+- Shallow mode (`shallow_mode=true`, used by `gpd:new-project` standard mode by default): Phase 1 carries the full detail block; Phases 2+ carry only the stub block above. The researcher runs `gpd:plan-phase N` to flesh each subsequent phase out when its turn comes.
 - Each phase delivers a coherent body of results
 - Phase titles should be objective-driven, not template-driven
 - Phases can have 1+ plans (split if >3 tasks or multiple independent calculations)

@@ -35,6 +35,7 @@ Your job: Transform research objectives into a phase structure that advances the
 - Validate 100% objective coverage (no orphans)
 - Validate contract-critical coverage (no orphaned decisive outputs or anchors)
 - Apply goal-backward thinking at phase level
+- Produce shallow roadmaps when asked (`shallow_mode=true`): Phase 1 full detail, Phases 2+ as one-line stubs that the researcher fleshes out via `gpd:plan-phase N`
 - Create success criteria (2-5 verifiable outcomes per phase)
 - Initialize STATE.md (project memory)
 - Return structured draft for user approval
@@ -613,6 +614,7 @@ Orchestrator provides:
 - state.json.project_contract when present (machine-readable contract source)
 - literature/SUMMARY.md content (if exists - literature review, known results, suggested approaches)
 - config.json (depth setting)
+- Shallow mode flag (`<shallow_mode>`): when `true`, produce Phase 1 fully detailed and Phases 2+ as stubs only. Default `false` = produce all phases fully detailed.
 
 Parse and confirm understanding before proceeding. The freshness contract is the markdown trio: if ROADMAP.md, STATE.md, and REQUIREMENTS.md already exist, treat them as the latest working state and read them before revising anything.
 
@@ -665,6 +667,8 @@ Apply phase identification methodology:
 
 ## Step 5: Derive Success Criteria
 
+If `shallow_mode=true`, perform this step for Phase 1 only. Phases 2+ get no success criteria — they carry only title + one-line Goal until the researcher runs `gpd:plan-phase N`.
+
 For each phase, apply goal-backward:
 
 1. State phase goal (intellectual outcome, not task)
@@ -686,6 +690,8 @@ Verify 100% objective mapping and contract-critical coverage:
 - Every user-stated decisive observable / deliverable / stop condition -> visible in at least one phase's contract coverage, success criteria, or backtracking trigger
 - No orphans, no duplicates
 
+If `shallow_mode=true`, validate that Phase 1 fully covers its mapped contract items. Phases 2+ may defer contract-coverage detail until planning; only their one-line Goal and phase title need to appear in the roadmap.
+
 If gaps found, include in draft for user decision.
 
 ## Step 7: Write Files Once
@@ -697,6 +703,14 @@ If gaps found, include in draft for user decision.
 2. **Write STATE.md** using output format
 
 3. **Update REQUIREMENTS.md traceability section**
+
+Under `shallow_mode=true`, the ROADMAP top list contains all phases (Phase 1 + stubs for 2+). The `## Phase Details` section contains the full Phase 1 block followed by stub entries for Phases 2+ of the form:
+
+### Phase N: [Title]
+**Goal:** [one-line outcome]
+**Plans:** 0 plans
+
+- [ ] TBD (run plan-phase N to break down)
 
 Files on disk = context preserved. User can review actual files.
 

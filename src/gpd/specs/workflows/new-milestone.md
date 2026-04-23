@@ -522,6 +522,9 @@ Effective reference intake: {effective_reference_intake}
 Reference artifacts: {reference_artifacts_content}
 </contract_context>
 
+<shallow_mode>false</shallow_mode>
+<!-- Milestones keep the full-detail roadmap so scoped continuations inherit every phase's contract coverage and success criteria up front. -->
+
 <continuation_context>
 This is a fresh continuation handoff for the current milestone roadmap. Carry forward the approved objectives, requirement traceability, prior survey findings, and any unresolved context gaps. Edit the existing roadmap files in place and return a fresh typed `gpd_return` envelope.
 </continuation_context>
@@ -631,6 +634,9 @@ Success criteria:
   Edit files in place.
   Return a fresh typed `gpd_return` envelope with `status` and `files_written`.
   </continuation>
+
+  <shallow_mode>false</shallow_mode>
+  <!-- Milestones keep the full-detail roadmap so scoped continuations inherit every phase's contract coverage and success criteria up front. -->
   ", subagent_type="gpd-roadmapper", model="{roadmapper_model}", readonly=false, description="Revise roadmap")
   ```
 

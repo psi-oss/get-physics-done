@@ -1726,7 +1726,9 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
         "`user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` "
         "as binding user guidance"
     ) in roadmapper_agent
-    assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_project
+    # new-project uses shallow mode by default — Phase 1 only carries full coverage.
+    # new-milestone keeps full-detail roadmap for scoped continuations.
+    assert "For Phase 1, include explicit contract coverage in ROADMAP.md" in new_project
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
     assert "Do NOT skip the initial scoping-contract approval gate." in new_project
     assert "Do NOT skip the requirement to show contract coverage in the roadmap." in new_project
@@ -4711,3 +4713,30 @@ def test_verification_and_publication_prompts_keep_decisive_contract_targets_rea
         "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap"
         in respond
     )
+
+
+def test_new_project_spawns_roadmapper_with_shallow_mode_in_standard_mode() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    assert "<shallow_mode>true</shallow_mode>" in new_project
+
+
+def test_new_milestone_keeps_full_roadmap_detail_shallow_mode_false() -> None:
+    new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
+    assert "<shallow_mode>false</shallow_mode>" in new_milestone
+
+
+def test_new_project_next_up_recommends_plan_phase_1_primary() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    # The standard-mode Next Up block is the final occurrence; the first is the --minimal path.
+    next_up_block = new_project[new_project.rindex("## >> Next Up"):]
+    # plan-phase 1 should appear before discuss-phase 1 in that block.
+    plan_idx = next_up_block.index("`gpd:plan-phase 1`")
+    discuss_idx = next_up_block.index("`gpd:discuss-phase 1`")
+    assert plan_idx < discuss_idx, "plan-phase 1 must be the primary Next Up recommendation, not discuss-phase"
+
+
+def test_roadmapper_documents_shallow_mode_behavior() -> None:
+    roadmapper = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+    assert "shallow_mode" in roadmapper
+    assert "Phase 1" in roadmapper
+    assert "stub" in roadmapper.lower()

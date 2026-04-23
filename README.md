@@ -285,7 +285,7 @@ gpd:new-project
 GPD will:
 - ask clarifying questions about the correlator sector, conventions, target observables, numerical precision, and verification strategy
 - create `GPD/PROJECT.md`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, and `GPD/STATE.md`
-- break the work into phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds
+- sketch the milestone shape (phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds) with Phase 1 ready to execute; Phases 2+ stay as stubs that you flesh out on demand with `gpd:plan-phase N`
 
 Then continue with:
 
