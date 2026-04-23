@@ -670,17 +670,6 @@ _KNOWLEDGE_REVIEW_CANONICAL_FIELDS = {
     "reviewed_content_sha256",
     "stale",
 }
-_KNOWLEDGE_REVIEW_LEGACY_FIELDS = {
-    "reviewed_at",
-    "reviewer",
-    "decision",
-    "summary",
-    "evidence_path",
-    "evidence_sha256",
-    "audit_artifact_path",
-    "commit_sha",
-    "trace_id",
-}
 _KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
 def _parse_iso8601_datetime(value: object) -> datetime | None:
     """Parse an ISO 8601 timestamp or return ``None`` when invalid."""
@@ -768,12 +757,6 @@ def _validate_knowledge_project_relative_path(
     return stripped
 
 
-def _knowledge_review_uses_canonical_contract(review: dict[str, object]) -> bool:
-    """Return whether the review block is using the Step 4 contract shape."""
-
-    return bool(set(review) & (_KNOWLEDGE_REVIEW_CANONICAL_FIELDS - _KNOWLEDGE_REVIEW_LEGACY_FIELDS))
-
-
 def _validate_knowledge_review_block(
     review: object,
     *,
@@ -788,8 +771,7 @@ def _validate_knowledge_review_block(
         return
 
     review_field_names = set(review)
-    allowed_fields = _KNOWLEDGE_REVIEW_CANONICAL_FIELDS | _KNOWLEDGE_REVIEW_LEGACY_FIELDS
-    unknown_fields = sorted(review_field_names - allowed_fields)
+    unknown_fields = sorted(review_field_names - _KNOWLEDGE_REVIEW_CANONICAL_FIELDS)
     for field_name in unknown_fields:
         errors.append(f"knowledge.review.{field_name}: unsupported field")
 
@@ -807,102 +789,44 @@ def _validate_knowledge_review_block(
     if not isinstance(summary, str) or not summary.strip():
         errors.append("knowledge.review.summary: expected a non-empty string")
 
-    canonical_contract = _knowledge_review_uses_canonical_contract(review)
-
-    if canonical_contract:
-        if not isinstance(review.get("reviewer_kind"), str) or not review.get("reviewer_kind", "").strip():
-            errors.append("knowledge.review.reviewer_kind: expected a non-empty string")
-        if not isinstance(review.get("reviewer_id"), str) or not review.get("reviewer_id", "").strip():
-            errors.append("knowledge.review.reviewer_id: expected a non-empty string")
-        if reviewed_at is None:
-            errors.append("knowledge.review.reviewed_at: expected an ISO 8601 timestamp")
-        review_round = review.get("review_round")
-        if type(review_round) is not int or review_round < 1:
-            errors.append("knowledge.review.review_round: expected an integer >= 1")
-        _validate_knowledge_project_relative_path(review, "approval_artifact_path", errors)
-        _validate_knowledge_sha256_field(review, "approval_artifact_sha256", errors)
-        if _validate_knowledge_sha256_field(review, "reviewed_content_sha256", errors) is None and review.get(
-            "reviewed_content_sha256"
-        ) is not None:
-            errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
-        stale = review.get("stale")
-        if type(stale) is not bool:
-            errors.append("knowledge.review.stale: expected a boolean")
-    else:
-        if not isinstance(review.get("reviewer"), str) or not review.get("reviewer", "").strip():
-            errors.append("knowledge.review.reviewer: expected a non-empty string")
-        if reviewed_at is None:
-            errors.append("knowledge.review.reviewed_at: expected an ISO 8601 timestamp")
-        evidence_path = review.get("evidence_path")
-        audit_artifact_path = review.get("audit_artifact_path")
-        commit_sha = review.get("commit_sha")
-        trace_id = review.get("trace_id")
-        if not any(
-            isinstance(value, str) and value.strip()
-            for value in (evidence_path, audit_artifact_path, commit_sha, trace_id)
-        ):
-            errors.append(
-                "knowledge.review: requires at least one concrete evidence pointer: "
-                "evidence_path, audit_artifact_path, commit_sha, or trace_id"
-            )
-        evidence_sha256 = review.get("evidence_sha256")
-        if evidence_sha256 is not None and not _is_lower_hex_sha256(evidence_sha256):
-            errors.append("knowledge.review.evidence_sha256: expected a lowercase 64-hex sha256 digest")
-        if audit_artifact_path is not None and (
-            not isinstance(audit_artifact_path, str) or not audit_artifact_path.strip() or _is_absolute_path(audit_artifact_path)
-        ):
-            errors.append("knowledge.review.audit_artifact_path: must be a project-relative path")
-        # Non-canonical review records do not participate in the Step 4 freshness contract;
-        # ``stale`` is optional here, but when supplied it must still be a boolean.
-        if review.get("stale") is not None and type(review.get("stale")) is not bool:
-            errors.append("knowledge.review.stale: expected a boolean")
+    if not isinstance(review.get("reviewer_kind"), str) or not review.get("reviewer_kind", "").strip():
+        errors.append("knowledge.review.reviewer_kind: expected a non-empty string")
+    if not isinstance(review.get("reviewer_id"), str) or not review.get("reviewer_id", "").strip():
+        errors.append("knowledge.review.reviewer_id: expected a non-empty string")
+    if reviewed_at is None:
+        errors.append("knowledge.review.reviewed_at: expected an ISO 8601 timestamp")
+    review_round = review.get("review_round")
+    if type(review_round) is not int or review_round < 1:
+        errors.append("knowledge.review.review_round: expected an integer >= 1")
+    _validate_knowledge_project_relative_path(review, "approval_artifact_path", errors)
+    _validate_knowledge_sha256_field(review, "approval_artifact_sha256", errors)
+    if _validate_knowledge_sha256_field(review, "reviewed_content_sha256", errors) is None and review.get(
+        "reviewed_content_sha256"
+    ) is not None:
+        errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
+    stale = review.get("stale")
+    if type(stale) is not bool:
+        errors.append("knowledge.review.stale: expected a boolean")
 
     if decision_value == "approved":
         if status == "draft":
             errors.append("knowledge.review.decision: approved review is forbidden when status is draft")
         elif status == "in_review":
-            if canonical_contract:
-                if review.get("stale") is not True:
-                    errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
-            elif review.get("stale") is False:
+            if review.get("stale") is not True:
                 errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
         elif status == "stable":
-            if canonical_contract:
-                if review.get("stale") is not False:
-                    errors.append("knowledge.review.stale: approved stable docs must be marked stale: false")
-                if not isinstance(review.get("approval_artifact_path"), str) or not review.get("approval_artifact_path", "").strip():
-                    errors.append("knowledge.review.approval_artifact_path: expected a project-relative path")
-                if not _is_lower_hex_sha256(review.get("approval_artifact_sha256")):
-                    errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
-                if not _is_lower_hex_sha256(review.get("reviewed_content_sha256")):
-                    errors.append("knowledge.review.reviewed_content_sha256: expected a lowercase 64-hex sha256 digest")
-                if review.get("reviewed_content_sha256") is not None and review.get("reviewed_content_sha256") != current_content_sha256:
-                    errors.append(
-                        "knowledge.review.reviewed_content_sha256 does not match the current trusted content hash"
-                    )
-            else:
-                # Non-canonical stable records are accepted without the Step 4 freshness contract;
-                # they must still supply at least one concrete evidence pointer.
-                if not any(
-                    isinstance(value, str) and value.strip()
-                    for value in (
-                        review.get("evidence_path"),
-                        review.get("audit_artifact_path"),
-                        review.get("commit_sha"),
-                        review.get("trace_id"),
-                    )
-                ):
-                    errors.append(
-                        "knowledge.review: requires at least one concrete evidence pointer: "
-                        "evidence_path, audit_artifact_path, commit_sha, or trace_id"
-                    )
-    if status == "stable" and not canonical_contract:
-        if review is None:
-            errors.append("knowledge.review is required when status is stable")
-        elif decision_value != "approved":
-            errors.append("knowledge.review.decision must be approved when status is stable")
-    if status == "in_review" and review is not None and canonical_contract and decision_value == "approved" and review.get("stale") is not True:
-        errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
+            if review.get("stale") is not False:
+                errors.append("knowledge.review.stale: approved stable docs must be marked stale: false")
+            if not isinstance(review.get("approval_artifact_path"), str) or not review.get("approval_artifact_path", "").strip():
+                errors.append("knowledge.review.approval_artifact_path: expected a project-relative path")
+            if not _is_lower_hex_sha256(review.get("approval_artifact_sha256")):
+                errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
+            if not _is_lower_hex_sha256(review.get("reviewed_content_sha256")):
+                errors.append("knowledge.review.reviewed_content_sha256: expected a lowercase 64-hex sha256 digest")
+            if review.get("reviewed_content_sha256") is not None and review.get("reviewed_content_sha256") != current_content_sha256:
+                errors.append(
+                    "knowledge.review.reviewed_content_sha256 does not match the current trusted content hash"
+                )
 
 
 def _knowledge_reviewed_content_projection(meta: dict[str, object], body: str) -> dict[str, object]:

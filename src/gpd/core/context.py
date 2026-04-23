@@ -166,7 +166,6 @@ class InitRootPolicy(StrEnum):
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
 _LITERATURE_DIR_NAME = "literature"
-_LEGACY_RESEARCH_DIR_NAME = "research"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
 _RESEARCH_MAP_INCLUDE_LIMIT = 4
@@ -1246,13 +1245,10 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
 
 
 def _preferred_review_dir(cwd: Path) -> Path | None:
-    """Return the canonical literature review directory, falling back to the research directory when the canonical one is absent."""
+    """Return the literature review directory, or ``None`` if it does not exist."""
     literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
     if literature_dir.is_dir():
         return literature_dir
-    legacy_research_dir = cwd / PLANNING_DIR_NAME / _LEGACY_RESEARCH_DIR_NAME
-    if legacy_research_dir.is_dir():
-        return legacy_research_dir
     return None
 
 

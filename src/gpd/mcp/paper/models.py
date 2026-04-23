@@ -23,7 +23,7 @@ BuilderJournalKey = Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"]
 SourceNoteId = Annotated[str, Field(pattern=r"^NOTE-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 ResultId = Annotated[str, Field(pattern=r"^RES-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 FigureAssetId = Annotated[str, Field(pattern=r"^FIG-[A-Za-z0-9][A-Za-z0-9_-]*$")]
-_LEGACY_LABEL_PREFIXES = ("sec:", "fig:", "app:")
+_RESERVED_LABEL_PREFIXES = ("sec:", "fig:", "app:")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SUBJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 REQUIRED_GPD_ACKNOWLEDGMENT = (
@@ -44,10 +44,10 @@ def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
         if allow_blank:
             return ""
         raise ValueError("label must be a non-empty string")
-    for prefix in _LEGACY_LABEL_PREFIXES:
+    for prefix in _RESERVED_LABEL_PREFIXES:
         if normalized.startswith(prefix):
             raise ValueError(
-                f"label must omit the legacy {prefix!r} prefix; use the bare identifier because the renderer adds it"
+                f"label must omit the reserved {prefix!r} prefix; use the bare identifier because the renderer adds it"
             )
     return normalized
 

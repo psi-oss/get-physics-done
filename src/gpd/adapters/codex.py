@@ -1308,13 +1308,13 @@ def _copy_commands_as_skills(
     live_backup: Path | None = None
     generated_skill_dirs: set[str] = set()
     planned_skill_dirs = _planned_codex_skill_dirs(src_dir, prefix)
-    legacy_generated_skill_dirs = _load_manifest_codex_generated_skill_dirs(workflow_target_dir)
+    prior_install_skill_dirs = _load_manifest_codex_generated_skill_dirs(workflow_target_dir)
     try:
         if skills_dir.exists():
             for entry in sorted(skills_dir.iterdir()):
                 if entry.name in planned_skill_dirs:
                     continue
-                if entry.name in legacy_generated_skill_dirs:
+                if entry.name in prior_install_skill_dirs:
                     continue
                 _copy_preserved_skill_entry(entry, staged_skills_dir / entry.name)
 
