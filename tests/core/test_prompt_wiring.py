@@ -1246,16 +1246,23 @@ def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
     assert "GPD/phase-checkpoints" in workflow
 
 
-def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
+def test_new_project_surfaces_supervised_default_and_core_research_preset_preview() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
 
-    assert workflow_text.count('"autonomy": "balanced"') >= 2
+    # The minimal-mode config.json template emits the supervised default explicitly.
+    assert '"autonomy": "supervised"' in workflow_text
+    assert '"review_cadence": "dense"' in workflow_text
+
+    # The preset catalog is still present, with the core-research preset recommended.
     assert "Which starting workflow preset should GPD use for `GPD/config.json`?" in workflow_text
     assert '"Core research (Recommended)"' in workflow_text
     assert '"Theory"' in workflow_text
     assert '"Numerics"' in workflow_text
     assert '"Publication / manuscript"' in workflow_text
     assert '"Full research"' in workflow_text
+
+    # The core-research preset pins balanced/adaptive, so its preview surfaces those
+    # values (they are preset-pinned, not defaults).
     assert (
         "`autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, "
         "`planning.commit_docs=true`, `execution.review_cadence=adaptive`"
@@ -1264,6 +1271,7 @@ def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
         "Config: Balanced autonomy | Adaptive review cadence | Balanced research mode | Parallel | All agents | Review profile"
         in workflow_text
     )
+
     assert "Recommended defaults use YOLO autonomy" not in workflow_text
     assert (
         "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
@@ -4221,7 +4229,7 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "`${PAPER_DIR}/FIGURE_TRACKER.md`" in figure_tracker
     assert "validate paper-quality --from-project ." in write_paper
     assert "Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load" in write_paper
-    assert '"review_cadence": "adaptive"' in new_project
+    assert '"review_cadence": "dense"' in new_project
     assert "Adaptive review cadence" in new_project
     assert (
         "prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock"

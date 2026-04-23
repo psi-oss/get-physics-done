@@ -134,7 +134,7 @@ class SuggestContext:
     has_paper: bool = False
     has_literature_review: bool = False
     has_referee_report: bool = False
-    autonomy: str = "balanced"
+    autonomy: str = "supervised"
     research_mode: str = "balanced"
     adaptive_approach_locked: bool = False
 
@@ -660,7 +660,7 @@ def _apply_mode_adjustments(
 ) -> None:
     """Adjust priorities based on research_mode and autonomy settings."""
     research_mode = config.get("research_mode", "balanced")
-    autonomy = config.get("autonomy", "balanced")
+    autonomy = config.get("autonomy", "supervised")
 
     for s in suggestions:
         # Research mode adjustments
@@ -1045,7 +1045,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         )
 
     # ── Mode-aware priority adjustments ─────────────────────────────────
-    autonomy_val = str(config.get("autonomy", "balanced"))
+    autonomy_val = str(config.get("autonomy", "supervised"))
     research_mode_val = str(config.get("research_mode", "balanced"))
     ctx_kwargs["autonomy"] = autonomy_val
     ctx_kwargs["research_mode"] = research_mode_val

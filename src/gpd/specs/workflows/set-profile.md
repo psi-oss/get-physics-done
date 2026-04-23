@@ -105,7 +105,7 @@ Focus: Computational implementation, optimization, convergence, performance
 
 Best for: Implementing solvers, running simulations, optimizing code, convergence studies, parallelization, data pipeline construction.
 
-Behavioral highlights: Convergence testing task added to every numerical computation. Grid/basis/timestep refinement required before results accepted. Richardson extrapolation automatic. Plan-checker emphasizes numerical stability and error budgets. `execution.review_cadence` stays independent; `adaptive` is usually the right default unless you explicitly want denser review gates.
+Behavioral highlights: Convergence testing task added to every numerical computation. Grid/basis/timestep refinement required before results accepted. Richardson extrapolation automatic. Plan-checker emphasizes numerical stability and error budgets. `execution.review_cadence` stays independent; `dense` is the default, giving frequent review gates; drop to `adaptive` when you want a lighter cadence.
 
 **exploratory**
 Focus: Rapid prototyping, hypothesis testing, parameter space exploration
@@ -167,8 +167,8 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 
 `set-profile` changes abstract tier assignments and behavior depth. It does NOT rewrite `execution.review_cadence`.
 
-- `dense`: more bounded review stops during execution
-- `adaptive` (default): inject first-result and risky-fanout gates while letting clean segments continue
+- `dense` (default): more bounded review stops during execution
+- `adaptive`: inject first-result and risky-fanout gates while letting clean segments continue
 - `sparse`: fewest bounded review stops beyond the required correctness gates
 
 Change cadence with `gpd:settings` or by editing `GPD/config.json` (`execution.review_cadence`: `"dense"` / `"adaptive"` / `"sparse"`).

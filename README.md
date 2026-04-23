@@ -155,7 +155,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 - Choose `--local` or `--global` explicitly if you do not want the installer's default path selection
 - Runtime permissions are runtime-owned permission alignment only; use the guided checks after startup to decide whether the runtime is ready.
-- Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Balanced (`balanced`) is the recommended unattended default.
+- Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Supervised (`supervised`) is the default; graduate to Balanced (`balanced`) once you trust GPD's boundary on your specific research.
 - For the broader terminal-side diagnostics, readiness, recovery, visibility, cost, and preset surface, start with `gpd --help` from your normal terminal.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` when you want a terminal-side unattended or overnight verdict.
 - If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
@@ -167,7 +167,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 1. Install with an explicit runtime when possible, for example use the matching bootstrap command with `--<runtime-flag> --local`.
 2. From the same terminal, run `gpd doctor --runtime <runtime> --local` and `gpd --help`. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Here, `gpd doctor --runtime ...` is a runtime-readiness check for the selected runtime target. If you plan to use the paper/manuscript workflow preset later, treat the `Workflow Presets` and `LaTeX Toolchain` rows in this doctor report as paper-toolchain readiness signals for local smoke checks; `write-paper` can still proceed degraded, but `paper-build` is the build truth.
 3. Launch your selected runtime and run its GPD help command (`/gpd:help`, `$gpd-help`, or `/gpd-help`).
-4. If you want unattended execution, use your runtime-specific `settings` command as the guided configuration path and keep autonomy at Balanced (`balanced`) unless you intentionally want a more hands-off posture.
+4. If you want unattended execution, use your runtime-specific `settings` command as the guided configuration path and keep autonomy at Supervised (`supervised`) while you learn GPD's behavior; move to Balanced (`balanced`) when you want a lighter checkpoint cadence.
 5. Run `gpd permissions status --runtime <runtime> --autonomy balanced` for the read-only runtime-owned permission snapshot, then run `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`. If it returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy balanced`; if it returns `relaunch-required`, exit and relaunch the selected runtime before treating unattended use as ready.
 6. If those checks pass, continue with the runtime-specific `new-project`, `new-project --minimal`, `resume-work`, or `map-research` command.
 

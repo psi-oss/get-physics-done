@@ -1115,8 +1115,8 @@ class TestLoadConfig:
     def test_defaults_when_no_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         config = load_config(tmp_path)
-        assert config["autonomy"] == "balanced"
-        assert config["review_cadence"] == "adaptive"
+        assert config["autonomy"] == "supervised"
+        assert config["review_cadence"] == "dense"
         assert config["research_mode"] == "balanced"
         assert config["commit_docs"] is True
         assert config["parallelization"] is True
@@ -1178,7 +1178,7 @@ class TestInitExecutePhase:
         assert ctx["plan_count"] == 1
         assert ctx["incomplete_count"] == 0
         assert ctx["state_exists"] is False
-        assert ctx["review_cadence"] == "adaptive"
+        assert ctx["review_cadence"] == "dense"
         assert ctx["checkpoint_after_first_load_bearing_result"] is True
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:

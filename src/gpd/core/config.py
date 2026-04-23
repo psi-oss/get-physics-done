@@ -337,8 +337,8 @@ class GPDProjectConfig(BaseModel):
     """
 
     model_profile: ModelProfile = ModelProfile.REVIEW
-    autonomy: AutonomyMode = AutonomyMode.BALANCED
-    review_cadence: ReviewCadence = ReviewCadence.ADAPTIVE
+    autonomy: AutonomyMode = AutonomyMode.SUPERVISED
+    review_cadence: ReviewCadence = ReviewCadence.DENSE
     research_mode: ResearchMode = ResearchMode.BALANCED
 
     # Workflow toggles
@@ -347,9 +347,9 @@ class GPDProjectConfig(BaseModel):
     plan_checker: bool = True
     verifier: bool = True
     parallelization: bool = True
-    max_unattended_minutes_per_plan: int = Field(default=45, ge=1)
-    max_unattended_minutes_per_wave: int = Field(default=90, ge=1)
-    checkpoint_after_n_tasks: int = Field(default=3, ge=1)
+    max_unattended_minutes_per_plan: int = Field(default=15, ge=1)
+    max_unattended_minutes_per_wave: int = Field(default=30, ge=1)
+    checkpoint_after_n_tasks: int = Field(default=1, ge=1)
     checkpoint_after_first_load_bearing_result: bool = True
     checkpoint_before_downstream_dependent_tasks: bool = True
     project_usd_budget: float | None = Field(default=None, gt=0)

@@ -173,10 +173,10 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 
 ```bash
 # During load_project_state, extract from init JSON:
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)
 ```
 
-If not set in config.json, default to `balanced`.
+If not set in config.json, default to `supervised`.
 
 ### Research Mode Effects on Execution
 

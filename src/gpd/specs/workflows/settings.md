@@ -59,13 +59,13 @@ cat GPD/config.json
 
 Parse current values (default to `true` / first option if not present):
 
-- `autonomy` -- human-in-the-loop level: `"supervised"`, `"balanced"` (default), `"yolo"`
+- `autonomy` -- human-in-the-loop level: `"supervised"` (default), `"balanced"`, `"yolo"`
 - `research_mode` -- research strategy: `"explore"`, `"balanced"` (default), `"exploit"`, `"adaptive"`
 - `model_overrides` -- optional runtime-scoped concrete model mapping for `tier-1`, `tier-2`, `tier-3`
 - `workflow.research` -- spawn researcher during plan-phase
 - `workflow.plan_checker` -- spawn plan checker during plan-phase
 - `workflow.verifier` -- spawn verifier during execute-phase (this does NOT disable mandatory proof red-teaming for `proof_obligation` work)
-- `execution.review_cadence` -- execution review density: `"dense"`, `"adaptive"` (default), `"sparse"`
+- `execution.review_cadence` -- execution review density: `"dense"` (default), `"adaptive"`, `"sparse"`
 - `execution.max_unattended_minutes_per_plan` -- wall-clock budget before a bounded continuation should be created
 - `execution.project_usd_budget` -- optional advisory USD budget for the whole current workspace / project
 - `execution.session_usd_budget` -- optional advisory USD budget for the current active session
@@ -331,11 +331,11 @@ Merge new settings into existing config.json:
   },
   "execution": {
     "review_cadence": "dense" | "adaptive" | "sparse",
-    "max_unattended_minutes_per_plan": 45,
-    "max_unattended_minutes_per_wave": 90,
+    "max_unattended_minutes_per_plan": 15,
+    "max_unattended_minutes_per_wave": 30,
     "project_usd_budget": 25.0,
     "session_usd_budget": 5.0,
-    "checkpoint_after_n_tasks": 3,
+    "checkpoint_after_n_tasks": 1,
     "checkpoint_after_first_load_bearing_result": true/false,
     "checkpoint_before_downstream_dependent_tasks": true/false
   },

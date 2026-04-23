@@ -103,14 +103,14 @@ class TestGPDProjectConfigDefaults:
     def test_defaults(self):
         cfg = GPDProjectConfig()
         assert cfg.model_profile == ModelProfile.REVIEW
-        assert cfg.autonomy == AutonomyMode.BALANCED
-        assert cfg.review_cadence == ReviewCadence.ADAPTIVE
+        assert cfg.autonomy == AutonomyMode.SUPERVISED
+        assert cfg.review_cadence == ReviewCadence.DENSE
         assert cfg.research_mode == ResearchMode.BALANCED
         assert cfg.commit_docs is True
         assert cfg.parallelization is True
-        assert cfg.max_unattended_minutes_per_plan == 45
-        assert cfg.max_unattended_minutes_per_wave == 90
-        assert cfg.checkpoint_after_n_tasks == 3
+        assert cfg.max_unattended_minutes_per_plan == 15
+        assert cfg.max_unattended_minutes_per_wave == 30
+        assert cfg.checkpoint_after_n_tasks == 1
         assert cfg.checkpoint_after_first_load_bearing_result is True
         assert cfg.checkpoint_before_downstream_dependent_tasks is True
         assert cfg.project_usd_budget is None

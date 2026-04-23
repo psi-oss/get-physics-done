@@ -502,10 +502,10 @@ Initialize the canonical continuity fields under `GPD/state.json.continuation` s
 
 ```json
 {
-  "autonomy": "balanced",
+  "autonomy": "supervised",
   "research_mode": "balanced",
   "execution": {
-    "review_cadence": "adaptive"
+    "review_cadence": "dense"
   },
   "parallelization": true,
   "planning": {
@@ -610,8 +610,8 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
-- `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
+- `autonomy=supervised` (default): Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
+- `autonomy=balanced`: Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
 - `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate. Do NOT skip the requirement to show contract coverage in the roadmap.
 - `--auto` changes how intake happens, not who owns later review gates. If `autonomy=supervised`, keep the roadmap approval checkpoint even in auto mode.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
@@ -1144,6 +1144,9 @@ Create `GPD/config.json` with all settings:
   "parallelization": true|false,
   "planning": {
     "commit_docs": true|false
+  },
+  "execution": {
+    "review_cadence": "dense|adaptive|sparse"
   },
   "model_profile": "deep-theory|numerical|exploratory|review|paper-writing",
   "workflow": {
@@ -1958,8 +1961,8 @@ This step is critical for multi-phase projects where convention mismatches cause
 
 **Convention setup mode is driven by autonomy, not by whether the intake used `--auto`:**
 
-- `autonomy=supervised`: use `interactive` mode. The notation coordinator must return a checkpoint proposal before writing anything, the orchestrator presents it to the user, and a fresh continuation handoff performs the final write after confirmation/override.
-- `autonomy=balanced` (default): use `auto` mode. Lock clear subfield defaults automatically and only return a checkpoint/conflict if the context contains a genuine ambiguity or cross-subfield conflict that needs user judgment.
+- `autonomy=supervised` (default): use `interactive` mode. The notation coordinator must return a checkpoint proposal before writing anything, the orchestrator presents it to the user, and a fresh continuation handoff performs the final write after confirmation/override.
+- `autonomy=balanced`: use `auto` mode. Lock clear subfield defaults automatically and only return a checkpoint/conflict if the context contains a genuine ambiguity or cross-subfield conflict that needs user judgment.
 - `autonomy=yolo`: use `auto` mode and accept the returned conventions automatically.
 - `--auto` only compresses intake. It does not force interactive convention review for `balanced` / `yolo`, and it does not remove the supervised checkpoint.
 

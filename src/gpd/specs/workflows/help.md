@@ -1103,7 +1103,7 @@ Usage: `gpd:plan-milestone-gaps`
 **`gpd:settings`**
 Primary guided setup for autonomy, unattended execution budgets, runtime permission sync, model profile, `execution.review_cadence`, and runtime-specific tier model overrides.
 
-- Choose how often GPD should pause for you (`Balanced (Recommended)` is the best default for most unattended runs)
+- Choose how often GPD should pause for you (Supervised is the default; `Balanced (Recommended)` for unattended runs once you trust the boundary)
 - Review unattended execution budgets and other bounded continuation limits before leaving runs alone
 - Start with a qualitative model-cost posture: `Max quality`, `Balanced`, or `Budget-aware`
 - Sync runtime-owned permissions after autonomy changes when the active runtime supports it
@@ -1293,7 +1293,7 @@ Example config:
 ```json
 {
   "execution": {
-    "review_cadence": "adaptive"
+    "review_cadence": "dense"
   },
   "planning": {
     "commit_docs": false

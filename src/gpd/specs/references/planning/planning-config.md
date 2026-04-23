@@ -8,12 +8,12 @@ Configuration options for `GPD/` directory behavior in physics research projects
 "planning": {
   "commit_docs": true
 },
-"autonomy": "balanced",
+"autonomy": "supervised",
 "execution": {
-  "review_cadence": "adaptive",
-  "max_unattended_minutes_per_plan": 45,
-  "max_unattended_minutes_per_wave": 90,
-  "checkpoint_after_n_tasks": 3,
+  "review_cadence": "dense",
+  "max_unattended_minutes_per_plan": 15,
+  "max_unattended_minutes_per_wave": 30,
+  "checkpoint_after_n_tasks": 1,
   "checkpoint_after_first_load_bearing_result": true,
   "checkpoint_before_downstream_dependent_tasks": true
 },
@@ -35,11 +35,11 @@ Configuration options for `GPD/` directory behavior in physics research projects
 | Option                          | Default                      | Description                                                                                    |
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | `planning.commit_docs`          | `true`                       | Whether to commit planning artifacts to git                                                    |
-| `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"supervised"`, `"balanced"`, `"yolo"`                                    |
-| `execution.review_cadence`      | `"adaptive"`                 | How aggressively long-running execution injects bounded review points                            |
-| `execution.max_unattended_minutes_per_plan` | `45`             | Wall-clock budget before a bounded continuation segment must be created, even if the run feels smooth |
-| `execution.max_unattended_minutes_per_wave` | `90`             | Wave-level unattended budget before forcing a bounded review                                     |
-| `execution.checkpoint_after_n_tasks` | `3`                    | Task budget before forcing a bounded continuation segment                                        |
+| `autonomy`                      | `"supervised"`               | Human-in-the-loop level: `"supervised"`, `"balanced"`, `"yolo"`                                    |
+| `execution.review_cadence`      | `"dense"`                    | How aggressively long-running execution injects bounded review points                            |
+| `execution.max_unattended_minutes_per_plan` | `15`             | Wall-clock budget before a bounded continuation segment must be created, even if the run feels smooth |
+| `execution.max_unattended_minutes_per_wave` | `30`             | Wave-level unattended budget before forcing a bounded review                                     |
+| `execution.checkpoint_after_n_tasks` | `1`                    | Task budget before forcing a bounded continuation segment                                        |
 | `execution.checkpoint_after_first_load_bearing_result` | `true` | Require a first-result sanity gate before fanout, especially when decisive evidence is not yet in hand |
 | `execution.checkpoint_before_downstream_dependent_tasks` | `true` | Require review before dependent downstream work unlocks when later tasks would assume unresolved decisive evidence |
 | `research_mode`                 | `"balanced"`                 | Research strategy: `"explore"` (breadth), `"balanced"`, `"exploit"` (depth), `"adaptive"`       |
@@ -108,8 +108,8 @@ The CLI checks `planning.commit_docs` config and gitignore status internally -- 
 
 | Value        | Behavior |
 | ------------ | -------- |
-| `"dense"`    | Frequent bounded review points and short unattended segments |
-| `"adaptive"` | Default. Insert first-result and risky-fanout gates automatically when results become load-bearing or decisive evidence remains unresolved |
+| `"dense"`    | Default. Frequent bounded review points and short unattended segments |
+| `"adaptive"` | Insert first-result and risky-fanout gates automatically when results become load-bearing or decisive evidence remains unresolved |
 | `"sparse"`   | Fewest review stops, but required correctness gates still run when a result becomes load-bearing, decisive evidence is still missing, or a wall-clock/task budget trips |
 
 This knob is surfaced directly in `gpd:settings` as `execution.review_cadence`.

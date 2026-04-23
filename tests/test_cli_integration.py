@@ -2033,7 +2033,7 @@ class TestSuggest:
         assert parsed["top_action"] == parsed["suggestions"][0]
         assert parsed["suggestions"][1]["action"] == "execute-phase"
         assert parsed["suggestions"][1]["command"] == "gpd init execute-phase 01"
-        assert parsed["suggestions"][1]["priority"] == 3
+        assert parsed["suggestions"][1]["priority"] == 4
         assert parsed["suggestions"][1]["phase"] == "01"
         assert parsed["context"]["current_phase"] == "01"
         assert parsed["context"]["status"] == "Paused"
@@ -2753,7 +2753,7 @@ class TestConfigCommands:
         parsed = json.loads(result.output)
 
         assert parsed["found"] is True
-        assert parsed["value"] == "balanced"
+        assert parsed["value"] == "supervised"
 
     def test_config_set_rejects_unsupported_key(self, gpd_project: Path) -> None:
         result = _invoke("--raw", "config", "set", "new_key", "new_value", expect_ok=False)
@@ -2804,8 +2804,8 @@ class TestConfigCommands:
         config_path = gpd_project / "GPD" / "config.json"
         assert config_path.exists()
         config = json.loads(config_path.read_text())
-        assert config["autonomy"] == "balanced"
-        assert config["execution"]["review_cadence"] == "adaptive"
+        assert config["autonomy"] == "supervised"
+        assert config["execution"]["review_cadence"] == "dense"
         assert config["research_mode"] == "balanced"
         assert config["parallelization"] is True
         assert config["workflow"]["plan_checker"] is True
