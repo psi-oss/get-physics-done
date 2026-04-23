@@ -29,7 +29,7 @@ classifiers = [
 ]
 dependencies = [
     # Core
-    "typer>=0.24.1",
+    "typer>=0.24.2",
     "rich>=15.0.0",
     "pydantic>=2.13.1",
     "PyYAML>=6.0.3",
