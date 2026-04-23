@@ -17,7 +17,7 @@ Inspect the current folder, show the safest next step first, then explain the
 broader options in plain language. Keep the language novice-friendly, and
 explain official terms the first time they appear instead of assuming prior
 CLI, Git, or workflow knowledge. Do not invent a parallel onboarding state
-machine and do not silently assume the user already knows which command to run.
+machine and do not silently assume the user already knows which command to run. GPD is a scalpel, not an autopilot — treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect.
 </objective>
 
 <execution_context>

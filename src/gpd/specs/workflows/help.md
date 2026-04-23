@@ -1103,7 +1103,7 @@ Usage: `gpd:plan-milestone-gaps`
 **`gpd:settings`**
 Primary guided setup for autonomy, unattended execution budgets, runtime permission sync, model profile, `execution.review_cadence`, and runtime-specific tier model overrides.
 
-- Choose how often GPD should pause for you (Supervised is the default; `Balanced (Recommended)` for unattended runs once you trust the boundary)
+- Choose how often GPD should pause for you (`Supervised (Recommended)` is the default and matches the advisor cadence; `Balanced` for unattended runs once you trust the boundary)
 - Review unattended execution budgets and other bounded continuation limits before leaving runs alone
 - Start with a qualitative model-cost posture: `Max quality`, `Balanced`, or `Budget-aware`
 - Sync runtime-owned permissions after autonomy changes when the active runtime supports it
@@ -1243,21 +1243,23 @@ GPD/
 
 ## Workflow Modes
 
+GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+
 Set during `gpd:new-project` or changed later with `gpd:settings`:
 
-**Supervised**
+**Supervised (Recommended)**
 
-- Confirms each major step
-- Uses the most checkpoints
-- Best for high-stakes work or learning the workflow
-- Best when you plan to stay nearby and approve each physics-bearing move
+- You carry the veto; GPD carries the task
+- Checkpoints at every physics-bearing decision so you can redirect early
+- Default mode; matches the advisor/graduate-student cadence
+- Best for new projects, high-stakes work, or any research where you want to see each step
 
-**Balanced (Recommended)**
+**Balanced**
 
 - Handles routine work automatically
 - Pauses on physics decisions, ambiguities, blockers, or scope changes
-- Best default for most projects
-- Best first choice for unattended runs because it still pauses on important physics, scope, and blocker decisions
+- Lighter checkpoint cadence for users who have built intuition for GPD's boundary
+- Good for unattended runs once you trust the defaults
 
 **YOLO**
 

@@ -66,7 +66,7 @@ def test_settings_model_cost_onboarding_stays_qualitative_and_runtime_default_fi
     assert "Keep this wrapper thin" in settings_command
     assert "Do not invent a parallel settings flow" in settings_command
 
-    assert "Balanced (Recommended)" in settings_workflow
+    assert "Supervised (Recommended)" in settings_workflow
     assert "runtime defaults" in settings_workflow
     assert "gpd:set-tier-models" in settings_workflow
     assert "Use runtime defaults" in settings_workflow

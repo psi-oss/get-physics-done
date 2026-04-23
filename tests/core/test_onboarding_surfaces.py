@@ -790,3 +790,24 @@ def test_doc_surface_contract_payload_cache_clear_refreshes_after_source_swap(
 
     doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
     assert doc_surface_contracts_module.beginner_preflight_requirements() == ("Second preflight",)
+
+
+def test_onboarding_framing_sentence_appears_on_primary_surfaces() -> None:
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    fragment = "scalpel, not an autopilot"
+    primary_surfaces = (
+        "README.md",
+        "docs/README.md",
+        "src/gpd/specs/workflows/start.md",
+        "src/gpd/specs/workflows/tour.md",
+        "src/gpd/specs/workflows/help.md",
+        "src/gpd/specs/workflows/settings.md",
+    )
+
+    missing = [
+        rel for rel in primary_surfaces
+        if fragment not in (repo_root / rel).read_text(encoding="utf-8")
+    ]
+    assert missing == [], f"framing fragment missing from: {missing}"

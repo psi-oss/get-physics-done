@@ -94,6 +94,8 @@ It is designed for long-horizon projects that require rigorous verification, str
 
 GPD is built to favor scientific rigor and critical thinking over agreeability. Treat preferred explanations as hypotheses to test, and keep missing evidence, failed lookups, and unproduced artifacts explicit instead of inventing them.
 
+GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+
 We welcome contributions and feedback via GitHub issues or pull requests; if GPD is useful in your work, please star the repo, and share it with colleagues who might benefit.
 
 ## Quick Start

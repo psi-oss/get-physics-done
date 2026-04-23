@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of autonomy, unattended execution budgets, GPD workflow agents (research, plan_checker, verifier), research profile selection, qualitative model-cost posture, runtime-specific tier model overrides, `execution.review_cadence`, git branching, and runtime-permission sync guidance. `gpd:settings` is the primary guided entrypoint for unattended-use setup. Recommend `Balanced` unless the user explicitly wants tighter supervision or YOLO-style speed. Use `gpd:set-tier-models` when the user only wants the narrow direct path for `tier-1` / `tier-2` / `tier-3` model ids. Updates `GPD/config.json` with user preferences including model profile, optional `model_overrides`, workflow toggles, execution cadence, and branching strategy.
+Interactive configuration of autonomy, unattended execution budgets, GPD workflow agents (research, plan_checker, verifier), research profile selection, qualitative model-cost posture, runtime-specific tier model overrides, `execution.review_cadence`, git branching, and runtime-permission sync guidance. `gpd:settings` is the primary guided entrypoint for unattended-use setup. Recommend `Supervised` as the default that matches the advisor cadence; use `Balanced` when the user wants a lighter checkpoint pace for unattended runs, or YOLO for maximum speed. Use `gpd:set-tier-models` when the user only wants the narrow direct path for `tier-1` / `tier-2` / `tier-3` model ids. Updates `GPD/config.json` with user preferences including model profile, optional `model_overrides`, workflow toggles, execution cadence, and branching strategy.
 </purpose>
 
 <preset_guidance>
@@ -100,7 +100,7 @@ If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `t
 
 > **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here, and that `Balanced` is the recommended default for most users.
+Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here. GPD is a scalpel, not an autopilot — `Supervised` is the default and matches the advisor/graduate-student cadence: trust the execution, but stay in the loop to verify and redirect. Point users at `Balanced` once they have built intuition for GPD's boundary.
 Teach one coherent posture-to-inspection loop:
 
 - choose a qualitative posture first (`Max Quality`, `Balanced`, `Budget-aware`)
@@ -133,12 +133,12 @@ Use ask_user with current values pre-selected:
 ```
 ask_user([
   {
-    question: "How much autonomy should the AI have? Supervised pauses constantly, Balanced is the recommended default for most unattended runs because it still pauses on important physics or scope decisions, and YOLO only stops on hard failures after runtime permissions are synced.",
+    question: "How much autonomy should the AI have? Supervised is the default and matches the advisor cadence — frequent checkpoints let you verify and redirect early. Balanced is for users who have built intuition for GPD's boundary. YOLO only stops on hard failures after runtime permissions are synced.",
     header: "Autonomy",
     multiSelect: false,
     options: [
-      { label: "Supervised", description: "Checkpoint after every important step. Best when you plan to stay nearby and approve each physics-bearing move." },
-      { label: "Balanced (Recommended)", description: "Best default for most unattended runs. AI handles routine work and pauses on important physics decisions, ambiguities, blockers, or scope changes." },
+      { label: "Supervised (Recommended)", description: "You carry the veto; GPD carries the task. Checkpoint at every physics-bearing decision so you can redirect early. Default cadence for new projects." },
+      { label: "Balanced", description: "Lighter checkpoint cadence for users who have built intuition for GPD's boundary. AI handles routine work and pauses on important physics decisions, ambiguities, blockers, or scope changes." },
       { label: "YOLO", description: "Fastest mode. AI auto-approves checkpoints, syncs the runtime to its most autonomous permission mode when supported, and only stops on hard failures." }
     ]
   },
@@ -449,7 +449,7 @@ Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/s
 
 - [ ] Current config read
 - [ ] Active runtime inferred or explicitly confirmed before model override guidance
-- [ ] User presented with autonomy guidance (`Balanced` recommended), unattended time-budget review, optional advisory USD budget guardrails, profile, model-cost posture, runtime-specific tier-model handling, workflow toggles, review cadence, and git branching
+- [ ] User presented with autonomy guidance (`Supervised` recommended as the default), unattended time-budget review, optional advisory USD budget guardrails, profile, model-cost posture, runtime-specific tier-model handling, workflow toggles, review cadence, and git branching
 - [ ] Config updated with model_profile, optional model_overrides, workflow, execution, and git sections
 - [ ] Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required
 - [ ] Relaunch-required state explained as not unattended-ready yet
