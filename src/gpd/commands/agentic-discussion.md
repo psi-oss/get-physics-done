@@ -14,7 +14,7 @@ allowed-tools:
 <objective>
 Run `gpd:agentic-discussion` as a projectless conversational multi-agent research session for exploring, pressure-testing, and refining a research direction before deciding whether it should become durable project work.
 
-Keep the visible experience transcript-first: show agent contributions directly, keep clean turns open by default with a short natural handoff, and treat synthesis or recap as secondary unless the user asks for it or a blocker or routing decision makes it necessary.
+Keep the visible experience transcript-first: show agent contributions directly, let new user input or redirection take priority over any pending follow-up, keep clean turns open by default with a short natural handoff, and treat synthesis or recap as secondary unless the user asks for it or a blocker or routing decision makes it necessary.
 
 Keep the contract lightweight and non-durable. Existing project files, notes, and artifacts are opt-in context only and must not be auto-ingested unless the user explicitly asks for specific context. Do not claim or imply `RESEARCH.md`, `GPD/ideation/`, durable ideation artifacts, resumable session state, transcript storage or replay, session ids, promotion of temporary internal branches into durable sessions, `resume-work`, staged init, artifact freshness gating, or other persistence-heavy workflow semantics.
 </objective>
@@ -37,7 +37,7 @@ Interpretation:
 <process>
 Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-end.
 
-Keep the wrapper thin and public-facing. The execution context owns orchestration details, worker fan-out, synthesis, and any internal control flow. Describe the command as a live conversational session that helps the user explore a topic with multiple research perspectives, surfaces the discussion as agent-first transcript turns, continues naturally after clean turns, and wraps up with takeaways or next moves only when useful.
+Keep the wrapper thin and public-facing. The execution context owns orchestration details, worker fan-out, synthesis, and any internal control flow. Describe the command as a live conversational session that helps the user explore a topic with multiple research perspectives, surfaces the discussion as agent-first transcript turns, yields immediately to new user questions or redirects, continues naturally after clean turns, and wraps up with takeaways or next moves only when useful.
 
 Do not center or enumerate internal approval loops, bounded rounds, review gates, branch-specific coordination, moderator-style menu handoffs, or other workflow-specific control surfaces in the public command contract. Do not claim durable ideation session storage, resumable ideation state, transient branch transcripts, promotion of temporary internal branches, tagging, imported-document handling, or other persistence systems unless a later workflow explicitly adds them. The contract here is an in-memory conversational research session, not a durable ideation artifact system.
 </process>
@@ -51,7 +51,7 @@ Do not center or enumerate internal approval loops, bounded rounds, review gates
 - [ ] The command does not import staged setup, artifact gating, `resume-work`, or similar persistence-heavy workflow semantics
 - [ ] Multi-agent contributions help the user explore, pressure-test, and refine a direction before they choose whether to move into a durable GPD workflow
 - [ ] Clean turns read like an agent-first discussion transcript rather than a visible moderator/menu loop
-- [ ] Clean turns continue by default with a short natural handoff, while synthesis or recap stays request-driven or exception-driven
+- [ ] New user input or redirection overrides pending follow-up, and otherwise clean turns continue by default with a short natural handoff while synthesis or recap stays request-driven or exception-driven
 - [ ] The public wrapper does not foreground internal approval loops, bounded rounds, review gates, temporary branch coordination, or other workflow-specific control surfaces
 
 </success_criteria>

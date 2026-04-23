@@ -298,7 +298,7 @@ For each round:
 5. Surface the first-pass agent messages first. Each active agent should visibly contribute a short message that feels like a participant in the discussion, not a hidden lane feeding an orchestrator summary. Render those first-pass messages as direct transcript turns with minimal stage directions, use the full role names on first appearance, and use `Skeptic` / `Calculator` thereafter for the default cast. Literature results, evidence checks, and bounded computational checks belong in that first visible exchange when they materially resolve uncertainty. Do not follow that exchange with an automatic recap after a clean turn.
 6. Add one bounded optional reaction layer. After the first pass, allow an agent to respond selectively to another agent's point when doing so sharpens a disagreement, reinforces a convergence, or corrects a weak assumption. Do not require every agent to react, and do not allow open-ended back-and-forth beyond this single bounded layer.
 7. Keep synthesis secondary. Maintain parent-owned synthesis/state updates each cycle so routing, continuity, optional focused follow-up setup, and fresh continuation semantics stay intact, but do not emit a default recap after a clean turn. Surface visible synthesis only when the user asks, when a blocker or checkpoint needs routing, or when agent output diverges enough that a short frame is necessary. When shown mid-session, keep it brief and place it after the agent messages and any reactions.
-8. End each turn with a lightweight conversational handoff centered on open continuation by default. On clean turns, assume the discussion is ready to continue unless the user redirects with their own thoughts, tunes the setup, asks for synthesis, or stops cleanly. Keep those capabilities available in natural language instead of surfacing them as a front-stage menu unless clarity really requires it. If the user wants narrower follow-up after the turn, route it through the configuration-adjustment path and run at most one bounded focused fan-out or targeted check before folding the result back into the parent discussion. Raw worker detail remains available only when the user explicitly asks for it.
+8. End each turn with a lightweight conversational handoff centered on open continuation by default. The workflow-owned priority rule at that handoff is `user interruption > pending agent follow-up > default continuation`. On clean turns, any new user reaction, redirect, setup adjustment, synthesis request, pause, or stop instruction takes priority over any pending follow-up. If the user does not interrupt and no checkpoint, blocker, or user-requested narrow follow-up needs routing, leave the turn open and ready to continue. Keep those capabilities available in natural language instead of surfacing them as a front-stage menu unless clarity really requires it. If the user wants narrower follow-up after the turn, route it through the configuration-adjustment path and run at most one bounded focused fan-out or targeted check before folding the result back into the parent discussion. Raw worker detail remains available only when the user explicitly asks for it.
 9. If the turn is ambiguous or a worker returns a checkpoint-worthy blocker, surface that ambiguity in the conversational handoff instead of letting a worker linger or pretending the normal open-continuation default still applies.
 
 When using task delegation, keep it lightweight and parent-owned. Reuse the repo's one-shot handoff semantics:
@@ -354,30 +354,24 @@ Do not create files or claim durable session ownership in this phase.
 After each conversational turn, keep the user handoff light and natural. Agent messages should already be on screen. On a clean turn, default to a short natural handoff with no recap. If a brief synthesis is helpful, make it compact, secondary, and request-driven or exception-driven. Raw turn details remain available only on demand. Any narrower follow-up happens only from this parent handoff, not mid-turn.
 On a clean turn, the visible default is open continuation. If the user replies with a normal reaction, follow-up thought, or new angle, treat that as continuation rather than asking them to explicitly say `continue`.
 
-Do not present a rigid fixed menu by default. Do not end clean turns with a visible capability list unless clarity requires it. Instead, end with a conversational handoff that makes these capabilities available in natural language:
+Do not present a rigid fixed menu by default. Do not end clean turns with a visible capability list unless clarity requires it. The workflow-owned priority rule at this handoff is `user interruption > pending agent follow-up > default continuation`.
 
-- continue to the next bounded turn
-- add or redirect with the user's own thoughts
-- tune the setup
-- ask for synthesis
-- stop
+Interpret the handoff in that order:
 
-Interpretation:
+- user interruption: any normal reaction, follow-up thought, redirect, setup adjustment, request for synthesis, raw-detail request, pause, or stop instruction overrides any pending agent-side follow-up and becomes the next parent-owned action
+- pending agent follow-up: if the turn surfaced a checkpoint-worthy blocker or the user explicitly asked for one narrow focused follow-up or targeted check, route that next from the parent handoff with fresh one-shot workers; do not leave a worker waiting in place
+- default continuation: only when the user has not interrupted and no pending follow-up needs routing should the clean-turn default remain open; in that case, increment the round counter and run the next bounded ideation turn under the hood without asking for an explicit menu choice
 
-- continue: increment the round counter and run the next bounded ideation round under the hood; if the user simply keeps engaging on the same line, treat that as `continue` by default rather than asking for an explicit menu choice
-- add or redirect: capture the user's injection, restate how it changes the shared discussion, and include it in the next turn brief
-- tune the setup: capture only the requested changes such as preset, participant count, posture, skepticism, creativity, per-participant assignments, or one temporary focused follow-up or selective fan-out for the next bounded segment; preserve everything else
-- ask for synthesis: show one compact synthesis keyed to the current turn, then return to the same conversational handoff
-- stop: stop cleanly without claiming durable persistence
-- raw details on demand: if the user explicitly asks, show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff
-
-If the user explicitly asks to pause instead of stopping, pause or stop cleanly without claiming durable persistence.
+If the user adds thoughts or redirects, capture the injection, restate how it changes the shared discussion, and include it in the next turn brief.
+If the user tunes the setup, capture only the requested changes such as preset, participant count, posture, skepticism, creativity, per-participant assignments, or one temporary focused follow-up or selective fan-out for the next bounded segment; preserve everything else.
+If the user asks for synthesis, show one compact synthesis keyed to the current turn, then return to the same conversational handoff.
+If the user explicitly asks for raw details, show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff.
+If the user wants to stop or pause, stop or pause cleanly without claiming durable persistence.
 
 Prefer handoff language such as:
 
-- `I can keep going from here; if you want to redirect, react, ask for a short synthesis, or stop, just say so.`
-- `If you want, I can keep pushing on this line, fold in your reaction, retune the participant mix or posture, give a short synthesis, or stop here.`
-- `If you want to redirect, tell me what to change and I will rebuild the next brief from there.`
+- `I can keep going from here. If you want to redirect, ask for a short synthesis, change the setup, or stop, just say so.`
+- `If you want to change the direction, tell me what to change and I will rebuild the next brief from there.`
 
 If the user adds thoughts or adjusts configuration, treat that as a fresh continuation rather than resuming workers in place.
 Rebuild the next turn brief from the approved research brief, prior turn syntheses, and the new user input, then spawn a fresh set of one-shot workers. Do not resume a prior child run.

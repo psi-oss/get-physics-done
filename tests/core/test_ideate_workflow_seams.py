@@ -358,7 +358,7 @@ def test_ideate_launch_gate_stays_user_owned_allows_fast_start_and_can_be_lighte
         "web_fetch",
         "`shell`",
         "agent messages should already be on screen",
-        "raw details on demand",
+        "raw worker takeaways",
         "failed or partial lookups and calculations",
     ):
         assert delegated_only not in pre_round_surface
@@ -860,40 +860,74 @@ def test_ideate_visible_turn_semantics_keep_control_statuses_separate_from_clean
     )
 
 
-def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_continuations() -> None:
+def test_ideate_round_review_locks_priority_rule_open_continuation_default_and_fresh_parent_owned_follow_up() -> None:
     workflow = _read(IDEATE_WORKFLOW)
     round_loop = _step_body(workflow, "run_round_loop")
     round_review_gate = _step_body(workflow, "round_review_gate")
-    capabilities = _bullet_list_after_marker(
-        round_review_gate, "capabilities available in natural language:"
-    )
+    priority_rule = "`user interruption > pending agent follow-up > default continuation`"
+    ordered_handoff_rules = _bullet_list_after_marker(round_review_gate, "Interpret the handoff in that order:")
+    ordered_handoff_surface = "\n".join(ordered_handoff_rules)
     handoff_examples = _bullet_list_after_marker(round_review_gate, "Prefer handoff language such as:")
+    handoff_examples_surface = "\n".join(handoff_examples)
 
+    assert priority_rule in round_loop
+    assert priority_rule in round_review_gate
+    assert _contains_any_lower(
+        round_loop,
+        "workflow-owned priority rule at that handoff is",
+        "centered on open continuation by default",
+        "on clean turns, any new user reaction, redirect, setup adjustment, synthesis request, pause, or stop instruction takes priority over any pending follow-up",
+        "if the user does not interrupt and no checkpoint, blocker, or user-requested narrow follow-up needs routing, leave the turn open and ready to continue",
+    )
     assert _contains_any_lower(
         round_review_gate,
         "after each conversational turn, keep the user handoff light and natural.",
         "agent messages should already be on screen",
         "on a clean turn, default to a short natural handoff with no recap.",
-        "raw turn details remain review-on-demand.",
+        "raw turn details remain available only on demand.",
         "raw worker detail remains available on demand.",
+        "on a clean turn, the visible default is open continuation",
+        "if the user replies with a normal reaction, follow-up thought, or new angle, treat that as continuation rather than asking them to explicitly say `continue`",
+        "do not present a rigid fixed menu by default",
+        "do not end clean turns with a visible capability list unless clarity requires it",
+    )
+    assert _contains_in_order_lower(
+        ordered_handoff_surface,
+        "user interruption:",
+        "pending agent follow-up:",
+        "default continuation:",
+    )
+    assert any(
+        item.lower().startswith("user interruption:")
+        and "overrides any pending agent-side follow-up" in item.lower()
+        and "next parent-owned action" in item.lower()
+        for item in ordered_handoff_rules
+    )
+    assert any(
+        item.lower().startswith("pending agent follow-up:")
+        and "checkpoint-worthy blocker" in item.lower()
+        and "narrow focused follow-up or targeted check" in item.lower()
+        and "fresh one-shot workers" in item.lower()
+        and "do not leave a worker waiting in place" in item.lower()
+        for item in ordered_handoff_rules
+    )
+    assert any(
+        item.lower().startswith("default continuation:")
+        and "user has not interrupted" in item.lower()
+        and "clean-turn default remain open" in item.lower()
+        and "run the next bounded ideation turn under the hood" in item.lower()
+        and "without asking for an explicit menu choice" in item.lower()
+        for item in ordered_handoff_rules
     )
     assert _contains_any_lower(
-        round_review_gate,
-        "do not present a rigid fixed menu by default",
-        "makes these capabilities available in natural language",
+        handoff_examples_surface,
+        "keep going from here",
+        "short synthesis",
+        "change the setup",
+        "stop, just say so",
+        "change the direction",
+        "rebuild the next brief from there",
     )
-    assert any("continue" in item.lower() for item in capabilities)
-    assert any("add" in item.lower() or "redirect" in item.lower() for item in capabilities)
-    assert any(
-        "adjust" in item.lower() or "tune" in item.lower()
-        for item in capabilities
-    )
-    assert any("synthesis" in item.lower() or "recap" in item.lower() for item in capabilities)
-    assert any("stop" in item.lower() or "pause" in item.lower() for item in capabilities)
-    assert all("raw" not in item.lower() for item in capabilities)
-    assert any("synthesis" in item.lower() or "recap" in item.lower() for item in handoff_examples)
-    assert any("keep pushing" in item.lower() for item in handoff_examples)
-    assert any("redirect" in item.lower() for item in handoff_examples)
     assert all("raw" not in item.lower() for item in handoff_examples)
     assert all(
         all(term not in item.lower() for term in ("menu", "option", "orchestrator", "moderator"))
@@ -901,56 +935,19 @@ def test_ideate_turn_checkpoint_preserves_user_control_reaction_layer_and_fresh_
     )
     assert _contains_any_lower(
         round_review_gate,
-        "continue to the next bounded turn",
-        "increment the round counter and run the next bounded ideation round",
-        "run the next bounded ideation round under the hood",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
-        "add or redirect with the user's own thoughts",
-        "capture the user's injection",
-        "user's injection",
+        "capture the injection",
         "include it in the next turn brief",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
         "capture only the requested changes",
         "preserve everything else",
-        "requested changes such as preset",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
-        "ask for synthesis",
-        "request synthesis",
-        "show a brief synthesis",
-        "return to the same conversational handoff",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
-        "pause or stop cleanly without claiming durable persistence",
-        "pause or stop cleanly",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
-        "treat that as a fresh continuation",
-        "do not resume a prior child run.",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
-        "rebuild the next round brief",
+        "show one compact synthesis keyed to the current turn, then return to the same conversational handoff",
+        "if the user explicitly asks for raw details",
+        "show the raw worker takeaways plus any compact synthesized view, then return to the same conversational handoff",
+        "stop or pause cleanly without claiming durable persistence",
+        "treat that as a fresh continuation rather than resuming workers in place",
         "rebuild the next turn brief",
-        "spawn a fresh worker on the next round",
-    )
-    assert _contains_any_lower(
-        round_review_gate,
+        "spawn a fresh set of one-shot workers",
+        "do not resume a prior child run",
         "surface the ambiguity at the parent handoff",
-        "surface the ambiguity in the conversational handoff",
-    )
-    assert _contains_any_lower(
-        round_loop,
-        "allow one bounded optional reaction layer",
-        "fold in your reaction",
-        "optional reaction layer",
     )
 
 
@@ -1032,7 +1029,9 @@ def test_ideate_non_durable_contract_covers_rounds_focused_follow_up_and_closeou
         round_review_gate,
         "no files were created",
         "pause or stop cleanly without claiming durable persistence",
+        "stop or pause cleanly without claiming durable persistence",
         "pause or stop cleanly",
+        "stop or pause cleanly",
     )
     assert _contains_any_lower(
         session_finish,

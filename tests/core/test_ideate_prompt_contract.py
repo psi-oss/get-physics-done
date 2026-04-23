@@ -120,6 +120,46 @@ def test_ideate_public_contract_is_projectless_non_durable_and_pre_project() -> 
     )
 
 
+def test_ideate_public_contract_keeps_the_visible_flow_transcript_first_and_open() -> None:
+    _assert_ideate_surfaces_exist()
+
+    command = _read(PUBLIC_COMMAND_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), PUBLIC_COMMAND_NAME)
+
+    assert _contains_any_lower(
+        command,
+        "transcript-first",
+        "show agent contributions directly",
+        "agent-first transcript turns",
+    )
+    assert _contains_any_lower(
+        command,
+        "keep clean turns open by default",
+        "continues naturally after clean turns",
+    )
+    assert _contains_any_lower(
+        command,
+        "short natural handoff",
+        "wraps up with takeaways or next moves only when useful",
+        "synthesis or recap as secondary unless the user asks for it",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "transcript-first multi-agent research discussion",
+        "agent-first discussion transcript",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "clean turns usually continue with a short natural handoff",
+        "continue with a short natural handoff",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "synthesis or recap is secondary",
+        "synthesis or recap stays secondary",
+    )
+
+
 def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
     _assert_ideate_surfaces_exist()
 
