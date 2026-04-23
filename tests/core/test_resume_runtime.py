@@ -11,7 +11,7 @@ from gpd.core.context import init_resume
 from gpd.core.errors import StateError
 from gpd.core.observability import CurrentExecutionState
 from gpd.core.recent_projects import record_recent_project
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import (
     parse_state_to_json,
     state_carry_forward_continuation_last_result_id,
@@ -33,7 +33,7 @@ def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None
 
 
 def _assert_no_resume_compat_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -54,16 +54,6 @@ def _update_state_session(
 ) -> None:
     state_path = cwd / "GPD" / "state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["session"].update(
-        {
-            "last_date": last_date,
-            "hostname": hostname,
-            "platform": platform,
-            "stopped_at": stopped_at,
-            "resume_file": resume_file,
-            "last_result_id": last_result_id,
-        }
-    )
     state["continuation"]["handoff"].update(
         {
             "recorded_at": last_date,
@@ -130,10 +120,10 @@ def test_state_record_session_persists_machine_identity(
 
     assert result.recorded is True
     assert set(result.updated) >= {"Last session", "Hostname", "Platform", "Stopped at", "Resume file"}
-    assert stored["session"]["hostname"] == "builder-01"
-    assert stored["session"]["platform"] == "Linux 6.1 x86_64"
-    assert reparsed["session"]["hostname"] == "builder-01"
-    assert reparsed["session"]["platform"] == "Linux 6.1 x86_64"
+    assert stored["continuation"]["machine"]["hostname"] == "builder-01"
+    assert stored["continuation"]["machine"]["platform"] == "Linux 6.1 x86_64"
+    assert reparsed["continuation"]["machine"]["hostname"] == "builder-01"
+    assert reparsed["continuation"]["machine"]["platform"] == "Linux 6.1 x86_64"
     assert (
         "## Session Continuity\n\n"
         "**Last session:** " in markdown
@@ -141,7 +131,7 @@ def test_state_record_session_persists_machine_identity(
     assert (
         "**Stopped at:** Phase 03 Plan 2\n"
         "**Resume file:** next-step.md\n"
-        "**Last result ID:** —\n"
+        "**Last result ID:** none\n"
         "**Hostname:** builder-01\n"
         "**Platform:** Linux 6.1 x86_64\n"
     ) in markdown
@@ -166,7 +156,7 @@ def test_state_record_session_normalizes_project_local_absolute_resume_file(
     markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
 
     assert result.recorded is True
-    assert stored["session"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert stored["continuation"]["handoff"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert "**Resume file:** GPD/phases/03-analysis/.continue-here.md" in markdown
 
 
@@ -214,13 +204,6 @@ def test_state_carry_forward_continuation_last_result_id_updates_canonical_conti
             "verification_records": [],
         }
     ]
-    state["session"].update(
-        {
-            "last_result_id": "result-legacy",
-            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
-            "stopped_at": "Phase 03",
-        }
-    )
     state["continuation"] = {
         "schema_version": 1,
         "handoff": {
@@ -257,7 +240,7 @@ def test_state_carry_forward_continuation_last_result_id_updates_canonical_conti
     assert stored["continuation"]["bounded_segment"]["last_result_id"] == "result-canonical"
     assert stored["continuation"]["handoff"]["recorded_at"] == "2026-03-29T12:00:00+00:00"
     assert stored["continuation"]["handoff"]["recorded_by"] == "state_record_session"
-    assert stored["session"]["last_result_id"] == "result-canonical"
+    assert "session" not in stored
 
 
 def test_state_record_session_rejects_unknown_last_result_id_without_persisting(
@@ -311,13 +294,6 @@ def test_state_record_session_uses_bounded_segment_last_result_id_when_explicit_
             "verification_records": [],
         }
     ]
-    state["session"].update(
-        {
-            "last_result_id": "result-legacy",
-            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
-            "stopped_at": "Phase 03",
-        }
-    )
     state["continuation"] = {
         "schema_version": 1,
         "handoff": {
@@ -353,7 +329,7 @@ def test_state_record_session_uses_bounded_segment_last_result_id_when_explicit_
 
     assert result.recorded is True
     assert "Last result ID" in set(result.updated)
-    assert stored["session"]["last_result_id"] == "result-canonical"
+    assert "session" not in stored
     assert stored["continuation"]["handoff"]["last_result_id"] == "result-canonical"
     assert stored["continuation"]["bounded_segment"]["last_result_id"] == "result-canonical"
     assert "**Last result ID:** result-canonical" in markdown
@@ -424,15 +400,13 @@ def test_init_resume_uses_canonical_continuation_when_legacy_session_conflicts(
 
     state_path = cwd / "GPD" / "state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["session"].update(
-        {
-            "last_date": "2026-03-02T12:00:00+00:00",
-            "hostname": "legacy-host",
-            "platform": "LegacyOS",
-            "stopped_at": "Legacy stop",
-            "resume_file": "GPD/phases/03-analysis/legacy.md",
-        }
-    )
+    state["session"] = {
+        "last_date": "2026-03-02T12:00:00+00:00",
+        "hostname": "legacy-host",
+        "platform": "LegacyOS",
+        "stopped_at": "Legacy stop",
+        "resume_file": "GPD/phases/03-analysis/legacy.md",
+    }
     state["continuation"] = {
         "schema_version": 1,
         "handoff": {
@@ -1099,7 +1073,7 @@ def test_init_resume_does_not_build_legacy_resume_aliases_before_public_canonica
 
     captured: dict[str, object] = {}
 
-    def _capture_public_payload(payload: dict[str, object], *, compat_fields=RESUME_COMPATIBILITY_ALIAS_FIELDS):
+    def _capture_public_payload(payload: dict[str, object], *, compat_fields=RESUME_BACKEND_ONLY_FIELDS):
         captured["payload"] = dict(payload)
         return dict(payload)
 

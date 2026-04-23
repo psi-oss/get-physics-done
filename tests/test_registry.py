@@ -663,7 +663,7 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_command_policy_rejects_conflicts_with_legacy_context_metadata(self, tmp_path: Path) -> None:
+    def test_command_policy_rejects_conflicts_with_companion_context_metadata(self, tmp_path: Path) -> None:
         f = tmp_path / "peer-review.md"
         f.write_text(
             "---\n"
@@ -680,11 +680,11 @@ class TestParseCommandFile:
 
         with pytest.raises(
             ValueError,
-            match=r"Invalid command-policy in .*peer-review\.md.*must stay aligned with legacy command metadata",
+            match=r"Invalid command-policy in .*peer-review\.md.*must stay aligned with companion command metadata",
         ):
             _parse_command_file(f, source="commands")
 
-    def test_publication_command_policy_can_override_legacy_supporting_context_metadata(self, tmp_path: Path) -> None:
+    def test_publication_command_policy_can_override_companion_supporting_context_metadata(self, tmp_path: Path) -> None:
         f = tmp_path / "arxiv-submission.md"
         f.write_text(
             "---\n"
@@ -3069,7 +3069,7 @@ class TestSkillCategoryMap:
             pytest.fail("_SKILL_CATEGORY_MAP not found in registry source")
 
     def test_peer_review_appears_exactly_once(self) -> None:
-        """Regression: 'gpd-peer-review' was duplicated at two positions."""
+        """Assert 'gpd-peer-review' appears exactly once (no duplicates)."""
         import ast
         import inspect
 

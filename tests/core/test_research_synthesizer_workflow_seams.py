@@ -1,4 +1,4 @@
-"""Workflow seam regressions for the research-synthesizer vertical."""
+"""Workflow seam assertions for the research-synthesizer vertical."""
 
 from __future__ import annotations
 

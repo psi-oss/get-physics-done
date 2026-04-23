@@ -1,4 +1,4 @@
-"""Planner ownership regressions for the Phase 23 thinning slice."""
+"""Planner ownership assertions for the Phase 23 thinning slice."""
 
 from __future__ import annotations
 

@@ -46,9 +46,9 @@ These classes are worth surfacing early because they produce plausible-looking o
 
 ## Current Interpretation Of "Critical"
 
-The current shipped references no longer maintain a dated zero-layer or one-layer "CRITICAL" table from the old snapshot audit.
+The shipped references do not maintain a dated zero-layer or one-layer "CRITICAL" table.
 
-Operationally, the two setup-sensitive classes that still deserve special skepticism are:
+Operationally, the two setup-sensitive classes that deserve special skepticism are:
 
 - `#11` hallucinated identities
 - `#13` boundary condition hallucination

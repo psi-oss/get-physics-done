@@ -6,7 +6,7 @@ Observability is written to the project-local telemetry and lineage surfaces:
 - ``current-session.json`` points at the latest observed session summary
 - ``GPD/lineage/execution-lineage.jsonl`` stores append-only execution lineage
 - ``GPD/lineage/execution-head.json`` stores the derived execution head cache
-- ``current-execution.json`` remains the compatibility mirror for legacy readers
+- ``current-execution.json`` mirrors the latest execution state for flat-file readers
 
 Automatic low-level function/span logging is intentionally disabled. Only
 explicit session/workflow events should be recorded here.
@@ -322,7 +322,7 @@ def resolve_project_root(
     *,
     project_dir: Path | str | None = None,
 ) -> Path | None:
-    """Compatibility wrapper around the canonical shared root resolver."""
+    """Thin wrapper that delegates to the canonical shared root resolver."""
     return _shared_resolve_project_root(cwd, project_dir=project_dir)
 
 
@@ -877,7 +877,7 @@ def _execution_visibility_next_commands(
 
     if visibility_mode in {"snapshot-only", "trace-only"}:
         mode_reason = (
-            "inspect recent observability sessions because only the compatibility snapshot is available"
+            "inspect recent observability sessions because only the flat-file execution snapshot is available"
             if visibility_mode == "snapshot-only"
             else "inspect recent observability sessions because only the lineage trace head is available"
         )
@@ -1051,7 +1051,7 @@ def _execution_visibility_source_state(
     if head_valid and not current_exists:
         return snapshot, "full", None
     if current_valid and head_exists and not head_valid:
-        note = "; ".join(dict.fromkeys(degraded_reasons)) or "compatibility snapshot only"
+        note = "; ".join(dict.fromkeys(degraded_reasons)) or "flat-file execution snapshot only"
         return snapshot, "snapshot-only", note
     if head_valid and current_exists and not current_valid:
         note = "; ".join(dict.fromkeys(degraded_reasons)) or "lineage trace only"

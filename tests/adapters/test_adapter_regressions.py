@@ -1,4 +1,4 @@
-"""Behavior-focused adapter regression coverage."""
+"""Behavior-focused adapter assertions."""
 
 from __future__ import annotations
 

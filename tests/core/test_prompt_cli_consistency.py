@@ -43,7 +43,7 @@ from tests.doc_surface_contracts import (
     assert_wolfram_plan_boundary_contract,
     assert_workflow_preset_surface_contract,
     resume_authority_public_vocabulary_intro,
-    resume_compat_alias_fields,
+    resume_backend_only_fields,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -636,7 +636,7 @@ def test_help_prompt_surfaces_bounded_write_paper_external_authoring_lane() -> N
     assert "GPD-authored outputs live under `GPD/publication/{subject_slug}/...`" in help_workflow
     assert "`GPD/publication/{subject_slug}/intake/`" in help_workflow
     assert "does not mine arbitrary folders" in help_workflow
-    assert "embedded external staged-review parity remains deferred" in help_workflow
+    assert "embedded external staged-review parity is out of scope" in help_workflow
     assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
 
 
@@ -706,7 +706,7 @@ def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_r
         "missing_continuity_handoff_file",
         "resume_candidates",
     )
-    assert not any(alias in resume_authority_fields() for alias in resume_compat_alias_fields())
+    assert not any(alias in resume_authority_fields() for alias in resume_backend_only_fields())
     assert_recovery_ladder_contract(
         help_workflow,
         resume_work_fragments=("gpd:resume-work", "/gpd:resume-work"),

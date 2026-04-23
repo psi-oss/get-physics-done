@@ -1,4 +1,4 @@
-"""Behavior-focused phase regression coverage."""
+"""Behavior-focused phase assertions."""
 
 from __future__ import annotations
 
@@ -269,7 +269,7 @@ def test_milestone_complete_uses_utc_date_near_midnight(tmp_path: Path) -> None:
     assert result.date == "2026-03-31"
 
 
-# ─── BUG-018: phase_add / phase_insert heading consistency ────────────────────
+# ─── phase_add / phase_insert heading consistency ─────────────────────────────
 
 
 def test_phase_add_matches_existing_heading_level(tmp_path: Path) -> None:
@@ -392,6 +392,5 @@ def test_phase_insert_depends_on_uses_normalized_form(tmp_path: Path) -> None:
     # NOTE: phase_normalize always pads the top-level segment to 2 digits
     # (e.g., "1" -> "01"), so the Depends-on line says "Phase 01" even though
     # the ROADMAP uses unpadded headings ("Phase 1:").  This is a known
-    # pre-existing inconsistency in phase_normalize's design, not a bug in
-    # phase_insert.  Changing phase_normalize is out of scope for BUG-018.
+    # inconsistency in phase_normalize's design, not a defect in phase_insert.
     assert "**Depends on:** Phase 01" in roadmap

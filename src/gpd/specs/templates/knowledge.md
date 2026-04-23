@@ -97,8 +97,8 @@ not a claim that the old synthesis is still current.
 
 ## Deferred Behaviors
 
-The public authoring command and help coverage are part of the supported surface
-now. The following behaviors are intentionally out of scope for Phase 1 and
+The public authoring command and help coverage are part of the supported surface.
+The following behaviors are intentionally out of scope for Phase 1 and
 later rollout hardening work, even if they may appear in future work:
 
 - migration/backfill for older or provisional docs

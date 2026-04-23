@@ -1,4 +1,4 @@
-"""Focused regressions for the verify-work command wrapper surface."""
+"""Focused assertions for the verify-work command wrapper surface."""
 
 from __future__ import annotations
 

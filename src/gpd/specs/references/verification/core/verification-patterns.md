@@ -9,7 +9,7 @@ context_cost: small
 
 # Verification Patterns — Index
 
-This document has been split into modular files for better context efficiency. Load only the files relevant to your current work.
+This document is organized as modular files for context efficiency. Load only the files relevant to your current work.
 
 ## Quick Start
 

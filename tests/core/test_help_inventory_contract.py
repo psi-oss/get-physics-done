@@ -88,7 +88,7 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in help_workflow
     assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in readme
     assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in help_workflow
-    assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in readme
+    assert "Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths." in readme
     assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in help_workflow
     assert "The later publication commands stay stricter:" in readme
     assert "**`gpd:respond-to-referees [path to referee report or 'paste']`**" in help_workflow
@@ -96,8 +96,8 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert "Usage: `gpd:respond-to-referees paste`" in help_workflow
     assert "Usage: `gpd:arxiv-submission paper/`" in help_workflow
     assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
-    assert "`gpd:arxiv-submission` still only packages a GPD-owned manuscript root" in readme
-    assert "`gpd:arxiv-submission` still only packages a GPD-owned manuscript root" in help_workflow
+    assert "`gpd:arxiv-submission` only packages a GPD-owned manuscript root" in readme
+    assert "`gpd:arxiv-submission` packages only a GPD-owned manuscript root" in help_workflow
 
 
 def test_help_command_uses_one_shared_extract_warning() -> None:
@@ -134,7 +134,7 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
     assert "Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open" in help_workflow
     assert "If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`" in help_workflow
     assert "Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier" in help_workflow
-    assert "Migration/backfill for older or provisional docs remains deferred; use canonical `GPD/knowledge/{knowledge_id}.md` targets for now." in help_workflow
+    assert "Use canonical `GPD/knowledge/{knowledge_id}.md` targets; backfill of provisional docs is out of scope." in help_workflow
     assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
     assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
     assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow

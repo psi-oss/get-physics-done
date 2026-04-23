@@ -1,4 +1,4 @@
-"""Regression tests for the staged `new-project` contract."""
+"""Assertions for the staged `new-project` contract."""
 
 from __future__ import annotations
 

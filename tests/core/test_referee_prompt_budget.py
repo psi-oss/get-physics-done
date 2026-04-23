@@ -1,4 +1,4 @@
-"""Prompt budget regressions for the `gpd-referee` agent surface."""
+"""Prompt budget assertions for the `gpd-referee` agent surface."""
 
 from __future__ import annotations
 

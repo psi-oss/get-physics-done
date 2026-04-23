@@ -1,4 +1,4 @@
-"""Focused regressions for the validate-conventions command/workflow seam."""
+"""Focused assertions for the validate-conventions command/workflow seam."""
 
 from __future__ import annotations
 

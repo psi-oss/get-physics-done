@@ -346,14 +346,24 @@ Usage: `gpd:map-research`
 
 ### Phase Planning
 
-**`gpd:discuss-phase <number>`**
+**`gpd:discuss-phase <number> [--auto|--compact]`**
 Help articulate your vision for a research phase before planning.
 
 - Captures how you imagine this phase proceeding
 - Creates CONTEXT.md with your approach, essentials, and boundaries
 - Use when you have specific ideas about methods or approximations
+- `--auto` compresses the discussion for fast iteration; `--compact` skips the Socratic flow and shows a single knobs-form you can fill in one turn
 
-Usage: `gpd:discuss-phase 2`
+Usage: `gpd:discuss-phase 2` / `gpd:discuss-phase 2 --compact`
+
+**`gpd:route [--frozen=yes|no] [--change=extend|revise] [--layer=new|change]`**
+Decide whether a scope change is a new phase, a revision, a new milestone, or a milestone-completion followed by a new one.
+
+- Asks three short routing questions about the intended scope change
+- Maps the answers to exactly one next command (`gpd:add-phase`, `gpd:revise-phase`, `gpd:new-milestone`, or `gpd:complete-milestone` + `gpd:new-milestone`)
+- Use it when you're not sure whether new work belongs in the current milestone
+
+Usage: `gpd:route`
 
 **`gpd:research-phase <number>`**
 Comprehensive literature survey for a specific phase.
@@ -783,7 +793,7 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` keeps the legacy current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and adds one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` still only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. This is not a full publication-root migration.
+Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` packages only a GPD-owned manuscript root, and embedded external staged-review parity is out of scope. Publication-root handling is partial by design.
 
 **`gpd:write-paper [title or topic] [--from-phases 1,2,3]`**
 Structure and write a physics paper from research results.
@@ -792,12 +802,12 @@ Structure and write a physics paper from research results.
 - Runs paper-readiness audit (conventions, verification, figures, citations)
 - Spawns gpd-paper-writer agents for each section (Results first, Abstract last)
 - Drafts the manuscript and uses `gpd paper-build` for the canonical scaffold/build contract
-- Uses the current project's GPD-owned manuscript root by default: legacy `paper/`, `manuscript/`, and `draft/` roots stay valid, and resolved publication subjects use the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
+- Uses the current project's GPD-owned manuscript root by default: `paper/`, `manuscript/`, and `draft/` roots remain valid, and resolved publication subjects use the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
 - Supports one bounded external-authoring lane through an explicit intake manifest only
 - In that bounded lane, all GPD-authored durable outputs live under `GPD/publication/{subject_slug}/...`; `GPD/publication/{subject_slug}/manuscript` is the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` keeps intake/provenance state
 - Does not mine arbitrary folders or infer claim/evidence bindings from loose notes
-- Keeps project-backed auxiliary review/response/package artifacts on the workflow-owned `GPD/` paths instead of claiming a full publication-root migration
-- Routes bounded external-authoring review follow-up to `gpd:peer-review`; embedded external staged-review parity remains deferred
+- Keeps project-backed auxiliary review/response/package artifacts on the workflow-owned `GPD/` paths; publication-root handling is partial by design
+- Routes bounded external-authoring review follow-up to `gpd:peer-review`; embedded external staged-review parity is out of scope
 - Spawns gpd-bibliographer to verify all references
 - Runs the staged peer-review panel with gpd-referee as final adjudicator
 - Supports revision mode for referee responses (bounded 3-iteration loop)
@@ -907,7 +917,7 @@ Create or update a current-workspace knowledge document draft from a topic, pape
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
 - If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`
 - Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier
-- Migration/backfill for older or provisional docs remains deferred; use canonical `GPD/knowledge/{knowledge_id}.md` targets for now.
+- Use canonical `GPD/knowledge/{knowledge_id}.md` targets; backfill of provisional docs is out of scope.
 
 - Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
 - Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`

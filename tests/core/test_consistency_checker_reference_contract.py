@@ -1,4 +1,4 @@
-"""Regression coverage for the consistency-checker reference contract wording."""
+"""Assertions for the consistency-checker reference contract wording."""
 
 from __future__ import annotations
 

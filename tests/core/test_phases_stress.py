@@ -266,7 +266,7 @@ class TestRenumbering20Phases:
         phases_dir = tmp_path / "GPD" / "phases"
         remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
         assert len(remaining) == 19
-        # First directory should now be "01-phase-2" (originally phase 2, renumbered to 01)
+        # First directory should be "01-phase-2" (phase 2 renumbered to 01 after removal)
         assert remaining[0].startswith("01-")
 
     def test_remove_middle_phase_of_20(self, tmp_path: Path) -> None:

@@ -46,7 +46,7 @@ from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.workflow_staging import load_workflow_stage_manifest
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -712,7 +712,7 @@ def _write_bundle_ready_contract_state(tmp_path: Path) -> None:
 
 
 def _assert_no_resume_compat_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -1712,42 +1712,6 @@ class TestInitPlanPhase:
         assert "Canonical details." in ctx["reference_artifacts_content"]
         assert "Legacy details." not in ctx["reference_artifacts_content"]
         assert "GPD/research/legacy-REVIEW.md" not in ctx["reference_artifact_files"]
-
-    def test_falls_back_to_legacy_research_review_files_when_literature_is_missing(
-        self,
-        tmp_path: Path,
-    ) -> None:
-        _setup_project(tmp_path)
-        _create_phase_dir(tmp_path, "02-analysis")
-        _write_project_contract_state(tmp_path)
-
-        research_dir = tmp_path / "GPD" / "research"
-        research_dir.mkdir()
-        (research_dir / "legacy-REVIEW.md").write_text(
-            "# Legacy Review\n\nLegacy details.\n",
-            encoding="utf-8",
-        )
-        (research_dir / "legacy-CITATION-SOURCES.json").write_text(
-            json.dumps(
-                [
-                    {
-                        "reference_id": "ref-legacy",
-                        "source_type": "paper",
-                        "title": "Legacy Reference",
-                        "authors": ["A. Author"],
-                        "year": "2024",
-                    }
-                ]
-            ),
-            encoding="utf-8",
-        )
-
-        ctx = init_plan_phase(tmp_path, "2")
-
-        assert ctx["literature_review_files"] == ["GPD/research/legacy-REVIEW.md"]
-        assert ctx["citation_source_files"] == ["GPD/research/legacy-CITATION-SOURCES.json"]
-        assert "Legacy details." in ctx["reference_artifacts_content"]
-        assert "GPD/research/legacy-REVIEW.md" in ctx["reference_artifact_files"]
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3381,10 +3345,12 @@ class TestInitResume:
         from gpd.core.state import default_state_dict
 
         state = default_state_dict()
-        state["session"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
-        state["session"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
-        state["session"]["hostname"] = "legacy-host"
-        state["session"]["platform"] = "legacy-platform"
+        state["session"] = {
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "stopped_at": "2026-03-10T12:00:00+00:00",
+            "hostname": "legacy-host",
+            "platform": "legacy-platform",
+        }
         resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
         resume_path.parent.mkdir(parents=True, exist_ok=True)
         resume_path.write_text("resume\n", encoding="utf-8")
@@ -3423,15 +3389,15 @@ class TestInitResume:
         assert (layout.gpd / ".state-json-tmp").read_text(encoding="utf-8") == before_json_tmp
         assert (layout.gpd / ".state-md-tmp").read_text(encoding="utf-8") == before_md_tmp
 
-    def test_state_md_fallback_no_longer_hydrates_resume_authority_from_legacy_session(self, tmp_path: Path) -> None:
+    def test_state_md_fallback_projects_session_continuity_into_resume_authority(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict, generate_state_markdown
 
         state = default_state_dict()
-        state["session"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
-        state["session"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
-        state["session"]["hostname"] = "legacy-host"
-        state["session"]["platform"] = "legacy-platform"
+        state["continuation"]["handoff"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
+        state["continuation"]["handoff"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
+        state["continuation"]["machine"]["hostname"] = "legacy-host"
+        state["continuation"]["machine"]["platform"] = "legacy-platform"
         resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
         resume_path.parent.mkdir(parents=True, exist_ok=True)
         resume_path.write_text("resume\n", encoding="utf-8")
@@ -3439,18 +3405,11 @@ class TestInitResume:
 
         ctx = init_resume(tmp_path)
 
-        assert ctx["active_resume_kind"] is None
-        assert ctx["active_resume_origin"] is None
-        assert ctx["active_resume_pointer"] is None
-        assert ctx["machine_change_detected"] is False
-        assert ctx["machine_change_notice"] is None
-        assert ctx["continuity_handoff_file"] is None
-        assert ctx["recorded_continuity_handoff_file"] is None
-        assert ctx["session_hostname"] is None
-        assert ctx["session_platform"] is None
-        assert ctx["session_last_date"] is None
-        assert ctx["session_stopped_at"] is None
-        assert ctx["resume_candidates"] == []
+        assert ctx["continuity_handoff_file"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["recorded_continuity_handoff_file"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["active_resume_kind"] == "continuity_handoff"
+        assert ctx["active_resume_origin"] == "continuation.handoff"
 
     def test_init_resume_propagates_unexpected_continuation_errors(self, tmp_path: Path, monkeypatch) -> None:
         _setup_project(tmp_path)
@@ -4562,7 +4521,7 @@ class TestInitProgress:
 
 
 class TestExtractFrontmatterField:
-    """Regression: \\s* in the field regex must not match newlines."""
+    """Assert \\s* in the field regex does not match newlines."""
 
     def test_empty_value_does_not_bleed_into_next_line(self, tmp_path: Path) -> None:
         """When a field has an empty value (e.g. 'title:\\n'), the regex must

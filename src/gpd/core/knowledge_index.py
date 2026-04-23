@@ -1,4 +1,4 @@
-"""Compatibility wrapper for runtime knowledge-doc discovery and lookup."""
+"""Stable import surface for runtime knowledge-doc discovery and lookup."""
 
 from __future__ import annotations
 

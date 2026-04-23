@@ -1,4 +1,4 @@
-"""Semantic regression tests for spawned-agent workflow contracts."""
+"""Semantic assertions for spawned-agent workflow contracts."""
 
 from __future__ import annotations
 

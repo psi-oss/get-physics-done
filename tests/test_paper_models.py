@@ -228,16 +228,16 @@ class TestModels:
             (
                 Section,
                 {"heading": "Intro", "content": "Hello.", "label": "sec:intro"},
-                r"label[\s\S]*omit the legacy 'sec:' prefix",
+                r"label[\s\S]*omit the reserved 'sec:' prefix",
             ),
             (
                 FigureRef,
                 {"path": Path("fig.pdf"), "caption": "Cap", "label": "fig:velocity"},
-                r"label[\s\S]*omit the legacy 'fig:' prefix",
+                r"label[\s\S]*omit the reserved 'fig:' prefix",
             ),
         ],
     )
-    def test_paper_models_reject_legacy_label_prefixes(
+    def test_paper_models_reject_reserved_label_prefixes(
         self,
         model_cls: type[Section] | type[FigureRef],
         payload: dict[str, object],

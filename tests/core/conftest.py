@@ -79,9 +79,6 @@ def session_state_project_factory(state_project_factory):
         state["continuation"]["handoff"]["recorded_at"] = "2025-01-01T00:00:00+00:00"
         state["continuation"]["handoff"]["stopped_at"] = "Task 3"
         state["continuation"]["handoff"]["resume_file"] = "resume.md"
-        state["session"]["last_date"] = "2025-01-01T00:00:00+00:00"
-        state["session"]["stopped_at"] = "Task 3"
-        state["session"]["resume_file"] = "resume.md"
         return state_project_factory(tmp_path, state_dict=state, current_phase="01", status="Executing")
 
     return factory

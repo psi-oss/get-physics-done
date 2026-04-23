@@ -1,4 +1,4 @@
-"""Tests for citation-bibliography coherence check (BUG-076)."""
+"""Assertions for the citation-bibliography coherence check."""
 
 from __future__ import annotations
 
@@ -143,13 +143,13 @@ class TestCitationBibCoherence:
         assert result.warnings == []
 
     def test_citetext_ignored_inner_citealp_extracted(self) -> None:
-        r"""\\citetext is excluded from the regex (BUG-076 fix).
+        r"""Assert \\citetext is excluded from the regex.
 
         \\citetext wraps free-form text that may contain nested citation
         commands like \\citealp.  Because the non-brace-aware regex
         ``\{([^}]*)\}`` truncates at the first inner ``}``, including
-        \\citetext produces garbage keys.  Instead, \\citetext is ignored
-        and the inner \\citealp commands are matched individually.
+        \\citetext produces garbage keys.  The extractor therefore ignores
+        \\citetext and matches the inner \\citealp commands individually.
         """
         tex = r"\citetext{see \citealp{a}; compare \citealp{b}}"
         bib = (

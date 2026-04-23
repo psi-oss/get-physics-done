@@ -87,7 +87,12 @@ ls "${phase_dir}"/SUMMARY.md "${phase_dir}"/*-SUMMARY.md 2>/dev/null | sort
 Find the first plan artifact without a matching summary artifact. Canonical standalone pairing is `PLAN.md` <-> `SUMMARY.md`; numbered plans still pair by shared stem. Decimal phases are still supported for numbered files (`01.1-hotfix/`):
 
 ```bash
-phase=$(echo "$PLAN_PATH" | grep -oE '[0-9]+(\.[0-9]+)?-[0-9]+')
+# The plan filename is {phase}-{plan}-PLAN.md (e.g. 05-02-PLAN.md).
+# Extract phase and plan separately — do NOT collapse both digits into $phase,
+# or the metrics row will read "Phase 05 P02" instead of "Phase 05 P05-02".
+plan_stem=$(basename "$PLAN_PATH" -PLAN.md)
+phase=$(echo "$plan_stem" | grep -oE '^[0-9]+(\.[0-9]+)?')
+plan=$(echo "$plan_stem" | sed -E "s/^${phase}-//")
 # config_content already loaded via --include config in init_context
 ```
 
@@ -196,8 +201,14 @@ Clear transitions are reason-scoped: clearing `first_result` must not silently c
 Create a git checkpoint tag before plan execution. See `execute-plan-checkpoints.md` for full protocol.
 
 ```bash
-CHECKPOINT_TAG="gpd-checkpoint/phase-${phase}-plan-${plan}-$(date +%s)"
-git tag "${CHECKPOINT_TAG}"
+CHECKPOINT_TAG="gpd-checkpoint-phase-${phase}-plan-${plan}-$(date +%s)"
+if git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}" >/dev/null 2>&1; then
+  CHECKPOINT_TAG="${CHECKPOINT_TAG}-$$"
+fi
+if ! git tag "${CHECKPOINT_TAG}"; then
+  echo "ERROR: failed to create checkpoint tag ${CHECKPOINT_TAG}" >&2
+  exit 1
+fi
 ```
 </step>
 
@@ -264,7 +275,7 @@ Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
 1. Parse segment map: checkpoint locations and types, then merge in virtual boundaries from `FIRST_RESULT_GATE_REQUIRED`, `SEGMENT_TASK_CAP`, `MAX_UNATTENDED_MINUTES_PER_PLAN`, and context pressure
 2. Per segment:
    - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<max_unattended_minutes_per_plan>{MAX_UNATTENDED_MINUTES_PER_PLAN}</max_unattended_minutes_per_plan>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs and any durable `continuation_update` fields needed to keep bounded gates live across continuation. Track via agent protocol. The runtime transport payload may still carry `execution_segment` for the fresh handoff, but do not put that transport-only shape inside the durable child-return example. When the segment summary is written, the orchestrator applies it through the canonical `gpd apply-return-updates` path rather than interpreting ad hoc validation text.
-   - Treat `execution_segment` as the runtime transport payload for the pause/continue handoff. When the segment is durably recorded, the runtime may mirror that same payload into `continuation.bounded_segment` and append the matching execution-lineage event so later resume logic can resolve the bounded stop without parsing prose. The markdown handoff file and session pointer remain surfaces only, and the derived execution head stays a compatibility projection.
+   - Treat `execution_segment` as the runtime transport payload for the pause/continue handoff. When the segment is durably recorded, the runtime may mirror that same payload into `continuation.bounded_segment` and append the matching execution-lineage event so later resume logic can resolve the bounded stop without parsing prose. The markdown handoff file remains a discovery surface only, and the derived execution head stays a compatibility projection.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> apply returned state updates in main context via `gpd apply-return-updates` -> final metadata commit -> self-check:
 
@@ -420,7 +431,7 @@ Context is finite (~80% usable before compression). After completing each task:
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and legacy `session` record are discovery surfaces that mirror canonical continuation; `continuation.bounded_segment` is the bounded authority for the pause.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and `session` record are discovery surfaces that mirror canonical continuation; `continuation.bounded_segment` is the bounded authority for the pause.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 

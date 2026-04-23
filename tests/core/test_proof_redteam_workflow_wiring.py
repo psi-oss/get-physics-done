@@ -1,4 +1,4 @@
-"""Regression checks for fail-closed proof redteam workflow wiring."""
+"""Assertions for fail-closed proof redteam workflow wiring."""
 
 from __future__ import annotations
 

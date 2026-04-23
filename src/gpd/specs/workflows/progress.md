@@ -171,6 +171,12 @@ Use this instead of manually reading/parsing ROADMAP.md.
 ```bash
 # Get formatted progress bar
 PROGRESS_BAR=$(gpd --raw progress bar)
+
+# Structured progress including the live_execution block (active phase/plan/wave,
+# current task index, last artifact, last result label, age since last update,
+# and execution-preference flags strict_wait / never_interrupt_running_workers /
+# never_auto_close_child_agents).
+PROGRESS_JSON=$(gpd --raw progress)
 ```
 
 Present:
@@ -180,6 +186,17 @@ Present:
 
 **Progress:** {PROGRESS_BAR}
 **Profile:** [deep-theory/numerical/exploratory/review/paper-writing]
+**Execution preferences:** strict_wait={strict_wait} | never_interrupt_workers={never_interrupt_running_workers} | never_auto_close_children={never_auto_close_child_agents}
+
+## Live Execution
+(Only show this block when PROGRESS_JSON.live_execution.phase is set.)
+
+Active phase/plan: Phase {live_execution.phase}, Plan {live_execution.plan} (wave {live_execution.wave})
+Current task: {live_execution.current_task} ({live_execution.current_task_index}/{live_execution.current_task_total})
+Last artifact: {live_execution.last_artifact_path}
+Last result:   {live_execution.last_result_label}
+Updated:       {live_execution.last_updated_age_label}
+Status:        {live_execution.segment_status}{ if live_execution.waiting_reason }, waiting: {live_execution.waiting_reason}{ endif }
 
 ## Recent Work
 - [Phase X, Plan Y]: [what was accomplished - 1 line from summary-extract]

@@ -26,7 +26,7 @@ from gpd.cli import app
 from gpd.core.constants import AGENT_ID_FILENAME, ENV_DATA_DIR
 from gpd.core.costs import UsageRecord, _profile_tier_mix, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown
 from tests.manuscript_test_support import (
     manuscript_path as canonical_manuscript_path,
@@ -73,7 +73,7 @@ _SECONDARY_PERMISSIONS_DESCRIPTOR = _select_runtime_descriptor(
 
 
 def _assert_no_top_level_resume_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -779,7 +779,7 @@ def test_result_persist_derived_bridge_seeds_canonical_continuity_for_later_reco
     assert reloaded["intermediate_results"][0]["id"] == "R-01"
     assert reloaded["intermediate_results"][0]["description"] == "Canonical description"
     assert reloaded["continuation"]["bounded_segment"]["last_result_id"] == "R-01"
-    assert reloaded["session"]["last_result_id"] == "R-01"
+    assert "session" not in reloaded
     assert reloaded["continuation"]["handoff"]["last_result_id"] == "R-01"
 
     record_session_result = runner.invoke(
@@ -803,7 +803,7 @@ def test_result_persist_derived_bridge_seeds_canonical_continuity_for_later_reco
     assert record_session_payload["recorded"] is True
 
     reread = json.loads(state_path.read_text(encoding="utf-8"))
-    assert reread["session"]["last_result_id"] == "R-01"
+    assert "session" not in reread
     assert reread["continuation"]["handoff"]["last_result_id"] == "R-01"
     current_execution = json.loads((planning / "observability" / "current-execution.json").read_text(encoding="utf-8"))
     assert current_execution["last_result_id"] == "R-01"
@@ -1174,7 +1174,7 @@ def test_state_record_session_persists_last_result_id_in_session_and_handoff(gpd
     assert payload["recorded"] is True
 
     state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
-    assert state["session"]["last_result_id"] == "R-bridge-01"
+    assert "session" not in state
     assert state["continuation"]["handoff"]["last_result_id"] == "R-bridge-01"
 
     state_md = (gpd_project / "GPD" / "STATE.md").read_text(encoding="utf-8")
@@ -1547,7 +1547,7 @@ class TestResume:
         assert parsed["recovery_advice"]["resume_surface_schema_version"] == 1
         assert parsed["recovery_advice"]["actions"][0]["kind"] == "primary"
         assert "compat_resume_surface" not in parsed["recovery_advice"]
-        for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+        for key in RESUME_BACKEND_ONLY_FIELDS:
             assert key not in parsed["recovery_advice"]
         assert parsed["primary_recovery_target"]["kind"] == "bounded_segment"
         assert parsed["primary_recovery_target"]["origin"] == "canonical_continuation"
@@ -1696,7 +1696,7 @@ class TestResume:
         state_path = gpd_project / "GPD" / "state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["position"]["status"] = "Paused"
-        state["session"]["resume_file"] = "GPD/phases/01-test-phase/.continue-here.md"
+        state["session"] = {"resume_file": "GPD/phases/01-test-phase/.continue-here.md"}
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
         result = _invoke("resume")

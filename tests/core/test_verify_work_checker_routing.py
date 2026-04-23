@@ -1,4 +1,4 @@
-"""Focused regressions for the verify-work checker routing seam."""
+"""Focused assertions for the verify-work checker routing seam."""
 
 from pathlib import Path
 

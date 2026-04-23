@@ -470,7 +470,7 @@ def test_gitignore_covers_repo_local_tmp_root() -> None:
 
 
 def test_gitignore_does_not_exclude_gpd_directory() -> None:
-    """Regression: GPD/ must not be gitignored.
+    """Assert GPD/ is not gitignored.
 
     Workflow commit commands (``gpd commit``) include GPD/ files; gitignoring
     them causes ``git add`` failures.  A pre-commit hook strips GPD/ from

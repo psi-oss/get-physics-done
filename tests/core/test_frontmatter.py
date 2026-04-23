@@ -2119,12 +2119,12 @@ class TestValidateFrontmatter:
 
 
 # ---------------------------------------------------------------------------
-# Edge cases: splice / deep_merge with empty frontmatter (regression tests)
+# Edge cases: splice / deep_merge with empty frontmatter
 # ---------------------------------------------------------------------------
 
 
 class TestSpliceEmptyFrontmatter:
-    """Regression: splice/deep_merge must replace (not duplicate) empty ``---\\n---`` blocks."""
+    """Assert splice/deep_merge replace (not duplicate) empty ``---\\n---`` blocks."""
 
     def test_splice_replaces_empty_frontmatter(self):
         content = "---\n---\n\nBody."
@@ -2811,7 +2811,7 @@ class TestVerifyPlanStructure:
 
 
 class TestSelfCheckRegexBoundaries:
-    """Regression: _SELF_CHECK_PASS/FAIL must not match substrings."""
+    """Assert _SELF_CHECK_PASS/FAIL do not match substrings."""
 
     def test_fail_does_not_match_failures(self):
         from gpd.core.frontmatter import _SELF_CHECK_FAIL

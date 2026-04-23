@@ -1,4 +1,4 @@
-"""Prompt-visibility regressions for the review agents."""
+"""Prompt-visibility assertions for the review agents."""
 
 from __future__ import annotations
 

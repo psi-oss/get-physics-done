@@ -88,7 +88,7 @@ from gpd.core.publication_runtime import publication_runtime_snapshot_context
 from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
 from gpd.core.results import result_list
 from gpd.core.resume_surface import (
-    RESUME_COMPATIBILITY_ALIAS_FIELDS,
+    RESUME_BACKEND_ONLY_FIELDS,
     RESUME_SURFACE_SCHEMA_VERSION,
     build_resume_candidate,
     build_resume_segment_candidate,
@@ -166,7 +166,6 @@ class InitRootPolicy(StrEnum):
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
 _LITERATURE_DIR_NAME = "literature"
-_LEGACY_RESEARCH_DIR_NAME = "research"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
 _RESEARCH_MAP_INCLUDE_LIMIT = 4
@@ -1246,13 +1245,10 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
 
 
 def _preferred_review_dir(cwd: Path) -> Path | None:
-    """Return the canonical review directory, falling back to legacy research only when needed."""
+    """Return the literature review directory, or ``None`` if it does not exist."""
     literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
     if literature_dir.is_dir():
         return literature_dir
-    legacy_research_dir = cwd / PLANNING_DIR_NAME / _LEGACY_RESEARCH_DIR_NAME
-    if legacy_research_dir.is_dir():
-        return legacy_research_dir
     return None
 
 
@@ -3731,7 +3727,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
     execution_public = {
         key: value
         for key, value in execution_context.items()
-        if key != "resume_projection" and key not in RESUME_COMPATIBILITY_ALIAS_FIELDS
+        if key != "resume_projection" and key not in RESUME_BACKEND_ONLY_FIELDS
     }
     base_result.update(execution_public)
     if recent_bounded_segment_promoted and not bool(base_result.get("execution_resumable")):

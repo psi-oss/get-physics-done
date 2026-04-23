@@ -1,4 +1,4 @@
-"""Regression tests for agent commit-ownership policy."""
+"""Assertions for agent commit-ownership policy."""
 
 from __future__ import annotations
 

@@ -252,7 +252,7 @@ Tags create permanent, named snapshots of important project states.
 | Paper submission | `paper/{venue}-{version}` | `paper/prl-v1` |
 | Paper revision | `paper/{venue}-{version}` | `paper/prl-v2` |
 | Dataset release | `data/{name}-{version}` | `data/spectrum-v1` |
-| GPD checkpoint (internal) | `gpd-checkpoint/{description}` | `gpd-checkpoint/phase-03-plan-02-1709312400` |
+| GPD checkpoint (internal) | `gpd-checkpoint-{description}` | `gpd-checkpoint-phase-03-plan-02-1709312400` |
 
 ### Tagging Protocol
 
@@ -267,7 +267,7 @@ git tag -a paper/prl-v1 -m "Initial PRL submission. 4 pages, 3 figures."
 
 ```bash
 git tag phase/03-complete
-git tag gpd-checkpoint/phase-03-plan-02-$(date +%s)
+git tag gpd-checkpoint-phase-03-plan-02-$(date +%s)
 ```
 
 3. **Push tags explicitly.** Tags are not pushed by default:
@@ -281,6 +281,6 @@ git push "$REMOTE_NAME" --tags
 
 4. **Never delete published tags.** If a tag points to incorrect work, create a new tag at the corrected commit rather than moving or deleting the old one.
 
-5. **GPD checkpoint tags are ephemeral.** Clean up `gpd-checkpoint/*` tags after successful plan completion (see `execute-plan-checkpoints.md`).
+5. **GPD checkpoint tags are ephemeral.** Clean up `gpd-checkpoint-*` tags after successful plan completion (see `execute-plan-checkpoints.md`).
 
 </tagging_conventions>

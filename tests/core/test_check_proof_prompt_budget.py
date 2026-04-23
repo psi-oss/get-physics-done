@@ -1,4 +1,4 @@
-"""Prompt budget regressions for the `gpd-check-proof` agent surface."""
+"""Prompt budget assertions for the `gpd-check-proof` agent surface."""
 
 from __future__ import annotations
 

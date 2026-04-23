@@ -330,7 +330,7 @@ class CommandOutputPolicy:
 
 @dataclass(frozen=True, slots=True)
 class CommandPolicy:
-    """Typed additive command policy compiled from frontmatter and legacy fields."""
+    """Typed additive command policy compiled from frontmatter and companion fields."""
 
     schema_version: int = 1
     subject_policy: CommandSubjectPolicy | None = None
@@ -678,7 +678,7 @@ def _command_policy_frontmatter_value(
     return meta.get(COMMAND_POLICY_FRONTMATTER_KEY), True
 
 
-def _command_policy_supporting_context_from_legacy(
+def _command_policy_supporting_context_from_frontmatter(
     *,
     context_mode: str,
     project_reentry_capable: bool,
@@ -732,10 +732,10 @@ def _publication_contract_mentions_external_artifact(review_contract: ReviewComm
     return any("external-artifact review" in cue.casefold() for cue in textual_cues)
 
 
-def _publication_compat_subject_policy(
+def _publication_subject_policy_defaults(
     *,
     review_contract: ReviewCommandContract | None,
-    legacy_supporting_context: dict[str, object],
+    frontmatter_supporting_context: dict[str, object],
 ) -> dict[str, object] | None:
     if not _command_policy_is_publication_contract(review_contract):
         return None
@@ -744,7 +744,7 @@ def _publication_compat_subject_policy(
 
     required_patterns = [
         str(pattern).strip()
-        for pattern in list(legacy_supporting_context.get("required_file_patterns", []) or [])
+        for pattern in list(frontmatter_supporting_context.get("required_file_patterns", []) or [])
         if str(pattern).strip()
     ]
     supported_roots = _command_policy_supported_roots_from_patterns(required_patterns)
@@ -792,7 +792,7 @@ def _publication_compat_subject_policy(
         payload["allow_external_subjects"] = True
     if (
         allow_external_subjects
-        and str(legacy_supporting_context.get("project_context_mode", "")).strip() == "project-aware"
+        and str(frontmatter_supporting_context.get("project_context_mode", "")).strip() == "project-aware"
     ):
         payload["allow_interactive_without_subject"] = True
     if bootstrap_allowed:
@@ -815,20 +815,20 @@ def _merge_command_policy_defaults(
 
 def _merge_command_policy_submapping(
     explicit_mapping: dict[str, object] | None,
-    legacy_mapping: dict[str, object] | None,
+    companion_mapping: dict[str, object] | None,
     *,
     field_name: str,
     command_name: str,
     allow_explicit_override: bool = False,
 ) -> dict[str, object] | None:
     if explicit_mapping is None:
-        if legacy_mapping:
-            return dict(legacy_mapping)
+        if companion_mapping:
+            return dict(companion_mapping)
         return None
-    if not legacy_mapping:
+    if not companion_mapping:
         return dict(explicit_mapping)
 
-    merged = dict(legacy_mapping)
+    merged = dict(companion_mapping)
     for key, value in explicit_mapping.items():
         legacy_value = merged.get(key)
         if legacy_value is None or legacy_value == []:
@@ -838,7 +838,7 @@ def _merge_command_policy_submapping(
             merged[key] = value
             continue
         if value != legacy_value:
-            raise ValueError(f"{field_name}.{key} for {command_name} must stay aligned with legacy command metadata")
+            raise ValueError(f"{field_name}.{key} for {command_name} must stay aligned with companion command metadata")
     return merged
 
 
@@ -983,19 +983,19 @@ def _normalize_command_policy_payload(
     review_contract: ReviewCommandContract | None = None,
     explicit: bool = False,
 ) -> dict[str, object]:
-    legacy_supporting_context = _command_policy_supporting_context_from_legacy(
+    frontmatter_supporting_context = _command_policy_supporting_context_from_frontmatter(
         context_mode=context_mode,
         project_reentry_capable=project_reentry_capable,
         requires=requires,
     )
-    compat_subject_policy = _publication_compat_subject_policy(
+    compat_subject_policy = _publication_subject_policy_defaults(
         review_contract=review_contract,
-        legacy_supporting_context=legacy_supporting_context,
+        frontmatter_supporting_context=frontmatter_supporting_context,
     )
     legacy_payload: dict[str, object] = {
         "schema_version": 1,
         "subject_policy": compat_subject_policy,
-        "supporting_context_policy": legacy_supporting_context,
+        "supporting_context_policy": frontmatter_supporting_context,
     }
 
     payload = _command_policy_payload(command_policy)
@@ -1034,7 +1034,7 @@ def _normalize_command_policy_payload(
         "subject_policy": subject_policy,
         "supporting_context_policy": _merge_command_policy_submapping(
             supporting_context_policy,
-            legacy_supporting_context,
+            frontmatter_supporting_context,
             field_name="command_policy.supporting_context_policy",
             command_name=command_name,
             allow_explicit_override=_command_policy_is_publication_contract(review_contract),
@@ -1147,7 +1147,7 @@ def _parse_command_policy(
 
 
 def _parse_bool_field(raw: object, *, field_name: str, command_name: str, default: bool = False) -> bool:
-    """Parse a strict YAML boolean and reject legacy compatibility aliases."""
+    """Parse a strict YAML boolean and reject non-boolean coercion aliases."""
     if raw is None:
         return default
     if isinstance(raw, bool):
@@ -1161,7 +1161,7 @@ def _validate_raw_boolean_frontmatter_field(
     field_name: str,
     command_name: str,
 ) -> None:
-    """Reject legacy boolean spellings before YAML coercion can hide them."""
+    """Reject non-boolean scalar spellings before YAML coercion can hide them."""
 
     raw_value = _raw_scalar_frontmatter_value(frontmatter, field_name=field_name)
     if raw_value is None:
@@ -1188,7 +1188,7 @@ def _validate_raw_nonempty_string_frontmatter_field(
 
 
 def _validate_raw_command_frontmatter(frontmatter: str | None, *, command_name: str) -> None:
-    """Reject legacy raw frontmatter spellings for strict command metadata."""
+    """Reject loose raw frontmatter spellings for strict command metadata."""
 
     _validate_raw_nonempty_string_frontmatter_field(
         frontmatter,
@@ -2311,6 +2311,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-referee": "paper",
     "gpd-revise-phase": "management",
     "gpd-roadmapper": "planning",
+    "gpd-route": "planning",
     "gpd-slides": "output",
     "gpd-research-mapper": "exploration",
     "gpd-verifier": "verification",
@@ -2417,8 +2418,8 @@ def _format_command_name(command: CommandDef | str, *, name_format: CommandNameF
 def list_commands(*, name_format: CommandNameFormat = "slug") -> list[str]:
     """Return sorted command names.
 
-    Defaults to registry slugs for historical compatibility. Pass
-    ``name_format="label"`` to receive public ``gpd:<slug>`` command labels.
+    Defaults to registry slugs. Pass ``name_format="label"`` to receive public
+    ``gpd:<slug>`` command labels.
     """
     return sorted(_format_command_name(command, name_format=name_format) for command in _cache.commands().values())
 
@@ -2449,9 +2450,8 @@ def get_command(name: str) -> CommandDef:
 def list_review_commands(*, name_format: CommandNameFormat = "label") -> list[str]:
     """Return sorted review-contract command names.
 
-    Defaults to public ``gpd:<slug>`` labels for historical compatibility. Pass
-    ``name_format="slug"`` to align with ``list_commands()``'s default registry
-    key shape.
+    Defaults to public ``gpd:<slug>`` labels. Pass ``name_format="slug"`` to
+    align with ``list_commands()``'s default registry key shape.
     """
     return sorted(
         _format_command_name(command, name_format=name_format)

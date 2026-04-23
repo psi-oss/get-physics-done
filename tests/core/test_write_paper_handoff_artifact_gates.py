@@ -1,4 +1,4 @@
-"""Regression tests for write-paper handoff and artifact-gate semantics."""
+"""Assertions for write-paper handoff and artifact-gate semantics."""
 
 from __future__ import annotations
 

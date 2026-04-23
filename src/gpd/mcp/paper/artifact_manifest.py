@@ -141,11 +141,22 @@ def build_artifact_manifest(
             )
         )
 
+    manuscript_sha256: str | None = None
+    manuscript_mtime_ns: int | None = None
+    if tex_path.exists():
+        manuscript_sha256 = _sha256(tex_path)
+        try:
+            manuscript_mtime_ns = tex_path.stat().st_mtime_ns
+        except OSError:
+            manuscript_mtime_ns = None
+
     return ArtifactManifest(
         paper_title=config.title,
         journal=config.journal,
         created_at=datetime.now(UTC).isoformat(),
         artifacts=artifacts,
+        manuscript_sha256=manuscript_sha256,
+        manuscript_mtime_ns=manuscript_mtime_ns,
     )
 
 

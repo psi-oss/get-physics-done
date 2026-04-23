@@ -1,4 +1,4 @@
-"""Focused regressions for protocol routing reliability."""
+"""Focused assertions for protocol routing reliability."""
 
 from __future__ import annotations
 

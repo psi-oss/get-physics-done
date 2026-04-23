@@ -6,7 +6,7 @@ import pytest
 
 from gpd.adapters.install_utils import expand_at_includes
 from gpd.core.public_surface_contract import resume_authority_fields
-from tests.doc_surface_contracts import resume_authority_public_vocabulary_intro, resume_compat_alias_fields
+from tests.doc_surface_contracts import resume_authority_public_vocabulary_intro, resume_backend_only_fields
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
@@ -163,7 +163,7 @@ def test_resume_work_keeps_public_resume_vocabulary_and_nested_compatibility_int
         "missing_continuity_handoff_file",
         "resume_candidates",
     )
-    assert not any(alias in resume_authority_fields() for alias in resume_compat_alias_fields())
+    assert not any(alias in resume_authority_fields() for alias in resume_backend_only_fields())
 
 
 def test_sync_state_keeps_state_json_authority_before_markdown_repair() -> None:

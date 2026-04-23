@@ -1,4 +1,4 @@
-"""Prompt budget regression tests for the `execute-phase` startup surface."""
+"""Prompt budget assertions for the `execute-phase` startup surface."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Regression tests for runtime platform detection in gpd.core.context."""
+"""Assertions for runtime platform detection in gpd.core.context."""
 
 from __future__ import annotations
 

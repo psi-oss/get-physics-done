@@ -54,7 +54,7 @@ from gpd.core.public_surface_contract import (
     local_cli_unattended_readiness_command,
     local_cli_validate_command_context_command,
 )
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
 from tests.runtime_test_support import (
@@ -92,7 +92,7 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _assert_no_top_level_resume_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -2209,7 +2209,7 @@ def test_resume_plain_output_surfaces_machine_change_as_advisory_status(tmp_path
 def test_resume_plain_output_keeps_machine_change_notice_when_session_handoff_is_primary(
     tmp_path: Path, monkeypatch
 ) -> None:
-    # Compatibility-only guard: this still exercises the legacy session mirror while the public surface ages out.
+    # Exercise the canonical continuation handoff path through the public resume surface.
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "gpd.core.context.init_resume",
@@ -2366,7 +2366,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     _assert_no_top_level_resume_aliases(payload)
     assert payload["recovery_advice"]["resume_surface_schema_version"] == 1
     assert "compat_resume_surface" not in payload["recovery_advice"]
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload["recovery_advice"]
     assert payload["active_resume_kind"] == "continuity_handoff"
     assert payload["active_resume_origin"] == "canonical_continuation"
@@ -3772,7 +3772,6 @@ def test_result_upsert_without_explicit_id(mock_upsert, tmp_path: Path):
 def test_result_upsert_recovers_from_malformed_primary_state(mock_upsert, tmp_path: Path) -> None:
     backup_state = default_state_dict()
     backup_state["position"]["current_phase"] = "07"
-    backup_state["session"]["last_result_id"] = "R-backup"
     _write_recoverable_result_state(tmp_path, backup_state)
 
     mock_result = MagicMock()
@@ -3814,7 +3813,6 @@ def test_result_upsert_recovers_from_malformed_primary_state(mock_upsert, tmp_pa
     state_arg = mock_upsert.call_args.args[0]
     assert state_arg["position"]["current_phase"] == "07"
     assert state_arg["continuation"]["handoff"]["last_result_id"] is None
-    assert state_arg["session"]["last_result_id"] is None
 
 
 @patch("gpd.core.state.save_state_json_locked")
@@ -4200,7 +4198,7 @@ def test_result_persist_derived_uses_resolved_result_id_for_real_state_write(
 
     state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
     assert [item["id"] for item in state["intermediate_results"]] == ["R-02-effective-mass"]
-    assert state["session"]["last_result_id"] is None
+    assert "session" not in state
     assert state["continuation"]["handoff"]["last_result_id"] is None
 
 
@@ -4307,7 +4305,6 @@ def test_result_update_recovers_from_malformed_primary_state(mock_result_update,
 def test_result_add_recovers_from_malformed_primary_state(mock_result_add, tmp_path: Path) -> None:
     backup_state = default_state_dict()
     backup_state["position"]["current_phase"] = "10"
-    backup_state["session"]["last_result_id"] = "R-recovered"
     _write_recoverable_result_state(tmp_path, backup_state)
 
     mock_result = MagicMock()
@@ -4345,7 +4342,6 @@ def test_result_add_recovers_from_malformed_primary_state(mock_result_add, tmp_p
     state_arg = mock_result_add.call_args.args[0]
     assert state_arg["position"]["current_phase"] == "10"
     assert state_arg["continuation"]["handoff"]["last_result_id"] is None
-    assert state_arg["session"]["last_result_id"] is None
 
 
 @pytest.mark.parametrize(
@@ -4367,7 +4363,6 @@ def test_auxiliary_mutation_commands_recover_from_malformed_primary_state(
 ) -> None:
     backup_state = default_state_dict()
     backup_state["position"]["current_phase"] = "10"
-    backup_state["session"]["last_result_id"] = "R-recovered"
     _write_recoverable_result_state(tmp_path, backup_state)
 
     captured: dict[str, object] = {}
@@ -4391,7 +4386,6 @@ def test_auxiliary_mutation_commands_recover_from_malformed_primary_state(
     assert isinstance(state_arg, dict)
     assert state_arg["position"]["current_phase"] == "10"
     assert state_arg["continuation"]["handoff"]["last_result_id"] is None
-    assert state_arg["session"]["last_result_id"] is None
 
 
 @patch("gpd.core.state.save_state_json_locked")
@@ -4402,7 +4396,6 @@ def test_convention_set_fails_closed_for_malformed_primary_state(
 ) -> None:
     backup_state = default_state_dict()
     backup_state["position"]["current_phase"] = "10"
-    backup_state["session"]["last_result_id"] = "R-recovered"
     _write_recoverable_result_state(tmp_path, backup_state)
 
     def _fake_convention_set(lock: object, key: str, value: str, *, force: bool = False) -> object:
@@ -6331,7 +6324,7 @@ def test_paper_build_rejects_explicit_legacy_planning_config_path(tmp_path: Path
 
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
-    assert "no longer supported" in payload["error"]
+    assert "are not supported" in payload["error"]
 
 
 def test_paper_build_rejects_explicit_legacy_hidden_planning_config_path(tmp_path: Path, capsys) -> None:
@@ -6359,7 +6352,7 @@ def test_paper_build_rejects_explicit_legacy_hidden_planning_config_path(tmp_pat
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
     assert ".gpd/paper" in payload["error"]
-    assert "no longer supported" in payload["error"]
+    assert "are not supported" in payload["error"]
 
 
 def test_paper_build_preserves_explicit_relative_config_path_from_nested_cwd(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-"""Regression tests for the reorganized specs/references tree."""
+"""Assertions for the current specs/references tree layout."""
 
 from __future__ import annotations
 

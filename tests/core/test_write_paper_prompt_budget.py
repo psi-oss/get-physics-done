@@ -1,4 +1,4 @@
-"""Prompt budget regression tests for the `write-paper` startup surface."""
+"""Prompt budget assertions for the `write-paper` startup surface."""
 
 from __future__ import annotations
 

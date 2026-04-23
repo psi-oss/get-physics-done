@@ -1,4 +1,4 @@
-"""Regression tests for adapter frontmatter conversion edge cases."""
+"""Assertions for adapter frontmatter conversion edge cases."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Prompt/spec regressions for settings and project-contract wiring."""
+"""Prompt/spec assertions for settings and project-contract wiring."""
 
 from __future__ import annotations
 

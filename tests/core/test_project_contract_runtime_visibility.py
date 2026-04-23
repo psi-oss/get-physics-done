@@ -1,4 +1,4 @@
-"""Regression tests for runtime visibility of draft project contracts."""
+"""Assertions for runtime visibility of draft project contracts."""
 
 from __future__ import annotations
 

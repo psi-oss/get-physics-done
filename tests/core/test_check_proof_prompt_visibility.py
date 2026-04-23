@@ -1,4 +1,4 @@
-"""Prompt-visibility regressions for the `gpd-check-proof` agent surface."""
+"""Prompt-visibility assertions for the `gpd-check-proof` agent surface."""
 
 from __future__ import annotations
 

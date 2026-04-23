@@ -1,4 +1,4 @@
-"""Prompt budget regression tests for the `respond-to-referees` startup surface."""
+"""Prompt budget assertions for the `respond-to-referees` startup surface."""
 
 from __future__ import annotations
 

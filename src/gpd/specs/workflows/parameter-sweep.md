@@ -300,8 +300,14 @@ Execute the sweep plans using wave-based parallel execution following the execut
 
    ```bash
    if [ "${phase_found}" = "true" ]; then
-     WAVE_CHECKPOINT="gpd-checkpoint/sweep-${phase_number}-wave-${WAVE_NUM}-$(date +%s)"
-     git tag "${WAVE_CHECKPOINT}"
+     WAVE_CHECKPOINT="gpd-checkpoint-sweep-${phase_number}-wave-${WAVE_NUM}-$(date +%s)"
+     if git rev-parse --verify "refs/tags/${WAVE_CHECKPOINT}" >/dev/null 2>&1; then
+       WAVE_CHECKPOINT="${WAVE_CHECKPOINT}-$$"
+     fi
+     if ! git tag "${WAVE_CHECKPOINT}"; then
+       echo "ERROR: failed to create sweep checkpoint tag ${WAVE_CHECKPOINT}" >&2
+       exit 1
+     fi
    fi
    ```
 

@@ -421,7 +421,7 @@ def _unsupported_manifest_runtime_error_message(
     explicit_target: bool,
     cli_cwd: Path,
 ) -> str:
-    """Return repair guidance for a retired runtime id in the install manifest."""
+    """Return repair guidance for an unsupported runtime id in the install manifest."""
     repair_command = _build_repair_command(
         runtime=runtime,
         config_dir=config_dir,

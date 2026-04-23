@@ -1,4 +1,4 @@
-"""Focused regression coverage for beginner onboarding docs."""
+"""Focused assertions for beginner onboarding docs."""
 
 from __future__ import annotations
 

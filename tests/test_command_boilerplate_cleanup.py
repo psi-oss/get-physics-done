@@ -1,4 +1,4 @@
-"""Regression test for command prompt boilerplate cleanup."""
+"""Assert command prompts stay free of cross-runtime boilerplate."""
 
 from __future__ import annotations
 

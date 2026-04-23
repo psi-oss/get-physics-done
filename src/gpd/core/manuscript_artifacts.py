@@ -119,7 +119,7 @@ class PublicationSubjectResolution:
         return review_dir_for_subject(self)
 
     def as_manuscript_resolution(self) -> ManuscriptResolution:
-        """Return a compatibility manuscript-resolution view of this subject."""
+        """Project this subject onto the narrower manuscript-resolution view."""
 
         return ManuscriptResolution(
             status=self.status,
@@ -130,7 +130,7 @@ class PublicationSubjectResolution:
         )
 
     def as_manuscript_artifacts(self) -> ManuscriptArtifacts:
-        """Return a compatibility manuscript-artifacts view of this subject."""
+        """Project this subject onto the narrower manuscript-artifacts view."""
 
         return ManuscriptArtifacts(
             project_root=self.project_root,

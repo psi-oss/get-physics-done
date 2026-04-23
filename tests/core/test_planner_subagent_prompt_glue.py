@@ -1,4 +1,4 @@
-"""Regression tests for planner subagent prompt glue and fail-closed behavior."""
+"""Assertions for planner subagent prompt glue and fail-closed behavior."""
 
 from __future__ import annotations
 

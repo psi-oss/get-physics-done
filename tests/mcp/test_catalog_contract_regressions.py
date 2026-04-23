@@ -1,4 +1,4 @@
-"""Focused regressions for non-routing MCP catalog and checklist contracts."""
+"""Focused assertions for non-routing MCP catalog and checklist contracts."""
 
 from __future__ import annotations
 

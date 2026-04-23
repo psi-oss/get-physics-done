@@ -1,4 +1,4 @@
-"""Regression tests for minimal package/framework reuse guidance."""
+"""Assertions for minimal package/framework reuse guidance."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused regressions for Phase 10 typed-return prompt cleanup."""
+"""Focused assertions for Phase 10 typed-return prompt cleanup."""
 
 from __future__ import annotations
 

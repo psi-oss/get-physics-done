@@ -47,7 +47,7 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 
 - Preferred explicit intake: `gpd:respond-to-referees --manuscript path/to/main.tex --report reviews/ref1.md --report reviews/ref2.md`
 - Accept the literal `paste` sentinel as an explicit report source.
-- Preserve the legacy shorthand `gpd:respond-to-referees path/to/report.md` or `gpd:respond-to-referees paste` only when the manuscript subject still resolves from the current GPD project.
+- Accept the positional shorthand `gpd:respond-to-referees path/to/report.md` or `gpd:respond-to-referees paste` only when the manuscript subject resolves from the current GPD project.
 - Treat a bare positional path as a referee-report source only. Do not reinterpret it as the manuscript subject for this workflow.
 - Keep all GPD-authored auxiliary outputs under `GPD/` even when the manuscript subject itself is external, and keep manuscript edits on the resolved manuscript subject.
 - Project-backed response rounds keep the current global `GPD/` / `GPD/review/` ownership. If centralized preflight resolves an explicit external publication subject with a managed subject-owned publication root at `GPD/publication/{subject_slug}`, keep the same round-artifact family inside that managed root instead of writing sidecars beside `${PAPER_DIR}`.
@@ -174,7 +174,7 @@ Ask the user to provide referee reports via one of:
 1. **Explicit report paths** -- one or more `--report PATH` inputs or equivalent wrapper-provided file paths
 2. **Paste directly** -- user pastes report text into the conversation
 3. **Existing file** -- use canonical `GPD/REFEREE-REPORT{round_suffix}.md` only
-4. **Legacy shorthand** -- one positional report path only when the manuscript subject resolved from the current GPD project
+4. **Positional shorthand** -- one positional report path only when the manuscript subject resolves from the current GPD project
 
 If the active report source is external to the canonical round artifact set, import or normalize it into `GPD/REFEREE-REPORT{round_suffix}.md` before parsing comments. Use that canonical Markdown file as the durable issue-ID source for the rest of the workflow. Do not keep manuscript-local or external `AUTHOR-RESPONSE*` / `REFEREE_RESPONSE*` sidecars beside the source report.
 

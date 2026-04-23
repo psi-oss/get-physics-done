@@ -1,4 +1,4 @@
-"""Prompt budget regression tests for the `gpd-paper-writer` agent surface."""
+"""Prompt budget assertions for the `gpd-paper-writer` agent surface."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused regressions for the sensitivity-analysis standalone/current-workspace contract."""
+"""Focused assertions for the sensitivity-analysis standalone/current-workspace contract."""
 
 from __future__ import annotations
 

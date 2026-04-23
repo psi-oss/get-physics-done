@@ -10,7 +10,7 @@ This module keeps the durable continuation contract intentionally small:
 
 Only portable repo-local references survive into the canonical continuation
 state. File existence remains a read-time concern surfaced by the projection.
-Legacy ``session`` mirrors remain advisory metadata; they do not hydrate
+``session`` mirrors are advisory metadata only; they do not hydrate
 continuation authority.
 """
 
@@ -610,8 +610,8 @@ def resolve_continuation(
 
     If ``state["continuation"]`` exists, it is authoritative and validated as
     the canonical schema. Otherwise the projection may derive one bounded
-    segment from the live execution snapshot. Legacy ``session`` mirrors are
-    not used as continuation authority.
+    segment from the live execution snapshot. ``session`` mirrors are not used
+    as continuation authority.
     """
 
     state_payload = _as_mapping(state) or {}

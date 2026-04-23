@@ -1,4 +1,4 @@
-"""Prompt-budget regressions for `gpd-planner` bootstrap loading."""
+"""Prompt-budget assertions for `gpd-planner` bootstrap loading."""
 
 from __future__ import annotations
 

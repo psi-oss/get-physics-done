@@ -364,8 +364,20 @@ def verify_output_checksum(path: Path, expected_checksum: str) -> bool:
     return compute_sha256(path) == expected_checksum.strip().lower()
 
 
-def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) -> ReproducibilityValidationResult:
-    """Validate a structured reproducibility manifest."""
+def validate_reproducibility_manifest(
+    manifest: ReproducibilityManifest | dict,
+    *,
+    project_root: Path | None = None,
+) -> ReproducibilityValidationResult:
+    """Validate a structured reproducibility manifest.
+
+    When ``project_root`` is provided, referenced paths (input dataset
+    sources, generated dataset scripts, execution step inputs/outputs, output
+    file paths) are checked for existence relative to that root, and missing
+    targets surface as structured ``ReproducibilityIssue`` entries. This is
+    what stops the paper builder from emitting provenance paths like
+    ``project-evidence/...`` that point at files nobody will find later.
+    """
     if isinstance(manifest, ReproducibilityManifest):
         manifest_obj = manifest
     else:
@@ -566,6 +578,48 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
                 message="Last verified platform should be recorded when last_verified is set.",
             )
         )
+
+    if project_root is not None:
+        for index, dataset in enumerate(manifest_obj.input_data):
+            if dataset.source.strip() and not (project_root / dataset.source).exists():
+                issues.append(
+                    ReproducibilityIssue(
+                        severity="error",
+                        field=f"input_data[{index}].source",
+                        message=f"input_data[{index}].source path '{dataset.source}' does not exist under project root.",
+                    )
+                )
+        for index, dataset in enumerate(manifest_obj.generated_data):
+            script = getattr(dataset, "script", None)
+            if isinstance(script, str) and script.strip() and not (project_root / script).exists():
+                issues.append(
+                    ReproducibilityIssue(
+                        severity="error",
+                        field=f"generated_data[{index}].script",
+                        message=f"generated_data[{index}].script path '{script}' does not exist under project root.",
+                    )
+                )
+        for step_index, step in enumerate(manifest_obj.execution_steps):
+            for output_index, output_path in enumerate(getattr(step, "outputs", []) or []):
+                if isinstance(output_path, str) and output_path.strip() and not (project_root / output_path).exists():
+                    issues.append(
+                        ReproducibilityIssue(
+                            severity="error",
+                            field=f"execution_steps[{step_index}].outputs[{output_index}]",
+                            message=(
+                                f"execution step output '{output_path}' does not exist under project root."
+                            ),
+                        )
+                    )
+        for index, output_file in enumerate(manifest_obj.output_files):
+            if output_file.path.strip() and not (project_root / output_file.path).exists():
+                issues.append(
+                    ReproducibilityIssue(
+                        severity="error",
+                        field=f"output_files[{index}].path",
+                        message=f"output_files[{index}].path '{output_file.path}' does not exist under project root.",
+                    )
+                )
 
     valid = len(issues) == 0
     ready = valid and checksum_coverage == 100.0 and seed_coverage == 100.0 and not warnings

@@ -1,4 +1,4 @@
-"""Regression coverage for malformed frontmatter in skill-referenced docs."""
+"""Assertions for malformed frontmatter in skill-referenced docs."""
 
 from __future__ import annotations
 

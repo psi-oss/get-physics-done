@@ -1,4 +1,4 @@
-"""Focused regression tests for execution lineage and reducer semantics."""
+"""Focused assertions for execution lineage and reducer semantics."""
 
 from __future__ import annotations
 

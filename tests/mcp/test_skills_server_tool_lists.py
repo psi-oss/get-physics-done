@@ -1,4 +1,4 @@
-"""Regression tests for MCP skill tool list projection."""
+"""Assertions for MCP skill tool list projection."""
 
 from __future__ import annotations
 

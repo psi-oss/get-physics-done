@@ -449,7 +449,7 @@ On **"Stop autonomous mode"**: Go to handle_blocker with "User stopped — gaps 
 
 Run smart discuss for the current phase. Proposes gray area answers in batch tables — the user accepts or overrides per area. Produces CONTEXT.md following the same template as regular discuss-phase (all 9 sections from templates/context.md).
 
-> **Note:** Smart discuss is an autonomous-optimized variant of the `gpd:discuss-phase` skill. It produces identical CONTEXT.md output but uses batch table proposals instead of sequential questioning. The original `discuss-phase` skill remains unchanged. Future milestones may extract this to a separate skill file.
+> **Note:** Smart discuss is an autonomous-optimized variant of the `gpd:discuss-phase` skill. It produces identical CONTEXT.md output but uses batch table proposals instead of sequential questioning.
 
 **Inputs:** `PHASE_NUM` from execute_phase. Run init to get phase paths:
 

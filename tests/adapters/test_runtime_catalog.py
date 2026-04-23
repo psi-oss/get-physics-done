@@ -1,4 +1,4 @@
-"""Regression tests for runtime catalog config resolution and ordering."""
+"""Assertions for runtime catalog config resolution and ordering."""
 
 from __future__ import annotations
 

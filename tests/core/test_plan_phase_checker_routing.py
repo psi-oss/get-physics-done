@@ -1,4 +1,4 @@
-"""Routing regressions for the `plan-phase` checker seam."""
+"""Routing assertions for the `plan-phase` checker seam."""
 
 from __future__ import annotations
 

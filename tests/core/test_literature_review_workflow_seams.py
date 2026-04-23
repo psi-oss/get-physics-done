@@ -1,4 +1,4 @@
-"""Seam regressions for the `literature-review` workflow vertical."""
+"""Seam assertions for the `literature-review` workflow vertical."""
 
 from __future__ import annotations
 

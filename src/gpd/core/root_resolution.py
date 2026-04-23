@@ -230,7 +230,7 @@ def resolve_project_root(
     require_layout: bool = False,
     policy: RootResolutionPolicy = RootResolutionPolicy.PROJECT_SCOPED,
 ) -> Path | None:
-    """Return the resolved project root path for compatibility callers."""
+    """Return the resolved project root path for single-root callers."""
 
     resolution = resolve_project_roots(workspace, project_dir=project_dir, policy=policy)
     if resolution is None:

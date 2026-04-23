@@ -1,4 +1,4 @@
-"""Focused regressions for the canonical ``gpd_return`` contract."""
+"""Focused assertions for the canonical ``gpd_return`` contract."""
 
 from __future__ import annotations
 

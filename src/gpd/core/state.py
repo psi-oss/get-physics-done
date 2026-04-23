@@ -110,7 +110,6 @@ __all__ = [
     "RecordSessionResult",
     "ResearchState",
     "ResolveBlockerResult",
-    "SessionInfo",
     "StateCompactResult",
     "StateGetResult",
     "StateLoadResult",
@@ -144,6 +143,7 @@ __all__ = [
     "state_patch",
     "state_record_metric",
     "state_record_session",
+    "state_record_verification",
     "state_replace_field",
     "state_set_project_contract",
     "state_set_continuation_bounded_segment",
@@ -159,6 +159,12 @@ __all__ = [
 ]
 
 EM_DASH = "\u2014"
+
+# Inactive-state sentinel rendered into STATE.md when a field has no value.
+# `_strip_placeholder` and `state_extract_field` treat EM_DASH, "none", "no",
+# "not set", and "[not set]" as semantic null on re-parse, so round-trip
+# stability is preserved regardless of which form is on disk.
+INACTIVE_FIELD_SENTINEL = "none"
 
 
 def _recent_projects_index_path() -> Path:
@@ -441,19 +447,6 @@ class PerformanceMetrics(BaseModel):
     rows: list[MetricRow] = Field(default_factory=list)
 
 
-class SessionInfo(BaseModel):
-    """Session continuity tracking."""
-
-    model_config = ConfigDict(frozen=True)
-
-    last_date: str | None = None
-    hostname: str | None = None
-    platform: str | None = None
-    stopped_at: str | None = None
-    resume_file: str | None = None
-    last_result_id: str | None = None
-
-
 class ResearchState(BaseModel):
     """Full research state — the schema for state.json.
 
@@ -475,7 +468,6 @@ class ResearchState(BaseModel):
     propagated_uncertainties: list[PropagatedUncertainty] = Field(default_factory=list)
     pending_todos: list[str | dict] = Field(default_factory=list)
     blockers: list[str | dict] = Field(default_factory=list)
-    session: SessionInfo = Field(default_factory=SessionInfo)
     continuation: ContinuationState = Field(default_factory=ContinuationState)
 
     model_config = {"extra": "allow"}
@@ -585,8 +577,8 @@ class RecordMetricResult(BaseModel):
 class UpdateProgressResult(BaseModel):
     """Returned by :func:`state_update_progress`.
 
-    Progress recomputation no longer synchronizes checkpoint shelf artifacts or
-    surfaces them through progress APIs.
+    Progress recomputation does not synchronize checkpoint shelf artifacts or
+    surface them through progress APIs.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -642,6 +634,24 @@ class RecordSessionResult(BaseModel):
     error: str | None = None
     reason: str | None = None
     updated: list[str] = Field(default_factory=list)
+
+
+class RecordVerificationResult(BaseModel):
+    """Returned by :func:`state_record_verification`.
+
+    Writes the shared-state transition that corresponds to a VERIFICATION.md
+    result so ``gpd-progress`` / ``gpd-show-phase`` stop lagging behind the
+    verifier.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    recorded: bool
+    error: str | None = None
+    reason: str | None = None
+    phase: str | None = None
+    status: str | None = None
+    previous_status: str | None = None
 
 
 class StateSnapshotResult(BaseModel):
@@ -722,7 +732,15 @@ def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str)
 
 
 def _blank_session_payload() -> dict[str, str | None]:
-    return SessionInfo().model_dump()
+    """Return the blank Session Continuity display payload consumed by STATE.md."""
+    return {
+        "last_date": None,
+        "hostname": None,
+        "platform": None,
+        "stopped_at": None,
+        "resume_file": None,
+        "last_result_id": None,
+    }
 
 
 def _project_contract_source_path(cwd: Path, source_path: Path) -> str:
@@ -1108,7 +1126,6 @@ def _load_state_snapshot_for_mutation(cwd: Path, *, recover_intent: bool = True)
         cwd,
         persist_recovery=False,
         recover_intent=recover_intent,
-        import_session_continuation_from_markdown=True,
         acquire_lock=False,
     )
     if isinstance(recovered_state, dict):
@@ -1132,7 +1149,6 @@ def _load_or_rebuild_state_markdown_locked(cwd: Path) -> str | None:
         cwd,
         persist_recovery=False,
         recover_intent=False,
-        import_session_continuation_from_markdown=True,
         acquire_lock=False,
     )
     if not isinstance(recovered_state, dict) or state_source is None:
@@ -1145,10 +1161,6 @@ def _load_or_rebuild_state_markdown_locked(cwd: Path) -> str | None:
         return None
 
 
-def _session_payload_has_values(payload: object) -> bool:
-    return isinstance(payload, dict) and any(payload.get(field) is not None for field in _blank_session_payload())
-
-
 def _continuation_payload_has_values(payload: object) -> bool:
     try:
         return not ContinuationState.model_validate(_normalize_continuation_payload(payload)).is_empty
@@ -1156,15 +1168,15 @@ def _continuation_payload_has_values(payload: object) -> bool:
         return False
 
 
-def _session_payload_has_legacy_recovery_values(payload: object) -> bool:
-    """Return whether a legacy session mirror carries a real recovery target."""
+def _session_payload_has_recovery_values(payload: object) -> bool:
+    """Return whether a session-display payload carries a real recovery target."""
 
     if not isinstance(payload, dict):
         return False
     return any(payload.get(field) is not None for field in ("stopped_at", "resume_file", "last_result_id"))
 
 
-def _session_from_continuation_payload(continuation: object) -> dict[str, str | None]:
+def _session_display_from_continuation(continuation: object) -> dict[str, str | None]:
     session = _blank_session_payload()
     normalized = _normalize_continuation_payload(continuation)
 
@@ -1188,20 +1200,21 @@ def _session_from_continuation_payload(continuation: object) -> dict[str, str | 
     return session
 
 
-def _continuation_from_session_payload(
+def _continuation_from_markdown_session(
     session: object,
 ) -> dict[str, object]:
-    """Migrate a legacy session mirror into canonical continuation state.
+    """Project a STATE.md Session Continuity block into canonical continuation.
 
-    Only resume-relevant legacy handoff data is migrated. Identity-only session
-    mirrors should stay advisory metadata rather than minting canonical
-    continuation authority on their own.
+    STATE.md renders the canonical ``continuation`` payload into a
+    human-readable ``## Session Continuity`` section. When the parser reads
+    that section back, it reconstructs canonical continuation directly; no
+    separate session mirror is stored anywhere.
     """
 
     continuation = _normalize_continuation_payload(None)
     if not isinstance(session, dict):
         return continuation
-    if not _session_payload_has_legacy_recovery_values(session):
+    if not _session_payload_has_recovery_values(session):
         return continuation
 
     recorded_at = _optional_state_text(session.get("last_date"))
@@ -1231,18 +1244,15 @@ def _continuation_from_session_payload(
     return continuation
 
 
-def _mirror_continuation_state(raw: dict[str, object]) -> dict[str, object]:
-    """Project canonical continuation into the legacy ``session`` mirror.
+def _normalize_state_continuation(raw: dict[str, object]) -> dict[str, object]:
+    """Return *raw* with ``continuation`` normalized in place.
 
-    Canonical ``continuation`` stays authoritative. The ``session`` payload is
-    a pure mirror and is blank when no canonical continuation exists.
+    ``continuation`` is the sole storage surface for session-handoff state.
     """
 
-    mirrored = copy.deepcopy(raw)
-    continuation_payload = _normalize_continuation_payload(mirrored.get("continuation"))
-    mirrored["session"] = _session_from_continuation_payload(continuation_payload)
-    mirrored["continuation"] = continuation_payload
-    return mirrored
+    normalized = copy.deepcopy(raw)
+    normalized["continuation"] = _normalize_continuation_payload(normalized.get("continuation"))
+    return normalized
 
 
 # ─── Status Constants ──────────────────────────────────────────────────────────
@@ -1256,6 +1266,7 @@ VALID_STATUSES: list[str] = [
     "Paused",
     "Phase complete \u2014 ready for verification",
     "Verifying",
+    "Verified",
     "Complete",
     "Blocked",
     "Ready to plan",
@@ -1282,6 +1293,7 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
     ],
     "phase complete \u2014 ready for verification": [
         "verifying",
+        "verified",
         "not started",
         "planning",
         "executing",
@@ -1289,8 +1301,24 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
         "ready to plan",
         "milestone complete",
     ],
-    "verifying": ["complete", "phase complete \u2014 ready for verification", "planning", "blocked", "paused"],
-    "complete": ["not started", "planning", "milestone complete"],
+    "verifying": [
+        "verified",
+        "complete",
+        "phase complete \u2014 ready for verification",
+        "planning",
+        "blocked",
+        "paused",
+    ],
+    "verified": [
+        "complete",
+        "ready to plan",
+        "milestone complete",
+        "not started",
+        "planning",
+        "blocked",
+        "paused",
+    ],
+    "complete": ["not started", "planning", "milestone complete", "ready to plan"],
     "milestone complete": ["not started", "planning"],
     "paused": None,
     "blocked": None,
@@ -1357,14 +1385,20 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 
 
 def state_extract_field(content: str, field_name: str) -> str | None:
-    """Extract a **Field:** value from STATE.md content."""
+    """Extract a **Field:** value from STATE.md content.
+
+    Placeholder forms (EM_DASH, "none", "no", "not set", "[not set]") are
+    returned as ``None`` so inactive-state snapshots round-trip cleanly.
+    """
     escaped = re.escape(field_name)
     pattern = re.compile(rf"\*\*{escaped}:\*\*[ \t]*(.+)", re.IGNORECASE)
     match = pattern.search(content)
     if not match:
         return None
     value = match.group(1).strip()
-    if value == "\u2014" or value.lower() in {"not set", "[not set]"}:
+    if value == "\u2014":
+        return None
+    if value.lower() in {"none", "no", "not set", "[not set]"}:
         return None
     return value
 
@@ -1767,36 +1801,38 @@ def parse_state_md(content: str) -> dict:
 
 
 def _strip_placeholder(value: str | None) -> str | None:
-    """Return None if *value* is a markdown placeholder (EM_DASH, 'not set', or '[not set]')."""
+    """Return None if *value* is a markdown placeholder.
+
+    Recognized placeholders: EM_DASH, 'none', 'no', 'not set',
+    '[not set]'. Case-insensitive for word forms.
+    """
     if value is None:
         return None
     stripped = value.strip()
-    if stripped == "\u2014" or stripped.lower() in {"not set", "[not set]"}:
+    if stripped == "\u2014":
+        return None
+    if stripped.lower() in {"none", "no", "not set", "[not set]"}:
         return None
     return stripped
 
 
-def parse_state_to_json(content: str, *, import_legacy_session: bool = False) -> dict:
-    """Parse STATE.md content into JSON-sidecar format."""
+def parse_state_to_json(content: str) -> dict:
+    """Parse STATE.md content into JSON-sidecar format.
+
+    The STATE.md ``## Session Continuity`` block is projected directly into
+    canonical ``continuation``; there is no separate ``session`` field.
+    """
     parsed = parse_state_md(content)
 
-    last_date = _strip_placeholder(parsed["session"]["last_date"])
-    hostname = _strip_placeholder(parsed["session"]["hostname"])
-    platform_value = _strip_placeholder(parsed["session"]["platform"])
-    stopped_at = _strip_placeholder(parsed["session"]["stopped_at"])
-    resume_file = _strip_placeholder(parsed["session"]["resume_file"])
-    last_result_id = _strip_placeholder(parsed["session"]["last_result_id"])
-    session: dict[str, str | None] = {
-        "last_date": last_date,
-        "hostname": hostname,
-        "platform": platform_value,
-        "stopped_at": stopped_at,
-        "resume_file": resume_file,
-        "last_result_id": last_result_id,
+    session_block: dict[str, str | None] = {
+        "last_date": _strip_placeholder(parsed["session"]["last_date"]),
+        "hostname": _strip_placeholder(parsed["session"]["hostname"]),
+        "platform": _strip_placeholder(parsed["session"]["platform"]),
+        "stopped_at": _strip_placeholder(parsed["session"]["stopped_at"]),
+        "resume_file": _strip_placeholder(parsed["session"]["resume_file"]),
+        "last_result_id": _strip_placeholder(parsed["session"]["last_result_id"]),
     }
-    continuation = (
-        _continuation_from_session_payload(session) if import_legacy_session else _normalize_continuation_payload(None)
-    )
+    continuation = _continuation_from_markdown_session(session_block)
 
     return {
         "_version": 1,
@@ -1818,7 +1854,6 @@ def parse_state_to_json(content: str, *, import_legacy_session: bool = False) ->
             "progress_percent": parsed["position"]["progress_percent"],
             "paused_at": _strip_placeholder(parsed["position"]["paused_at"]),
         },
-        "session": session,
         "continuation": continuation,
         "decisions": parsed["decisions"],
         "blockers": parsed["blockers"],
@@ -1840,7 +1875,7 @@ def _coerce_position_identifiers(
     normalized: dict[str, object],
     integrity_issues: list[str],
 ) -> None:
-    """Coerce legacy integer position identifiers without dropping the section."""
+    """Coerce integer position identifiers to strings without dropping the section."""
 
     position = normalized.get("position")
     if not isinstance(position, dict):
@@ -1911,7 +1946,7 @@ def _normalize_state_schema(
             removed_validation_paths = set()
             validated = ResearchState.model_validate(normalized).model_dump()
             integrity_issues.extend(validation_findings)
-            return _mirror_continuation_state(validated), integrity_issues
+            return _normalize_state_continuation(validated), integrity_issues
         except PydanticValidationError as exc:
             nested_removed = False
             top_level_keys: set[str] = set()
@@ -1967,7 +2002,7 @@ def _normalize_state_schema(
             logger.warning("state.json had irrecoverable schema errors; resetting to defaults")
             integrity_issues.extend(validation_findings)
             integrity_issues.append("schema normalization: irrecoverable validation failure; reset to defaults")
-            return _mirror_continuation_state(default_state_dict()), integrity_issues
+            return _normalize_state_continuation(default_state_dict()), integrity_issues
 
 
 def _normalize_state_schema_with_backup_project_contract(
@@ -2047,7 +2082,7 @@ def _normalize_state_schema_with_backup_project_contract(
             normalized["continuation"] = copy.deepcopy(backup_normalized["continuation"])
             integrity_issues = [issue for issue in integrity_issues if issue not in primary_continuation_issues]
             recovered_continuation_from_backup = True
-    normalized = _mirror_continuation_state(normalized)
+    normalized = _normalize_state_continuation(normalized)
     return (
         normalized,
         integrity_issues,
@@ -2336,7 +2371,7 @@ def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | N
         project_root=project_root,
     )
     normalized = copy.deepcopy(normalized)
-    normalized["session"] = _session_from_continuation_payload(normalized.get("continuation"))
+    normalized.pop("session", None)
     if any("project_contract" in issue for issue in integrity_issues):
         logger.warning(
             "state.json persistence normalized project_contract with issue(s): %s", "; ".join(integrity_issues)
@@ -2563,15 +2598,21 @@ def generate_state_markdown(raw: dict) -> str:
     p("")
 
     pos = s["position"]
-    p(f"**Current Phase:** {pos.get('current_phase') or EM_DASH}")
-    p(f"**Current Phase Name:** {pos.get('current_phase_name') or EM_DASH}")
-    p(f"**Total Phases:** {pos['total_phases'] if pos.get('total_phases') is not None else EM_DASH}")
-    p(f"**Current Plan:** {pos.get('current_plan') or EM_DASH}")
+    p(f"**Current Phase:** {pos.get('current_phase') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Current Phase Name:** {pos.get('current_phase_name') or INACTIVE_FIELD_SENTINEL}")
+    total_phases_value = pos.get("total_phases")
     p(
-        f"**Total Plans in Phase:** {pos['total_plans_in_phase'] if pos.get('total_plans_in_phase') is not None else EM_DASH}"
+        f"**Total Phases:** "
+        f"{total_phases_value if total_phases_value is not None else INACTIVE_FIELD_SENTINEL}"
+    )
+    p(f"**Current Plan:** {pos.get('current_plan') or INACTIVE_FIELD_SENTINEL}")
+    total_plans_value = pos.get("total_plans_in_phase")
+    p(
+        f"**Total Plans in Phase:** "
+        f"{total_plans_value if total_plans_value is not None else INACTIVE_FIELD_SENTINEL}"
     )
     p(f"**Status:** {pos.get('status') or EM_DASH}")
-    p(f"**Last Activity:** {pos.get('last_activity') or EM_DASH}")
+    p(f"**Last Activity:** {pos.get('last_activity') or INACTIVE_FIELD_SENTINEL}")
     if pos.get("last_activity_desc"):
         p(f"**Last Activity Description:** {pos['last_activity_desc']}")
     if pos.get("paused_at"):
@@ -2774,13 +2815,13 @@ def generate_state_markdown(raw: dict) -> str:
 
     p("## Session Continuity")
     p("")
-    sess = s.get("session") or {}
-    p(f"**Last session:** {sess.get('last_date') or EM_DASH}")
-    p(f"**Stopped at:** {sess.get('stopped_at') or EM_DASH}")
-    p(f"**Resume file:** {sess.get('resume_file') or EM_DASH}")
-    p(f"**Last result ID:** {sess.get('last_result_id') or EM_DASH}")
-    p(f"**Hostname:** {sess.get('hostname') or EM_DASH}")
-    p(f"**Platform:** {sess.get('platform') or EM_DASH}")
+    sess = _session_display_from_continuation(s.get("continuation"))
+    p(f"**Last session:** {sess.get('last_date') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Stopped at:** {sess.get('stopped_at') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Resume file:** {sess.get('resume_file') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Last result ID:** {sess.get('last_result_id') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Hostname:** {sess.get('hostname') or INACTIVE_FIELD_SENTINEL}")
+    p(f"**Platform:** {sess.get('platform') or INACTIVE_FIELD_SENTINEL}")
     p("")
 
     return "\n".join(lines)
@@ -2894,15 +2935,17 @@ def _build_state_from_markdown(
     md_content: str,
     *,
     recover_intent: bool = True,
-    import_session_continuation_from_markdown: bool = False,
 ) -> dict:
-    """Merge markdown-derived state into the existing JSON state."""
+    """Merge markdown-derived state into the existing JSON state.
+
+    The Session Continuity block in STATE.md is projected directly into the
+    parsed dict's canonical ``continuation`` payload, so any values authored
+    in the markdown propagate when existing JSON has no continuation of its
+    own.
+    """
     json_path = _state_json_path(cwd)
     backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
-    parsed = parse_state_to_json(
-        md_content,
-        import_legacy_session=import_session_continuation_from_markdown,
-    )
+    parsed = parse_state_to_json(md_content)
     has_convention_lock = _has_bold_block(md_content, "Convention Lock")
     has_approximations = _has_subsection(md_content, "Active Approximations")
     has_uncertainties = _has_subsection(md_content, "Propagated Uncertainties")
@@ -2935,11 +2978,6 @@ def _build_state_from_markdown(
             backup_existing = None
         if isinstance(backup_existing, dict):
             existing = copy.deepcopy(backup_existing)
-            existing_continuation = existing.get("continuation")
-            if _continuation_payload_has_values(existing_continuation):
-                existing["session"] = _session_from_continuation_payload(existing_continuation)
-            else:
-                existing["session"] = _blank_session_payload()
 
     if existing and isinstance(existing, dict):
         if primary_unreadable and existing.get("project_contract") is not None:
@@ -2959,25 +2997,14 @@ def _build_state_from_markdown(
                 existing = copy.deepcopy(existing)
                 existing["project_contract"] = preserved_contract
         merged = {**existing}
+        merged.pop("session", None)
         merged["_version"] = parsed["_version"]
         merged["_synced_at"] = parsed["_synced_at"]
-        existing_session = (
-            {**_blank_session_payload(), **existing["session"]}
-            if isinstance(existing.get("session"), dict)
-            else _blank_session_payload()
-        )
-        parsed_session = (
-            {**_blank_session_payload(), **parsed["session"]}
-            if isinstance(parsed.get("session"), dict)
-            else _blank_session_payload()
-        )
-        parsed_session_has_values = _session_payload_has_values(parsed_session)
         if parsed.get("project_reference"):
             merged["project_reference"] = {**(merged.get("project_reference") or {}), **parsed["project_reference"]}
 
         if parsed.get("position"):
             merged["position"] = {**(merged.get("position") or {}), **parsed["position"]}
-        merged["session"] = parsed_session if parsed_session_has_values else existing_session
 
         if parsed.get("decisions") is not None:
             merged["decisions"] = parsed["decisions"]
@@ -3008,8 +3035,14 @@ def _build_state_from_markdown(
             if markdown_has_field and field in parsed:
                 merged[field] = parsed.get(field) or []
 
-        if "continuation" in existing:
-            merged["continuation"] = copy.deepcopy(existing.get("continuation"))
+        existing_continuation = existing.get("continuation")
+        parsed_continuation = parsed.get("continuation")
+        if _continuation_payload_has_values(existing_continuation):
+            merged["continuation"] = copy.deepcopy(existing_continuation)
+        elif _continuation_payload_has_values(parsed_continuation):
+            merged["continuation"] = copy.deepcopy(parsed_continuation)
+        elif "continuation" in existing:
+            merged["continuation"] = copy.deepcopy(existing_continuation)
     else:
         merged = parsed
 
@@ -3166,7 +3199,6 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         md_content,
         # Session Continuity is a compatibility mirror; markdown edits must
         # not mint canonical continuation authority on their own.
-        import_session_continuation_from_markdown=False,
     )
     if merged.get("project_contract") is None and isinstance(preserved_contract, dict):
         merged = copy.deepcopy(merged)
@@ -3218,7 +3250,6 @@ def _load_state_json_with_integrity_issues(
     integrity_mode: str = "standard",
     persist_recovery: bool = True,
     recover_intent: bool = True,
-    import_session_continuation_from_markdown: bool = False,
     surface_blocked_project_contract: bool = False,
     acquire_lock: bool = True,
 ) -> tuple[dict | None, list[str], str | None]:
@@ -3408,7 +3439,6 @@ def _load_state_json_with_integrity_issues(
                 cwd,
                 content,
                 recover_intent=recover_intent,
-                import_session_continuation_from_markdown=import_session_continuation_from_markdown,
             )
             integrity_issues = [
                 "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"
@@ -3447,7 +3477,6 @@ def peek_state_json(
         integrity_mode=integrity_mode,
         persist_recovery=False,
         recover_intent=recover_intent,
-        import_session_continuation_from_markdown=False,
         surface_blocked_project_contract=surface_blocked_project_contract,
         acquire_lock=acquire_lock,
     )
@@ -3628,7 +3657,6 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
         cwd,
         integrity_mode=integrity_mode,
         persist_recovery=True,
-        import_session_continuation_from_markdown=True,
         surface_blocked_project_contract=True,
     )
     if integrity_mode == "review" and integrity_issues:
@@ -3799,7 +3827,6 @@ def save_state_markdown_locked(cwd: Path, md_content: str) -> dict:
         md_content,
         # Session Continuity is a compatibility mirror; markdown edits must
         # not mint canonical continuation authority on their own.
-        import_session_continuation_from_markdown=False,
     )
     normalized_md_content = _canonicalize_session_continuity_section(md_content, merged)
     return _write_state_pair_locked(
@@ -3844,7 +3871,6 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         cwd,
         integrity_mode=integrity_mode,
         persist_recovery=True,
-        import_session_continuation_from_markdown=True,
         surface_blocked_project_contract=True,
     )
     validation = state_validate(cwd, integrity_mode=integrity_mode)
@@ -4265,7 +4291,7 @@ def state_carry_forward_continuation_last_result_id(
             )
 
         loaded_state_obj["continuation"] = desired_continuation
-        loaded_state_obj["session"] = _session_from_continuation_payload(desired_continuation)
+        loaded_state_obj.pop("session", None)
         return StateUpdateResult(updated=True)
 
     if state_obj is not None:
@@ -4300,7 +4326,7 @@ def state_clear_continuation_bounded_segment(cwd: Path) -> StateUpdateResult:
             },
         ).model_dump(mode="python")
         state_obj["continuation"] = desired_continuation
-        state_obj["session"] = _session_from_continuation_payload(desired_continuation)
+        state_obj.pop("session", None)
         save_state_json_locked(cwd, state_obj)
         return StateUpdateResult(updated=True)
 
@@ -4358,6 +4384,135 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
         )
 
 
+@instrument_gpd_function("state.record_verification")
+def state_record_verification(
+    cwd: Path,
+    *,
+    phase: str | None = None,
+    status: str | None = None,
+    verification_path: Path | None = None,
+) -> RecordVerificationResult:
+    """Atomically update shared state after a VERIFICATION.md result.
+
+    Lets callers advance past ``Phase complete — ready for verification`` /
+    ``Verifying`` without requiring a later manual ``gpd-sync-state``. If
+    ``status`` is not provided, the function reads the ``status:`` field from
+    the phase's VERIFICATION.md frontmatter.
+    """
+    if not phase:
+        return RecordVerificationResult(recorded=False, error="phase required")
+
+    # Normalize user input: "passed" / "pass" / "failed" / "fail".
+    normalized_status: str | None = None
+    if status is not None:
+        normalized = status.strip().lower()
+        if normalized in {"passed", "pass", "ok", "success"}:
+            normalized_status = "passed"
+        elif normalized in {"failed", "fail", "blocked"}:
+            normalized_status = "failed"
+        elif normalized:
+            return RecordVerificationResult(
+                recorded=False,
+                error=f"unrecognized status '{status}' (expected passed|failed)",
+            )
+
+    if normalized_status is None:
+        # Try to read it from the VERIFICATION.md frontmatter.
+        phase_norm = phase.strip()
+        path = verification_path
+        if path is None:
+            phases_dir = ProjectLayout(cwd).phases_dir
+            if phases_dir.exists():
+                for phase_dir in phases_dir.iterdir():
+                    if not phase_dir.is_dir():
+                        continue
+                    name = phase_dir.name
+                    head = name.split("-", 1)[0]
+                    if head == phase_norm or head.lstrip("0") == phase_norm.lstrip("0"):
+                        candidate = phase_dir / f"{head}-VERIFICATION.md"
+                        if candidate.exists():
+                            path = candidate
+                            break
+                        candidate = phase_dir / "VERIFICATION.md"
+                        if candidate.exists():
+                            path = candidate
+                            break
+        if path is None or not path.exists():
+            return RecordVerificationResult(
+                recorded=False,
+                error=f"VERIFICATION.md not found for phase {phase}",
+            )
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return RecordVerificationResult(recorded=False, error=str(exc))
+        fm_match = re.match(r"^---\s*\n([\s\S]*?)\n---", text)
+        if fm_match:
+            for line in fm_match.group(1).splitlines():
+                m = re.match(r"\s*status\s*:\s*(\S+)", line)
+                if m:
+                    val = m.group(1).strip().strip("'\"").lower()
+                    if val in {"passed", "pass", "ok"}:
+                        normalized_status = "passed"
+                    elif val in {"failed", "fail"}:
+                        normalized_status = "failed"
+                    break
+        if normalized_status is None:
+            return RecordVerificationResult(
+                recorded=False,
+                reason="VERIFICATION.md has no 'status: passed|failed' frontmatter",
+            )
+
+    new_status = "Verified" if normalized_status == "passed" else "Blocked"
+
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        content = _load_or_rebuild_state_markdown_locked(cwd)
+        if content is None:
+            return RecordVerificationResult(recorded=False, error="STATE.md not found")
+        current_status = state_extract_field(content, "Status") or ""
+        # Accept re-recording from either the pre-verification status or the
+        # transient "Verifying" state. Also accept a re-assert from Verified.
+        if current_status.lower() not in {
+            "phase complete — ready for verification",
+            "verifying",
+            "verified",
+            "blocked",
+        }:
+            return RecordVerificationResult(
+                recorded=False,
+                error=(
+                    f"state_record_verification requires Status to be "
+                    f"'Phase complete — ready for verification' or 'Verifying', got '{current_status}'"
+                ),
+                previous_status=current_status,
+            )
+        transition_error = validate_state_transition(current_status, new_status)
+        if transition_error:
+            return RecordVerificationResult(
+                recorded=False,
+                error=transition_error,
+                previous_status=current_status,
+            )
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        content = state_replace_field(content, "Status", new_status)
+        content = state_replace_field(content, "Last Activity", today)
+        descriptor = (
+            f"Phase {phase} verification {normalized_status}"
+            if normalized_status in {"passed", "failed"}
+            else f"Phase {phase} verification recorded"
+        )
+        if state_has_field(content, "Last Activity Description"):
+            content = state_replace_field(content, "Last Activity Description", descriptor)
+        _write_state_markdown_locked(cwd, content)
+        return RecordVerificationResult(
+            recorded=True,
+            phase=phase,
+            status=new_status,
+            previous_status=current_status,
+        )
+
+
 @instrument_gpd_function("state.record_metric")
 def state_record_metric(
     cwd: Path,
@@ -4368,9 +4523,27 @@ def state_record_metric(
     tasks: str | None = None,
     files: str | None = None,
 ) -> RecordMetricResult:
-    """Record a performance metric in STATE.md."""
+    """Record a performance metric in STATE.md.
+
+    Rows are canonicalized to ``Phase NN PNN-KK``, idempotent on ``(phase,
+    plan)`` so retries and multi-surface return-applications do not duplicate
+    work, and sub-second durations render as ``<1s`` instead of ``0s``.
+    """
     if not phase or not plan or not duration:
         return RecordMetricResult(recorded=False, error="phase, plan, and duration required")
+
+    from gpd.core.utils import format_plan_duration, format_plan_label
+
+    canonical_label = format_plan_label(phase, plan)
+    if canonical_label is None:
+        return RecordMetricResult(
+            recorded=False,
+            error=(
+                f"Cannot normalize plan label from phase='{phase}', plan='{plan}'. "
+                "Expected phase like '01' and plan like 'NN-KK' or 'KK'."
+            ),
+        )
+    canonical_duration = format_plan_duration(duration)
 
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
@@ -4389,16 +4562,36 @@ def state_record_metric(
 
         table_header = match.group(1)
         table_body = match.group(2).rstrip()
-        new_row = f"| Phase {phase} P{plan} | {duration} | {tasks or '-'} tasks | {files or '-'} files |"
+        new_row = f"| {canonical_label} | {canonical_duration} | {tasks or '-'} tasks | {files or '-'} files |"
 
-        if not table_body.strip() or "None yet" in table_body or re.match(r"^\|\s*-\s*\|", table_body.strip()):
+        table_is_empty = (
+            not table_body.strip()
+            or "None yet" in table_body
+            or re.match(r"^\|\s*-\s*\|", table_body.strip())
+        )
+        if table_is_empty:
             table_body = new_row
         else:
-            table_body = table_body + "\n" + new_row
+            existing_rows = [line for line in table_body.splitlines() if line.strip()]
+            replaced = False
+            for i, row in enumerate(existing_rows):
+                # Match by canonical label as the dedup key.
+                if row.lstrip("|").strip().startswith(canonical_label):
+                    existing_rows[i] = new_row
+                    replaced = True
+                    break
+            if not replaced:
+                existing_rows.append(new_row)
+            table_body = "\n".join(existing_rows)
 
         new_content = pattern.sub(lambda _: f"{table_header}{table_body}\n", content, count=1)
         _write_state_markdown_locked(cwd, new_content)
-        return RecordMetricResult(recorded=True, phase=phase, plan=plan, duration=duration)
+        return RecordMetricResult(
+            recorded=True,
+            phase=phase,
+            plan=plan,
+            duration=canonical_duration,
+        )
 
 
 @instrument_gpd_function("state.update_progress")
@@ -4613,7 +4806,6 @@ def state_record_session(
             cwd,
             persist_recovery=False,
             recover_intent=False,
-            import_session_continuation_from_markdown=True,
             acquire_lock=False,
         )
         if not isinstance(state_obj, dict) or state_source is None:
@@ -4713,7 +4905,7 @@ def state_record_session(
             }
         ).model_dump(mode="python")
         state_obj["continuation"] = updated_continuation
-        state_obj["session"] = _session_from_continuation_payload(updated_continuation)
+        state_obj.pop("session", None)
         save_state_json_locked(cwd, state_obj)
         with gpd_span(
             "session.continuity.recorded",
@@ -4796,7 +4988,7 @@ def state_validate(
     try:
         content = md_path.read_text(encoding="utf-8")
         issues.extend(_state_markdown_structure_issues(content))
-        state_md = parse_state_to_json(content, import_legacy_session=False)
+        state_md = parse_state_to_json(content)
     except FileNotFoundError:
         issues.append("STATE.md not found")
     except (OSError, UnicodeDecodeError) as e:
@@ -4926,6 +5118,36 @@ def state_validate(
                     if not evidence_file.exists():
                         target = issues if integrity_mode == "review" else warnings
                         target.append(f'intermediate_results[{rid}]: evidence_path "{evidence_path}" does not exist')
+
+    # Performance metrics table hygiene
+    perf = state_json.get("performance_metrics") if isinstance(state_json, dict) else None
+    if isinstance(perf, dict):
+        rows_payload = perf.get("rows") or []
+        if isinstance(rows_payload, list):
+            from gpd.core.utils import is_canonical_plan_label
+
+            seen_labels: set[str] = set()
+            for index, row in enumerate(rows_payload):
+                if not isinstance(row, dict):
+                    continue
+                label = str(row.get("label") or "").strip()
+                if not label:
+                    issues.append(f"performance_metrics[{index}]: empty label")
+                    continue
+                if not is_canonical_plan_label(label):
+                    issues.append(
+                        f'performance_metrics[{index}]: label "{label}" does not match '
+                        "canonical 'Phase NN PNN-KK' format"
+                    )
+                if label in seen_labels:
+                    issues.append(f'performance_metrics: duplicate row for "{label}"')
+                seen_labels.add(label)
+                duration = str(row.get("duration") or "").strip()
+                if duration in {"0", "0s"}:
+                    warnings.append(
+                        f'performance_metrics[{label}]: duration "{duration}" is zero — '
+                        'use "<1s" for sub-second completed plans'
+                    )
 
     # Cross-check: phase directory exists
     current_phase = json_pos.get("current_phase") if isinstance(json_pos, dict) else None

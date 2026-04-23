@@ -469,11 +469,11 @@ def _materialize_workflow_paths(
     config_dir = resolved_target.as_posix()
     install_dir = (resolved_target / GPD_INSTALL_DIR_NAME).as_posix()
     descriptor = get_runtime_descriptor(runtime)
-    legacy_global_config_dir = resolve_global_config_dir(descriptor, home=Path.home()).as_posix()
+    default_global_config_dir = resolve_global_config_dir(descriptor, home=Path.home()).as_posix()
     if _normalize_install_scope_flag(install_scope) == "--global":
         global_config_dir = config_dir
     else:
-        global_config_dir = legacy_global_config_dir
+        global_config_dir = default_global_config_dir
     relative_config_prefix = f"./{descriptor.config_dir_name}/"
     update_command = build_runtime_install_repair_command(
         runtime,
@@ -483,8 +483,8 @@ def _materialize_workflow_paths(
     )
     patch_meta = f"{config_dir}/{PATCHES_DIR_NAME}/backup-meta.json"
 
-    if _normalize_install_scope_flag(install_scope) == "--global" and legacy_global_config_dir != global_config_dir:
-        content = content.replace(legacy_global_config_dir, global_config_dir)
+    if _normalize_install_scope_flag(install_scope) == "--global" and default_global_config_dir != global_config_dir:
+        content = content.replace(default_global_config_dir, global_config_dir)
 
     replacements = {
         "GPD_INSTALL_DIR": install_dir,
@@ -1180,8 +1180,8 @@ def compile_markdown_for_runtime(
 ) -> str:
     """Compile canonical markdown into a runtime-specific installed form.
 
-    This helper centralizes the shared install pipeline steps that were
-    previously duplicated across adapters:
+    This helper centralizes the shared install pipeline steps used by
+    every adapter:
 
     - runtime/path placeholder replacement
     - capability-driven ``@`` include expansion

@@ -114,11 +114,11 @@ If the manuscript depends on any theorem-style or `proof_obligation` result, tre
 Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight as the authoritative managed-manuscript bootstrap surface.
 
 - If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only. The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`; treat that as project-owned manuscript state rather than `external_artifact` mode.
-- If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the legacy `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
+- If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the top-level `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
 - If `publication_bootstrap_mode` is `fresh_external_authoring_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root`, persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/`, and bootstrap the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
 - If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
 
-For compatibility with the longstanding shell-oriented workflow contract, keep the resolved manuscript-root binding visible when writing shell snippets:
+Keep the resolved manuscript-root binding visible when writing shell snippets so the shell-oriented workflow contract stays consistent:
 
 ```bash
 PAPER_DIR="${publication_bootstrap_root}"
@@ -218,15 +218,27 @@ For the project-backed lane, check for research digests generated during milesto
 **Step 1 -- Locate digest files:**
 
 ```bash
-ls GPD/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
+# Recursive search — mirrors the predicate used by gpd review preflight so the
+# write-paper workflow and preflight never disagree about whether a digest exists.
+find GPD/milestones -type f -name RESEARCH-DIGEST.md 2>/dev/null
 ```
+
+**Cross-check against the milestones index** before claiming "no digest":
+
+```bash
+# If MILESTONES.md lists archived digests but find returned nothing, treat it
+# as a consistency issue (not a permission to proceed without the digest).
+grep -E "RESEARCH-DIGEST\.md" GPD/MILESTONES.md 2>/dev/null
+```
+
+If `find` returns paths, use those. If `find` returns nothing but `MILESTONES.md` references a digest path, surface the inconsistency — do not silently downgrade to raw-phase mode.
 
 **If digest(s) found:**
 
 Read all available digests:
 
 ```bash
-cat GPD/milestones/*/RESEARCH-DIGEST.md
+find GPD/milestones -type f -name RESEARCH-DIGEST.md -exec cat {} +
 ```
 
 **Step 2 -- Map digest sections to paper structure:**
@@ -270,7 +282,7 @@ cat GPD/state.json
 Display a clear warning explaining why and offering alternatives:
 
 ```
-⚠ No RESEARCH-DIGEST.md found in GPD/milestones/.
+⚠ No RESEARCH-DIGEST.md found under GPD/milestones/ (recursive search). Also verify GPD/MILESTONES.md does not list a digest path — if it does, this is a consistency issue, not a missing file.
 
 Research digests are generated during gpd:complete-milestone. Without a digest,
 the paper will be built from raw phase data when needed, but the structured init payload should be used first for conventions, results, and approximations.

@@ -1,4 +1,4 @@
-"""Phase 11 regressions for the durable child-return continuation boundary."""
+"""Phase 11 assertions for the durable child-return continuation boundary."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused regressions for the Phase 11 debug-wrapper typed child-return cleanup."""
+"""Focused assertions for the Phase 11 debug-wrapper typed child-return cleanup."""
 
 from __future__ import annotations
 

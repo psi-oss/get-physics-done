@@ -1,4 +1,4 @@
-"""Regression coverage for malformed runtime bridge invocations."""
+"""Assertions for malformed runtime bridge invocations."""
 
 from __future__ import annotations
 

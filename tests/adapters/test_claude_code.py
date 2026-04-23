@@ -674,7 +674,7 @@ class TestInstall:
     def test_install_agents_replace_runtime_placeholders(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
-        """Regression: _copy_agents_native must pass runtime='claude-code' to replace_placeholders."""
+        """Assert _copy_agents_native passes runtime='claude-code' to replace_placeholders."""
         target = tmp_path / "target" / ".claude"
         target.mkdir(parents=True)
         adapter.install(gpd_root, target)

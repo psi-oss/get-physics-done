@@ -1,4 +1,4 @@
-"""Focused regressions for Phase 11 execution-state ownership cleanup."""
+"""Focused assertions for Phase 11 execution-state ownership cleanup."""
 
 from __future__ import annotations
 

@@ -1,9 +1,10 @@
 """Shared resume-surface normalization helpers.
 
-The public resume surface is canonical-only: modern continuation fields stay at
-the top level and legacy raw aliases are stripped before payloads leave the
-backend. This module centralizes that projection so ``init_resume()``, CLI raw
-output, and other public surfaces do not each reinvent resume normalization.
+The public resume surface is canonical-only: canonical continuation fields stay
+at the top level and backend-only marker keys are stripped before payloads
+leave the backend. This module centralizes that projection so ``init_resume()``,
+CLI raw output, and other public surfaces do not each reinvent resume
+normalization.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from collections.abc import Callable, Mapping, Sequence
 
 __all__ = [
     "RESUME_SURFACE_SCHEMA_VERSION",
-    "RESUME_COMPATIBILITY_ALIAS_FIELDS",
+    "RESUME_BACKEND_ONLY_FIELDS",
     "RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT",
     "RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF",
     "RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT",
@@ -39,8 +40,9 @@ __all__ = [
 
 RESUME_SURFACE_SCHEMA_VERSION = 1
 
-RESUME_COMPATIBILITY_ALIAS_FIELDS: tuple[str, ...] = (
+RESUME_BACKEND_ONLY_FIELDS: tuple[str, ...] = (
     "active_execution_segment",
+    "compat_resume_surface",
     "current_execution",
     "current_execution_resume_file",
     "execution_resume_file",
@@ -48,11 +50,10 @@ RESUME_COMPATIBILITY_ALIAS_FIELDS: tuple[str, ...] = (
     "missing_session_resume_file",
     "recorded_session_resume_file",
     "resume_mode",
+    "resume_surface",
     "segment_candidates",
     "session_resume_file",
 )
-
-_RESUME_LEGACY_WRAPPER_KEYS: frozenset[str] = frozenset({"compat_resume_surface", "resume_surface"})
 
 RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT = "bounded_segment"
 RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF = "continuity_handoff"
@@ -350,16 +351,16 @@ def resume_payload_has_local_recovery_target(payload: Mapping[str, object] | Non
         for candidate in candidates
     )
 
-def _strip_top_level_resume_surface_compatibility_keys(
+def _strip_top_level_resume_backend_only_keys(
     payload: Mapping[str, object],
     *,
-    compat_fields: frozenset[str],
+    backend_only_fields: frozenset[str],
 ) -> dict[str, object]:
-    """Drop only top-level legacy aliases from one public resume payload."""
+    """Drop top-level backend-only marker keys from one public resume payload."""
 
     cleaned: dict[str, object] = {}
     for key, value in payload.items():
-        if key in compat_fields or key in _RESUME_LEGACY_WRAPPER_KEYS:
+        if key in backend_only_fields:
             continue
         cleaned[key] = value
     return cleaned
@@ -368,10 +369,10 @@ def _strip_top_level_resume_surface_compatibility_keys(
 def canonicalize_resume_public_payload(
     payload: Mapping[str, object],
     *,
-    compat_fields: Sequence[str] = RESUME_COMPATIBILITY_ALIAS_FIELDS,
+    backend_only_fields: Sequence[str] = RESUME_BACKEND_ONLY_FIELDS,
 ) -> dict[str, object]:
-    """Strip legacy resume aliases from one public payload."""
-    return _strip_top_level_resume_surface_compatibility_keys(
+    """Strip backend-only marker keys from one public resume payload."""
+    return _strip_top_level_resume_backend_only_keys(
         dict(payload),
-        compat_fields=frozenset(compat_fields),
+        backend_only_fields=frozenset(backend_only_fields),
     )

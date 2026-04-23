@@ -1,4 +1,4 @@
-"""Prompt budget regression tests for the `arxiv-submission` startup surface."""
+"""Prompt budget assertions for the `arxiv-submission` startup surface."""
 
 from __future__ import annotations
 

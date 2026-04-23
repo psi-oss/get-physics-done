@@ -1,4 +1,4 @@
-"""Regression tests for context/runtime abstraction boundaries."""
+"""Assertions for context/runtime abstraction boundaries."""
 
 from __future__ import annotations
 

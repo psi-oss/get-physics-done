@@ -1,4 +1,4 @@
-"""Focused regressions for the public `gpd result show` CLI surface."""
+"""Focused assertions for the public `gpd result show` CLI surface."""
 
 from __future__ import annotations
 

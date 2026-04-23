@@ -273,7 +273,7 @@ def test_resume_authority_contract_exposes_full_validated_surface() -> None:
     assert not hasattr(contract, "compatibility_phrase")
 
 
-def test_resume_authority_helper_rejects_legacy_compatibility_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resume_authority_helper_rejects_extraneous_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_section = {
         "durable_authority_phrase": "`state.json.continuation` is the durable authority",
         "public_vocabulary_intro": "Canonical continuation fields define the public resume vocabulary",
@@ -282,9 +282,9 @@ def test_resume_authority_helper_rejects_legacy_compatibility_keys(monkeypatch: 
             "active_resume_origin",
             "active_resume_pointer",
         ],
-        "compat_surface": "legacy compatibility surface",
-        "session_mirror": "legacy session mirror",
-        "compatibility_phrase": "legacy compatibility note",
+        "compat_surface": "unexpected extra key",
+        "session_mirror": "unexpected extra key",
+        "compatibility_phrase": "unexpected extra key",
     }
 
     monkeypatch.setattr(doc_surface_contracts_module, "_contract_section", lambda name: dict(fake_section))
