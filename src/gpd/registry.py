@@ -678,7 +678,7 @@ def _command_policy_frontmatter_value(
     return meta.get(COMMAND_POLICY_FRONTMATTER_KEY), True
 
 
-def _command_policy_supporting_context_from_legacy(
+def _command_policy_supporting_context_from_frontmatter(
     *,
     context_mode: str,
     project_reentry_capable: bool,
@@ -732,10 +732,10 @@ def _publication_contract_mentions_external_artifact(review_contract: ReviewComm
     return any("external-artifact review" in cue.casefold() for cue in textual_cues)
 
 
-def _publication_compat_subject_policy(
+def _publication_subject_policy_defaults(
     *,
     review_contract: ReviewCommandContract | None,
-    legacy_supporting_context: dict[str, object],
+    frontmatter_supporting_context: dict[str, object],
 ) -> dict[str, object] | None:
     if not _command_policy_is_publication_contract(review_contract):
         return None
@@ -744,7 +744,7 @@ def _publication_compat_subject_policy(
 
     required_patterns = [
         str(pattern).strip()
-        for pattern in list(legacy_supporting_context.get("required_file_patterns", []) or [])
+        for pattern in list(frontmatter_supporting_context.get("required_file_patterns", []) or [])
         if str(pattern).strip()
     ]
     supported_roots = _command_policy_supported_roots_from_patterns(required_patterns)
@@ -792,7 +792,7 @@ def _publication_compat_subject_policy(
         payload["allow_external_subjects"] = True
     if (
         allow_external_subjects
-        and str(legacy_supporting_context.get("project_context_mode", "")).strip() == "project-aware"
+        and str(frontmatter_supporting_context.get("project_context_mode", "")).strip() == "project-aware"
     ):
         payload["allow_interactive_without_subject"] = True
     if bootstrap_allowed:
@@ -815,20 +815,20 @@ def _merge_command_policy_defaults(
 
 def _merge_command_policy_submapping(
     explicit_mapping: dict[str, object] | None,
-    legacy_mapping: dict[str, object] | None,
+    companion_mapping: dict[str, object] | None,
     *,
     field_name: str,
     command_name: str,
     allow_explicit_override: bool = False,
 ) -> dict[str, object] | None:
     if explicit_mapping is None:
-        if legacy_mapping:
-            return dict(legacy_mapping)
+        if companion_mapping:
+            return dict(companion_mapping)
         return None
-    if not legacy_mapping:
+    if not companion_mapping:
         return dict(explicit_mapping)
 
-    merged = dict(legacy_mapping)
+    merged = dict(companion_mapping)
     for key, value in explicit_mapping.items():
         legacy_value = merged.get(key)
         if legacy_value is None or legacy_value == []:
@@ -983,19 +983,19 @@ def _normalize_command_policy_payload(
     review_contract: ReviewCommandContract | None = None,
     explicit: bool = False,
 ) -> dict[str, object]:
-    legacy_supporting_context = _command_policy_supporting_context_from_legacy(
+    frontmatter_supporting_context = _command_policy_supporting_context_from_frontmatter(
         context_mode=context_mode,
         project_reentry_capable=project_reentry_capable,
         requires=requires,
     )
-    compat_subject_policy = _publication_compat_subject_policy(
+    compat_subject_policy = _publication_subject_policy_defaults(
         review_contract=review_contract,
-        legacy_supporting_context=legacy_supporting_context,
+        frontmatter_supporting_context=frontmatter_supporting_context,
     )
     legacy_payload: dict[str, object] = {
         "schema_version": 1,
         "subject_policy": compat_subject_policy,
-        "supporting_context_policy": legacy_supporting_context,
+        "supporting_context_policy": frontmatter_supporting_context,
     }
 
     payload = _command_policy_payload(command_policy)
@@ -1034,7 +1034,7 @@ def _normalize_command_policy_payload(
         "subject_policy": subject_policy,
         "supporting_context_policy": _merge_command_policy_submapping(
             supporting_context_policy,
-            legacy_supporting_context,
+            frontmatter_supporting_context,
             field_name="command_policy.supporting_context_policy",
             command_name=command_name,
             allow_explicit_override=_command_policy_is_publication_contract(review_contract),

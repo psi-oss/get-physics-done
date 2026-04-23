@@ -54,7 +54,7 @@ from gpd.core.public_surface_contract import (
     local_cli_unattended_readiness_command,
     local_cli_validate_command_context_command,
 )
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
 from tests.runtime_test_support import (
@@ -92,7 +92,7 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _assert_no_top_level_resume_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -2366,7 +2366,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     _assert_no_top_level_resume_aliases(payload)
     assert payload["recovery_advice"]["resume_surface_schema_version"] == 1
     assert "compat_resume_surface" not in payload["recovery_advice"]
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload["recovery_advice"]
     assert payload["active_resume_kind"] == "continuity_handoff"
     assert payload["active_resume_origin"] == "canonical_continuation"

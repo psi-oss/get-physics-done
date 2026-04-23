@@ -8,7 +8,7 @@ from gpd.core.recovery_advice import (
     serialize_recovery_advice,
     serialize_recovery_orientation,
 )
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 
 
 def _project(tmp_path: Path, name: str = "project") -> Path:
@@ -265,7 +265,7 @@ def test_serialize_recovery_advice_is_canonical_first_and_omits_legacy_resume_al
     assert public["actions"][0]["command"] == "gpd resume"
     assert public["actions"][-1]["kind"] == "fast-next"
     assert "compat_resume_surface" not in public
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in public
 
 

@@ -30,8 +30,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `propagated_uncertainties` | `UncertaintyObject[]` | `[]` | Uncertainty propagation tracking | **Authoritative** (JSON-only, from `uncertainty add`) |
 | `pending_todos` | `string[]` | `[]` | Ideas captured via gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
-| `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority; compatibility mirrors derive from it | **Authoritative** (JSON-only) |
-| `session` | `SessionObject` | see below | Markdown-compatible compatibility mirror of canonical continuation for STATE.md rendering; not part of the public resume vocabulary | Synced from canonical continuation / STATE.md |
+| `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority for session handoff and recorded machine identity | **Authoritative** (JSON-only) |
 
 ### Authoritative vs Derived
 
@@ -487,24 +486,6 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 }
 ```
 
-### `SessionObject`
-
-```json
-{
-  "last_date": "2026-03-15T14:30:00.000Z",
-  "hostname": "builder-01",
-  "platform": "Linux 6.1 x86_64",
-  "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
-  "resume_file": "GPD/phases/03-analysis/.continue-here.md"
-}
-```
-
-**Written by:** `gpd state record-session`, `gpd:pause-work`
-
-`session` stores the markdown-compatible session timestamp, advisory machine identity, stop location, and handoff resume file as a compatibility mirror of canonical continuation. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd --raw resume` is the machine-readable local recovery surface. It treats `continuation` as primary and only consults nested compatibility projections when canonical bounded-segment or handoff data is missing or incomplete. It also compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
-
-`session` is the markdown-compatible continuity mirror that STATE.md can render directly. The durable JSON-only `continuation` object below is authoritative for machine-readable recovery. Model-authored continuity updates target `continuation.handoff` and `continuation.machine`; `session` is backend-derived compatibility metadata, not a model-authored authority surface. State normalization re-derives `session` from canonical continuation. When a project only has `session` data, GPD may hydrate missing canonical handoff or machine fields from that payload during explicit migration or recovery paths so the project can move forward without losing continuity. Ordinary persistence does not let stale `session` data overwrite populated canonical continuation. `gpd --raw resume` treats this canonical object first and only falls back to the derived execution head compatibility mirror when the canonical continuation is missing or incomplete, including projects without persisted bounded-segment state. Raw compatibility cues are backend-only intake signals rather than primary resume fields, and `gpd --raw resume` strips them after canonicalization.
-
 ### `ContinuationObject`
 
 ```json
@@ -526,10 +507,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `save_state_markdown()`, `save_state_json()`
 
-`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. STATE.md and the `session` object are projections of this authority, with one compatibility exception:
-
-- `continuation -> session`: normal state persistence backfills `session` from canonical continuation so STATE.md generation and markdown readers stay aligned.
-- `session -> continuation`: allowed only to fill missing canonical handoff or machine fields during explicit migration or recovery. A populated canonical continuation field must not be overwritten by stale `session` data during ordinary normalization, and manual edits to the rendered STATE.md Session Continuity block do not supersede canonical continuation when that authority already exists.
+`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. The STATE.md ``## Session Continuity`` block is a human-readable rendering of `continuation.handoff` plus `continuation.machine`; parsing STATE.md projects that block back into canonical continuation.
 
 `continuation.handoff` is the canonical handoff block:
 
@@ -602,4 +580,4 @@ For position/decisions/blockers: STATE.md is the primary edit surface; state.jso
 | **gpd-consistency-checker** | `convention_lock`, `intermediate_results` | (reads only) |
 | **gpd-notation-coordinator** | `convention_lock` | `convention set` |
 | **gpd-paper-writer** | `convention_lock`, `intermediate_results`, `decisions` | (reads only) |
-| **Orchestrators** | `position`, `continuation`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |
+| **Orchestrators** | `position`, `continuation` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |

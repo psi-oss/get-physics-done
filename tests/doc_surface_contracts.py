@@ -24,7 +24,7 @@ from gpd.core.public_surface_contract import (
     recovery_cross_workspace_command,
     recovery_local_snapshot_command,
 )
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 
 _RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
 
@@ -142,7 +142,7 @@ __all__ = [
     "assert_wolfram_plan_boundary_contract",
     "assert_workflow_preset_surface_contract",
     "resume_authority_public_vocabulary_intro",
-    "resume_compat_alias_fields",
+    "resume_backend_only_fields",
 ]
 
 
@@ -258,8 +258,8 @@ def resume_authority_public_vocabulary_intro() -> str:
     return _contract_string(section, "public_vocabulary_intro", label="resume_authority")
 
 
-def resume_compat_alias_fields() -> tuple[str, ...]:
-    return RESUME_COMPATIBILITY_ALIAS_FIELDS
+def resume_backend_only_fields() -> tuple[str, ...]:
+    return RESUME_BACKEND_ONLY_FIELDS
 
 
 def assert_unattended_readiness_contract(content: str) -> None:
@@ -1065,7 +1065,7 @@ def assert_resume_authority_contract(
         )
     else:
         assert "compat_resume_surface" not in content
-        for alias in resume_compat_alias_fields():
+        for alias in resume_backend_only_fields():
             assert alias not in content
         assert "Compatibility-only backend intake (`gpd init resume` only):" not in content
     if require_generic_compatibility_note:

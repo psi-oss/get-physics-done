@@ -11,7 +11,7 @@ from gpd.core.context import init_resume
 from gpd.core.errors import StateError
 from gpd.core.observability import CurrentExecutionState
 from gpd.core.recent_projects import record_recent_project
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import (
     parse_state_to_json,
     state_carry_forward_continuation_last_result_id,
@@ -33,7 +33,7 @@ def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None
 
 
 def _assert_no_resume_compat_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -1073,7 +1073,7 @@ def test_init_resume_does_not_build_legacy_resume_aliases_before_public_canonica
 
     captured: dict[str, object] = {}
 
-    def _capture_public_payload(payload: dict[str, object], *, compat_fields=RESUME_COMPATIBILITY_ALIAS_FIELDS):
+    def _capture_public_payload(payload: dict[str, object], *, compat_fields=RESUME_BACKEND_ONLY_FIELDS):
         captured["payload"] = dict(payload)
         return dict(payload)
 

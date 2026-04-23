@@ -663,7 +663,7 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_command_policy_rejects_conflicts_with_legacy_context_metadata(self, tmp_path: Path) -> None:
+    def test_command_policy_rejects_conflicts_with_companion_context_metadata(self, tmp_path: Path) -> None:
         f = tmp_path / "peer-review.md"
         f.write_text(
             "---\n"
@@ -684,7 +684,7 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_publication_command_policy_can_override_legacy_supporting_context_metadata(self, tmp_path: Path) -> None:
+    def test_publication_command_policy_can_override_companion_supporting_context_metadata(self, tmp_path: Path) -> None:
         f = tmp_path / "arxiv-submission.md"
         f.write_text(
             "---\n"

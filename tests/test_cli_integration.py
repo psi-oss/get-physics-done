@@ -26,7 +26,7 @@ from gpd.cli import app
 from gpd.core.constants import AGENT_ID_FILENAME, ENV_DATA_DIR
 from gpd.core.costs import UsageRecord, _profile_tier_mix, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
+from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown
 from tests.manuscript_test_support import (
     manuscript_path as canonical_manuscript_path,
@@ -73,7 +73,7 @@ _SECONDARY_PERMISSIONS_DESCRIPTOR = _select_runtime_descriptor(
 
 
 def _assert_no_top_level_resume_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload
 
 
@@ -1547,7 +1547,7 @@ class TestResume:
         assert parsed["recovery_advice"]["resume_surface_schema_version"] == 1
         assert parsed["recovery_advice"]["actions"][0]["kind"] == "primary"
         assert "compat_resume_surface" not in parsed["recovery_advice"]
-        for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+        for key in RESUME_BACKEND_ONLY_FIELDS:
             assert key not in parsed["recovery_advice"]
         assert parsed["primary_recovery_target"]["kind"] == "bounded_segment"
         assert parsed["primary_recovery_target"]["origin"] == "canonical_continuation"
