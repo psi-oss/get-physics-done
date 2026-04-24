@@ -319,7 +319,7 @@ Most research actions run inside your installed AI runtime after GPD has been in
 | Start or orient | `start`, `tour` |
 | Create or import work | `new-project`, `new-project --minimal`, `map-research` |
 | Leave or return after a break | `gpd resume`, `gpd resume --recent`, `resume-work`, `pause-work`, `suggest-next` |
-| Run the research loop | `discuss-phase N`, `plan-phase N`, `execute-phase N`, `verify-work`, `progress`, `quick` |
+| Run the research loop | `discuss-phase N`, `plan-phase N`, `execute-phase N`, `verify-work`, `progress`, `quick` (add `gpd progress --watch` in a second terminal for a live heartbeat) |
 | Write and review | `write-paper`, `peer-review`, `respond-to-referees`, `arxiv-submission` |
 | Configure or branch | `settings`, `set-profile`, `set-tier-models`, `tangent`, `branch-hypothesis` |
 

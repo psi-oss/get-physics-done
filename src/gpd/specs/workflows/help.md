@@ -585,7 +585,7 @@ Usage: `gpd:progress`
 Usage: `gpd:progress --full` (detailed runtime view with all phase artifacts)
 Usage: `gpd:progress --brief` (compact runtime orientation)
 Usage: `gpd:progress --reconcile` (runtime-only state-vs-disk reconciliation mode)
-Local CLI: `gpd progress json|bar|table` (read-only render formats)
+Local CLI: `gpd progress json|bar|table` (read-only render formats; add `--watch` / `-w` for a polling heartbeat, `--interval <seconds>` tunes cadence, `--exit-on-idle` for scripting)
 
 ### Session Management
 

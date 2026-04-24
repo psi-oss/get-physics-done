@@ -2860,14 +2860,192 @@ def resume(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _progress_watch_sleep(seconds: float) -> None:
+    """Sleep for ``seconds`` seconds. Module-local shim for monkeypatching in tests."""
+    import time
+
+    time.sleep(seconds)
+
+
+def _is_idle(result: object) -> bool:
+    """Return True when ``result`` reports no live execution."""
+    return getattr(result, "live_execution", None) is None
+
+
+def _render_progress_watch_frame(result: object) -> None:
+    """Render a single watch-loop frame.
+
+    For TTY stdout this is a no-op — the TTY branch in ``_run_progress_watch_loop``
+    owns the ``rich.live.Live`` context. For non-TTY stdout we emit a single
+    compact JSON line via ``typer.echo`` so the stream is pipe-friendly.
+    """
+    if _stdout_is_interactive():
+        # TTY rendering is handled inside _run_progress_watch_loop where the
+        # Live context is held open across iterations. This branch exists so
+        # callers have a single unified frame-render entry point in principle.
+        return
+    payload = result.model_dump(mode="json", by_alias=True) if hasattr(result, "model_dump") else result
+    typer.echo(json.dumps(payload, ensure_ascii=False, default=str))
+
+
+def _progress_watch_live_table(result: object) -> Table:
+    """Build a rich ``Table`` for a single watch-loop tick (TTY branch)."""
+    table = Table(show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
+    table.add_column("Field")
+    table.add_column("Value")
+    live = getattr(result, "live_execution", None)
+    if live is None:
+        table.add_row("live_execution", "No active execution")
+        return table
+    fields = (
+        "phase",
+        "plan",
+        "wave",
+        "current_task",
+        "current_task_index",
+        "current_task_total",
+        "segment_status",
+        "waiting_reason",
+        "last_artifact_path",
+        "last_result_label",
+        "last_updated_age_label",
+        "strict_wait",
+        "never_interrupt_running_workers",
+        "never_auto_close_child_agents",
+    )
+    for name in fields:
+        value = getattr(live, name, None)
+        table.add_row(name, "" if value is None else str(value))
+    return table
+
+
+def _run_progress_watch_loop(
+    cwd: Path,
+    fmt: str,
+    interval: float,
+    exit_on_idle: bool,
+    *,
+    _max_ticks: int | None = None,
+) -> None:
+    """Poll the execution signal files and redraw progress at ``interval`` cadence.
+
+    First tick always renders. Subsequent ticks render only when at least one
+    signal file's ``st_mtime_ns`` changed since the previous snapshot, or when
+    ``_max_ticks`` forces loop exit first.
+
+    Private parameter ``_max_ticks`` is a test hook — when set, the loop exits
+    after the requested number of iterations regardless of mtime or idle state.
+    """
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.phases import progress_render
+
+    layout = ProjectLayout(cwd)
+    signal_paths: list[Path] = [
+        layout.state_json,
+        layout.current_observability_execution,
+        layout.execution_lineage_head,
+        layout.execution_lineage_ledger,
+    ]
+    last_mtimes: dict[Path, int | None] = {}
+    _unset = object()
+
+    def _snapshot_mtimes() -> bool:
+        changed = False
+        for path in signal_paths:
+            try:
+                mtime: int | None = path.stat().st_mtime_ns
+            except FileNotFoundError:
+                mtime = None
+            previous = last_mtimes.get(path, _unset)  # type: ignore[arg-type]
+            if previous is _unset or previous != mtime:
+                last_mtimes[path] = mtime
+                changed = True
+        return changed
+
+    tick = 0
+
+    if _stdout_is_interactive():
+        from rich.live import Live
+
+        # First tick always renders.
+        _snapshot_mtimes()
+        result = progress_render(cwd, fmt)
+        table = _progress_watch_live_table(result)
+        with Live(table, console=console, refresh_per_second=4) as live:
+            if exit_on_idle and _is_idle(result):
+                return
+            tick += 1
+            _progress_watch_sleep(interval)
+            if _max_ticks is not None and tick >= _max_ticks:
+                return
+            while True:
+                changed = _snapshot_mtimes()
+                if changed:
+                    result = progress_render(cwd, fmt)
+                    live.update(_progress_watch_live_table(result))
+                    if exit_on_idle and _is_idle(result):
+                        return
+                tick += 1
+                if _max_ticks is not None and tick >= _max_ticks:
+                    return
+                _progress_watch_sleep(interval)
+        return
+
+    # Non-TTY path — one JSON line per render.
+    _snapshot_mtimes()
+    result = progress_render(cwd, fmt)
+    _render_progress_watch_frame(result)
+    if exit_on_idle and _is_idle(result):
+        return
+    tick += 1
+    _progress_watch_sleep(interval)
+    if _max_ticks is not None and tick >= _max_ticks:
+        return
+    while True:
+        changed = _snapshot_mtimes()
+        if changed:
+            result = progress_render(cwd, fmt)
+            _render_progress_watch_frame(result)
+            if exit_on_idle and _is_idle(result):
+                return
+        tick += 1
+        if _max_ticks is not None and tick >= _max_ticks:
+            return
+        _progress_watch_sleep(interval)
+
+
 @app.command("progress")
 def progress(
     fmt: str = typer.Argument("json", help="Format: json, bar, or table"),
+    watch: bool = typer.Option(
+        False,
+        "--watch",
+        "-w",
+        help="Poll for updates and redraw until Ctrl-C.",
+    ),
+    interval: float = typer.Option(
+        10.0,
+        "--interval",
+        help="Redraw interval in seconds.",
+        min=0.1,
+    ),
+    exit_on_idle: bool = typer.Option(
+        False,
+        "--exit-on-idle",
+        help="Exit when no live execution is detected (for scripting).",
+    ),
 ) -> None:
     """Render progress in the specified format."""
     from gpd.core.phases import progress_render
 
-    _output(progress_render(_read_only_project_scoped_cwd(), fmt))
+    cwd = _read_only_project_scoped_cwd()
+    if not watch:
+        _output(progress_render(cwd, fmt))
+        return
+    try:
+        _run_progress_watch_loop(cwd, fmt, interval, exit_on_idle)
+    except KeyboardInterrupt:
+        return
 
 
 # ═══════════════════════════════════════════════════════════════════════════
