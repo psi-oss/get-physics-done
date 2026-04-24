@@ -1280,13 +1280,13 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
     """Load the bounded-execution policy for one project root."""
 
     if cwd is None:
-        return {}
+        return {"review_cadence": "dense"}
     try:
         from gpd.core.config import load_config
 
         cfg = load_config(cwd)
     except Exception:
-        return {}
+        return {"review_cadence": "dense"}
     return {
         "max_unattended_minutes_per_plan": int(getattr(cfg, "max_unattended_minutes_per_plan", 0) or 0),
         "max_unattended_minutes_per_wave": int(getattr(cfg, "max_unattended_minutes_per_wave", 0) or 0),
@@ -1294,6 +1294,7 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
         "checkpoint_after_first_load_bearing_result": bool(
             getattr(cfg, "checkpoint_after_first_load_bearing_result", True)
         ),
+        "review_cadence": str(getattr(cfg, "review_cadence", "dense") or "dense"),
     }
 
 
@@ -1349,12 +1350,16 @@ def _apply_automatic_execution_guards(
         )
     )
 
+    cadence = str(current.get("review_cadence") or policy.get("review_cadence") or "").strip().lower()
+    dense_forced = cadence == "dense"
     if (
         payload.name == "result"
         and payload.action in {"produce", "log"}
-        and load_bearing
-        and policy.get("checkpoint_after_first_load_bearing_result")
         and not current.get("first_result_gate_pending")
+        and (
+            (load_bearing and policy.get("checkpoint_after_first_load_bearing_result"))
+            or dense_forced
+        )
     ):
         current["first_result_ready"] = True
         current["first_result_gate_pending"] = True

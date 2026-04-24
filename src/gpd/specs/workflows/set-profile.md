@@ -167,8 +167,8 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 
 `set-profile` changes abstract tier assignments and behavior depth. It does NOT rewrite `execution.review_cadence`.
 
-- `dense` (default): more bounded review stops during execution
-- `adaptive`: inject first-result and risky-fanout gates while letting clean segments continue
+- `dense` (default): forces first-result and pre-fanout gates on every wave, regardless of risk classifier
+- `adaptive`: injects first-result and risky-fanout gates only when the classifier marks the wave risky
 - `sparse`: fewest bounded review stops beyond the required correctness gates
 
 Change cadence with `gpd:settings` or by editing `GPD/config.json` (`execution.review_cadence`: `"dense"` / `"adaptive"` / `"sparse"`).

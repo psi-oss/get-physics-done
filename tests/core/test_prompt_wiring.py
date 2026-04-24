@@ -3843,6 +3843,13 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
 
     assert "review_cadence" in execute_phase
     assert "FIRST_RESULT_GATE_REQUIRED" in execute_phase
+    # Dense cadence override — the Phase 4 risk-classifier short-circuit
+    assert "Dense cadence override:" in execute_phase
+    assert "treat every wave as risky" in execute_phase
+
+    # execute-plan clarifies that dense-forced FIRST_RESULT_GATE_REQUIRED
+    # must be honored as-passed, not recomputed from per-plan heuristics
+    assert "do not recompute" in execute_plan or "treat `FIRST_RESULT_GATE_REQUIRED=true` as forced" in execute_plan
     assert "probe_then_fanout" in execute_phase
     assert "bounded_execution" in execute_phase
     assert "autonomy` changes who is asked and when. It does NOT disable first-result sanity checks" in execute_plan

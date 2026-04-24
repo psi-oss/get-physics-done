@@ -445,6 +445,8 @@ When a wave is risky:
 - set `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}`
 - force bounded continuation segments even when the authored plan has no checkpoints
 
+**Dense cadence override:** when `review_cadence=dense`, treat every wave as risky regardless of the heuristic checks above. Set `FIRST_RESULT_GATE_REQUIRED=true` and `PRE_FANOUT_REVIEW_REQUIRED=true` unconditionally, and keep `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}` in force. The "not risky" branch below does not apply under dense — a clean pass may auto-continue once the gate fires, but the gate must fire.
+
 When a wave is not risky:
 
 - keep bounded execution available for long plans, wall-clock budgets, and context pressure
@@ -761,6 +763,7 @@ Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_D
 	   - if the plan is proof-bearing, `{plan_id}-PROOF-REDTEAM.md` exists and reports `status: passed`
 	   - decisive anchors still missing were explicitly named and re-questioned if necessary
 	   - if the contract owed a decisive comparison, either that comparison now has a pass verdict or the downstream work was explicitly scoped so it does not rely on that unresolved claim
+	   - if `review_cadence=dense` and the just-completed first wave emitted no `result/produce` or `result/log` event at all, STOP and require explicit user confirmation before advancing — a dense wave that produced no result event is indistinguishable from a silent failure and the first-result gate never had anything to trip on
 
    If this gate fails: STOP — do not let wrong early assumptions scale out.
 

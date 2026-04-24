@@ -176,6 +176,7 @@ CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_do
 Resolve plan-local bounds using orchestrator tags first, then plan shape:
 
 - if the orchestrator passed `<first_result_gate>true</first_result_gate>`, honor it
+- if `review_cadence=dense`, treat `FIRST_RESULT_GATE_REQUIRED=true` as forced; do not recompute it from per-plan heuristics
 - if the orchestrator passed `<segment_task_cap>N</segment_task_cap>`, honor it
 - otherwise require bounded execution when the plan has no authored checkpoints and `task_count >= CHECKPOINT_AFTER_N_TASKS`
 - also require bounded execution when the uninterrupted segment is likely to exceed `MAX_UNATTENDED_MINUTES_PER_PLAN`, even if the work feels smooth

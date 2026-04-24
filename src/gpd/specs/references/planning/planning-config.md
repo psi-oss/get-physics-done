@@ -108,7 +108,7 @@ The CLI checks `planning.commit_docs` config and gitignore status internally -- 
 
 | Value        | Behavior |
 | ------------ | -------- |
-| `"dense"`    | Default. Frequent bounded review points and short unattended segments |
+| `"dense"`    | Default. Force first-result and pre-fanout gates on every wave, regardless of the risk classifier |
 | `"adaptive"` | Insert first-result and risky-fanout gates automatically when results become load-bearing or decisive evidence remains unresolved |
 | `"sparse"`   | Fewest review stops, but required correctness gates still run when a result becomes load-bearing, decisive evidence is still missing, or a wall-clock/task budget trips |
 

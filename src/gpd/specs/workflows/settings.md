@@ -217,8 +217,8 @@ ask_user([
     header: "Cadence",
     multiSelect: false,
     options: [
-	      { label: "Adaptive (Recommended)", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue. Independent of profile choice. Mandatory proof red-teaming still runs when proof obligations exist." },
-	      { label: "Dense", description: "Frequent bounded review points for high-risk or high-touch work." },
+	      { label: "Dense (Recommended)", description: "Every wave gates on its first load-bearing result (and on any `result/produce|log` event) before fan-out. The first-result gate and pre-fanout review are forced regardless of the risk classifier." },
+	      { label: "Adaptive", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue." },
 	      { label: "Sparse", description: "Fewest review stops, but required correctness gates still run. Sparse mode does not waive proof red-teaming for proof-bearing work." }
 	    ]
 	  },

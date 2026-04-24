@@ -119,6 +119,60 @@ class TestGPDProjectConfigDefaults:
         assert cfg.model_overrides is None
 
 
+# ─── Dense cadence forces first-result gate ────────────────────────────────────
+
+
+class TestDenseCadenceForcesFirstResultGate:
+    def test_dense_cadence_with_disabled_gate_rejects_config(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "dense",
+                    "checkpoint_after_first_load_bearing_result": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigError, match="dense"):
+            load_config(tmp_path)
+
+    def test_dense_cadence_with_enabled_gate_loads_cleanly(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "dense",
+                    "checkpoint_after_first_load_bearing_result": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.review_cadence == ReviewCadence.DENSE
+        assert cfg.checkpoint_after_first_load_bearing_result is True
+
+    def test_non_dense_cadence_permits_disabled_gate(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "adaptive",
+                    "checkpoint_after_first_load_bearing_result": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.review_cadence == ReviewCadence.ADAPTIVE
+        assert cfg.checkpoint_after_first_load_bearing_result is False
+
+
 # ─── load_config ────────────────────────────────────────────────────────────────
 
 

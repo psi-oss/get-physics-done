@@ -13,7 +13,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
@@ -416,6 +416,20 @@ class GPDProjectConfig(BaseModel):
                 normalized[normalized_runtime_name] = normalized_runtime
 
         return normalized or None
+
+    @model_validator(mode="after")
+    def _enforce_dense_requires_first_result_gate(self) -> GPDProjectConfig:
+        if (
+            self.review_cadence is ReviewCadence.DENSE
+            and self.checkpoint_after_first_load_bearing_result is False
+        ):
+            raise ValueError(
+                "review_cadence=dense requires checkpoint_after_first_load_bearing_result=true; "
+                "dense cadence forces the first-result gate on every wave and cannot coexist "
+                "with the gate disabled. Either remove the override or switch review_cadence "
+                "to adaptive or sparse."
+            )
+        return self
 
 
 # ─── Config Loading ─────────────────────────────────────────────────────────────
