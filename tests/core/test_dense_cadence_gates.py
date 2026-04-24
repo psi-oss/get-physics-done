@@ -173,3 +173,36 @@ def test_dense_cadence_cannot_be_overridden_to_disable_gate(tmp_path: Path) -> N
 
     with pytest.raises(ConfigError, match="dense"):
         load_config(tmp_path)
+
+
+def test_clean_wave_under_dense_batches_post_task_checkpoints() -> None:
+    """Under supervised + dense, a wave whose tasks all pass cleanly collapses
+    per-task checkpoints into one batch approval; any deviation reverts to
+    per-task. Pinned in execute-plan.md so the orchestrator respects it."""
+    execute_plan = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "gpd"
+        / "specs"
+        / "workflows"
+        / "execute-plan.md"
+    ).read_text(encoding="utf-8")
+
+    # Cadence table row (L155) describes dense clean-pass batching.
+    assert "review_cadence=dense" in execute_plan
+    assert "Approve tasks" in execute_plan
+    assert "clean pass" in execute_plan.lower()
+
+    # Supervised post-task block (L412-414) documents the batching rule + fallback.
+    assert "Clean-wave batching under dense" in execute_plan
+
+    # Deviation fallback is explicit: any deviation flips back to per-task.
+    assert (
+        "reverts to per-task" in execute_plan
+        or "reverts the wave" in execute_plan
+        or "falls back to per-task" in execute_plan
+        or "no partial batching" in execute_plan
+    )
+
+    # Batching must not relax gates — Phase 4 invariant.
+    assert "collapses keystrokes, not gates" in execute_plan

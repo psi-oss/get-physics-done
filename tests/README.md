@@ -32,7 +32,7 @@ This graph therefore includes:
 - `src/gpd/agents/*.md`: `24`
 - `src/gpd/specs/workflows/*.md`: `72`
 - `src/gpd/specs/templates/**/*.md`: `80`
-- `src/gpd/specs/references/**/*.md`: `180`
+- `src/gpd/specs/references/**/*.md`: `181`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/servers/*.py`: `9`

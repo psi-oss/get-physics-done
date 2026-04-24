@@ -152,11 +152,11 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
-| **supervised** | After EVERY task plus every required first-result gate | Always | Always stop |
+| **supervised** | After EVERY task plus every required first-result gate. Under `review_cadence=dense`, a wave whose tasks all pass verification with no deviations may collapse its per-task checkpoints into one "Approve tasks {N..M} as clean pass? `[Y/n/e]`" batch (any task flagging a deviation flips the wave back to per-task) | Always | Always stop |
 | **balanced** (default) | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result, skeptical, or pre-fanout gates | Stop only on unrecoverable errors, failed sanity gates, or unresolved skeptical review |
 
-**Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops.
+**Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops. Clean-wave batching under dense collapses keystrokes, not gates — any deviation, failed verification, or triggered gate reverts the wave to per-task checkpoints for the remaining tasks.
 
 Task checkpoints are task-level, not every internal algebra line. Model profile and research mode may change depth or task granularity, but they do NOT remove required first-result, skeptical, or pre-fanout gates.
 
@@ -410,6 +410,8 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      If the same stop also carried a tangent proposal, keep the optional `tangent_summary` / `tangent_decision` fields on the existing `execution` payload until that review stop is explicitly resolved. Do not auto-branch or create side work from telemetry alone.
 
      **Supervised mode post-task checkpoint:** If `AUTONOMY="supervised"`, insert a `checkpoint:human-verify` after EVERY completed task. Emit the checkpoint return with the task result and all intermediate values; the orchestrator owns presenting it and collecting approval in a fresh continuation before any next task is accepted. Every such `checkpoint:human-verify` uses the `[Y/n/e]` idiom with a one-line summary (see `specs/references/orchestration/checkpoint-ux-convention.md`).
+
+     **Clean-wave batching under dense:** when `AUTONOMY="supervised"` AND `review_cadence=dense` AND every task in the wave completed with no deviation (no `deviation` trace events, `verification-complete` without failure language, no `first_result` / `pre_fanout` / `skeptical` gate pending, and the return envelope carries `status="completed"` with empty `issues`), collapse the per-task `checkpoint:human-verify` emissions into one batch "Approve tasks {N..M} as clean pass? `[Y/n/e]`" presented after the last task in the wave. On `Y` / Enter, all batched tasks are accepted at once; on `n`, the batch is rejected and each task's per-task checkpoint is re-presented individually for review; on `e`, the user opens freeform for per-task notes. If ANY task in the wave emits a deviation, fails verification, or trips a required gate, the wave immediately reverts to per-task checkpoints for the remaining tasks — no partial batching.
    - `type="checkpoint:*"`: Route by autonomy mode:
      - **supervised:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> return structured checkpoint state to the orchestrator. The orchestrator presents the checkpoint and resumes only through a fresh continuation.
      - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, any checkpoint tied to deviation rules 5-6 or unresolved convergence failure, and any case where decisive evidence is still missing but the next tasks would assume it. Log routine checkpoint markers and continue when no judgment is needed.
