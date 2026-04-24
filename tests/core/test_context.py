@@ -1859,11 +1859,14 @@ class TestInitPlanPhase:
         ctx = init_progress(tmp_path)
 
         project_contract = ctx.get("project_contract")
+        gate = ctx["project_contract_gate"]
         if isinstance(project_contract, dict):
-            assert project_contract["scope"]["question"] == contract.scope.question
-        assert ctx["project_contract_gate"]["authoritative"] is False
-        assert ctx["project_contract_gate"]["repair_required"] is True
-        assert ctx["project_contract_gate"]["visible"] is True
+            assert project_contract["scope"]["question"] == contract.scope.question, (
+                f"gate={gate!r} project_contract={project_contract!r}"
+            )
+        assert gate["authoritative"] is False, f"gate={gate!r}"
+        assert gate["repair_required"] is True, f"gate={gate!r}"
+        assert gate["visible"] is True, f"gate={gate!r} project_contract_type={type(project_contract).__name__}"
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert ctx["selected_protocol_bundle_ids"] == []
         assert ctx["active_reference_count"] == 0
