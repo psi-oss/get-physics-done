@@ -46,7 +46,7 @@ The `[Y/n/e]` convention does NOT apply to these checkpoints. Keep their existin
 
 Under `review_cadence=dense`, the following batching applies:
 
-- **Clean-wave batching**: if every task in a wave passed with no deviation, collapse the N per-task `checkpoint:human-verify` prompts into a single "Approve tasks N..M as clean pass? [Y/n/e]". Any task flagging a deviation falls back to per-task.
+- **Clean-wave batching**: under `review_cadence=dense`, a clean wave collapses per-task `checkpoint:human-verify` prompts into a single "Approve tasks N..M as clean pass? [Y/n/e]". Full predicate and fallback semantics in `execute-plan.md §supervised_post_task_checkpoint`.
 - **Verification batching**: `specs/workflows/verify-phase.md` auto-passed checks is the repo batch-approval template — summary table + single batch-approve prompt.
 - **Intake consolidation**: prefer a single `ask_user([...])` form over sequential asks; pattern mirrors `specs/workflows/settings.md` (multiple questions in one ask).
 

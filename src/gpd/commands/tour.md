@@ -15,7 +15,7 @@ Explain what the main commands are for, when to use each one, and how they fit
 together in plain language for a first-time user. Explain advanced terms the
 first time they appear instead of assuming GPD terminology, CLI familiarity, or
 prior workflow knowledge. Do not create project artifacts, do not create files,
-and do not silently route into another workflow. GPD is a scalpel, not an autopilot — treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect.
+and do not silently route into another workflow.
 </objective>
 
 <execution_context>

@@ -152,7 +152,7 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)
 
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
-| **supervised** | After EVERY task plus every required first-result gate. Under `review_cadence=dense`, a wave whose tasks all pass verification with no deviations may collapse its per-task checkpoints into one "Approve tasks {N..M} as clean pass? `[Y/n/e]`" batch (any task flagging a deviation flips the wave back to per-task) | Always | Always stop |
+| **supervised** | After EVERY task plus every required first-result gate. Under `review_cadence=dense`, a wave with no deviations may collapse its per-task checkpoints into one "Approve tasks {N..M} as clean pass? `[Y/n/e]`" batch (see "Clean-wave batching under dense" for the full predicate) | Always | Always stop |
 | **balanced** | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result, skeptical, or pre-fanout gates | Stop only on unrecoverable errors, failed sanity gates, or unresolved skeptical review |
 

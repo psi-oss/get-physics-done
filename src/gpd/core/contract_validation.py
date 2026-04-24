@@ -954,16 +954,7 @@ _CLAIM_ALIGNMENT_MISSING_ACCEPTANCE_TEST = "(no linked acceptance test)"
 def claim_deliverable_alignment_summary(
     contract: ResearchContract,
 ) -> list[tuple[str, str, str]]:
-    """Project ``(claim.statement, deliverable.description, acceptance_test.pass_condition)`` rows.
-
-    Emits one row per claim when the claim has no linked deliverables or
-    acceptance tests, filling the gap with
-    ``"(no linked deliverable)"`` / ``"(no linked acceptance test)"``.
-    For claims that link multiple deliverables and/or acceptance tests the
-    rows are zipped with :func:`itertools.zip_longest` so each linked
-    deliverable and each linked acceptance test appears at least once
-    without producing a full combinatorial explosion.
-    """
+    """Return ``(claim.statement, deliverable.description, acceptance_test.pass_condition)`` rows, zip-longest-joined per claim with ``"(no linked …)"`` sentinels when unlinked."""
 
     deliverables_by_id: dict[str, ContractDeliverable] = {
         deliverable.id: deliverable for deliverable in contract.deliverables
@@ -1012,11 +1003,7 @@ def claim_deliverable_alignment_summary(
 
 
 def contract_fingerprint(contract: ResearchContract) -> str:
-    """Return a stable ``"sha256:<hex>"`` fingerprint for ``contract``.
-
-    Mirrors :func:`gpd.core.kernel._content_address` by hashing canonical
-    JSON of ``contract.model_dump(mode="json")``.
-    """
+    """Return a stable ``"sha256:<hex>"`` fingerprint for ``contract`` (canonical JSON hash; mirrors :func:`gpd.core.kernel._content_address`)."""
 
     return _content_address(contract.model_dump(mode="json"))
 

@@ -384,9 +384,7 @@ gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$
 
 **On "n: abort":** Exit cleanly. Do NOT spawn any executor and do NOT proceed to `discover_and_group_plans`. Emit a final line `"Next Up: gpd:execute-phase {N}"` so the operator can resume after resolving alignment.
 
-**On "e: edit CONTEXT":** Hand off to `gpd:discuss-phase {N}`. After that workflow returns, re-enter this step exactly once to re-render the side-by-side against the revised CONTEXT. If `e` is chosen a second time in the same invocation, defer explicitly to `gpd:discuss-phase {N}` and stop looping — do not re-enter a third time.
-
-**On "p: edit PLAN contract":** Hand off to `gpd:plan-phase {N} --revise`. After that workflow returns, re-enter this step exactly once to re-render the side-by-side against the revised contract. If `p` is chosen a second time in the same invocation, defer explicitly to `gpd:plan-phase {N} --revise` and stop looping — do not re-enter a third time.
+**On "e" (edit CONTEXT) / "p" (edit PLAN contract):** Hand off to the corresponding workflow — `gpd:discuss-phase {N}` for `e`, `gpd:plan-phase {N} --revise` for `p`. After it returns, re-enter this step exactly once to re-render the side-by-side against the revised inputs. If the same key is chosen a second time in one invocation, defer to that workflow and stop looping — do not re-enter a third time.
 </step>
 
 <step name="discover_and_group_plans">
@@ -507,7 +505,7 @@ When a wave is risky:
 - set `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}`
 - force bounded continuation segments even when the authored plan has no checkpoints
 
-**Dense cadence override:** when `review_cadence=dense`, treat every wave as risky regardless of the heuristic checks above. Set `FIRST_RESULT_GATE_REQUIRED=true` and `PRE_FANOUT_REVIEW_REQUIRED=true` unconditionally, and keep `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}` in force. The "not risky" branch below does not apply under dense — a clean pass may auto-continue once the gate fires, but the gate must fire.
+**Dense cadence override:** when `review_cadence=dense`, treat every wave as risky regardless of the heuristic checks above, applying the "When a wave is risky" bullets unconditionally (in particular `FIRST_RESULT_GATE_REQUIRED=true` and `PRE_FANOUT_REVIEW_REQUIRED=true`). The "not risky" branch does not apply; a clean pass may auto-continue once the gate fires, but the gate must fire.
 
 When a wave is not risky:
 

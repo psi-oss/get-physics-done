@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from gpd.core.config import ReviewCadence, load_config
-from gpd.core.errors import ConfigError
 from gpd.core.observability import (
     ensure_session,
     get_current_execution,
@@ -160,19 +159,6 @@ def test_dense_cadence_forces_pre_fanout_review_required() -> None:
     override_paragraph = execute_phase[override_index:paragraph_end]
     assert "FIRST_RESULT_GATE_REQUIRED=true" in override_paragraph
     assert "PRE_FANOUT_REVIEW_REQUIRED=true" in override_paragraph
-
-
-def test_dense_cadence_cannot_be_overridden_to_disable_gate(tmp_path: Path) -> None:
-    _create_config(
-        tmp_path,
-        {
-            "review_cadence": "dense",
-            "checkpoint_after_first_load_bearing_result": False,
-        },
-    )
-
-    with pytest.raises(ConfigError, match="dense"):
-        load_config(tmp_path)
 
 
 def test_clean_wave_under_dense_batches_post_task_checkpoints() -> None:

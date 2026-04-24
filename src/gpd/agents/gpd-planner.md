@@ -393,8 +393,6 @@ Every task has four required fields:
 | `checkpoint:decision`     | Approach selection, approximation choices     | Pauses for researcher |
 | `checkpoint:human-action` | Truly unavoidable manual steps (rare)         | Pauses for researcher |
 
-> `checkpoint:human-verify` resume-signals use `[Y/n/e]` (Enter = accept). `checkpoint:decision` keeps labeled options. `checkpoint:human-action` keeps bespoke free-form phrasing. See `specs/references/orchestration/checkpoint-ux-convention.md`.
-
 **Automation-first rule:** If the assistant CAN do it (derive, code, compute, plot), the assistant MUST do it. Checkpoints verify AFTER automation, not replace it.
 
 ## Task Sizing

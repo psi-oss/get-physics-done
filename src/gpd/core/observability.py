@@ -1184,6 +1184,7 @@ def _normalized_tangent_decision(value: object) -> str | None:
 
 _EXECUTION_REVIEW_REASONS = frozenset({"first_result", "pre_fanout", "skeptical_requestioning"})
 _RESULT_VERBS: frozenset[str] = frozenset({"produce", "log"})
+_DEFAULT_REVIEW_CADENCE: str = "dense"
 
 
 def _review_clear_targets(execution: dict[str, object]) -> set[str]:
@@ -1281,13 +1282,13 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
     """Load the bounded-execution policy for one project root."""
 
     if cwd is None:
-        return {"review_cadence": "dense"}
+        return {"review_cadence": _DEFAULT_REVIEW_CADENCE}
     try:
         from gpd.core.config import load_config
 
         cfg = load_config(cwd)
     except Exception:
-        return {"review_cadence": "dense"}
+        return {"review_cadence": _DEFAULT_REVIEW_CADENCE}
     return {
         "max_unattended_minutes_per_plan": int(getattr(cfg, "max_unattended_minutes_per_plan", 0) or 0),
         "max_unattended_minutes_per_wave": int(getattr(cfg, "max_unattended_minutes_per_wave", 0) or 0),
@@ -1295,7 +1296,7 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
         "checkpoint_after_first_load_bearing_result": bool(
             getattr(cfg, "checkpoint_after_first_load_bearing_result", True)
         ),
-        "review_cadence": str(getattr(cfg, "review_cadence", "dense") or "dense"),
+        "review_cadence": str(getattr(cfg, "review_cadence", _DEFAULT_REVIEW_CADENCE) or _DEFAULT_REVIEW_CADENCE),
     }
 
 

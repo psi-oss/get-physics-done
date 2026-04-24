@@ -145,6 +145,7 @@ from gpd.core.workflow_presets import (
 from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION
 
 if TYPE_CHECKING:
+    from gpd.core.constants import ProjectLayout
     from gpd.core.health import UnattendedReadinessResult
     from gpd.mcp.paper.bibliography import CitationSource
     from gpd.mcp.paper.models import PaperConfig, WritePaperAuthoringInput
@@ -1361,13 +1362,13 @@ contract_app = typer.Typer(help="Machine-contract alignment gate (claim-delivera
 app.add_typer(contract_app, name="contract")
 
 
-def _require_project_root_for_contract(cwd: Path) -> Path:
-    """Require a verified GPD project root for contract-alignment commands."""
+def _require_project_root(cwd: Path, *, command_label: str) -> Path:
+    """Require a verified GPD project root; ``command_label`` is the noun used in the error."""
     workspace_cwd = cwd.expanduser().resolve(strict=False)
     project_root = resolve_project_root(workspace_cwd, require_layout=True)
     if project_root is None:
         _error(
-            "gpd contract commands require a real GPD project root. "
+            f"{command_label} require a real GPD project root. "
             "Run the command from inside a project with a GPD/ layout."
         )
     return project_root
@@ -1385,7 +1386,7 @@ def contract_record_alignment(
     """Persist operator confirmation that the claim-deliverable alignment was reviewed."""
     from gpd.core.state import state_record_contract_alignment
 
-    project_root = _require_project_root_for_contract(_get_cwd())
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     state_record_contract_alignment(
         project_root,
         contract_hash=contract_hash,
@@ -1402,7 +1403,7 @@ def contract_alignment_status() -> None:
     """Print the persisted claim-deliverable alignment confirmation as JSON."""
     from gpd.core.state import state_load
 
-    project_root = _require_project_root_for_contract(_get_cwd())
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     load_result = state_load(project_root)
     state_obj = load_result.state if isinstance(load_result.state, dict) else {}
     alignment = state_obj.get("contract_alignment") or {}
@@ -1420,7 +1421,7 @@ def contract_fingerprint_cmd() -> None:
     from gpd.core.contract_validation import contract_fingerprint
     from gpd.core.state import _load_project_contract_for_runtime_context
 
-    project_root = _require_project_root_for_contract(_get_cwd())
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     contract, _load_info = _load_project_contract_for_runtime_context(project_root)
     if contract is None:
         _error("No project contract is available; cannot fingerprint.")
@@ -1441,7 +1442,7 @@ def contract_context_fingerprint_cmd(
     from gpd.core.phases import find_phase
     from gpd.core.state import state_load
 
-    project_root = _require_project_root_for_contract(_get_cwd())
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     if path is None:
         state_obj = state_load(project_root).state
         current_phase = (
@@ -1476,7 +1477,7 @@ def contract_alignment_summary_cmd() -> None:
     from gpd.core.contract_validation import claim_deliverable_alignment_summary
     from gpd.core.state import _load_project_contract_for_runtime_context
 
-    project_root = _require_project_root_for_contract(_get_cwd())
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     contract, _load_info = _load_project_contract_for_runtime_context(project_root)
     if contract is None:
         _error("No project contract is available; cannot render alignment summary.")
@@ -2900,22 +2901,6 @@ def _is_idle(result: object) -> bool:
     return getattr(result, "live_execution", None) is None
 
 
-def _render_progress_watch_frame(result: object) -> None:
-    """Render a single watch-loop frame.
-
-    For TTY stdout this is a no-op — the TTY branch in ``_run_progress_watch_loop``
-    owns the ``rich.live.Live`` context. For non-TTY stdout we emit a single
-    compact JSON line via ``typer.echo`` so the stream is pipe-friendly.
-    """
-    if _stdout_is_interactive():
-        # TTY rendering is handled inside _run_progress_watch_loop where the
-        # Live context is held open across iterations. This branch exists so
-        # callers have a single unified frame-render entry point in principle.
-        return
-    payload = result.model_dump(mode="json", by_alias=True) if hasattr(result, "model_dump") else result
-    typer.echo(json.dumps(payload, ensure_ascii=False, default=str))
-
-
 def _progress_watch_live_table(result: object) -> Table:
     """Build a rich ``Table`` for a single watch-loop tick (TTY branch)."""
     table = Table(show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
@@ -2947,6 +2932,16 @@ def _progress_watch_live_table(result: object) -> Table:
     return table
 
 
+def _collect_watch_signals(layout: ProjectLayout) -> list[Path]:
+    """Return the filesystem paths whose mtimes gate a progress-watch redraw."""
+    return [
+        layout.state_json,
+        layout.current_observability_execution,
+        layout.execution_lineage_head,
+        layout.execution_lineage_ledger,
+    ]
+
+
 def _run_progress_watch_loop(
     cwd: Path,
     fmt: str,
@@ -2964,82 +2959,69 @@ def _run_progress_watch_loop(
     Private parameter ``_max_ticks`` is a test hook — when set, the loop exits
     after the requested number of iterations regardless of mtime or idle state.
     """
+    import contextlib
+
     from gpd.core.constants import ProjectLayout
     from gpd.core.phases import progress_render
 
     layout = ProjectLayout(cwd)
-    signal_paths: list[Path] = [
-        layout.state_json,
-        layout.current_observability_execution,
-        layout.execution_lineage_head,
-        layout.execution_lineage_ledger,
-    ]
-    last_mtimes: dict[Path, int | None] = {}
+    signal_paths = _collect_watch_signals(layout)
     _unset = object()
+    last_mtimes: dict[Path, int | None | object] = dict.fromkeys(signal_paths, _unset)
 
-    def _snapshot_mtimes() -> bool:
+    def _should_redraw() -> bool:
         changed = False
         for path in signal_paths:
             try:
                 mtime: int | None = path.stat().st_mtime_ns
-            except FileNotFoundError:
+            except OSError:
                 mtime = None
-            previous = last_mtimes.get(path, _unset)  # type: ignore[arg-type]
-            if previous is _unset or previous != mtime:
+            if last_mtimes[path] is _unset or last_mtimes[path] != mtime:
                 last_mtimes[path] = mtime
                 changed = True
         return changed
 
-    tick = 0
-
+    live_cm: object
+    first: object | None
     if _stdout_is_interactive():
         from rich.live import Live
 
-        # First tick always renders.
-        _snapshot_mtimes()
-        result = progress_render(cwd, fmt)
-        table = _progress_watch_live_table(result)
-        with Live(table, console=console, refresh_per_second=4) as live:
-            if exit_on_idle and _is_idle(result):
-                return
+        _should_redraw()  # prime
+        first = progress_render(cwd, fmt)
+        live_cm = Live(
+            _progress_watch_live_table(first),
+            console=console,
+            refresh_per_second=4,
+        )
+
+        def render(result: object) -> None:
+            live_cm.update(_progress_watch_live_table(result))  # type: ignore[attr-defined]
+    else:
+        live_cm = contextlib.nullcontext()
+        first = None
+
+        def render(result: object) -> None:
+            payload = result.model_dump(mode="json", by_alias=True)
+            typer.echo(json.dumps(payload, ensure_ascii=False, default=str))
+
+    with live_cm:  # type: ignore[attr-defined]
+        if first is None:
+            _should_redraw()
+            first = progress_render(cwd, fmt)
+            render(first)
+        if exit_on_idle and _is_idle(first):
+            return
+        tick = 0
+        while True:
             tick += 1
-            _progress_watch_sleep(interval)
             if _max_ticks is not None and tick >= _max_ticks:
                 return
-            while True:
-                changed = _snapshot_mtimes()
-                if changed:
-                    result = progress_render(cwd, fmt)
-                    live.update(_progress_watch_live_table(result))
-                    if exit_on_idle and _is_idle(result):
-                        return
-                tick += 1
-                if _max_ticks is not None and tick >= _max_ticks:
+            _progress_watch_sleep(interval)
+            if _should_redraw():
+                result = progress_render(cwd, fmt)
+                render(result)
+                if exit_on_idle and _is_idle(result):
                     return
-                _progress_watch_sleep(interval)
-        return
-
-    # Non-TTY path — one JSON line per render.
-    _snapshot_mtimes()
-    result = progress_render(cwd, fmt)
-    _render_progress_watch_frame(result)
-    if exit_on_idle and _is_idle(result):
-        return
-    tick += 1
-    _progress_watch_sleep(interval)
-    if _max_ticks is not None and tick >= _max_ticks:
-        return
-    while True:
-        changed = _snapshot_mtimes()
-        if changed:
-            result = progress_render(cwd, fmt)
-            _render_progress_watch_frame(result)
-            if exit_on_idle and _is_idle(result):
-                return
-        tick += 1
-        if _max_ticks is not None and tick >= _max_ticks:
-            return
-        _progress_watch_sleep(interval)
 
 
 @app.command("progress")
@@ -5563,20 +5545,9 @@ app.add_typer(config_app, name="config")
 _WOLFRAM_INTEGRATION_NAME = WOLFRAM_MANAGED_INTEGRATION.integration_id
 
 
-def _require_project_root_for_integrations(cwd: Path) -> Path:
-    """Require a verified GPD project root for project-scoped integrations."""
-    workspace_cwd = cwd.expanduser().resolve(strict=False)
-    project_root = resolve_project_root(workspace_cwd, require_layout=True)
-    if project_root is None:
-        _error(
-            "gpd integrations require a real GPD project root. Run the command from inside a project with a GPD/ layout."
-        )
-    return project_root
-
-
 def _integrations_config_path(cwd: Path) -> Path:
     """Return the per-project shared-integration config path."""
-    project_root = _require_project_root_for_integrations(cwd)
+    project_root = _require_project_root(cwd, command_label="gpd integrations")
     return WOLFRAM_MANAGED_INTEGRATION.project_config_path(project_root)
 
 
@@ -5584,7 +5555,7 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
     """Persist the Wolfram integration override in the project-local config file."""
     from gpd.core.utils import atomic_write, file_lock
 
-    project_root = _require_project_root_for_integrations(cwd)
+    project_root = _require_project_root(cwd, command_label="gpd integrations")
     config_path = _integrations_config_path(project_root)
     with file_lock(config_path):
         try:
@@ -5621,7 +5592,7 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
 
 def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
     """Return the effective project-local status payload for the Wolfram integration."""
-    project_root = _require_project_root_for_integrations(cwd)
+    project_root = _require_project_root(cwd, command_label="gpd integrations")
     config_path = _integrations_config_path(project_root)
     try:
         record = WOLFRAM_MANAGED_INTEGRATION.project_record(project_root)
