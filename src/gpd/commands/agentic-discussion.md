@@ -41,6 +41,8 @@ Execute the ideate workflow from @{GPD_INSTALL_DIR}/workflows/ideate.md end-to-e
 
 Keep the wrapper thin and public-facing. The execution context owns orchestration details, worker fan-out, synthesis, and any internal control flow. Describe the command as a live conversational session that helps the user explore a topic with multiple research perspectives, surfaces the discussion as agent-first transcript turns, yields immediately to new user questions or redirects, continues naturally after clean turns, and wraps up with takeaways or next moves only when useful.
 
+Publicly, agents may briefly announce a deeper-check detour when useful, and they should ask inline before any meaningfully longer pause.
+
 In public-facing terms, the startup shape should read as: seed question or brief, optional exact named context, short first-pass setup when needed, then immediate discussion. Keep that visible contract lightweight even when the workflow preserves richer internal launch state.
 
 Do not center or enumerate internal approval loops, bounded rounds, review gates, branch-specific coordination, moderator-style menu handoffs, or other workflow-specific control surfaces in the public command contract. Do not claim durable ideation session storage, resumable ideation state, transient branch transcripts, promotion of temporary internal branches, tagging, imported-document handling, or other persistence systems unless a later workflow explicitly adds them. The contract here is an in-memory conversational research session, not a durable ideation artifact system.

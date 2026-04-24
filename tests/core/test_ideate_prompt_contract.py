@@ -218,6 +218,28 @@ def test_ideate_public_contract_keeps_the_visible_flow_transcript_first_and_open
     )
 
 
+def test_ideate_public_contract_mentions_lightweight_deeper_check_detours() -> None:
+    _assert_ideate_surfaces_exist()
+
+    command = _read(PUBLIC_COMMAND_PATH)
+    help_entry = _help_command_entry(_read(HELP_WORKFLOW_PATH), PUBLIC_COMMAND_NAME)
+
+    assert _contains_any_lower(
+        command,
+        "deeper-check detour",
+        "deeper check",
+        "meaningfully longer pause",
+        "ask inline before any meaningfully longer pause",
+    )
+    assert _contains_any_lower(
+        help_entry,
+        "cheap checks stay inside the turn",
+        "brief deeper check",
+        "approval inline first",
+        "reports back inline",
+    )
+
+
 def test_ideate_contract_keeps_project_context_opt_in_and_user_named() -> None:
     _assert_ideate_surfaces_exist()
 

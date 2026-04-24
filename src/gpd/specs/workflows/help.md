@@ -318,6 +318,7 @@ Run an optional pre-project, projectless, non-durable transcript-first multi-age
 - The visible default is an agent-first discussion transcript rather than durable setup or a moderator-led launch menu
 - The visible default cast is `Literature-Aware Skeptic` and `Technical Calculator`; after first appearance, recurring turns may use the shorter `Skeptic` and `Calculator` labels
 - Uses that two-role discussion to surface promising directions, pressure-test assumptions, identify concerns or next checks, and let both roles ask natural follow-up questions inside the turn
+- Cheap checks stay inside the turn; if an agent needs a brief deeper check, it says so, longer pauses ask for your approval inline first, and the result reports back inline before the discussion continues
 - If you jump in with a new question or redirect, the discussion follows that immediately; otherwise clean turns continue with a short natural handoff, and synthesis or recap is secondary until you ask for it or a blocker, checkpoint, or divergence makes it useful
 - Keeps the session non-durable; it does not create `PROJECT.md`, `RESEARCH.md`, `ROADMAP.md`, `GPD/ideation/`, `GPD/quick/`, resumable ideate state, session transcripts, or other durable ideation artifacts
 - Keeps project context opt-in rather than auto-loading project state into the session

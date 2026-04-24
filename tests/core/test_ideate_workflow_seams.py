@@ -858,6 +858,16 @@ def test_ideate_visible_turn_semantics_keep_control_statuses_separate_from_clean
         "non-blocking questions inside normal completed-turn content",
         "ask a natural question that still counts as completed-turn content",
     )
+    assert _contains_any_lower(
+        worker_process,
+        "follow-on deeper check",
+        "stand-alone report-back",
+    )
+    assert _contains_any_lower(
+        worker_return_contract,
+        "report-back turn",
+        "completed follow-on run after a deeper check",
+    )
 
 
 def test_ideate_round_review_locks_priority_rule_open_continuation_default_and_fresh_parent_owned_follow_up() -> None:
@@ -1101,6 +1111,46 @@ def test_ideate_focused_follow_up_stays_parent_owned_fileless_and_summary_first(
         "breakout recap",
         "subgroup objective",
         "subgroup rounds completed",
+    )
+
+
+def test_ideate_deeper_check_detours_stay_brief_parent_owned_and_report_back_inline() -> None:
+    workflow = _read(IDEATE_WORKFLOW)
+    round_loop = _step_body(workflow, "run_round_loop")
+    round_review_gate = _step_body(workflow, "round_review_gate")
+    focused_follow_up_note = _step_body(workflow, "focused_follow_up_note")
+    success_criteria = _tag_body(workflow, "success_criteria")
+    combined = "\n".join((round_loop, round_review_gate, focused_follow_up_note, success_criteria))
+
+    assert _contains_any_lower(
+        combined,
+        "deeper check",
+        "cheap checks stay inside the normal turn",
+        "cheap checks stay inline",
+    )
+    assert _contains_any_lower(
+        combined,
+        "meaningfully longer than a normal turn",
+        "meaningfully longer pause",
+        "ask inline permission before launching it",
+    )
+    assert _contains_any_lower(
+        combined,
+        "away-status",
+        "sparse away-status",
+        "brief progress update",
+    )
+    assert _contains_any_lower(
+        combined,
+        "distinct report-back turn",
+        "report-back turn from that participant",
+        "reports back inline",
+    )
+    assert _contains_any_lower(
+        combined,
+        "no worker waits in place",
+        "fresh detour rerun",
+        "fresh one-shot workers",
     )
 
 

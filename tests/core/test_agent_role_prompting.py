@@ -201,6 +201,10 @@ def test_ideation_research_participants_preserve_one_shot_checkpoint_and_fileles
             "Do not write files in this phase. Do not claim ownership of continuation, synthesis, or future rounds."
             in content
         ), name
+        assert (
+            "The orchestrator owns any deeper-check detour routing. Do not invent detour state or wait in place."
+            in content
+        ), name
         if "files_written:" in content:
             assert re.search(
                 r"(^|[\r\n])\s*files_written:\s*\[\s*\]",
@@ -245,6 +249,16 @@ def test_ideation_worker_makes_web_and_shell_checks_first_class_turn_operations(
     )
     assert re.search(
         r"`?shell`?[\s\S]{0,220}?(calculation|analytic|estimate|unit conversion|inline script|compute)",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"cheap[\s\S]{0,120}?inline",
+        body,
+        re.IGNORECASE,
+    )
+    assert re.search(
+        r"meaningfully longer pass[\s\S]{0,180}?checkpoint[\s\S]{0,160}?deeper check",
         body,
         re.IGNORECASE,
     )
@@ -294,6 +308,12 @@ def test_ideation_worker_requires_provenance_and_honest_tool_failure_reporting()
         "fileless",
         "do not write files",
         "without writing files",
+    )
+    _assert_contains_any_lower(
+        body,
+        "follow-on deeper check",
+        "stand-alone report-back",
+        "report-back turn",
     )
 
 

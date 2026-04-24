@@ -84,6 +84,10 @@ def test_help_workflow_keeps_agentic_discussion_in_no_project_getting_started_in
         "- The visible default is an agent-first discussion transcript rather than durable setup or a moderator-led "
         "launch menu"
     ) in detailed_entry
+    assert (
+        "- Cheap checks stay inside the turn; if an agent needs a brief deeper check, it says so, longer pauses ask "
+        "for your approval inline first, and the result reports back inline before the discussion continues"
+    ) in detailed_entry
 
 
 def test_readme_quick_start_table_keeps_agentic_discussion_in_pre_project_decision_surface() -> None:
