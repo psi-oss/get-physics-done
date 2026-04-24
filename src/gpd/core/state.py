@@ -101,6 +101,7 @@ __all__ = [
     "AddBlockerResult",
     "AddDecisionResult",
     "AdvancePlanResult",
+    "ContractAlignmentGate",
     "Decision",
     "MetricRow",
     "PerformanceMetrics",
@@ -141,6 +142,7 @@ __all__ = [
     "state_has_field",
     "state_load",
     "state_patch",
+    "state_record_contract_alignment",
     "state_record_metric",
     "state_record_session",
     "state_record_verification",
@@ -418,6 +420,16 @@ class Position(BaseModel):
     paused_at: str | None = None
 
 
+class ContractAlignmentGate(BaseModel):
+    """Persisted confirmation that the operator reviewed the claim↔deliverable alignment for the current contract+CONTEXT hash."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    confirmed_at: str | None = None
+    confirmed_contract_hash: str | None = None
+    confirmed_context_hash: str | None = None
+
+
 class Decision(BaseModel):
     """A recorded research decision."""
 
@@ -469,6 +481,7 @@ class ResearchState(BaseModel):
     pending_todos: list[str | dict] = Field(default_factory=list)
     blockers: list[str | dict] = Field(default_factory=list)
     continuation: ContinuationState = Field(default_factory=ContinuationState)
+    contract_alignment: ContractAlignmentGate = Field(default_factory=ContractAlignmentGate)
 
     model_config = {"extra": "allow"}
 
@@ -1012,11 +1025,28 @@ def _load_project_contract_for_runtime_context(cwd: Path) -> tuple[ResearchContr
     return contract, load_info
 
 
+def _contract_alignment_from_state(state_obj: dict | None) -> ContractAlignmentGate:
+    """Resolve ``contract_alignment`` from a raw state dict, returning defaults on any mismatch."""
+
+    if not isinstance(state_obj, dict):
+        return ContractAlignmentGate()
+    raw = state_obj.get("contract_alignment")
+    if isinstance(raw, ContractAlignmentGate):
+        return raw
+    if isinstance(raw, dict):
+        try:
+            return ContractAlignmentGate.model_validate(raw)
+        except PydanticValidationError:
+            return ContractAlignmentGate()
+    return ContractAlignmentGate()
+
+
 def _project_contract_gate_payload(
     contract: ResearchContract | None,
     *,
     load_info: dict[str, object] | None,
     validation: dict[str, object] | None,
+    alignment: ContractAlignmentGate | None = None,
 ) -> dict[str, object]:
     """Return a single visible-vs-authoritative contract gate payload."""
 
@@ -1038,7 +1068,7 @@ def _project_contract_gate_payload(
         and not repair_relevant_schema_warning
     )
     blocked = load_blocked or approval_blocked
-    return {
+    payload: dict[str, object] = {
         "status": load_status,
         "visible": visible,
         "blocked": blocked,
@@ -1050,12 +1080,19 @@ def _project_contract_gate_payload(
         "provenance": (load_info or {}).get("provenance"),
         "source_path": (load_info or {}).get("source_path"),
     }
+    if alignment is not None:
+        payload["contract_alignment_confirmed_at"] = alignment.confirmed_at
+        payload["confirmed_contract_hash"] = alignment.confirmed_contract_hash
+        payload["confirmed_context_hash"] = alignment.confirmed_context_hash
+    return payload
 
 
 def _finalize_project_contract_gate(
     cwd: Path,
     contract: ResearchContract | None,
     load_info: dict[str, object],
+    *,
+    alignment: ContractAlignmentGate | None = None,
 ) -> tuple[dict[str, object], dict[str, object] | None, dict[str, object]]:
     """Normalize final load info, approval validation, and gate payload."""
 
@@ -1098,6 +1135,7 @@ def _finalize_project_contract_gate(
         contract,
         load_info=finalized_load_info,
         validation=validation_payload,
+        alignment=alignment,
     )
     return finalized_load_info, validation_payload, gate_payload
 
@@ -3644,7 +3682,8 @@ def _project_contract_runtime_payload_for_state(
                 "warnings": list(dict.fromkeys([*list(load_info.get("warnings") or []), *canonicalization_warnings])),
             }
 
-    return _finalize_project_contract_gate(cwd, contract, load_info)
+    alignment = _contract_alignment_from_state(state_obj)
+    return _finalize_project_contract_gate(cwd, contract, load_info, alignment=alignment)
 
 
 @instrument_gpd_function("state.load_json")
@@ -4919,6 +4958,38 @@ def state_record_session(
         ):
             pass
         return RecordSessionResult(recorded=True, updated=updated)
+
+
+@instrument_gpd_function("state.record_contract_alignment")
+def state_record_contract_alignment(
+    cwd: Path,
+    *,
+    contract_hash: str,
+    context_hash: str,
+    now: str | None = None,
+) -> None:
+    """Atomically persist the claim↔deliverable alignment confirmation."""
+    if not isinstance(contract_hash, str) or not contract_hash.strip():
+        raise StateError("contract_hash must be a non-empty string")
+    if not isinstance(context_hash, str) or not context_hash.strip():
+        raise StateError("context_hash must be a non-empty string")
+    resolved_now = now if now is not None else datetime.now(tz=UTC).isoformat()
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        state_obj, _integrity_issues, state_source = _load_state_json_with_integrity_issues(
+            cwd,
+            persist_recovery=False,
+            recover_intent=False,
+            acquire_lock=False,
+        )
+        if not isinstance(state_obj, dict) or state_source is None:
+            raise StateError("State not found")
+        state_obj["contract_alignment"] = ContractAlignmentGate(
+            confirmed_at=resolved_now,
+            confirmed_contract_hash=contract_hash,
+            confirmed_context_hash=context_hash,
+        ).model_dump(mode="python")
+        save_state_json_locked(cwd, state_obj)
 
 
 @instrument_gpd_function("state.snapshot")

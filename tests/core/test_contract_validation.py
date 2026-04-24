@@ -33,6 +33,9 @@ from gpd.contracts import (
     parse_project_contract_data_strict,
 )
 from gpd.core.contract_validation import (
+    claim_deliverable_alignment_summary,
+    context_guidance_fingerprint,
+    contract_fingerprint,
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
@@ -3597,3 +3600,65 @@ def test_project_contract_schema_examples_are_validator_compatible(schema_name: 
 
     assert parsed.scope.question == "What benchmark must the project recover?"
     assert result.valid is True
+
+
+def test_claim_deliverable_alignment_summary_projects_expected_rows() -> None:
+    contract = _load_contract_fixture()
+    parsed = ResearchContract.model_validate(contract)
+
+    rows = claim_deliverable_alignment_summary(parsed)
+
+    assert len(rows) == len(parsed.claims)
+    assert len(rows) == 1
+
+    claim = parsed.claims[0]
+    deliverable = parsed.deliverables[0]
+    acceptance_test = parsed.acceptance_tests[0]
+    assert rows[0] == (claim.statement, deliverable.description, acceptance_test.pass_condition)
+    assert rows[0][1] == "Benchmark comparison figure"
+    assert rows[0][2] == "Matches reference within tolerance"
+
+
+def test_claim_deliverable_alignment_summary_flags_missing_deliverable_links() -> None:
+    contract = _load_contract_fixture()
+    for claim in contract["claims"]:
+        claim["deliverables"] = []
+        claim["acceptance_tests"] = []
+    parsed = ResearchContract.model_validate(contract)
+
+    rows = claim_deliverable_alignment_summary(parsed)
+
+    assert len(rows) == len(parsed.claims)
+    assert rows[0][0] == parsed.claims[0].statement
+    assert rows[0][1] == "(no linked deliverable)"
+    assert rows[0][2] == "(no linked acceptance test)"
+
+
+def test_contract_fingerprint_is_stable_and_changes_on_edit() -> None:
+    contract = _load_contract_fixture()
+    parsed = ResearchContract.model_validate(contract)
+
+    first = contract_fingerprint(parsed)
+    second = contract_fingerprint(parsed)
+
+    assert first == second
+    assert first.startswith("sha256:")
+    assert len(first) == len("sha256:") + 64
+
+    mutated_data = copy.deepcopy(contract)
+    mutated_data["claims"][0]["statement"] = mutated_data["claims"][0]["statement"] + " (mutated)"
+    mutated = ResearchContract.model_validate(mutated_data)
+
+    assert contract_fingerprint(mutated) != first
+
+
+def test_context_guidance_fingerprint_is_stable_and_changes_on_edit() -> None:
+    text = "user_guidance: observe benchmark within tolerance.\n"
+
+    first = context_guidance_fingerprint(text)
+    second = context_guidance_fingerprint(text)
+
+    assert first == second
+    assert first.startswith("sha256:")
+    assert len(first) == len("sha256:") + 64
+    assert context_guidance_fingerprint(text + "edit\n") != first

@@ -327,6 +327,68 @@ fi
 **If `VALIDATION_FAILED` is true:** Present all collected errors to the user. Do not proceed with execution until structural issues are resolved.
 </step>
 
+<step name="claim_deliverable_alignment_check">
+Gate execution on explicit confirmation that the machine-readable claim matches user intent for Phase {N}.
+
+Read the persisted alignment status and the current contract/context fingerprints before rendering anything:
+
+```bash
+ALIGNMENT_STATUS=$(gpd contract alignment-status 2>/dev/null || echo '{}')
+CONTRACT_HASH=$(gpd contract fingerprint 2>/dev/null)
+CONTEXT_HASH=$(gpd contract context-fingerprint 2>/dev/null)
+CONFIRMED_AT=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_at --default null)
+CONFIRMED_CONTRACT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_contract_hash --default null)
+CONFIRMED_CONTEXT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_context_hash --default null)
+```
+
+**Gating:** This step fires when `autonomy=supervised` OR `review_cadence=dense` OR any selected plan is proof-bearing per `detect_proof_obligation_work`. It is skipped under `autonomy=yolo AND review_cadence in {adaptive, sparse} AND no proof-bearing plans`. When skipping for this reason, log the decision explicitly — for example `claim_deliverable_alignment_check: skipped (autonomy=yolo, cadence=adaptive, no proof-bearing plans)` — and continue to `discover_and_group_plans` without prompting.
+
+**Suppression:** If the persisted `contract_alignment_confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND the current `context_guidance_fingerprint == confirmed_context_hash`, skip re-prompting and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Read the persisted status via `gpd contract alignment-status`; the hash-equality check uses `CONTRACT_HASH`/`CONTEXT_HASH` computed above.
+
+**Render:** When the step fires and is not suppressed, render a one-screen side-by-side table titled `Claim ↔ Deliverable Alignment` with the following layout. The left column is sourced from user intent (CONTEXT.md + structured `ContractContextIntake` fields); the right column is sourced from the machine contract. Cap each column at 5 bullets, truncating with an ellipsis (`…`) when more entries exist. Use `gpd contract alignment-summary` to obtain the right-column rows (or invoke the `claim_deliverable_alignment_summary` helper directly — the spec is the authority on the semantic contract; the exact command path may differ slightly from lane E3).
+
+```
+| User intent (CONTEXT)               | Machine contract                    |
+|-------------------------------------|-------------------------------------|
+| Observables: ...                    | Claims: ...                         |
+| Deliverables: ...                   | Deliverables: ...                   |
+| Must-have references: ...           | Acceptance tests: ...               |
+| Stop-or-rethink conditions: ...     |                                     |
+```
+
+Left-column rows MUST be: `Observables`, `Deliverables`, `Must-have references`, `Stop-or-rethink conditions`. Right-column rows MUST be: `Claims`, `Deliverables`, `Acceptance tests`. Each cell lists ≤5 bullets; when truncated, append `…` as the final bullet.
+
+**ask_user:** Present exactly one question with 4 options. Enter selects `Y`. Match the batched shape used elsewhere in the specs.
+
+```
+ask_user([
+  {
+    question: "Does the machine contract above match your intent for Phase {N}? Press Enter to proceed, or pick an option to revise.",
+    header: "Claim ↔ Deliverable Alignment",
+    multiSelect: false,
+    options: [
+      { label: "Y: proceed (Recommended, Enter = Y)", description: "Claims, deliverables, and acceptance tests match user intent. Record the confirmation and continue to discover_and_group_plans." },
+      { label: "e: edit CONTEXT", description: "User intent is off. Hand off to gpd:discuss-phase {N} to revise CONTEXT.md, then re-enter this step once." },
+      { label: "p: edit PLAN contract", description: "The machine contract is off. Hand off to gpd:plan-phase {N} --revise to revise the contract, then re-enter this step once." },
+      { label: "n: abort", description: "Stop execution cleanly without spawning any executor. Next Up is gpd:execute-phase {N} once alignment is resolved." }
+    ]
+  }
+])
+```
+
+**On "Y: proceed" (or Enter):** Record the confirmation so the same session does not re-prompt while the contract and CONTEXT are unchanged, then continue to `discover_and_group_plans`:
+
+```bash
+gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$CONTEXT_HASH"
+```
+
+**On "n: abort":** Exit cleanly. Do NOT spawn any executor and do NOT proceed to `discover_and_group_plans`. Emit a final line `"Next Up: gpd:execute-phase {N}"` so the operator can resume after resolving alignment.
+
+**On "e: edit CONTEXT":** Hand off to `gpd:discuss-phase {N}`. After that workflow returns, re-enter this step exactly once to re-render the side-by-side against the revised CONTEXT. If `e` is chosen a second time in the same invocation, defer explicitly to `gpd:discuss-phase {N}` and stop looping — do not re-enter a third time.
+
+**On "p: edit PLAN contract":** Hand off to `gpd:plan-phase {N} --revise`. After that workflow returns, re-enter this step exactly once to re-render the side-by-side against the revised contract. If `p` is chosen a second time in the same invocation, defer explicitly to `gpd:plan-phase {N} --revise` and stop looping — do not re-enter a third time.
+</step>
+
 <step name="discover_and_group_plans">
 Load plan inventory with wave grouping in one call:
 

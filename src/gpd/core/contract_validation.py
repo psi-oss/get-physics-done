@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import re
 from collections import defaultdict
 from enum import StrEnum
+from itertools import zip_longest
 from pathlib import Path
 from typing import Literal, get_args, get_origin
 
@@ -48,10 +50,14 @@ from gpd.contracts import (
     is_placeholder_only_guidance_text,
     parse_project_contract_data_salvage,
 )
+from gpd.core.kernel import _content_address
 from gpd.core.utils import dedupe_preserve_order
 
 __all__ = [
     "ProjectContractValidationResult",
+    "claim_deliverable_alignment_summary",
+    "context_guidance_fingerprint",
+    "contract_fingerprint",
     "is_authoritative_project_contract_schema_finding",
     "is_repair_relevant_project_contract_schema_finding",
     "salvage_project_contract",
@@ -939,6 +945,87 @@ def _collect_literal_case_drift_errors(contract: object) -> list[str]:
 
     _walk(contract, path="")
     return errors
+
+
+_CLAIM_ALIGNMENT_MISSING_DELIVERABLE = "(no linked deliverable)"
+_CLAIM_ALIGNMENT_MISSING_ACCEPTANCE_TEST = "(no linked acceptance test)"
+
+
+def claim_deliverable_alignment_summary(
+    contract: ResearchContract,
+) -> list[tuple[str, str, str]]:
+    """Project ``(claim.statement, deliverable.description, acceptance_test.pass_condition)`` rows.
+
+    Emits one row per claim when the claim has no linked deliverables or
+    acceptance tests, filling the gap with
+    ``"(no linked deliverable)"`` / ``"(no linked acceptance test)"``.
+    For claims that link multiple deliverables and/or acceptance tests the
+    rows are zipped with :func:`itertools.zip_longest` so each linked
+    deliverable and each linked acceptance test appears at least once
+    without producing a full combinatorial explosion.
+    """
+
+    deliverables_by_id: dict[str, ContractDeliverable] = {
+        deliverable.id: deliverable for deliverable in contract.deliverables
+    }
+    acceptance_tests_by_id: dict[str, ContractAcceptanceTest] = {
+        test.id: test for test in contract.acceptance_tests
+    }
+
+    rows: list[tuple[str, str, str]] = []
+    for claim in contract.claims:
+        linked_deliverables: list[str] = []
+        for deliverable_id in claim.deliverables:
+            deliverable = deliverables_by_id.get(deliverable_id)
+            if deliverable is not None:
+                linked_deliverables.append(deliverable.description)
+        linked_tests: list[str] = []
+        for test_id in claim.acceptance_tests:
+            test = acceptance_tests_by_id.get(test_id)
+            if test is not None:
+                linked_tests.append(test.pass_condition)
+
+        if not linked_deliverables and not linked_tests:
+            rows.append(
+                (
+                    claim.statement,
+                    _CLAIM_ALIGNMENT_MISSING_DELIVERABLE,
+                    _CLAIM_ALIGNMENT_MISSING_ACCEPTANCE_TEST,
+                )
+            )
+            continue
+
+        for deliverable_description, pass_condition in zip_longest(
+            linked_deliverables,
+            linked_tests,
+            fillvalue="",
+        ):
+            rows.append(
+                (
+                    claim.statement,
+                    deliverable_description or _CLAIM_ALIGNMENT_MISSING_DELIVERABLE,
+                    pass_condition or _CLAIM_ALIGNMENT_MISSING_ACCEPTANCE_TEST,
+                )
+            )
+
+    return rows
+
+
+def contract_fingerprint(contract: ResearchContract) -> str:
+    """Return a stable ``"sha256:<hex>"`` fingerprint for ``contract``.
+
+    Mirrors :func:`gpd.core.kernel._content_address` by hashing canonical
+    JSON of ``contract.model_dump(mode="json")``.
+    """
+
+    return _content_address(contract.model_dump(mode="json"))
+
+
+def context_guidance_fingerprint(context_text: str) -> str:
+    """Return a stable ``"sha256:<hex>"`` fingerprint for raw CONTEXT text."""
+
+    encoded = context_text.encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:

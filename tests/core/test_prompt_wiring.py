@@ -2438,6 +2438,17 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "project_contract_validation" in execute_workflow
     assert "project_contract_load_info" in execute_workflow
     assert "visible-but-blocked contract as an approved execution contract" in execute_workflow
+    # Phase 5: claim<->deliverable alignment precheck is wired in as a step in
+    # execute-phase.md and references the helpers/CLI provided by lanes E2/E3.
+    assert '<step name="claim_deliverable_alignment_check">' in execute_workflow
+    assert (
+        "claim_deliverable_alignment_summary" in execute_workflow
+        or "gpd contract alignment-summary" in execute_workflow
+    )
+    assert (
+        "gpd contract record-alignment" in execute_workflow
+        or "record-alignment" in execute_workflow
+    )
 
 
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:

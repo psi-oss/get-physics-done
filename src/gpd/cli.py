@@ -1354,6 +1354,112 @@ def state_record_session(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# contract — Machine contract alignment confirmation gate
+# ═══════════════════════════════════════════════════════════════════════════
+
+contract_app = typer.Typer(help="Machine-contract alignment gate (claim-deliverable precheck)")
+app.add_typer(contract_app, name="contract")
+
+
+def _require_project_root_for_contract(cwd: Path) -> Path:
+    """Require a verified GPD project root for contract-alignment commands."""
+    workspace_cwd = cwd.expanduser().resolve(strict=False)
+    project_root = resolve_project_root(workspace_cwd, require_layout=True)
+    if project_root is None:
+        _error(
+            "gpd contract commands require a real GPD project root. "
+            "Run the command from inside a project with a GPD/ layout."
+        )
+    return project_root
+
+
+@contract_app.command("record-alignment")
+def contract_record_alignment(
+    contract_hash: str = typer.Option(
+        ..., "--contract-hash", help="Fingerprint of the machine contract that was reviewed."
+    ),
+    context_hash: str = typer.Option(
+        ..., "--context-hash", help="Fingerprint of the phase CONTEXT.md text that was reviewed."
+    ),
+) -> None:
+    """Persist operator confirmation that the claim-deliverable alignment was reviewed."""
+    from gpd.core.state import state_record_contract_alignment
+
+    project_root = _require_project_root_for_contract(_get_cwd())
+    state_record_contract_alignment(
+        project_root,
+        contract_hash=contract_hash,
+        context_hash=context_hash,
+    )
+    if _raw:
+        _emit_raw_json({"result": "recorded"})
+    else:
+        typer.echo("recorded")
+
+
+@contract_app.command("alignment-status")
+def contract_alignment_status() -> None:
+    """Print the persisted claim-deliverable alignment confirmation as JSON."""
+    from gpd.core.state import state_load
+
+    project_root = _require_project_root_for_contract(_get_cwd())
+    load_result = state_load(project_root)
+    state_obj = load_result.state if isinstance(load_result.state, dict) else {}
+    alignment = state_obj.get("contract_alignment") or {}
+    payload = {
+        "confirmed_at": alignment.get("confirmed_at"),
+        "confirmed_contract_hash": alignment.get("confirmed_contract_hash"),
+        "confirmed_context_hash": alignment.get("confirmed_context_hash"),
+    }
+    _emit_raw_json(payload)
+
+
+@contract_app.command("fingerprint")
+def contract_fingerprint_cmd() -> None:
+    """Print the canonical sha256 fingerprint of the current machine contract."""
+    from gpd.core.contract_validation import contract_fingerprint
+    from gpd.core.state import _load_project_contract_for_runtime_context
+
+    project_root = _require_project_root_for_contract(_get_cwd())
+    contract, _load_info = _load_project_contract_for_runtime_context(project_root)
+    if contract is None:
+        _error("No project contract is available; cannot fingerprint.")
+    typer.echo(contract_fingerprint(contract))
+
+
+@contract_app.command("context-fingerprint")
+def contract_context_fingerprint_cmd(
+    path: Path = typer.Argument(
+        ..., help="Path to the CONTEXT.md file whose text should be fingerprinted."
+    ),
+) -> None:
+    """Print the sha256 fingerprint of a CONTEXT.md file's text."""
+    from gpd.core.contract_validation import context_guidance_fingerprint
+
+    resolved = path.expanduser().resolve(strict=False)
+    if not resolved.is_file():
+        _error(f"CONTEXT file not found: {resolved}")
+    typer.echo(context_guidance_fingerprint(resolved.read_text(encoding="utf-8")))
+
+
+@contract_app.command("alignment-summary")
+def contract_alignment_summary_cmd() -> None:
+    """Print the claim-deliverable alignment row projection as JSON."""
+    from gpd.core.contract_validation import claim_deliverable_alignment_summary
+    from gpd.core.state import _load_project_contract_for_runtime_context
+
+    project_root = _require_project_root_for_contract(_get_cwd())
+    contract, _load_info = _load_project_contract_for_runtime_context(project_root)
+    if contract is None:
+        _error("No project contract is available; cannot render alignment summary.")
+    rows = [
+        {"claim": claim, "deliverable": deliverable, "acceptance_test": acceptance}
+        for claim, deliverable, acceptance in claim_deliverable_alignment_summary(contract)
+    ]
+    _emit_raw_json({"rows": rows})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # phase — Phase lifecycle management
 # ═══════════════════════════════════════════════════════════════════════════
 

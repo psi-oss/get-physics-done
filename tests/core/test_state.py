@@ -14,6 +14,7 @@ from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
 from gpd.core.state import (
+    ContractAlignmentGate,
     _find_list_parent_loc,
     _load_recent_projects_index,
     _load_state_snapshot_for_mutation,
@@ -31,6 +32,7 @@ from gpd.core.state import (
     save_state_markdown,
     state_get,
     state_load,
+    state_record_contract_alignment,
     state_record_session,
     state_set_continuation_bounded_segment,
     state_set_project_contract,
@@ -3899,3 +3901,58 @@ def test_state_patch_unknown_underscore_field_reports_also_tried(tmp_path: Path)
     assert "not found in STATE.md" in reason
     assert "also tried" in reason
     assert '"nonexistent field"' in reason
+
+
+# ─── contract_alignment persistence ───────────────────────────────────────────
+
+
+def test_state_contract_alignment_default_is_empty() -> None:
+    """Fresh state dict carries a default ContractAlignmentGate with all-None fields."""
+    s = default_state_dict()
+    assert "contract_alignment" in s
+    assert s["contract_alignment"] == {
+        "confirmed_at": None,
+        "confirmed_contract_hash": None,
+        "confirmed_context_hash": None,
+    }
+    gate = ContractAlignmentGate.model_validate(s["contract_alignment"])
+    assert gate.confirmed_at is None
+    assert gate.confirmed_contract_hash is None
+    assert gate.confirmed_context_hash is None
+
+
+def test_state_records_contract_alignment_round_trip(tmp_path: Path) -> None:
+    """state_record_contract_alignment persists timestamp + hashes through a reload."""
+    save_state_json(tmp_path, default_state_dict())
+
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:abc",
+        context_hash="sha256:def",
+        now="2026-04-23T12:00:00+00:00",
+    )
+
+    reloaded = load_state_json(tmp_path)
+    assert reloaded is not None
+    alignment = reloaded["contract_alignment"]
+    assert alignment["confirmed_at"] == "2026-04-23T12:00:00+00:00"
+    assert alignment["confirmed_contract_hash"] == "sha256:abc"
+    assert alignment["confirmed_context_hash"] == "sha256:def"
+
+
+def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
+    """After recording, state_load surfaces alignment hashes on project_contract_gate."""
+    save_state_json(tmp_path, default_state_dict())
+
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:contract",
+        context_hash="sha256:context",
+        now="2026-04-23T13:00:00+00:00",
+    )
+
+    loaded = state_load(tmp_path)
+    gate = loaded.project_contract_gate or {}
+    assert gate.get("contract_alignment_confirmed_at") == "2026-04-23T13:00:00+00:00"
+    assert gate.get("confirmed_contract_hash") == "sha256:contract"
+    assert gate.get("confirmed_context_hash") == "sha256:context"
