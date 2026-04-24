@@ -3953,6 +3953,6 @@ def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
 
     loaded = state_load(tmp_path)
     gate = loaded.project_contract_gate or {}
-    assert gate.get("contract_alignment_confirmed_at") == "2026-04-23T13:00:00+00:00"
+    assert gate.get("confirmed_at") == "2026-04-23T13:00:00+00:00"
     assert gate.get("confirmed_contract_hash") == "sha256:contract"
     assert gate.get("confirmed_context_hash") == "sha256:context"

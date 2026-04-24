@@ -145,7 +145,7 @@ Keep the GitHub lifecycle reference deferred until the plan reaches its checkpoi
 Read autonomy mode from init JSON to control decision authority throughout execution:
 
 ```bash
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)
 ```
 
 **Checkpoint behavior by mode:**
@@ -153,7 +153,7 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
 | **supervised** | After EVERY task plus every required first-result gate. Under `review_cadence=dense`, a wave whose tasks all pass verification with no deviations may collapse its per-task checkpoints into one "Approve tasks {N..M} as clean pass? `[Y/n/e]`" batch (any task flagging a deviation flips the wave back to per-task) | Always | Always stop |
-| **balanced** (default) | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
+| **balanced** | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result, skeptical, or pre-fanout gates | Stop only on unrecoverable errors, failed sanity gates, or unresolved skeptical review |
 
 **Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops. Clean-wave batching under dense collapses keystrokes, not gates — any deviation, failed verification, or triggered gate reverts the wave to per-task checkpoints for the remaining tasks.
@@ -166,7 +166,7 @@ Task checkpoints are task-level, not every internal algebra line. Model profile 
 Read cadence controls from init JSON. Use these to decide whether a plan can run unbounded or must be segmented even without authored checkpoints.
 
 ```bash
-REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default dense)
 MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
 CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
 CHECKPOINT_AFTER_FIRST_RESULT=$(echo "$INIT" | gpd json get .checkpoint_after_first_load_bearing_result --default true)

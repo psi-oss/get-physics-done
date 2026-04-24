@@ -41,7 +41,7 @@ bind_plan_phase_init() {
   research_enabled=$(echo "$init" | gpd json get .research_enabled --default false)
   plan_checker_enabled=$(echo "$init" | gpd json get .plan_checker_enabled --default false)
   commit_docs=$(echo "$init" | gpd json get .commit_docs --default false)
-  autonomy=$(echo "$init" | gpd json get .autonomy --default balanced)
+  autonomy=$(echo "$init" | gpd json get .autonomy --default supervised)
   research_mode=$(echo "$init" | gpd json get .research_mode --default balanced)
   phase_found=$(echo "$init" | gpd json get .phase_found --default false)
   phase_dir=$(echo "$init" | gpd json get .phase_dir --default "")

@@ -42,7 +42,7 @@ Parse bootstrap JSON for: `project_exists`, `state_exists`, `commit_docs`, `auto
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(echo "$BOOTSTRAP" | gpd json get .autonomy --default balanced)
+AUTONOMY=$(echo "$BOOTSTRAP" | gpd json get .autonomy --default supervised)
 RESEARCH_MODE=$(echo "$BOOTSTRAP" | gpd json get .research_mode --default balanced)
 ```
 Treat `project_contract_gate` as authoritative. Use `project_contract` and `contract_intake` only when `project_contract_gate.authoritative` is true; otherwise keep them as diagnostics/context and rely on `effective_reference_intake`, `reference_artifacts_content`, and `active_reference_context` as carry-forward evidence. Stage 1 stays manuscript-first, but later adjudication must not ignore either the approved contract or the active anchor ledger.

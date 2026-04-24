@@ -34,7 +34,7 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `re
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 ```
 

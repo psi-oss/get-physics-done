@@ -31,7 +31,7 @@ Keep `project_contract`, `project_contract_load_info`, `project_contract_validat
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**

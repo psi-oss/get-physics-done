@@ -1429,16 +1429,44 @@ def contract_fingerprint_cmd() -> None:
 
 @contract_app.command("context-fingerprint")
 def contract_context_fingerprint_cmd(
-    path: Path = typer.Argument(
-        ..., help="Path to the CONTEXT.md file whose text should be fingerprinted."
+    path: Path | None = typer.Argument(
+        None,
+        help="Path to the CONTEXT.md file. Defaults to the active phase's CONTEXT.md.",
     ),
 ) -> None:
     """Print the sha256 fingerprint of a CONTEXT.md file's text."""
+    from gpd.core.constants import CONTEXT_SUFFIX, STANDALONE_CONTEXT
+    from gpd.core.context import _find_phase_artifact_path
     from gpd.core.contract_validation import context_guidance_fingerprint
+    from gpd.core.phases import find_phase
+    from gpd.core.state import state_load
 
-    resolved = path.expanduser().resolve(strict=False)
-    if not resolved.is_file():
-        _error(f"CONTEXT file not found: {resolved}")
+    project_root = _require_project_root_for_contract(_get_cwd())
+    if path is None:
+        state_obj = state_load(project_root).state
+        current_phase = (
+            state_obj.get("position", {}).get("current_phase")
+            if isinstance(state_obj, dict)
+            else None
+        )
+        if current_phase is None:
+            _error(
+                "No CONTEXT.md could be resolved: state.position.current_phase is "
+                "unset. Pass an explicit path as the argument."
+            )
+        phase_info = find_phase(project_root, str(current_phase))
+        if phase_info is None:
+            _error(
+                f"No CONTEXT.md could be resolved: phase {current_phase!r} not found."
+            )
+        phase_dir = project_root / phase_info.directory
+        resolved = _find_phase_artifact_path(phase_dir, CONTEXT_SUFFIX, STANDALONE_CONTEXT)
+        if resolved is None:
+            _error(f"No CONTEXT.md found under {phase_dir}.")
+    else:
+        resolved = path.expanduser().resolve(strict=False)
+        if not resolved.is_file():
+            _error(f"CONTEXT file not found: {resolved}")
     typer.echo(context_guidance_fingerprint(resolved.read_text(encoding="utf-8")))
 
 

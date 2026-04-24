@@ -79,11 +79,11 @@ The active model profile (from `GPD/config.json`) controls planning thoroughness
 
 ## Autonomy-Aware Planning
 
-The autonomy mode (from `GPD/config.json` field `autonomy`, default: `"balanced"`) controls how much human involvement the planner builds into plans. This is ORTHOGONAL to the model profile — profile controls physics depth, autonomy controls decision authority.
+The autonomy mode (from `GPD/config.json` field `autonomy`, default: `"supervised"`) controls how much human involvement the planner builds into plans. This is ORTHOGONAL to the model profile — profile controls physics depth, autonomy controls decision authority.
 
 ### Mode Effects on Planning
 
-**Supervised mode** (`autonomy: "supervised"`):
+**Supervised mode** (`autonomy: "supervised"`) — DEFAULT:
 
 - **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice. Every inserted `checkpoint:human-verify` uses the `[Y/n/e]` resume-signal idiom (Enter = Y). See `specs/references/orchestration/checkpoint-ux-convention.md`.
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
@@ -93,7 +93,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`, default: `"balanced"
 - **Task interaction:** Set `interactive: true` on all plans.
 - **Use when:** First-time user, critical calculation for a paper, unfamiliar physics domain.
 
-**Balanced mode** (`autonomy: "balanced"`) — DEFAULT:
+**Balanced mode** (`autonomy: "balanced"`):
 
 - **Checkpoints:** Insert checkpoints at phase boundaries and key physics decisions (approximation scheme, gauge choice, renormalization scheme). Routine tasks stay non-interactive.
 - **Scope:** Follow CONTEXT.md locked decisions. Use your discretion for standard choices.

@@ -343,9 +343,9 @@ CONFIRMED_CONTEXT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_cont
 
 **Gating:** This step fires when `autonomy=supervised` OR `review_cadence=dense` OR any selected plan is proof-bearing per `detect_proof_obligation_work`. It is skipped under `autonomy=yolo AND review_cadence in {adaptive, sparse} AND no proof-bearing plans`. When skipping for this reason, log the decision explicitly — for example `claim_deliverable_alignment_check: skipped (autonomy=yolo, cadence=adaptive, no proof-bearing plans)` — and continue to `discover_and_group_plans` without prompting.
 
-**Suppression:** If the persisted `contract_alignment_confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND the current `context_guidance_fingerprint == confirmed_context_hash`, skip re-prompting and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Read the persisted status via `gpd contract alignment-status`; the hash-equality check uses `CONTRACT_HASH`/`CONTEXT_HASH` computed above.
+**Suppression:** If the persisted `confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND the current `context_guidance_fingerprint == confirmed_context_hash`, skip re-prompting and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Read the persisted status via `gpd contract alignment-status`; the hash-equality check uses `CONTRACT_HASH`/`CONTEXT_HASH` computed above.
 
-**Render:** When the step fires and is not suppressed, render a one-screen side-by-side table titled `Claim ↔ Deliverable Alignment` with the following layout. The left column is sourced from user intent (CONTEXT.md + structured `ContractContextIntake` fields); the right column is sourced from the machine contract. Cap each column at 5 bullets, truncating with an ellipsis (`…`) when more entries exist. Use `gpd contract alignment-summary` to obtain the right-column rows (or invoke the `claim_deliverable_alignment_summary` helper directly — the spec is the authority on the semantic contract; the exact command path may differ slightly from lane E3).
+**Render:** When the step fires and is not suppressed, render a one-screen side-by-side table titled `Claim ↔ Deliverable Alignment` with the following layout. The left column is sourced from user intent (CONTEXT.md + structured `ContractContextIntake` fields); the right column is sourced from the machine contract. Cap each column at 5 bullets, truncating with an ellipsis (`…`) when more entries exist. Use `gpd contract alignment-summary` to obtain the right-column rows.
 
 ```
 | User intent (CONTEXT)               | Machine contract                    |
@@ -466,7 +466,7 @@ Report:
 Translate cadence config plus wave risk into concrete execution boundaries before any executor is spawned.
 
 ```bash
-REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default dense)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
 MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_wave --default 90)

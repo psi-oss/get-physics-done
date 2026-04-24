@@ -1350,6 +1350,16 @@ def _apply_automatic_execution_guards(
         )
     )
 
+    # Per-segment snapshot override: if a workflow emitted
+    # `execution.review_cadence` on a prior event (today only execute-plan.md's
+    # gate/enter events, which echo the project config), that value takes
+    # precedence over the policy read from GPD/config.json. This permits a
+    # future high-stakes segment to request dense mid-execution even when the
+    # project default is weaker, without needing a config rewrite. Inversely,
+    # a segment emitting `review_cadence="adaptive"` on a dense project would
+    # disable the dense_forced branch for that segment. Workflow prompts
+    # currently echo the project-level value verbatim; this override is a
+    # latent escalation hook, not an active feature.
     cadence = str(current.get("review_cadence") or policy.get("review_cadence") or "").strip().lower()
     dense_forced = cadence == "dense"
     if (

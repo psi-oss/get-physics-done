@@ -1025,22 +1025,6 @@ def _load_project_contract_for_runtime_context(cwd: Path) -> tuple[ResearchContr
     return contract, load_info
 
 
-def _contract_alignment_from_state(state_obj: dict | None) -> ContractAlignmentGate:
-    """Resolve ``contract_alignment`` from a raw state dict, returning defaults on any mismatch."""
-
-    if not isinstance(state_obj, dict):
-        return ContractAlignmentGate()
-    raw = state_obj.get("contract_alignment")
-    if isinstance(raw, ContractAlignmentGate):
-        return raw
-    if isinstance(raw, dict):
-        try:
-            return ContractAlignmentGate.model_validate(raw)
-        except PydanticValidationError:
-            return ContractAlignmentGate()
-    return ContractAlignmentGate()
-
-
 def _project_contract_gate_payload(
     contract: ResearchContract | None,
     *,
@@ -1081,7 +1065,7 @@ def _project_contract_gate_payload(
         "source_path": (load_info or {}).get("source_path"),
     }
     if alignment is not None:
-        payload["contract_alignment_confirmed_at"] = alignment.confirmed_at
+        payload["confirmed_at"] = alignment.confirmed_at
         payload["confirmed_contract_hash"] = alignment.confirmed_contract_hash
         payload["confirmed_context_hash"] = alignment.confirmed_context_hash
     return payload
@@ -1092,9 +1076,25 @@ def _finalize_project_contract_gate(
     contract: ResearchContract | None,
     load_info: dict[str, object],
     *,
-    alignment: ContractAlignmentGate | None = None,
+    state_obj: dict | None = None,
 ) -> tuple[dict[str, object], dict[str, object] | None, dict[str, object]]:
     """Normalize final load info, approval validation, and gate payload."""
+
+    # Resolve ``contract_alignment`` from the raw state dict, returning defaults on any mismatch.
+    alignment: ContractAlignmentGate | None
+    if isinstance(state_obj, dict):
+        raw_alignment = state_obj.get("contract_alignment")
+        if isinstance(raw_alignment, ContractAlignmentGate):
+            alignment = raw_alignment
+        elif isinstance(raw_alignment, dict):
+            try:
+                alignment = ContractAlignmentGate.model_validate(raw_alignment)
+            except PydanticValidationError:
+                alignment = ContractAlignmentGate()
+        else:
+            alignment = ContractAlignmentGate()
+    else:
+        alignment = None
 
     finalized_load_info = {
         "status": load_info.get("status"),
@@ -3682,8 +3682,7 @@ def _project_contract_runtime_payload_for_state(
                 "warnings": list(dict.fromkeys([*list(load_info.get("warnings") or []), *canonicalization_warnings])),
             }
 
-    alignment = _contract_alignment_from_state(state_obj)
-    return _finalize_project_contract_gate(cwd, contract, load_info, alignment=alignment)
+    return _finalize_project_contract_gate(cwd, contract, load_info, state_obj=state_obj)
 
 
 @instrument_gpd_function("state.load_json")

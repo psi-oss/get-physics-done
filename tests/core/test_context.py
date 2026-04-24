@@ -4413,7 +4413,14 @@ class TestInitProgress:
         assert {
             key: value
             for key, value in ctx["project_contract_gate"].items()
-            if key not in {"provenance", "raw_project_contract_classified"}
+            if key
+            not in {
+                "provenance",
+                "raw_project_contract_classified",
+                "confirmed_at",
+                "confirmed_contract_hash",
+                "confirmed_context_hash",
+            }
         } == {
             "status": "blocked_schema",
             "visible": False,

@@ -133,6 +133,39 @@ def test_cli_contract_alignment_status_returns_none_when_unrecorded(gpd_project:
     }
 
 
+def test_cli_contract_context_fingerprint_auto_resolves_active_phase(
+    gpd_project: Path,
+) -> None:
+    """With no path argument, the CLI resolves CONTEXT.md from the active phase."""
+    phase_dir = gpd_project / "GPD" / "phases" / "01-test-phase"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-CONTEXT.md").write_text("hello context", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["contract", "context-fingerprint"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, _strip_ansi(result.output)
+    assert _strip_ansi(result.output).strip().startswith("sha256:")
+
+
+def test_cli_contract_context_fingerprint_explicit_path(
+    gpd_project: Path, tmp_path: Path
+) -> None:
+    """An explicit path argument still fingerprints the given file."""
+    target = tmp_path / "explicit-context.md"
+    target.write_text("explicit context text", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["contract", "context-fingerprint", str(target)],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, _strip_ansi(result.output)
+    assert _strip_ansi(result.output).strip().startswith("sha256:")
+
+
 @pytest.mark.skipif(
     not _has_record_helper(),
     reason="lane E1 has not landed state_record_contract_alignment yet",

@@ -1,7 +1,7 @@
 ---
 name: gpd:record-backtrack
 description: Record a backtrack event (what went wrong, what got reverted) to the backtracks ledger
-argument-hint: "[optional description]"
+argument-hint: "[--reverted-commit=<sha>] [--trigger=<text>] [--phase=<phase-NN>] [description]"
 context_mode: project-required
 allowed-tools:
   - file_read

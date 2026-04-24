@@ -101,13 +101,13 @@ def test_precheck_proceed_does_not_reprompt_in_same_session() -> None:
 
     body_lower = _PRECHECK_BODY.lower()
     mentions_confirmed = (
-        "contract_alignment_confirmed_at" in _PRECHECK_BODY
+        "confirmed_at" in _PRECHECK_BODY
         or "already confirmed" in body_lower
     )
     mentions_hash = ("hash" in body_lower) or ("fingerprint" in body_lower)
 
     assert mentions_confirmed, (
-        "precheck must reference contract_alignment_confirmed_at or "
+        "precheck must reference confirmed_at or "
         "'already confirmed' to suppress re-prompts"
     )
     assert mentions_hash, (

@@ -8,6 +8,18 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 <process>
 
+<step name="parse_prefill_args">
+Parse optional prefill flags from `$ARGUMENTS`:
+
+- `--reverted-commit=<sha>` → pre-fills `reverted_commit`
+- `--trigger=<text>` → pre-fills `trigger`
+- `--phase=<phase-NN>` → pre-fills `phase`
+
+Any remaining non-flag text is the free-form `description` (used as fallback for the `trigger` field if `--trigger` is not supplied).
+
+Fields not provided by flags are prompted from the user during `append_backtrack`. Any prefilled field can still be overridden by the user before append.
+</step>
+
 <step name="check_backtracks_file">
 Check if `GPD/BACKTRACKS.md` exists:
 
@@ -35,19 +47,25 @@ Backtrack events captured during research. Agents consult this file to avoid rep
 </step>
 
 <step name="check_duplicates">
-Read existing `GPD/BACKTRACKS.md` and check whether the backtrack to be recorded is already present. Dedupe by `grep -i` over the concatenation of the `trigger` and `why_wrong` keywords:
+Read existing `GPD/BACKTRACKS.md` and check whether the backtrack to be recorded is already present. When `parse_prefill_args` supplied `--phase` or `--trigger`, those prefilled values seed the dedupe keywords instead of being re-prompted. Dedupe by matching `phase` + `trigger` + `why_wrong` within the same row (not across rows) using awk against the 11-column pipe-delimited schema:
 
 ```bash
-grep -i "{trigger_keyword}" GPD/BACKTRACKS.md 2>/dev/null
-grep -i "{why_wrong_keyword}" GPD/BACKTRACKS.md 2>/dev/null
+DUP=$(awk -F'|' -v ph="{phase}" -v tr="{trigger_keyword}" -v ww="{why_wrong_keyword}" '
+  NR>2 && /^\|/ {
+    gsub(/^[ \t]+|[ \t]+$/, "", $3); gsub(/^[ \t]+|[ \t]+$/, "", $5); gsub(/^[ \t]+|[ \t]+$/, "", $7)
+    if ($3 == ph && tolower($5) ~ tolower(tr) && tolower($7) ~ tolower(ww)) print NR
+  }
+' GPD/BACKTRACKS.md 2>/dev/null)
 ```
 
-**If both keyword sets match the same existing row:** Do not duplicate. Refuse with: "Backtrack already recorded." Do nothing else.
-**If not found:** Proceed to append.
+**If `$DUP` is non-empty:** Duplicate detected on line(s) `$DUP`. Refuse with: "Backtrack already recorded on line(s) $DUP." Do nothing else.
+**If `$DUP` is empty:** Proceed to append.
+
+The schema's column order — `date | phase | stage | trigger | produced | why_wrong | counter_action | category | confidence | promote | reverted_commit` — puts `phase` at field 3, `trigger` at field 5, and `why_wrong` at field 7. Column-anchoring the match prevents false positives where keywords land in unrelated cells (e.g., "metric" in `counter_action` conflated with "metric" in `trigger`).
 </step>
 
 <step name="append_backtrack">
-Append the new backtrack as a single 11-column table row to `GPD/BACKTRACKS.md`.
+Append the new backtrack as a single 11-column table row to `GPD/BACKTRACKS.md`. Any fields already pre-filled by `parse_prefill_args` (e.g. `reverted_commit`, `trigger`, `phase`) are used as-is and their prompts are skipped unless the user explicitly overrides them.
 
 **Row format:**
 

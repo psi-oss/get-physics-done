@@ -33,7 +33,7 @@ Parse JSON for: `state_exists`, `roadmap_exists`, `phases`, `current_phase`, `de
 Read mode settings:
 
 ```bash
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "balanced")
 ```
 
 Run centralized context preflight before continuing:

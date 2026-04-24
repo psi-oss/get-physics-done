@@ -1090,6 +1090,25 @@ def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str | None = 
     return None
 
 
+def _find_phase_artifact_path(
+    phase_dir: Path, suffix: str, standalone: str | None = None
+) -> Path | None:
+    """Return the full path to the first file in ``phase_dir`` matching ``suffix``
+    or ``standalone``, or ``None``. Mirrors :func:`_find_phase_artifact` but
+    returns a :class:`Path` for callers that need full content (not truncated).
+    """
+    if not phase_dir.is_dir():
+        return None
+    for path in sorted(phase_dir.iterdir()):
+        if not path.is_file():
+            continue
+        if standalone is not None and path.name == standalone:
+            return path
+        if path.name.endswith(suffix):
+            return path
+    return None
+
+
 def _compute_branch_name(
     config: dict,
     phase_number: str | None,
@@ -1750,6 +1769,11 @@ def _build_reference_runtime_context(
 ) -> dict[str, object]:
     """Build shared reference/anchor context for workflow init payloads."""
     contract, project_contract_load_info = _load_project_contract(cwd)
+    state_obj, _state_issues, _state_source = _peek_state_json(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+    )
     artifact_payload = _reference_artifact_payload(cwd)
     artifact_ingestion = ingest_reference_artifacts(
         cwd,
@@ -1788,6 +1812,7 @@ def _build_reference_runtime_context(
         cwd,
         visible_contract,
         project_contract_load_info,
+        state_obj=state_obj if isinstance(state_obj, dict) else None,
     )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     visible_context_contract = None
@@ -1873,6 +1898,7 @@ def _build_new_project_contract_runtime_context(cwd: Path) -> dict[str, object]:
         cwd,
         contract,
         project_contract_load_info,
+        state_obj=None,
     )
     return {
         "project_contract": contract.model_dump(mode="json") if project_contract_gate.get("visible") else None,
@@ -1907,6 +1933,7 @@ def _build_publication_bootstrap_runtime_context(
         cwd,
         visible_contract,
         project_contract_load_info,
+        state_obj=None,
     )
     visible_context_contract = None
     if project_contract_gate.get("visible"):
