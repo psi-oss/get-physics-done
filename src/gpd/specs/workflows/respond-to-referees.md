@@ -318,7 +318,7 @@ Present triage:
 | C: New calculations | {N} | Create research phases via gpd:add-phase |
 
 Group C items require research work before the response can be completed.
-Address these first? (Y/n)
+Address Group-C new-calculation items first? [Y/n/e]  (Enter = Y; e opens freeform to re-triage)
 ```
 
 </step>

@@ -198,7 +198,7 @@ Parallelizable phases: {list of phases NOT on critical path}
 
 ───────────────────────────────────────────────────────────────
 
-Write this analysis to `GPD/DEPENDENCY-GRAPH.md`? (y/n)
+Persist dependency analysis to `GPD/DEPENDENCY-GRAPH.md` ({N} nodes, {M} edges)? [Y/n/e]  (Enter = Y; e opens freeform for scope notes)
 
 ───────────────────────────────────────────────────────────────
 

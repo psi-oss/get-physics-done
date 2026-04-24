@@ -29,8 +29,8 @@ def test_undo_offers_record_backtrack_post_step() -> None:
     assert "gpd:record-backtrack" in body, (
         "offer_record_backtrack step must reference 'gpd:record-backtrack'"
     )
-    assert "[Y/n]" in body, (
-        "offer_record_backtrack step must use the '[Y/n]' Enter-is-accept convention"
+    assert "[Y/n]" in body or "[Y/n/e]" in body, (
+        "offer_record_backtrack step must use the '[Y/n]' or '[Y/n/e]' Enter-is-accept convention"
     )
 
     # The hook is specified to run AFTER the completion step. If the completion

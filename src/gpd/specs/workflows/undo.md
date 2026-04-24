@@ -259,7 +259,7 @@ To reverse this undo:
 <step name="offer_record_backtrack">
 After the revert banner, offer to capture the backtrack lesson.
 
-**ask_user:** "Capture what went wrong in `BACKTRACKS.md`? [Y/n]"
+**ask_user:** "Capture what went wrong in `BACKTRACKS.md`? [Y/n/e]  (Enter = Y; e opens the record-backtrack form in-place for freeform edits)"
 
 Enter = Y (recommended).
 
@@ -271,6 +271,8 @@ On Y: Run `gpd:record-backtrack` inline with these defaults the user can edit:
 Prompt the user to fill in `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`.
 
 On n: Skip. The revert stands without a backtrack row.
+
+On e: Open the `gpd:record-backtrack` form in-place without committing immediately. The user can fill or override any field freeform (including the pre-filled `reverted_commit`, `trigger`, `phase`, plus `why_wrong`, `counter_action`, `category`, `confidence`, `promote`). On submit, re-prompt `[Y/n/e]` -- Enter = Y persists the row, `n` discards the drafted row, `e` keeps the form open for further edits.
 </step>
 
 </process>

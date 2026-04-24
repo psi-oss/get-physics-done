@@ -123,7 +123,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
-| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
+| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` with one-line summary → wait for `[Y/n/e]` (Enter = accept). Never proceed without approval. |
 | **balanced** (default) | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
 | **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy inside the approved contract. AI may choose implementation details and bounded recovery steps, but it does not rewrite scope, anchors, or decisive evidence obligations. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
@@ -136,6 +136,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 - Convention changes: always checkpoint:decision
 - Approximation validity concerns: always checkpoint:decision
 - Scope: strictly follow the plan — any deviation triggers checkpoint
+- Every emitted `checkpoint:human-verify` carries a one-line summary and a `[Y/n/e]` resume-signal; decision checkpoints keep labeled options. See `specs/references/orchestration/checkpoint-ux-convention.md`.
 
 **balanced (default):**
 - Execute auto tasks without pausing

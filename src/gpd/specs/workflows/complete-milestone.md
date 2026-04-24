@@ -744,7 +744,9 @@ See GPD/MILESTONES.md for full details."
 
 Confirm: "Tagged: v[X.Y]"
 
-Ask: "Push tag to remote? (y/n)"
+Summary: "Tagged v[X.Y] locally. Remote: origin."
+
+Ask: "Push tag v[X.Y] to remote? [Y/n/e]  (Enter = Y; e opens freeform for a custom remote or additional options)"
 
 If yes:
 

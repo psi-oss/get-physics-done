@@ -595,7 +595,7 @@ Identified {K} regions needing finer sampling:
 
 Total additional points: {sum}
 
-Proceed with refinement? (y/n)
+Refine {K} regions ({sum} additional points)? [Y/n/e]  (Enter = Y; e opens freeform to tune the region selection)
 ```
 
 **5. Generate and execute refinement plans:**

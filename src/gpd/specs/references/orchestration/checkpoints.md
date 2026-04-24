@@ -18,6 +18,8 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
 
 **When:** The assistant completed automated calculation/analysis, human confirms physical correctness.
 
+@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md
+
 **Use for:**
 
 - Verifying limiting cases match physical intuition
@@ -35,7 +37,7 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
   <how-to-verify>
     [Exact checks to perform - limiting cases, plots, known results to compare against]
   </how-to-verify>
-  <resume-signal>[How to continue - "confirmed", "yes", or describe issues]</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)  — n rejects, e opens a freeform edit</resume-signal>
 </task>
 ```
 
@@ -66,7 +68,7 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
     3. Band gap: gap between branches at q=pi/a equals sqrt(2k/m1) - sqrt(2k/m2) (for m1 > m2)
     4. Equal mass limit: gap closes, recovers monatomic chain with doubled unit cell
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe physical issues</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y; e opens freeform for physical issues)</resume-signal>
 </task>
 ```
 
@@ -90,7 +92,7 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
     - High-T regime: |m| ~ 0 (disordered phase)
     - Finite-size rounding is visible but transition location is correct
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe issues with the simulation</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)</resume-signal>
 </task>
 ```
 
@@ -340,7 +342,7 @@ How to verify:
   4. Equal mass limit recovers monatomic chain
 
 -------------------------------------------------
-> YOUR ACTION: Type "confirmed" or explain issues
+> YOUR ACTION: [Y/n/e]  (Enter = Y;  n rejects;  e opens a freeform edit)
 -------------------------------------------------
 ```
 
@@ -634,7 +636,7 @@ I'll verify: API returns band structure data for target compounds
     4. Sum rule: integral of Im[chi_0]*omega over omega gives correct f-sum rule
     5. Plots: qualitative shape matches Mahan Fig. 5.1 or similar reference
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe issues</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)</resume-signal>
 </task>
 ```
 
@@ -692,7 +694,7 @@ I'll verify: API returns band structure data for target compounds
 <task type="checkpoint:human-verify">
   <what-derived>Ising model magnetization curve</what-derived>
   <how-to-verify>Phase transition visible near T_c = 2.269, correct ordered/disordered phases</how-to-verify>
-  <resume-signal>Type "confirmed"</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)</resume-signal>
 </task>
 ```
 
@@ -715,7 +717,7 @@ I'll verify: API returns band structure data for target compounds
 <task type="checkpoint:human-verify">
   <what-derived>Complete normal mode analysis (equations + solutions + dispersion plot)</what-derived>
   <how-to-verify>Verify dispersion, check limiting cases, confirm mode counting</how-to-verify>
-  <resume-signal>Type "confirmed"</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)</resume-signal>
 </task>
 ```
 
@@ -738,7 +740,7 @@ I'll verify: API returns band structure data for target compounds
     3. Re[Sigma] has correct sign (negative for electron gas)
     4. Spectral weight Z = 1/(1 - dRe[Sigma]/dE) is between 0 and 1
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe physical issues</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y; e opens freeform for physical issues)</resume-signal>
 </task>
 ```
 

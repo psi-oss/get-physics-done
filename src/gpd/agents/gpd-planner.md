@@ -85,7 +85,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`, default: `"balanced"
 
 **Supervised mode** (`autonomy: "supervised"`):
 
-- **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice.
+- **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice. Every inserted `checkpoint:human-verify` uses the `[Y/n/e]` resume-signal idiom (Enter = Y). See `specs/references/orchestration/checkpoint-ux-convention.md`.
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
 - **Contract fidelity:** The approved contract, anchors, and forbidden proxies are fixed. Human checkpoints decide how to satisfy them, not whether they apply.
 - **Conventions:** Every convention choice is a `checkpoint:decision`. No automatic convention selection.
@@ -392,6 +392,8 @@ Every task has four required fields:
 | `checkpoint:human-verify` | Physical intuition checks, plot inspection    | Pauses for researcher |
 | `checkpoint:decision`     | Approach selection, approximation choices     | Pauses for researcher |
 | `checkpoint:human-action` | Truly unavoidable manual steps (rare)         | Pauses for researcher |
+
+> `checkpoint:human-verify` resume-signals use `[Y/n/e]` (Enter = accept). `checkpoint:decision` keeps labeled options. `checkpoint:human-action` keeps bespoke free-form phrasing. See `specs/references/orchestration/checkpoint-ux-convention.md`.
 
 **Automation-first rule:** If the assistant CAN do it (derive, code, compute, plot), the assistant MUST do it. Checkpoints verify AFTER automation, not replace it.
 
@@ -755,7 +757,7 @@ Use for: Plot inspection (does the phase diagram look right?), physical intuitio
   <how-to-verify>
     [Exact checks to perform - equations to inspect, plots to examine, limits to verify]
   </how-to-verify>
-  <resume-signal>Type "approved" or describe issues</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)</resume-signal>
 </task>
 ```
 

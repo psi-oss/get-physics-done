@@ -56,7 +56,7 @@ If the reverted commit affected STATE.md, update it to reflect the rollback.
 
 ## Step 7: Offer Record Backtrack (post-step)
 
-After the revert lands, prompt `Capture what went wrong in BACKTRACKS.md? [Y/n]`. Enter = Y runs `gpd:record-backtrack` inline with the reverted commit and message pre-filled; `n` is first-class and skips.
+After the revert lands, prompt `Capture what went wrong in BACKTRACKS.md? [Y/n/e]`. Enter = Y runs `gpd:record-backtrack` inline with the reverted commit and message pre-filled; `n` is first-class and skips; `e` opens the record-backtrack form in-place for freeform edits before the final `[Y/n/e]` submit re-prompt.
 
 **SAFETY:** Never undo merge commits. Never force-push. Always create checkpoint first.
 </process>
