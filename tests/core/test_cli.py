@@ -514,7 +514,7 @@ def test_workflow_preset_show_raw_outputs_central_contract() -> None:
     assert payload["label"] == "Core research"
     assert payload["required_checks"] == []
     assert payload["recommended_config"]["model_profile"] == "review"
-    assert payload["summary"] == "Balanced default workflow for planning, execution, and verification."
+    assert payload["summary"] == "Supervised default workflow for planning, execution, and verification."
 
 
 def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) -> None:
@@ -555,7 +555,6 @@ def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) ->
         "workflow.verifier",
     ]
     assert payload["changed_keys"] == [
-        "autonomy",
         "execution.review_cadence",
         "parallelization",
         "planning.commit_docs",
@@ -564,10 +563,9 @@ def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) ->
         "workflow.verifier",
     ]
     assert payload["ignored_keys"] == ["model_cost_posture"]
-    assert payload["unchanged_keys"] == ["research_mode", "model_profile"]
+    assert payload["unchanged_keys"] == ["autonomy", "research_mode", "model_profile"]
     assert payload["changes"] == [
-        {"key": "autonomy", "before": "supervised", "after": "balanced"},
-        {"key": "execution.review_cadence", "before": "sparse", "after": "adaptive"},
+        {"key": "execution.review_cadence", "before": "sparse", "after": "dense"},
         {"key": "parallelization", "before": False, "after": True},
         {"key": "planning.commit_docs", "before": False, "after": True},
         {"key": "workflow.research", "before": False, "after": True},
@@ -575,12 +573,12 @@ def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) ->
         {"key": "workflow.verifier", "before": False, "after": True},
     ]
     resulting_config = payload["resulting_config"]
-    assert resulting_config["autonomy"] == "balanced"
+    assert resulting_config["autonomy"] == "supervised"
     assert resulting_config["research_mode"] == "balanced"
     assert resulting_config["model_profile"] == "review"
     assert resulting_config["parallelization"] is True
     assert resulting_config["commit_docs"] is True
-    assert resulting_config["execution"]["review_cadence"] == "adaptive"
+    assert resulting_config["execution"]["review_cadence"] == "dense"
     assert resulting_config["execution"]["checkpoint_after_n_tasks"] == 7
     assert resulting_config["execution"]["checkpoint_before_downstream_dependent_tasks"] is False
     assert resulting_config["research"] is True
@@ -632,7 +630,6 @@ def test_workflow_preset_apply_writes_merged_config(tmp_path: Path) -> None:
         "workflow.verifier",
     ]
     assert payload["changed_keys"] == [
-        "autonomy",
         "research_mode",
         "model_profile",
         "workflow.research",
@@ -640,13 +637,14 @@ def test_workflow_preset_apply_writes_merged_config(tmp_path: Path) -> None:
         "workflow.verifier",
     ]
     assert payload["unchanged_keys"] == [
+        "autonomy",
         "execution.review_cadence",
         "parallelization",
         "planning.commit_docs",
     ]
 
     written = json.loads(config_path.read_text(encoding="utf-8"))
-    assert written["autonomy"] == "balanced"
+    assert written["autonomy"] == "supervised"
     assert written["research_mode"] == "exploit"
     assert written["model_profile"] == "paper-writing"
     assert written["parallelization"] is False

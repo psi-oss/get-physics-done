@@ -20,7 +20,7 @@ When a preset is selected, resolve it into the current knobs:
 
 Current preset catalog:
 
-- `core-research` — recommended balanced default for most projects
+- `core-research` — recommended supervised default for most projects
 - `theory` — derivation-heavy workflow with `model_profile=deep-theory`
 - `numerics` — computation-heavy workflow with `model_profile=numerical`
 - `publication-manuscript` — paper-writing workflow with `model_profile=paper-writing`; `paper-build` remains the manuscript build contract, while LaTeX readiness still drives readiness for `write-paper` / `peer-review` and can degrade or block `paper-build` / `arxiv-submission`

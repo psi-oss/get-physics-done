@@ -73,7 +73,7 @@ def test_preset_bundle_applies_atomic_supported_keys_and_preserves_unrelated_ove
     )
     assert preview.ignored_guidance_only_keys == ("model_cost_posture",)
     assert applied["model_profile"] == "paper-writing"
-    assert applied["autonomy"] == "balanced"
+    assert applied["autonomy"] == "supervised"
     assert applied["research_mode"] == "exploit"
     assert applied["parallelization"] is False
     assert applied["model_overrides"] == original_overrides
@@ -97,7 +97,7 @@ def test_preset_bundle_applies_atomic_supported_keys_and_preserves_unrelated_ove
 
     cfg = load_config(project)
     assert cfg.model_profile == ModelProfile.PAPER_WRITING
-    assert cfg.autonomy == AutonomyMode.BALANCED
+    assert cfg.autonomy == AutonomyMode.SUPERVISED
     assert cfg.research_mode == ResearchMode.EXPLOIT
     assert cfg.review_cadence == ReviewCadence.DENSE
     assert cfg.commit_docs is True
@@ -152,7 +152,7 @@ def test_atomic_application_preserves_existing_runtime_override_and_nested_confi
         "workflow.plan_checker",
         "workflow.verifier",
     )
-    assert applied["execution"]["review_cadence"] == ReviewCadence.ADAPTIVE.value
+    assert applied["execution"]["review_cadence"] == ReviewCadence.DENSE.value
     assert applied["commit_docs"] is True
     assert applied["research"] is True
     assert applied["plan_checker"] is True

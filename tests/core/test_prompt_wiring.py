@@ -1261,14 +1261,15 @@ def test_new_project_surfaces_supervised_default_and_core_research_preset_previe
     assert '"Publication / manuscript"' in workflow_text
     assert '"Full research"' in workflow_text
 
-    # The core-research preset pins balanced/adaptive, so its preview surfaces those
-    # values (they are preset-pinned, not defaults).
+    # The core-research preset aligns with the Phase-1 defaults
+    # (autonomy=supervised, review_cadence=dense), so its preview surfaces
+    # those values rather than weaker overrides.
     assert (
-        "`autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, "
-        "`planning.commit_docs=true`, `execution.review_cadence=adaptive`"
+        "`autonomy=supervised`, `research_mode=balanced`, `parallelization=true`, "
+        "`planning.commit_docs=true`, `execution.review_cadence=dense`"
     ) in workflow_text
     assert (
-        "Config: Balanced autonomy | Adaptive review cadence | Balanced research mode | Parallel | All agents | Review profile"
+        "Config: Supervised autonomy | Dense review cadence | Balanced research mode | Parallel | All agents | Review profile"
         in workflow_text
     )
 
@@ -4250,7 +4251,7 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "validate paper-quality --from-project ." in write_paper
     assert "Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load" in write_paper
     assert '"review_cadence": "dense"' in new_project
-    assert "Adaptive review cadence" in new_project
+    assert "Dense review cadence" in new_project
     assert (
         "prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock"
         in execute_phase
