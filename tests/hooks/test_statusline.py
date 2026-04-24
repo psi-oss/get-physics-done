@@ -651,7 +651,9 @@ class TestReadCurrentTask:
         ):
             candidates = ordered_todo_lookup_candidates(hook_file=hook_file, cwd=tmp_path)
 
-        assert candidates[0] == self_candidate
+        assert candidates[0].path == self_candidate.path
+        assert candidates[0].runtime == self_candidate.runtime
+        assert candidates[0].scope == self_candidate.scope
 
 
 # ─── _check_update edge cases ──────────────────────────────────────────────

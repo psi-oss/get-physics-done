@@ -33,6 +33,9 @@ Use this one-line path:
 
 `help -> start -> tour -> new-project / map-research -> resume-work`
 
+Optional before durable setup: use `agentic-discussion` to pressure-test a
+research direction before opening a project.
+
 Treat the new-work choice as distinct from the existing-work choice; pick one of them, not both.
 
 Follow one linear path:
@@ -43,7 +46,9 @@ Follow one linear path:
 4. Open that runtime from your normal terminal and run `help`.
 5. Run `start` if you are not sure what fits this folder.
 6. Run `tour` if you want a read-only overview of what GPD can do before choosing.
-7. Then choose `new-project`, `map-research`, or `resume-work`.
+7. Optional: run `agentic-discussion` if you want to pressure-test a research
+   direction before opening a durable project.
+8. Then choose `new-project`, `map-research`, or `resume-work`.
 
 If you already have a GPD project, `gpd resume` is the normal-terminal,
 current-workspace read-only recovery snapshot, and `resume-work` is the
@@ -68,6 +73,8 @@ You will use two different places:
 - **Runtime**: the AI terminal app you talk to, such as Claude Code, Codex, Gemini CLI, or OpenCode.
 - **API credits**: paid model usage from the provider behind your runtime.
 - **`--local`**: install GPD for just this project or folder.
+- **`agentic-discussion`**: an optional pre-project, non-durable discussion for
+  pressure-testing a research direction before you open a full GPD project.
 - **`gpd resume`**: the terminal-side recovery step.
 - **`resume-work`**: the in-runtime command you use after reopening the right workspace.
 - **`settings`**: the guided runtime command for changing autonomy, workflow defaults, and model-cost posture after your first successful start or later.
@@ -155,6 +162,8 @@ Use this if you want GPD inside OpenCode. Inside the runtime, GPD commands use `
 
 1. Finish the OS and runtime guide you opened.
 2. Inside the runtime, use `help` for the command menu, `start` if you are not sure what fits this folder, or `tour` if you want a read-only orientation first.
-3. Then choose `new-project`, `map-research`, or `resume-work`.
-4. After your first successful start or later, use the runtime-specific `settings` command to review autonomy, workflow defaults, and model-cost posture. If you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids, use the runtime-specific `set-tier-models` command instead.
-5. Come back to this hub only when you need a different OS guide or runtime guide.
+3. If you want to pressure-test a research direction before opening a project,
+   use `agentic-discussion`.
+4. Then choose `new-project`, `map-research`, or `resume-work`.
+5. After your first successful start or later, use the runtime-specific `settings` command to review autonomy, workflow defaults, and model-cost posture. If you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids, use the runtime-specific `set-tier-models` command instead.
+6. Come back to this hub only when you need a different OS guide or runtime guide.

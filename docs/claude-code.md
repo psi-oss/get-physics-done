@@ -62,6 +62,7 @@ Type these inside Claude Code, not in your normal terminal:
 /gpd:help
 /gpd:start
 /gpd:tour
+/gpd:agentic-discussion
 /gpd:new-project --minimal
 /gpd:map-research
 /gpd:resume-work
@@ -69,10 +70,13 @@ Type these inside Claude Code, not in your normal terminal:
 
 If you are not sure what this folder is yet, start with `/gpd:start`.
 If you want a read-only walkthrough first, use `/gpd:tour`.
+If you want to pressure-test a direction before opening durable project work,
+use `/gpd:agentic-discussion`.
 
 Suggested order for beginners: `/gpd:help`, `/gpd:start`, `/gpd:tour`, then
-either `/gpd:new-project --minimal`, `/gpd:map-research`, or
-`/gpd:resume-work`.
+optionally `/gpd:agentic-discussion` before either
+`/gpd:new-project --minimal`, `/gpd:map-research`, or `/gpd:resume-work` if
+this folder already has GPD state.
 
 GPD is designed to favor scientific rigor and critical thinking. Treat preferred answers as hypotheses to test, and if a citation, artifact, or run result is missing, keep that gap explicit instead of inventing it.
 
@@ -99,7 +103,10 @@ when you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids.
 - Inside Claude Code, `/gpd:help` shows the GPD commands.
 - `/gpd:start` routes a beginner to the right entry point.
 - `/gpd:tour` explains the main commands without changing anything.
-- `/gpd:new-project --minimal`, `/gpd:map-research`, or `/gpd:resume-work` starts the right GPD flow for new work, existing research, or an existing GPD project.
+- `/gpd:agentic-discussion`, `/gpd:new-project --minimal`,
+  `/gpd:map-research`, or `/gpd:resume-work` starts the right GPD flow for
+  optional pre-project exploration, new work, existing research, or an
+  existing GPD project.
 
 ## Quick troubleshooting
 

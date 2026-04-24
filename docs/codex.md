@@ -65,6 +65,7 @@ Type these inside Codex, not in your normal terminal:
 $gpd-help
 $gpd-start
 $gpd-tour
+$gpd-agentic-discussion
 $gpd-new-project --minimal
 $gpd-map-research
 $gpd-resume-work
@@ -72,10 +73,13 @@ $gpd-resume-work
 
 If you are not sure what this folder is yet, start with `$gpd-start`.
 If you want a read-only walkthrough first, use `$gpd-tour`.
+If you want to pressure-test a direction before opening durable project work,
+use `$gpd-agentic-discussion`.
 
 Suggested order for beginners: `$gpd-help`, `$gpd-start`, `$gpd-tour`, then
-either `$gpd-new-project --minimal`, `$gpd-map-research`, or
-`$gpd-resume-work`.
+optionally `$gpd-agentic-discussion` before either
+`$gpd-new-project --minimal`, `$gpd-map-research`, or `$gpd-resume-work` if
+this folder already has GPD state.
 
 GPD is designed to favor scientific rigor and critical thinking. Treat preferred answers as hypotheses to test, and if a citation, artifact, or run result is missing, keep that gap explicit instead of inventing it.
 
@@ -104,7 +108,10 @@ You are in the right place when:
 - Inside Codex, `$gpd-help` shows the GPD command list.
 - `$gpd-start` routes a beginner to the right entry point.
 - `$gpd-tour` gives a read-only walkthrough of the main commands.
-- `$gpd-new-project --minimal`, `$gpd-map-research`, or `$gpd-resume-work` starts the right GPD flow for new work, existing research, or an existing GPD project.
+- `$gpd-agentic-discussion`, `$gpd-new-project --minimal`,
+  `$gpd-map-research`, or `$gpd-resume-work` starts the right GPD flow for
+  optional pre-project exploration, new work, existing research, or an
+  existing GPD project.
 
 ## 6) Quick troubleshooting
 
