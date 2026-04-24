@@ -2897,8 +2897,29 @@ def _progress_watch_sleep(seconds: float) -> None:
 
 
 def _is_idle(result: object) -> bool:
-    """Return True when ``result`` reports no live execution."""
-    return getattr(result, "live_execution", None) is None
+    """Return True when ``result`` reports no active live execution.
+
+    A project with execution preferences set but no running session yields a
+    live_execution shell whose populated fields are all None; treat that as
+    idle so --exit-on-idle triggers cleanly.
+    """
+    live = getattr(result, "live_execution", None)
+    if live is None:
+        return True
+    live_fields = (
+        "phase",
+        "plan",
+        "wave",
+        "current_task",
+        "current_task_index",
+        "current_task_total",
+        "segment_status",
+        "waiting_reason",
+        "last_result_label",
+        "last_artifact_path",
+        "last_updated_age_label",
+    )
+    return all(getattr(live, name, None) is None for name in live_fields)
 
 
 def _progress_watch_live_table(result: object) -> Table:
@@ -3026,12 +3047,18 @@ def _run_progress_watch_loop(
 
 @app.command("progress")
 def progress(
-    fmt: str = typer.Argument("json", help="Format: json, bar, or table"),
+    fmt: str = typer.Argument(
+        "json",
+        help="Format: json, bar, or table (overridden to 'json' when --watch is set)",
+    ),
     watch: bool = typer.Option(
         False,
         "--watch",
         "-w",
-        help="Poll for updates and redraw until Ctrl-C.",
+        help=(
+            "Poll for updates and redraw a live execution view. "
+            "The positional fmt is overridden to 'json' while watching."
+        ),
     ),
     interval: float = typer.Option(
         10.0,
@@ -3052,6 +3079,11 @@ def progress(
     if not watch:
         _output(progress_render(cwd, fmt))
         return
+    if fmt != "json":
+        err_console.print(
+            f"[dim]--watch overrides fmt={fmt!r} → 'json' for live execution rendering.[/dim]"
+        )
+        fmt = "json"
     try:
         _run_progress_watch_loop(cwd, fmt, interval, exit_on_idle)
     except KeyboardInterrupt:

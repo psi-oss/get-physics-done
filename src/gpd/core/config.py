@@ -425,9 +425,7 @@ class GPDProjectConfig(BaseModel):
         ):
             raise ValueError(
                 "review_cadence=dense requires checkpoint_after_first_load_bearing_result=true; "
-                "dense cadence forces the first-result gate on every wave and cannot coexist "
-                "with the gate disabled. Either remove the override or switch review_cadence "
-                "to adaptive or sparse."
+                "remove the override or set review_cadence to adaptive or sparse."
             )
         return self
 

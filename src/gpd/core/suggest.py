@@ -134,7 +134,7 @@ class SuggestContext:
     has_paper: bool = False
     has_literature_review: bool = False
     has_referee_report: bool = False
-    autonomy: str = "supervised"
+    autonomy: str = "supervised"  # reached by SuggestContext() at suggest.py:738 (no-project early-exit)
     research_mode: str = "balanced"
     adaptive_approach_locked: bool = False
 

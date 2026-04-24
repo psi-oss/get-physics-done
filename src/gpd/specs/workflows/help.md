@@ -260,8 +260,8 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:export [--format html|latex|zip|all]` - Export project artifacts
 - `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
-- `gpd:record-insight [description]` - Save a project-specific lesson
 - `gpd:record-backtrack [description]` - Capture a backtrack event (what went wrong, what got reverted)
+- `gpd:record-insight [description]` - Save a project-specific lesson
 - `gpd:audit-milestone [version]` - Audit milestone completion against goals
 - `gpd:plan-milestone-gaps` - Turn audit gaps into new phases
 
@@ -956,6 +956,16 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 
 Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block.
 
+**Contract alignment gate**
+
+- `gpd contract fingerprint` - Print the canonical sha256 fingerprint of the current machine contract
+- `gpd contract context-fingerprint [path]` - Print the sha256 fingerprint of a CONTEXT.md file's text (defaults to the active phase's CONTEXT.md)
+- `gpd contract record-alignment --contract-hash <hash> --context-hash <hash>` - Persist operator confirmation that the claim-deliverable alignment was reviewed
+- `gpd contract alignment-status` - Print the persisted claim-deliverable alignment confirmation as JSON
+- `gpd contract alignment-summary` - Print the claim-deliverable alignment row projection as JSON
+
+The contract subgroup is the claim-deliverable alignment precheck used by `gpd:execute-phase` before a phase can claim a deliverable.
+
 **Wolfram integration**
 
 - `gpd integrations status wolfram` - Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
@@ -1066,17 +1076,6 @@ View accumulated physics error patterns for this project.
 Usage: `gpd:error-patterns`
 Usage: `gpd:error-patterns sign`
 
-**`gpd:record-insight [description]`**
-Record a project-specific learning or pattern to the insights ledger.
-
-- Records error patterns, convention pitfalls, verification lessons
-- Checks for duplicates before adding
-- Categorizes into appropriate section (Debugging Patterns, Verification Lessons, etc.)
-- Updates `GPD/INSIGHTS.md`
-
-Usage: `gpd:record-insight`
-Usage: `gpd:record-insight Sign error in Wick contractions with mostly-minus metric`
-
 **`gpd:record-backtrack [description]`**
 Capture a backtrack event so the planner can avoid repeating the same mistake.
 
@@ -1087,6 +1086,17 @@ Capture a backtrack event so the planner can avoid repeating the same mistake.
 
 Usage: `gpd:record-backtrack`
 Usage: `gpd:record-backtrack Proof used mostly-minus metric when lock pinned +----`
+
+**`gpd:record-insight [description]`**
+Record a project-specific learning or pattern to the insights ledger.
+
+- Records error patterns, convention pitfalls, verification lessons
+- Checks for duplicates before adding
+- Categorizes into appropriate section (Debugging Patterns, Verification Lessons, etc.)
+- Updates `GPD/INSIGHTS.md`
+
+Usage: `gpd:record-insight`
+Usage: `gpd:record-insight Sign error in Wick contractions with mostly-minus metric`
 
 ### Milestone Auditing
 

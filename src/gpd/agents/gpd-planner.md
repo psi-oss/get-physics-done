@@ -1323,10 +1323,10 @@ echo "TOTAL_PHASES: $(ls -d GPD/phases/*/ 2>/dev/null | wc -l)"
 
 1. **>10 completed phases:** Read ONLY the 2 most relevant SUMMARYs. Use digest for everything else.
 2. **INSIGHTS.md >200 lines:** Read only the last 100 lines (most recent patterns). Older patterns are less likely to be relevant.
-2a. **BACKTRACKS.md:** Read only rows where `stage` matches the current planning stage AND (physics-technique tag overlaps current phase OR no tag filter available). Keep the last 10 rows by `date`. Cap the injected block at ~30 lines.
-3. **RESEARCH.md >300 lines:** Read only the sections matching the current phase's physics domain. Skip unrelated subfield research.
-4. **Theory map files:** Skip DATASETS.md and TESTING.md unless the phase is explicitly about data analysis or testing.
-5. **Multiple RESEARCH.md files:** Only read the one in the CURRENT phase directory. Prior research is absorbed into SUMMARYs.
+3. **BACKTRACKS.md:** Read only rows where `stage` matches the current planning stage AND (physics-technique tag overlaps current phase OR no tag filter available). Keep the last 10 rows by `date`. Cap the injected block at ~30 lines.
+4. **RESEARCH.md >300 lines:** Read only the sections matching the current phase's physics domain. Skip unrelated subfield research.
+5. **Theory map files:** Skip DATASETS.md and TESTING.md unless the phase is explicitly about data analysis or testing.
+6. **Multiple RESEARCH.md files:** Only read the one in the CURRENT phase directory. Prior research is absorbed into SUMMARYs.
 
 **Context budget tracking:**
 

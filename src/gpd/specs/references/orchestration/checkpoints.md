@@ -11,14 +11,14 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
 4. **Domain expertise comes from user, computation comes from the assistant** - Ask for physical constraints, then the assistant implements them
    </overview>
 
+@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md
+
 <checkpoint_types>
 
 <type name="human-verify">
 ## checkpoint:human-verify (Most Common - 90%)
 
 **When:** The assistant completed automated calculation/analysis, human confirms physical correctness.
-
-@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md
 
 **Use for:**
 
@@ -325,6 +325,10 @@ When the assistant encounters `type="checkpoint:*"`:
 
 **For checkpoint:human-verify:**
 
+The prompt opens collapsed with a one-line `Summary:` and a checklist teaser; the researcher presses `v` to expand the full `How to verify` list. The expanded state drops the `v` affordance from the resume-signal because the checklist is already on screen.
+
+_Collapsed (default):_
+
 ```
 +================================================+
 |  CHECKPOINT: Verification Required             |
@@ -333,7 +337,20 @@ When the assistant encounters `type="checkpoint:*"`:
 Progress: 5/8 tasks complete
 Task: Phonon dispersion relation
 
-Derived: Diatomic chain dispersion with acoustic and optical branches
+Summary: Diatomic chain dispersion — acoustic branch goes to 0 as q->0; optical branch has gap 2*sqrt(k/mu).
+
+How to verify (4 checks, press `v` to expand):
+  v. Expand full verification checklist
+
+-------------------------------------------------
+> YOUR ACTION: [Y/n/e/v]  (Enter = Y;  n rejects;  e opens a freeform edit;  v expands checklist)
+-------------------------------------------------
+```
+
+_Expanded (after `v`):_
+
+```
+Summary: Diatomic chain dispersion — acoustic branch goes to 0 as q->0; optical branch has gap 2*sqrt(k/mu).
 
 How to verify:
   1. Acoustic branch: omega -> 0 as q -> 0 (Goldstone mode)

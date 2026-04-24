@@ -1,13 +1,9 @@
 """CLI tests for the `gpd contract` alignment-gate subcommands.
 
-These tests exercise the Phase 5 claim-deliverable precheck wiring:
-
-- `gpd contract record-alignment --contract-hash ... --context-hash ...`
-- `gpd contract alignment-status`
-
-The backing persistence helper (`state_record_contract_alignment`) is owned
-by lane E1. Tests that depend on it will skip cleanly if the helper is not
-yet importable.
+Covers `record-alignment` round-trip persistence, `alignment-status` JSON
+output (unrecorded and post-record), `context-fingerprint` auto-resolution
+from the active phase plus the explicit-path branch, and `alignment-summary`
+round-trip against a stage-0 fixture plus the missing-contract error path.
 """
 
 from __future__ import annotations
@@ -20,7 +16,11 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
-from gpd.core.state import default_state_dict, generate_state_markdown
+from gpd.core.state import (
+    default_state_dict,
+    generate_state_markdown,
+    state_record_contract_alignment,  # noqa: F401  (import smoke-tests availability)
+)
 
 
 class _StableCliRunner(CliRunner):
@@ -35,15 +35,6 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def _strip_ansi(text: str) -> str:
     return _ANSI_ESCAPE_RE.sub("", text)
-
-
-def _has_record_helper() -> bool:
-    """Check whether lane E1's persistence helper has landed."""
-    try:
-        from gpd.core.state import state_record_contract_alignment  # noqa: F401
-    except ImportError:
-        return False
-    return True
 
 
 @pytest.fixture()
@@ -85,10 +76,6 @@ def _chdir(gpd_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(gpd_project)
 
 
-@pytest.mark.skipif(
-    not _has_record_helper(),
-    reason="lane E1 has not landed state_record_contract_alignment yet",
-)
 def test_cli_contract_record_alignment_round_trip(gpd_project: Path) -> None:
     """Recording via CLI must persist the hashes into state.json."""
     contract_hash = "sha256:" + "a" * 64
@@ -166,10 +153,6 @@ def test_cli_contract_context_fingerprint_explicit_path(
     assert _strip_ansi(result.output).strip().startswith("sha256:")
 
 
-@pytest.mark.skipif(
-    not _has_record_helper(),
-    reason="lane E1 has not landed state_record_contract_alignment yet",
-)
 def test_cli_contract_alignment_status_after_record(gpd_project: Path) -> None:
     """After recording, alignment-status must echo the persisted hashes."""
     contract_hash = "sha256:" + "c" * 64

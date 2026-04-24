@@ -3736,6 +3736,7 @@ def test_context_guidance_fingerprint_is_stable_and_changes_on_edit() -> None:
 
 
 def test_contract_fingerprint_changes_when_claims_reordered() -> None:
+    """contract_fingerprint must change when claim order changes (list order is part of the canonical JSON)."""
     contract = _load_contract_fixture()
     sibling = copy.deepcopy(contract["claims"][0])
     sibling["id"] = "claim-sibling"
@@ -3753,6 +3754,7 @@ def test_contract_fingerprint_changes_when_claims_reordered() -> None:
 
 
 def test_context_guidance_fingerprint_handles_crlf_by_byte_hashing() -> None:
+    """context_guidance_fingerprint byte-hashes: CRLF and LF inputs produce distinct fingerprints."""
     lf_text = "line one\nline two\n"
     crlf_text = "line one\r\nline two\r\n"
 
@@ -3765,6 +3767,7 @@ def test_context_guidance_fingerprint_handles_crlf_by_byte_hashing() -> None:
 
 
 def test_context_guidance_fingerprint_handles_bom_and_unicode() -> None:
+    """context_guidance_fingerprint handles BOM prefixes and non-ASCII unicode stably."""
     plain = "observe benchmark within tolerance.\n"
     with_bom = "﻿" + plain
     unicode_text = "观测 benchmark 在容差内; σ ≤ 0.05 μm.\n"
@@ -3779,6 +3782,7 @@ def test_context_guidance_fingerprint_handles_bom_and_unicode() -> None:
 
 
 def test_contract_fingerprint_equals_content_address_of_model_dump() -> None:
+    """contract_fingerprint equals _content_address(contract.model_dump(mode="json")) — delegation invariant."""
     contract = _load_contract_fixture()
     parsed = ResearchContract.model_validate(contract)
     assert contract_fingerprint(parsed) == _content_address(parsed.model_dump(mode="json"))
