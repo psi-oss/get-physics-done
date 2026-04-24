@@ -256,6 +256,23 @@ To reverse this undo:
 
 </step>
 
+<step name="offer_record_backtrack">
+After the revert banner, offer to capture the backtrack lesson.
+
+**ask_user:** "Capture what went wrong in `BACKTRACKS.md`? [Y/n]"
+
+Enter = Y (recommended).
+
+On Y: Run `gpd:record-backtrack` inline with these defaults the user can edit:
+  - `reverted_commit`: {TARGET_HASH}
+  - `trigger`: {TARGET_MSG}
+  - `phase`: inferred from the reverted commit's scope (e.g. `phase-NN`) -- prompt the user if unclear
+
+Prompt the user to fill in `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`.
+
+On n: Skip. The revert stands without a backtrack row.
+</step>
+
 </process>
 
 <anti_patterns>
@@ -280,5 +297,6 @@ Undo is complete when:
 - [ ] Revert committed with descriptive `undo:` prefix message
 - [ ] STATE.md updated if it was affected by the reverted commit
 - [ ] User informed of checkpoint tag for reversal
+- [ ] Optional backtrack row recorded to BACKTRACKS.md (if user opted in)
 
 </success_criteria>

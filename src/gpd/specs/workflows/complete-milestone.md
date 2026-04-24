@@ -507,6 +507,7 @@ Read `GPD/INSIGHTS.md` and identify entries that:
 - Were confirmed across 2+ phases (high confidence)
 - Describe repeatable error patterns, not one-off issues
 - Have clear detection and prevention strategies
+- Include rows in `GPD/BACKTRACKS.md` flagged `promote: true` — these were auto-copied into INSIGHTS.md's `## Execution Deviations` section by the `gpd:record-backtrack` workflow when captured, so they surface here alongside directly-recorded insights.
 
 For each candidate, check if a matching pattern already exists:
 

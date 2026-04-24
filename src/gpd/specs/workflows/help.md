@@ -261,6 +261,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
 - `gpd:record-insight [description]` - Save a project-specific lesson
+- `gpd:record-backtrack [description]` - Capture a backtrack event (what went wrong, what got reverted)
 - `gpd:audit-milestone [version]` - Audit milestone completion against goals
 - `gpd:plan-milestone-gaps` - Turn audit gaps into new phases
 
@@ -1075,6 +1076,17 @@ Record a project-specific learning or pattern to the insights ledger.
 
 Usage: `gpd:record-insight`
 Usage: `gpd:record-insight Sign error in Wick contractions with mostly-minus metric`
+
+**`gpd:record-backtrack [description]`**
+Capture a backtrack event so the planner can avoid repeating the same mistake.
+
+- Records the trigger, what was produced, why it was wrong, and the counter-action
+- Checks for duplicates on `trigger` + `why_wrong`
+- When `promote: true`, auto-copies a parallel row into `GPD/INSIGHTS.md`'s `## Execution Deviations` section
+- Updates `GPD/BACKTRACKS.md`
+
+Usage: `gpd:record-backtrack`
+Usage: `gpd:record-backtrack Proof used mostly-minus metric when lock pinned +----`
 
 ### Milestone Auditing
 

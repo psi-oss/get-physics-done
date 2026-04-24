@@ -1292,7 +1292,7 @@ For phases not selected, retain from digest:
 # - RESEARCH.md (loaded in gather_phase_context if has_research=true)
 
 # Optional files — check existence and size BEFORE reading:
-for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/RESEARCH.md; do
+for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/BACKTRACKS.md GPD/RESEARCH.md; do
   if [ -s "$f" ]; then
     echo "EXISTS: $f ($(wc -l < "$f") lines)"
   else
@@ -1313,6 +1313,7 @@ echo "TOTAL_PHASES: $(ls -d GPD/phases/*/ 2>/dev/null | wc -l)"
 | CONTEXT.md | has_context=true | Phase has no discussion | ~3-5% |
 | RESEARCH.md | has_research=true | Phase has no research | ~5-8% |
 | INSIGHTS.md | EXISTS + <200 lines | Missing, empty, or >200 lines (read first 100 only) | ~2-4% |
+| BACKTRACKS.md | EXISTS + filter last 10 same-stage rows | Missing or empty | ~1-2% (~30 lines) |
 | ERROR-PATTERNS.md | EXISTS + <100 lines | Missing or empty | ~1-2% |
 | RESEARCH.md | EXISTS + current phase only | Missing or for different phase | ~3-5% |
 | Prior SUMMARYs | Top 2-4 by relevance score | All others (use digest only) | ~3-5% each |
@@ -1322,6 +1323,7 @@ echo "TOTAL_PHASES: $(ls -d GPD/phases/*/ 2>/dev/null | wc -l)"
 
 1. **>10 completed phases:** Read ONLY the 2 most relevant SUMMARYs. Use digest for everything else.
 2. **INSIGHTS.md >200 lines:** Read only the last 100 lines (most recent patterns). Older patterns are less likely to be relevant.
+2a. **BACKTRACKS.md:** Read only rows where `stage` matches the current planning stage AND (physics-technique tag overlaps current phase OR no tag filter available). Keep the last 10 rows by `date`. Cap the injected block at ~30 lines.
 3. **RESEARCH.md >300 lines:** Read only the sections matching the current phase's physics domain. Skip unrelated subfield research.
 4. **Theory map files:** Skip DATASETS.md and TESTING.md unless the phase is explicitly about data analysis or testing.
 5. **Multiple RESEARCH.md files:** Only read the one in the CURRENT phase directory. Prior research is absorbed into SUMMARYs.
@@ -1346,7 +1348,7 @@ If optional file budget < 15%, skip ALL optional files and proceed directly to p
 Read learned patterns if they exist (skip if triage reported SKIP):
 
 ```bash
-for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md; do
+for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/BACKTRACKS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"
@@ -1362,6 +1364,7 @@ For each pattern found, apply targeted planning adjustments:
 | **Convergence lesson**   | Current phase involves numerical convergence for a method with recorded lessons               | Adjust convergence criteria in the plan to match learned thresholds (e.g., tighter tolerances, more iterations, different algorithm) |
 | **Convention pitfall**   | A convention mismatch was previously recorded for the notation/units in use                   | Add convention check as the FIRST task in the plan -- verify all inputs use the correct convention before any calculation            |
 | **Approximation lesson** | An approximation validity boundary was previously found to be tighter or looser than expected | Reference the lesson explicitly in the approximation handling section of the plan; update validity ranges accordingly                |
+| **Prior backtrack**      | Current stage + technique match a row in BACKTRACKS.md (last-10 by date)                      | Add a counter-action task mirroring the row's `counter_action` field; respect its `category` when choosing scope                     |
 
 **Pattern integration rules:**
 
@@ -1381,6 +1384,7 @@ For each pattern found, apply targeted planning adjustments:
 patterns_consulted:
   insights: ["INSIGHTS.md entry title 1", "INSIGHTS.md entry title 2"]
   error_patterns: ["ERROR-PATTERNS.md entry title 1"]
+  backtracks: [<list-of-BACKTRACKS.md-row-keys-consulted>]
   adjustments_made:
     - "Added sign verification task for Fourier transform (sign error in Phase 02)"
     - "Tightened convergence tolerance to 1e-12 (learned from Phase 03 instability)"
@@ -1392,6 +1396,7 @@ If neither file exists or no relevant patterns are found:
 patterns_consulted:
   insights: []
   error_patterns: []
+  backtracks: []
   adjustments_made: []
 ```
 
