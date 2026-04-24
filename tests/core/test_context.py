@@ -1841,9 +1841,12 @@ class TestInitPlanPhase:
         contract_payload["scope"]["in_scope"] = ["numerical relativity", "benchmark alignment"]
         contract = ResearchContract.model_validate(contract_payload)
 
-        monkeypatch.setattr(
-            "gpd.core.context._load_project_contract",
-            lambda cwd: (
+        import traceback as _tb
+        _calls: list[str] = []
+        def _mock_load(cwd, _calls=_calls):  # type: ignore[no-untyped-def]
+            _calls.append("called")
+            _tb.print_stack(limit=8)
+            return (
                 contract,
                 {
                     "status": "loaded",
@@ -1853,7 +1856,27 @@ class TestInitPlanPhase:
                     "errors": [],
                     "warnings": [],
                 },
-            ),
+            )
+
+        monkeypatch.setattr(
+            "gpd.core.context._load_project_contract",
+            _mock_load,
+        )
+        import gpd.core.state as _state_module
+        _state_calls: list[str] = []
+        _orig_state_loader = _state_module._load_project_contract_for_runtime_context
+
+        def _tracking_state_loader(cwd, _state_calls=_state_calls, _orig=_orig_state_loader):  # type: ignore[no-untyped-def]
+            _state_calls.append("called")
+            import sys
+            print("STATE LOADER CALLED from: ", file=sys.stderr)
+            _tb.print_stack(limit=10, file=sys.stderr)
+            return _orig(cwd)
+
+        monkeypatch.setattr(
+            _state_module,
+            "_load_project_contract_for_runtime_context",
+            _tracking_state_loader,
         )
 
         ctx = init_progress(tmp_path)
@@ -1866,7 +1889,10 @@ class TestInitPlanPhase:
             )
         assert gate["authoritative"] is False, f"gate={gate!r}"
         assert gate["repair_required"] is True, f"gate={gate!r}"
-        assert gate["visible"] is True, f"gate={gate!r} project_contract_type={type(project_contract).__name__}"
+        assert gate["visible"] is True, (
+            f"gate={gate!r} project_contract_type={type(project_contract).__name__} "
+            f"ctx_mock_calls={len(_calls)} state_mock_calls={len(_state_calls)}"
+        )
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert ctx["selected_protocol_bundle_ids"] == []
         assert ctx["active_reference_count"] == 0
