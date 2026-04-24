@@ -41,6 +41,7 @@ from gpd.core.contract_validation import (
     split_project_contract_schema_findings,
     validate_project_contract,
 )
+from gpd.core.kernel import _content_address
 from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.mcp.paper.models import ReviewFinding, ReviewIssue, ReviewIssueSeverity, ReviewRecommendation, ReviewStageKind
 
@@ -3634,6 +3635,76 @@ def test_claim_deliverable_alignment_summary_flags_missing_deliverable_links() -
     assert rows[0][2] == "(no linked acceptance test)"
 
 
+def test_claim_deliverable_alignment_summary_multi_deliverable_claim() -> None:
+    """A claim with multiple linked deliverables yields one row per link."""
+    contract = _load_contract_fixture()
+
+    sibling_deliv = copy.deepcopy(contract["deliverables"][0])
+    sibling_deliv["id"] = "deliv-extra"
+    sibling_deliv["description"] = "Extra comparison figure"
+    contract["deliverables"].append(sibling_deliv)
+
+    sibling_test = copy.deepcopy(contract["acceptance_tests"][0])
+    sibling_test["id"] = "test-extra"
+    sibling_test["pass_condition"] = "Secondary tolerance met"
+    contract["acceptance_tests"].append(sibling_test)
+
+    contract["claims"][0]["deliverables"].append("deliv-extra")
+    contract["claims"][0]["acceptance_tests"].append("test-extra")
+
+    parsed = ResearchContract.model_validate(contract)
+    rows = claim_deliverable_alignment_summary(parsed)
+
+    assert len(rows) == 2
+    descriptions = [row[1] for row in rows]
+    conditions = [row[2] for row in rows]
+    assert "Benchmark comparison figure" in descriptions
+    assert "Extra comparison figure" in descriptions
+    assert "Matches reference within tolerance" in conditions
+    assert "Secondary tolerance met" in conditions
+
+
+def test_claim_deliverable_alignment_summary_unknown_deliverable_id_silently_drops() -> None:
+    """Unknown deliverable/test IDs in claim link lists are silently dropped.
+
+    `ResearchContract.model_validate` accepts unknown IDs in a claim's link
+    lists (cross-reference validation lives in `validate_project_contract`,
+    not in the pydantic schema). The alignment-summary projection must only
+    surface links that resolve to real deliverables/tests.
+    """
+    contract = _load_contract_fixture()
+    contract["claims"][0]["deliverables"] = ["deliv-figure", "deliv-nonexistent"]
+    contract["claims"][0]["acceptance_tests"] = ["test-benchmark", "test-nonexistent"]
+
+    parsed = ResearchContract.model_validate(contract)
+    rows = claim_deliverable_alignment_summary(parsed)
+
+    assert len(rows) == 1
+    assert rows[0][1] == "Benchmark comparison figure"
+    assert rows[0][2] == "Matches reference within tolerance"
+    joined = " ".join(" ".join(str(cell) for cell in row) for row in rows)
+    assert "deliv-nonexistent" not in joined
+    assert "test-nonexistent" not in joined
+
+
+def test_claim_deliverable_alignment_summary_empty_claims_returns_empty_list() -> None:
+    """A contract with no claims yields an empty projection.
+
+    `ResearchContract.claims` is `Field(default_factory=list)` without a
+    `min_length` constraint, so an empty list is accepted at the schema
+    level. Cross-reference invariants that would flag a claim-less
+    contract are enforced by `validate_project_contract`, not by the
+    pydantic model itself.
+    """
+    contract = _load_contract_fixture()
+    contract["claims"] = []
+
+    parsed = ResearchContract.model_validate(contract)
+    rows = claim_deliverable_alignment_summary(parsed)
+
+    assert rows == []
+
+
 def test_contract_fingerprint_is_stable_and_changes_on_edit() -> None:
     contract = _load_contract_fixture()
     parsed = ResearchContract.model_validate(contract)
@@ -3662,3 +3733,52 @@ def test_context_guidance_fingerprint_is_stable_and_changes_on_edit() -> None:
     assert first.startswith("sha256:")
     assert len(first) == len("sha256:") + 64
     assert context_guidance_fingerprint(text + "edit\n") != first
+
+
+def test_contract_fingerprint_changes_when_claims_reordered() -> None:
+    contract = _load_contract_fixture()
+    sibling = copy.deepcopy(contract["claims"][0])
+    sibling["id"] = "claim-sibling"
+    contract["claims"].append(sibling)
+
+    original = ResearchContract.model_validate(contract)
+
+    reordered_data = copy.deepcopy(contract)
+    reordered_data["claims"] = list(reversed(reordered_data["claims"]))
+    reordered = ResearchContract.model_validate(reordered_data)
+
+    # Canonical JSON sorts dict keys but preserves list order; reordering the
+    # `claims` list must produce a different fingerprint.
+    assert contract_fingerprint(original) != contract_fingerprint(reordered)
+
+
+def test_context_guidance_fingerprint_handles_crlf_by_byte_hashing() -> None:
+    lf_text = "line one\nline two\n"
+    crlf_text = "line one\r\nline two\r\n"
+
+    # context_guidance_fingerprint byte-hashes its input; it does NOT normalize
+    # newlines. Callers that read via Path.read_text get universal-newlines LF
+    # normalization; raw callers see distinct hashes for CRLF vs LF input.
+    assert context_guidance_fingerprint(lf_text) != context_guidance_fingerprint(crlf_text)
+    # Stability: same input -> same fingerprint.
+    assert context_guidance_fingerprint(crlf_text) == context_guidance_fingerprint(crlf_text)
+
+
+def test_context_guidance_fingerprint_handles_bom_and_unicode() -> None:
+    plain = "observe benchmark within tolerance.\n"
+    with_bom = "﻿" + plain
+    unicode_text = "观测 benchmark 在容差内; σ ≤ 0.05 μm.\n"
+
+    assert context_guidance_fingerprint(with_bom) != context_guidance_fingerprint(plain)
+
+    fp = context_guidance_fingerprint(unicode_text)
+    assert fp.startswith("sha256:")
+    assert len(fp) == len("sha256:") + 64
+    assert context_guidance_fingerprint(unicode_text) == fp
+    assert context_guidance_fingerprint(unicode_text + "ε") != fp
+
+
+def test_contract_fingerprint_equals_content_address_of_model_dump() -> None:
+    contract = _load_contract_fixture()
+    parsed = ResearchContract.model_validate(contract)
+    assert contract_fingerprint(parsed) == _content_address(parsed.model_dump(mode="json"))

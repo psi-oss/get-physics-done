@@ -3956,3 +3956,37 @@ def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
     assert gate.get("confirmed_at") == "2026-04-23T13:00:00+00:00"
     assert gate.get("confirmed_contract_hash") == "sha256:contract"
     assert gate.get("confirmed_context_hash") == "sha256:context"
+
+
+def test_state_contract_alignment_absent_from_json_loads_default(tmp_path: Path) -> None:
+    """Legacy state.json without contract_alignment reloads with the default gate payload."""
+    state = default_state_dict()
+    del state["contract_alignment"]
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = load_state_json(tmp_path)
+    assert loaded["contract_alignment"] == {
+        "confirmed_at": None,
+        "confirmed_contract_hash": None,
+        "confirmed_context_hash": None,
+    }
+
+
+def test_state_contract_alignment_survives_markdown_rebuild(tmp_path: Path) -> None:
+    """contract_alignment hashes survive the generate_state_markdown / sync_state_json round-trip."""
+    state = default_state_dict()
+    state["contract_alignment"] = ContractAlignmentGate(
+        confirmed_at="2026-04-23T12:00:00+00:00",
+        confirmed_contract_hash="sha256:abc",
+        confirmed_context_hash="sha256:def",
+    ).model_dump(mode="python")
+    save_state_json(tmp_path, state)
+
+    reloaded = load_state_json(tmp_path)
+    md = generate_state_markdown(reloaded)
+    sync_state_json(tmp_path, md)
+
+    final = load_state_json(tmp_path)
+    assert final["contract_alignment"]["confirmed_at"] == "2026-04-23T12:00:00+00:00"
+    assert final["contract_alignment"]["confirmed_contract_hash"] == "sha256:abc"
+    assert final["contract_alignment"]["confirmed_context_hash"] == "sha256:def"

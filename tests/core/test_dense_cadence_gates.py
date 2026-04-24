@@ -206,3 +206,57 @@ def test_clean_wave_under_dense_batches_post_task_checkpoints() -> None:
 
     # Batching must not relax gates — Phase 4 invariant.
     assert "collapses keystrokes, not gates" in execute_plan
+
+
+def test_result_verb_whitelist_is_produce_and_log_only() -> None:
+    """Pin the canonical verb set that triggers the first-result guard.
+    Changing this silently would let a new result verb bypass Phase 4."""
+    from gpd.core.observability import _RESULT_VERBS
+
+    assert _RESULT_VERBS == frozenset({"produce", "log"})
+
+
+def test_dense_gate_clears_cleanly_on_gate_clear_after_result_produce(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Under dense, first-result gate trip must fully reset on gate/clear
+    with checkpoint_reason=first_result. Closes the S3.10 coverage gap."""
+    _create_config(tmp_path, {"review_cadence": "dense"})
+    monkeypatch.chdir(tmp_path)
+
+    session = ensure_session(tmp_path, source="cli", command="execute-phase")
+
+    observe_event(
+        tmp_path,
+        category="execution",
+        name="result",
+        action="produce",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"load_bearing": False}},
+    )
+
+    snapshot = get_current_execution(tmp_path)
+    assert snapshot.first_result_gate_pending is True
+    assert snapshot.waiting_for_review is True
+
+    observe_event(
+        tmp_path,
+        category="execution",
+        name="gate",
+        action="clear",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "first_result"}},
+    )
+
+    cleared = get_current_execution(tmp_path)
+    assert cleared.first_result_gate_pending is False
+    assert cleared.waiting_for_review is False
+    assert cleared.review_required is False

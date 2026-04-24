@@ -1183,6 +1183,7 @@ def _normalized_tangent_decision(value: object) -> str | None:
 
 
 _EXECUTION_REVIEW_REASONS = frozenset({"first_result", "pre_fanout", "skeptical_requestioning"})
+_RESULT_VERBS: frozenset[str] = frozenset({"produce", "log"})
 
 
 def _review_clear_targets(execution: dict[str, object]) -> set[str]:
@@ -1364,7 +1365,7 @@ def _apply_automatic_execution_guards(
     dense_forced = cadence == "dense"
     if (
         payload.name == "result"
-        and payload.action in {"produce", "log"}
+        and payload.action in _RESULT_VERBS
         and not current.get("first_result_gate_pending")
         and (
             (load_bearing and policy.get("checkpoint_after_first_load_bearing_result"))
@@ -1707,7 +1708,7 @@ def _updated_execution_state(
                 current["segment_status"] = "active"
             _clear_tangent_state(current)
 
-    if payload.name == "result" and payload.action in {"produce", "log"}:
+    if payload.name == "result" and payload.action in _RESULT_VERBS:
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
             current["first_result_ready"] = True
 

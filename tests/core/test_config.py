@@ -19,6 +19,7 @@ from gpd.core.config import (
     ResearchMode,
     ReviewCadence,
     _valid_runtime_names,
+    apply_config_update,
     load_config,
     resolve_agent_tier,
     resolve_model,
@@ -135,8 +136,36 @@ class TestDenseCadenceForcesFirstResultGate:
             encoding="utf-8",
         )
 
-        with pytest.raises(ConfigError, match="dense"):
+        with pytest.raises(
+            ConfigError,
+            match=r"review_cadence=dense requires checkpoint_after_first_load_bearing_result=true",
+        ):
             load_config(tmp_path)
+
+    def test_apply_config_update_rejects_dense_with_disabled_first_result_gate(
+        self,
+    ) -> None:
+        """Write-path: setting checkpoint_after_first_load_bearing_result=False
+        on a dense config must fail through apply_config_update, not only
+        through load_config."""
+        raw: dict[str, object] = {"review_cadence": "dense"}
+        with pytest.raises(
+            ConfigError,
+            match=r"review_cadence=dense requires checkpoint_after_first_load_bearing_result=true",
+        ):
+            apply_config_update(raw, "checkpoint_after_first_load_bearing_result", False)
+
+    def test_apply_config_update_rejects_dense_cadence_on_disabled_gate_config(
+        self,
+    ) -> None:
+        """Inverse of the above: setting review_cadence=dense on a config
+        that already has first-result gate disabled must also fail."""
+        raw: dict[str, object] = {"checkpoint_after_first_load_bearing_result": False}
+        with pytest.raises(
+            ConfigError,
+            match=r"review_cadence=dense requires checkpoint_after_first_load_bearing_result=true",
+        ):
+            apply_config_update(raw, "review_cadence", "dense")
 
     def test_dense_cadence_with_enabled_gate_loads_cleanly(self, tmp_path: Path) -> None:
         (tmp_path / "GPD").mkdir()

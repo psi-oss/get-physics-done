@@ -200,3 +200,38 @@ def test_cli_contract_alignment_status_after_record(gpd_project: Path) -> None:
     assert payload["confirmed_contract_hash"] == contract_hash
     assert payload["confirmed_context_hash"] == context_hash
     assert payload["confirmed_at"] is not None
+
+
+def test_cli_contract_alignment_summary_returns_rows_json(
+    gpd_project: Path,
+) -> None:
+    """`gpd contract alignment-summary` emits one row per claim from state."""
+    fixture_path = (
+        Path(__file__).resolve().parent / "fixtures" / "stage0" / "project_contract.json"
+    )
+    contract = json.loads(fixture_path.read_text(encoding="utf-8"))
+    state_path = gpd_project / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["project_contract"] = contract
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    result = runner.invoke(app, ["contract", "alignment-summary"], catch_exceptions=False)
+    assert result.exit_code == 0, _strip_ansi(result.output)
+
+    payload = json.loads(_strip_ansi(result.output))
+    assert "rows" in payload
+    assert len(payload["rows"]) == 1
+    row = payload["rows"][0]
+    assert row["claim"]
+    assert row["deliverable"] == "Benchmark comparison figure"
+    assert row["acceptance_test"] == "Matches reference within tolerance"
+
+
+def test_cli_contract_alignment_summary_errors_when_contract_missing(
+    gpd_project: Path,
+) -> None:
+    """Without `project_contract` in state, the command must exit non-zero."""
+    # The `gpd_project` fixture writes `state.json` without a `project_contract`.
+    result = runner.invoke(app, ["contract", "alignment-summary"], catch_exceptions=False)
+    assert result.exit_code != 0
+    assert "No project contract" in _strip_ansi(result.output)

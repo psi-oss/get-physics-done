@@ -4765,3 +4765,42 @@ class TestInitPhaseOp:
             ),
         ):
             init_research_phase(tmp_path, phase="1", stage="research_handoff")
+
+
+# ─── contract_alignment surfacing on gate dicts ───────────────────────────────
+
+
+def test_context_reference_builder_surfaces_alignment_on_gate_dict(tmp_path: Path) -> None:
+    """init_progress surfaces recorded alignment hashes on project_contract_gate."""
+    from gpd.core.state import state_record_contract_alignment
+
+    _setup_project(tmp_path)
+    _write_project_contract_state(tmp_path)
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:contract-hash",
+        context_hash="sha256:context-hash",
+        now="2026-04-23T12:00:00+00:00",
+    )
+
+    ctx = init_progress(tmp_path)
+    gate = ctx["project_contract_gate"]
+    assert gate["confirmed_at"] == "2026-04-23T12:00:00+00:00"
+    assert gate["confirmed_contract_hash"] == "sha256:contract-hash"
+    assert gate["confirmed_context_hash"] == "sha256:context-hash"
+
+
+def test_context_new_project_builder_omits_alignment_keys(tmp_path: Path) -> None:
+    """init_new_project without recorded alignment omits the three alignment keys.
+
+    The new-project builder passes ``state_obj=None`` when assembling the
+    project_contract_gate payload (Wave A contract). Because no state object
+    sources the fields, the three alignment keys are absent from the gate by
+    design — not present-with-None. This test pins that behaviour so regressions
+    that start leaking None placeholders into the gate dict get caught early.
+    """
+    ctx = init_new_project(tmp_path)
+    gate = ctx.get("project_contract_gate") or {}
+    assert "confirmed_at" not in gate
+    assert "confirmed_contract_hash" not in gate
+    assert "confirmed_context_hash" not in gate
