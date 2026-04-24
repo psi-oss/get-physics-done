@@ -44,7 +44,7 @@ The `[Y/n/e]` convention does NOT apply to these checkpoints. Keep their existin
 
 ## Batching rules
 
-When Phase 8.B lands, the following batching applies under `review_cadence=dense`:
+Under `review_cadence=dense`, the following batching applies:
 
 - **Clean-wave batching**: if every task in a wave passed with no deviation, collapse the N per-task `checkpoint:human-verify` prompts into a single "Approve tasks N..M as clean pass? [Y/n/e]". Any task flagging a deviation falls back to per-task.
 - **Verification batching**: `specs/workflows/verify-phase.md` auto-passed checks is the repo batch-approval template — summary table + single batch-approve prompt.
