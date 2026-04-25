@@ -1841,58 +1841,33 @@ class TestInitPlanPhase:
         contract_payload["scope"]["in_scope"] = ["numerical relativity", "benchmark alignment"]
         contract = ResearchContract.model_validate(contract_payload)
 
-        import traceback as _tb
-        _calls: list[str] = []
-        def _mock_load(cwd, _calls=_calls):  # type: ignore[no-untyped-def]
-            _calls.append("called")
-            _tb.print_stack(limit=8)
-            return (
-                contract,
-                {
-                    "status": "loaded",
-                    "source_path": "GPD/state.json",
-                    "provenance": "fallback",
-                    "raw_project_contract_classified": False,
-                    "errors": [],
-                    "warnings": [],
-                },
-            )
-
+        # Mock at the state-module loader (the actual underlying call site).
+        # The earlier wrapper-level mock on gpd.core.context._load_project_contract
+        # was unreliable across platforms — Linux CI resolved the bare-name call
+        # in _build_reference_runtime_context to the original wrapper body
+        # despite a successful monkeypatch.setattr. Patching the underlying
+        # loader is robust because every entry point bottoms out there.
+        load_info = {
+            "status": "loaded",
+            "source_path": "GPD/state.json",
+            "provenance": "fallback",
+            "raw_project_contract_classified": False,
+            "errors": [],
+            "warnings": [],
+        }
         monkeypatch.setattr(
-            "gpd.core.context._load_project_contract",
-            _mock_load,
-        )
-        import gpd.core.state as _state_module
-        _state_calls: list[str] = []
-        _orig_state_loader = _state_module._load_project_contract_for_runtime_context
-
-        def _tracking_state_loader(cwd, _state_calls=_state_calls, _orig=_orig_state_loader):  # type: ignore[no-untyped-def]
-            _state_calls.append("called")
-            import sys
-            print("STATE LOADER CALLED from: ", file=sys.stderr)
-            _tb.print_stack(limit=10, file=sys.stderr)
-            return _orig(cwd)
-
-        monkeypatch.setattr(
-            _state_module,
-            "_load_project_contract_for_runtime_context",
-            _tracking_state_loader,
+            "gpd.core.state._load_project_contract_for_runtime_context",
+            lambda cwd: (contract, dict(load_info)),
         )
 
         ctx = init_progress(tmp_path)
 
         project_contract = ctx.get("project_contract")
-        gate = ctx["project_contract_gate"]
         if isinstance(project_contract, dict):
-            assert project_contract["scope"]["question"] == contract.scope.question, (
-                f"gate={gate!r} project_contract={project_contract!r}"
-            )
-        assert gate["authoritative"] is False, f"gate={gate!r}"
-        assert gate["repair_required"] is True, f"gate={gate!r}"
-        assert gate["visible"] is True, (
-            f"gate={gate!r} project_contract_type={type(project_contract).__name__} "
-            f"ctx_mock_calls={len(_calls)} state_mock_calls={len(_state_calls)}"
-        )
+            assert project_contract["scope"]["question"] == contract.scope.question
+        assert ctx["project_contract_gate"]["authoritative"] is False
+        assert ctx["project_contract_gate"]["repair_required"] is True
+        assert ctx["project_contract_gate"]["visible"] is True
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert ctx["selected_protocol_bundle_ids"] == []
         assert ctx["active_reference_count"] == 0
