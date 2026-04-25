@@ -58,6 +58,15 @@ def _contract_bearing_command_surfaces() -> dict[str, tuple[str, ...]]:
 def _runtime_expected_fragments(fragments: tuple[str, ...], *, runtime: str) -> tuple[str, ...]:
     if runtime == "codex":
         return tuple(fragment.replace("`gpd:suggest-next`", "`$gpd-suggest-next`") for fragment in fragments)
+    if runtime == "opencode":
+        # OpenCode adapter rewrites bare `gpd:X` to `gpd-X` in body text;
+        # translate expected fragments accordingly.
+        import re as _re
+
+        def _rewrite(text: str) -> str:
+            return _re.sub(r"(?<![A-Za-z0-9_./:$-])gpd:([a-z][a-z0-9-]*)\b", r"gpd-\1", text)
+
+        return tuple(_rewrite(fragment) for fragment in fragments)
     return fragments
 
 

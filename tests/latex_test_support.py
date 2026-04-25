@@ -4,7 +4,10 @@ from gpd.mcp.paper.models import PaperToolchainCapability
 
 
 def latex_capability_payload(**overrides: object) -> dict[str, object]:
-    capability = {
+    # pdf_review_ready defaults to True here because tests construct this payload
+    # to represent a fully-capable toolchain. In production, detect_latex_toolchain()
+    # sets pdf_review_ready based on whether pypdf is importable.
+    capability: dict[str, object] = {
         "compiler": "pdflatex",
         "compiler_available": True,
         "compiler_path": "/usr/bin/pdflatex",
@@ -12,7 +15,7 @@ def latex_capability_payload(**overrides: object) -> dict[str, object]:
         "bibtex_available": True,
         "latexmk_available": True,
         "kpsewhich_available": True,
-        "pdftotext_available": True,
+        "pdf_review_ready": True,
         "readiness_state": "ready",
         "message": "pdflatex found (TeX Live): /usr/bin/pdflatex",
         "warnings": [],
@@ -28,10 +31,8 @@ def latex_capability_payload(**overrides: object) -> dict[str, object]:
             and bool(capability.get("bibtex_available"))
             and bool(capability.get("latexmk_available"))
             and bool(capability.get("kpsewhich_available"))
-            and bool(capability.get("pdftotext_available"))
+            and bool(capability.get("pdf_review_ready"))
         )
-    if "pdf_review_ready" not in capability:
-        capability["pdf_review_ready"] = bool(capability.get("pdftotext_available"))
     return capability
 
 

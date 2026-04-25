@@ -385,7 +385,7 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     dependencies: list[str] = project["dependencies"]
     optional = project.get("optional-dependencies", {})
     assert not any(item.startswith("arxiv-mcp-server") for item in dependencies)
-    assert optional == {"arxiv": ["arxiv-mcp-server>=0.4.11"]}
+    assert optional == {"arxiv": ["arxiv-mcp-server>=0.4.11", "pypdf>=5.0"]}
 
     descriptor = build_public_descriptors()["gpd-arxiv"]
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]

@@ -60,7 +60,7 @@ Phase {N} complete:
 Publication workflow:
   gpd:peer-review         — Run manuscript peer review on the current project manuscript or one explicit artifact
   gpd:arxiv-submission    — Package only the resolved GPD-owned manuscript root after review passes and the paper-build contract succeeds
-  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
 
@@ -129,14 +129,13 @@ Use the shared onboarding surfaces in the README or installer output for the lon
 ## Invocation Surfaces
 
 This reference lists the canonical in-runtime command names for the installed runtime's public command surface.
-Depending on the runtime, those names may be rendered with slash prefixes, dollar prefixes, or another adapter-specific convention.
 
 - If you are new to terminals or runtime setup, start with the Beginner Onboarding Hub linked from the README and installer output.
 - That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
-- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`.
+- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - That is the generic typed command-policy check for the public runtime surface. Today, `gpd validate review-contract <command>` and `gpd validate review-preflight <command> [subject] --strict` are specialized typed surfaces for commands that expose review/publication contracts.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
@@ -949,7 +948,7 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 **Workflow presets**
 
 - `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
-- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
+- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
 - `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
 - `gpd presets show <preset>` - Preview one preset's bundle before applying it
 - `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema

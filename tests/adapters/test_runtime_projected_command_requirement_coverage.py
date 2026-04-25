@@ -60,6 +60,10 @@ def _runtime_command_visibility_note(runtime: str) -> str:
     note = command_visibility_note()
     if runtime == "codex":
         return note.replace("`gpd:suggest-next`", "`$gpd-suggest-next`")
+    if runtime == "opencode":
+        import re as _re
+
+        return _re.sub(r"(?<![A-Za-z0-9_./:$-])gpd:([a-z][a-z0-9-]*)\b", r"gpd-\1", note)
     return note
 
 
