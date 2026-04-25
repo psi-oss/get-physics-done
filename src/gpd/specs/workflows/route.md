@@ -68,7 +68,7 @@ Accept `--change=extend|revise` to skip the prompt. Store as `CHANGE`.
 Ask: "Does this add a new deliverable layer, or change prior conclusions?"
 
 Options:
-- `New layer` — a TAM/revenue/impact analysis on top of a ranking, or a numerics run on top of a theory result, etc.
+- `New layer` — a parameter sweep on top of a derived model, a numerical check on top of an analytic result, a comparison plot on top of verified data, or a manuscript section on top of completed phases
 - `Change prior` — the prior phase's output needs to move
 
 Accept `--layer=new|change`. Store as `LAYER`.
