@@ -159,7 +159,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 - Runtime permissions are runtime-owned permission alignment only; use the guided checks after startup to decide whether the runtime is ready.
 - Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Supervised (`supervised`) is the default; graduate to Balanced (`balanced`) once you trust GPD's boundary on your specific research.
 - For the broader terminal-side diagnostics, readiness, recovery, visibility, cost, and preset surface, start with `gpd --help` from your normal terminal.
-- Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` when you want a terminal-side unattended or overnight verdict.
+- Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` when you want a terminal-side unattended or overnight verdict. Use `supervised` unless you intentionally selected a different autonomy mode.
 - If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
 - Provider authentication is checked manually in the runtime itself; GPD will point this out, but it does not hard-block installation readiness on it
 - Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` snapshot
@@ -170,7 +170,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 2. From the same terminal, run `gpd doctor --runtime <runtime> --local` and `gpd --help`. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Here, `gpd doctor --runtime ...` is a runtime-readiness check for the selected runtime target. If you plan to use the paper/manuscript workflow preset later, treat the `Workflow Presets` and `LaTeX Toolchain` rows in this doctor report as paper-toolchain readiness signals for local smoke checks; `write-paper` can still proceed degraded, but `paper-build` is the build truth.
 3. Launch your selected runtime and run its GPD help command (`/gpd:help`, `$gpd-help`, or `/gpd-help`).
 4. If you want unattended execution, use your runtime-specific `settings` command as the guided configuration path and keep autonomy at Supervised (`supervised`) while you learn GPD's behavior; move to Balanced (`balanced`) when you want a lighter checkpoint cadence.
-5. Run `gpd permissions status --runtime <runtime> --autonomy balanced` for the read-only runtime-owned permission snapshot, then run `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`. If it returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy balanced`; if it returns `relaunch-required`, exit and relaunch the selected runtime before treating unattended use as ready.
+5. Run `gpd permissions status --runtime <runtime> --autonomy <mode>` for the read-only runtime-owned permission snapshot, then run `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>`. Use `supervised` if you kept the default. If it returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy <mode>`; if it returns `relaunch-required`, exit and relaunch the selected runtime before treating unattended use as ready.
 6. If those checks pass, continue with the runtime-specific `new-project`, `new-project --minimal`, `resume-work`, or `map-research` command.
 
 **Troubleshooting**
@@ -179,7 +179,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 - If the matching `gpd doctor --runtime <runtime> --local` or `gpd doctor --runtime <runtime> --global` command fails, fix the selected runtime's launcher / target / runtime-readiness issue first.
 - If that matching doctor command only warns about `Workflow Presets` or `LaTeX Toolchain`, the base install can still be fine; treat that as degraded readiness for `write-paper` and local smoke checks rather than a full install blocker. Use `gpd paper-build` to judge whether the manuscript scaffold is buildable.
 - If the runtime launches but GPD commands are missing, rerun the installer with an explicit runtime and explicit scope from your normal system terminal.
-- If you want the read-only runtime-owned permission snapshot first, run `gpd permissions status --runtime <runtime> --autonomy balanced`. If `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy balanced` and check again; if it returns `relaunch-required`, exit and relaunch the runtime before unattended use.
+- If you want the read-only runtime-owned permission snapshot first, run `gpd permissions status --runtime <runtime> --autonomy <mode>`. Use `supervised` unless you intentionally selected a different autonomy mode. If `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy <mode>` and check again; if it returns `relaunch-required`, exit and relaunch the runtime before unattended use.
 - If the runtime itself cannot launch or is not authenticated, fix the runtime/provider setup outside GPD before retrying the GPD install.
 
 </details>
@@ -385,7 +385,7 @@ GPD maps runtime-specific model names onto three capability tiers. Most users sh
 If you are choosing a posture for the first time:
 
 - `Max quality` means keep the highest-capability options available and pin explicit tiers only when you need consistency.
-- `Balanced` means keep the default profile and let the runtime use its own defaults unless you have a reason to override them.
+- `Balanced` model-cost posture means keep the default profile and let the runtime use its own defaults unless you have a reason to override them.
 - `Budget-aware` means prefer lighter tiers and only pin explicit runtime models when you need to control cost or access.
 
 Use posture as the starting heuristic, not as a pricing promise. If you need the detailed recorded usage / cost view and advisory USD budget comparison for the workspace, use `gpd cost`.
@@ -395,7 +395,7 @@ If you want the simplest direct path for concrete tier ids, use your runtime's `
 | Tier | Meaning |
 |------|---------|
 | `tier-1` | Highest capability |
-| `tier-2` | Balanced default |
+| `tier-2` | Middle/default capability tier |
 | `tier-3` | Fastest / most economical |
 
 Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and `paper-writing`.

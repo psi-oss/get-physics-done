@@ -109,6 +109,8 @@ def test_roadmapper_shallow_mode_keeps_contract_identity_visible() -> None:
     assert "decisive contract items" in source
     assert "required anchors/baselines" in source
     assert "forbidden proxies" in source
+    assert "Phase 1 only under `shallow_mode=true`" in source
+    assert "Phase 2+ stubs defer detailed success criteria" in source
     assert "Phases 2+ may defer contract-coverage detail" not in source
     assert "only their one-line Goal and phase title" not in source
 
@@ -116,6 +118,10 @@ def test_roadmapper_shallow_mode_keeps_contract_identity_visible() -> None:
 def test_planner_backtracks_guidance_is_capped_before_injection() -> None:
     source = _read_agent("gpd-planner")
 
-    assert "tail -n 30 GPD/BACKTRACKS.md" in source
-    assert "do not inject the full file" in source
+    assert "awk -F'|'" in source
+    assert 'row_stage != stage' in source
+    assert "tail -n 10" in source
+    assert "head -n 30" in source
+    assert "do not inject the full file or an unfiltered tail" in source
     assert "for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/BACKTRACKS.md; do" not in source
+    assert "tail -n 30 GPD/BACKTRACKS.md" not in source

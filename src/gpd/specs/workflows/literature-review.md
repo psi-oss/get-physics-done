@@ -85,7 +85,7 @@ Do not use `reference_artifact_files` or `reference_artifacts_content` yet. Keep
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "supervised")
 RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
@@ -94,8 +94,8 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - `research_mode=exploit`: Focused review (8-12 papers), direct relevance only, extract key results and methods.
 - `research_mode=balanced` (default): Use the standard review depth for this workflow and keep the default anchor and contract coverage unless the topic needs broader or narrower review.
 - `research_mode=adaptive`: Start with 15 papers, expand if citation network reveals critical gaps.
-- `autonomy=supervised`: Pause after each review round for user feedback on scope and direction.
-- `autonomy=balanced` (default): Complete the full review pipeline automatically. Pause only if the literature reveals scope ambiguity, contradictory evidence, or a change in recommendation.
+- `autonomy=supervised` (default): Pause after each review round for user feedback on scope and direction.
+- `autonomy=balanced`: Complete the full review pipeline automatically. Pause only if the literature reveals scope ambiguity, contradictory evidence, or a change in recommendation.
 - `autonomy=yolo`: Complete the review pipeline without pausing, but do NOT drop contract-critical anchors or user-mandated references.
 
 - **If `state_exists` is true:** Extract `convention_lock` for notation context (helps identify which conventions are used in papers being reviewed). Extract active research topic, phase context, and any contract-critical references from `active_reference_context`.

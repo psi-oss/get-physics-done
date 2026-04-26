@@ -53,7 +53,7 @@ Parse JSON for:
 Read mode settings if needed for authoring depth:
 
 ```bash
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "supervised")
 RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 

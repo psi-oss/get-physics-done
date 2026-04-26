@@ -134,8 +134,8 @@ This reference lists the canonical in-runtime command names for the installed ru
 - That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
-- Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
-- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
+- Use `gpd permissions status --runtime <runtime> --autonomy <mode>` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal. Use `supervised` unless you intentionally selected a different autonomy mode.
+- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy <mode>` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - That is the generic typed command-policy check for the public runtime surface. Today, `gpd validate review-contract <command>` and `gpd validate review-preflight <command> [subject] --strict` are specialized typed surfaces for commands that expose review/publication contracts.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
@@ -1146,7 +1146,7 @@ Usage: `gpd:settings`
 Direct concrete model-id setup for `tier-1`, `tier-2`, and `tier-3` on the active runtime.
 
 - `tier-1` — highest capability, usually highest cost
-- `tier-2` — balanced default
+- `tier-2` — middle/default capability tier
 - `tier-3` — fastest / most economical
 - Clears or writes only `model_overrides.<runtime>` in `GPD/config.json`
 - Leaves `model_profile`, autonomy, `execution.review_cadence`, budgets, and workflow toggles unchanged
@@ -1281,7 +1281,7 @@ Set during `gpd:new-project` or changed later with `gpd:settings`:
 - Handles routine work automatically
 - Pauses on physics decisions, ambiguities, blockers, or scope changes
 - Lighter checkpoint cadence for users who have built intuition for GPD's boundary
-- Good for unattended runs once you trust the defaults
+- Good for unattended runs once you trust GPD's boundary on your specific research
 
 **YOLO**
 

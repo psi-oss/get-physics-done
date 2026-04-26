@@ -1800,7 +1800,7 @@ Project contract validation: {project_contract_validation}
 
 <shallow_mode>true</shallow_mode>
 
-Shallow mode: produce Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as stubs only (title + one-line Goal + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). The researcher fleshes out each subsequent phase on demand via `gpd:plan-phase N`.
+Shallow mode: produce Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as compact stubs only: title, one-line Goal, objective IDs, compact contract/anchor/proxy labels, `**Plans:** 0 plans`, and a single `- [ ] TBD (run plan-phase N to break down)` entry. The researcher fleshes out detailed success criteria and task decomposition for each subsequent phase on demand via `gpd:plan-phase N`.
 
 </planning_context>
 
@@ -1809,9 +1809,9 @@ Create research roadmap through the staged post-scope continuation handoff. Keep
 1. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` rather than guessing.
 2. Otherwise, derive the smallest decomposition that keeps decisive outputs, anchor handoffs, and verification legible. A tightly scoped project may have a single phase or a coarse early roadmap. Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them.
 3. Map every requirement to exactly one phase.
-4. For Phase 1, include explicit contract coverage in ROADMAP.md showing the decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase. Phases 2+ are stubs under shallow_mode — they carry only a one-line Goal until the researcher runs `gpd:plan-phase N`.
+4. For Phase 1, include explicit contract coverage in ROADMAP.md showing the decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase. Phases 2+ are stubs under shallow_mode — they carry objective IDs and compact contract/anchor/proxy labels, but no detailed contract coverage narrative until the researcher runs `gpd:plan-phase N`.
 5. Derive 2-5 success criteria for Phase 1 (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract. Phases 2+ omit success criteria in shallow mode.
-6. Validate 100% requirement coverage and surface all contract-critical items.
+6. Validate 100% requirement coverage. In shallow mode, surface contract-critical identity for all phases through objective IDs and compact contract/anchor/proxy labels, but require detailed per-phase coverage and success criteria only for Phase 1.
 7. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving any existing `GPD/state.json` fields, especially `project_contract` and previously recorded open questions.
 8. Return a typed `gpd_return` envelope with `status` and `files_written`, and use `gpd_return.files_written` to prove freshness; do not rely on runtime completion text alone.
 
@@ -1939,7 +1939,7 @@ Use ask_user:
 
   <shallow_mode>true</shallow_mode>
 
-  Shallow mode: keep Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as stubs only (title + one-line Goal + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). Do not promote Phases 2+ to full detail during revision unless the user's feedback explicitly requests it.
+  Shallow mode: keep Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as compact stubs only (title + one-line Goal + objective IDs + compact contract/anchor/proxy labels + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). Do not promote Phases 2+ to full detail during revision unless the user's feedback explicitly requests it.
 
   Update the roadmap based on feedback. Edit files in place.
   Return ROADMAP REVISED with changes made.
@@ -2184,7 +2184,7 @@ Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` 
 - [ ] gpd-roadmapper spawned with context
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
-- [ ] ROADMAP.md created with phases, requirement mappings, success criteria
+- [ ] ROADMAP.md created with phases, requirement mappings, Phase 1 success criteria, and compact stub contract identity for Phases 2+
 - [ ] STATE.md initialized
 - [ ] REQUIREMENTS.md traceability updated
 - [ ] gpd-notation-coordinator spawned to establish conventions

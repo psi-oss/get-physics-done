@@ -82,9 +82,9 @@ When syncing a GPD project across machines (via git, cloud storage, etc.):
 
 ### Permission Prompts Interrupting Workflow
 
-1. Check the unattended verdict: `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`
-2. Inspect current runtime alignment: `gpd permissions status --runtime <runtime> --autonomy balanced`
-3. For fully unattended execution, align the selected runtime explicitly: `gpd permissions sync --runtime <runtime> --autonomy yolo`
+1. Check the unattended verdict: `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` (use `supervised` unless you intentionally selected another autonomy mode)
+2. Inspect current runtime alignment: `gpd permissions status --runtime <runtime> --autonomy <mode>`
+3. For fully unattended execution, align the selected runtime explicitly, for example `gpd permissions sync --runtime <runtime> --autonomy yolo` after choosing `yolo`
 4. For plan-mode (approve plans, auto-execute): check your runtime's `--permission-mode` or equivalent launch flag
 
 ### Hooks Not Running

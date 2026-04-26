@@ -1467,7 +1467,7 @@ def contract_fingerprint_cmd() -> None:
     contract, _load_info = _load_project_contract_for_runtime_context(project_root)
     if contract is None:
         _error("No project contract is available; cannot fingerprint.")
-    typer.echo(contract_fingerprint(contract))
+    _output(contract_fingerprint(contract))
 
 
 @contract_app.command("context-fingerprint")
@@ -1507,10 +1507,13 @@ def contract_context_fingerprint_cmd(
         if resolved is None:
             _error(f"No CONTEXT.md found under {phase_dir}.")
     else:
-        resolved = path.expanduser().resolve(strict=False)
+        resolved = path.expanduser()
+        if not resolved.is_absolute():
+            resolved = _get_cwd() / resolved
+        resolved = resolved.resolve(strict=False)
         if not resolved.is_file():
             _error(f"CONTEXT file not found: {resolved}")
-    typer.echo(context_guidance_fingerprint(resolved.read_text(encoding="utf-8")))
+    _output(context_guidance_fingerprint(resolved.read_text(encoding="utf-8")))
 
 
 @contract_app.command("alignment-summary")
@@ -3011,6 +3014,7 @@ def _run_progress_watch_loop(
     interval: float,
     exit_on_idle: bool,
     *,
+    raw_mode: bool = False,
     _max_ticks: int | None = None,
 ) -> None:
     """Poll the execution signal files and redraw progress at ``interval`` cadence.
@@ -3046,7 +3050,7 @@ def _run_progress_watch_loop(
 
     live_cm: object
     first: object | None
-    if _stdout_is_interactive():
+    if _stdout_is_interactive() and not raw_mode:
         from rich.live import Live
 
         _should_redraw()  # prime
@@ -3127,7 +3131,7 @@ def progress(
         )
         fmt = "json"
     try:
-        _run_progress_watch_loop(cwd, fmt, interval, exit_on_idle)
+        _run_progress_watch_loop(cwd, fmt, interval, exit_on_idle, raw_mode=_raw)
     except KeyboardInterrupt:
         return
 

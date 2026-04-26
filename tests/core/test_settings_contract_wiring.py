@@ -131,7 +131,7 @@ def test_settings_and_profile_docs_keep_supervised_dense_defaults_consistent() -
     assert "Keep `execution.review_cadence=dense` for publication-quality passes" in set_profile_workflow
     assert "`execution.review_cadence=adaptive` or `sparse` usually fits" not in set_profile_workflow
 
-    assert "| **Manual** (default)             | `supervised`" in continuous_execution
+    assert "| **Supervised** (default)         | `supervised`" in continuous_execution
     assert "This is an explicit opt-in after the user leaves the default `supervised` posture." in continuous_execution
     assert "The default autonomy setting. The assistant auto-advances" not in continuous_execution
     assert "eligible for auto-advance in `balanced` or `yolo`" in continuous_execution

@@ -47,8 +47,8 @@ Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `n
 If staged planner-loading fields appear in the init payload, treat them as authoritative for the planner handoff shape rather than reconstructing a separate quick-specific prompt contract.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after the plan for user approval before execution.
-- `autonomy=balanced` (default): Execute without pausing unless the quick task reveals a real decision point.
+- `autonomy=supervised` (default): Pause after the plan for user approval before execution.
+- `autonomy=balanced`: Execute without pausing unless the quick task reveals a real decision point.
 - `autonomy=yolo`: Execute and commit without pausing.
 
 **If `project_exists` is false:** Error -- Quick mode requires an initialized project with `GPD/PROJECT.md`. Run `gpd:new-project` first.

@@ -341,6 +341,16 @@ CONFIRMED_CONTRACT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_con
 CONFIRMED_CONTEXT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_context_hash --default null)
 ```
 
+**Fingerprint gate:** Fail closed if either fingerprint command fails or resolves to an empty value before rendering the prompt or recording confirmation. Do not compare blank hashes, do not suppress the gate, and do not call `gpd contract record-alignment` on this path.
+
+```bash
+if [ -z "$CONTRACT_HASH" ] || [ -z "$CONTEXT_HASH" ]; then
+  echo "ERROR: claim_deliverable_alignment_check could not resolve contract/context fingerprints."
+  echo "Next Up: gpd:execute-phase {N}"
+  exit 1
+fi
+```
+
 **Gating:** This step fires when `autonomy=supervised` OR `review_cadence=dense` OR any selected plan is proof-bearing per `detect_proof_obligation_work`. It is skipped under `autonomy=yolo AND review_cadence in {adaptive, sparse} AND no proof-bearing plans`. When skipping for this reason, log the decision explicitly — for example `claim_deliverable_alignment_check: skipped (autonomy=yolo, cadence=adaptive, no proof-bearing plans)` — and continue to `discover_and_group_plans` without prompting.
 
 **Suppression:** If the persisted `confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND the current `context_guidance_fingerprint == confirmed_context_hash`, skip re-prompting and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Read the persisted status via `gpd contract alignment-status`; the hash-equality check uses `CONTRACT_HASH`/`CONTEXT_HASH` computed above.

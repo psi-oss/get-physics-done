@@ -16,6 +16,8 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.contracts import ResearchContract
+from gpd.core.contract_validation import contract_fingerprint
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
@@ -31,6 +33,15 @@ class _StableCliRunner(CliRunner):
 
 runner = _StableCliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_HELLO_CONTEXT_SHA256 = (
+    "sha256:d73aac31ef8d5329cb61f8941219af525b2547d60ee159353b88cd4bb8e31e14"
+)
+_EXPLICIT_CONTEXT_SHA256 = (
+    "sha256:a22bdbf5bf3e84c661ebfbfaf3d296bd2cd7bbc73a64d5cce003a9508f65b1ae"
+)
+_NESTED_CONTEXT_SHA256 = (
+    "sha256:adf69e91b95e6ad45a5e2a057add1708c2b9f34b199657407b89e62fb0240d21"
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -134,7 +145,7 @@ def test_cli_contract_context_fingerprint_auto_resolves_active_phase(
         catch_exceptions=False,
     )
     assert result.exit_code == 0, _strip_ansi(result.output)
-    assert _strip_ansi(result.output).strip().startswith("sha256:")
+    assert _strip_ansi(result.output).strip() == _HELLO_CONTEXT_SHA256
 
 
 def test_cli_contract_context_fingerprint_explicit_path(
@@ -150,7 +161,68 @@ def test_cli_contract_context_fingerprint_explicit_path(
         catch_exceptions=False,
     )
     assert result.exit_code == 0, _strip_ansi(result.output)
-    assert _strip_ansi(result.output).strip().startswith("sha256:")
+    assert _strip_ansi(result.output).strip() == _EXPLICIT_CONTEXT_SHA256
+
+
+def test_cli_contract_context_fingerprint_explicit_relative_path_uses_cli_cwd(
+    gpd_project: Path,
+) -> None:
+    """A relative explicit CONTEXT.md path is anchored at --cwd, not process cwd."""
+    nested = gpd_project / "nested"
+    target = nested / "relative" / "CONTEXT.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("nested explicit context", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "--cwd",
+            str(nested),
+            "contract",
+            "context-fingerprint",
+            "relative/CONTEXT.md",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, _strip_ansi(result.output)
+    assert _strip_ansi(result.output).strip() == _NESTED_CONTEXT_SHA256
+
+
+def test_cli_contract_context_fingerprint_raw_wraps_result(gpd_project: Path) -> None:
+    """Raw context-fingerprint output follows the standard CLI JSON envelope."""
+    target = gpd_project / "explicit-context.md"
+    target.write_text("explicit context text", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "contract", "context-fingerprint", str(target)],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, _strip_ansi(result.output)
+    assert json.loads(_strip_ansi(result.output)) == {"result": _EXPLICIT_CONTEXT_SHA256}
+
+
+def test_cli_contract_fingerprint_raw_wraps_result(gpd_project: Path) -> None:
+    """Raw contract fingerprint output follows the standard CLI JSON envelope."""
+    fixture_path = (
+        Path(__file__).resolve().parent / "fixtures" / "stage0" / "project_contract.json"
+    )
+    contract = json.loads(fixture_path.read_text(encoding="utf-8"))
+    state_path = gpd_project / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["project_contract"] = contract
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "contract", "fingerprint"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, _strip_ansi(result.output)
+    expected = contract_fingerprint(ResearchContract.model_validate(contract))
+    assert json.loads(_strip_ansi(result.output)) == {"result": expected}
 
 
 def test_cli_contract_alignment_status_after_record(gpd_project: Path) -> None:

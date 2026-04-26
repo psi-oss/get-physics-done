@@ -102,7 +102,7 @@ If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `t
 
 Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here. GPD is a scalpel, not an autopilot. `Supervised` is the default and matches the advisor/graduate-student cadence: trust the execution, but stay in the loop to verify and redirect. Point users at `Balanced` once they have built intuition for GPD's boundary.
 
-**Checkpoint keystrokes.** Most supervised checkpoints render a one-line summary and resume with `[Y/n/e]`: press **Enter** (or `Y`) to accept the recommended action, `n` to reject, `e` to edit or provide freeform feedback. Enter always means "accept what I just saw." A handful of physics-bearing or destructive checkpoints intentionally do not collapse to a single keystroke (convention lock, destructive rails, blocker triage, claim↔deliverable precheck, first-result gate after firing) — see `specs/references/orchestration/checkpoint-ux-convention.md`.
+**Checkpoint keystrokes.** Most supervised checkpoints render a one-line summary and resume with `[Y/n/e]`: press **Enter** (or `Y`) to accept the recommended action, `n` to reject, `e` to edit or provide freeform feedback. Enter always means "accept what I just saw." A handful of physics-bearing or destructive checkpoints intentionally do not collapse to a single keystroke (convention lock, destructive rails, blocker triage, claim↔deliverable precheck, first-result gate after firing) — see `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 
 Teach one coherent posture-to-inspection loop:
 
@@ -294,7 +294,7 @@ Suggested defaults when the user wants a recommendation:
 
 Qualitative posture guidance:
 
-- **Balanced** is the default recommendation and should usually keep the runtime on its own defaults unless the user has a concrete reason to pin models.
+- For model-cost posture, **Balanced** is the default recommendation and should usually keep the runtime on its own defaults unless the user has a concrete reason to pin models.
 - **Budget-aware** should push the flow toward runtime defaults and away from explicit tier pinning unless the user asks for a specific override.
 - **Max Quality** should bias toward the strongest acceptable runtime-native model strings only when the user is already opting into explicit overrides.
 
@@ -409,7 +409,7 @@ Runtime sync:
 - {permissions_sync.message}
 - {permissions_sync.next_step if present}
 - If relaunch is still required, say clearly that unattended use is not ready yet under the newly selected autonomy setting.
-- `gpd permissions status --runtime <runtime> --autonomy balanced` and `gpd permissions sync --runtime <runtime> --autonomy balanced` in this workflow only handle runtime-owned permission alignment, not install validation.
+- `gpd permissions status --runtime <runtime> --autonomy <mode>` and `gpd permissions sync --runtime <runtime> --autonomy <mode>` in this workflow only handle runtime-owned permission alignment, not install validation. Use the selected autonomy value; if unchanged, that is `supervised`.
 
 Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`.
 

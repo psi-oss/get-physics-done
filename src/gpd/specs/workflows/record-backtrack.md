@@ -9,15 +9,15 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 
 <step name="parse_prefill_args">
-Parse optional prefill flags from `$ARGUMENTS`:
+Parse optional prefill inputs from structured runtime args first, then from `$ARGUMENTS` flags for command-line compatibility:
 
-- `--reverted-commit=<sha>` → pre-fills `reverted_commit`
-- `--trigger=<text>` → pre-fills `trigger`
-- `--phase=<NN-slug>` → pre-fills `phase` (for example `03-numerics`; accept `phase-03` only as a source hint and normalize before writing the row)
+- structured `reverted_commit` or `--reverted-commit=<sha>` -> prefills `reverted_commit`
+- structured `trigger` or `--trigger=<text>` -> prefills `trigger`
+- structured `phase` or `--phase=<NN-slug>` -> prefills `phase` (for example `03-numerics`; accept `phase-03` only as a source hint and normalize before writing the row)
 
 Any remaining non-flag text is the free-form `description` (used as fallback for the `trigger` field if `--trigger` is not supplied).
 
-Fields not provided by flags are prompted from the user during `append_backtrack`. Any prefilled field can still be overridden by the user before append.
+Fields not provided by structured args or flags are prompted from the user during `collect_backtrack_fields`. Any prefilled field can still be overridden by the user before duplicate checking and append.
 </step>
 
 <step name="check_backtracks_file">
@@ -46,14 +46,34 @@ Backtrack events captured during research. Agents consult this file to avoid rep
 
 </step>
 
+<step name="collect_backtrack_fields">
+Collect and finalize the row values before any duplicate check. Prompt or infer every missing required field, then show the draft row once and let the user override any prefilled value.
+
+The finalized fields used downstream are:
+
+- `FINAL_DATE`
+- `FINAL_PHASE`
+- `FINAL_STAGE`
+- `FINAL_TRIGGER`
+- `FINAL_PRODUCED`
+- `FINAL_WHY_WRONG`
+- `FINAL_COUNTER_ACTION`
+- `FINAL_CATEGORY`
+- `FINAL_CONFIDENCE`
+- `FINAL_PROMOTE`
+- `FINAL_REVERTED_COMMIT`
+
+Do not run dedupe from raw prefill values. The duplicate key is the finalized `phase` + `trigger` + `why_wrong` after user edits, normalization, and inference.
+</step>
+
 <step name="check_duplicates">
-Read existing `GPD/BACKTRACKS.md` and check whether the backtrack to be recorded is already present. When `parse_prefill_args` supplied `--phase` or `--trigger`, those prefilled values seed the dedupe keywords instead of being re-prompted. Dedupe by matching `phase` + `trigger` + `why_wrong` within the same row (not across rows) using awk against the 11-column pipe-delimited schema:
+Read existing `GPD/BACKTRACKS.md` and check whether the finalized backtrack row is already present. Dedupe by exact normalized matching of finalized `phase` + `trigger` + `why_wrong` within the same row (not across rows) using awk against the 11-column pipe-delimited schema:
 
 ```bash
-DUP=$(awk -F'|' -v ph="{phase}" -v tr="{trigger_keyword}" -v ww="{why_wrong_keyword}" '
+DUP=$(awk -F'|' -v ph="$FINAL_PHASE" -v tr="$FINAL_TRIGGER" -v ww="$FINAL_WHY_WRONG" '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
   NR>2 && /^\|/ {
-    gsub(/^[ \t]+|[ \t]+$/, "", $3); gsub(/^[ \t]+|[ \t]+$/, "", $5); gsub(/^[ \t]+|[ \t]+$/, "", $7)
-    if ($3 == ph && tolower($5) ~ tolower(tr) && tolower($7) ~ tolower(ww)) print NR
+    if (trim($3) == ph && tolower(trim($5)) == tolower(tr) && tolower(trim($7)) == tolower(ww)) print NR
   }
 ' GPD/BACKTRACKS.md 2>/dev/null)
 ```
@@ -65,12 +85,12 @@ The schema's column order — `date | phase | stage | trigger | produced | why_w
 </step>
 
 <step name="append_backtrack">
-Append the new backtrack as a single 11-column table row to `GPD/BACKTRACKS.md`. Any fields already pre-filled by `parse_prefill_args` (e.g. `reverted_commit`, `trigger`, `phase`) are used as-is and their prompts are skipped unless the user explicitly overrides them.
+Append the finalized backtrack as a single 11-column table row to `GPD/BACKTRACKS.md`. Any fields prefilled by `parse_prefill_args` (e.g. `reverted_commit`, `trigger`, `phase`) have already passed through `collect_backtrack_fields`, so the row written here must use the finalized `FINAL_*` values.
 
 **Row format:**
 
 ```
-| {date} | {phase} | {stage} | {trigger} | {produced} | {why_wrong} | {counter_action} | {category} | {confidence} | {promote} | {reverted_commit} |
+| {FINAL_DATE} | {FINAL_PHASE} | {FINAL_STAGE} | {FINAL_TRIGGER} | {FINAL_PRODUCED} | {FINAL_WHY_WRONG} | {FINAL_COUNTER_ACTION} | {FINAL_CATEGORY} | {FINAL_CONFIDENCE} | {FINAL_PROMOTE} | {FINAL_REVERTED_COMMIT} |
 ```
 
 **Field conventions:**

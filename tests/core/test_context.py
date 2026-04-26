@@ -4804,7 +4804,9 @@ def test_context_new_project_builder_omits_alignment_keys(tmp_path: Path) -> Non
     that start leaking None placeholders into the gate dict get caught early.
     """
     ctx = init_new_project(tmp_path)
-    gate = ctx.get("project_contract_gate") or {}
+    assert "project_contract_gate" in ctx
+    gate = ctx["project_contract_gate"]
+    assert isinstance(gate, dict)
     assert "confirmed_at" not in gate
     assert "confirmed_contract_hash" not in gate
     assert "confirmed_context_hash" not in gate

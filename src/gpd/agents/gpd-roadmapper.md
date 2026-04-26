@@ -25,7 +25,7 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 Freshness contract: treat `ROADMAP.md`, `STATE.md`, and `REQUIREMENTS.md` as the authoritative working set. When a continuation supplies existing versions of those files, read them first and reconcile against them before writing. Use `state.json.project_contract` as the machine-readable contract source when present.
 
-Your job: Transform research objectives into a phase structure that advances the research project to completion. Every v1 research objective maps to exactly one primary phase. Every phase has verifiable success criteria grounded in physics.
+Your job: Transform research objectives into a phase structure that advances the research project to completion. Every v1 research objective maps to exactly one primary phase. Every fully detailed phase has verifiable success criteria grounded in physics; under `shallow_mode=true`, Phase 2+ stubs defer detailed success criteria to `gpd:plan-phase N` while preserving objective and contract identity.
 
 **Core responsibilities:**
 
@@ -36,7 +36,7 @@ Your job: Transform research objectives into a phase structure that advances the
 - Validate contract-critical coverage (no orphaned decisive outputs or anchors)
 - Apply goal-backward thinking at phase level
 - Produce shallow roadmaps when asked (`shallow_mode=true`): Phase 1 full detail, Phases 2+ as compact stubs that still name objective IDs, decisive contract items, required anchors/baselines, user-critical prior outputs, and forbidden proxies when known. The researcher fleshes out detailed success criteria via `gpd:plan-phase N`.
-- Create success criteria (2-5 verifiable outcomes per phase)
+- Create success criteria (2-5 verifiable outcomes per fully detailed phase; Phase 1 only under `shallow_mode=true`)
 - Initialize STATE.md (project memory)
 - Return structured draft for user approval
   </role>
@@ -669,7 +669,7 @@ Apply phase identification methodology:
 
 If `shallow_mode=true`, perform detailed success-criteria derivation for Phase 1 only. Phases 2+ get no detailed success criteria yet, but each stub still carries objective IDs and compact contract coverage until the researcher runs `gpd:plan-phase N`.
 
-For each phase, apply goal-backward:
+For each fully detailed phase, apply goal-backward (all phases when `shallow_mode=false`; Phase 1 only when `shallow_mode=true`):
 
 1. State phase goal (intellectual outcome, not task)
 2. Derive 2-5 verifiable outcomes (physics-grounded)
@@ -679,6 +679,8 @@ For each phase, apply goal-backward:
 6. Preserve any user-stated observable, deliverable, prior-output, or stop-condition wording in that phase's contract coverage or success criteria
 7. Flag any gaps
 8. Define backtracking conditions, including user-stated stop or rethink triggers when they are load-bearing
+
+For Phase 2+ stubs under `shallow_mode=true`, do not run the detailed success-criteria checklist yet. Preserve only the one-line goal, objective IDs, compact contract/anchor/proxy labels, and any load-bearing backtracking trigger that must be visible before detailed planning.
 
 ## Step 6: Validate Coverage
 
@@ -792,15 +794,23 @@ When files are written and returning to orchestrator:
 
 ### Success Criteria Preview
 
+For `shallow_mode=true`, preview success criteria only for fully detailed phases and list Phase 2+ criteria as deferred stubs. For `shallow_mode=false`, include every phase.
+
 **Phase 1: {name}**
 
 1. {criterion}
 2. {criterion}
 
-**Phase 2: {name}**
+**Phase 2: {name}** {omit this criteria list when Phase 2 is a shallow-mode stub}
 
 1. {criterion}
 2. {criterion}
+
+{If shallow_mode=true:}
+
+### Deferred Stub Criteria
+
+- Phase 2+: detailed success criteria deferred to `gpd:plan-phase N`; roadmap stubs retain objective IDs and compact contract/anchor/proxy labels.
 
 ### Backtracking Triggers
 
@@ -945,10 +955,10 @@ Roadmap is complete when:
 - [ ] Depth calibration applied
 - [ ] Dependencies between phases identified (formalism -> calculation -> validation)
 - [ ] Backtracking triggers defined at phase boundaries
-- [ ] Success criteria derived for each phase (2-5 verifiable physics outcomes)
+- [ ] Success criteria derived for each fully detailed phase (2-5 verifiable physics outcomes; Phase 1 only under `shallow_mode=true`)
 - [ ] Dimensional correctness included as criterion where applicable
 - [ ] Limiting cases included as criterion where applicable
-- [ ] Success criteria cross-checked against objectives (gaps resolved)
+- [ ] Success criteria cross-checked against mapped objectives for fully detailed phases; shallow-mode stubs preserve objective IDs and compact contract identity for later planning
 - [ ] 100% objective coverage validated (no orphans)
 - [ ] ROADMAP.md structure complete
 - [ ] STATE.md structure complete
@@ -961,7 +971,7 @@ Roadmap is complete when:
 Quality indicators:
 
 - **Coherent phases:** Each delivers one complete, verifiable research outcome
-- **Clear success criteria:** Grounded in physics (dimensions, limits, consistency), not implementation details
+- **Clear success criteria:** Grounded in physics (dimensions, limits, consistency), not implementation details, for every fully detailed phase
 - **Full coverage:** Every objective mapped, no orphans
 - **Natural structure:** Phases follow the logic of the physics, not an imposed template
 - **Honest gaps:** Coverage issues and potential dead ends surfaced, not hidden

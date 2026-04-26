@@ -1185,6 +1185,13 @@ def _normalized_tangent_decision(value: object) -> str | None:
 _EXECUTION_REVIEW_REASONS = frozenset({"first_result", "pre_fanout", "skeptical_requestioning"})
 _RESULT_VERBS: frozenset[str] = frozenset({"produce", "log"})
 _DEFAULT_REVIEW_CADENCE: str = "dense"
+_FALLBACK_EXECUTION_POLICY: dict[str, object] = {
+    "max_unattended_minutes_per_plan": 15,
+    "max_unattended_minutes_per_wave": 30,
+    "checkpoint_after_n_tasks": 1,
+    "checkpoint_after_first_load_bearing_result": True,
+    "review_cadence": _DEFAULT_REVIEW_CADENCE,
+}
 
 
 def _review_clear_targets(execution: dict[str, object]) -> set[str]:
@@ -1256,6 +1263,7 @@ def _reset_execution_segment_state(current: dict[str, object]) -> None:
         "resume_file",
         "segment_started_at",
         "transition_id",
+        "review_cadence",
     ):
         current[key] = None
 
@@ -1282,13 +1290,17 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
     """Load the bounded-execution policy for one project root."""
 
     if cwd is None:
-        return {"review_cadence": _DEFAULT_REVIEW_CADENCE}
+        return _default_execution_policy()
     try:
         from gpd.core.config import load_config
 
         cfg = load_config(cwd)
     except Exception:
-        return {"review_cadence": _DEFAULT_REVIEW_CADENCE}
+        return _default_execution_policy()
+    return _execution_policy_from_config(cfg)
+
+
+def _execution_policy_from_config(cfg: object) -> dict[str, object]:
     return {
         "max_unattended_minutes_per_plan": int(getattr(cfg, "max_unattended_minutes_per_plan", 0) or 0),
         "max_unattended_minutes_per_wave": int(getattr(cfg, "max_unattended_minutes_per_wave", 0) or 0),
@@ -1298,6 +1310,15 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
         ),
         "review_cadence": str(getattr(cfg, "review_cadence", _DEFAULT_REVIEW_CADENCE) or _DEFAULT_REVIEW_CADENCE),
     }
+
+
+def _default_execution_policy() -> dict[str, object]:
+    try:
+        from gpd.core.config import GPDProjectConfig
+
+        return _execution_policy_from_config(GPDProjectConfig())
+    except Exception:
+        return dict(_FALLBACK_EXECUTION_POLICY)
 
 
 def _parse_iso_datetime(value: object) -> datetime | None:
@@ -1368,6 +1389,7 @@ def _apply_automatic_execution_guards(
         payload.name == "result"
         and payload.action in _RESULT_VERBS
         and not current.get("first_result_gate_pending")
+        and not current.get("first_result_ready")
         and (
             (load_bearing and policy.get("checkpoint_after_first_load_bearing_result"))
             or dense_forced

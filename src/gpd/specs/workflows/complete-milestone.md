@@ -748,11 +748,15 @@ Summary: "Tagged v[X.Y] locally. Remote: origin."
 
 Ask: "Push tag v[X.Y] to remote? [Y/n/e]  (Enter = Y; e opens freeform for a custom remote or additional options)"
 
+**Edit branch:** If the user chooses `e`, collect the custom remote or push options, render the exact push command that would run, and re-present the updated `[Y/n/e]` prompt once before pushing. Do not treat the edit text itself as approval.
+
 If yes:
 
 ```bash
 git push origin v[X.Y]
 ```
+
+If no, leave the local tag unpushed and continue to the completion summary with the remote-push status recorded as skipped.
 
 </step>
 

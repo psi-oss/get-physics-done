@@ -85,7 +85,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`, default: `"supervise
 
 **Supervised mode** (`autonomy: "supervised"`) — DEFAULT:
 
-- **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice. Every inserted `checkpoint:human-verify` uses the `[Y/n/e]` resume-signal idiom (Enter = Y). See `specs/references/orchestration/checkpoint-ux-convention.md`.
+- **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice. Every inserted `checkpoint:human-verify` uses the `[Y/n/e]` resume-signal idiom (Enter = Y). See `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
 - **Contract fidelity:** The approved contract, anchors, and forbidden proxies are fixed. Human checkpoints decide how to satisfy them, not whether they apply.
 - **Conventions:** Every convention choice is a `checkpoint:decision`. No automatic convention selection.
@@ -1356,12 +1356,27 @@ for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md; do
 done
 
 if [ -f GPD/BACKTRACKS.md ]; then
-  echo "=== GPD/BACKTRACKS.md (filtered planning rows, cap 30 lines) ==="
-  tail -n 30 GPD/BACKTRACKS.md
+  echo "=== GPD/BACKTRACKS.md (same-stage planning rows, last 10, cap 30 lines) ==="
+  # Set these from the current phase before running the read. If no reliable
+  # technique regex is available, leave PHASE_TECHNIQUE_REGEX empty and keep
+  # same-stage rows only.
+  PLANNING_STAGE="${PLANNING_STAGE:-plan}"
+  PHASE_TECHNIQUE_REGEX="${PHASE_TECHNIQUE_REGEX:-}"
+  awk -F'|' -v stage="$PLANNING_STAGE" -v tech="$PHASE_TECHNIQUE_REGEX" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    NR > 2 && /^\|/ {
+      row_date = trim($2)
+      row_stage = trim($4)
+      searchable = tolower(trim($5) " " trim($6) " " trim($7) " " trim($8) " " trim($9))
+      if (row_stage != stage) next
+      if (tech != "" && searchable !~ tolower(tech)) next
+      print row_date "\t" $0
+    }
+  ' GPD/BACKTRACKS.md | sort | tail -n 10 | cut -f2- | head -n 30
 fi
 ```
 
-For `GPD/BACKTRACKS.md`, do not inject the full file. Use the capped block as a candidate set, then keep only rows whose `stage` matches the current planning stage and whose physics-technique tag overlaps the current phase unless no tag filter is available.
+For `GPD/BACKTRACKS.md`, do not inject the full file or an unfiltered tail. The shell read above is the injection boundary: it outputs only rows whose `stage` matches the current planning stage and whose trigger/produced/why/counter-action/category text overlaps the current phase's technique regex, unless no reliable technique regex is available. Keep at most the last 10 matching rows and cap the rendered block at 30 lines.
 
 For each pattern found, apply targeted planning adjustments:
 

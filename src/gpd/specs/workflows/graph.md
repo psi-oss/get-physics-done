@@ -204,6 +204,8 @@ Persist dependency analysis to `GPD/DEPENDENCY-GRAPH.md` ({N} nodes, {M} edges)?
 
 ````
 
+**Edit branch:** If the user chooses `e`, collect the scope notes, update the proposed write scope or output path if needed, and re-present the updated `[Y/n/e]` prompt once before writing `GPD/DEPENDENCY-GRAPH.md`. Do not treat the edit text itself as approval.
+
 **If yes:**
 
 Write the full report to `GPD/DEPENDENCY-GRAPH.md`.

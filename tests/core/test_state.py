@@ -3940,6 +3940,40 @@ def test_state_records_contract_alignment_round_trip(tmp_path: Path) -> None:
     assert alignment["confirmed_context_hash"] == "sha256:def"
 
 
+def test_state_record_contract_alignment_preserves_visible_non_authoritative_contract(
+    tmp_path: Path,
+) -> None:
+    """Recording alignment must not erase a visible contract with approval blockers."""
+    state = default_state_dict()
+    state["project_contract"] = _draft_invalid_project_contract()
+    _write_raw_state_json(tmp_path, state)
+
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:abc",
+        context_hash="sha256:def",
+        now="2026-04-23T12:00:00+00:00",
+    )
+
+    persisted = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
+    assert persisted["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert persisted["contract_alignment"]["confirmed_contract_hash"] == "sha256:abc"
+
+
+def test_state_contract_alignment_unconfirmed_omits_gate_keys(tmp_path: Path) -> None:
+    """Unconfirmed alignment stays absent from the visible gate projection."""
+    state = default_state_dict()
+    state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+    gate = loaded.project_contract_gate or {}
+
+    assert "confirmed_at" not in gate
+    assert "confirmed_contract_hash" not in gate
+    assert "confirmed_context_hash" not in gate
+
+
 def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
     """After recording, state_load surfaces alignment hashes on project_contract_gate."""
     save_state_json(tmp_path, default_state_dict())

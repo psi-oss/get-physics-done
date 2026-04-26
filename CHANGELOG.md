@@ -7,7 +7,7 @@ All notable changes to Get Physics Done are documented here.
 ### Supervised by default
 
 - **Defaults flipped to supervised + dense.** New projects start with `autonomy=supervised`, `review_cadence=dense`, `checkpoint_after_n_tasks=1`, and tighter unattended budgets (15 min/plan, 30 min/wave). The "scalpel, not autopilot" framing is surfaced across `README.md`, `start`, `tour`, `help`, and `settings`.
-- **Shallow roadmap on `gpd:new-project` standard mode.** Phase 1 is fully detailed; Phases 2+ ship as one-line stubs that get fleshed out on demand via `gpd:plan-phase N`. The standard-mode "Next Up" recommends `plan-phase 1` directly. `--minimal` stays opt-in.
+- **Shallow roadmap on `gpd:new-project` standard mode.** Phase 1 is fully detailed; Phases 2+ ship as one-line stubs that are expanded on demand via `gpd:plan-phase N`. The standard-mode "Next Up" recommends `plan-phase 1` directly. `--minimal` stays opt-in.
 - **`review_cadence=dense` unconditionally forces the first-result gate** on every wave, even when the executor forgets to mark a result load-bearing. Closes the "executor mislabels a result" silent-failure trap. Config validator rejects `dense` paired with `checkpoint_after_first_load_bearing_result=false` so the invariant cannot be silently disabled.
 - **Claim↔deliverable alignment precheck** before `execute-phase` spawns workers. New `<step name="claim_deliverable_alignment_check">` renders user intent next to the machine contract and gates execution on a single `ask_user` (4-option Y/e/p/n, Enter = Y). Confirmation persists by `(contract_hash, context_hash)` so re-runs in the same session don't re-prompt unless the contract or `CONTEXT.md` changes.
 - **`gpd progress --watch` heartbeat.** Polls the execution-state and lineage signal files and redraws via `rich.live.Live` (TTY) or one JSON object per tick (pipes). New `--interval` and `--exit-on-idle` flags. Clean Ctrl-C exit.
@@ -35,10 +35,6 @@ All notable changes to Get Physics Done are documented here.
 - Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
 - fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 - Fix silent data loss in state normalization: malformed list entries (e.g., approximations with missing `name` field) now remove only the invalid entry instead of stripping the entire section.
-- Add result-consistency health check that cross-validates `state.json` intermediate results against SUMMARY.md `provides` frontmatter and warns on mismatches, with guards against empty-string false matches, short-string over-matching, and malformed state records.
-- Fix Windows test compatibility: cross-platform absolute paths in MCP tests, `shlex.quote`-aware assertions, `encoding="utf-8"` on `read_text()`, POSIX display paths in CLI/git_ops, permission/LaTeX/tilde/bash test portability, and schema pattern alignment.
-- Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
-- fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 - Fix agent docs: `approximation add` and `uncertainty add` use positional arguments, not `--name`/`--quantity` flags (agent-infrastructure.md, sensitivity-analysis.md, error-propagation.md).
 - Fix catastrophic state reset: `_normalize_state_schema({})` now emits the integrity sentinel that triggers backup recovery, preventing silent data loss when `state.json` contains an empty object.
 - Auto-migrate `ROADMAP.md` and `PROJECT.md` from workspace root into `GPD/` on first command, so files placed at the root are found by all GPD operations.

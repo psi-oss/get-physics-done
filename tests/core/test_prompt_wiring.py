@@ -2439,17 +2439,23 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "project_contract_validation" in execute_workflow
     assert "project_contract_load_info" in execute_workflow
     assert "visible-but-blocked contract as an approved execution contract" in execute_workflow
+
     # Phase 5: claim<->deliverable alignment precheck is wired in as a step in
     # execute-phase.md and references the helpers/CLI provided by lanes E2/E3.
-    assert '<step name="claim_deliverable_alignment_check">' in execute_workflow
-    assert (
-        "claim_deliverable_alignment_summary" in execute_workflow
-        or "gpd contract alignment-summary" in execute_workflow
+    alignment_step = _extract_between(
+        execute_workflow,
+        '<step name="claim_deliverable_alignment_check">',
+        "</step>",
     )
+    assert "gpd contract alignment-status" in alignment_step
+    assert "gpd contract fingerprint" in alignment_step
+    assert "gpd contract context-fingerprint" in alignment_step
+    assert "gpd contract alignment-summary" in alignment_step
     assert (
-        "gpd contract record-alignment" in execute_workflow
-        or "record-alignment" in execute_workflow
-    )
+        'gpd contract record-alignment --contract-hash "$CONTRACT_HASH" '
+        '--context-hash "$CONTEXT_HASH"'
+    ) in alignment_step
+    assert "claim_deliverable_alignment_check: skipped (already confirmed this session)" in alignment_step
 
 
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:
@@ -4802,11 +4808,37 @@ def test_undo_backtrack_hook_collects_complete_backtrack_row_fields() -> None:
     record_command = (COMMANDS_DIR / "record-backtrack.md").read_text(encoding="utf-8")
 
     assert '--phase=<NN-slug>' in record_command
-    assert '--phase=<NN-slug>' in record_workflow
-    assert "dedupe on `phase` + `trigger` + `why_wrong`" in record_workflow
-    assert '" --phase=NN-slug"' in undo_workflow
-    assert "remaining required row fields (`stage`, `produced`, `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`)" in undo_workflow
-    assert "prompts the user only for `why_wrong`" not in undo_workflow
+
+    record_parse_step = _extract_between(
+        record_workflow,
+        '<step name="parse_prefill_args">',
+        "</step>",
+    )
+    record_dedupe_step = _extract_between(
+        record_workflow,
+        '<step name="check_duplicates">',
+        "</step>",
+    )
+    undo_backtrack_step = _extract_between(
+        undo_workflow,
+        '<step name="offer_record_backtrack">',
+        "</step>",
+    )
+
+    assert '--phase=<NN-slug>' in record_parse_step
+    assert "Dedupe by exact normalized matching of finalized" in record_dedupe_step
+    assert "`phase` + `trigger` + `why_wrong`" in record_dedupe_step
+    assert (
+        "args={reverted_commit: TARGET_HASH, trigger: TARGET_MSG, "
+        "phase: INFERRED_PHASE_OR_NULL}"
+    ) in undo_backtrack_step
+    assert "using structured arguments, not a shell-shaped string" in undo_backtrack_step
+    assert "do not interpolate it into shell-shaped args" in undo_backtrack_step
+    assert (
+        "remaining required row fields (`stage`, `produced`, `why_wrong`, "
+        "`counter_action`, `category`, `confidence`, and `promote`)"
+    ) in undo_backtrack_step
+    assert "prompts the user only for `why_wrong`" not in undo_backtrack_step
 
 
 def test_changed_continuation_surfaces_do_not_reintroduce_session_as_authority() -> None:

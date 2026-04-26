@@ -115,6 +115,15 @@ def test_precheck_proceed_does_not_reprompt_in_same_session() -> None:
     )
 
 
+def test_precheck_fails_closed_when_fingerprints_are_missing() -> None:
+    assert _PRECHECK_BODY, "precheck step body could not be extracted"
+
+    assert "Fail closed if either fingerprint command fails or resolves to an empty value" in _PRECHECK_BODY
+    assert 'if [ -z "$CONTRACT_HASH" ] || [ -z "$CONTEXT_HASH" ]; then' in _PRECHECK_BODY
+    assert "do not call `gpd contract record-alignment` on this path" in _PRECHECK_BODY
+    assert "Next Up: gpd:execute-phase {N}" in _PRECHECK_BODY
+
+
 def test_precheck_abort_does_not_spawn_workers() -> None:
     assert _PRECHECK_BODY, "precheck step body could not be extracted"
 

@@ -19,6 +19,16 @@ def test_execute_plan_routes_checkpoints_through_orchestrator_owned_returns() ->
     assert "The child never waits for user approval inside the same run" in checkpoints
 
 
+def test_execute_plan_clean_wave_batching_uses_typed_verification_outcome() -> None:
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+
+    assert 'verification.status="passed"' in execute_plan
+    assert "verification.issue_count=0" in execute_plan
+    assert "Do not parse prose such as \"failure language\" to decide batching eligibility." in execute_plan
+    assert "omits the typed verification outcome" in execute_plan
+    assert "verification-complete` without failure language" not in execute_plan
+
+
 def test_execute_phase_requires_on_disk_artifacts_before_accepting_success() -> None:
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
 

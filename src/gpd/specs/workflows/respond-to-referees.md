@@ -39,8 +39,8 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each referee point for user review of the proposed response.
-- `autonomy=balanced` (default): Draft the full response and apply routine manuscript changes. Do not force a parse-confirmation pause; pause only if the referee report is ambiguous, the response needs claim-level changes, new calculations, or unresolved referee disagreements. Any spawned agent that needs user input must return `status: checkpoint` and stop; the orchestrator presents the checkpoint and spawns a fresh continuation handoff after the user responds.
+- `autonomy=supervised` (default): Pause after each referee point for user review of the proposed response.
+- `autonomy=balanced`: Draft the full response and apply routine manuscript changes. Do not force a parse-confirmation pause; pause only if the referee report is ambiguous, the response needs claim-level changes, new calculations, or unresolved referee disagreements. Any spawned agent that needs user input must return `status: checkpoint` and stop; the orchestrator presents the checkpoint and spawns a fresh continuation handoff after the user responds.
 - `autonomy=yolo`: Draft response and apply manuscript changes without pausing.
 
 **Normalize command intake into one manuscript subject plus one or more report sources before preflight:**
@@ -320,6 +320,8 @@ Present triage:
 Group C items require research work before the response can be completed.
 Address Group-C new-calculation items first? [Y/n/e]  (Enter = Y; e opens freeform to re-triage)
 ```
+
+**Edit branch:** If the user chooses `e`, collect revised triage instructions, update the Group-C ordering or classification, and re-present the updated `[Y/n/e]` prompt once before creating phases or changing response trackers. Do not treat the edit text itself as approval.
 
 </step>
 

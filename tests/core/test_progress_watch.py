@@ -97,11 +97,11 @@ def test_progress_watch_honors_interval_without_mtime_change(
 
     monkeypatch.setattr(cli_module, "_stdout_is_interactive", lambda: False)
 
-    calls = {"n": 0}
+    sleep_intervals: list[float] = []
 
-    def _fake_sleep(_interval: float) -> None:
-        calls["n"] += 1
-        if calls["n"] >= 2:
+    def _fake_sleep(interval: float) -> None:
+        sleep_intervals.append(interval)
+        if len(sleep_intervals) >= 2:
             raise KeyboardInterrupt
 
     monkeypatch.setattr(cli_module, "_progress_watch_sleep", _fake_sleep)
@@ -116,6 +116,7 @@ def test_progress_watch_honors_interval_without_mtime_change(
     assert len(emitted) >= 1, (
         f"first tick should always render; got {len(emitted)} frames: {result.stdout!r}"
     )
+    assert sleep_intervals == [0.1, 0.1]
 
 
 def test_progress_watch_exit_on_idle_flag(tmp_path: Path, monkeypatch) -> None:
@@ -276,3 +277,48 @@ def test_progress_watch_tty_renders_live_table(tmp_path: Path, monkeypatch) -> N
         f"TTY watch path must not emit JSON on stdout; got: {result.stdout!r}"
     )
     assert calls["n"] == 1
+
+
+def test_progress_watch_raw_emits_json_lines_even_when_stdout_is_tty(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    _write_current_execution(project, current_task="task-1")
+
+    monkeypatch.setattr(cli_module, "_stdout_is_interactive", lambda: True)
+    monkeypatch.setattr(cli_module, "_is_idle", lambda _result: True)
+
+    fake_console = Console(
+        record=True,
+        force_terminal=True,
+        file=io.StringIO(),
+        width=120,
+    )
+    monkeypatch.setattr(cli_module, "console", fake_console)
+
+    def _fail_if_called(_interval: float) -> None:  # pragma: no cover - should not run
+        raise AssertionError("sleep should not be reached when --exit-on-idle fires immediately")
+
+    monkeypatch.setattr(cli_module, "_progress_watch_sleep", _fail_if_called)
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(project),
+            "progress",
+            "json",
+            "--watch",
+            "--exit-on-idle",
+            "--interval",
+            "0.1",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, (result.stdout or "") + (result.stderr or "")
+    emitted = _parse_json_lines(result.stdout)
+    assert len(emitted) == 1
+    assert emitted[0]["live_execution"]["current_task"] == "task-1"
+    assert fake_console.export_text() == ""

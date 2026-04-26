@@ -1065,9 +1065,7 @@ def _project_contract_gate_payload(
         "source_path": (load_info or {}).get("source_path"),
     }
     if alignment is not None:
-        payload["confirmed_at"] = alignment.confirmed_at
-        payload["confirmed_contract_hash"] = alignment.confirmed_contract_hash
-        payload["confirmed_context_hash"] = alignment.confirmed_context_hash
+        payload.update(alignment.model_dump(mode="python", exclude_none=True))
     return payload
 
 
@@ -4977,6 +4975,7 @@ def state_record_contract_alignment(
             cwd,
             persist_recovery=False,
             recover_intent=False,
+            surface_blocked_project_contract=True,
             acquire_lock=False,
         )
         if not isinstance(state_obj, dict) or state_source is None:

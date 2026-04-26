@@ -136,7 +136,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 - Convention changes: always checkpoint:decision
 - Approximation validity concerns: always checkpoint:decision
 - Scope: strictly follow the plan — any deviation triggers checkpoint
-- Every emitted `checkpoint:human-verify` carries a one-line summary and a `[Y/n/e]` resume-signal; decision checkpoints keep labeled options. See `specs/references/orchestration/checkpoint-ux-convention.md`.
+- Every emitted `checkpoint:human-verify` carries a one-line summary and a `[Y/n/e]` resume-signal; decision checkpoints keep labeled options. See `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 
 **balanced:**
 - Execute auto tasks without pausing
