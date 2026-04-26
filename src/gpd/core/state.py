@@ -1290,6 +1290,7 @@ def _normalize_state_continuation(raw: dict[str, object]) -> dict[str, object]:
 
     normalized = copy.deepcopy(raw)
     normalized["continuation"] = _normalize_continuation_payload(normalized.get("continuation"))
+    normalized.pop("session", None)
     return normalized
 
 
@@ -1629,7 +1630,7 @@ def _slugify_custom_convention(label: str) -> str:
 def parse_state_md(content: str) -> dict:
     """Parse STATE.md into a structured dict.
 
-    This is the canonical parser — used by parse_state_to_json, migrate, and snapshot.
+    This is the canonical parser used by parse_state_to_json, normalization, and snapshot.
     """
     # Position fields
     current_phase_raw = state_extract_field(content, "Current Phase")
@@ -2550,7 +2551,6 @@ _STATE_MD_MIRRORED_FIELDS: dict[str, tuple[str, ...] | None] = {
         "progress_percent",
         "paused_at",
     ),
-    "session": ("last_date", "hostname", "platform", "stopped_at", "resume_file", "last_result_id"),
     "decisions": None,
     "blockers": None,
     "performance_metrics": ("rows",),
@@ -3235,7 +3235,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     merged = _build_state_from_markdown(
         cwd,
         md_content,
-        # Session Continuity is a compatibility mirror; markdown edits must
+        # Session Continuity is rendered from canonical continuation; markdown edits must
         # not mint canonical continuation authority on their own.
     )
     if merged.get("project_contract") is None and isinstance(preserved_contract, dict):
@@ -3863,7 +3863,7 @@ def save_state_markdown_locked(cwd: Path, md_content: str) -> dict:
     merged = _build_state_from_markdown(
         cwd,
         md_content,
-        # Session Continuity is a compatibility mirror; markdown edits must
+        # Session Continuity is rendered from canonical continuation; markdown edits must
         # not mint canonical continuation authority on their own.
     )
     normalized_md_content = _canonicalize_session_continuity_section(md_content, merged)
@@ -3968,13 +3968,11 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
         return StateGetResult(content=content)
 
     section_norm = section.replace("_", " ").strip()
-    if section_norm.casefold() in {"session", "continuation", "handoff"}:
+    if section_norm.casefold() in {"continuation", "handoff"}:
         state_obj = load_state_json_readonly(cwd)
         if isinstance(state_obj, dict):
             canonical_value: object | None
-            if section_norm.casefold() == "session":
-                canonical_value = state_obj.get("session")
-            elif section_norm.casefold() == "continuation":
+            if section_norm.casefold() == "continuation":
                 canonical_value = state_obj.get("continuation")
             else:
                 continuation = state_obj.get("continuation")
@@ -4811,7 +4809,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
         return ResolveBlockerResult(resolved=False, blocker=text, reason="no match found")
 
 
-def _normalize_session_resume_file(cwd: Path, resume_file: str | None) -> str | None:
+def _normalize_handoff_resume_file(cwd: Path, resume_file: str | None) -> str | None:
     """Normalize project-local absolute resume pointers back to repo-relative form."""
     if resume_file is None:
         return None
@@ -4856,14 +4854,14 @@ def state_record_session(
         )
         existing_handoff = current_continuation.handoff
         existing_machine = current_continuation.machine
-        normalized_existing_resume_file = _normalize_session_resume_file(cwd, existing_handoff.resume_file)
+        normalized_existing_resume_file = _normalize_handoff_resume_file(cwd, existing_handoff.resume_file)
         normalized_resume_file = (
             None
             if clear_resume_file
             else (
                 normalized_existing_resume_file
                 if resume_file is None
-                else _normalize_session_resume_file(cwd, resume_file)
+                else _normalize_handoff_resume_file(cwd, resume_file)
             )
         )
         if (
@@ -5015,7 +5013,7 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
         decisions=state_obj.get("decisions"),
         blockers=state_obj.get("blockers"),
         paused_at=pos.get("paused_at"),
-        session=state_obj.get("session"),
+        session=None,
     )
 
 
@@ -5129,7 +5127,6 @@ def state_validate(
         for section in (
             "decisions",
             "blockers",
-            "session",
             "continuation",
             "convention_lock",
             "approximations",

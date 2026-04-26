@@ -22,11 +22,11 @@ The assistant auto-advances through all phases that do not hit a hard checkpoint
 
 ### Continuous-with-Checkpoints Mode (`balanced`)
 
-The default autonomy setting. The assistant auto-advances through phases that are safe to continue (see Safe Auto-Advance Phases below). At structured checkpoint boundaries, execution pauses for review. This balances throughput with research quality control.
+This is an explicit opt-in after the user leaves the default `supervised` posture. The assistant auto-advances through phases that are safe to continue (see Safe Auto-Advance Phases below). At structured checkpoint boundaries, execution pauses for review. This balances throughput with research quality control.
 
 ## Safe Auto-Advance Phases
 
-The following phase transitions are safe to auto-advance without human review, regardless of execution mode:
+The following phase transitions are eligible for auto-advance in `balanced` or `yolo`. In `supervised`, they still pause because the default posture is manual review:
 
 - **Literature review completion** -> next phase (results are additive, not load-bearing for correctness)
 - **Formalism setup completion** -> execution phases (conventions and notation are committed, verifiable from artifacts)

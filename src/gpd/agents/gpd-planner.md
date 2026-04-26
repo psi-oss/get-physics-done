@@ -1348,13 +1348,20 @@ If optional file budget < 15%, skip ALL optional files and proceed directly to p
 Read learned patterns if they exist (skip if triage reported SKIP):
 
 ```bash
-for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/BACKTRACKS.md; do
+for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"
   fi
 done
+
+if [ -f GPD/BACKTRACKS.md ]; then
+  echo "=== GPD/BACKTRACKS.md (filtered planning rows, cap 30 lines) ==="
+  tail -n 30 GPD/BACKTRACKS.md
+fi
 ```
+
+For `GPD/BACKTRACKS.md`, do not inject the full file. Use the capped block as a candidate set, then keep only rows whose `stage` matches the current planning stage and whose physics-technique tag overlaps the current phase unless no tag filter is available.
 
 For each pattern found, apply targeted planning adjustments:
 

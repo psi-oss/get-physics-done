@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -129,6 +130,28 @@ def test_build_artifact_manifest_captures_tex_and_optional_bib(tmp_path) -> None
     tex_artifact = next(artifact for artifact in manifest.artifacts if artifact.artifact_id == "tex-paper")
     assert len(tex_artifact.sha256) == 64
     assert any(artifact.category == "bib" for artifact in manifest.artifacts)
+
+
+def test_build_artifact_manifest_captures_manuscript_freshness_fields(tmp_path) -> None:
+    from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
+    from gpd.mcp.paper.models import Author, PaperConfig, Section
+
+    tex_path = tmp_path / "paper.tex"
+    tex_content = "\\documentclass{article}\\begin{document}Fresh snapshot.\\end{document}"
+    tex_path.write_text(tex_content, encoding="utf-8")
+
+    config = PaperConfig(
+        title="Fresh Manifest",
+        authors=[Author(name="Test Author", affiliation="Test Univ")],
+        abstract="Abstract text.",
+        sections=[Section(title="Intro", content="Content")],
+        journal="jhep",
+    )
+
+    manifest = build_artifact_manifest(config, tmp_path, tex_path=tex_path)
+
+    assert manifest.manuscript_sha256 == hashlib.sha256(tex_content.encode("utf-8")).hexdigest()
+    assert manifest.manuscript_mtime_ns == tex_path.stat().st_mtime_ns
 
 
 def test_artifact_manifest_models_reject_extra_fields_and_invalid_sha256() -> None:

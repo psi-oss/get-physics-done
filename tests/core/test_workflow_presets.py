@@ -241,8 +241,7 @@ def test_workflow_preset_readiness_degrades_publication_family_when_bibtex_is_mi
 
 
 def test_workflow_preset_readiness_degrades_peer_review_pdf_intake_when_pypdf_is_missing() -> None:
-    # Pass pdf_review_ready=False directly; pdftotext_available is kept for
-    # backward-compat but pdf_review_ready takes precedence when present.
+    # Pass pdf_review_ready=False directly; it takes precedence when present.
     readiness = resolve_workflow_preset_readiness(
         base_ready=True,
         latex_capability=_latex_capability(pdf_review_ready=False),
@@ -288,7 +287,7 @@ def test_workflow_preset_readiness_ignores_malformed_pdftotext_and_contradictory
     assert publication["ready_workflows"] == []
 
 
-def test_workflow_preset_readiness_does_not_backfill_legacy_paper_build_flag_to_ready() -> None:
+def test_workflow_preset_readiness_does_not_backfill_stale_paper_build_flag_to_ready() -> None:
     readiness = resolve_workflow_preset_readiness(base_ready=True, latex_capability={"paper_build_ready": True})
     publication = next(preset for preset in readiness["presets"] if preset["id"] == "publication-manuscript")
 
@@ -328,8 +327,8 @@ def test_workflow_preset_readiness_rejects_string_booleans_in_latex_capability()
     assert any("No LaTeX compiler detected" in warning for warning in publication["warnings"])
 
 
-@pytest.mark.parametrize("latex_capability", [True, {"legacy_available": True}])
-def test_workflow_preset_readiness_ignores_legacy_compiler_availability_shapes(
+@pytest.mark.parametrize("latex_capability", [True, {"stale_available": True}])
+def test_workflow_preset_readiness_ignores_stale_compiler_availability_shapes(
     latex_capability: object,
 ) -> None:
     readiness = resolve_workflow_preset_readiness(base_ready=True, latex_capability=latex_capability)

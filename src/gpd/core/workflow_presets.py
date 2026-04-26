@@ -143,8 +143,8 @@ def _normalize_latex_capability(
     latexmk_value = _capability_value(latex_capability, "latexmk_available", "latexmk")
     kpsewhich_value = _capability_value(latex_capability, "kpsewhich_available", "kpsewhich")
     pdftotext_value = _capability_value(latex_capability, "pdftotext_available", "pdftotext")
-    # pdf_review_ready may be set explicitly (pypdf-based); fall back to
-    # pdftotext_available for backward-compatibility with legacy payloads.
+    # pdf_review_ready may be set explicitly (pypdf-based); otherwise use the
+    # text-extraction capability as the PDF review readiness signal.
     pdf_review_value = _capability_value(latex_capability, "pdf_review_ready")
     compiler_path = _capability_value(latex_capability, "compiler_path")
     distribution = _capability_value(latex_capability, "distribution")

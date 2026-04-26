@@ -129,13 +129,13 @@ def test_new_milestone_roadmapper_prompt_surfaces_contract_gate_inputs() -> None
 def test_help_resume_surface_stays_user_facing() -> None:
     workflow = expand_at_includes(_workflow_text("help.md"), REPO_ROOT / "src/gpd", "/runtime/").lower()
 
-    assert "compatibility-only intake fields stay internal" in workflow
-    assert "compat_resume_surface" not in workflow
+    assert "canonical continuation fields define the public resume vocabulary" in workflow
+    assert "`resume_surface`" not in workflow
     assert "session.resume_file" not in workflow
     assert "shared resume-surface resolver owns canonical candidate kind/origin semantics" not in workflow
 
 
-def test_resume_work_keeps_public_resume_vocabulary_and_nested_compatibility_intake_separate() -> None:
+def test_resume_work_keeps_public_resume_vocabulary_canonical() -> None:
     resume_work_command = expand_at_includes(
         (COMMANDS_DIR / "resume-work.md").read_text(encoding="utf-8"),
         REPO_ROOT / "src/gpd",
@@ -145,12 +145,10 @@ def test_resume_work_keeps_public_resume_vocabulary_and_nested_compatibility_int
 
     assert resume_authority_public_vocabulary_intro() in resume_work_command
     assert resume_authority_public_vocabulary_intro() in resume_work_workflow
-    assert "compatibility-only intake fields stay internal" in resume_work_command.lower()
-    assert "compatibility-only intake fields stay internal" in resume_work_workflow.lower()
-    assert "compat_resume_surface" not in resume_work_command
-    assert "compat_resume_surface" not in resume_work_workflow
-    assert "session_resume_file" not in resume_work_command
-    assert "session_resume_file" not in resume_work_workflow
+    assert "`resume_surface`" not in resume_work_command
+    assert "`resume_surface`" not in resume_work_workflow
+    assert "handoff_resume_file" not in resume_work_command
+    assert "handoff_resume_file" not in resume_work_workflow
     assert resume_authority_fields() == (
         "active_resume_kind",
         "active_resume_origin",

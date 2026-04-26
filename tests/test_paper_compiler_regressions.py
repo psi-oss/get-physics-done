@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import pytest
+from pybtex.database import BibliographyData, Entry
 
 from gpd.mcp.paper.bibliography import BibliographyAudit, CitationAuditRecord
-from gpd.mcp.paper.compiler import _compile_manual_multipass, _compile_with_latexmk, _reference_bibtex_keys_from_audit
+from gpd.mcp.paper.compiler import (
+    CompilationResult,
+    _compile_manual_multipass,
+    _compile_with_latexmk,
+    _reference_bibtex_keys_from_audit,
+    build_paper,
+)
+from gpd.mcp.paper.models import Author, PaperConfig, Section, derive_output_filename
 from gpd.utils.latex import AutoFixResult
 
 
@@ -364,6 +372,57 @@ async def test_manual_multipass_autofix_requires_fresh_pdf_after_fix(
     assert result.pdf_path is None
     assert result.error == "Compilation failed"
     assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
+
+
+@pytest.mark.asyncio
+async def test_build_paper_routes_sidecars_to_independent_output_paths(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    hidden_sidecar_dir = output_dir / ".paper-meta"
+    manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
+    audit_path = hidden_sidecar_dir / "BIBLIOGRAPHY-AUDIT.json"
+    config = PaperConfig(
+        title="Sidecar Routing Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+    bibliography = BibliographyData()
+    bibliography.entries["ref2026"] = Entry(
+        "article",
+        [("author", "Doe"), ("title", "Reference"), ("year", "2026")],
+    )
+    pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        pdf_path.write_bytes(b"%PDF-fake")
+        return CompilationResult(success=True, pdf_path=pdf_path)
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(
+        config,
+        output_dir,
+        bib_data=bibliography,
+        sidecar_root=hidden_sidecar_dir,
+        artifact_manifest_output_path=manifest_path,
+        bibliography_audit_output_path=audit_path,
+    )
+
+    assert result.success is True
+    assert result.manifest_path == manifest_path
+    assert result.bibliography_audit_path == audit_path
+    assert manifest_path.is_file()
+    assert audit_path.is_file()
+    assert not (hidden_sidecar_dir / "ARTIFACT-MANIFEST.json").exists()
+    assert not (output_dir / "BIBLIOGRAPHY-AUDIT.json").exists()
+    audit_artifact = next(
+        artifact for artifact in result.manifest.artifacts if artifact.artifact_id == "audit-bibliography"
+    )
+    assert audit_artifact.path == ".paper-meta/BIBLIOGRAPHY-AUDIT.json"
 
 
 # ---- Assertions for compiler imports and dead-code invariants ----

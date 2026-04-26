@@ -2280,7 +2280,7 @@ class TestStateServer:
         assert result["error"] == "project_dir must be an absolute path"
         assert result["schema_version"] == 1
 
-    def test_load_state_json_omits_legacy_session_mirror(self, fake_project_dir):
+    def test_load_state_json_omits_session_alias_mirror(self, fake_project_dir):
         from gpd.mcp.servers.state_server import load_state_json
 
         mock_state = {
@@ -2881,7 +2881,7 @@ class TestVerificationServer:
 
         assert result == {"error": "Missing check_key", "schema_version": 1}
 
-    def test_run_contract_check_rejects_legacy_check_id_alias(self):
+    def test_run_contract_check_rejects_stale_check_id_alias(self):
         from gpd.mcp.servers.verification_server import run_contract_check
 
         result = run_contract_check({"check_id": "contract.limit_recovery "})
@@ -3349,7 +3349,7 @@ class TestVerificationServer:
         from gpd.mcp.servers.verification_server import run_contract_check
 
         contract = copy.deepcopy(_load_project_contract_fixture())
-        contract["claims"][0]["notes"] = "legacy extra field"
+        contract["claims"][0]["notes"] = "stale extra field"
 
         result = run_contract_check(
             {
@@ -3430,7 +3430,7 @@ class TestVerificationServer:
         from gpd.mcp.servers.verification_server import suggest_contract_checks
 
         contract = copy.deepcopy(_load_project_contract_fixture())
-        contract["references"][0]["notes"] = "legacy extra field"
+        contract["references"][0]["notes"] = "stale extra field"
 
         result = suggest_contract_checks(contract)
 

@@ -112,7 +112,7 @@ For single-researcher projects on the default branch, PRs are optional. Use them
 Before opening or merging a PR, verify:
 
 1. **All plans have SUMMARY.md files.** No orphaned PLANs without completion records.
-2. **STATE.md is current.** Position, decisions, and session info reflect the latest work.
+2. **STATE.md is current.** Position, decisions, and the Session Continuity rendering reflect the latest canonical continuation.
 3. **ROADMAP.md is updated.** Completed phases marked with dates.
 4. **No sensitive data.** API keys, credentials, and large data files excluded.
 5. **No stale artifacts.** Temporary files, scratch notebooks, and debug logs removed.

@@ -297,8 +297,8 @@ The following conditional rules are mandatory:
 
 Public command registration and shared help coverage are part of the supported authoring surface. Stable reviewed knowledge is visible through the shared runtime reference surfaces. The remaining deferred behaviors are:
 
-1. migration/backfill for older knowledge files
-2. alias repair or heuristic filename repair for legacy docs
+1. repair for non-canonical knowledge files
+2. alias repair or heuristic filename repair for non-canonical docs
 3. beginner onboarding exposure
 4. automatic promotion of a draft to stable without review
 5. `knowledge_deps` or `related_artifacts` as accepted frontmatter fields

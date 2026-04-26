@@ -43,7 +43,7 @@ def test_resume_surface_schema_version_uses_shared_constant(tmp_path) -> None:
 
 def test_resume_candidate_helpers_normalize_raw_and_canonical_shapes_to_canonical_origins() -> None:
     raw_candidate = {
-        "source": "session_resume_file",
+        "source": "handoff_resume_file",
         "status": "handoff",
         "resume_file": "GPD/phases/03/.continue-here.md",
     }
@@ -57,7 +57,7 @@ def test_resume_candidate_helpers_normalize_raw_and_canonical_shapes_to_canonica
     assert resume_candidate_kind(raw_candidate) == "continuity_handoff"
     assert resume_candidate_origin(raw_candidate) == "continuation.handoff"
     assert resume_candidate_origin_from_source("current_execution") == "continuation.bounded_segment"
-    assert resume_candidate_origin_from_source("session_resume_file") == "continuation.handoff"
+    assert resume_candidate_origin_from_source("handoff_resume_file") == "continuation.handoff"
     assert resume_candidate_origin_from_source("interrupted_agent") == "interrupted_agent_marker"
     assert resume_candidate_kind(canonical_candidate) == "continuity_handoff"
     assert resume_candidate_origin(canonical_candidate) == "continuation.handoff"
@@ -207,7 +207,7 @@ def test_build_resume_segment_candidate_projects_segment_fields_into_raw_resume_
     assert candidate["last_result_id"] == "result-9"
 
 
-def test_canonicalize_resume_public_payload_keeps_canonical_fields_and_strips_legacy_aliases() -> None:
+def test_canonicalize_resume_public_payload_keeps_canonical_fields_and_strips_internal_fields() -> None:
     continuity_candidate = build_resume_candidate(
         {"status": "handoff", "resume_file": "GPD/phases/04/.continue-here.md"},
         kind="continuity_handoff",
@@ -225,26 +225,23 @@ def test_canonicalize_resume_public_payload_keeps_canonical_fields_and_strips_le
         "active_resume_kind": "continuity_handoff",
         "active_resume_origin": "continuation.handoff",
         "active_resume_pointer": "GPD/phases/04/.continue-here.md",
-        "compat_resume_surface": {
-            "active_resume_pointer": "GPD/phases/04/.continue-here.md",
-            "resume_candidates": [{"kind": "bounded_segment"}],
-        },
         "resume_surface": {
             "active_resume_result": {
-                "id": "legacy-result",
-                "description": "Legacy wrapper result",
+                "id": "wrapped-result",
+                "description": "Wrapped result",
             },
-            "session_resume_file": "GPD/phases/04/.continue-here.md",
+            "resume_candidates": [{"kind": "bounded_segment"}],
+            "handoff_resume_file": "GPD/phases/04/.continue-here.md",
         },
         "resume_mode": "continuity_handoff",
         "segment_candidates": [
             {
-                "source": "session_resume_file",
+                "source": "handoff_resume_file",
                 "status": "handoff",
                 "resume_file": "GPD/phases/04/.continue-here.md",
             }
         ],
-        "session_resume_file": "GPD/phases/04/.continue-here.md",
+        "handoff_resume_file": "GPD/phases/04/.continue-here.md",
         "resume_candidates": [continuity_candidate],
     }
 
@@ -257,14 +254,13 @@ def test_canonicalize_resume_public_payload_keeps_canonical_fields_and_strips_le
     assert canonical["active_resume_result"]["id"] == "result-canonical"
     assert "segment_candidates" not in canonical
     assert "resume_mode" not in canonical
-    assert "session_resume_file" not in canonical
-    assert "compat_resume_surface" not in canonical
+    assert "handoff_resume_file" not in canonical
     assert "resume_surface" not in canonical
-    assert payload["compat_resume_surface"]["resume_candidates"][0]["kind"] == "bounded_segment"
-    assert payload["resume_surface"]["active_resume_result"]["id"] == "legacy-result"
+    assert payload["resume_surface"]["resume_candidates"][0]["kind"] == "bounded_segment"
+    assert payload["resume_surface"]["active_resume_result"]["id"] == "wrapped-result"
 
 
-def test_canonicalize_resume_public_payload_preserves_nested_business_data_with_legacy_like_keys() -> None:
+def test_canonicalize_resume_public_payload_preserves_nested_business_data_with_internal_like_keys() -> None:
     payload = {
         "active_resume_result": {
             "id": "result-canonical",
@@ -273,17 +269,17 @@ def test_canonicalize_resume_public_payload_preserves_nested_business_data_with_
         },
         "recovery": {
             "resume_mode": "keep-this-nested-value",
-            "session_resume_file": "not-a-top-level-alias",
+            "handoff_resume_file": "not-a-top-level-alias",
         },
         "resume_mode": "continuity_handoff",
-        "session_resume_file": "GPD/phases/04/.continue-here.md",
+        "handoff_resume_file": "GPD/phases/04/.continue-here.md",
     }
 
     canonical = canonicalize_resume_public_payload(payload)
 
     assert "resume_mode" not in canonical
-    assert "session_resume_file" not in canonical
+    assert "handoff_resume_file" not in canonical
     assert canonical["active_resume_result"]["resume_surface"] == {"note": "nested result metadata must survive"}
     assert canonical["active_resume_result"]["current_execution"] == {"phase": "04"}
     assert canonical["recovery"]["resume_mode"] == "keep-this-nested-value"
-    assert canonical["recovery"]["session_resume_file"] == "not-a-top-level-alias"
+    assert canonical["recovery"]["handoff_resume_file"] == "not-a-top-level-alias"

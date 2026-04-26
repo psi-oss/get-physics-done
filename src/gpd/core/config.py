@@ -967,38 +967,32 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
                 None,
             ),
             execution_preferences=ExecutionPreferences(
-                strict_wait=bool(
-                    _coalesce(
-                        _get_nested(
-                            parsed,
-                            "strict_wait",
-                            section="execution_preferences",
-                            field="strict_wait",
-                        ),
-                        _CONFIG_DEFAULTS.execution_preferences.strict_wait,
-                    )
+                strict_wait=_coalesce(
+                    _get_nested(
+                        parsed,
+                        "strict_wait",
+                        section="execution_preferences",
+                        field="strict_wait",
+                    ),
+                    _CONFIG_DEFAULTS.execution_preferences.strict_wait,
                 ),
-                never_interrupt_running_workers=bool(
-                    _coalesce(
-                        _get_nested(
-                            parsed,
-                            "never_interrupt_running_workers",
-                            section="execution_preferences",
-                            field="never_interrupt_running_workers",
-                        ),
-                        _CONFIG_DEFAULTS.execution_preferences.never_interrupt_running_workers,
-                    )
+                never_interrupt_running_workers=_coalesce(
+                    _get_nested(
+                        parsed,
+                        "never_interrupt_running_workers",
+                        section="execution_preferences",
+                        field="never_interrupt_running_workers",
+                    ),
+                    _CONFIG_DEFAULTS.execution_preferences.never_interrupt_running_workers,
                 ),
-                never_auto_close_child_agents=bool(
-                    _coalesce(
-                        _get_nested(
-                            parsed,
-                            "never_auto_close_child_agents",
-                            section="execution_preferences",
-                            field="never_auto_close_child_agents",
-                        ),
-                        _CONFIG_DEFAULTS.execution_preferences.never_auto_close_child_agents,
-                    )
+                never_auto_close_child_agents=_coalesce(
+                    _get_nested(
+                        parsed,
+                        "never_auto_close_child_agents",
+                        section="execution_preferences",
+                        field="never_auto_close_child_agents",
+                    ),
+                    _CONFIG_DEFAULTS.execution_preferences.never_auto_close_child_agents,
                 ),
             ),
         )

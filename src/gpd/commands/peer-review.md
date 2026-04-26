@@ -157,7 +157,7 @@ Treat `project-backed manuscript review` as the strict publication-pipeline mode
 
 If the current folder is a GPD project, treat `GPD/STATE.md` and `GPD/ROADMAP.md` as optional project context. Do not require them for standalone external artifact review.
 Interpret the review contract in two modes: project-backed review requires project state, roadmap, conventions, research artifacts, verification reports, and manuscript-root publication artifacts. Fail closed for project-backed review missing required manuscript-root publication artifacts. For explicit external-artifact review: the resolved manuscript target is required, while manuscript-local publication artifacts are optional supporting context when present.
-If centralized preflight exposes a subject-owned publication root for an explicit external publication subject, keep the round-artifact family bound there and do not infer a full publication-tree migration from that one continuation path.
+If centralized preflight exposes a subject-owned publication root for an explicit external publication subject, keep the round-artifact family bound there and do not infer a full publication-tree relocation from that one continuation path.
 
 The default in-project manuscript family is limited to `paper/`, `manuscript/`, and `draft/`.
 Compatibility note: centralized preflight may also hand you a resolved project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`. Treat that as the active current-project manuscript subject, but do not relocate the staged review outputs beside the manuscript.

@@ -296,6 +296,37 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
+    def test_execution_preferences_string_booleans_use_model_validation(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "strict_wait": "false",
+                    "execution_preferences": {
+                        "never_interrupt_running_workers": "true",
+                        "never_auto_close_child_agents": False,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.execution_preferences.strict_wait is False
+        assert cfg.execution_preferences.never_interrupt_running_workers is True
+        assert cfg.execution_preferences.never_auto_close_child_agents is False
+
+    def test_execution_preferences_invalid_boolean_string_raises_config_error(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps({"execution_preferences": {"strict_wait": "definitely"}}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigError, match="Invalid config.json values"):
+            load_config(tmp_path)
+
     def test_identical_root_and_nested_aliases_are_accepted(self, tmp_path: Path) -> None:
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(

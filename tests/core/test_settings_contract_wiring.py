@@ -117,3 +117,21 @@ def test_settings_workflow_keeps_convention_ownership_outside_settings_and_route
     assert "Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`." in settings_workflow
     assert "gpd:validate-conventions -- verify convention consistency across the project" in settings_workflow
     assert "gpd convention set <key> <value> -- update the locked project conventions directly" in settings_workflow
+
+
+def test_settings_and_profile_docs_keep_supervised_dense_defaults_consistent() -> None:
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    set_profile_workflow = (WORKFLOWS_DIR / "set-profile.md").read_text(encoding="utf-8")
+    continuous_execution = (REFERENCES_DIR / "orchestration" / "continuous-execution.md").read_text(encoding="utf-8")
+
+    assert "Core research (Recommended): preview the supervised default bundle" in settings_workflow
+    assert "balanced default bundle" not in settings_workflow
+    assert "using the schema defaults noted below" in settings_workflow
+
+    assert "Keep `execution.review_cadence=dense` for publication-quality passes" in set_profile_workflow
+    assert "`execution.review_cadence=adaptive` or `sparse` usually fits" not in set_profile_workflow
+
+    assert "| **Manual** (default)             | `supervised`" in continuous_execution
+    assert "This is an explicit opt-in after the user leaves the default `supervised` posture." in continuous_execution
+    assert "The default autonomy setting. The assistant auto-advances" not in continuous_execution
+    assert "eligible for auto-advance in `balanced` or `yolo`" in continuous_execution

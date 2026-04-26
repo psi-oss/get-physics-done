@@ -156,9 +156,7 @@ class TestCompilePaperRouting:
             patch("gpd.mcp.paper.compiler.find_tectonic", return_value="/usr/bin/tectonic"),
             patch("gpd.mcp.paper.compiler._compile_with_tectonic", new=AsyncMock(return_value=fake_result)) as mock_tec,
         ):
-            result = asyncio.get_event_loop().run_until_complete(
-                compile_paper(tex_file, tmp_path, prefer_tectonic=True)
-            )
+            result = asyncio.run(compile_paper(tex_file, tmp_path, prefer_tectonic=True))
 
         mock_tec.assert_called_once_with(tex_file, tmp_path, tectonic_path="/usr/bin/tectonic")
         assert result.success is True
@@ -177,9 +175,7 @@ class TestCompilePaperRouting:
             patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdflatex"),
             patch("gpd.mcp.paper.compiler._compile_with_latexmk", new=AsyncMock(return_value=fake_result)) as mock_lmk,
         ):
-            result = asyncio.get_event_loop().run_until_complete(
-                compile_paper(tex_file, tmp_path, prefer_tectonic=True)
-            )
+            result = asyncio.run(compile_paper(tex_file, tmp_path, prefer_tectonic=True))
 
         mock_lmk.assert_called_once()
         assert result.success is True
@@ -198,9 +194,7 @@ class TestCompilePaperRouting:
             patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value="/usr/bin/pdflatex"),
             patch("gpd.mcp.paper.compiler._compile_with_latexmk", new=AsyncMock(return_value=fake_result)),
         ):
-            asyncio.get_event_loop().run_until_complete(
-                compile_paper(tex_file, tmp_path, prefer_tectonic=False)
-            )
+            asyncio.run(compile_paper(tex_file, tmp_path, prefer_tectonic=False))
 
         mock_find_tec.assert_not_called()
 
@@ -213,9 +207,7 @@ class TestCompilePaperRouting:
             patch("gpd.mcp.paper.compiler.find_tectonic", return_value=None),
             patch("gpd.mcp.paper.compiler.find_latex_compiler", return_value=None),
         ):
-            result = asyncio.get_event_loop().run_until_complete(
-                compile_paper(tex_file, tmp_path, prefer_tectonic=True)
-            )
+            result = asyncio.run(compile_paper(tex_file, tmp_path, prefer_tectonic=True))
 
         assert result.success is False
         assert result.error is not None

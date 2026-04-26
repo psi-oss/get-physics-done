@@ -8,9 +8,9 @@ type: continue-here-template
 # Canonical Temporary Continue-Here Handoff Template
 
 Copy and fill this structure for `GPD/phases/XX-name/.continue-here.md`.
-This is the canonical temporary phase handoff artifact written by `gpd:pause-work` and consumed by `gpd:resume-work` and `gpd resume`. The machine-readable local recovery surface is `gpd --raw resume`, and this file is only a projection of canonical continuation.
+This is the canonical temporary phase handoff artifact written by `gpd:pause-work` and consumed by `gpd:resume-work` and `gpd resume`. The machine-readable local recovery surface is `gpd --raw resume`; this file carries human-readable phase context for that handoff.
 
-This file is not the authority for project position, session continuity, or resume ranking. Those responsibilities stay with `GPD/state.json`, `GPD/state.json.bak`, `GPD/STATE.md`, append-only execution lineage, and the derived execution head / `GPD/observability/current-execution.json` mirror. `gpd --raw resume` resolves the canonical continuation view across those surfaces; the body below is for humans and recovery tooling, not a second state source:
+This file is not the authority for project position, continuation, or resume ranking. Those responsibilities stay with `GPD/state.json`, `GPD/state.json.bak`, `GPD/STATE.md`, append-only execution lineage, and the derived execution head / `GPD/observability/current-execution.json` status. `gpd --raw resume` resolves the canonical continuation view across those surfaces; the body below is for humans and recovery tooling, not a second state source:
 
 If this pause follows a successful derivation write-back, carry the canonical `result_id` forward explicitly as `last_result_id`. That is the rerun anchor.
 
@@ -162,9 +162,9 @@ Required YAML frontmatter:
 - Convention snapshot in intermediate_results must be consistent with state.json convention_lock
 - The `<next_action>` should be actionable without reading anything else
 - The `<intermediate_results>` section is critical for physics - unlike software, you can't just "run the code" to recover state
-- This file is the canonical temporary handoff artifact. `gpd:resume-work`, `gpd resume`, and `gpd --raw resume` reach it through session continuity or live execution pointers, and it may be deleted once the handoff is consumed
+- This file is the canonical temporary handoff artifact. `gpd:resume-work`, `gpd resume`, and `gpd --raw resume` reach it through canonical continuation or live execution pointers, and it may be deleted once the handoff is consumed
 - Deleting or missing this file removes one temporary handoff input; it does not erase project state by itself
-- The canonical continuation hierarchy and append-only lineage remain the authoritative sources; this file is a readable projection
+- The canonical continuation hierarchy and append-only lineage remain the authoritative sources; this file is readable handoff context
 - The `<persistent_state>` section is the exception: its content is appended to `GPD/DERIVATION-STATE.md` BEFORE this file is deleted, so equations/conventions/results accumulate permanently across all sessions
 - Fill `<persistent_state>` carefully -- it is the antidote to lossy compression across context resets
 </guidelines>

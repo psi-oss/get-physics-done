@@ -159,7 +159,7 @@ Focus: Clear exposition, LaTeX production, figure generation, narrative flow
 
 Best for: Writing manuscripts, preparing talks, generating figures, formatting for journal submission, writing supplementary material.
 
-Behavioral highlights: Plans organized by paper sections with tasks mapped to figures, tables, and equations. Narrative-focused execution with clean intermediate expressions. Publication-readiness verification (figures match data, notation consistent, all symbols defined). All 16 plan dimensions checked with emphasis on publication readiness. Full BibTeX formatting against target journal style. Rapid first drafts with multiple revision passes. `execution.review_cadence=adaptive` or `sparse` usually fits, but cadence is not profile-owned.
+Behavioral highlights: Plans organized by paper sections with tasks mapped to figures, tables, and equations. Narrative-focused execution with clean intermediate expressions. Publication-readiness verification (figures match data, notation consistent, all symbols defined). All 16 plan dimensions checked with emphasis on publication readiness. Full BibTeX formatting against target journal style. Rapid first drafts with multiple revision passes. Keep `execution.review_cadence=dense` for publication-quality passes; use `adaptive` or `sparse` only for bounded editorial polish where correctness gates are already satisfied. Cadence is not profile-owned.
 
 ---
 

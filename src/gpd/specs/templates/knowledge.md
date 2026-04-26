@@ -36,7 +36,7 @@ coverage_summary:
   covered_topics:
     - fixed-point stability
   excluded_topics:
-    - migration/backfill for older or provisional docs
+    - repair for non-canonical or provisional docs
   open_gaps:
     - review approval
 ---
@@ -101,8 +101,8 @@ The public authoring command and help coverage are part of the supported surface
 The following behaviors are intentionally out of scope for Phase 1 and
 later rollout hardening work, even if they may appear in future work:
 
-- migration/backfill for older or provisional docs
-- alias repair or filename/ID normalization for legacy docs
+- repair for non-canonical or provisional docs
+- alias repair or filename/ID normalization for non-canonical docs
 - beginner onboarding exposure
 - `knowledge_deps` and `related_artifacts` frontmatter support
 - implicit discovery outside the canonical `knowledge` layout contract
@@ -111,6 +111,6 @@ later rollout hardening work, even if they may appear in future work:
 ## Notes
 
 Use this file as the authoring-facing template only. The schema rules and
-validation logic are defined separately, and any future migration/backfill or
+validation logic are defined separately, and any future repair or
 onboarding behavior must be implemented separately before this document can be
 treated as anything more than a template.

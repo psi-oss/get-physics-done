@@ -131,10 +131,10 @@ def test_canonical_bounded_segment_from_execution_snapshot_normalizes_lineage_fi
     assert segment.last_result_id == "result-12"
 
 
-def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_path: Path) -> None:
+def test_resolve_continuation_prefers_canonical_state_over_stale_inputs(tmp_path: Path) -> None:
     _write_resume(tmp_path, "GPD/phases/03-analysis/.continue-here.md")
     _write_resume(tmp_path, "GPD/phases/03-analysis/handoff.md")
-    _write_resume(tmp_path, "GPD/phases/03-analysis/legacy.md")
+    _write_resume(tmp_path, "GPD/phases/03-analysis/canonical.md")
 
     projection = resolve_continuation(
         tmp_path,
@@ -158,16 +158,16 @@ def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_pat
                 "machine": {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
             },
             "session": {
-                "resume_file": "GPD/phases/03-analysis/legacy.md",
-                "stopped_at": "Legacy handoff",
+                "resume_file": "GPD/phases/03-analysis/canonical.md",
+                "stopped_at": "Stale handoff",
             },
         },
         current_execution={
-            "resume_file": "GPD/phases/03-analysis/legacy.md",
+            "resume_file": "GPD/phases/03-analysis/canonical.md",
             "segment_status": "paused",
-            "segment_id": "legacy-seg",
-            "transition_id": "transition-legacy",
-            "last_result_id": "result-legacy",
+            "segment_id": "recorded-seg",
+            "transition_id": "transition-recorded",
+            "last_result_id": "result-recorded",
         },
     )
 
@@ -208,8 +208,8 @@ def test_resolve_continuation_keeps_canonical_handoff_when_live_bounded_segment_
             "segment_id": "seg-4",
             "segment_status": "paused",
             "resume_file": "GPD/phases/03-analysis/.continue-here.md",
-            "transition_id": "transition-legacy",
-            "last_result_id": "result-legacy",
+            "transition_id": "transition-recorded",
+            "last_result_id": "result-recorded",
         },
     )
 
@@ -229,7 +229,7 @@ def test_resolve_continuation_projects_live_execution_when_canonical_pointer_is_
     external_resume = external_root / ".continue-here.md"
     external_resume.parent.mkdir(parents=True, exist_ok=True)
     external_resume.write_text("resume\n", encoding="utf-8")
-    _write_resume(tmp_path, "GPD/phases/03-analysis/legacy.md")
+    _write_resume(tmp_path, "GPD/phases/03-analysis/canonical.md")
     _write_resume(tmp_path, "GPD/phases/03-analysis/live.md")
 
     raw_continuation = {
@@ -249,8 +249,8 @@ def test_resolve_continuation_projects_live_execution_when_canonical_pointer_is_
         state={
             "continuation": raw_continuation,
             "session": {
-                "resume_file": "GPD/phases/03-analysis/legacy.md",
-                "stopped_at": "Legacy handoff",
+                "resume_file": "GPD/phases/03-analysis/canonical.md",
+                "stopped_at": "Stale handoff",
             },
         },
         current_execution={
@@ -359,7 +359,7 @@ def test_resolve_continuation_preserves_partial_canonical_state_without_falling_
     tmp_path: Path,
 ) -> None:
     _write_resume(tmp_path, "GPD/phases/03-analysis/canonical-handoff.md")
-    _write_resume(tmp_path, "GPD/phases/03-analysis/legacy-session.md")
+    _write_resume(tmp_path, "GPD/phases/03-analysis/session-handoff.md")
 
     projection = resolve_continuation(
         tmp_path,
@@ -374,8 +374,8 @@ def test_resolve_continuation_preserves_partial_canonical_state_without_falling_
                 "machine": {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
             },
             "session": {
-                "resume_file": "GPD/phases/03-analysis/legacy-session.md",
-                "stopped_at": "Legacy stop",
+                "resume_file": "GPD/phases/03-analysis/session-handoff.md",
+                "stopped_at": "Stale stop",
             },
         },
     )

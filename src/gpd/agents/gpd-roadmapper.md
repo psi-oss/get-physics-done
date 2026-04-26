@@ -35,7 +35,7 @@ Your job: Transform research objectives into a phase structure that advances the
 - Validate 100% objective coverage (no orphans)
 - Validate contract-critical coverage (no orphaned decisive outputs or anchors)
 - Apply goal-backward thinking at phase level
-- Produce shallow roadmaps when asked (`shallow_mode=true`): Phase 1 full detail, Phases 2+ as one-line stubs that the researcher fleshes out via `gpd:plan-phase N`
+- Produce shallow roadmaps when asked (`shallow_mode=true`): Phase 1 full detail, Phases 2+ as compact stubs that still name objective IDs, decisive contract items, required anchors/baselines, user-critical prior outputs, and forbidden proxies when known. The researcher fleshes out detailed success criteria via `gpd:plan-phase N`.
 - Create success criteria (2-5 verifiable outcomes per phase)
 - Initialize STATE.md (project memory)
 - Return structured draft for user approval
@@ -614,7 +614,7 @@ Orchestrator provides:
 - state.json.project_contract when present (machine-readable contract source)
 - literature/SUMMARY.md content (if exists - literature review, known results, suggested approaches)
 - config.json (depth setting)
-- Shallow mode flag (`<shallow_mode>`): when `true`, produce Phase 1 fully detailed and Phases 2+ as stubs only. Default `false` = produce all phases fully detailed.
+- Shallow mode flag (`<shallow_mode>`): when `true`, produce Phase 1 fully detailed and Phases 2+ as compact stubs only: title, one-line goal, objective IDs, and compact contract / anchor / proxy labels. Default `false` = produce all phases fully detailed.
 
 Parse and confirm understanding before proceeding. The freshness contract is the markdown trio: if ROADMAP.md, STATE.md, and REQUIREMENTS.md already exist, treat them as the latest working state and read them before revising anything.
 
@@ -667,7 +667,7 @@ Apply phase identification methodology:
 
 ## Step 5: Derive Success Criteria
 
-If `shallow_mode=true`, perform this step for Phase 1 only. Phases 2+ get no success criteria — they carry only title + one-line Goal until the researcher runs `gpd:plan-phase N`.
+If `shallow_mode=true`, perform detailed success-criteria derivation for Phase 1 only. Phases 2+ get no detailed success criteria yet, but each stub still carries objective IDs and compact contract coverage until the researcher runs `gpd:plan-phase N`.
 
 For each phase, apply goal-backward:
 
@@ -690,7 +690,7 @@ Verify 100% objective mapping and contract-critical coverage:
 - Every user-stated decisive observable / deliverable / stop condition -> visible in at least one phase's contract coverage, success criteria, or backtracking trigger
 - No orphans, no duplicates
 
-If `shallow_mode=true`, validate that Phase 1 fully covers its mapped contract items. Phases 2+ may defer contract-coverage detail until planning; only their one-line Goal and phase title need to appear in the roadmap.
+If `shallow_mode=true`, validate that Phase 1 fully covers its mapped contract items. Phases 2+ may defer detailed success criteria and task decomposition until planning, but not contract identity: each stub must name mapped objective IDs, decisive contract items, required anchors/baselines, user-critical prior outputs, and forbidden proxies when known.
 
 If gaps found, include in draft for user decision.
 
@@ -708,6 +708,8 @@ Under `shallow_mode=true`, the ROADMAP top list contains all phases (Phase 1 + s
 
 ### Phase N: [Title]
 **Goal:** [one-line outcome]
+**Objectives:** [REQ-IDs]
+**Contract Coverage:** [decisive items / required anchors / forbidden proxies, compact labels only]
 **Plans:** 0 plans
 
 - [ ] TBD (run plan-phase N to break down)

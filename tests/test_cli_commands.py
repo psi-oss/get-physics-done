@@ -29,6 +29,7 @@ import gpd.cli as cli_module
 import gpd.registry as registry_module
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors, list_runtime_names
 from gpd.cli import app
+from gpd.command_labels import rewrite_runtime_command_surfaces, runtime_command_surface_pattern
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import StateUpdateResult, default_state_dict, generate_state_markdown
@@ -60,6 +61,30 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
+
+
+def test_runtime_command_surface_pattern_does_not_truncate_markdown_filenames() -> None:
+    """Command-label rewriting must not treat command markdown filenames as command invocations."""
+    pattern = runtime_command_surface_pattern()
+
+    assert pattern.search("gpd:record-backtrack.md") is None
+    assert pattern.search("/gpd:record-backtrack.md") is None
+    assert rewrite_runtime_command_surfaces("Read gpd:record-backtrack.md") == "Read gpd:record-backtrack.md"
+    assert (
+        rewrite_runtime_command_surfaces("Run gpd:record-backtrack now", canonical="command")
+        == "Run gpd:record-backtrack now"
+    )
+
+
+def test_route_and_backtrack_public_command_metadata_is_dispatchable() -> None:
+    """New runtime commands should advertise the args/tools their workflows actually require."""
+    registry_module.invalidate_cache()
+
+    route = registry_module.get_command("route")
+    backtrack = registry_module.get_command("record-backtrack")
+
+    assert route.argument_hint == "[--frozen=yes|no] [--change=extend|revise] [--layer=new|change]"
+    assert "ask_user" in backtrack.allowed_tools
 
 
 def _command_with_analysis_output_policy(command_name: str):
@@ -838,14 +863,14 @@ def _write_review_stage_artifacts(
             )
 
 
-def _write_legacy_publication_artifacts(project_root: Path, artifact_names: tuple[str, ...]) -> None:
-    """Mirror publication review artifacts into the removed legacy internal location."""
-    legacy_dir = project_root / "GPD" / "paper"
-    legacy_dir.mkdir(parents=True, exist_ok=True)
+def _write_internal_publication_artifacts(project_root: Path, artifact_names: tuple[str, ...]) -> None:
+    """Mirror publication review artifacts into the removed internal planning location."""
+    internal_dir = project_root / "GPD" / "paper"
+    internal_dir.mkdir(parents=True, exist_ok=True)
     paper_dir = project_root / "paper"
     for artifact_name in artifact_names:
         source = paper_dir / artifact_name
-        (legacy_dir / artifact_name).write_bytes(source.read_bytes())
+        (internal_dir / artifact_name).write_bytes(source.read_bytes())
 
 
 def _write_secondary_manuscript_root(project_root: Path, *, root_name: str = "manuscript") -> Path:
@@ -3126,7 +3151,7 @@ class TestReviewValidationCommands:
         assert passed is True
         assert "fresh bootstrap is allowed" in detail
 
-    def test_command_context_publication_policy_overrides_legacy_required_context_and_suffixes(
+    def test_command_context_publication_policy_overrides_removed_required_context_and_suffixes(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -3752,10 +3777,10 @@ class TestReviewValidationCommands:
         assert checks["project_exists"]["passed"] is False
         assert checks["explicit_inputs"]["passed"] is True
 
-    def test_command_context_digest_knowledge_accepts_explicit_legacy_arxiv_without_project(
+    def test_command_context_digest_knowledge_accepts_explicit_prefixed_arxiv_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-digest-knowledge-legacy-arxiv"
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-digest-knowledge-prefixed-arxiv"
         outside_dir.mkdir()
         monkeypatch.chdir(outside_dir)
 
@@ -4460,7 +4485,7 @@ class TestReviewValidationCommands:
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["reproducibility_ready"]["passed"] is True
 
-    def test_review_preflight_write_paper_strict_does_not_fall_back_to_legacy_gpd_paper_artifacts(
+    def test_review_preflight_write_paper_strict_does_not_fall_back_to_internal_gpd_paper_artifacts(
         self,
         gpd_project: Path,
     ) -> None:
@@ -4472,7 +4497,7 @@ class TestReviewValidationCommands:
             "\\documentclass{article}\n\\begin{document}\nResume manuscript.\n\\end{document}\n",
             encoding="utf-8",
         )
-        _write_legacy_publication_artifacts(
+        _write_internal_publication_artifacts(
             gpd_project,
             ("PAPER-CONFIG.json", "ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json", "reproducibility-manifest.json"),
         )
@@ -6657,7 +6682,7 @@ class TestReviewValidationCommands:
         assert "pypdf" in payload["error"]
         assert "companion" in payload["error"] or "get-physics-done[arxiv]" in payload["error"]
 
-    def test_review_preflight_arxiv_submission_strict_does_not_fall_back_to_legacy_gpd_paper_artifacts(
+    def test_review_preflight_arxiv_submission_strict_does_not_fall_back_to_internal_gpd_paper_artifacts(
         self,
         gpd_project: Path,
     ) -> None:
@@ -6666,7 +6691,7 @@ class TestReviewValidationCommands:
         (managed_dir / "ARTIFACT-MANIFEST.json").unlink()
         (managed_dir / "BIBLIOGRAPHY-AUDIT.json").unlink()
         (managed_dir / "reproducibility-manifest.json").unlink()
-        _write_legacy_publication_artifacts(
+        _write_internal_publication_artifacts(
             gpd_project,
             ("PAPER-CONFIG.json", "ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json"),
         )

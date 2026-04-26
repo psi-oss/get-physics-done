@@ -1033,7 +1033,7 @@ Skip to "Commit config.json" below.
 
 ---
 
-**Round 1 — Core workflow settings (4 questions):**
+**Round 1 — Core workflow settings (5 questions):**
 
 ```
 questions: [
@@ -1042,9 +1042,9 @@ questions: [
     question: "How much autonomy should GPD have?",
     multiSelect: false,
     options: [
-      { label: "Balanced (Recommended)", description: "Routine work is automatic; pause on important physics decisions, ambiguities, blockers, or scope changes" },
-      { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints, sync the active runtime to its most autonomous permission mode when supported, and keep going unless a hard stop fires" },
-      { label: "Supervised", description: "Confirm each major step before proceeding" }
+      { label: "Supervised (Recommended)", description: "Default for new projects. Checkpoint every physics-bearing decision so the researcher can verify and redirect early." },
+      { label: "Balanced", description: "Routine work is automatic; pause on important physics decisions, ambiguities, blockers, or scope changes" },
+      { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints, sync the active runtime to its most autonomous permission mode when supported, and keep going unless a hard stop fires" }
     ]
   },
   {
@@ -1056,6 +1056,16 @@ questions: [
       { label: "Explore", description: "Broader literature search and more alternative approaches" },
       { label: "Exploit", description: "Focused execution with minimal branching" },
       { label: "Adaptive", description: "Start broad, then narrow once the best path is clear" }
+    ]
+  },
+  {
+    header: "Review Cadence",
+    question: "How often should execution stop for review checkpoints?",
+    multiSelect: false,
+    options: [
+      { label: "Dense (Recommended)", description: "Default for rigorous research. Force first-result and pre-fanout gates on every execution wave." },
+      { label: "Adaptive", description: "Gate risky or load-bearing work while allowing clean routine segments to continue." },
+      { label: "Sparse", description: "Fewest review stops; required correctness, proof, and blocker gates still run." }
     ]
   },
   {
@@ -1790,7 +1800,7 @@ Project contract validation: {project_contract_validation}
 
 <shallow_mode>true</shallow_mode>
 
-Shallow mode: produce Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as stubs only (title + one-line Goal + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). The researcher flesh each subsequent phase out on demand via `gpd:plan-phase N`.
+Shallow mode: produce Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as stubs only (title + one-line Goal + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). The researcher fleshes out each subsequent phase on demand via `gpd:plan-phase N`.
 
 </planning_context>
 

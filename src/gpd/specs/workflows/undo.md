@@ -263,11 +263,11 @@ After the revert banner, offer to capture the backtrack lesson.
 
 Enter = Y (recommended).
 
-On Y: Invoke `Skill(skill="gpd:record-backtrack", args="--reverted-commit=${TARGET_HASH} --trigger=\"${TARGET_MSG}\"${PHASE_FLAG}")`, where `${PHASE_FLAG}` is `" --phase=phase-NN"` if the reverted commit's scope can be inferred from its message or changed-files path, otherwise an empty string. The child workflow pre-fills the three fields and prompts the user only for `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`. `${TARGET_MSG}` must be shell-quoted since messages can contain spaces, colons, or quotes; use double-quote escaping as shown.
+On Y: Invoke `Skill(skill="gpd:record-backtrack", args="--reverted-commit=${TARGET_HASH} --trigger=\"${TARGET_MSG}\"${PHASE_FLAG}")`, where `${PHASE_FLAG}` is `" --phase=NN-slug"` if the reverted commit's scope can be inferred from its message or changed-files path, otherwise an empty string. Normalize path hints like `GPD/phases/03-name/...` to `03-name` before passing the flag. The child workflow pre-fills `reverted_commit`, `trigger`, and `phase` when available; it must still prompt or infer the remaining required row fields (`stage`, `produced`, `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`) before append. `${TARGET_MSG}` must be shell-quoted since messages can contain spaces, colons, or quotes; use double-quote escaping as shown.
 
 On n: Skip. The revert stands without a backtrack row.
 
-On e: Open the `gpd:record-backtrack` form in-place without committing immediately. The user can fill or override any field freeform (including the pre-filled `reverted_commit`, `trigger`, `phase`, plus `why_wrong`, `counter_action`, `category`, `confidence`, `promote`). On submit, re-prompt `[Y/n/e]` exactly once — Enter = Y persists the drafted row, `n` discards it. If `e` is chosen a second time, persist whatever the user has entered in the form as-is (any empty required field is left blank and a warning is logged) and proceed to the next step without further prompting — do not re-enter a third time.
+On e: Open the `gpd:record-backtrack` form in-place without committing immediately. The user can fill or override any field freeform (including the pre-filled `reverted_commit`, `trigger`, `phase`, plus `stage`, `produced`, `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`). On submit, re-prompt `[Y/n/e]` exactly once — Enter = Y persists the drafted row, `n` discards it. If `e` is chosen a second time, persist whatever the user has entered in the form as-is (any empty required field is left blank and a warning is logged) and proceed to the next step without further prompting — do not re-enter a third time.
 </step>
 
 </process>

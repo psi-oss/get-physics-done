@@ -1020,7 +1020,7 @@ When any phase operation fails or a blocker is detected, present 3 options via a
 - [ ] Final completion banner displayed after lifecycle
 - [ ] Progress bar uses phase number / total milestone phases (not position among incomplete)
 - [ ] Smart discuss documents relationship to discuss-phase
-- [ ] Smart discuss produces identical CONTEXT.md format to discuss-phase (downstream plan-phase compatibility)
+- [ ] Smart discuss produces the same CONTEXT.md contract as discuss-phase
 - [ ] No UI-phase or frontend-specific detection (GPD is physics research, not software)
 - [ ] All CLI commands use gpd (not gsd-tools.cjs)
 - [ ] All file paths use GPD/ (not .planning/)

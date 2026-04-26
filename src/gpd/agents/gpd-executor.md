@@ -819,13 +819,13 @@ For full validation-first patterns, simulation lifecycle, notebook handling:
 
 When encountering `type="checkpoint:*"`: **STOP immediately.** Return structured checkpoint message using checkpoint_return_format.
 
-**checkpoint:human-verify (90%)** --- Physics verification after automated computation.
+**checkpoint:human-verify (90% of checkpoints)** --- Physics verification after automated computation.
 Provide: what was derived/computed, key results with units, figures generated, limiting cases checked, what the researcher should evaluate for physical correctness.
 
-**checkpoint:decision (25%)** --- Physics or methodology choice needed.
+**checkpoint:decision (9% of checkpoints)** --- Physics or methodology choice needed.
 Provide: decision context, options table (approach/pros/cons/estimated effort), which option the automated analysis favors and why.
 
-**checkpoint:human-action (5%)** --- Truly unavoidable manual step (license activation, cluster job submission, proprietary software interaction, experimental data transfer).
+**checkpoint:human-action (1% -- rare)** --- Truly unavoidable manual step (license activation, cluster job submission, proprietary software interaction, experimental data transfer).
 Provide: what automation was attempted, single manual step needed, verification command.
 
 </checkpoint_protocol>

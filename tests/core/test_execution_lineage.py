@@ -190,7 +190,7 @@ def test_execution_finish_appends_clear_row_and_removes_derived_head(tmp_path: P
     assert get_current_execution(project) is None
 
 
-def test_get_current_execution_prefers_lineage_head_over_legacy_snapshot(tmp_path: Path, monkeypatch) -> None:
+def test_get_current_execution_prefers_lineage_head_over_stale_snapshot(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
@@ -203,11 +203,11 @@ def test_get_current_execution_prefers_lineage_head_over_legacy_snapshot(tmp_pat
     layout.current_observability_execution.write_text(
         json.dumps(
             {
-                "session_id": "legacy-session",
+                "session_id": "stale-session",
                 "phase": "03",
                 "plan": "02",
                 "segment_status": "paused",
-                "current_task": "Legacy snapshot task",
+                "current_task": "Stale snapshot task",
                 "updated_at": "2026-03-29T12:00:00+00:00",
             }
         ),
@@ -238,10 +238,10 @@ def test_get_current_execution_prefers_lineage_head_over_legacy_snapshot(tmp_pat
     assert snapshot.session_id == "lineage-session"
     assert snapshot.segment_status == "blocked"
     assert snapshot.current_task == "Lineage head task"
-    assert snapshot.current_task != "Legacy snapshot task"
+    assert snapshot.current_task != "Stale snapshot task"
 
 
-def test_get_current_execution_falls_back_to_legacy_snapshot_when_head_cache_is_missing(
+def test_get_current_execution_falls_back_to_stale_snapshot_when_head_cache_is_missing(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)

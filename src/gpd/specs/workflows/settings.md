@@ -57,7 +57,7 @@ Creates `GPD/config.json` with defaults if missing and loads current config valu
 cat GPD/config.json
 ```
 
-Parse current values (default to `true` / first option if not present):
+Parse current values, using the schema defaults noted below when a key is absent:
 
 - `autonomy` -- human-in-the-loop level: `"supervised"` (default), `"balanced"`, `"yolo"`
 - `research_mode` -- research strategy: `"explore"`, `"balanced"` (default), `"exploit"`, `"adaptive"`
@@ -124,7 +124,7 @@ Broader local reference surfaces stay outside this settings-specific follow-up l
 
 Before the detailed question list, offer a compact preset chooser when the user wants a starter bundle:
 
-- Core research (Recommended): preview the balanced default bundle over the existing knobs, then apply or customize
+- Core research (Recommended): preview the supervised default bundle over the existing knobs, then apply or customize
 - Theory: preview the derivation-heavy bundle over the existing knobs, then apply or customize
 - Numerics: preview the computation-heavy bundle over the existing knobs, then apply or customize
 - Publication / manuscript: preview the paper-writing bundle over the existing knobs, then apply or customize

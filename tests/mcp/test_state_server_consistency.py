@@ -162,7 +162,7 @@ def test_state_server_tools_return_stable_error_envelopes(tool_fn, patch_target:
     assert result["error"] in {"boom", "missing", "bad"}
 
 
-def test_load_state_json_strips_legacy_session_and_surfaces_contract_gate(monkeypatch, tmp_path: Path) -> None:
+def test_load_state_json_strips_session_alias_and_surfaces_contract_gate(monkeypatch, tmp_path: Path) -> None:
     state_obj = {
         "position": {"current_phase": "01"},
         "decisions": [],

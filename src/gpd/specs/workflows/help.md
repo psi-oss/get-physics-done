@@ -201,6 +201,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:list-phase-assumptions <number>` - Preview the planned phase approach
 - `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning; `quick` is verification-only
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
+- `gpd:route [--frozen=yes|no] [--change=extend|revise] [--layer=new|change]` - Route a scope change to the right milestone/phase workflow
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
 - `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
@@ -361,7 +362,7 @@ Usage: `gpd:discuss-phase 2` / `gpd:discuss-phase 2 --compact`
 Decide whether a scope change is a new phase, a revision, a new milestone, or a milestone-completion followed by a new one.
 
 - Asks three short routing questions about the intended scope change
-- Maps the answers to exactly one next command (`gpd:add-phase`, `gpd:revise-phase`, `gpd:new-milestone`, or `gpd:complete-milestone` + `gpd:new-milestone`)
+- Maps the answers to one recommendation; the frozen scope-expansion path renders the ordered compound sequence `gpd:complete-milestone` then `gpd:new-milestone`
 - Use it when you're not sure whether new work belongs in the current milestone
 
 Usage: `gpd:route`
@@ -603,7 +604,7 @@ Usage: `gpd:resume-work`
 Create a continuation handoff artifact when pausing work mid-phase.
 
 - Creates the canonical `.continue-here.md` continuation handoff artifact with current state
-- Updates the mirrored STATE.md session continuity entry
+- Updates canonical continuation and its STATE.md Session Continuity rendering
 - Captures in-progress work context
 - Run this before leaving mid-phase so `gpd:resume-work` has an explicit recorded handoff artifact to restore from canonical continuation state
 
@@ -889,7 +890,7 @@ Suggest the most impactful next action based on current project state.
 
 - Scans phases, plans, verification status, blockers, and todos
 - Produces a prioritized action list
-- Local CLI fallback: `gpd --raw suggest`
+- Local CLI equivalent: `gpd --raw suggest`
 - Fastest way to answer "what should I do next?" without reading through progress reports
 - Fastest post-resume command when you only need the next action
 
@@ -909,7 +910,7 @@ Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 **`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
 Create or update a current-workspace knowledge document draft from a topic, paper, source file, or explicit knowledge path.
 
-- Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Accepts an explicit knowledge-doc path, a source file path, an arXiv identifier with accepted prefixes, or a topic string
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity
 - Source-file intake accepts `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied explicitly
 - Non-plain-text source intake (`.pdf`, `.docx`, `.xlsx`) is normalized through `gpd validate artifact-text <path> --output <txt-path>` before drafting; keep the original artifact path as the canonical source reference
@@ -961,7 +962,7 @@ Workflow presets are bundles over the existing config keys only; they do not add
 - `gpd contract context-fingerprint [path]` - Print the sha256 fingerprint of a CONTEXT.md file's text (defaults to the active phase's CONTEXT.md)
 - `gpd contract record-alignment --contract-hash <hash> --context-hash <hash>` - Persist operator confirmation that the claim-deliverable alignment was reviewed
 - `gpd contract alignment-status` - Print the persisted claim-deliverable alignment confirmation as JSON
-- `gpd contract alignment-summary` - Print the claim-deliverable alignment row projection as JSON
+- `gpd contract alignment-summary` - Print the claim-deliverable alignment row summary as JSON
 
 The contract subgroup is the claim-deliverable alignment precheck used by `gpd:execute-phase` before a phase can claim a deliverable.
 

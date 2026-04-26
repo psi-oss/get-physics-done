@@ -254,9 +254,9 @@ _RESUME_BASE_INIT_FIELDS = frozenset(
         "execution_resumable",
         "execution_paused_at",
         "current_execution_resume_file",
-        "session_resume_file",
-        "recorded_session_resume_file",
-        "missing_session_resume_file",
+        "handoff_resume_file",
+        "recorded_handoff_resume_file",
+        "missing_handoff_resume_file",
         "execution_resume_file",
         "execution_resume_file_source",
         "platform",
@@ -803,9 +803,9 @@ _EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS = frozenset(
         "execution_resumable",
         "execution_paused_at",
         "current_execution_resume_file",
-        "session_resume_file",
-        "recorded_session_resume_file",
-        "missing_session_resume_file",
+        "handoff_resume_file",
+        "recorded_handoff_resume_file",
+        "missing_handoff_resume_file",
         "execution_resume_file",
         "execution_resume_file_source",
         "resume_projection",
@@ -2284,7 +2284,7 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
         execution_resume_file_source = "current_execution"
     elif resume_projection.active_resume_source == ContinuationResumeSource.HANDOFF:
-        execution_resume_file_source = "session_resume_file"
+        execution_resume_file_source = "handoff_resume_file"
 
     paused_states = {"paused", "awaiting_user", "ready_to_continue", "waiting_review", "blocked"}
     segment_status = (snapshot.segment_status or "").lower() if snapshot is not None else ""
@@ -2330,9 +2330,9 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         "execution_resumable": is_resumable,
         "execution_paused_at": paused_at,
         "current_execution_resume_file": current_execution_resume_file,
-        "session_resume_file": resume_projection.handoff_resume_file,
-        "recorded_session_resume_file": resume_projection.recorded_handoff_resume_file,
-        "missing_session_resume_file": resume_projection.missing_handoff_resume_file,
+        "handoff_resume_file": resume_projection.handoff_resume_file,
+        "recorded_handoff_resume_file": resume_projection.recorded_handoff_resume_file,
+        "missing_handoff_resume_file": resume_projection.missing_handoff_resume_file,
         "execution_resume_file": resume_file,
         "execution_resume_file_source": execution_resume_file_source,
         "resume_projection": resume_projection,
@@ -2561,7 +2561,7 @@ def _build_resume_read_state(
             candidate.get("resume_pointer") == resume_projection.handoff_resume_file for candidate in resume_candidates
         ):
             candidate = {
-                "source": "session_resume_file",
+                "source": "handoff_resume_file",
                 "status": "handoff",
                 "resume_file": resume_projection.handoff_resume_file,
                 "resumable": False,
@@ -2584,7 +2584,7 @@ def _build_resume_read_state(
             resume_pointer=resume_projection.missing_handoff_resume_file,
         ):
             candidate = {
-                "source": "session_resume_file",
+                "source": "handoff_resume_file",
                 "status": "missing",
                 "resume_file": resume_projection.missing_handoff_resume_file,
                 "resumable": False,

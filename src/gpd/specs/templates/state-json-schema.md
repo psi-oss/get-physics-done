@@ -15,7 +15,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 
 | Field | Type | Default | Purpose | Authoritative? |
 |-------|------|---------|---------|----------------|
-| `_version` | `integer` | `1` | Schema version for forward compatibility | Metadata |
+| `_version` | `integer` | `1` | Schema version for future evolution | Metadata |
 | `_synced_at` | `string (ISO 8601)` | — | Last sync timestamp | Metadata |
 | `project_reference` | `object` | see below | Pointer to PROJECT.md with key fields | Derived from PROJECT.md |
 | `project_contract` | `ResearchContract \| null` | `null` | Canonical machine-readable scoping and anchor contract | **Authoritative** (JSON-only, stage-0+ contract flow) |
@@ -517,7 +517,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 | `stopped_at` | `string \| null` | Human-readable stop location |
 | `resume_file` | `string \| null` | Project-relative handoff artifact when available |
 
-`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. The live execution head is derived from execution lineage and may be mirrored into `GPD/observability/current-execution.json` for compatibility, but that mirror does not replace the persisted canonical state. When the canonical continuation is missing or incomplete, `gpd --raw resume` may project a bounded-segment candidate from that compatibility mirror as a fallback recovery path only. The mirror is advisory; it is not a second authority. Nested compatibility aliases stay subordinate to the canonical bounded-segment fields.
+`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. The live execution head is derived from execution lineage and may be written to `GPD/observability/current-execution.json` for live status, but that status file does not replace the persisted canonical state. `gpd --raw resume` emits one canonical continuation view from `state.json.continuation`, execution lineage, and current handoff artifacts.
 
 `continuation.machine` is the canonical recorded machine state:
 

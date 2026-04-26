@@ -1100,11 +1100,53 @@ def state_load() -> None:
 @state_app.command("get")
 def state_get(
     section: str | None = typer.Argument(None, help="State section to retrieve"),
+    include: str | None = typer.Option(
+        None,
+        "--include",
+        help=(
+            "Comma-separated structured state sections to return as JSON "
+            "(position, session, continuation, handoff, project_reference)."
+        ),
+    ),
 ) -> None:
     """Get a specific state section or the full state."""
-    from gpd.core.state import state_get
+    from gpd.core.state import _session_display_from_continuation
+    from gpd.core.state import state_get as core_state_get
+    from gpd.core.state import state_load as core_state_load
 
-    _output(state_get(_read_only_project_scoped_cwd(), section))
+    if include is not None:
+        if section is not None:
+            _error("state get accepts either a positional section or --include, not both")
+        allowed = {"position", "session", "continuation", "handoff", "project_reference", "project"}
+        includes: list[str] = []
+        for raw_token in include.split(","):
+            token = raw_token.strip().replace("-", "_")
+            if not token:
+                continue
+            if token not in allowed:
+                supported = ", ".join(sorted(allowed - {"project"}))
+                _error(f"Unknown --include value for state get: {token}. Allowed values: {supported}.")
+            canonical = "project_reference" if token == "project" else token
+            if canonical not in includes:
+                includes.append(canonical)
+        if not includes:
+            _error("state get --include requires at least one non-empty value")
+
+        state_obj = core_state_load(_read_only_project_scoped_cwd()).state
+        state_payload = state_obj if isinstance(state_obj, dict) else {}
+        continuation = state_payload.get("continuation")
+        payload: dict[str, object] = {}
+        for token in includes:
+            if token == "session":
+                payload[token] = _session_display_from_continuation(continuation)
+            elif token == "handoff":
+                payload[token] = continuation.get("handoff") if isinstance(continuation, dict) else {}
+            else:
+                payload[token] = state_payload.get(token) or {}
+        _output(payload)
+        return
+
+    _output(core_state_get(_read_only_project_scoped_cwd(), section))
 
 
 @state_app.command("patch")
@@ -1841,14 +1883,14 @@ def _public_resume_origin_family(
 
     if normalized_source == "current_execution":
         return "canonical_continuation" if isinstance(active_execution, dict) else "derived_execution_head"
-    if normalized_source == "session_resume_file":
+    if normalized_source == "handoff_resume_file":
         return "canonical_continuation"
     if normalized_source == "interrupted_agent":
         return "interrupted_agent"
 
     if origin_text == "current_execution":
         return "canonical_continuation" if isinstance(active_execution, dict) else "derived_execution_head"
-    if origin_text == "session_resume_file":
+    if origin_text == "handoff_resume_file":
         return "canonical_continuation"
     if origin_text in {"continuation.bounded_segment", "continuation.handoff"}:
         return "canonical_continuation"
@@ -2068,7 +2110,7 @@ def _resume_candidate_origin(
         if isinstance(current_execution, dict):
             return ("derived_execution_head", "derived execution head")
         return ("derived_execution_head", "derived execution head")
-    if source == "session_resume_file":
+    if source == "handoff_resume_file":
         if status == "missing":
             return ("canonical_continuation", "canonical continuation; handoff file missing")
         return ("canonical_continuation", "canonical continuation")
@@ -7255,15 +7297,10 @@ def _resolve_bibliography_path(
 def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
     """Return a single literature-review citation-source sidecar if it is unambiguous."""
     literature_dir = project_root / "GPD" / "literature"
-    legacy_research_dir = project_root / "GPD" / "research"
-    if literature_dir.is_dir():
-        search_dir = literature_dir
-    elif legacy_research_dir.is_dir():
-        search_dir = legacy_research_dir
-    else:
+    if not literature_dir.is_dir():
         return None, None
 
-    matches = sorted(path for path in search_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
+    matches = sorted(path for path in literature_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
     if not matches:
         return None, None
     if len(matches) == 1:
@@ -7273,7 +7310,7 @@ def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Pa
     remaining = len(matches) - 3
     suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
     warning = (
-        f"Multiple {'literature-review' if search_dir == literature_dir else 'legacy research'} citation-source sidecars found; "
+        "Multiple literature-review citation-source sidecars found; "
         "pass --citation-sources explicitly: "
         f"{preview}{suffix}"
     )
@@ -7361,16 +7398,16 @@ def _default_paper_output_dir(config_file: Path) -> Path:
     return config_file.resolve(strict=False).parent
 
 
-def _reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
+def _reject_internal_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
     """Reject removed paper-config locations under internal planning storage."""
     resolved_config = config_file.resolve(strict=False)
     project_root = (project_root or _project_scoped_cwd()).resolve(strict=False)
-    for legacy_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
+    for internal_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
         try:
-            resolved_config.relative_to(legacy_config_root)
+            resolved_config.relative_to(internal_config_root)
         except ValueError:
             continue
-        planning_dir_name = legacy_config_root.parent.name
+        planning_dir_name = internal_config_root.parent.name
         raise GPDError(
             f"Paper configs under `{planning_dir_name}/paper/` are not supported. "
             "Move the config to `paper/`, `manuscript/`, or `draft/`."
@@ -11317,7 +11354,7 @@ def paper_build(
         if config_path
         else _resolve_default_paper_config_path(project_root=project_root)
     )
-    _reject_legacy_paper_config_location(config_file, project_root=project_root)
+    _reject_internal_paper_config_location(config_file, project_root=project_root)
     raw_config = _load_json_document(str(config_file))
     if not isinstance(raw_config, dict):
         raise GPDError(f"Paper config must be a JSON object: {_format_display_path(config_file)}")
@@ -11385,24 +11422,21 @@ def paper_build(
     # root only contains .tex, .bib, and figures/. --with-provenance promotes
     # ARTIFACT-MANIFEST.json back up; --with-audits promotes BIBLIOGRAPHY-AUDIT.json.
     # --minimal suppresses sidecars entirely.
+    artifact_manifest_output_path: Path | None = None
+    bibliography_audit_output_path: Path | None = None
     if minimal:
         paper_sidecar_root: Path | None = None
         emit_artifact = False
         emit_bib_audit = False
     else:
-        if with_provenance and with_audits:
-            paper_sidecar_root = None  # sidecars go flat into the paper root
-        else:
-            paper_sidecar_root = output_path / ".paper-meta"
         emit_artifact = True
         emit_bib_audit = True
-        # When only one of the flags is set, move that specific file into the
-        # paper root by pre-creating the manifest path via build_paper's
-        # default (output_dir) semantics. Because build_paper's signature
-        # accepts a single sidecar_root, selective promotion is done by
-        # repointing the whole root when both flags are set; otherwise keep
-        # sidecars under .paper-meta/ and let callers copy a specific file up
-        # if needed.
+        artifact_manifest_output_path = output_path / "ARTIFACT-MANIFEST.json" if with_provenance else None
+        bibliography_audit_output_path = output_path / "BIBLIOGRAPHY-AUDIT.json" if with_audits else None
+        if not (with_provenance and with_audits):
+            paper_sidecar_root = output_path / ".paper-meta"
+        else:
+            paper_sidecar_root = None
 
     result = asyncio.run(
         build_paper(
@@ -11412,6 +11446,8 @@ def paper_build(
             citation_sources=citation_payload,
             enrich_bibliography=enrich_bibliography,
             sidecar_root=paper_sidecar_root,
+            artifact_manifest_output_path=artifact_manifest_output_path,
+            bibliography_audit_output_path=bibliography_audit_output_path,
             emit_artifact_manifest=emit_artifact,
             emit_bibliography_audit=emit_bib_audit,
         )

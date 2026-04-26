@@ -32,7 +32,7 @@ The routing is a function of three answers:
 Read authoritative state:
 
 ```bash
-STATE=$(gpd --raw state get --include position,session,continuation)
+STATE=$(gpd --raw state get --include position,continuation)
 ROADMAP=$(gpd --raw roadmap analyze)
 ```
 
@@ -80,6 +80,8 @@ Apply the decision matrix above. Produce:
 - `RECOMMENDATION` — the exact command(s) the user should run next
 - `RATIONALE` — one sentence explaining which answers drove the choice
 
+**No active milestone override:** If `current_milestone=none`, do not recommend `gpd:add-phase` because there is no active milestone to extend. For `CHANGE=extend`, recommend `gpd:new-milestone`. For `CHANGE=revise` or `LAYER=change`, recommend `gpd:revise-phase` and state that the revision may invalidate the archived milestone.
+
 When the recommendation is compound (`complete-milestone` + `new-milestone`), emit both commands separately in the `## > Next Up` block. Do not chain them into a single call — the user must confirm between them.
 </step>
 
@@ -111,7 +113,7 @@ If the recommendation is `gpd:complete-milestone` + `gpd:new-milestone`, render 
 
 - [ ] State-driven context line present (current milestone + phase)
 - [ ] All three routing answers collected (via prompt or flag)
-- [ ] Exactly one concrete command recommendation returned
+- [ ] Exactly one recommendation returned; if the recommendation is compound, the ordered command sequence is rendered explicitly
 - [ ] Rationale names the driving answers
 
 </success_criteria>

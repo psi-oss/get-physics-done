@@ -13,7 +13,7 @@ Parse optional prefill flags from `$ARGUMENTS`:
 
 - `--reverted-commit=<sha>` → pre-fills `reverted_commit`
 - `--trigger=<text>` → pre-fills `trigger`
-- `--phase=<phase-NN>` → pre-fills `phase`
+- `--phase=<NN-slug>` → pre-fills `phase` (for example `03-numerics`; accept `phase-03` only as a source hint and normalize before writing the row)
 
 Any remaining non-flag text is the free-form `description` (used as fallback for the `trigger` field if `--trigger` is not supplied).
 
@@ -76,7 +76,7 @@ Append the new backtrack as a single 11-column table row to `GPD/BACKTRACKS.md`.
 **Field conventions:**
 
 - **date:** ISO `YYYY-MM-DD` of the backtrack event
-- **phase:** Phase-id string `NN-slug` (e.g., `03-numerics`)
+- **phase:** Phase-id string `NN-slug` (e.g., `03-numerics`; normalize commit/path hints like `phase-03` before writing when the slug is discoverable)
 - **stage:** One of `plan | research | execute | verify | consistency`
 - **trigger:** Short text describing what caused the backtrack
 - **produced:** What the previous run produced (e.g., `03-02-SUMMARY.md (proof for wrong signature)`)
@@ -178,7 +178,7 @@ Confirm: "Recorded backtrack: {brief description}"
 <success_criteria>
 
 - [ ] `GPD/BACKTRACKS.md` exists (created if needed)
-- [ ] No duplicate backtrack recorded (dedupe on `trigger` + `why_wrong`)
+- [ ] No duplicate backtrack recorded (dedupe on `phase` + `trigger` + `why_wrong`)
 - [ ] Backtrack appended as an 11-column table row with all fields populated
 - [ ] When `promote=true`, parallel row copied into `GPD/INSIGHTS.md`'s `## Execution Deviations` section
 - [ ] Committed to git with descriptive message (both files when promoted, BACKTRACKS.md only otherwise)

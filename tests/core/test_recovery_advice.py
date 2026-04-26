@@ -169,7 +169,7 @@ def test_build_recovery_advice_passes_data_root_to_init_resume(
     }
 
 
-def test_serialize_recovery_orientation_is_canonical_first_and_omits_legacy_resume_aliases(
+def test_serialize_recovery_orientation_is_canonical_first_and_omits_internal_resume_aliases(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -215,11 +215,11 @@ def test_serialize_recovery_orientation_is_canonical_first_and_omits_legacy_resu
     assert "resume_mode" not in orientation
     assert "execution_resume_file" not in orientation
     assert "execution_resume_file_source" not in orientation
-    assert "has_session_resume_file" not in orientation
-    assert "missing_session_resume_file" not in orientation
+    assert "has_handoff_resume_file" not in orientation
+    assert "missing_handoff_resume_file" not in orientation
 
 
-def test_serialize_recovery_advice_is_canonical_first_and_omits_legacy_resume_aliases(
+def test_serialize_recovery_advice_is_canonical_first_and_omits_internal_resume_aliases(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -264,7 +264,7 @@ def test_serialize_recovery_advice_is_canonical_first_and_omits_legacy_resume_al
     assert public["actions"][0]["kind"] == "primary"
     assert public["actions"][0]["command"] == "gpd resume"
     assert public["actions"][-1]["kind"] == "fast-next"
-    assert "compat_resume_surface" not in public
+    assert "resume_surface" not in public
     for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in public
 
@@ -751,7 +751,7 @@ def test_build_recovery_advice_prefers_continuity_handoff_over_advisory_live_exe
     assert advice.primary_reason == "Current workspace has a continuity handoff projected from canonical continuation."
 
 
-def test_build_recovery_advice_prefers_canonical_continuity_fields_over_conflicting_legacy_execution_flags(
+def test_build_recovery_advice_prefers_canonical_continuity_fields_over_conflicting_stale_execution_flags(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -777,7 +777,7 @@ def test_build_recovery_advice_prefers_canonical_continuity_fields_over_conflict
                 }
             ],
             "execution_resumable": True,
-            "execution_resume_file": "GPD/phases/09/legacy-live.md",
+            "execution_resume_file": "GPD/phases/09/advisory-live.md",
             "execution_resume_file_source": "current_execution",
             "has_live_execution": True,
         },
@@ -794,7 +794,7 @@ def test_build_recovery_advice_prefers_canonical_continuity_fields_over_conflict
     assert advice.has_local_recovery_target is True
 
 
-def test_build_recovery_advice_prefers_canonical_resume_fields_over_legacy_top_level_aliases(
+def test_build_recovery_advice_prefers_canonical_resume_fields_over_stale_top_level_aliases(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -813,7 +813,7 @@ def test_build_recovery_advice_prefers_canonical_resume_fields_over_legacy_top_l
             "recorded_continuity_handoff_file": "GPD/phases/10/.continue-here.md",
             "resume_mode": "bounded_segment",
             "execution_resumable": True,
-            "execution_resume_file": "GPD/phases/10/legacy-live.md",
+            "execution_resume_file": "GPD/phases/10/advisory-live.md",
             "execution_resume_file_source": "current_execution",
             "has_live_execution": True,
         },
@@ -843,11 +843,11 @@ def test_build_recovery_advice_ignores_nested_resume_surface_compat_wrapper(
         resume_payload={
             "resume_surface": {
                 "execution_resume_file": "GPD/phases/11/.continue-here.md",
-                "execution_resume_file_source": "session_resume_file",
+                "execution_resume_file_source": "handoff_resume_file",
                 "segment_candidates": [
                     {
                         "kind": "continuity_handoff",
-                        "origin": "session_resume_file",
+                        "origin": "handoff_resume_file",
                         "status": "handoff",
                         "resume_file": "GPD/phases/11/.continue-here.md",
                     }
@@ -880,10 +880,10 @@ def test_build_recovery_advice_ignores_arbitrary_nested_resume_surface_wrapper(
             "recovery": {
                 "resume_surface": {
                     "execution_resume_file": "GPD/phases/12/.continue-here.md",
-                    "execution_resume_file_source": "session_resume_file",
+                    "execution_resume_file_source": "handoff_resume_file",
                     "segment_candidates": [
                         {
-                            "source": "session_resume_file",
+                            "source": "handoff_resume_file",
                             "status": "handoff",
                             "resume_file": "GPD/phases/12/.continue-here.md",
                         }
@@ -902,7 +902,7 @@ def test_build_recovery_advice_ignores_arbitrary_nested_resume_surface_wrapper(
     assert advice.current_workspace_has_resume_file is False
 
 
-def test_build_recovery_advice_ignores_compat_resume_surface_wrapper_boolean_flags_without_canonical_support(
+def test_build_recovery_advice_ignores_resume_surface_wrapper_boolean_flags_without_canonical_support(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -911,7 +911,7 @@ def test_build_recovery_advice_ignores_compat_resume_surface_wrapper_boolean_fla
         project,
         recent_rows=[],
         resume_payload={
-            "compat_resume_surface": {
+            "resume_surface": {
                 "execution_resumable": True,
                 "has_interrupted_agent": True,
                 "has_live_execution": True,
@@ -925,7 +925,7 @@ def test_build_recovery_advice_ignores_compat_resume_surface_wrapper_boolean_fla
     assert advice.has_live_execution is False
 
 
-def test_build_recovery_advice_keeps_legacy_execution_overlay_advisory_without_resume_target(
+def test_build_recovery_advice_keeps_internal_execution_overlay_advisory_without_resume_target(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -937,7 +937,7 @@ def test_build_recovery_advice_keeps_legacy_execution_overlay_advisory_without_r
             "resume_mode": "bounded_segment",
             "execution_resumable": True,
             "active_execution_segment": {
-                "segment_id": "seg-legacy",
+                "segment_id": "seg-advisory",
                 "phase": "04",
                 "plan": "02",
                 "segment_status": "paused",
@@ -995,13 +995,13 @@ def test_build_recovery_advice_ignores_nested_resume_surface_wrapper_without_can
             "resume_surface": {
                 "segment_candidates": [
                     {
-                        "source": "session_resume_file",
+                        "source": "handoff_resume_file",
                         "status": "handoff",
                         "resume_file": "GPD/phases/05/.continue-here.md",
                     }
                 ],
-                "session_resume_file": "GPD/phases/05/.continue-here.md",
-                "recorded_session_resume_file": "GPD/phases/05/.continue-here.md",
+                "handoff_resume_file": "GPD/phases/05/.continue-here.md",
+                "recorded_handoff_resume_file": "GPD/phases/05/.continue-here.md",
                 "execution_resume_file": "GPD/phases/05/.continue-here.md",
             },
             "has_live_execution": False,
@@ -1019,7 +1019,7 @@ def test_build_recovery_advice_ignores_nested_resume_surface_wrapper_without_can
     assert advice.current_workspace_has_resume_file is False
 
 
-def test_build_recovery_advice_ignores_top_level_legacy_segment_candidates_without_canonical_support(
+def test_build_recovery_advice_ignores_top_level_internal_segment_candidates_without_canonical_support(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -1030,7 +1030,7 @@ def test_build_recovery_advice_ignores_top_level_legacy_segment_candidates_witho
         resume_payload={
             "segment_candidates": [
                 {
-                    "source": "session_resume_file",
+                    "source": "handoff_resume_file",
                     "status": "handoff",
                     "resume_file": "GPD/phases/05/.continue-here.md",
                 }
@@ -1045,7 +1045,7 @@ def test_build_recovery_advice_ignores_top_level_legacy_segment_candidates_witho
     assert advice.current_workspace_has_resume_file is False
 
 
-def test_build_recovery_advice_ignores_top_level_legacy_handoff_aliases_without_canonical_support(tmp_path: Path) -> None:
+def test_build_recovery_advice_ignores_top_level_internal_handoff_aliases_without_canonical_support(tmp_path: Path) -> None:
     project = _project(tmp_path)
 
     advice = build_recovery_advice(
@@ -1054,9 +1054,9 @@ def test_build_recovery_advice_ignores_top_level_legacy_handoff_aliases_without_
         resume_payload={
             "resume_mode": "continuity_handoff",
             "execution_resume_file": "GPD/phases/05/.continue-here.md",
-            "execution_resume_file_source": "session_resume_file",
-            "session_resume_file": "GPD/phases/05/.continue-here.md",
-            "recorded_session_resume_file": "GPD/phases/05/.continue-here.md",
+            "execution_resume_file_source": "handoff_resume_file",
+            "handoff_resume_file": "GPD/phases/05/.continue-here.md",
+            "recorded_handoff_resume_file": "GPD/phases/05/.continue-here.md",
             "has_live_execution": False,
         },
     )
@@ -1073,7 +1073,7 @@ def test_build_recovery_advice_ignores_top_level_legacy_handoff_aliases_without_
     assert advice.has_local_recovery_target is False
 
 
-def test_build_recovery_advice_ignores_top_level_legacy_missing_handoff_alias_without_canonical_support(
+def test_build_recovery_advice_ignores_top_level_internal_missing_handoff_alias_without_canonical_support(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -1082,7 +1082,7 @@ def test_build_recovery_advice_ignores_top_level_legacy_missing_handoff_alias_wi
         project,
         recent_rows=[],
         resume_payload={
-            "missing_session_resume_file": "GPD/phases/06/.continue-here.md",
+            "missing_handoff_resume_file": "GPD/phases/06/.continue-here.md",
         },
     )
 

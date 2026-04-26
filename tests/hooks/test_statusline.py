@@ -234,9 +234,9 @@ class TestStatusMetadata:
         label = _read_workspace_label({}, str(current))
         assert label == "[workspace]"
 
-    def test_read_session_id_uses_adapter_exposed_runtime_key_before_top_level_legacy_field(self) -> None:
+    def test_read_session_id_uses_adapter_exposed_runtime_key_before_top_level_stale_field(self) -> None:
         payload = {
-            "session_id": "legacy-top-level",
+            "session_id": "stale-top-level",
             "workspace": {"runtime_session_id": "runtime-owned"},
         }
         hook_payload = SimpleNamespace(runtime_session_id_keys=("runtime_session_id",))
@@ -244,7 +244,7 @@ class TestStatusMetadata:
         assert _read_session_id(payload, hook_payload) == "runtime-owned"
 
     def test_read_session_id_ignores_bare_top_level_session_id_when_runtime_key_is_unavailable(self) -> None:
-        payload = {"session_id": "legacy-top-level"}
+        payload = {"session_id": "stale-top-level"}
         hook_payload = SimpleNamespace(runtime_session_id_keys=())
 
         assert _read_session_id(payload, hook_payload) == ""
@@ -354,7 +354,7 @@ class TestExecutionBadge:
         assert "REVIEW:pre-fanout" in badge
 
 
-def test_read_execution_state_prefers_lineage_head_over_legacy_current_execution_snapshot(
+def test_read_execution_state_prefers_lineage_head_over_stale_current_execution_snapshot(
     tmp_path: Path,
 ) -> None:
     workspace = tmp_path / "workspace"
@@ -363,11 +363,11 @@ def test_read_execution_state_prefers_lineage_head_over_legacy_current_execution
     (observability / "current-execution.json").write_text(
         json.dumps(
             {
-                "session_id": "legacy-session",
+                "session_id": "stale-session",
                 "phase": "06",
                 "plan": "03",
                 "segment_status": "paused",
-                "current_task": "Legacy snapshot task",
+                "current_task": "Stale snapshot task",
                 "updated_at": "2026-03-27T12:01:00+00:00",
             }
         ),
@@ -392,7 +392,7 @@ def test_read_execution_state_prefers_lineage_head_over_legacy_current_execution
     assert execution["current_task"] == "Lineage head task"
     assert execution["checkpoint_reason"] == "pre_fanout"
     assert execution["segment_status"] == "waiting_review"
-    assert execution["current_task"] != "Legacy snapshot task"
+    assert execution["current_task"] != "Stale snapshot task"
 
 
 # ─── _read_position edge cases ─────────────────────────────────────────────
@@ -935,7 +935,7 @@ class TestCheckUpdateHook:
         assert expected in result
         assert str(unrelated_runtime_dir) not in result
 
-    def test_explicit_target_hook_cache_does_not_recover_missing_install_scope_from_legacy_surface(
+    def test_explicit_target_hook_cache_does_not_recover_missing_install_scope_from_stale_surface(
         self,
         tmp_path: Path,
     ) -> None:

@@ -1403,7 +1403,7 @@ class TestResume:
         assert parsed["resume_candidates"][0]["origin"] == "canonical_continuation"
         assert parsed["recovery_candidates"][0]["kind"] == "continuity_handoff"
         assert parsed["recovery_candidates"][0]["origin"] == "canonical_continuation"
-        assert "compat_resume_surface" not in parsed
+        assert "resume_surface" not in parsed
 
     def test_resume_raw_surfaces_hydrated_active_resume_result_from_nested_cwd(
         self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch
@@ -1500,7 +1500,7 @@ class TestResume:
         assert parsed["recovery_candidates"][0]["status"] == "missing"
         assert parsed["recovery_candidates"][0]["advisory"] is True
 
-        assert "compat_resume_surface" not in parsed
+        assert "resume_surface" not in parsed
 
     def test_resume_raw_uses_canonical_bounded_segment_without_live_snapshot(
         self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch
@@ -1546,12 +1546,12 @@ class TestResume:
         assert parsed["recovery_status_label"] == "Bounded segment"
         assert parsed["recovery_advice"]["resume_surface_schema_version"] == 1
         assert parsed["recovery_advice"]["actions"][0]["kind"] == "primary"
-        assert "compat_resume_surface" not in parsed["recovery_advice"]
+        assert "resume_surface" not in parsed["recovery_advice"]
         for key in RESUME_BACKEND_ONLY_FIELDS:
             assert key not in parsed["recovery_advice"]
         assert parsed["primary_recovery_target"]["kind"] == "bounded_segment"
         assert parsed["primary_recovery_target"]["origin"] == "canonical_continuation"
-        assert "compat_resume_surface" not in parsed
+        assert "resume_surface" not in parsed
 
     def test_resume_raw_prefers_canonical_bounded_segment_over_conflicting_live_snapshot(
         self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch
@@ -1613,7 +1613,7 @@ class TestResume:
         assert parsed["has_live_execution"] is True
         assert parsed["resume_candidates"][0]["resume_file"] == canonical_resume_file
         assert parsed["resume_candidates"][0]["origin"] == "canonical_continuation"
-        assert "compat_resume_surface" not in parsed
+        assert "resume_surface" not in parsed
 
     def test_resume_human_output_surfaces_public_and_backend_commands(self, gpd_project: Path) -> None:
         handoff = gpd_project / "GPD" / "phases" / "01-test-phase" / ".continue-here.md"
@@ -1739,7 +1739,7 @@ class TestResume:
         assert parsed["recovery_status"] == "bounded-segment"
         assert parsed["recovery_status_label"] == "Bounded segment"
         assert parsed["primary_recovery_target"]["kind"] == "bounded_segment"
-        assert "compat_resume_surface" not in parsed
+        assert "resume_surface" not in parsed
 
     def test_resume_human_output_surfaces_auto_selected_recent_bounded_segment(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -2325,7 +2325,7 @@ class TestInitIncludeParsing:
         ]
         assert payload["resume_candidates"][0]["origin"] == "continuation.handoff"
         assert payload["resume_candidates"][1]["origin"] == "interrupted_agent_marker"
-        assert "compat_resume_surface" not in payload
+        assert "resume_surface" not in payload
         assert _target_file_snapshot(planning) == snapshot_before
 
     def test_observe_execution_reports_waiting_without_marking_it_possibly_stalled(self, gpd_project: Path) -> None:
@@ -2780,7 +2780,7 @@ class TestConfigCommands:
         config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["parallelization"] is False
 
-    def test_config_set_rejects_legacy_autonomy_value(self, gpd_project: Path) -> None:
+    def test_config_set_rejects_stale_autonomy_value(self, gpd_project: Path) -> None:
         result = _invoke("--raw", "config", "set", "autonomy", "guided", expect_ok=False)
 
         parsed = json.loads(result.output)

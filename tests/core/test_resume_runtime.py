@@ -209,7 +209,7 @@ def test_state_carry_forward_continuation_last_result_id_updates_canonical_conti
         "handoff": {
             "resume_file": "GPD/phases/03-analysis/.continue-here.md",
             "stopped_at": "Phase 03",
-            "last_result_id": "result-legacy",
+            "last_result_id": "result-recorded",
             "recorded_at": "2026-03-29T12:00:00+00:00",
             "recorded_by": "state_record_session",
         },
@@ -219,7 +219,7 @@ def test_state_carry_forward_continuation_last_result_id_updates_canonical_conti
             "plan": "02",
             "segment_id": "canonical-seg",
             "segment_status": "paused",
-            "last_result_id": "result-legacy",
+            "last_result_id": "result-recorded",
             "updated_at": "2026-03-29T12:00:00+00:00",
             "source_session_id": "sess-1",
             "recorded_by": "derived_execution_head",
@@ -299,7 +299,7 @@ def test_state_record_session_uses_bounded_segment_last_result_id_when_explicit_
         "handoff": {
             "resume_file": "GPD/phases/03-analysis/.continue-here.md",
             "stopped_at": "Phase 03",
-            "last_result_id": "result-legacy",
+            "last_result_id": "result-recorded",
             "recorded_at": "2026-03-29T12:00:00+00:00",
             "recorded_by": "state_record_session",
         },
@@ -385,27 +385,27 @@ def test_init_resume_surfaces_machine_change_and_session_resume_candidate(
             "resume_pointer": "GPD/phases/03-analysis/.continue-here.md",
         }
     ]
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
-def test_init_resume_uses_canonical_continuation_when_legacy_session_conflicts(
+def test_init_resume_uses_canonical_continuation_when_session_alias_conflicts(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
     canonical_resume = cwd / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
     canonical_resume.parent.mkdir(parents=True, exist_ok=True)
     canonical_resume.write_text("resume\n", encoding="utf-8")
-    legacy_resume = cwd / "GPD" / "phases" / "03-analysis" / "legacy.md"
-    legacy_resume.write_text("resume\n", encoding="utf-8")
+    stale_resume = cwd / "GPD" / "phases" / "03-analysis" / "canonical.md"
+    stale_resume.write_text("resume\n", encoding="utf-8")
 
     state_path = cwd / "GPD" / "state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["session"] = {
         "last_date": "2026-03-02T12:00:00+00:00",
-        "hostname": "legacy-host",
-        "platform": "LegacyOS",
-        "stopped_at": "Legacy stop",
-        "resume_file": "GPD/phases/03-analysis/legacy.md",
+        "hostname": "recorded-host",
+        "platform": "StaleOS",
+        "stopped_at": "Stale stop",
+        "resume_file": "GPD/phases/03-analysis/canonical.md",
     }
     state["continuation"] = {
         "schema_version": 1,
@@ -461,7 +461,7 @@ def test_init_resume_uses_canonical_continuation_when_legacy_session_conflicts(
     assert ctx["resume_candidates"][0]["origin"] == "continuation.handoff"
     assert ctx["resume_candidates"][0]["resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["resume_candidates"][0]["last_result_id"] == "result-canonical"
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
     canonical_candidate = ctx["resume_candidates"][0]
     hydrated_result = _resolved_resume_result(ctx, canonical_candidate)
     assert hydrated_result is not None
@@ -594,7 +594,7 @@ def test_init_resume_promotes_auto_selected_recent_bounded_segment_over_same_poi
     assert ctx["resume_candidates"][0]["last_result"]["id"] == "result-recent-03"
     assert ctx["active_resume_result"]["id"] == "result-recent-03"
     assert ctx["continuity_handoff_file"] == resume_file
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_prefers_canonical_handoff_over_live_execution_and_keeps_execution_advisory(
@@ -638,7 +638,7 @@ def test_init_resume_prefers_canonical_handoff_over_live_execution_and_keeps_exe
     assert ctx["active_resume_origin"] == "continuation.handoff"
     assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/alternate-resume.md"
     _assert_no_resume_compat_aliases(ctx)
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
     assert ctx["resume_candidates"] == [
         {
             "kind": "continuity_handoff",
@@ -686,7 +686,7 @@ def test_init_resume_keeps_canonical_handoff_primary_across_machine_change(
     assert ctx["active_resume_origin"] == "continuation.handoff"
     assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/alternate-resume.md"
     _assert_no_resume_compat_aliases(ctx)
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
     assert ctx["resume_candidates"] == [
         {
             "kind": "continuity_handoff",
@@ -769,10 +769,10 @@ def test_init_resume_reads_canonical_continuation_from_state_json(
     _assert_no_resume_compat_aliases(ctx)
     assert ctx["session_hostname"] == "builder-01"
     assert ctx["session_platform"] == "Linux 6.1 x86_64"
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
-def test_init_resume_does_not_fall_back_to_legacy_session_when_canonical_continuation_is_corrupt(
+def test_init_resume_does_not_fall_back_to_session_alias_when_canonical_continuation_is_corrupt(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
@@ -782,8 +782,8 @@ def test_init_resume_does_not_fall_back_to_legacy_session_when_canonical_continu
         "last_date": "2026-03-29T12:00:00+00:00",
         "hostname": "builder-01",
         "platform": "Linux 6.1 x86_64",
-        "stopped_at": "Legacy session stop",
-        "resume_file": "GPD/phases/03-analysis/legacy-session.md",
+        "stopped_at": "Stale session stop",
+        "resume_file": "GPD/phases/03-analysis/session-handoff.md",
     }
     state["continuation"] = {
         "schema_version": 1,
@@ -795,9 +795,9 @@ def test_init_resume_does_not_fall_back_to_legacy_session_when_canonical_continu
         },
     }
     state_path.write_text(json.dumps(state), encoding="utf-8")
-    legacy_resume = cwd / "GPD" / "phases" / "03-analysis" / "legacy-session.md"
-    legacy_resume.parent.mkdir(parents=True, exist_ok=True)
-    legacy_resume.write_text("resume\n", encoding="utf-8")
+    stale_resume = cwd / "GPD" / "phases" / "03-analysis" / "session-handoff.md"
+    stale_resume.parent.mkdir(parents=True, exist_ok=True)
+    stale_resume.write_text("resume\n", encoding="utf-8")
     monkeypatch.setattr(
         context_module,
         "_current_machine_identity",
@@ -810,10 +810,10 @@ def test_init_resume_does_not_fall_back_to_legacy_session_when_canonical_continu
     assert ctx["continuity_handoff_file"] is None
     assert ctx["recorded_continuity_handoff_file"] is None
     assert ctx["resume_candidates"] == []
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
-def test_init_resume_ignores_legacy_session_only_identity_without_active_resume_target(
+def test_init_resume_ignores_session_alias_only_identity_without_active_resume_target(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
@@ -821,9 +821,9 @@ def test_init_resume_ignores_legacy_session_only_identity_without_active_resume_
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["session"] = {
         "last_date": "2026-03-29T12:00:00+00:00",
-        "hostname": "legacy-host",
-        "platform": "LegacyOS",
-        "stopped_at": "Legacy stop",
+        "hostname": "recorded-host",
+        "platform": "StaleOS",
+        "stopped_at": "Stale stop",
         "resume_file": None,
     }
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -844,7 +844,7 @@ def test_init_resume_ignores_legacy_session_only_identity_without_active_resume_
     assert ctx["session_platform"] is None
     assert ctx["session_last_date"] is None
     assert ctx["session_stopped_at"] is None
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_propagates_unexpected_continuation_projection_errors(
@@ -1008,7 +1008,7 @@ def test_init_resume_deduplicates_matching_session_handoff_and_ranks_interrupted
     ]
     assert ctx["resume_candidates"][0]["origin"] == "continuation.handoff"
     assert ctx["resume_candidates"][1]["origin"] == "interrupted_agent_marker"
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_normalizes_project_local_absolute_current_execution_resume_file(
@@ -1043,10 +1043,10 @@ def test_init_resume_normalizes_project_local_absolute_current_execution_resume_
     assert ctx["active_resume_kind"] == "bounded_segment"
     assert ctx["active_resume_origin"] == "continuation.bounded_segment"
     assert ctx["resume_candidates"][0]["origin"] == "continuation.bounded_segment"
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
-def test_init_resume_does_not_build_legacy_resume_aliases_before_public_canonicalization(
+def test_init_resume_does_not_build_internal_resume_aliases_before_public_canonicalization(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
@@ -1144,7 +1144,7 @@ def test_init_resume_ignores_nonportable_current_execution_resume_file_and_uses_
             "resume_pointer": "GPD/phases/03-analysis/alternate-resume.md",
         }
     ]
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_surfaces_missing_session_handoff_as_advisory_candidate(
@@ -1189,7 +1189,7 @@ def test_init_resume_surfaces_missing_session_handoff_as_advisory_candidate(
         }
     ]
     _assert_no_resume_compat_aliases(ctx)
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_leaves_missing_result_id_unhydrated(
@@ -1253,7 +1253,7 @@ def test_init_resume_leaves_missing_result_id_unhydrated(
     assert candidate.get("last_result") is None
     assert ctx.get("active_resume_result") is None
     assert _resolved_resume_result(ctx, candidate) is None
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_treats_missing_live_resume_file_as_advisory_only(
@@ -1287,7 +1287,7 @@ def test_init_resume_treats_missing_live_resume_file_as_advisory_only(
     assert ctx["active_resume_kind"] is None
     _assert_no_resume_compat_aliases(ctx)
     assert ctx["resume_candidates"] == []
-    assert "compat_resume_surface" not in ctx
+    assert "resume_surface" not in ctx
 
 
 def test_init_resume_leaves_selected_candidate_absent_for_ambiguous_recent_projects(

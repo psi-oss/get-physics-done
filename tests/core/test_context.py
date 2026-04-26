@@ -576,7 +576,7 @@ def _write_structured_state_payload(tmp_path: Path) -> None:
             "verified": True,
             "verification_records": [{"verifier": "auditor", "method": "manual", "confidence": "high"}],
         },
-        "legacy markdown bullet",
+        "stale markdown bullet",
     ]
     state["approximations"] = [
         {
@@ -1655,7 +1655,7 @@ class TestInitPlanPhase:
         assert "K-work-in-progress" not in ctx["active_reference_context"]
         assert "non-stable knowledge doc(s) remain inventory-visible only" in ctx["active_reference_context"]
 
-    def test_prefers_literature_review_files_over_legacy_research_when_both_exist(
+    def test_prefers_literature_review_files_over_stale_research_when_both_exist(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1686,17 +1686,17 @@ class TestInitPlanPhase:
 
         research_dir = tmp_path / "GPD" / "research"
         research_dir.mkdir()
-        (research_dir / "legacy-REVIEW.md").write_text(
-            "# Legacy Review\n\nLegacy details.\n",
+        (research_dir / "stale-REVIEW.md").write_text(
+            "# Stale Review\n\nStale details.\n",
             encoding="utf-8",
         )
-        (research_dir / "legacy-CITATION-SOURCES.json").write_text(
+        (research_dir / "stale-CITATION-SOURCES.json").write_text(
             json.dumps(
                 [
                     {
-                        "reference_id": "ref-legacy",
+                        "reference_id": "ref-stale",
                         "source_type": "paper",
-                        "title": "Legacy Reference",
+                        "title": "Stale Reference",
                         "authors": ["A. Author"],
                         "year": "2024",
                     }
@@ -1710,8 +1710,8 @@ class TestInitPlanPhase:
         assert ctx["literature_review_files"] == ["GPD/literature/canonical-REVIEW.md"]
         assert ctx["citation_source_files"] == ["GPD/literature/canonical-CITATION-SOURCES.json"]
         assert "Canonical details." in ctx["reference_artifacts_content"]
-        assert "Legacy details." not in ctx["reference_artifacts_content"]
-        assert "GPD/research/legacy-REVIEW.md" not in ctx["reference_artifact_files"]
+        assert "Stale details." not in ctx["reference_artifacts_content"]
+        assert "GPD/research/stale-REVIEW.md" not in ctx["reference_artifact_files"]
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3093,7 +3093,7 @@ class TestInitResume:
             }
         ]
         assert "source" not in ctx["resume_candidates"][0]
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
     def test_resume_prefers_explicit_gpd_workspace_over_recent_project(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
@@ -3174,7 +3174,7 @@ class TestInitResume:
         assert ctx["active_bounded_segment"]["segment_id"] == "seg-4"
         assert ctx["derived_execution_head"]["segment_id"] == "seg-4"
         _assert_no_resume_compat_aliases(ctx)
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
         assert "segment_candidates" not in ctx
         assert ctx["resume_candidates"][0]["kind"] == "bounded_segment"
         assert ctx["resume_candidates"][0]["origin"] == "continuation.bounded_segment"
@@ -3218,7 +3218,7 @@ class TestInitResume:
         assert ctx["resume_candidates"][0]["last_result_id"] == "result-canonical"
         assert ctx["resume_candidates"][0]["last_result"]["id"] == "result-canonical"
         assert ctx["active_resume_result"]["id"] == "result-canonical"
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
     def test_normalizes_live_execution_phase_plan_and_checkpoint_reason(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3342,9 +3342,9 @@ class TestInitResume:
         assert "segment_candidates" not in ctx
         assert ctx["resume_candidates"] == []
         assert "active_execution_segment" not in ctx
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
-    def test_session_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
+    def test_handoff_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict
 
@@ -3352,8 +3352,8 @@ class TestInitResume:
         state["session"] = {
             "resume_file": "GPD/phases/03-analysis/.continue-here.md",
             "stopped_at": "2026-03-10T12:00:00+00:00",
-            "hostname": "legacy-host",
-            "platform": "legacy-platform",
+            "hostname": "stale-host",
+            "platform": "stale-platform",
         }
         resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
         resume_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3374,7 +3374,7 @@ class TestInitResume:
         assert ctx["session_last_date"] is None
         assert ctx["session_stopped_at"] is None
         assert ctx["resume_candidates"] == []
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
     def test_init_resume_does_not_recover_intent_during_read_only_discovery(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3400,8 +3400,8 @@ class TestInitResume:
         state = default_state_dict()
         state["continuation"]["handoff"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
         state["continuation"]["handoff"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
-        state["continuation"]["machine"]["hostname"] = "legacy-host"
-        state["continuation"]["machine"]["platform"] = "legacy-platform"
+        state["continuation"]["machine"]["hostname"] = "stale-host"
+        state["continuation"]["machine"]["platform"] = "stale-platform"
         resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
         resume_path.parent.mkdir(parents=True, exist_ok=True)
         resume_path.write_text("resume\n", encoding="utf-8")
@@ -4148,7 +4148,7 @@ class TestInitProgress:
         assert ctx["init_root_policy"] == "workspace_locked"
         assert "project_reentry_mode" not in ctx
 
-    def test_progress_rejects_legacy_autonomy_values(self, tmp_path: Path) -> None:
+    def test_progress_rejects_stale_autonomy_values(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"autonomy": "guided"})
 
