@@ -544,7 +544,7 @@ Uninstall removes GPD from the selected runtime config only. It does not delete 
 
 ## Inspiration
 
-GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically designed for physics research.
+GPD takes its name in analogy with [GSD](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD adapts that command-workflow idea into a rigorous agentic system designed specifically for physics research.
 
 ## Citation and Acknowledgement
 
@@ -554,7 +554,7 @@ If GPD contributes to published research, please cite the software using [`CITAT
 @software{physical_superintelligence_2026_gpd,
   author = {{Physical Superintelligence PBC}},
   title = {Get Physics Done (GPD)},
-  version = {1.1.0},
+  version = {1.2.0},
   year = {2026},
   url = {https://github.com/psi-oss/get-physics-done},
   license = {Apache-2.0}
@@ -562,7 +562,7 @@ If GPD contributes to published research, please cite the software using [`CITAT
 ```
 
 ```text
-Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). https://github.com/psi-oss/get-physics-done
+Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.2.0). https://github.com/psi-oss/get-physics-done
 ```
 
 If your paper includes an acknowledgements section, use:

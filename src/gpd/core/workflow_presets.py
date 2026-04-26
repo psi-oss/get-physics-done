@@ -209,7 +209,7 @@ WORKFLOW_PRESETS: tuple[WorkflowPreset, ...] = (
     WorkflowPreset(
         id="core-research",
         label="Core research",
-        description="Recommended default for most physics projects. Uses only the base runtime-readiness contract.",
+        description="Recommended default for most physics projects. Uses the base runtime-readiness contract.",
         summary="Supervised default workflow for planning, execution, and verification.",
         recommended_config={
             "autonomy": "supervised",
@@ -227,8 +227,8 @@ WORKFLOW_PRESETS: tuple[WorkflowPreset, ...] = (
     WorkflowPreset(
         id="theory",
         label="Theory",
-        description="Bias toward rigorous derivations and exact reasoning without claiming extra machine-tooling requirements.",
-        summary="Derivation-heavy workflow using the base runtime-readiness contract only.",
+        description="Prioritizes rigorous derivations and exact reasoning within the base runtime-readiness contract.",
+        summary="Derivation-heavy workflow using the base runtime-readiness contract.",
         recommended_config={
             "autonomy": "supervised",
             "research_mode": "adaptive",
@@ -245,8 +245,8 @@ WORKFLOW_PRESETS: tuple[WorkflowPreset, ...] = (
     WorkflowPreset(
         id="numerics",
         label="Numerics",
-        description="Bias toward computational implementation and convergence work without claiming extra machine-tooling requirements beyond the base runtime.",
-        summary="Computation-heavy workflow using the base runtime-readiness contract only.",
+        description="Prioritizes computational implementation, convergence testing, and numerical validation within the base runtime-readiness contract.",
+        summary="Computation-heavy workflow using the base runtime-readiness contract.",
         recommended_config={
             "autonomy": "supervised",
             "research_mode": "balanced",
@@ -263,7 +263,7 @@ WORKFLOW_PRESETS: tuple[WorkflowPreset, ...] = (
     WorkflowPreset(
         id="publication-manuscript",
         label="Publication / manuscript",
-        description="Drafting, review, build, and submission workflow for paper production.",
+        description="Coordinates drafting, staged review, build checks, and submission preparation for paper production.",
         summary="Paper-writing workflow; build and submission depend on LaTeX readiness.",
         recommended_config={
             "autonomy": "supervised",
@@ -286,7 +286,7 @@ WORKFLOW_PRESETS: tuple[WorkflowPreset, ...] = (
     WorkflowPreset(
         id="full-research",
         label="Full research",
-        description="Core research defaults plus publication/manuscript readiness awareness for projects expected to end in a paper.",
+        description="Core research defaults with publication readiness tracked for projects expected to become papers.",
         summary="Core research workflow with publication readiness tracked alongside it.",
         recommended_config={
             "autonomy": "supervised",

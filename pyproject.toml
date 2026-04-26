@@ -1,6 +1,6 @@
 [project]
 name = "get-physics-done"
-version = "1.1.0"
+version = "1.2.0"
 description = "GPD — Get Physics Done: open-source agentic AI system for physics research"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -70,6 +70,36 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gpd"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/CHANGELOG.md",
+    "/CITATION.cff",
+    "/CLA",
+    "/CONTRIBUTING.md",
+    "/LICENSE",
+    "/README.md",
+    "/bin",
+    "/docs",
+    "/infra",
+    "/package.json",
+    "/pyproject.toml",
+    "/scripts",
+    "/src",
+    "/tests",
+    "/uv.lock",
+]
+exclude = [
+    "/.DS_Store",
+    "/.mypy_cache",
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/.uv-cache",
+    "/.venv",
+    "/GPD*",
+    "/dist",
+    "/tmp",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

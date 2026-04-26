@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If GPD contributes to published research, please cite it using the metadata below."
 title: "Get Physics Done (GPD)"
 type: software
-version: 1.1.0
+version: 1.2.0
 date-released: '2026-03-15'
 license: Apache-2.0
 abstract: "An open-source agentic AI system for physics research that structures, executes, verifies, and documents research workflows across multiple AI runtimes."

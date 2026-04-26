@@ -181,7 +181,7 @@ If creating a new doc, initialize it as `status: draft`.
 <step name="validate_schema">
 Validate the generated markdown against the strict `knowledge` schema before considering the task complete.
 
-Use the repo's frontmatter validator against the final file:
+Use the GPD frontmatter validator against the final file:
 
 ```bash
 gpd frontmatter validate GPD/knowledge/{knowledge_id}.md --schema knowledge

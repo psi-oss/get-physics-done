@@ -94,7 +94,7 @@ Project ─── the overall research goal
 3. `gpd:plan-phase N` — Create detailed plans for phase N
 4. `gpd:execute-phase N` — Run all plans (derivations, simulations, analysis)
 5. `gpd:verify-work` — Verify physics correctness
-6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
+6. Repeat 2-5 for each phase (or `gpd:autonomous` to run the remaining phases under the configured checkpoint cadence)
 7. `gpd:write-paper` — Generate publication from project results or one explicit external-authoring intake manifest into the resolved manuscript lane
 8. `gpd:peer-review` — Run manuscript review before submission on the current project manuscript or one explicit artifact
 9. `gpd:respond-to-referees` — Address reviewer comments by revising the resolved manuscript root and synchronized response artifacts
@@ -565,7 +565,7 @@ Archive completed milestone and prepare for next direction.
 - Creates git tag for the release
 - Prepares workspace for next research direction
 
-Usage: `gpd:complete-milestone 1.1.0`
+Usage: `gpd:complete-milestone v2.0`
 
 ### Progress Tracking
 
@@ -1383,7 +1383,7 @@ gpd:execute-phase 5.1
 **Completing a milestone:**
 
 ```
-gpd:complete-milestone 1.1.0
+gpd:complete-milestone v2.0
 /clear                 # then run gpd:new-milestone for the next milestone
 gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
 ```

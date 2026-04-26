@@ -174,7 +174,7 @@ In every case, preserve the document body unless the workflow explicitly needs t
 <step name="validate_schema">
 Validate the updated markdown against the strict knowledge schema before considering the task complete.
 
-Use the repo frontmatter validator against the final file:
+Use the GPD frontmatter validator against the final file:
 
 ```bash
 gpd frontmatter validate GPD/knowledge/{knowledge_id}.md --schema knowledge

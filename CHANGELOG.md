@@ -4,6 +4,8 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+## v1.2.0
+
 ### Supervised by default
 
 - **Defaults flipped to supervised + dense.** New projects start with `autonomy=supervised`, `review_cadence=dense`, `checkpoint_after_n_tasks=1`, and tighter unattended budgets (15 min/plan, 30 min/wave). The "scalpel, not autopilot" framing is surfaced across `README.md`, `start`, `tour`, `help`, and `settings`.

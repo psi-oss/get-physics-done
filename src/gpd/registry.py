@@ -830,14 +830,14 @@ def _merge_command_policy_submapping(
 
     merged = dict(companion_mapping)
     for key, value in explicit_mapping.items():
-        legacy_value = merged.get(key)
-        if legacy_value is None or legacy_value == []:
+        companion_value = merged.get(key)
+        if companion_value is None or companion_value == []:
             merged[key] = value
             continue
         if allow_explicit_override:
             merged[key] = value
             continue
-        if value != legacy_value:
+        if value != companion_value:
             raise ValueError(f"{field_name}.{key} for {command_name} must stay aligned with companion command metadata")
     return merged
 
@@ -988,13 +988,13 @@ def _normalize_command_policy_payload(
         project_reentry_capable=project_reentry_capable,
         requires=requires,
     )
-    compat_subject_policy = _publication_subject_policy_defaults(
+    default_subject_policy = _publication_subject_policy_defaults(
         review_contract=review_contract,
         frontmatter_supporting_context=frontmatter_supporting_context,
     )
-    legacy_payload: dict[str, object] = {
+    inferred_payload: dict[str, object] = {
         "schema_version": 1,
-        "subject_policy": compat_subject_policy,
+        "subject_policy": default_subject_policy,
         "supporting_context_policy": frontmatter_supporting_context,
     }
 
@@ -1002,7 +1002,7 @@ def _normalize_command_policy_payload(
     if payload is None:
         if explicit:
             raise ValueError("command policy must set schema_version")
-        return legacy_payload
+        return inferred_payload
     if not isinstance(payload, dict):
         raise ValueError(f"command policy for {command_name} must be a mapping")
 
@@ -1021,7 +1021,7 @@ def _normalize_command_policy_payload(
 
     subject_policy = _merge_command_policy_defaults(
         _normalize_command_subject_policy(payload.get("subject_policy"), command_name=command_name),
-        compat_subject_policy,
+        default_subject_policy,
     )
     supporting_context_policy = _normalize_command_supporting_context_policy(
         payload.get("supporting_context_policy"),

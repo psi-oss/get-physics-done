@@ -24,10 +24,10 @@ The manuscript builder and emitted `${PAPER_DIR}/ARTIFACT-MANIFEST.json` current
 
 - `prl` — short, impact-focused letter; only the essential equations stay in the main text
 - `apj` — astrophysics manuscript with data/software citation expectations
-- `mnras` — astronomy manuscript using the shared generic scoring profile for now
+- `mnras` — astronomy manuscript using the shared generic scoring profile until a dedicated journal-specific scorer is available
 - `nature` — broad-impact scaffold with accessibility emphasis
 - `jhep` — theory-first scaffold with stronger derivation and convention expectations
-- `jfm` — fluids manuscript using the shared generic scoring profile for now
+- `jfm` — fluids manuscript using the shared generic scoring profile until a dedicated journal-specific scorer is available
 
 These are the only valid `journal` values in `PAPER-CONFIG.json` and `${PAPER_DIR}/ARTIFACT-MANIFEST.json`.
 
