@@ -768,7 +768,11 @@ def test_stamp_publish_date_reports_no_changes_when_release_date_already_matches
     repo_root = _repo_root()
     _copy_release_surfaces(repo_root, tmp_path)
 
-    metadata = stamp_publish_date(tmp_path, release_date="2026-03-15")
+    citation = (tmp_path / "CITATION.cff").read_text(encoding="utf-8")
+    match = re.search(r"^date-released: '(\d{4}-\d{2}-\d{2})'$", citation, re.M)
+    assert match is not None
+
+    metadata = stamp_publish_date(tmp_path, release_date=match.group(1))
 
     assert metadata.changed_files == ()
 
