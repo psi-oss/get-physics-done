@@ -454,7 +454,7 @@ def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp
     assert not (nested_workspace / "GPD").exists()
 
 
-def test_integrations_status_rejects_legacy_api_key_env_field(tmp_path: Path) -> None:
+def test_integrations_status_rejects_unsupported_api_key_env_field(tmp_path: Path) -> None:
     config_path = tmp_path / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(
@@ -514,7 +514,7 @@ def test_workflow_preset_show_raw_outputs_central_contract() -> None:
     assert payload["label"] == "Core research"
     assert payload["required_checks"] == []
     assert payload["recommended_config"]["model_profile"] == "review"
-    assert payload["summary"] == "Balanced default workflow for planning, execution, and verification."
+    assert payload["summary"] == "Supervised default workflow for planning, execution, and verification."
 
 
 def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) -> None:
@@ -555,7 +555,6 @@ def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) ->
         "workflow.verifier",
     ]
     assert payload["changed_keys"] == [
-        "autonomy",
         "execution.review_cadence",
         "parallelization",
         "planning.commit_docs",
@@ -564,10 +563,9 @@ def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) ->
         "workflow.verifier",
     ]
     assert payload["ignored_keys"] == ["model_cost_posture"]
-    assert payload["unchanged_keys"] == ["research_mode", "model_profile"]
+    assert payload["unchanged_keys"] == ["autonomy", "research_mode", "model_profile"]
     assert payload["changes"] == [
-        {"key": "autonomy", "before": "supervised", "after": "balanced"},
-        {"key": "execution.review_cadence", "before": "sparse", "after": "adaptive"},
+        {"key": "execution.review_cadence", "before": "sparse", "after": "dense"},
         {"key": "parallelization", "before": False, "after": True},
         {"key": "planning.commit_docs", "before": False, "after": True},
         {"key": "workflow.research", "before": False, "after": True},
@@ -575,12 +573,12 @@ def test_workflow_preset_apply_dry_run_previews_changed_knobs(tmp_path: Path) ->
         {"key": "workflow.verifier", "before": False, "after": True},
     ]
     resulting_config = payload["resulting_config"]
-    assert resulting_config["autonomy"] == "balanced"
+    assert resulting_config["autonomy"] == "supervised"
     assert resulting_config["research_mode"] == "balanced"
     assert resulting_config["model_profile"] == "review"
     assert resulting_config["parallelization"] is True
     assert resulting_config["commit_docs"] is True
-    assert resulting_config["execution"]["review_cadence"] == "adaptive"
+    assert resulting_config["execution"]["review_cadence"] == "dense"
     assert resulting_config["execution"]["checkpoint_after_n_tasks"] == 7
     assert resulting_config["execution"]["checkpoint_before_downstream_dependent_tasks"] is False
     assert resulting_config["research"] is True
@@ -632,7 +630,6 @@ def test_workflow_preset_apply_writes_merged_config(tmp_path: Path) -> None:
         "workflow.verifier",
     ]
     assert payload["changed_keys"] == [
-        "autonomy",
         "research_mode",
         "model_profile",
         "workflow.research",
@@ -640,13 +637,14 @@ def test_workflow_preset_apply_writes_merged_config(tmp_path: Path) -> None:
         "workflow.verifier",
     ]
     assert payload["unchanged_keys"] == [
+        "autonomy",
         "execution.review_cadence",
         "parallelization",
         "planning.commit_docs",
     ]
 
     written = json.loads(config_path.read_text(encoding="utf-8"))
-    assert written["autonomy"] == "balanced"
+    assert written["autonomy"] == "supervised"
     assert written["research_mode"] == "exploit"
     assert written["model_profile"] == "paper-writing"
     assert written["parallelization"] is False
@@ -1284,8 +1282,8 @@ def test_resume_runtime_commands_logs_runtime_resolution_failures(
     assert any("Failed to resolve runtime-specific resume commands" in record.message for record in caplog.records)
 
 
-def test_resume_origin_label_no_longer_exposes_legacy_session_alias() -> None:
-    assert cli_module._resume_origin_label("legacy_session") == "Unknown"
+def test_resume_origin_label_rejects_unknown_session_alias() -> None:
+    assert cli_module._resume_origin_label("session_alias") == "Unknown"
 
 
 def test_resume_recent_raw_surfaces_machine_local_recent_projects(tmp_path: Path, monkeypatch) -> None:
@@ -1458,7 +1456,7 @@ def test_resume_recent_raw_downgrades_missing_handoff_rows_to_non_resumable(tmp_
     assert parsed["projects"][0]["resume_file_reason"] == "resume file missing"
     assert parsed["projects"][0]["resumable"] is False
     assert parsed["recovery_advice"]["resume_surface_schema_version"] == 1
-    assert "compat_resume_surface" not in parsed["recovery_advice"]
+    assert "resume_surface" not in parsed["recovery_advice"]
 
 
 def test_resume_plain_output_hints_recent_when_workspace_is_missing(tmp_path: Path, monkeypatch) -> None:
@@ -2221,7 +2219,7 @@ def test_resume_plain_output_keeps_machine_change_notice_when_session_handoff_is
             "resume_candidates": [
                 {
                     "kind": "continuity_handoff",
-                    "source": "session_resume_file",
+                    "source": "handoff_resume_file",
                     "status": "handoff",
                     "resume_file": "GPD/phases/04/.continue-here.md",
                     "resumable": False,
@@ -2300,7 +2298,7 @@ def test_resume_plain_output_surfaces_missing_handoff_status(tmp_path: Path, mon
             "resume_candidates": [
                 {
                     "kind": "continuity_handoff",
-                    "source": "session_resume_file",
+                    "source": "handoff_resume_file",
                     "status": "missing",
                     "resume_file": "GPD/phases/04/.continue-here.md",
                     "resumable": False,
@@ -2339,7 +2337,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
             "project_exists": True,
             "resume_candidates": [
                 {
-                    "source": "session_resume_file",
+                    "source": "handoff_resume_file",
                     "status": "handoff",
                     "resume_file": resume_file,
                     "resumable": False,
@@ -2365,7 +2363,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     payload = json.loads(result.output)
     _assert_no_top_level_resume_aliases(payload)
     assert payload["recovery_advice"]["resume_surface_schema_version"] == 1
-    assert "compat_resume_surface" not in payload["recovery_advice"]
+    assert "resume_surface" not in payload["recovery_advice"]
     for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in payload["recovery_advice"]
     assert payload["active_resume_kind"] == "continuity_handoff"
@@ -2376,7 +2374,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     assert payload["recovery_summary"] == (
         "A continuity handoff is available, but no resumable bounded segment is currently active."
     )
-    assert "compat_resume_surface" not in payload
+    assert "resume_surface" not in payload
     assert payload.get("resume_mode_label", "none") == "none"
     assert payload["resume_candidates"][0]["origin"] == "canonical_continuation"
     assert payload["recovery_candidates"][0]["kind"] == "continuity_handoff"
@@ -2436,7 +2434,7 @@ def test_resume_raw_keeps_derived_execution_head_origin_when_only_live_snapshot_
     assert payload["resume_candidates"][0]["origin"] == "derived_execution_head"
     assert payload["recovery_candidates"][0]["origin"] == "derived_execution_head"
     assert payload["primary_recovery_target"]["origin"] == "derived_execution_head"
-    assert "compat_resume_surface" not in payload
+    assert "resume_surface" not in payload
 
 
 def test_resume_raw_keeps_derived_execution_head_origin_when_active_bounded_segment_is_projected(
@@ -2510,7 +2508,7 @@ def test_resume_raw_drops_malformed_resume_candidates_from_public_output(tmp_pat
             "project_exists": True,
             "resume_candidates": [
                 {
-                    "source": "session_resume_file",
+                    "source": "handoff_resume_file",
                     "status": "handoff",
                     "resume_file": resume_file,
                     "resumable": False,
@@ -2540,7 +2538,7 @@ def test_resume_raw_drops_malformed_resume_candidates_from_public_output(tmp_pat
     _assert_no_top_level_resume_aliases(payload)
     assert payload["resume_candidates"] == [
         {
-            "source": "session_resume_file",
+            "source": "handoff_resume_file",
             "status": "handoff",
             "resume_file": resume_file,
             "resumable": False,
@@ -2971,6 +2969,67 @@ def test_state_get_section(mock_get):
     result = runner.invoke(app, ["state", "get", "position"])
     assert result.exit_code == 0
     mock_get.assert_called_once()
+
+
+def test_state_get_include_returns_structured_sections_from_canonical_state(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["current_phase"] = "03"
+    state["position"]["current_phase_name"] = "verification"
+    state["continuation"] = {
+        "handoff": {
+            "recorded_at": "2026-04-25T12:00:00+00:00",
+            "stopped_at": "Phase 03 Plan 2",
+            "resume_file": "NEXT.md",
+            "last_result_id": "R-03-02",
+        },
+        "machine": {
+            "hostname": "workstation",
+            "platform": "Darwin arm64",
+            "recorded_at": "2026-04-25T12:00:00+00:00",
+        },
+    }
+    save_state_json(tmp_path, state)
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "state", "get", "--include", "position,session,continuation,handoff"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["position"]["current_phase"] == "03"
+    assert payload["session"]["hostname"] == "workstation"
+    assert payload["session"]["resume_file"] == "NEXT.md"
+    assert payload["continuation"]["handoff"]["last_result_id"] == "R-03-02"
+    assert payload["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert "session" not in payload["continuation"]
+
+
+def test_state_get_include_rejects_unknown_sections(tmp_path: Path) -> None:
+    save_state_json(tmp_path, default_state_dict())
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "state", "get", "--include", "position,unknown"],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stderr)
+    assert "Unknown --include value for state get: unknown" in payload["error"]
+
+
+def test_state_get_include_rejects_positional_section(tmp_path: Path) -> None:
+    save_state_json(tmp_path, default_state_dict())
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "state", "get", "position", "--include", "continuation"],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stderr)
+    assert "state get accepts either a positional section or --include, not both" in payload["error"]
 
 
 @patch("gpd.core.state.state_get")
@@ -5383,7 +5442,7 @@ def test_observe_execution_raw_reads_local_visibility_snapshot(tmp_path: Path) -
     assert any("gpd observe show --session cli-session-1 --last 20" in step for step in payload["suggested_next_steps"])
 
 
-def test_observe_execution_raw_prefers_lineage_head_over_legacy_current_execution_snapshot(
+def test_observe_execution_raw_prefers_lineage_head_over_stale_current_execution_snapshot(
     tmp_path: Path,
 ) -> None:
     observability = tmp_path / "GPD" / "observability"
@@ -5391,11 +5450,11 @@ def test_observe_execution_raw_prefers_lineage_head_over_legacy_current_executio
     (observability / "current-execution.json").write_text(
         json.dumps(
             {
-                "session_id": "legacy-session",
+                "session_id": "stale-session",
                 "phase": "09",
                 "plan": "02",
                 "segment_status": "paused",
-                "current_task": "Legacy snapshot task",
+                "current_task": "Stale snapshot task",
                 "updated_at": "2026-03-27T12:01:00+00:00",
             }
         ),
@@ -5421,7 +5480,7 @@ def test_observe_execution_raw_prefers_lineage_head_over_legacy_current_executio
     assert payload["current_task"] == "Lineage head task"
     assert payload["current_execution"]["current_task"] == "Lineage head task"
     assert payload["current_execution"]["segment_status"] == "blocked"
-    assert payload["current_task"] != "Legacy snapshot task"
+    assert payload["current_task"] != "Stale snapshot task"
 
 
 def test_observe_execution_human_output_keeps_waiting_state_distinct_from_possibly_stalled(tmp_path: Path) -> None:
@@ -6112,6 +6171,114 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert kwargs["enrich_bibliography"] is True
 
 
+@pytest.mark.parametrize(
+    (
+        "extra_args",
+        "expected_sidecar",
+        "expected_manifest_override",
+        "expected_audit_override",
+        "result_manifest",
+        "result_audit",
+        "payload_sidecar",
+    ),
+    [
+        (
+            [],
+            ".paper-meta",
+            None,
+            None,
+            ".paper-meta/ARTIFACT-MANIFEST.json",
+            ".paper-meta/BIBLIOGRAPHY-AUDIT.json",
+            "./paper/.paper-meta",
+        ),
+        (
+            ["--with-provenance"],
+            ".paper-meta",
+            "ARTIFACT-MANIFEST.json",
+            None,
+            "ARTIFACT-MANIFEST.json",
+            ".paper-meta/BIBLIOGRAPHY-AUDIT.json",
+            "./paper/.paper-meta",
+        ),
+        (
+            ["--with-audits"],
+            ".paper-meta",
+            None,
+            "BIBLIOGRAPHY-AUDIT.json",
+            ".paper-meta/ARTIFACT-MANIFEST.json",
+            "BIBLIOGRAPHY-AUDIT.json",
+            "./paper/.paper-meta",
+        ),
+        (
+            ["--with-provenance", "--with-audits"],
+            None,
+            "ARTIFACT-MANIFEST.json",
+            "BIBLIOGRAPHY-AUDIT.json",
+            "ARTIFACT-MANIFEST.json",
+            "BIBLIOGRAPHY-AUDIT.json",
+            None,
+        ),
+    ],
+)
+def test_paper_build_sidecar_flags_promote_only_the_requested_file(
+    tmp_path: Path,
+    extra_args: list[str],
+    expected_sidecar: str | None,
+    expected_manifest_override: str | None,
+    expected_audit_override: str | None,
+    result_manifest: str,
+    result_audit: str,
+    payload_sidecar: str | None,
+) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def paper_path(relative_path: str | None) -> Path | None:
+        return (paper_dir / relative_path).resolve(strict=False) if relative_path is not None else None
+
+    result_payload = MagicMock()
+    result_payload.tex_path = paper_dir / "configured_paper.tex"
+    result_payload.manifest_path = paper_path(result_manifest)
+    result_payload.bibliography_audit_path = paper_path(result_audit)
+    result_payload.bibliography_audit = None
+    result_payload.reference_bibtex_keys = {}
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", *extra_args],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["manifest_path"] == f"./paper/{result_manifest}"
+    assert payload["bibliography_audit_path"] == f"./paper/{result_audit}"
+    assert payload["mode"]["sidecar_root"] == payload_sidecar
+
+    kwargs = mock_build.await_args.kwargs
+    assert kwargs["sidecar_root"] == paper_path(expected_sidecar)
+    assert kwargs["artifact_manifest_output_path"] == paper_path(expected_manifest_override)
+    assert kwargs["bibliography_audit_output_path"] == paper_path(expected_audit_override)
+    assert kwargs["emit_artifact_manifest"] is True
+    assert kwargs["emit_bibliography_audit"] is True
+
+
 def test_paper_build_rejects_ambiguous_supported_config_roots_without_a_resolved_manuscript(tmp_path: Path) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
@@ -6274,7 +6441,7 @@ def test_validate_paper_quality_from_project_rejects_missing_manuscript_root(tmp
     )
 
 
-def test_paper_build_does_not_discover_legacy_planning_configs(tmp_path: Path, capsys) -> None:
+def test_paper_build_does_not_discover_internal_planning_configs(tmp_path: Path, capsys) -> None:
     planning_paper_dir = tmp_path / "GPD" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (planning_paper_dir / "PAPER-CONFIG.json").write_text(
@@ -6301,7 +6468,7 @@ def test_paper_build_does_not_discover_legacy_planning_configs(tmp_path: Path, c
     assert "GPD/paper" not in payload["error"]
 
 
-def test_paper_build_rejects_explicit_legacy_planning_config_path(tmp_path: Path, capsys) -> None:
+def test_paper_build_rejects_explicit_internal_planning_config_path(tmp_path: Path, capsys) -> None:
     planning_paper_dir = tmp_path / "GPD" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (planning_paper_dir / "PAPER-CONFIG.json").write_text(
@@ -6327,7 +6494,7 @@ def test_paper_build_rejects_explicit_legacy_planning_config_path(tmp_path: Path
     assert "are not supported" in payload["error"]
 
 
-def test_paper_build_rejects_explicit_legacy_hidden_planning_config_path(tmp_path: Path, capsys) -> None:
+def test_paper_build_rejects_explicit_hidden_internal_planning_config_path(tmp_path: Path, capsys) -> None:
     planning_paper_dir = tmp_path / ".gpd" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (tmp_path / ".gpd" / "state.json").write_text("{}\n", encoding="utf-8")
@@ -7266,7 +7433,7 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
     assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"
 
 
-def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_when_literature_is_missing(
+def test_paper_build_ignores_research_citation_sources_sidecar_when_literature_is_missing(
     tmp_path: Path,
 ) -> None:
     nested_cwd = tmp_path / "notes"
@@ -7293,9 +7460,9 @@ def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_whe
         json.dumps(
             [
                 {
-                    "reference_id": "ref-legacy",
+                    "reference_id": "ref-current",
                     "source_type": "paper",
-                    "title": "Legacy Reference",
+                    "title": "Current Reference",
                     "authors": ["A. Author"],
                     "year": "2023",
                 }
@@ -7319,10 +7486,9 @@ def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_whe
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["citation_sources_path"] == "../GPD/research/topic-CITATION-SOURCES.json"
+    assert payload["citation_sources_path"] == ""
     assert any("temporary directory" in warning for warning in payload["warnings"])
-    assert mock_build.await_args.kwargs["citation_sources"] is not None
-    assert mock_build.await_args.kwargs["citation_sources"][0].title == "Legacy Reference"
+    assert mock_build.await_args.kwargs["citation_sources"] is None
 
 
 def test_paper_build_warns_when_multiple_literature_citation_sidecars_exist(tmp_path: Path) -> None:

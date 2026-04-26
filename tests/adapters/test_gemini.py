@@ -285,12 +285,10 @@ class TestConvertToGeminiToml:
 
 
 class TestRewriteGeminiShellWorkflowGuidance:
-    def test_rewrites_updated_set_profile_block_with_reentry_comment_and_flag(self) -> None:
+    def test_rewrites_updated_set_profile_block_with_reentry_flag(self) -> None:
         content = (
             "```bash\n"
             "gpd config ensure-section\n"
-            "# Compatibility note for installer text checks:\n"
-            "# INIT=$(gpd --raw init progress --include state,config)\n"
             "INIT=$(gpd --raw init progress --include state,config --no-project-reentry)\n"
             "if [ $? -ne 0 ]; then\n"
             '  echo "ERROR: gpd initialization failed: $INIT"\n'

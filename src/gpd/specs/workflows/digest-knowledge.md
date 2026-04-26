@@ -53,7 +53,7 @@ Parse JSON for:
 Read mode settings if needed for authoring depth:
 
 ```bash
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "supervised")
 RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
@@ -75,7 +75,7 @@ Classification rules:
 - supported `source_path` suffixes include `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when supplied explicitly
 - read `.md`, `.txt`, `.csv`, and `.tsv` directly as source surfaces
 - for `.pdf`, `.docx`, and `.xlsx`, first derive a working text surface with `gpd validate artifact-text <path> --output <txt-path>` and use that text output for drafting while keeping the original artifact path as the canonical source reference
-- `arxiv_id` means a modern or legacy arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
+- `arxiv_id` means an arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
   - modern example: `2401.12345` or `2401.12345v2`
   - legacy example: `hep-th/9901001`
 - `topic` means a free-form subject string that is not already an explicit file or arXiv target
@@ -181,7 +181,7 @@ If creating a new doc, initialize it as `status: draft`.
 <step name="validate_schema">
 Validate the generated markdown against the strict `knowledge` schema before considering the task complete.
 
-Use the repo's frontmatter validator against the final file:
+Use the GPD frontmatter validator against the final file:
 
 ```bash
 gpd frontmatter validate GPD/knowledge/{knowledge_id}.md --schema knowledge

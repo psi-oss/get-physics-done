@@ -826,7 +826,7 @@ class PaperToolchainCapability(BaseModel):
         bibtex_available = self.bibtex_available is True
         latexmk_available = self.latexmk_available is True
         kpsewhich_available = self.kpsewhich_available is True
-        # pdftotext_available is retained for backward compatibility but PDF
+        # Keep pdftotext_available as the toolchain-status field; PDF
         # extraction now uses pypdf instead of the pdftotext binary.
         # pdf_review_ready is set by the caller (e.g. detect_latex_toolchain)
         # based on pypdf availability; it is preserved here if already set.

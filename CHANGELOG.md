@@ -4,6 +4,24 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+## v1.2.0
+
+### Supervised by default
+
+- **Defaults flipped to supervised + dense.** New projects start with `autonomy=supervised`, `review_cadence=dense`, `checkpoint_after_n_tasks=1`, and tighter unattended budgets (15 min/plan, 30 min/wave). The "scalpel, not autopilot" framing is surfaced across `README.md`, `start`, `tour`, `help`, and `settings`.
+- **Shallow roadmap on `gpd:new-project` standard mode.** Phase 1 is fully detailed; Phases 2+ ship as one-line stubs that are expanded on demand via `gpd:plan-phase N`. The standard-mode "Next Up" recommends `plan-phase 1` directly. `--minimal` stays opt-in.
+- **`review_cadence=dense` unconditionally forces the first-result gate** on every wave, even when the executor forgets to mark a result load-bearing. Closes the "executor mislabels a result" silent-failure trap. Config validator rejects `dense` paired with `checkpoint_after_first_load_bearing_result=false` so the invariant cannot be silently disabled.
+- **Claim↔deliverable alignment precheck** before `execute-phase` spawns workers. New `<step name="claim_deliverable_alignment_check">` renders user intent next to the machine contract and gates execution on a single `ask_user` (4-option Y/e/p/n, Enter = Y). Confirmation persists by `(contract_hash, context_hash)` so re-runs in the same session don't re-prompt unless the contract or `CONTEXT.md` changes.
+- **`gpd progress --watch` heartbeat.** Polls the execution-state and lineage signal files and redraws via `rich.live.Live` (TTY) or one JSON object per tick (pipes). New `--interval` and `--exit-on-idle` flags. Clean Ctrl-C exit.
+- **`gpd:record-backtrack` command + planner consultation.** Captures "why did we have to backtrack?" rows to `GPD/BACKTRACKS.md` with an 11-column schema (date, phase, stage, trigger, produced, why_wrong, counter_action, category, confidence, promote, reverted_commit). The planner consults the file before each planning decision under the same context-budget discipline as INSIGHTS.md. Rows flagged `promote: true` are auto-copied into `INSIGHTS.md`'s `## Execution Deviations` section. `gpd:undo` offers inline capture as a `[Y/n/e]` post-step with `--reverted-commit` / `--trigger` flags handed off through a real `Skill` invocation.
+- **`[Y/n/e]` Enter-is-accept convention** unified across every `checkpoint:human-verify` surface. Enter / Y accepts the recommended action, `n` rejects, `e` opens a freeform edit. New canonical reference doc `specs/references/orchestration/checkpoint-ux-convention.md` documents the idiom, the one-line summary contract, and the carve-outs that intentionally do not collapse to a single keystroke (decisions, convention lock, destructive rails, claim↔deliverable precheck, first-result gate, pre-fanout review, blocker triage, `checkpoint:human-action`). Render template now shows a `Summary:` one-liner with `press v to expand` for the full verification checklist.
+- **Clean-pass wave batching under `review_cadence=dense`.** Under `autonomy=supervised AND review_cadence=dense`, a wave whose tasks all complete with no deviation collapses its per-task `checkpoint:human-verify` emissions into one batch `Approve tasks N..M as clean pass? [Y/n/e]`. Any deviation, failed verification, or triggered gate immediately reverts the wave to per-task checkpoints — batching collapses keystrokes, not gates.
+- **`gpd contract` CLI subcommand group**: `record-alignment`, `alignment-status`, `fingerprint`, `context-fingerprint` (auto-resolves the active phase's CONTEXT.md when called with no path), and `alignment-summary`. The execute-phase precheck reads and writes alignment state through these commands.
+- **All five workflow presets** (`core-research`, `theory`, `numerics`, `publication-manuscript`, `full-research`) updated to inherit the new supervised/dense defaults instead of pinning `autonomy=balanced` + a mix of `review_cadence` values. Picking "Core research (Recommended)" no longer silently weakens the project default.
+- **Per-segment snapshot cadence override** is now an intentional escalation hook in `observability.py`: a workflow that emits `execution.review_cadence` on a prior event takes precedence over the policy read from `GPD/config.json`, allowing a future high-stakes segment to request dense mid-execution without a config rewrite.
+
+### Other fixes
+
 - feat(paper): Tectonic TeX engine support. When `tectonic` is on PATH (or installed at the common Windows locations under `%LOCALAPPDATA%\Programs\Tectonic\` or `~/.cargo/bin/`), GPD uses it as the preferred compiler and skips the separate pdflatex + bibtex + latexmk stack — Tectonic handles bibliography and multi-pass internally. pdflatex remains the fallback.
 - feat(pdf): Replace the system `pdftotext` binary dependency with the `pypdf` Python library (BSD-3-Clause). Install via `pip install 'get-physics-done[arxiv]'`. The `.txt` companion-file fallback for PDF peer-review intake is unchanged.
 - feat(opencode): The OpenCode install adapter now rewrites bare `gpd:command` references to `gpd-command` in installed command markdown so the runtime sees the correct canonical command names. The "dollar prefixes" phrase in the help workflow was removed to avoid implying OpenCode uses `$gpd-` syntax.
@@ -19,10 +37,6 @@ All notable changes to Get Physics Done are documented here.
 - Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
 - fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 - Fix silent data loss in state normalization: malformed list entries (e.g., approximations with missing `name` field) now remove only the invalid entry instead of stripping the entire section.
-- Add result-consistency health check that cross-validates `state.json` intermediate results against SUMMARY.md `provides` frontmatter and warns on mismatches, with guards against empty-string false matches, short-string over-matching, and malformed state records.
-- Fix Windows test compatibility: cross-platform absolute paths in MCP tests, `shlex.quote`-aware assertions, `encoding="utf-8"` on `read_text()`, POSIX display paths in CLI/git_ops, permission/LaTeX/tilde/bash test portability, and schema pattern alignment.
-- Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
-- fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 - Fix agent docs: `approximation add` and `uncertainty add` use positional arguments, not `--name`/`--quantity` flags (agent-infrastructure.md, sensitivity-analysis.md, error-propagation.md).
 - Fix catastrophic state reset: `_normalize_state_schema({})` now emits the integrity sentinel that triggers backup recovery, preventing silent data loss when `state.json` contains an empty object.
 - Auto-migrate `ROADMAP.md` and `PROJECT.md` from workspace root into `GPD/` on first command, so files placed at the root are found by all GPD operations.

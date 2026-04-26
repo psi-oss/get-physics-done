@@ -19,6 +19,7 @@ from gpd.core.config import (
     ResearchMode,
     ReviewCadence,
     _valid_runtime_names,
+    apply_config_update,
     load_config,
     resolve_agent_tier,
     resolve_model,
@@ -103,20 +104,102 @@ class TestGPDProjectConfigDefaults:
     def test_defaults(self):
         cfg = GPDProjectConfig()
         assert cfg.model_profile == ModelProfile.REVIEW
-        assert cfg.autonomy == AutonomyMode.BALANCED
-        assert cfg.review_cadence == ReviewCadence.ADAPTIVE
+        assert cfg.autonomy == AutonomyMode.SUPERVISED
+        assert cfg.review_cadence == ReviewCadence.DENSE
         assert cfg.research_mode == ResearchMode.BALANCED
         assert cfg.commit_docs is True
         assert cfg.parallelization is True
-        assert cfg.max_unattended_minutes_per_plan == 45
-        assert cfg.max_unattended_minutes_per_wave == 90
-        assert cfg.checkpoint_after_n_tasks == 3
+        assert cfg.max_unattended_minutes_per_plan == 15
+        assert cfg.max_unattended_minutes_per_wave == 30
+        assert cfg.checkpoint_after_n_tasks == 1
         assert cfg.checkpoint_after_first_load_bearing_result is True
         assert cfg.checkpoint_before_downstream_dependent_tasks is True
         assert cfg.project_usd_budget is None
         assert cfg.session_usd_budget is None
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_overrides is None
+
+
+# ─── Dense cadence forces first-result gate ────────────────────────────────────
+
+
+class TestDenseCadenceForcesFirstResultGate:
+    def test_dense_cadence_with_disabled_gate_rejects_config(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "dense",
+                    "checkpoint_after_first_load_bearing_result": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ConfigError,
+            match=r"review_cadence=dense requires checkpoint_after_first_load_bearing_result=true",
+        ):
+            load_config(tmp_path)
+
+    def test_apply_config_update_rejects_dense_with_disabled_first_result_gate(
+        self,
+    ) -> None:
+        """Write-path: setting checkpoint_after_first_load_bearing_result=False
+        on a dense config must fail through apply_config_update, not only
+        through load_config."""
+        raw: dict[str, object] = {"review_cadence": "dense"}
+        with pytest.raises(
+            ConfigError,
+            match=r"review_cadence=dense requires checkpoint_after_first_load_bearing_result=true",
+        ):
+            apply_config_update(raw, "checkpoint_after_first_load_bearing_result", False)
+
+    def test_apply_config_update_rejects_dense_cadence_on_disabled_gate_config(
+        self,
+    ) -> None:
+        """Inverse of the above: setting review_cadence=dense on a config
+        that already has first-result gate disabled must also fail."""
+        raw: dict[str, object] = {"checkpoint_after_first_load_bearing_result": False}
+        with pytest.raises(
+            ConfigError,
+            match=r"review_cadence=dense requires checkpoint_after_first_load_bearing_result=true",
+        ):
+            apply_config_update(raw, "review_cadence", "dense")
+
+    def test_dense_cadence_with_enabled_gate_loads_cleanly(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "dense",
+                    "checkpoint_after_first_load_bearing_result": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.review_cadence == ReviewCadence.DENSE
+        assert cfg.checkpoint_after_first_load_bearing_result is True
+
+    def test_non_dense_cadence_permits_disabled_gate(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "review_cadence": "adaptive",
+                    "checkpoint_after_first_load_bearing_result": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.review_cadence == ReviewCadence.ADAPTIVE
+        assert cfg.checkpoint_after_first_load_bearing_result is False
 
 
 # ─── load_config ────────────────────────────────────────────────────────────────
@@ -212,6 +295,37 @@ class TestLoadConfig:
         assert cfg.branching_strategy == BranchingStrategy.PER_PHASE
         assert cfg.research is False
         assert cfg.verifier is False
+
+    def test_execution_preferences_string_booleans_use_model_validation(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps(
+                {
+                    "strict_wait": "false",
+                    "execution_preferences": {
+                        "never_interrupt_running_workers": "true",
+                        "never_auto_close_child_agents": False,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.execution_preferences.strict_wait is False
+        assert cfg.execution_preferences.never_interrupt_running_workers is True
+        assert cfg.execution_preferences.never_auto_close_child_agents is False
+
+    def test_execution_preferences_invalid_boolean_string_raises_config_error(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps({"execution_preferences": {"strict_wait": "definitely"}}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigError, match="Invalid config.json values"):
+            load_config(tmp_path)
 
     def test_identical_root_and_nested_aliases_are_accepted(self, tmp_path: Path) -> None:
         (tmp_path / "GPD").mkdir()

@@ -8,11 +8,11 @@ GPD supports three execution modes, each mapped to an `autonomy` setting in `GPD
 
 | Execution Mode                   | Autonomy Setting | Behavior                                                                 |
 | -------------------------------- | ---------------- | ------------------------------------------------------------------------ |
-| **Manual** (default)             | `supervised`     | Pause after every phase. User explicitly invokes each next step.         |
-| **Continuous**                   | `yolo`           | Auto-advance through phases without pause unless a hard checkpoint fires.|
+| **Supervised** (default)         | `supervised`     | Pause after every phase and show required review gates for approval.     |
 | **Continuous-with-checkpoints**  | `balanced`       | Auto-advance through safe phases; pause at structured review boundaries. |
+| **Continuous**                   | `yolo`           | Auto-advance through phases without pause unless a hard checkpoint fires.|
 
-### Manual Mode (`supervised`)
+### Supervised Mode (`supervised`)
 
 Every phase completion pauses. The assistant prints the status block (see Checkpoint Pause Format below) and waits for the user to invoke the next command. This is the safest mode for exploratory or high-stakes research where every intermediate result needs human judgment.
 
@@ -22,11 +22,11 @@ The assistant auto-advances through all phases that do not hit a hard checkpoint
 
 ### Continuous-with-Checkpoints Mode (`balanced`)
 
-The default autonomy setting. The assistant auto-advances through phases that are safe to continue (see Safe Auto-Advance Phases below). At structured checkpoint boundaries, execution pauses for review. This balances throughput with research quality control.
+This is an explicit opt-in after the user leaves the default `supervised` posture. The assistant auto-advances through phases that are safe to continue (see Safe Auto-Advance Phases below). At structured checkpoint boundaries, execution pauses for review. This balances throughput with research quality control.
 
 ## Safe Auto-Advance Phases
 
-The following phase transitions are safe to auto-advance without human review, regardless of execution mode:
+The following phase transitions are eligible for auto-advance in `balanced` or `yolo`. In `supervised`, they still pause because the default posture is explicit review:
 
 - **Literature review completion** -> next phase (results are additive, not load-bearing for correctness)
 - **Formalism setup completion** -> execution phases (conventions and notation are committed, verifiable from artifacts)
@@ -131,7 +131,7 @@ The mapping between autonomy modes and execution behavior:
 | `balanced`  | Auto-advance safe phases            | Always pause     | Pause per `review_cadence` |
 | `yolo`      | Auto-advance all phases             | Always pause     | Auto-continue              |
 
-**`review_cadence` interaction:** Within the `balanced` mode, `review_cadence` controls the density of soft checkpoints (wave-level review gates). `dense` inserts more wave-boundary pauses; `sparse` reduces them. Hard checkpoints are never affected by `review_cadence`.
+**`review_cadence` interaction:** `review_cadence` is independent of autonomy: it controls the density of soft checkpoints (wave-level review gates). Under the default `supervised` + `dense` posture, those gates are shown for approval. `balanced` may auto-advance only where cadence and hard-checkpoint rules do not require a pause; `yolo` may auto-continue soft gates only after they are explicitly cleared. Hard checkpoints are never affected by `review_cadence`.
 
 **`checkpoint_after_n_tasks` interaction:** This config value controls task-level checkpoints within plan execution. It operates independently of the phase-level checkpoint protocol defined here. Both systems can fire checkpoints; neither overrides the other.
 

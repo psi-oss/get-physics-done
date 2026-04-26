@@ -31,12 +31,12 @@ Keep `project_contract`, `project_contract_load_info`, `project_contract_validat
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "supervised")
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each audit criterion for user discussion of gaps.
-- `autonomy=balanced` (default): Complete the full audit and generate a gap-closure plan when needed. Pause only if critical gaps or milestone-scope questions need user judgment.
+- `autonomy=supervised` (default): Pause after each audit criterion for user discussion of gaps.
+- `autonomy=balanced`: Complete the full audit and generate a gap-closure plan when needed. Pause only if critical gaps or milestone-scope questions need user judgment.
 - `autonomy=yolo`: Complete audit, auto-approve milestone if > 80% criteria met.
 
 Run centralized context preflight before continuing:

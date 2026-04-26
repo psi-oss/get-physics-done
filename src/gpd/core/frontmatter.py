@@ -887,14 +887,14 @@ def compute_knowledge_reviewed_content_sha256(
     return _sha256_text(encoded)
 
 
-def _compat_knowledge_reviewed_content_projection(
+def _knowledge_reviewed_content_projection_adapter(
     knowledge_doc_or_content: object,
     *,
     body_text: str = "",
     meta: dict[str, object] | None = None,
     body: str | None = None,
 ) -> dict[str, object]:
-    """Compatibility wrapper for the knowledge-doc projection helper."""
+    """Adapter for the public knowledge-doc projection helper."""
 
     normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
         knowledge_doc_or_content,
@@ -906,7 +906,7 @@ def _compat_knowledge_reviewed_content_projection(
 
 
 _knowledge_docs.compute_knowledge_reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256
-_knowledge_docs.knowledge_reviewed_content_projection = _compat_knowledge_reviewed_content_projection
+_knowledge_docs.knowledge_reviewed_content_projection = _knowledge_reviewed_content_projection_adapter
 
 
 def _resolve_contract_artifact_path(

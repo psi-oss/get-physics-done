@@ -576,7 +576,7 @@ def _write_structured_state_payload(tmp_path: Path) -> None:
             "verified": True,
             "verification_records": [{"verifier": "auditor", "method": "manual", "confidence": "high"}],
         },
-        "legacy markdown bullet",
+        "stale markdown bullet",
     ]
     state["approximations"] = [
         {
@@ -1115,8 +1115,8 @@ class TestLoadConfig:
     def test_defaults_when_no_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         config = load_config(tmp_path)
-        assert config["autonomy"] == "balanced"
-        assert config["review_cadence"] == "adaptive"
+        assert config["autonomy"] == "supervised"
+        assert config["review_cadence"] == "dense"
         assert config["research_mode"] == "balanced"
         assert config["commit_docs"] is True
         assert config["parallelization"] is True
@@ -1178,7 +1178,7 @@ class TestInitExecutePhase:
         assert ctx["plan_count"] == 1
         assert ctx["incomplete_count"] == 0
         assert ctx["state_exists"] is False
-        assert ctx["review_cadence"] == "adaptive"
+        assert ctx["review_cadence"] == "dense"
         assert ctx["checkpoint_after_first_load_bearing_result"] is True
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
@@ -1655,7 +1655,7 @@ class TestInitPlanPhase:
         assert "K-work-in-progress" not in ctx["active_reference_context"]
         assert "non-stable knowledge doc(s) remain inventory-visible only" in ctx["active_reference_context"]
 
-    def test_prefers_literature_review_files_over_legacy_research_when_both_exist(
+    def test_prefers_literature_review_files_over_stale_research_when_both_exist(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1686,17 +1686,17 @@ class TestInitPlanPhase:
 
         research_dir = tmp_path / "GPD" / "research"
         research_dir.mkdir()
-        (research_dir / "legacy-REVIEW.md").write_text(
-            "# Legacy Review\n\nLegacy details.\n",
+        (research_dir / "stale-REVIEW.md").write_text(
+            "# Stale Review\n\nStale details.\n",
             encoding="utf-8",
         )
-        (research_dir / "legacy-CITATION-SOURCES.json").write_text(
+        (research_dir / "stale-CITATION-SOURCES.json").write_text(
             json.dumps(
                 [
                     {
-                        "reference_id": "ref-legacy",
+                        "reference_id": "ref-stale",
                         "source_type": "paper",
-                        "title": "Legacy Reference",
+                        "title": "Stale Reference",
                         "authors": ["A. Author"],
                         "year": "2024",
                     }
@@ -1710,8 +1710,8 @@ class TestInitPlanPhase:
         assert ctx["literature_review_files"] == ["GPD/literature/canonical-REVIEW.md"]
         assert ctx["citation_source_files"] == ["GPD/literature/canonical-CITATION-SOURCES.json"]
         assert "Canonical details." in ctx["reference_artifacts_content"]
-        assert "Legacy details." not in ctx["reference_artifacts_content"]
-        assert "GPD/research/legacy-REVIEW.md" not in ctx["reference_artifact_files"]
+        assert "Stale details." not in ctx["reference_artifacts_content"]
+        assert "GPD/research/stale-REVIEW.md" not in ctx["reference_artifact_files"]
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1841,19 +1841,23 @@ class TestInitPlanPhase:
         contract_payload["scope"]["in_scope"] = ["numerical relativity", "benchmark alignment"]
         contract = ResearchContract.model_validate(contract_payload)
 
+        # Mock at the state-module loader (the actual underlying call site).
+        # The earlier wrapper-level mock on gpd.core.context._load_project_contract
+        # was unreliable across platforms — Linux CI resolved the bare-name call
+        # in _build_reference_runtime_context to the original wrapper body
+        # despite a successful monkeypatch.setattr. Patching the underlying
+        # loader is robust because every entry point bottoms out there.
+        load_info = {
+            "status": "loaded",
+            "source_path": "GPD/state.json",
+            "provenance": "fallback",
+            "raw_project_contract_classified": False,
+            "errors": [],
+            "warnings": [],
+        }
         monkeypatch.setattr(
-            "gpd.core.context._load_project_contract",
-            lambda cwd: (
-                contract,
-                {
-                    "status": "loaded",
-                    "source_path": "GPD/state.json",
-                    "provenance": "fallback",
-                    "raw_project_contract_classified": False,
-                    "errors": [],
-                    "warnings": [],
-                },
-            ),
+            "gpd.core.state._load_project_contract_for_runtime_context",
+            lambda cwd: (contract, dict(load_info)),
         )
 
         ctx = init_progress(tmp_path)
@@ -3089,7 +3093,7 @@ class TestInitResume:
             }
         ]
         assert "source" not in ctx["resume_candidates"][0]
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
     def test_resume_prefers_explicit_gpd_workspace_over_recent_project(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
@@ -3170,7 +3174,7 @@ class TestInitResume:
         assert ctx["active_bounded_segment"]["segment_id"] == "seg-4"
         assert ctx["derived_execution_head"]["segment_id"] == "seg-4"
         _assert_no_resume_compat_aliases(ctx)
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
         assert "segment_candidates" not in ctx
         assert ctx["resume_candidates"][0]["kind"] == "bounded_segment"
         assert ctx["resume_candidates"][0]["origin"] == "continuation.bounded_segment"
@@ -3214,7 +3218,7 @@ class TestInitResume:
         assert ctx["resume_candidates"][0]["last_result_id"] == "result-canonical"
         assert ctx["resume_candidates"][0]["last_result"]["id"] == "result-canonical"
         assert ctx["active_resume_result"]["id"] == "result-canonical"
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
     def test_normalizes_live_execution_phase_plan_and_checkpoint_reason(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3338,9 +3342,9 @@ class TestInitResume:
         assert "segment_candidates" not in ctx
         assert ctx["resume_candidates"] == []
         assert "active_execution_segment" not in ctx
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
-    def test_session_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
+    def test_handoff_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict
 
@@ -3348,8 +3352,8 @@ class TestInitResume:
         state["session"] = {
             "resume_file": "GPD/phases/03-analysis/.continue-here.md",
             "stopped_at": "2026-03-10T12:00:00+00:00",
-            "hostname": "legacy-host",
-            "platform": "legacy-platform",
+            "hostname": "stale-host",
+            "platform": "stale-platform",
         }
         resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
         resume_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3370,7 +3374,7 @@ class TestInitResume:
         assert ctx["session_last_date"] is None
         assert ctx["session_stopped_at"] is None
         assert ctx["resume_candidates"] == []
-        assert "compat_resume_surface" not in ctx
+        assert "resume_surface" not in ctx
 
     def test_init_resume_does_not_recover_intent_during_read_only_discovery(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3396,8 +3400,8 @@ class TestInitResume:
         state = default_state_dict()
         state["continuation"]["handoff"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
         state["continuation"]["handoff"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
-        state["continuation"]["machine"]["hostname"] = "legacy-host"
-        state["continuation"]["machine"]["platform"] = "legacy-platform"
+        state["continuation"]["machine"]["hostname"] = "stale-host"
+        state["continuation"]["machine"]["platform"] = "stale-platform"
         resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
         resume_path.parent.mkdir(parents=True, exist_ok=True)
         resume_path.write_text("resume\n", encoding="utf-8")
@@ -4144,7 +4148,7 @@ class TestInitProgress:
         assert ctx["init_root_policy"] == "workspace_locked"
         assert "project_reentry_mode" not in ctx
 
-    def test_progress_rejects_legacy_autonomy_values(self, tmp_path: Path) -> None:
+    def test_progress_rejects_stale_autonomy_values(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"autonomy": "guided"})
 
@@ -4413,7 +4417,14 @@ class TestInitProgress:
         assert {
             key: value
             for key, value in ctx["project_contract_gate"].items()
-            if key not in {"provenance", "raw_project_contract_classified"}
+            if key
+            not in {
+                "provenance",
+                "raw_project_contract_classified",
+                "confirmed_at",
+                "confirmed_contract_hash",
+                "confirmed_context_hash",
+            }
         } == {
             "status": "blocked_schema",
             "visible": False,
@@ -4758,3 +4769,44 @@ class TestInitPhaseOp:
             ),
         ):
             init_research_phase(tmp_path, phase="1", stage="research_handoff")
+
+
+# ─── contract_alignment surfacing on gate dicts ───────────────────────────────
+
+
+def test_context_reference_builder_surfaces_alignment_on_gate_dict(tmp_path: Path) -> None:
+    """init_progress surfaces recorded alignment hashes on project_contract_gate."""
+    from gpd.core.state import state_record_contract_alignment
+
+    _setup_project(tmp_path)
+    _write_project_contract_state(tmp_path)
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:contract-hash",
+        context_hash="sha256:context-hash",
+        now="2026-04-23T12:00:00+00:00",
+    )
+
+    ctx = init_progress(tmp_path)
+    gate = ctx["project_contract_gate"]
+    assert gate["confirmed_at"] == "2026-04-23T12:00:00+00:00"
+    assert gate["confirmed_contract_hash"] == "sha256:contract-hash"
+    assert gate["confirmed_context_hash"] == "sha256:context-hash"
+
+
+def test_context_new_project_builder_omits_alignment_keys(tmp_path: Path) -> None:
+    """init_new_project without recorded alignment omits the three alignment keys.
+
+    The new-project builder passes ``state_obj=None`` when assembling the
+    project_contract_gate payload (Wave A contract). Because no state object
+    sources the fields, the three alignment keys are absent from the gate by
+    design — not present-with-None. This test pins that behaviour so regressions
+    that start leaking None placeholders into the gate dict get caught early.
+    """
+    ctx = init_new_project(tmp_path)
+    assert "project_contract_gate" in ctx
+    gate = ctx["project_contract_gate"]
+    assert isinstance(gate, dict)
+    assert "confirmed_at" not in gate
+    assert "confirmed_contract_hash" not in gate
+    assert "confirmed_context_hash" not in gate

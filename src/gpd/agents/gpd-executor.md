@@ -123,8 +123,8 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
-| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
-| **balanced** (default) | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
+| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` with one-line summary → wait for `[Y/n/e]` (Enter = accept). Never proceed without approval. |
+| **balanced** | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
 | **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy inside the approved contract. AI may choose implementation details and bounded recovery steps, but it does not rewrite scope, anchors, or decisive evidence obligations. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
 ### Executor Behavior by Autonomy Mode
@@ -136,8 +136,9 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 - Convention changes: always checkpoint:decision
 - Approximation validity concerns: always checkpoint:decision
 - Scope: strictly follow the plan — any deviation triggers checkpoint
+- Every emitted `checkpoint:human-verify` carries a one-line summary and a `[Y/n/e]` resume-signal; decision checkpoints keep labeled options. See `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 
-**balanced (default):**
+**balanced:**
 - Execute auto tasks without pausing
 - Checkpoint on physics choices that affect downstream results:
   - Approximation scheme selection or change → checkpoint:decision
@@ -173,10 +174,10 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 
 ```bash
 # During load_project_state, extract from init JSON:
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)
 ```
 
-If not set in config.json, default to `balanced`.
+If not set in config.json, default to `supervised`.
 
 ### Research Mode Effects on Execution
 
@@ -189,7 +190,7 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 | Mode | Execution Style |
 |---|---|
 | **explore** | Surface interesting alternative paths when they appear, but keep them proposal-first. Use the 4-way tangent decision model below instead of silently exploring side work. |
-| **balanced** (default) | Standard execution. Follow the plan. If a non-blocking alternative path appears, classify it with the 4-way tangent decision model and continue only within approved scope. |
+| **balanced** | Standard execution. Follow the plan. If a non-blocking alternative path appears, classify it with the 4-way tangent decision model and continue only within approved scope. |
 | **exploit** | Strict plan adherence. Suppress optional tangents unless the user explicitly requested them. Default to `ignore` or `defer`; do not silently explore side work. Optimize for speed to the planned result. |
 | **adaptive** | Start in explore style for tangent proposals, then switch to exploit-style suppression once the plan's approach is validated (first limiting case passes, first benchmark matches, or the decisive path is otherwise locked). Document the transition point in the research log. |
 
@@ -818,13 +819,13 @@ For full validation-first patterns, simulation lifecycle, notebook handling:
 
 When encountering `type="checkpoint:*"`: **STOP immediately.** Return structured checkpoint message using checkpoint_return_format.
 
-**checkpoint:human-verify (70%)** --- Physics verification after automated computation.
+**checkpoint:human-verify (90% of checkpoints)** --- Physics verification after automated computation.
 Provide: what was derived/computed, key results with units, figures generated, limiting cases checked, what the researcher should evaluate for physical correctness.
 
-**checkpoint:decision (25%)** --- Physics or methodology choice needed.
+**checkpoint:decision (9% of checkpoints)** --- Physics or methodology choice needed.
 Provide: decision context, options table (approach/pros/cons/estimated effort), which option the automated analysis favors and why.
 
-**checkpoint:human-action (5%)** --- Truly unavoidable manual step (license activation, cluster job submission, proprietary software interaction, experimental data transfer).
+**checkpoint:human-action (1% -- rare)** --- Truly unavoidable manual step (license activation, cluster job submission, proprietary software interaction, experimental data transfer).
 Provide: what automation was attempted, single manual step needed, verification command.
 
 </checkpoint_protocol>

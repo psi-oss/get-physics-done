@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from scripts.release_workflow import (
     extract_release_notes,
     prepare_release,
     stamp_publish_date,
+    update_readme_version_text,
 )
 
 
@@ -62,6 +64,18 @@ def _python_release_version(repo_root: Path) -> str:
 
     assert package_version == python_version == pyproject_version
     return pyproject_version
+
+
+def _uv_lock_project_version(repo_root: Path) -> str:
+    lock = tomllib.loads((repo_root / "uv.lock").read_text(encoding="utf-8"))
+    packages = lock.get("package", [])
+    assert isinstance(packages, list)
+    for package in packages:
+        if not isinstance(package, dict):
+            continue
+        if package.get("name") == "get-physics-done" and package.get("source") == {"editable": "."}:
+            return str(package["version"])
+    raise AssertionError("uv.lock is missing the editable get-physics-done package entry")
 
 
 def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
@@ -175,6 +189,18 @@ def test_public_citation_metadata_uses_iso_release_date() -> None:
     assert re.search(r"^date-released: '\d{4}-\d{2}-\d{2}'$", citation, re.M)
 
 
+def test_bug_report_template_asks_for_current_version_without_stale_placeholder() -> None:
+    import yaml
+
+    repo_root = _repo_root()
+    template = yaml.safe_load((repo_root / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml").read_text(encoding="utf-8"))
+    version_field = next(item for item in template["body"] if item.get("id") == "version")
+    attributes = version_field["attributes"]
+
+    assert "`gpd --version`" in attributes["description"]
+    assert not re.search(r"\b\d+\.\d+\.\d+\b", attributes["placeholder"])
+
+
 def test_public_citation_and_readme_versions_match_release_version() -> None:
     repo_root = _repo_root()
     version = _python_release_version(repo_root)
@@ -184,6 +210,25 @@ def test_public_citation_and_readme_versions_match_release_version() -> None:
     assert f"version: {version}" in citation
     assert f"version = {{{version}}}" in readme
     assert f"(Version {version})" in readme
+
+
+def test_uv_lock_matches_release_version() -> None:
+    repo_root = _repo_root()
+    assert _uv_lock_project_version(repo_root) == _python_release_version(repo_root)
+
+
+def test_installed_prompt_sources_do_not_pin_release_version_literals() -> None:
+    repo_root = _repo_root()
+    version = _python_release_version(repo_root)
+
+    offenders = [
+        path.relative_to(repo_root).as_posix()
+        for path in sorted((repo_root / "src" / "gpd").rglob("*"))
+        if path.is_file() and path.suffix in {".md", ".py", ".json", ".toml", ".yaml", ".yml"}
+        if version in path.read_text(encoding="utf-8")
+    ]
+
+    assert offenders == []
 
 
 def test_public_readme_citation_year_matches_citation_release_date() -> None:
@@ -357,11 +402,12 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev --frozen" in workflow
     assert "scripts/release_workflow.py prepare" in workflow
+    assert "uv lock" in workflow
     assert "uv run pytest tests/test_release_consistency.py -v" in workflow
     assert "uv build" in workflow
     assert "npm pack --dry-run --json" in workflow
     assert "gh pr create" in workflow
-    assert 'git add CHANGELOG.md CITATION.cff README.md package.json pyproject.toml' in workflow
+    assert 'git add CHANGELOG.md CITATION.cff README.md package.json pyproject.toml uv.lock' in workflow
     assert "Publish release" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" not in workflow
     assert "npm publish" not in workflow
@@ -467,6 +513,13 @@ def test_gitignore_covers_repo_local_tmp_root() -> None:
     content = (repo_root / ".gitignore").read_text(encoding="utf-8")
 
     assert "tmp/" in content
+
+
+def test_gitignore_covers_local_gpd_fix_reports() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / ".gitignore").read_text(encoding="utf-8")
+
+    assert "GPD-FIX-REPORT-*.md" in content
 
 
 def test_gitignore_does_not_exclude_gpd_directory() -> None:
@@ -581,6 +634,48 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
         assert not repo_cache.exists()
 
 
+def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    uv = shutil.which("uv")
+    assert uv is not None, "uv is required for sdist validation"
+
+    result = subprocess.run(
+        [uv, "build", "--sdist", "--out-dir", str(tmp_path)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+    archives = sorted(tmp_path.glob("get_physics_done-*.tar.gz"))
+    assert len(archives) == 1
+    root = f"get_physics_done-{_python_release_version(repo_root)}/"
+    with tarfile.open(archives[0], "r:gz") as archive:
+        names = set(archive.getnames())
+
+    assert f"{root}src/gpd/cli.py" in names
+    assert f"{root}bin/install.js" in names
+    assert f"{root}README.md" in names
+
+    forbidden_fragments = (
+        ".DS_Store",
+        ".mypy_cache/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+        ".uv-cache/",
+        ".venv/",
+        "/GPD-FIX-REPORT",
+        "/dist/",
+        "/tmp/",
+    )
+    assert not [
+        name
+        for name in sorted(names)
+        if any(fragment in name for fragment in forbidden_fragments)
+    ]
+
+
 
 def test_prepare_release_updates_all_versioned_public_surfaces(tmp_path: Path) -> None:
     repo_root = _repo_root()
@@ -616,16 +711,19 @@ def test_prepare_release_updates_all_versioned_public_surfaces(tmp_path: Path) -
 
     citation = (tmp_path / "CITATION.cff").read_text(encoding="utf-8")
     assert f"version: {next_version}" in citation
-    assert citation == original_citation.replace(f"version: {current_version}", f"version: {next_version}")
+    assert citation == re.sub(
+        r"^version:\s*[^\n]+$",
+        f"version: {next_version}",
+        original_citation,
+        count=1,
+        flags=re.M,
+    )
 
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert f"version = {{{next_version}}}" in readme
     assert f"(Version {next_version})" in readme
     assert "year = {2026}" in readme
-    assert readme == original_readme.replace(f"version = {{{current_version}}}", f"version = {{{next_version}}}").replace(
-        f"(Version {current_version})",
-        f"(Version {next_version})",
-    )
+    assert readme == update_readme_version_text(original_readme, next_version)
 
     changelog = changelog_path.read_text(encoding="utf-8")
     assert changelog.startswith(

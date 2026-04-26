@@ -31,7 +31,7 @@ Extract research decisions that downstream agents need -- researcher and planner
 2. The 4-6 controllable policy knobs (see workflow spec) with current defaults pre-filled.
 3. A free-text "intent" field for anything not captured by the knobs.
 
-Then render a one-screen summary of the resulting `{phase}-CONTEXT.md` and ask for a single confirm. Use `--compact` when you already know what you want and don't need the agent to lead you through gray-area discovery. `--auto` stays hands-off; `--compact` is hands-on but single-turn.
+Then render a one-screen summary of the resulting `{phase}-CONTEXT.md` and ask for a single confirm. Use `--compact` when you already know what you want and don't need the agent to lead you through gray-area discovery. `--auto` is a compressed agent-led pass; `--compact` is hands-on but single-turn.
 
 **Output:** `{phase}-CONTEXT.md` -- decisions clear enough that downstream agents can act without asking the user again
 </objective>

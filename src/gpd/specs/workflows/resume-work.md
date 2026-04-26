@@ -48,21 +48,21 @@ When `active_resume_result` is present, treat it as the hydrated canonical resul
 `state_exists` means the selected project root could recover usable state from `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`.
 Use `workspace_*` to judge the user-requested workspace before auto-selection; use the selected-project fields after re-entry resolution.
 
-The shared resume resolver distinguishes canonical continuation authority, continuity mirrors, and the derived execution head:
+The shared resume resolver distinguishes canonical continuation authority, handoff artifacts, and the derived execution head:
 
 - **storage authority:** `GPD/state.json`, with `GPD/state.json.bak` as the recovery backup; canonical `continuation` lives here
-- **editable mirror:** `GPD/STATE.md`
+- **editable state document:** `GPD/STATE.md`
 - **temporary handoff artifact:** `GPD/phases/.../.continue-here.md`
-- **derived execution head / live execution overlay:** `GPD/observability/current-execution.json`, used as a compatibility projection when canonical bounded-segment state is absent
+- **derived execution head / live execution status:** `GPD/observability/current-execution.json`
 
-The shared resume resolver is canonical-first: `state.json.continuation` wins, the canonical bounded segment and recorded handoff fields define the primary resume target, and the derived execution head only fills compatibility gaps when bounded-segment state is missing. Do not treat a single `.continue-here.md` file or compatibility snapshot as the sole authority.
+The shared resume resolver is canonical-first: `state.json.continuation` wins, the canonical bounded segment and recorded handoff fields define the primary resume target, and the derived execution head supplies live status. Do not treat a single `.continue-here.md` file or live-status snapshot as the sole authority.
 
 **If `planning_exists` is false:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md from the existing project artifacts.
 
 If `active_resume_kind="bounded_segment"` and `active_bounded_segment` exists, treat that as the primary bounded resume target. The derived execution head may still project the bounded segment when canonical continuation is missing or incomplete, but it does not define a second resume system.
 
-`active_resume_kind` is narrower than the overall recovery status. A recorded handoff, a missing recorded handoff artifact, or advisory live execution can still exist when `active_resume_kind` is `None`; those compatibility cues still surface through `continuity_handoff_file` and `missing_continuity_handoff_file`, but the canonicalized `gpd --raw resume` surface keeps only the top-level public fields.
+`active_resume_kind` is narrower than the overall recovery status. A recorded handoff, a missing recorded handoff artifact, or advisory live execution can still exist when `active_resume_kind` is `None`; those status cues surface through `continuity_handoff_file` and `missing_continuity_handoff_file`, while `gpd --raw resume` keeps the top-level public fields canonical.
 
 If `active_resume_result` exists, surface it alongside the primary resume target so `gpd:resume-work` can recover the last canonical result context immediately. If a resume candidate carries a hydrated `last_result`, prefer that payload over `last_result_id`-only notes while still preserving the ID as the rerun anchor.
 
@@ -238,9 +238,9 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
-**Bounded execution segment detection:** If `active_resume_kind` is `bounded_segment`, `execution_resumable` is true, and `active_resume_pointer` is present, treat that bounded continuation as the primary resume target. The runtime currently ranks three semantic recovery families into `resume_candidates`: a resumable live execution snapshot, a recorded handoff, and an interrupted-agent marker. The backend may still retain compatibility intake for those families. If the live snapshot lacks a portable usable resume file, keep it visible only as advisory context. Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints.
+**Bounded execution segment detection:** If `active_resume_kind` is `bounded_segment`, `execution_resumable` is true, and `active_resume_pointer` is present, treat that bounded continuation as the primary resume target. The runtime ranks three recovery families into `resume_candidates`: a resumable live execution snapshot, a recorded handoff, and an interrupted-agent marker. If the live snapshot lacks a portable usable resume file, keep it visible only as advisory context. Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints.
 
-The shared resume resolver keeps the derived execution head and the temporary handoff artifact subordinate to the storage authority chain. They refine the continuation target; they do not replace `GPD/state.json > GPD/state.json.bak > GPD/STATE.md`, and the compatibility mirror only backfills bounded-segment state when canonical bounded-segment state is absent. Nested raw-envelope aliases never outrank canonical fields.
+The shared resume resolver keeps the derived execution head and the temporary handoff artifact subordinate to the storage authority chain. They refine the continuation target; they do not replace `GPD/state.json > GPD/state.json.bak > GPD/STATE.md`.
 
 Reason-scoped clears still matter on resume: a `first_result` clear does not retire `pre_fanout` or skeptical fields, and a `fanout unlock` does not clear the review gate by itself.
 
@@ -494,7 +494,7 @@ Based on user selection, route to appropriate workflow:
 
 <step name="update_continuation">
 Before proceeding to routed workflow, refresh canonical continuation via CLI
-(which then reprojects STATE.md and the `session` continuity mirror):
+(which then updates the STATE.md Session Continuity block):
 
 ```bash
 gpd state record-session \
@@ -502,7 +502,7 @@ gpd state record-session \
   --resume-file "[updated if applicable; omit to keep the current pointer, or pass `—` to clear it]"
 ```
 
-This ensures the canonical continuation payload reflects the resumed handoff state if the session ends unexpectedly. STATE.md and the `session` fields should mirror that authoritative update after persistence.
+This ensures the canonical continuation payload reflects the resumed handoff state if the session ends unexpectedly. STATE.md should render that authoritative update after persistence.
 </step>
 
 </process>

@@ -11,12 +11,14 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from gpd.version import resolve_active_version
+
 logger = logging.getLogger(__name__)
 
 ARXIV_SOURCE_URL_TEMPLATE = "https://arxiv.org/e-print/{arxiv_id}"
 ARXIV_DEFAULT_STORAGE_PATH = Path.home() / ".arxiv-mcp-server" / "papers"
 ARXIV_SOURCE_STORAGE_DIRNAME = "sources"
-ARXIV_SOURCE_USER_AGENT = "get-physics-done/1.1.0 (https://github.com/psi-oss/get-physics-done)"
+ARXIV_SOURCE_USER_AGENT_TEMPLATE = "get-physics-done/{version} (https://github.com/psi-oss/get-physics-done)"
 ARXIV_SOURCE_TIMEOUT_SECONDS = 60
 ARXIV_SOURCE_CHUNK_BYTES = 64 * 1024
 ARXIV_SOURCE_SNIFF_BYTES = 1024
@@ -38,6 +40,12 @@ _CONTENT_TYPE_TO_SUFFIX = {
     "application/x-zip-compressed": ".zip",
 }
 _SOURCE_ARCHIVE_SUFFIX_CANDIDATES = (".tar.gz", ".tgz", ".zip", ".tar", ".gz", ".src")
+
+
+def arxiv_source_user_agent() -> str:
+    """Return the versioned user agent sent to arXiv source endpoints."""
+
+    return ARXIV_SOURCE_USER_AGENT_TEMPLATE.format(version=resolve_active_version())
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,7 +212,7 @@ def download_arxiv_source_archive(
                 cached=True,
             )
 
-    request = Request(download_url, headers={"User-Agent": ARXIV_SOURCE_USER_AGENT})
+    request = Request(download_url, headers={"User-Agent": arxiv_source_user_agent()})
     try:
         with urlopen(request, timeout=timeout_seconds) as response:
             headers = response.headers
@@ -236,6 +244,8 @@ def download_arxiv_source_archive(
                     if len(sniff_bytes) < ARXIV_SOURCE_SNIFF_BYTES:
                         sniff_bytes += chunk[: ARXIV_SOURCE_SNIFF_BYTES - len(sniff_bytes)]
                     tmp_file.write(chunk)
+                if total_bytes == 0:
+                    raise ConnectionError(f"arXiv source for {normalized_id} is empty")
     except HTTPError as exc:
         raise ConnectionError(
             f"Failed to fetch arXiv source for {normalized_id}: HTTP {exc.code} {exc.reason}"
@@ -286,6 +296,7 @@ __all__ = [
     "ARXIV_SOURCE_MAX_BYTES",
     "ARXIV_SOURCE_STORAGE_DIRNAME",
     "ArxivSourceDownload",
+    "arxiv_source_user_agent",
     "build_source_download_url",
     "download_arxiv_source_archive",
     "normalize_arxiv_id",

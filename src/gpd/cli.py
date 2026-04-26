@@ -145,6 +145,7 @@ from gpd.core.workflow_presets import (
 from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION
 
 if TYPE_CHECKING:
+    from gpd.core.constants import ProjectLayout
     from gpd.core.health import UnattendedReadinessResult
     from gpd.mcp.paper.bibliography import CitationSource
     from gpd.mcp.paper.models import PaperConfig, WritePaperAuthoringInput
@@ -1099,11 +1100,53 @@ def state_load() -> None:
 @state_app.command("get")
 def state_get(
     section: str | None = typer.Argument(None, help="State section to retrieve"),
+    include: str | None = typer.Option(
+        None,
+        "--include",
+        help=(
+            "Comma-separated structured state sections to return as JSON "
+            "(position, session, continuation, handoff, project_reference)."
+        ),
+    ),
 ) -> None:
     """Get a specific state section or the full state."""
-    from gpd.core.state import state_get
+    from gpd.core.state import _session_display_from_continuation
+    from gpd.core.state import state_get as core_state_get
+    from gpd.core.state import state_load as core_state_load
 
-    _output(state_get(_read_only_project_scoped_cwd(), section))
+    if include is not None:
+        if section is not None:
+            _error("state get accepts either a positional section or --include, not both")
+        allowed = {"position", "session", "continuation", "handoff", "project_reference", "project"}
+        includes: list[str] = []
+        for raw_token in include.split(","):
+            token = raw_token.strip().replace("-", "_")
+            if not token:
+                continue
+            if token not in allowed:
+                supported = ", ".join(sorted(allowed - {"project"}))
+                _error(f"Unknown --include value for state get: {token}. Allowed values: {supported}.")
+            canonical = "project_reference" if token == "project" else token
+            if canonical not in includes:
+                includes.append(canonical)
+        if not includes:
+            _error("state get --include requires at least one non-empty value")
+
+        state_obj = core_state_load(_read_only_project_scoped_cwd()).state
+        state_payload = state_obj if isinstance(state_obj, dict) else {}
+        continuation = state_payload.get("continuation")
+        payload: dict[str, object] = {}
+        for token in includes:
+            if token == "session":
+                payload[token] = _session_display_from_continuation(continuation)
+            elif token == "handoff":
+                payload[token] = continuation.get("handoff") if isinstance(continuation, dict) else {}
+            else:
+                payload[token] = state_payload.get(token) or {}
+        _output(payload)
+        return
+
+    _output(core_state_get(_read_only_project_scoped_cwd(), section))
 
 
 @state_app.command("patch")
@@ -1351,6 +1394,143 @@ def state_record_session(
     _output(payload)
     if isinstance(payload, dict) and payload.get("error"):
         raise typer.Exit(code=1)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# contract — Machine contract alignment confirmation gate
+# ═══════════════════════════════════════════════════════════════════════════
+
+contract_app = typer.Typer(help="Machine-contract alignment gate (claim-deliverable precheck)")
+app.add_typer(contract_app, name="contract")
+
+
+def _require_project_root(cwd: Path, *, command_label: str) -> Path:
+    """Require a verified GPD project root; ``command_label`` is the noun used in the error."""
+    workspace_cwd = cwd.expanduser().resolve(strict=False)
+    project_root = resolve_project_root(workspace_cwd, require_layout=True)
+    if project_root is None:
+        _error(
+            f"{command_label} require a real GPD project root. "
+            "Run the command from inside a project with a GPD/ layout."
+        )
+    return project_root
+
+
+@contract_app.command("record-alignment")
+def contract_record_alignment(
+    contract_hash: str = typer.Option(
+        ..., "--contract-hash", help="Fingerprint of the machine contract that was reviewed."
+    ),
+    context_hash: str = typer.Option(
+        ..., "--context-hash", help="Fingerprint of the phase CONTEXT.md text that was reviewed."
+    ),
+) -> None:
+    """Persist operator confirmation that the claim-deliverable alignment was reviewed."""
+    from gpd.core.state import state_record_contract_alignment
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
+    state_record_contract_alignment(
+        project_root,
+        contract_hash=contract_hash,
+        context_hash=context_hash,
+    )
+    if _raw:
+        _emit_raw_json({"result": "recorded"})
+    else:
+        typer.echo("recorded")
+
+
+@contract_app.command("alignment-status")
+def contract_alignment_status() -> None:
+    """Print the persisted claim-deliverable alignment confirmation as JSON."""
+    from gpd.core.state import state_load
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
+    load_result = state_load(project_root)
+    state_obj = load_result.state if isinstance(load_result.state, dict) else {}
+    alignment = state_obj.get("contract_alignment") or {}
+    payload = {
+        "confirmed_at": alignment.get("confirmed_at"),
+        "confirmed_contract_hash": alignment.get("confirmed_contract_hash"),
+        "confirmed_context_hash": alignment.get("confirmed_context_hash"),
+    }
+    _emit_raw_json(payload)
+
+
+@contract_app.command("fingerprint")
+def contract_fingerprint_cmd() -> None:
+    """Print the canonical sha256 fingerprint of the current machine contract."""
+    from gpd.core.contract_validation import contract_fingerprint
+    from gpd.core.state import _load_project_contract_for_runtime_context
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
+    contract, _load_info = _load_project_contract_for_runtime_context(project_root)
+    if contract is None:
+        _error("No project contract is available; cannot fingerprint.")
+    _output(contract_fingerprint(contract))
+
+
+@contract_app.command("context-fingerprint")
+def contract_context_fingerprint_cmd(
+    path: Path | None = typer.Argument(
+        None,
+        help="Path to the CONTEXT.md file. Defaults to the active phase's CONTEXT.md.",
+    ),
+) -> None:
+    """Print the sha256 fingerprint of a CONTEXT.md file's text."""
+    from gpd.core.constants import CONTEXT_SUFFIX, STANDALONE_CONTEXT
+    from gpd.core.context import _find_phase_artifact_path
+    from gpd.core.contract_validation import context_guidance_fingerprint
+    from gpd.core.phases import find_phase
+    from gpd.core.state import state_load
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
+    if path is None:
+        state_obj = state_load(project_root).state
+        current_phase = (
+            state_obj.get("position", {}).get("current_phase")
+            if isinstance(state_obj, dict)
+            else None
+        )
+        if current_phase is None:
+            _error(
+                "No CONTEXT.md could be resolved: state.position.current_phase is "
+                "unset. Pass an explicit path as the argument."
+            )
+        phase_info = find_phase(project_root, str(current_phase))
+        if phase_info is None:
+            _error(
+                f"No CONTEXT.md could be resolved: phase {current_phase!r} not found."
+            )
+        phase_dir = project_root / phase_info.directory
+        resolved = _find_phase_artifact_path(phase_dir, CONTEXT_SUFFIX, STANDALONE_CONTEXT)
+        if resolved is None:
+            _error(f"No CONTEXT.md found under {phase_dir}.")
+    else:
+        resolved = path.expanduser()
+        if not resolved.is_absolute():
+            resolved = _get_cwd() / resolved
+        resolved = resolved.resolve(strict=False)
+        if not resolved.is_file():
+            _error(f"CONTEXT file not found: {resolved}")
+    _output(context_guidance_fingerprint(resolved.read_text(encoding="utf-8")))
+
+
+@contract_app.command("alignment-summary")
+def contract_alignment_summary_cmd() -> None:
+    """Print the claim-deliverable alignment row projection as JSON."""
+    from gpd.core.contract_validation import claim_deliverable_alignment_summary
+    from gpd.core.state import _load_project_contract_for_runtime_context
+
+    project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
+    contract, _load_info = _load_project_contract_for_runtime_context(project_root)
+    if contract is None:
+        _error("No project contract is available; cannot render alignment summary.")
+    rows = [
+        {"claim": claim, "deliverable": deliverable, "acceptance_test": acceptance}
+        for claim, deliverable, acceptance in claim_deliverable_alignment_summary(contract)
+    ]
+    _emit_raw_json({"rows": rows})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1706,14 +1886,14 @@ def _public_resume_origin_family(
 
     if normalized_source == "current_execution":
         return "canonical_continuation" if isinstance(active_execution, dict) else "derived_execution_head"
-    if normalized_source == "session_resume_file":
+    if normalized_source == "handoff_resume_file":
         return "canonical_continuation"
     if normalized_source == "interrupted_agent":
         return "interrupted_agent"
 
     if origin_text == "current_execution":
         return "canonical_continuation" if isinstance(active_execution, dict) else "derived_execution_head"
-    if origin_text == "session_resume_file":
+    if origin_text == "handoff_resume_file":
         return "canonical_continuation"
     if origin_text in {"continuation.bounded_segment", "continuation.handoff"}:
         return "canonical_continuation"
@@ -1933,7 +2113,7 @@ def _resume_candidate_origin(
         if isinstance(current_execution, dict):
             return ("derived_execution_head", "derived execution head")
         return ("derived_execution_head", "derived execution head")
-    if source == "session_resume_file":
+    if source == "handoff_resume_file":
         if status == "missing":
             return ("canonical_continuation", "canonical continuation; handoff file missing")
         return ("canonical_continuation", "canonical continuation")
@@ -2754,14 +2934,206 @@ def resume(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _progress_watch_sleep(seconds: float) -> None:
+    """Sleep for ``seconds`` seconds. Module-local shim for monkeypatching in tests."""
+    import time
+
+    time.sleep(seconds)
+
+
+def _is_idle(result: object) -> bool:
+    """Return True when ``result`` reports no active live execution.
+
+    A project with execution preferences set but no running session yields a
+    live_execution shell whose populated fields are all None; treat that as
+    idle so --exit-on-idle triggers cleanly.
+    """
+    live = getattr(result, "live_execution", None)
+    if live is None:
+        return True
+    live_fields = (
+        "phase",
+        "plan",
+        "wave",
+        "current_task",
+        "current_task_index",
+        "current_task_total",
+        "segment_status",
+        "waiting_reason",
+        "last_result_label",
+        "last_artifact_path",
+        "last_updated_age_label",
+    )
+    return all(getattr(live, name, None) is None for name in live_fields)
+
+
+def _progress_watch_live_table(result: object) -> Table:
+    """Build a rich ``Table`` for a single watch-loop tick (TTY branch)."""
+    table = Table(show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
+    table.add_column("Field")
+    table.add_column("Value")
+    live = getattr(result, "live_execution", None)
+    if live is None:
+        table.add_row("live_execution", "No active execution")
+        return table
+    fields = (
+        "phase",
+        "plan",
+        "wave",
+        "current_task",
+        "current_task_index",
+        "current_task_total",
+        "segment_status",
+        "waiting_reason",
+        "last_artifact_path",
+        "last_result_label",
+        "last_updated_age_label",
+        "strict_wait",
+        "never_interrupt_running_workers",
+        "never_auto_close_child_agents",
+    )
+    for name in fields:
+        value = getattr(live, name, None)
+        table.add_row(name, "" if value is None else str(value))
+    return table
+
+
+def _collect_watch_signals(layout: ProjectLayout) -> list[Path]:
+    """Return the filesystem paths whose mtimes gate a progress-watch redraw."""
+    return [
+        layout.state_json,
+        layout.current_observability_execution,
+        layout.execution_lineage_head,
+        layout.execution_lineage_ledger,
+    ]
+
+
+def _run_progress_watch_loop(
+    cwd: Path,
+    fmt: str,
+    interval: float,
+    exit_on_idle: bool,
+    *,
+    raw_mode: bool = False,
+    _max_ticks: int | None = None,
+) -> None:
+    """Poll the execution signal files and redraw progress at ``interval`` cadence.
+
+    First tick always renders. Subsequent ticks render only when at least one
+    signal file's ``st_mtime_ns`` changed since the previous snapshot, or when
+    ``_max_ticks`` forces loop exit first.
+
+    Private parameter ``_max_ticks`` is a test hook — when set, the loop exits
+    after the requested number of iterations regardless of mtime or idle state.
+    """
+    import contextlib
+
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.phases import progress_render
+
+    layout = ProjectLayout(cwd)
+    signal_paths = _collect_watch_signals(layout)
+    _unset = object()
+    last_mtimes: dict[Path, int | None | object] = dict.fromkeys(signal_paths, _unset)
+
+    def _should_redraw() -> bool:
+        changed = False
+        for path in signal_paths:
+            try:
+                mtime: int | None = path.stat().st_mtime_ns
+            except OSError:
+                mtime = None
+            if last_mtimes[path] is _unset or last_mtimes[path] != mtime:
+                last_mtimes[path] = mtime
+                changed = True
+        return changed
+
+    live_cm: object
+    first: object | None
+    if _stdout_is_interactive() and not raw_mode:
+        from rich.live import Live
+
+        _should_redraw()  # prime
+        first = progress_render(cwd, fmt)
+        live_cm = Live(
+            _progress_watch_live_table(first),
+            console=console,
+            refresh_per_second=4,
+        )
+
+        def render(result: object) -> None:
+            live_cm.update(_progress_watch_live_table(result))  # type: ignore[attr-defined]
+    else:
+        live_cm = contextlib.nullcontext()
+        first = None
+
+        def render(result: object) -> None:
+            payload = result.model_dump(mode="json", by_alias=True)
+            typer.echo(json.dumps(payload, ensure_ascii=False, default=str))
+
+    with live_cm:  # type: ignore[attr-defined]
+        if first is None:
+            _should_redraw()
+            first = progress_render(cwd, fmt)
+            render(first)
+        if exit_on_idle and _is_idle(first):
+            return
+        tick = 0
+        while True:
+            tick += 1
+            if _max_ticks is not None and tick >= _max_ticks:
+                return
+            _progress_watch_sleep(interval)
+            if _should_redraw():
+                result = progress_render(cwd, fmt)
+                render(result)
+                if exit_on_idle and _is_idle(result):
+                    return
+
+
 @app.command("progress")
 def progress(
-    fmt: str = typer.Argument("json", help="Format: json, bar, or table"),
+    fmt: str = typer.Argument(
+        "json",
+        help="Format: json, bar, or table (overridden to 'json' when --watch is set)",
+    ),
+    watch: bool = typer.Option(
+        False,
+        "--watch",
+        "-w",
+        help=(
+            "Poll for updates and redraw a live execution view. "
+            "The positional fmt is overridden to 'json' while watching."
+        ),
+    ),
+    interval: float = typer.Option(
+        10.0,
+        "--interval",
+        help="Redraw interval in seconds.",
+        min=0.1,
+    ),
+    exit_on_idle: bool = typer.Option(
+        False,
+        "--exit-on-idle",
+        help="Exit when no live execution is detected (for scripting).",
+    ),
 ) -> None:
     """Render progress in the specified format."""
     from gpd.core.phases import progress_render
 
-    _output(progress_render(_read_only_project_scoped_cwd(), fmt))
+    cwd = _read_only_project_scoped_cwd()
+    if not watch:
+        _output(progress_render(cwd, fmt))
+        return
+    if fmt != "json":
+        err_console.print(
+            f"[dim]--watch overrides fmt={fmt!r} → 'json' for live execution rendering.[/dim]"
+        )
+        fmt = "json"
+    try:
+        _run_progress_watch_loop(cwd, fmt, interval, exit_on_idle, raw_mode=_raw)
+    except KeyboardInterrupt:
+        return
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -5251,20 +5623,9 @@ app.add_typer(config_app, name="config")
 _WOLFRAM_INTEGRATION_NAME = WOLFRAM_MANAGED_INTEGRATION.integration_id
 
 
-def _require_project_root_for_integrations(cwd: Path) -> Path:
-    """Require a verified GPD project root for project-scoped integrations."""
-    workspace_cwd = cwd.expanduser().resolve(strict=False)
-    project_root = resolve_project_root(workspace_cwd, require_layout=True)
-    if project_root is None:
-        _error(
-            "gpd integrations require a real GPD project root. Run the command from inside a project with a GPD/ layout."
-        )
-    return project_root
-
-
 def _integrations_config_path(cwd: Path) -> Path:
     """Return the per-project shared-integration config path."""
-    project_root = _require_project_root_for_integrations(cwd)
+    project_root = _require_project_root(cwd, command_label="gpd integrations")
     return WOLFRAM_MANAGED_INTEGRATION.project_config_path(project_root)
 
 
@@ -5272,7 +5633,7 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
     """Persist the Wolfram integration override in the project-local config file."""
     from gpd.core.utils import atomic_write, file_lock
 
-    project_root = _require_project_root_for_integrations(cwd)
+    project_root = _require_project_root(cwd, command_label="gpd integrations")
     config_path = _integrations_config_path(project_root)
     with file_lock(config_path):
         try:
@@ -5309,7 +5670,7 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
 
 def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
     """Return the effective project-local status payload for the Wolfram integration."""
-    project_root = _require_project_root_for_integrations(cwd)
+    project_root = _require_project_root(cwd, command_label="gpd integrations")
     config_path = _integrations_config_path(project_root)
     try:
         record = WOLFRAM_MANAGED_INTEGRATION.project_record(project_root)
@@ -6940,15 +7301,10 @@ def _resolve_bibliography_path(
 def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
     """Return a single literature-review citation-source sidecar if it is unambiguous."""
     literature_dir = project_root / "GPD" / "literature"
-    legacy_research_dir = project_root / "GPD" / "research"
-    if literature_dir.is_dir():
-        search_dir = literature_dir
-    elif legacy_research_dir.is_dir():
-        search_dir = legacy_research_dir
-    else:
+    if not literature_dir.is_dir():
         return None, None
 
-    matches = sorted(path for path in search_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
+    matches = sorted(path for path in literature_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
     if not matches:
         return None, None
     if len(matches) == 1:
@@ -6958,7 +7314,7 @@ def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Pa
     remaining = len(matches) - 3
     suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
     warning = (
-        f"Multiple {'literature-review' if search_dir == literature_dir else 'legacy research'} citation-source sidecars found; "
+        "Multiple literature-review citation-source sidecars found; "
         "pass --citation-sources explicitly: "
         f"{preview}{suffix}"
     )
@@ -7046,16 +7402,16 @@ def _default_paper_output_dir(config_file: Path) -> Path:
     return config_file.resolve(strict=False).parent
 
 
-def _reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
+def _reject_internal_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
     """Reject removed paper-config locations under internal planning storage."""
     resolved_config = config_file.resolve(strict=False)
     project_root = (project_root or _project_scoped_cwd()).resolve(strict=False)
-    for legacy_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
+    for internal_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
         try:
-            resolved_config.relative_to(legacy_config_root)
+            resolved_config.relative_to(internal_config_root)
         except ValueError:
             continue
-        planning_dir_name = legacy_config_root.parent.name
+        planning_dir_name = internal_config_root.parent.name
         raise GPDError(
             f"Paper configs under `{planning_dir_name}/paper/` are not supported. "
             "Move the config to `paper/`, `manuscript/`, or `draft/`."
@@ -11002,7 +11358,7 @@ def paper_build(
         if config_path
         else _resolve_default_paper_config_path(project_root=project_root)
     )
-    _reject_legacy_paper_config_location(config_file, project_root=project_root)
+    _reject_internal_paper_config_location(config_file, project_root=project_root)
     raw_config = _load_json_document(str(config_file))
     if not isinstance(raw_config, dict):
         raise GPDError(f"Paper config must be a JSON object: {_format_display_path(config_file)}")
@@ -11070,24 +11426,21 @@ def paper_build(
     # root only contains .tex, .bib, and figures/. --with-provenance promotes
     # ARTIFACT-MANIFEST.json back up; --with-audits promotes BIBLIOGRAPHY-AUDIT.json.
     # --minimal suppresses sidecars entirely.
+    artifact_manifest_output_path: Path | None = None
+    bibliography_audit_output_path: Path | None = None
     if minimal:
         paper_sidecar_root: Path | None = None
         emit_artifact = False
         emit_bib_audit = False
     else:
-        if with_provenance and with_audits:
-            paper_sidecar_root = None  # sidecars go flat into the paper root
-        else:
-            paper_sidecar_root = output_path / ".paper-meta"
         emit_artifact = True
         emit_bib_audit = True
-        # When only one of the flags is set, move that specific file into the
-        # paper root by pre-creating the manifest path via build_paper's
-        # default (output_dir) semantics. Because build_paper's signature
-        # accepts a single sidecar_root, selective promotion is done by
-        # repointing the whole root when both flags are set; otherwise keep
-        # sidecars under .paper-meta/ and let callers copy a specific file up
-        # if needed.
+        artifact_manifest_output_path = output_path / "ARTIFACT-MANIFEST.json" if with_provenance else None
+        bibliography_audit_output_path = output_path / "BIBLIOGRAPHY-AUDIT.json" if with_audits else None
+        if not (with_provenance and with_audits):
+            paper_sidecar_root = output_path / ".paper-meta"
+        else:
+            paper_sidecar_root = None
 
     result = asyncio.run(
         build_paper(
@@ -11097,6 +11450,8 @@ def paper_build(
             citation_sources=citation_payload,
             enrich_bibliography=enrich_bibliography,
             sidecar_root=paper_sidecar_root,
+            artifact_manifest_output_path=artifact_manifest_output_path,
+            bibliography_audit_output_path=bibliography_audit_output_path,
             emit_artifact_manifest=emit_artifact,
             emit_bibliography_audit=emit_bib_audit,
         )

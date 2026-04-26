@@ -247,9 +247,9 @@ def test_preset_and_local_bridge_phrases_remain_command_oriented() -> None:
     for token in (
         "gpd --help",
         "gpd doctor",
-        "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced",
-        "gpd permissions status --runtime <runtime> --autonomy balanced",
-        "gpd permissions sync --runtime <runtime> --autonomy balanced",
+        "gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>",
+        "gpd permissions status --runtime <runtime> --autonomy <mode>",
+        "gpd permissions sync --runtime <runtime> --autonomy <mode>",
         "gpd resume",
         "gpd resume --recent",
         "gpd observe execution",

@@ -1246,24 +1246,33 @@ def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
     assert "GPD/phase-checkpoints" in workflow
 
 
-def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
+def test_new_project_surfaces_supervised_default_and_core_research_preset_preview() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
 
-    assert workflow_text.count('"autonomy": "balanced"') >= 2
+    # The minimal-mode config.json template emits the supervised default explicitly.
+    assert '"autonomy": "supervised"' in workflow_text
+    assert '"review_cadence": "dense"' in workflow_text
+
+    # The preset catalog is still present, with the core-research preset recommended.
     assert "Which starting workflow preset should GPD use for `GPD/config.json`?" in workflow_text
     assert '"Core research (Recommended)"' in workflow_text
     assert '"Theory"' in workflow_text
     assert '"Numerics"' in workflow_text
     assert '"Publication / manuscript"' in workflow_text
     assert '"Full research"' in workflow_text
+
+    # The core-research preset aligns with the Phase-1 defaults
+    # (autonomy=supervised, review_cadence=dense), so its preview surfaces
+    # those values rather than weaker overrides.
     assert (
-        "`autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, "
-        "`planning.commit_docs=true`, `execution.review_cadence=adaptive`"
+        "`autonomy=supervised`, `research_mode=balanced`, `parallelization=true`, "
+        "`planning.commit_docs=true`, `execution.review_cadence=dense`"
     ) in workflow_text
     assert (
-        "Config: Balanced autonomy | Adaptive review cadence | Balanced research mode | Parallel | All agents | Review profile"
+        "Config: Supervised autonomy | Dense review cadence | Balanced research mode | Parallel | All agents | Review profile"
         in workflow_text
     )
+
     assert "Recommended defaults use YOLO autonomy" not in workflow_text
     assert (
         "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
@@ -1718,7 +1727,9 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
         "`user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` "
         "as binding user guidance"
     ) in roadmapper_agent
-    assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_project
+    # new-project uses shallow mode by default — Phase 1 only carries full coverage.
+    # new-milestone keeps full-detail roadmap for scoped continuations.
+    assert "For Phase 1, include explicit contract coverage in ROADMAP.md" in new_project
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
     assert "Do NOT skip the initial scoping-contract approval gate." in new_project
     assert "Do NOT skip the requirement to show contract coverage in the roadmap." in new_project
@@ -2269,8 +2280,8 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         in execute_phase
     )
     assert "declare it as `tool: wolfram` in `tool_requirements`" in tooling_ref
-    for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
-        assert legacy_alias not in summary_template
+    for removed_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
+        assert removed_alias not in summary_template
     assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
     assert "contract_results" in verification_template
     assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
@@ -2428,6 +2439,23 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "project_contract_validation" in execute_workflow
     assert "project_contract_load_info" in execute_workflow
     assert "visible-but-blocked contract as an approved execution contract" in execute_workflow
+
+    # Phase 5: claim<->deliverable alignment precheck is wired in as a step in
+    # execute-phase.md and references the helpers/CLI provided by lanes E2/E3.
+    alignment_step = _extract_between(
+        execute_workflow,
+        '<step name="claim_deliverable_alignment_check">',
+        "</step>",
+    )
+    assert "gpd contract alignment-status" in alignment_step
+    assert "gpd contract fingerprint" in alignment_step
+    assert "gpd contract context-fingerprint" in alignment_step
+    assert "gpd contract alignment-summary" in alignment_step
+    assert (
+        'gpd contract record-alignment --contract-hash "$CONTRACT_HASH" '
+        '--context-hash "$CONTEXT_HASH"'
+    ) in alignment_step
+    assert "claim_deliverable_alignment_check: skipped (already confirmed this session)" in alignment_step
 
 
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:
@@ -3833,6 +3861,13 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
 
     assert "review_cadence" in execute_phase
     assert "FIRST_RESULT_GATE_REQUIRED" in execute_phase
+    # Dense cadence override — the Phase 4 risk-classifier short-circuit
+    assert "Dense cadence override:" in execute_phase
+    assert "treat every wave as risky" in execute_phase
+
+    # execute-plan clarifies that dense-forced FIRST_RESULT_GATE_REQUIRED
+    # must be honored as-passed, not recomputed from per-plan heuristics
+    assert "do not recompute" in execute_plan or "treat `FIRST_RESULT_GATE_REQUIRED=true` as forced" in execute_plan
     assert "probe_then_fanout" in execute_phase
     assert "bounded_execution" in execute_phase
     assert "autonomy` changes who is asked and when. It does NOT disable first-result sanity checks" in execute_plan
@@ -3854,7 +3889,7 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
     assert "Pattern D: Auto-bounded" in executor_agent
     assert "Canonical continuation fields define the public resume vocabulary" in resume_work
     assert "public top-level resume vocabulary" not in resume_work
-    assert "compat_resume_surface" not in resume_work
+    assert "`resume_surface`" not in resume_work
     assert "gpd init resume" not in resume_work
     assert "execution_segment" in continuation
     assert "Required Checkpoint Payload" in checkpoints
@@ -3933,11 +3968,11 @@ def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
     assert_resume_authority_contract(
         resume_vocabulary,
         allow_explicit_alias_examples=False,
-        require_generic_compatibility_note=False,
+        require_canonical_note=False,
     )
     assert "Canonical continuation and recovery authority:" in resume_work
     assert "Canonical continuation fields define the public resume vocabulary" in resume_work
-    _assert_resume_compatibility_note(resume_work)
+    _assert_resume_canonical_note(resume_work)
     assert "public top-level resume vocabulary" not in resume_work
     assert "continuity_handoff_file" in resume_work
     assert "recorded_continuity_handoff_file" in resume_work
@@ -3960,8 +3995,8 @@ def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
     assert "Repair the blocked contract or state-integrity issue before planning or execution" in resume_work
 
 
-def _assert_resume_compatibility_note(text: str) -> None:
-    assert "compatibility-only intake fields stay internal" in text.lower()
+def _assert_resume_canonical_note(text: str) -> None:
+    assert "Canonical continuation fields define the public resume vocabulary" in text
 
 
 def test_resume_command_keeps_internal_resume_backend_details_out_of_public_prompt_surface() -> None:
@@ -3972,8 +4007,8 @@ def test_resume_command_keeps_internal_resume_backend_details_out_of_public_prom
     )
 
     assert "Canonical continuation fields define the public resume vocabulary" in resume_command
-    _assert_resume_compatibility_note(resume_command)
-    assert "compat_resume_surface" not in resume_command
+    _assert_resume_canonical_note(resume_command)
+    assert "`resume_surface`" not in resume_command
     assert "gpd init resume" not in resume_command
 
 
@@ -4028,7 +4063,7 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "reloads that project's canonical state" in resume_work
     assert "Canonical continuation fields define the public resume vocabulary" in resume_work
     assert "resume_candidates" in resume_work
-    assert "compat_resume_surface" not in resume_work
+    assert "`resume_surface`" not in resume_work
     assert "Canonical continuation fields define the public resume vocabulary" in help_workflow
     assert (
         "Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints."
@@ -4041,7 +4076,7 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "continuation handoff artifact" in pause_work or "session continuity" in pause_work
     assert "session.resume_file" not in pause_work
     assert "Canonical continuation fields define the public resume vocabulary" in help_workflow
-    _assert_resume_compatibility_note(help_workflow)
+    _assert_resume_canonical_note(help_workflow)
     assert_recovery_ladder_contract(
         help_workflow,
         resume_work_fragments=("gpd:resume-work",),
@@ -4063,7 +4098,7 @@ def test_state_portability_reference_keeps_resume_public_vocabulary_note_compact
     )
 
     assert "Canonical continuation fields define the public resume vocabulary" in state_portability
-    _assert_resume_compatibility_note(state_portability)
+    _assert_resume_canonical_note(state_portability)
     assert "public top-level resume vocabulary" not in state_portability
     assert "gpd observe execution" in help_workflow
     assert "suggested read-only checks rather than runtime hotkeys" in help_workflow
@@ -4221,8 +4256,8 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "`${PAPER_DIR}/FIGURE_TRACKER.md`" in figure_tracker
     assert "validate paper-quality --from-project ." in write_paper
     assert "Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load" in write_paper
-    assert '"review_cadence": "adaptive"' in new_project
-    assert "Adaptive review cadence" in new_project
+    assert '"review_cadence": "dense"' in new_project
+    assert "Dense review cadence" in new_project
     assert (
         "prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock"
         in execute_phase
@@ -4703,3 +4738,130 @@ def test_verification_and_publication_prompts_keep_decisive_contract_targets_rea
         "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap"
         in respond
     )
+
+
+def test_new_project_spawns_roadmapper_with_shallow_mode_in_standard_mode() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    assert "<shallow_mode>true</shallow_mode>" in new_project
+
+
+def test_new_milestone_keeps_full_roadmap_detail_shallow_mode_false() -> None:
+    new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
+    assert "<shallow_mode>false</shallow_mode>" in new_milestone
+
+
+def test_new_project_next_up_recommends_plan_phase_1_primary() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    # The standard-mode Next Up block is the final occurrence; the first is the --minimal path.
+    next_up_block = new_project[new_project.rindex("## >> Next Up"):]
+    # plan-phase 1 should appear before discuss-phase 1 in that block.
+    plan_idx = next_up_block.index("`gpd:plan-phase 1`")
+    discuss_idx = next_up_block.index("`gpd:discuss-phase 1`")
+    assert plan_idx < discuss_idx, "plan-phase 1 must be the primary Next Up recommendation, not discuss-phase"
+
+
+def test_roadmapper_documents_shallow_mode_behavior() -> None:
+    roadmapper = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+    assert "shallow_mode" in roadmapper
+    assert "Phase 1" in roadmapper
+    assert "stub" in roadmapper.lower()
+
+
+def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contract() -> None:
+    route_workflow = (WORKFLOWS_DIR / "route.md").read_text(encoding="utf-8")
+    route_command = (COMMANDS_DIR / "route.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "STATE=$(gpd --raw state get --include position,continuation)" in route_workflow
+    assert "position,session,continuation" not in route_workflow
+    assert "TAM/revenue/impact analysis" not in route_workflow
+    assert "parameter sweep on top of a derived model" in route_workflow
+    assert "No active milestone override" in route_workflow
+
+    assert 'argument-hint: "[--frozen=yes|no] [--change=extend|revise] [--layer=new|change]"' in route_command
+    assert "Follow `@{GPD_INSTALL_DIR}/workflows/route.md`" in route_command
+    assert "Exactly one recommendation returned; compound recommendations list the required commands in order" in route_command
+    assert (
+        "Exactly one recommendation returned; if the recommendation is compound, the ordered command sequence is rendered explicitly"
+        in route_workflow
+    )
+    assert "ordered compound sequence `gpd:complete-milestone` then `gpd:new-milestone`" in help_workflow
+
+
+def test_new_project_customize_settings_matches_supervised_dense_defaults() -> None:
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+
+    round_1_start = new_project.index("**Round 1 — Core workflow settings")
+    round_1_end = new_project.index("**Round 2 — Workflow agents", round_1_start)
+    round_1 = new_project[round_1_start:round_1_end]
+
+    assert "**Round 1 — Core workflow settings (5 questions):**" in round_1
+    assert '{ label: "Supervised (Recommended)"' in round_1
+    assert '{ label: "Dense (Recommended)"' in round_1
+    assert 'header: "Review Cadence"' in round_1
+    assert 'Balanced (Recommended)", description: "Routine work is automatic' not in round_1
+
+
+def test_undo_backtrack_hook_collects_complete_backtrack_row_fields() -> None:
+    undo_workflow = (WORKFLOWS_DIR / "undo.md").read_text(encoding="utf-8")
+    record_workflow = (WORKFLOWS_DIR / "record-backtrack.md").read_text(encoding="utf-8")
+    record_command = (COMMANDS_DIR / "record-backtrack.md").read_text(encoding="utf-8")
+
+    assert '--phase=<NN-slug>' in record_command
+
+    record_parse_step = _extract_between(
+        record_workflow,
+        '<step name="parse_prefill_args">',
+        "</step>",
+    )
+    record_dedupe_step = _extract_between(
+        record_workflow,
+        '<step name="check_duplicates">',
+        "</step>",
+    )
+    undo_backtrack_step = _extract_between(
+        undo_workflow,
+        '<step name="offer_record_backtrack">',
+        "</step>",
+    )
+
+    assert '--phase=<NN-slug>' in record_parse_step
+    assert "Dedupe by exact normalized matching of finalized" in record_dedupe_step
+    assert "`phase` + `trigger` + `why_wrong`" in record_dedupe_step
+    assert (
+        "args={reverted_commit: TARGET_HASH, trigger: TARGET_MSG, "
+        "phase: INFERRED_PHASE_OR_NULL}"
+    ) in undo_backtrack_step
+    assert "using structured arguments, not a shell-shaped string" in undo_backtrack_step
+    assert "do not interpolate it into shell-shaped args" in undo_backtrack_step
+    assert (
+        "remaining required row fields (`stage`, `produced`, `why_wrong`, "
+        "`counter_action`, `category`, `confidence`, and `promote`)"
+    ) in undo_backtrack_step
+    assert "prompts the user only for `why_wrong`" not in undo_backtrack_step
+
+
+def test_changed_continuation_surfaces_do_not_reintroduce_session_as_authority() -> None:
+    checked_surfaces = {
+        "execute-plan": (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8"),
+        "resume-work": (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8"),
+        "checkpoints": (REFERENCES_DIR / "orchestration" / "checkpoints.md").read_text(encoding="utf-8"),
+        "github-lifecycle": (REFERENCES_DIR / "execution" / "github-lifecycle.md").read_text(encoding="utf-8"),
+        "state-machine": (TEMPLATES_DIR / "state-machine.md").read_text(encoding="utf-8"),
+        "help": (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8"),
+    }
+    stale_phrases = (
+        "`session` record are discovery surfaces",
+        "`session` and STATE.md are projection surfaces",
+        "`session` continuity mirror",
+        "`session` fields should mirror",
+        "session info reflect the latest work",
+        "session fields, or the derived head",
+        "canonical session handoff",
+        "STATE.md (Session section)",
+        "mirrored STATE.md session continuity entry",
+    )
+
+    for name, text in checked_surfaces.items():
+        for phrase in stale_phrases:
+            assert phrase not in text, f"{name} reintroduced stale session-authority wording: {phrase}"

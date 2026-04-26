@@ -54,6 +54,10 @@ Use `git revert --no-commit` followed by a commit with "undo: revert [original m
 
 If the reverted commit affected STATE.md, update it to reflect the rollback.
 
+## Step 7: Offer Record Backtrack (post-step)
+
+After the revert lands, prompt `Capture what went wrong in BACKTRACKS.md? [Y/n/e]`. Enter = Y invokes `gpd:record-backtrack` via Skill with `--reverted-commit`, `--trigger`, and normalized `--phase` when inferable from the just-reverted commit; the backtrack workflow still collects the remaining required row fields before append. `n` is first-class and skips; `e` opens the form in-place for freeform edits.
+
 **SAFETY:** Never undo merge commits. Never force-push. Always create checkpoint first.
 </process>
 

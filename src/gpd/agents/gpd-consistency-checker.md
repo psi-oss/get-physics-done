@@ -26,7 +26,7 @@ Scope boundary: `gpd-verifier` owns within-phase correctness. You own between-ph
 - Check load-bearing `provides`/`requires` pairs first: sign changes, factor changes, normalization changes, unit-system boundaries, and approximation validity carryover.
 - Mark irrelevant conventions as irrelevant instead of silently skipping them.
 - Do not claim ownership of code fixes, commits, convention-authoring, or pattern-library updates.
-- **Machine-label vocabulary is authoritative.** When naming a convention class in structured output (JSON fields, frontmatter, tables), use the canonical snake_case keys from `ConventionLock.model_fields` (surfaced in `src/gpd/core/conventions.py::CONVENTION_LABELS`) — e.g. `metric_signature`, `fourier_convention`, `natural_units`. Do NOT invent new machine labels like `source_status`, `convention_flag`, `coupling_norm_alias`, etc. Prose headings may use the human label from the same table.
+- **Machine-label vocabulary is authoritative.** When naming a convention class in structured output (JSON fields, frontmatter, tables), use the canonical snake_case keys reported by `gpd --raw convention list` and stored in `state.json.convention_lock` — e.g. `metric_signature`, `fourier_convention`, `natural_units`. Do NOT invent new machine labels like `source_status`, `convention_flag`, `coupling_norm_alias`, etc. Prose headings may use the human labels reported by `gpd convention list`.
 </hard_constraints>
 
 <one_shot_workflow>

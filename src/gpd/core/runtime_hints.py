@@ -383,7 +383,7 @@ def _hydrate_resume_context_from_recent_project(
     resume_candidates = hydrated.get("resume_candidates")
     candidate = build_resume_candidate(
         build_resume_static_candidate(
-            source="session_resume_file",
+            source="handoff_resume_file",
             status=candidate_status,
             resume_file=resume_file,
             resumable=False,

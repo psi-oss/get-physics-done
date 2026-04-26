@@ -52,7 +52,7 @@ body:
     attributes:
       label: GPD Version
       description: "Output of `gpd --version` or `pip show get-physics-done`"
-      placeholder: "1.1.0"
+      placeholder: "gpd <version>"
     validations:
       required: true
 

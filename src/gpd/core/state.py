@@ -101,6 +101,7 @@ __all__ = [
     "AddBlockerResult",
     "AddDecisionResult",
     "AdvancePlanResult",
+    "ContractAlignmentGate",
     "Decision",
     "MetricRow",
     "PerformanceMetrics",
@@ -141,6 +142,7 @@ __all__ = [
     "state_has_field",
     "state_load",
     "state_patch",
+    "state_record_contract_alignment",
     "state_record_metric",
     "state_record_session",
     "state_record_verification",
@@ -418,6 +420,16 @@ class Position(BaseModel):
     paused_at: str | None = None
 
 
+class ContractAlignmentGate(BaseModel):
+    """Persisted confirmation that the operator reviewed the claim↔deliverable alignment for the current contract+CONTEXT hash."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    confirmed_at: str | None = None
+    confirmed_contract_hash: str | None = None
+    confirmed_context_hash: str | None = None
+
+
 class Decision(BaseModel):
     """A recorded research decision."""
 
@@ -469,6 +481,7 @@ class ResearchState(BaseModel):
     pending_todos: list[str | dict] = Field(default_factory=list)
     blockers: list[str | dict] = Field(default_factory=list)
     continuation: ContinuationState = Field(default_factory=ContinuationState)
+    contract_alignment: ContractAlignmentGate = Field(default_factory=ContractAlignmentGate)
 
     model_config = {"extra": "allow"}
 
@@ -1017,6 +1030,7 @@ def _project_contract_gate_payload(
     *,
     load_info: dict[str, object] | None,
     validation: dict[str, object] | None,
+    alignment: ContractAlignmentGate | None = None,
 ) -> dict[str, object]:
     """Return a single visible-vs-authoritative contract gate payload."""
 
@@ -1038,7 +1052,7 @@ def _project_contract_gate_payload(
         and not repair_relevant_schema_warning
     )
     blocked = load_blocked or approval_blocked
-    return {
+    payload: dict[str, object] = {
         "status": load_status,
         "visible": visible,
         "blocked": blocked,
@@ -1050,14 +1064,35 @@ def _project_contract_gate_payload(
         "provenance": (load_info or {}).get("provenance"),
         "source_path": (load_info or {}).get("source_path"),
     }
+    if alignment is not None:
+        payload.update(alignment.model_dump(mode="python", exclude_none=True))
+    return payload
 
 
 def _finalize_project_contract_gate(
     cwd: Path,
     contract: ResearchContract | None,
     load_info: dict[str, object],
+    *,
+    state_obj: dict | None = None,
 ) -> tuple[dict[str, object], dict[str, object] | None, dict[str, object]]:
     """Normalize final load info, approval validation, and gate payload."""
+
+    # Resolve ``contract_alignment`` from the raw state dict, returning defaults on any mismatch.
+    alignment: ContractAlignmentGate | None
+    if isinstance(state_obj, dict):
+        raw_alignment = state_obj.get("contract_alignment")
+        if isinstance(raw_alignment, ContractAlignmentGate):
+            alignment = raw_alignment
+        elif isinstance(raw_alignment, dict):
+            try:
+                alignment = ContractAlignmentGate.model_validate(raw_alignment)
+            except PydanticValidationError:
+                alignment = ContractAlignmentGate()
+        else:
+            alignment = ContractAlignmentGate()
+    else:
+        alignment = None
 
     finalized_load_info = {
         "status": load_info.get("status"),
@@ -1098,6 +1133,7 @@ def _finalize_project_contract_gate(
         contract,
         load_info=finalized_load_info,
         validation=validation_payload,
+        alignment=alignment,
     )
     return finalized_load_info, validation_payload, gate_payload
 
@@ -1252,6 +1288,7 @@ def _normalize_state_continuation(raw: dict[str, object]) -> dict[str, object]:
 
     normalized = copy.deepcopy(raw)
     normalized["continuation"] = _normalize_continuation_payload(normalized.get("continuation"))
+    normalized.pop("session", None)
     return normalized
 
 
@@ -1591,7 +1628,7 @@ def _slugify_custom_convention(label: str) -> str:
 def parse_state_md(content: str) -> dict:
     """Parse STATE.md into a structured dict.
 
-    This is the canonical parser — used by parse_state_to_json, migrate, and snapshot.
+    This is the canonical parser used by parse_state_to_json, normalization, and snapshot.
     """
     # Position fields
     current_phase_raw = state_extract_field(content, "Current Phase")
@@ -2512,7 +2549,6 @@ _STATE_MD_MIRRORED_FIELDS: dict[str, tuple[str, ...] | None] = {
         "progress_percent",
         "paused_at",
     ),
-    "session": ("last_date", "hostname", "platform", "stopped_at", "resume_file", "last_result_id"),
     "decisions": None,
     "blockers": None,
     "performance_metrics": ("rows",),
@@ -3197,7 +3233,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     merged = _build_state_from_markdown(
         cwd,
         md_content,
-        # Session Continuity is a compatibility mirror; markdown edits must
+        # Session Continuity is rendered from canonical continuation; markdown edits must
         # not mint canonical continuation authority on their own.
     )
     if merged.get("project_contract") is None and isinstance(preserved_contract, dict):
@@ -3644,7 +3680,7 @@ def _project_contract_runtime_payload_for_state(
                 "warnings": list(dict.fromkeys([*list(load_info.get("warnings") or []), *canonicalization_warnings])),
             }
 
-    return _finalize_project_contract_gate(cwd, contract, load_info)
+    return _finalize_project_contract_gate(cwd, contract, load_info, state_obj=state_obj)
 
 
 @instrument_gpd_function("state.load_json")
@@ -3825,7 +3861,7 @@ def save_state_markdown_locked(cwd: Path, md_content: str) -> dict:
     merged = _build_state_from_markdown(
         cwd,
         md_content,
-        # Session Continuity is a compatibility mirror; markdown edits must
+        # Session Continuity is rendered from canonical continuation; markdown edits must
         # not mint canonical continuation authority on their own.
     )
     normalized_md_content = _canonicalize_session_continuity_section(md_content, merged)
@@ -3930,13 +3966,11 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
         return StateGetResult(content=content)
 
     section_norm = section.replace("_", " ").strip()
-    if section_norm.casefold() in {"session", "continuation", "handoff"}:
+    if section_norm.casefold() in {"continuation", "handoff"}:
         state_obj = load_state_json_readonly(cwd)
         if isinstance(state_obj, dict):
             canonical_value: object | None
-            if section_norm.casefold() == "session":
-                canonical_value = state_obj.get("session")
-            elif section_norm.casefold() == "continuation":
+            if section_norm.casefold() == "continuation":
                 canonical_value = state_obj.get("continuation")
             else:
                 continuation = state_obj.get("continuation")
@@ -4773,7 +4807,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
         return ResolveBlockerResult(resolved=False, blocker=text, reason="no match found")
 
 
-def _normalize_session_resume_file(cwd: Path, resume_file: str | None) -> str | None:
+def _normalize_handoff_resume_file(cwd: Path, resume_file: str | None) -> str | None:
     """Normalize project-local absolute resume pointers back to repo-relative form."""
     if resume_file is None:
         return None
@@ -4818,14 +4852,14 @@ def state_record_session(
         )
         existing_handoff = current_continuation.handoff
         existing_machine = current_continuation.machine
-        normalized_existing_resume_file = _normalize_session_resume_file(cwd, existing_handoff.resume_file)
+        normalized_existing_resume_file = _normalize_handoff_resume_file(cwd, existing_handoff.resume_file)
         normalized_resume_file = (
             None
             if clear_resume_file
             else (
                 normalized_existing_resume_file
                 if resume_file is None
-                else _normalize_session_resume_file(cwd, resume_file)
+                else _normalize_handoff_resume_file(cwd, resume_file)
             )
         )
         if (
@@ -4921,6 +4955,39 @@ def state_record_session(
         return RecordSessionResult(recorded=True, updated=updated)
 
 
+@instrument_gpd_function("state.record_contract_alignment")
+def state_record_contract_alignment(
+    cwd: Path,
+    *,
+    contract_hash: str,
+    context_hash: str,
+    now: str | None = None,
+) -> None:
+    """Atomically persist the claim↔deliverable alignment confirmation."""
+    if not isinstance(contract_hash, str) or not contract_hash.strip():
+        raise StateError("contract_hash must be a non-empty string")
+    if not isinstance(context_hash, str) or not context_hash.strip():
+        raise StateError("context_hash must be a non-empty string")
+    resolved_now = now if now is not None else datetime.now(tz=UTC).isoformat()
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        state_obj, _integrity_issues, state_source = _load_state_json_with_integrity_issues(
+            cwd,
+            persist_recovery=False,
+            recover_intent=False,
+            surface_blocked_project_contract=True,
+            acquire_lock=False,
+        )
+        if not isinstance(state_obj, dict) or state_source is None:
+            raise StateError("State not found")
+        state_obj["contract_alignment"] = ContractAlignmentGate(
+            confirmed_at=resolved_now,
+            confirmed_contract_hash=contract_hash,
+            confirmed_context_hash=context_hash,
+        ).model_dump(mode="python")
+        save_state_json_locked(cwd, state_obj)
+
+
 @instrument_gpd_function("state.snapshot")
 def state_snapshot(cwd: Path) -> StateSnapshotResult:
     """Fast snapshot of state for progress/routing commands."""
@@ -4945,7 +5012,7 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
         decisions=state_obj.get("decisions"),
         blockers=state_obj.get("blockers"),
         paused_at=pos.get("paused_at"),
-        session=state_obj.get("session"),
+        session=None,
     )
 
 
@@ -5059,7 +5126,6 @@ def state_validate(
         for section in (
             "decisions",
             "blockers",
-            "session",
             "continuation",
             "convention_lock",
             "approximations",

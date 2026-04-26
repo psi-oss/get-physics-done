@@ -225,10 +225,10 @@ def _write_usage_record(*, data_root: Path, project_root: Path, session_id: str)
 
 
 def _assert_no_resume_compat_aliases(orientation: dict[str, object]) -> None:
-    assert "compat_resume_surface" not in orientation
+    assert "resume_surface" not in orientation
     for key in RESUME_BACKEND_ONLY_FIELDS:
         assert key not in orientation
-    assert "has_session_resume_file" not in orientation
+    assert "has_handoff_resume_file" not in orientation
 
 
 def _fake_cost_summary(workspace: Path, **overrides: object) -> SimpleNamespace:
@@ -372,19 +372,19 @@ def test_build_runtime_hint_payload_does_not_recover_intent_during_read_only_dis
     assert (layout.gpd / ".state-md-tmp").read_text(encoding="utf-8") == before_md_tmp
 
 
-def test_build_runtime_hint_payload_prefers_lineage_head_over_legacy_current_execution_snapshot(
+def test_build_runtime_hint_payload_prefers_lineage_head_over_stale_current_execution_snapshot(
     tmp_path: Path,
 ) -> None:
     project = _bootstrap_project(tmp_path)
     data_root = tmp_path / "data"
 
-    _write_current_session(project, session_id="legacy-session")
+    _write_current_session(project, session_id="stale-session")
     _write_current_execution(
         project,
-        session_id="legacy-session",
+        session_id="stale-session",
         extra_execution={
             "segment_status": "waiting_review",
-            "current_task": "Legacy snapshot task",
+            "current_task": "Stale snapshot task",
             "current_task_index": 4,
             "current_task_total": 8,
             "waiting_for_review": True,
@@ -422,7 +422,7 @@ def test_build_runtime_hint_payload_prefers_lineage_head_over_legacy_current_exe
     assert payload.execution["status_classification"] == "blocked"
     assert payload.execution["current_task"] == "Lineage head task"
     assert payload.execution["current_task_progress"] == "1/4"
-    assert payload.execution["current_task"] != "Legacy snapshot task"
+    assert payload.execution["current_task"] != "Stale snapshot task"
     assert payload.execution["has_live_execution"] is True
 
 
@@ -1477,7 +1477,7 @@ def test_build_runtime_hint_payload_uses_shared_resume_contract_without_recent_p
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
 
 
-def test_build_runtime_hint_payload_uses_canonical_bounded_resume_mode_without_legacy_execution_flag(
+def test_build_runtime_hint_payload_uses_canonical_bounded_resume_mode_without_stale_execution_flag(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -1515,7 +1515,7 @@ def test_build_runtime_hint_payload_uses_canonical_bounded_resume_mode_without_l
     assert any("suggest-next" in action for action in payload.next_actions)
 
 
-def test_build_runtime_hint_payload_keeps_legacy_execution_overlay_advisory_without_resume_target(
+def test_build_runtime_hint_payload_keeps_internal_execution_overlay_advisory_without_resume_target(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -1530,7 +1530,7 @@ def test_build_runtime_hint_payload_keeps_legacy_execution_overlay_advisory_with
             "resume_mode": "bounded_segment",
             "execution_resumable": True,
             "active_execution_segment": {
-                "segment_id": "seg-legacy",
+                "segment_id": "seg-advisory",
                 "phase": "04",
                 "plan": "02",
                 "segment_status": "paused",
@@ -1559,7 +1559,7 @@ def test_build_runtime_hint_payload_keeps_legacy_execution_overlay_advisory_with
     assert not any("suggest-next" in action for action in payload.next_actions)
 
 
-def test_build_runtime_hint_payload_prefers_canonical_continuity_fields_over_conflicting_legacy_execution_flags(
+def test_build_runtime_hint_payload_prefers_canonical_continuity_fields_over_conflicting_stale_execution_flags(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -1588,7 +1588,7 @@ def test_build_runtime_hint_payload_prefers_canonical_continuity_fields_over_con
             "continuity_handoff_file": "GPD/phases/09/.continue-here.md",
             "recorded_continuity_handoff_file": "GPD/phases/09/.continue-here.md",
             "execution_resumable": True,
-            "execution_resume_file": "GPD/phases/09/legacy-live.md",
+            "execution_resume_file": "GPD/phases/09/advisory-live.md",
             "execution_resume_file_source": "current_execution",
             "has_live_execution": True,
         },
@@ -1626,7 +1626,7 @@ def test_build_runtime_hint_payload_prefers_canonical_continuity_fields_over_con
     assert any("suggest-next" in action for action in payload.next_actions)
 
 
-def test_build_runtime_hint_payload_prefers_canonical_resume_fields_over_legacy_top_level_aliases(
+def test_build_runtime_hint_payload_prefers_canonical_resume_fields_over_stale_top_level_aliases(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -1648,7 +1648,7 @@ def test_build_runtime_hint_payload_prefers_canonical_resume_fields_over_legacy_
             "recorded_continuity_handoff_file": "GPD/phases/10/.continue-here.md",
             "resume_mode": "bounded_segment",
             "execution_resumable": True,
-            "execution_resume_file": "GPD/phases/10/legacy-live.md",
+            "execution_resume_file": "GPD/phases/10/advisory-live.md",
             "execution_resume_file_source": "current_execution",
             "has_live_execution": True,
         },

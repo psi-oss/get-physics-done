@@ -145,18 +145,18 @@ Keep the GitHub lifecycle reference deferred until the plan reaches its checkpoi
 Read autonomy mode from init JSON to control decision authority throughout execution:
 
 ```bash
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)
 ```
 
 **Checkpoint behavior by mode:**
 
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
-| **supervised** | After EVERY task plus every required first-result gate | Always | Always stop |
-| **balanced** (default) | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
+| **supervised** | After EVERY task plus every required first-result gate. Under `review_cadence=dense`, a wave with no deviations may collapse its per-task checkpoints into one "Approve tasks {N..M} as clean pass? `[Y/n/e]`" batch (see "Clean-wave batching under dense" for the full predicate) | Always | Always stop |
+| **balanced** | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result, skeptical, or pre-fanout gates | Stop only on unrecoverable errors, failed sanity gates, or unresolved skeptical review |
 
-**Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops.
+**Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops. Clean-wave batching under dense collapses keystrokes, not gates — any deviation, failed verification, or triggered gate reverts the wave to per-task checkpoints for the remaining tasks.
 
 Task checkpoints are task-level, not every internal algebra line. Model profile and research mode may change depth or task granularity, but they do NOT remove required first-result, skeptical, or pre-fanout gates.
 
@@ -166,7 +166,7 @@ Task checkpoints are task-level, not every internal algebra line. Model profile 
 Read cadence controls from init JSON. Use these to decide whether a plan can run unbounded or must be segmented even without authored checkpoints.
 
 ```bash
-REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default dense)
 MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
 CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
 CHECKPOINT_AFTER_FIRST_RESULT=$(echo "$INIT" | gpd json get .checkpoint_after_first_load_bearing_result --default true)
@@ -176,6 +176,7 @@ CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_do
 Resolve plan-local bounds using orchestrator tags first, then plan shape:
 
 - if the orchestrator passed `<first_result_gate>true</first_result_gate>`, honor it
+- if `review_cadence=dense`, treat `FIRST_RESULT_GATE_REQUIRED=true` as forced; do not recompute it from per-plan heuristics
 - if the orchestrator passed `<segment_task_cap>N</segment_task_cap>`, honor it
 - otherwise require bounded execution when the plan has no authored checkpoints and `task_count >= CHECKPOINT_AFTER_N_TASKS`
 - also require bounded execution when the uninterrupted segment is likely to exceed `MAX_UNATTENDED_MINUTES_PER_PLAN`, even if the work feels smooth
@@ -275,7 +276,7 @@ Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
 1. Parse segment map: checkpoint locations and types, then merge in virtual boundaries from `FIRST_RESULT_GATE_REQUIRED`, `SEGMENT_TASK_CAP`, `MAX_UNATTENDED_MINUTES_PER_PLAN`, and context pressure
 2. Per segment:
    - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<max_unattended_minutes_per_plan>{MAX_UNATTENDED_MINUTES_PER_PLAN}</max_unattended_minutes_per_plan>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs and any durable `continuation_update` fields needed to keep bounded gates live across continuation. Track via agent protocol. The runtime transport payload may still carry `execution_segment` for the fresh handoff, but do not put that transport-only shape inside the durable child-return example. When the segment summary is written, the orchestrator applies it through the canonical `gpd apply-return-updates` path rather than interpreting ad hoc validation text.
-   - Treat `execution_segment` as the runtime transport payload for the pause/continue handoff. When the segment is durably recorded, the runtime may mirror that same payload into `continuation.bounded_segment` and append the matching execution-lineage event so later resume logic can resolve the bounded stop without parsing prose. The markdown handoff file remains a discovery surface only, and the derived execution head stays a compatibility projection.
+   - Treat `execution_segment` as the runtime transport payload for the pause/continue handoff. When the segment is durably recorded, the runtime writes the canonical subset to `continuation.bounded_segment` and appends the matching execution-lineage event so later resume logic can resolve the bounded stop without parsing prose. The markdown handoff file remains a discovery surface only, and the derived execution head reports rebuilt live status.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> apply returned state updates in main context via `gpd apply-return-updates` -> final metadata commit -> self-check:
 
@@ -408,14 +409,18 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
 
      If the same stop also carried a tangent proposal, keep the optional `tangent_summary` / `tangent_decision` fields on the existing `execution` payload until that review stop is explicitly resolved. Do not auto-branch or create side work from telemetry alone.
 
-     **Supervised mode post-task checkpoint:** If `AUTONOMY="supervised"`, insert a `checkpoint:human-verify` after EVERY completed task. Emit the checkpoint return with the task result and all intermediate values; the orchestrator owns presenting it and collecting approval in a fresh continuation before any next task is accepted.
+     **Supervised mode post-task checkpoint:** If `AUTONOMY="supervised"`, insert a `checkpoint:human-verify` after EVERY completed task. Emit the checkpoint return with the task result and all intermediate values; the orchestrator owns presenting it and collecting approval in a fresh continuation before any next task is accepted. Every such `checkpoint:human-verify` uses the `[Y/n/e]` idiom with a one-line summary (see `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`).
+
+     **Clean-wave batching under dense:** when `AUTONOMY="supervised"` AND `review_cadence=dense` AND every task in the wave completed with no deviation (no `deviation` trace events, every `verification-complete` event has typed payload `verification.status="passed"` and `verification.issue_count=0`, no `first_result` / `pre_fanout` / `skeptical` gate pending, and the return envelope carries `status="completed"` with empty `issues`), collapse the per-task `checkpoint:human-verify` emissions into one batch "Approve tasks {N..M} as clean pass? `[Y/n/e]`" presented after the last task in the wave. Do not parse prose such as "failure language" to decide batching eligibility. On `Y` / Enter, all batched tasks are accepted at once; on `n`, the batch is rejected and each task's per-task checkpoint is re-presented individually for review; on `e`, the user opens freeform for per-task notes. If ANY task in the wave emits a deviation, fails verification, omits the typed verification outcome, or trips a required gate, the wave immediately reverts to per-task checkpoints for the remaining tasks — no partial batching.
    - `type="checkpoint:*"`: Route by autonomy mode:
      - **supervised:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> return structured checkpoint state to the orchestrator. The orchestrator presents the checkpoint and resumes only through a fresh continuation.
      - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, any checkpoint tied to deviation rules 5-6 or unresolved convergence failure, and any case where decisive evidence is still missing but the next tasks would assume it. Log routine checkpoint markers and continue when no judgment is needed.
      - **yolo:** Do NOT skip required first-result, bounded-segment, skeptical, or pre-fanout checkpoints. Auto-continue only after the gate is explicitly cleared and the remaining work is genuinely independent of the unresolved decisive comparison. STOP on failed sanity, unresolved skeptical review, anchor-gate failure, or unrecoverable computation error.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
    ```bash
-   gpd observe event verification verification-complete --phase "${phase}" --plan "${plan}" --data "{\"description\":\"${VERIFICATION_RESULT}\"}" 2>/dev/null || true
+   # VERIFICATION_STATUS is a typed outcome, not parsed prose. Use `passed`
+   # only when all required verification checks passed with zero issues.
+   gpd observe event verification verification-complete --phase "${phase}" --plan "${plan}" --data "{\"verification\":{\"status\":\"${VERIFICATION_STATUS}\",\"issue_count\":${VERIFICATION_ISSUE_COUNT:-0}},\"description\":\"${VERIFICATION_RESULT}\"}" 2>/dev/null || true
    gpd trace log assertion --data "{\"description\":\"Verification: ${VERIFICATION_RESULT}\"}" 2>/dev/null || true
    ```
 4. Confirm `<success_criteria>` met
@@ -431,7 +436,7 @@ Context is finite (~80% usable before compression). After completing each task:
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and `session` record are discovery surfaces that mirror canonical continuation; `continuation.bounded_segment` is the bounded authority for the pause.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and STATE.md Session Continuity rendering are discovery surfaces; `continuation.bounded_segment` is the bounded authority for the pause.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 
@@ -458,7 +463,7 @@ CHECKPOINT
 2. If above 75% (or 85% in yolo mode): Proactively trigger pause protocol:
    - Commit all current work
    - Create `.continue-here.md` with full derivation state and a bounded execution segment summary
-   - Update STATE.md as a projected continuation pointer
+   - Update STATE.md's Session Continuity block from canonical continuation
   - **supervised/balanced:** Suggest `/clear` + `gpd:resume-work`
    - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest `/clear` + `gpd:resume-work`
 
@@ -594,11 +599,11 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from aggregate-and-verify init JSON: `summaries`, `reference_artifact_files`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `current_execution`, `has_live_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `execution_blocked`, `execution_resumable`, `execution_paused_at`, `current_execution_resume_file`, `session_resume_file`, `recorded_session_resume_file`, `missing_session_resume_file`, `execution_resume_file`, `execution_resume_file_source`, `resume_projection`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `state_load_source`, `state_integrity_issues`.
+Extract from aggregate-and-verify init JSON: `summaries`, `reference_artifact_files`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `current_execution`, `has_live_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `execution_blocked`, `execution_resumable`, `execution_paused_at`, `current_execution_resume_file`, `handoff_resume_file`, `recorded_handoff_resume_file`, `missing_handoff_resume_file`, `execution_resume_file`, `execution_resume_file_source`, `resume_state`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `state_load_source`, `state_integrity_issues`.
 
 Create `${phase}-${plan}-SUMMARY.md` at `${phase_dir}/`. Use `{GPD_INSTALL_DIR}/templates/summary.md`.
 
-Note: DERIVATION-STATE.md is updated by gpd:pause-work as the projected pause handoff record. On natural completion (no pause), key equations and results are captured in SUMMARY.md instead. If you want cumulative derivation state across sessions, run gpd:pause-work before ending.
+Note: DERIVATION-STATE.md is updated by gpd:pause-work as the pause handoff record. On natural completion (no pause), key equations and results are captured in SUMMARY.md instead. If you want cumulative derivation state across sessions, run gpd:pause-work before ending.
 
 If the selected plan artifact is the standalone `PLAN.md`, write the canonical standalone summary as `SUMMARY.md`. Where this workflow shows numbered examples like `${phase}-${plan}-SUMMARY.md`, substitute the standalone `SUMMARY.md` filename instead.
 
@@ -685,7 +690,7 @@ gpd apply-return-updates "${SUMMARY_FILE}"
 </step>
 
 <step name="update_continuation">
-Include continuation update in the `gpd_return` envelope so `gpd apply-return-updates` can retire the completed bounded segment and persist the canonical session handoff:
+Include continuation update in the `gpd_return` envelope so `gpd apply-return-updates` can retire the completed bounded segment and persist the canonical continuation handoff:
 
 ```yaml
 gpd_return:
@@ -704,7 +709,7 @@ gpd_return:
 gpd apply-return-updates "${SUMMARY_FILE}"
 ```
 
-This continuation update is the authoritative completion cleanup boundary. It retires any stale `continuation.bounded_segment` that still points at the completed work and clears the canonical handoff pointer for this plan. The matching execution-lineage record remains as history even after the bounded stop is retired. `session` and STATE.md are projection surfaces that should reflect this update after persistence, not independent authorities.
+This continuation update is the authoritative completion cleanup boundary. It retires any stale `continuation.bounded_segment` that still points at the completed work and clears the canonical handoff pointer for this plan. The matching execution-lineage record remains as history even after the bounded stop is retired. STATE.md should reflect this update after persistence, but it is not an independent authority.
 
 Keep STATE.md under 150 lines.
 </step>
@@ -790,7 +795,7 @@ When plan execution fails, see `execute-plan-recovery.md` for the full recovery 
 - Limiting cases checked where specified
 - SUMMARY.md created with substantive content including key results
 - Contract-backed plans emit contract_results and comparison_verdicts when applicable
-- STATE.md updated (position, decisions, issues, session)
+- STATE.md updated (position, decisions, issues, Session Continuity rendering)
 - ROADMAP.md updated
 - Validation events documented
 - Checkpoint tag cleaned up on success (retained on failure)

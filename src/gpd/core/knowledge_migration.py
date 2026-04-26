@@ -98,7 +98,7 @@ def _normalize_source_record(raw: object, *, index: int) -> tuple[dict[str, obje
             record = KnowledgeSourceRecord.model_validate(candidate)
         except Exception as exc:  # pragma: no cover - handled through deterministic blockers
             return None, f"knowledge.sources[{index}]: {exc}"
-        return record.model_dump(mode="python"), "knowledge.sources[{index}]: normalized from legacy keys"
+        return record.model_dump(mode="python"), "knowledge.sources[{index}]: normalized from alternate keys"
 
     return record.model_dump(mode="python"), None
 
@@ -138,10 +138,10 @@ def _normalize_review(raw_review: object, *, status: str) -> tuple[dict[str, obj
         review = KnowledgeReviewRecord.model_validate(raw_review)
     except Exception as exc:
         if status == "stable":
-            return None, "legacy", [f"stable doc review block is non-canonical and must be re-reviewed: {exc}"]
+            return None, "non_canonical", [f"stable doc review block is non-canonical and must be re-reviewed: {exc}"]
         if status == "in_review":
-            return None, "legacy", [f"in_review doc review block is non-canonical and must be rebuilt: {exc}"]
-        return None, "legacy", [f"legacy review block will be dropped during migration: {exc}"]
+            return None, "non_canonical", [f"in_review doc review block is non-canonical and must be rebuilt: {exc}"]
+        return None, "non_canonical", [f"non-canonical review block will be dropped during migration: {exc}"]
 
     if status == "draft":
         return None, "canonical", ["draft docs must not keep review evidence during migration"]
@@ -370,7 +370,7 @@ def classify_knowledge_doc_migration(
         if raw_review is not None:
             notes.append("draft docs do not carry review evidence in the canonical schema")
     elif current_status == "superseded" and normalized_review is None and raw_review is not None:
-        notes.append("legacy review evidence on superseded docs is dropped during migration")
+        notes.append("non-canonical review evidence on superseded docs is dropped during migration")
 
     normalized_meta: dict[str, object] | None = None
     if canonical_knowledge_id is not None and current_status is not None and normalized_sources is not None:

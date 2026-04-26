@@ -25,8 +25,8 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause for user confirmation after requirements gathering and before roadmap generation.
-- `autonomy=balanced` (default): Execute the full pipeline automatically and pause only if milestone scope is ambiguous or requirements conflict with prior work.
+- `autonomy=supervised` (default): Pause for user confirmation after requirements gathering and before roadmap generation.
+- `autonomy=balanced`: Execute the full pipeline automatically and pause only if milestone scope is ambiguous or requirements conflict with prior work.
 - `autonomy=yolo`: Execute full pipeline, skip optional research step, auto-approve roadmap, but do NOT skip phase-level contract coverage and anchor visibility.
 - `research_mode=explore`: Broader research survey for new milestone, consider alternative approaches, include speculative phases.
 - `research_mode=exploit`: Focused research on direct extensions of prior milestone, lean phase structure.
@@ -522,6 +522,9 @@ Effective reference intake: {effective_reference_intake}
 Reference artifacts: {reference_artifacts_content}
 </contract_context>
 
+<shallow_mode>false</shallow_mode>
+<!-- Milestones keep the full-detail roadmap so scoped continuations inherit every phase's contract coverage and success criteria up front. -->
+
 <continuation_context>
 This is a fresh continuation handoff for the current milestone roadmap. Carry forward the approved objectives, requirement traceability, prior survey findings, and any unresolved context gaps. Edit the existing roadmap files in place and return a fresh typed `gpd_return` envelope.
 </continuation_context>
@@ -631,6 +634,9 @@ Success criteria:
   Edit files in place.
   Return a fresh typed `gpd_return` envelope with `status` and `files_written`.
   </continuation>
+
+  <shallow_mode>false</shallow_mode>
+  <!-- Milestones keep the full-detail roadmap so scoped continuations inherit every phase's contract coverage and success criteria up front. -->
   ", subagent_type="gpd-roadmapper", model="{roadmapper_model}", readonly=false, description="Revise roadmap")
   ```
 

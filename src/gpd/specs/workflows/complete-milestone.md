@@ -507,6 +507,7 @@ Read `GPD/INSIGHTS.md` and identify entries that:
 - Were confirmed across 2+ phases (high confidence)
 - Describe repeatable error patterns, not one-off issues
 - Have clear detection and prevention strategies
+- Include rows in `GPD/BACKTRACKS.md` flagged `promote: true` — these were auto-copied into INSIGHTS.md's `## Execution Deviations` section by the `gpd:record-backtrack` workflow when captured, so they surface here alongside directly-recorded insights.
 
 For each candidate, check if a matching pattern already exists:
 
@@ -743,13 +744,19 @@ See GPD/MILESTONES.md for full details."
 
 Confirm: "Tagged: v[X.Y]"
 
-Ask: "Push tag to remote? (y/n)"
+Summary: "Tagged v[X.Y] locally. Remote: origin."
+
+Ask: "Push tag v[X.Y] to remote? [Y/n/e]  (Enter = Y; e opens freeform for a custom remote or additional options)"
+
+**Edit branch:** If the user chooses `e`, collect the custom remote or push options, render the exact push command that would run, and re-present the updated `[Y/n/e]` prompt once before pushing. Do not treat the edit text itself as approval.
 
 If yes:
 
 ```bash
 git push origin v[X.Y]
 ```
+
+If no, leave the local tag unpushed and continue to the completion summary with the remote-push status recorded as skipped.
 
 </step>
 

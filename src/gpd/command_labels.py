@@ -107,7 +107,9 @@ def runtime_command_surface_pattern() -> re.Pattern[str]:
     """Return a regex that matches any runtime-native GPD command surface."""
 
     escaped_prefixes = "|".join(re.escape(prefix) for prefix in runtime_command_prefixes())
-    return re.compile(rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?!\.md\b)")
+    return re.compile(
+        rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?![A-Za-z0-9_-]|\.md\b)"
+    )
 
 
 def runtime_command_surface_is_path_like_context(content: str, match: re.Match[str]) -> bool:

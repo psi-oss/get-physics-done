@@ -42,17 +42,16 @@ RESUME_SURFACE_SCHEMA_VERSION = 1
 
 RESUME_BACKEND_ONLY_FIELDS: tuple[str, ...] = (
     "active_execution_segment",
-    "compat_resume_surface",
     "current_execution",
     "current_execution_resume_file",
     "execution_resume_file",
     "execution_resume_file_source",
-    "missing_session_resume_file",
-    "recorded_session_resume_file",
+    "missing_handoff_resume_file",
+    "recorded_handoff_resume_file",
     "resume_mode",
     "resume_surface",
     "segment_candidates",
-    "session_resume_file",
+    "handoff_resume_file",
 )
 
 RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT = "bounded_segment"
@@ -213,7 +212,7 @@ def _canonical_resume_origin(origin: str | None) -> str | None:
         return None
     if normalized == "current_execution":
         return RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT
-    if normalized == "session_resume_file":
+    if normalized == "handoff_resume_file":
         return RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF
     return normalized
 
@@ -223,7 +222,7 @@ def resume_candidate_kind_from_source(source: str | None) -> str | None:
     normalized = (source or "").strip()
     if normalized == "current_execution":
         return RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT
-    if normalized == "session_resume_file":
+    if normalized == "handoff_resume_file":
         return RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF
     if normalized == "interrupted_agent":
         return RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT
@@ -282,7 +281,7 @@ def resume_candidate_origin_from_source(
     normalized = (source or "").strip()
     if normalized == "current_execution":
         return RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT
-    if normalized == "session_resume_file":
+    if normalized == "handoff_resume_file":
         return RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF
     if normalized == "interrupted_agent":
         return resume_origin_for_interrupted_agent()

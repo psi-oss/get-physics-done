@@ -502,10 +502,10 @@ Initialize the canonical continuity fields under `GPD/state.json.continuation` s
 
 ```json
 {
-  "autonomy": "balanced",
+  "autonomy": "supervised",
   "research_mode": "balanced",
   "execution": {
-    "review_cadence": "adaptive"
+    "review_cadence": "dense"
   },
   "parallelization": true,
   "planning": {
@@ -610,8 +610,8 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
-- `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
+- `autonomy=supervised` (default): Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
+- `autonomy=balanced`: Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
 - `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate. Do NOT skip the requirement to show contract coverage in the roadmap.
 - `--auto` changes how intake happens, not who owns later review gates. If `autonomy=supervised`, keep the roadmap approval checkpoint even in auto mode.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
@@ -998,18 +998,18 @@ Use ask_user:
   - "Full research" — core research defaults plus publication readiness tracking for projects expected to end in a paper
   - "Customize settings" — choose `autonomy`, `research_mode`, `parallelization`, `planning.commit_docs`, `execution.review_cadence`, workflow agents, and `model_profile` individually
 
-**If a preset is selected:** Resolve the selected catalog preset into the existing config keys, show the changed knobs before writing config.json, and if the user wants to adjust the bundle, fall back to "Customize settings". For the recommended `core-research` preset, that preview should surface `autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, `planning.commit_docs=true`, `execution.review_cadence=adaptive`, and `model_profile=review`. Example for `core-research`:
+**If a preset is selected:** Resolve the selected catalog preset into the existing config keys, show the changed knobs before writing config.json, and if the user wants to adjust the bundle, fall back to "Customize settings". For the recommended `core-research` preset, that preview should surface `autonomy=supervised`, `research_mode=balanced`, `parallelization=true`, `planning.commit_docs=true`, `execution.review_cadence=dense`, and `model_profile=review`. Example for `core-research`:
 
 ```json
 {
-  "autonomy": "balanced",
+  "autonomy": "supervised",
   "research_mode": "balanced",
   "parallelization": true,
   "planning": {
     "commit_docs": true
   },
   "execution": {
-    "review_cadence": "adaptive"
+    "review_cadence": "dense"
   },
   "model_profile": "review",
   "workflow": {
@@ -1023,7 +1023,7 @@ Use ask_user:
 Display confirmation:
 
 ```
-Config: Balanced autonomy | Adaptive review cadence | Balanced research mode | Parallel | All agents | Review profile
+Config: Supervised autonomy | Dense review cadence | Balanced research mode | Parallel | All agents | Review profile
 (Change anytime with gpd:settings)
 ```
 
@@ -1033,7 +1033,7 @@ Skip to "Commit config.json" below.
 
 ---
 
-**Round 1 — Core workflow settings (4 questions):**
+**Round 1 — Core workflow settings (5 questions):**
 
 ```
 questions: [
@@ -1042,9 +1042,9 @@ questions: [
     question: "How much autonomy should GPD have?",
     multiSelect: false,
     options: [
-      { label: "Balanced (Recommended)", description: "Routine work is automatic; pause on important physics decisions, ambiguities, blockers, or scope changes" },
-      { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints, sync the active runtime to its most autonomous permission mode when supported, and keep going unless a hard stop fires" },
-      { label: "Supervised", description: "Confirm each major step before proceeding" }
+      { label: "Supervised (Recommended)", description: "Default for new projects. Checkpoint every physics-bearing decision so the researcher can verify and redirect early." },
+      { label: "Balanced", description: "Routine work is automatic; pause on important physics decisions, ambiguities, blockers, or scope changes" },
+      { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints, sync the active runtime to its most autonomous permission mode when supported, and keep going unless a hard stop fires" }
     ]
   },
   {
@@ -1056,6 +1056,16 @@ questions: [
       { label: "Explore", description: "Broader literature search and more alternative approaches" },
       { label: "Exploit", description: "Focused execution with minimal branching" },
       { label: "Adaptive", description: "Start broad, then narrow once the best path is clear" }
+    ]
+  },
+  {
+    header: "Review Cadence",
+    question: "How often should execution stop for review checkpoints?",
+    multiSelect: false,
+    options: [
+      { label: "Dense (Recommended)", description: "Default for rigorous research. Force first-result and pre-fanout gates on every execution wave." },
+      { label: "Adaptive", description: "Gate risky or load-bearing work while allowing clean routine segments to continue." },
+      { label: "Sparse", description: "Fewest review stops; required correctness, proof, and blocker gates still run." }
     ]
   },
   {
@@ -1144,6 +1154,9 @@ Create `GPD/config.json` with all settings:
   "parallelization": true|false,
   "planning": {
     "commit_docs": true|false
+  },
+  "execution": {
+    "review_cadence": "dense|adaptive|sparse"
   },
   "model_profile": "deep-theory|numerical|exploratory|review|paper-writing",
   "workflow": {
@@ -1785,6 +1798,10 @@ Project contract gate: {project_contract_gate}
 Project contract load info: {project_contract_load_info}
 Project contract validation: {project_contract_validation}
 
+<shallow_mode>true</shallow_mode>
+
+Shallow mode: produce Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as compact stubs only: title, one-line Goal, objective IDs, compact contract/anchor/proxy labels, `**Plans:** 0 plans`, and a single `- [ ] TBD (run plan-phase N to break down)` entry. The researcher fleshes out detailed success criteria and task decomposition for each subsequent phase on demand via `gpd:plan-phase N`.
+
 </planning_context>
 
 <instructions>
@@ -1792,9 +1809,9 @@ Create research roadmap through the staged post-scope continuation handoff. Keep
 1. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` rather than guessing.
 2. Otherwise, derive the smallest decomposition that keeps decisive outputs, anchor handoffs, and verification legible. A tightly scoped project may have a single phase or a coarse early roadmap. Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them.
 3. Map every requirement to exactly one phase.
-4. For each phase, include explicit contract coverage in ROADMAP.md showing the decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase.
-5. Derive 2-5 success criteria per phase (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract.
-6. Validate 100% requirement coverage and surface all contract-critical items.
+4. For Phase 1, include explicit contract coverage in ROADMAP.md showing the decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase. Phases 2+ are stubs under shallow_mode — they carry objective IDs and compact contract/anchor/proxy labels, but no detailed contract coverage narrative until the researcher runs `gpd:plan-phase N`.
+5. Derive 2-5 success criteria for Phase 1 (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract. Phases 2+ omit success criteria in shallow mode.
+6. Validate 100% requirement coverage. In shallow mode, surface contract-critical identity for all phases through objective IDs and compact contract/anchor/proxy labels, but require detailed per-phase coverage and success criteria only for Phase 1.
 7. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving any existing `GPD/state.json` fields, especially `project_contract` and previously recorded open questions.
 8. Return a typed `gpd_return` envelope with `status` and `files_written`, and use `gpd_return.files_written` to prove freshness; do not rely on runtime completion text alone.
 
@@ -1920,6 +1937,10 @@ Use ask_user:
 
   Read `GPD/ROADMAP.md` for the current roadmap.
 
+  <shallow_mode>true</shallow_mode>
+
+  Shallow mode: keep Phase 1 fully detailed (Goal, Depends on, Requirements, Contract Coverage, 2-5 Success Criteria, placeholder plans) and Phases 2+ as compact stubs only (title + one-line Goal + objective IDs + compact contract/anchor/proxy labels + `**Plans:** 0 plans` + a single `- [ ] TBD (run plan-phase N to break down)` entry). Do not promote Phases 2+ to full detail during revision unless the user's feedback explicitly requests it.
+
   Update the roadmap based on feedback. Edit files in place.
   Return ROADMAP REVISED with changes made.
   </revision>
@@ -1958,8 +1979,8 @@ This step is critical for multi-phase projects where convention mismatches cause
 
 **Convention setup mode is driven by autonomy, not by whether the intake used `--auto`:**
 
-- `autonomy=supervised`: use `interactive` mode. The notation coordinator must return a checkpoint proposal before writing anything, the orchestrator presents it to the user, and a fresh continuation handoff performs the final write after confirmation/override.
-- `autonomy=balanced` (default): use `auto` mode. Lock clear subfield defaults automatically and only return a checkpoint/conflict if the context contains a genuine ambiguity or cross-subfield conflict that needs user judgment.
+- `autonomy=supervised` (default): use `interactive` mode. The notation coordinator must return a checkpoint proposal before writing anything, the orchestrator presents it to the user, and a fresh continuation handoff performs the final write after confirmation/override.
+- `autonomy=balanced`: use `auto` mode. Lock clear subfield defaults automatically and only return a checkpoint/conflict if the context contains a genuine ambiguity or cross-subfield conflict that needs user judgment.
 - `autonomy=yolo`: use `auto` mode and accept the returned conventions automatically.
 - `--auto` only compresses intake. It does not force interactive convention review for `balanced` / `yolo`, and it does not remove the supervised checkpoint.
 
@@ -2111,14 +2132,16 @@ Present completion with next steps:
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
-`gpd:discuss-phase 1`
+`gpd:plan-phase 1`
 
-<sub>`/clear` first for fresh context, then run `gpd:discuss-phase 1`.</sub>
+<sub>`/clear` first for fresh context, then run `gpd:plan-phase 1`.</sub>
+
+Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` when its turn comes.
 
 ---
 
 **Also available:**
-- `gpd:plan-phase 1` — skip discussion and plan directly
+- `gpd:discuss-phase 1` — talk through Phase 1 before planning
 - `gpd:suggest-next` — confirm the next action
 
 ---------------------------------------------------------------
@@ -2161,7 +2184,7 @@ Present completion with next steps:
 - [ ] gpd-roadmapper spawned with context
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
-- [ ] ROADMAP.md created with phases, requirement mappings, success criteria
+- [ ] ROADMAP.md created with phases, requirement mappings, Phase 1 success criteria, and compact stub contract identity for Phases 2+
 - [ ] STATE.md initialized
 - [ ] REQUIREMENTS.md traceability updated
 - [ ] gpd-notation-coordinator spawned to establish conventions

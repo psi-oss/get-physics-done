@@ -80,7 +80,7 @@ def test_peer_review_surfaces_describe_dual_mode_project_and_external_artifact_r
     assert "standalone external artifact review" in command
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in command
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in publication_modes
-    assert "do not infer a full publication-tree migration from that one continuation path" in command
+    assert "do not infer a full publication-tree relocation from that one continuation path" in command
     assert "standalone skeptical peer review" not in workflow
     assert "current GPD project manuscript" in workflow
     assert "explicit manuscript artifact" in workflow

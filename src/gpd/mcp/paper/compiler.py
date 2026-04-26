@@ -922,6 +922,8 @@ async def build_paper(
     enrich_bibliography: bool = True,
     *,
     sidecar_root: Path | None = None,
+    artifact_manifest_output_path: Path | None = None,
+    bibliography_audit_output_path: Path | None = None,
     emit_artifact_manifest: bool = True,
     emit_bibliography_audit: bool = True,
 ) -> PaperOutput:
@@ -937,6 +939,8 @@ async def build_paper(
     to ``sidecar_root`` when provided, otherwise to ``output_dir`` alongside
     the manuscript. ``emit_artifact_manifest`` and ``emit_bibliography_audit``
     can be set to ``False`` to suppress those files entirely (minimal mode).
+    File-specific output paths override the shared sidecar root so callers can
+    promote one sidecar without moving the other.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     if sidecar_root is not None:
@@ -944,7 +948,9 @@ async def build_paper(
     resolved_sidecar_root = sidecar_root if sidecar_root is not None else output_dir
     figures_dir: Path | None = None
     manifest = None
-    manifest_path = resolved_sidecar_root / "ARTIFACT-MANIFEST.json" if emit_artifact_manifest else None
+    manifest_path = None
+    if emit_artifact_manifest:
+        manifest_path = artifact_manifest_output_path or resolved_sidecar_root / "ARTIFACT-MANIFEST.json"
     bibliography_audit = None
     bibliography_audit_path: Path | None = None
     errors: list[str] = []
@@ -1012,7 +1018,9 @@ async def build_paper(
     if bib_data is not None:
         bibliography_audit = audit_bibliography(bib_data, source_audit_entries=citation_audit_entries)
         if emit_bibliography_audit:
-            bibliography_audit_path = resolved_sidecar_root / "BIBLIOGRAPHY-AUDIT.json"
+            bibliography_audit_path = (
+                bibliography_audit_output_path or resolved_sidecar_root / "BIBLIOGRAPHY-AUDIT.json"
+            )
             await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
     reference_bibtex_keys = _reference_bibtex_keys_from_audit(bibliography_audit)
 

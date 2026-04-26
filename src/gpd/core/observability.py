@@ -1183,6 +1183,15 @@ def _normalized_tangent_decision(value: object) -> str | None:
 
 
 _EXECUTION_REVIEW_REASONS = frozenset({"first_result", "pre_fanout", "skeptical_requestioning"})
+_RESULT_VERBS: frozenset[str] = frozenset({"produce", "log"})
+_DEFAULT_REVIEW_CADENCE: str = "dense"
+_FALLBACK_EXECUTION_POLICY: dict[str, object] = {
+    "max_unattended_minutes_per_plan": 15,
+    "max_unattended_minutes_per_wave": 30,
+    "checkpoint_after_n_tasks": 1,
+    "checkpoint_after_first_load_bearing_result": True,
+    "review_cadence": _DEFAULT_REVIEW_CADENCE,
+}
 
 
 def _review_clear_targets(execution: dict[str, object]) -> set[str]:
@@ -1254,6 +1263,7 @@ def _reset_execution_segment_state(current: dict[str, object]) -> None:
         "resume_file",
         "segment_started_at",
         "transition_id",
+        "review_cadence",
     ):
         current[key] = None
 
@@ -1280,13 +1290,17 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
     """Load the bounded-execution policy for one project root."""
 
     if cwd is None:
-        return {}
+        return _default_execution_policy()
     try:
         from gpd.core.config import load_config
 
         cfg = load_config(cwd)
     except Exception:
-        return {}
+        return _default_execution_policy()
+    return _execution_policy_from_config(cfg)
+
+
+def _execution_policy_from_config(cfg: object) -> dict[str, object]:
     return {
         "max_unattended_minutes_per_plan": int(getattr(cfg, "max_unattended_minutes_per_plan", 0) or 0),
         "max_unattended_minutes_per_wave": int(getattr(cfg, "max_unattended_minutes_per_wave", 0) or 0),
@@ -1294,7 +1308,17 @@ def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
         "checkpoint_after_first_load_bearing_result": bool(
             getattr(cfg, "checkpoint_after_first_load_bearing_result", True)
         ),
+        "review_cadence": str(getattr(cfg, "review_cadence", _DEFAULT_REVIEW_CADENCE) or _DEFAULT_REVIEW_CADENCE),
     }
+
+
+def _default_execution_policy() -> dict[str, object]:
+    try:
+        from gpd.core.config import GPDProjectConfig
+
+        return _execution_policy_from_config(GPDProjectConfig())
+    except Exception:
+        return dict(_FALLBACK_EXECUTION_POLICY)
 
 
 def _parse_iso_datetime(value: object) -> datetime | None:
@@ -1349,12 +1373,27 @@ def _apply_automatic_execution_guards(
         )
     )
 
+    # Per-segment snapshot override: if a workflow emitted
+    # `execution.review_cadence` on a prior event (today only execute-plan.md's
+    # gate/enter events, which echo the project config), that value takes
+    # precedence over the policy read from GPD/config.json. This permits a
+    # future high-stakes segment to request dense mid-execution even when the
+    # project default is weaker, without needing a config rewrite. Inversely,
+    # a segment emitting `review_cadence="adaptive"` on a dense project would
+    # disable the dense_forced branch for that segment. Workflow prompts
+    # currently echo the project-level value verbatim; this override is a
+    # latent escalation hook, not an active feature.
+    cadence = str(current.get("review_cadence") or policy.get("review_cadence") or "").strip().lower()
+    dense_forced = cadence == "dense"
     if (
         payload.name == "result"
-        and payload.action in {"produce", "log"}
-        and load_bearing
-        and policy.get("checkpoint_after_first_load_bearing_result")
+        and payload.action in _RESULT_VERBS
         and not current.get("first_result_gate_pending")
+        and not current.get("first_result_ready")
+        and (
+            (load_bearing and policy.get("checkpoint_after_first_load_bearing_result"))
+            or dense_forced
+        )
     ):
         current["first_result_ready"] = True
         current["first_result_gate_pending"] = True
@@ -1692,7 +1731,7 @@ def _updated_execution_state(
                 current["segment_status"] = "active"
             _clear_tangent_state(current)
 
-    if payload.name == "result" and payload.action in {"produce", "log"}:
+    if payload.name == "result" and payload.action in _RESULT_VERBS:
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
             current["first_result_ready"] = True
 

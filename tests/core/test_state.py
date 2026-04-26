@@ -14,6 +14,7 @@ from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
 from gpd.core.state import (
+    ContractAlignmentGate,
     _find_list_parent_loc,
     _load_recent_projects_index,
     _load_state_snapshot_for_mutation,
@@ -31,6 +32,7 @@ from gpd.core.state import (
     save_state_markdown,
     state_get,
     state_load,
+    state_record_contract_alignment,
     state_record_session,
     state_set_continuation_bounded_segment,
     state_set_project_contract,
@@ -154,8 +156,8 @@ def test_parse_state_to_json_requires_resume_relevant_fields() -> None:
         "**Progress:** 40%\n\n"
         "## Session Continuity\n\n"
         "**Last session:** 2026-04-01T12:00:00+00:00\n"
-        "**Hostname:** legacy-host\n"
-        "**Platform:** legacy-platform\n"
+        "**Hostname:** stale-host\n"
+        "**Platform:** stale-platform\n"
         "**Stopped at:** —\n"
         "**Resume file:** —\n"
         "**Last result ID:** —\n\n"
@@ -196,8 +198,8 @@ def test_parse_state_to_json_keeps_real_handoff_and_machine_context() -> None:
         "**Progress:** 40%\n\n"
         "## Session Continuity\n\n"
         "**Last session:** 2026-04-01T12:00:00+00:00\n"
-        "**Hostname:** legacy-host\n"
-        "**Platform:** legacy-platform\n"
+        "**Hostname:** stale-host\n"
+        "**Platform:** stale-platform\n"
         "**Stopped at:** Phase 03 Plan 02\n"
         "**Resume file:** GPD/phases/03-analysis/.continue-here.md\n"
         "**Last result ID:** result-7\n\n"
@@ -218,8 +220,8 @@ def test_parse_state_to_json_keeps_real_handoff_and_machine_context() -> None:
     assert parsed["continuation"]["handoff"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert parsed["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 02"
     assert parsed["continuation"]["handoff"]["last_result_id"] == "result-7"
-    assert parsed["continuation"]["machine"]["hostname"] == "legacy-host"
-    assert parsed["continuation"]["machine"]["platform"] == "legacy-platform"
+    assert parsed["continuation"]["machine"]["hostname"] == "stale-host"
+    assert parsed["continuation"]["machine"]["platform"] == "stale-platform"
 
 
 def test_parse_state_md_treats_plain_not_set_placeholders_as_unset() -> None:
@@ -359,10 +361,10 @@ def test_normalize_state_schema_reports_coercive_project_contract_scalars():
 
 def test_integrity_issue_from_contract_error_accepts_pydantic_extra_forbidden_suffix() -> None:
     issue = state_module._integrity_issue_from_contract_error(
-        "legacy_notes: Extra inputs are not permitted [type=extra_forbidden]"
+        "stale_notes: Extra inputs are not permitted [type=extra_forbidden]"
     )
 
-    assert issue == 'schema normalization: dropped unknown "project_contract.legacy_notes"'
+    assert issue == 'schema normalization: dropped unknown "project_contract.stale_notes"'
 
 
 def test_normalize_state_schema_drops_project_contract_that_fails_draft_scoping_validation():
@@ -787,7 +789,7 @@ def test_state_set_project_contract_repairs_raw_blocked_payload_even_when_visibl
     layout = ProjectLayout(tmp_path)
     raw_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
     blocked_contract = json.loads(json.dumps(contract))
-    blocked_contract["claims"][0]["notes"] = "legacy drift"
+    blocked_contract["claims"][0]["notes"] = "stale drift"
     raw_state["project_contract"] = blocked_contract
     layout.state_json.write_text(json.dumps(raw_state, indent=2) + "\n", encoding="utf-8")
 
@@ -1855,8 +1857,8 @@ def test_peek_state_json_state_md_fallback_projects_session_continuity_into_cont
     state = default_state_dict()
     state["continuation"]["handoff"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
     state["continuation"]["handoff"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
-    state["continuation"]["machine"]["hostname"] = "legacy-host"
-    state["continuation"]["machine"]["platform"] = "legacy-platform"
+    state["continuation"]["machine"]["hostname"] = "stale-host"
+    state["continuation"]["machine"]["platform"] = "stale-platform"
     layout = ProjectLayout(tmp_path)
     layout.gpd.mkdir(parents=True, exist_ok=True)
     layout.state_md.write_text(generate_state_markdown(state), encoding="utf-8")
@@ -1871,7 +1873,7 @@ def test_peek_state_json_state_md_fallback_projects_session_continuity_into_cont
     assert state_source == "STATE.md"
     assert "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
     assert loaded["continuation"]["handoff"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
-    assert loaded["continuation"]["machine"]["hostname"] == "legacy-host"
+    assert loaded["continuation"]["machine"]["hostname"] == "stale-host"
 
 
 def test_mutation_snapshot_recovers_from_state_markdown_when_json_and_backup_are_unreadable(tmp_path: Path) -> None:
@@ -1920,7 +1922,7 @@ def test_save_state_markdown_preserves_backup_project_contract_without_resurrect
     assert stored["continuation"]["handoff"]["resume_file"] is None
 
 
-def test_save_state_markdown_preserves_backup_continuation_without_reviving_backup_only_session_resume_file(
+def test_save_state_markdown_preserves_backup_continuation_without_reviving_backup_only_handoff_resume_file(
     tmp_path: Path,
 ) -> None:
     baseline = default_state_dict()
@@ -2079,7 +2081,7 @@ def test_state_set_project_contract_does_not_fall_back_to_persisting_loader(
     contract = _project_contract_with_question("safe contract write")
 
     def _unexpected_loader(_cwd: Path) -> dict[str, object]:
-        raise AssertionError("legacy persisting loader should not be used")
+        raise AssertionError("stale persisting loader should not be used")
 
     monkeypatch.setattr("gpd.core.state.load_state_json", _unexpected_loader)
 
@@ -2717,8 +2719,8 @@ def test_state_validate_does_not_surface_continuation_mismatch_when_session_cont
     state_md = default_state_dict()
     state_md["continuation"]["handoff"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
     state_md["continuation"]["handoff"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
-    state_md["continuation"]["machine"]["hostname"] = "legacy-host"
-    state_md["continuation"]["machine"]["platform"] = "legacy-platform"
+    state_md["continuation"]["machine"]["hostname"] = "stale-host"
+    state_md["continuation"]["machine"]["platform"] = "stale-platform"
     layout = ProjectLayout(tmp_path)
     layout.state_md.write_text(generate_state_markdown(state_md), encoding="utf-8")
 
@@ -3019,8 +3021,8 @@ def test_save_state_json_preserves_canonical_continuation_when_session_conflicts
     state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
     state["session"] = {
         "last_date": "2026-03-29T12:00:00+00:00",
-        "stopped_at": "Legacy session stop",
-        "resume_file": "legacy-session.md",
+        "stopped_at": "Stale session stop",
+        "resume_file": "stale-session.md",
     }
     state["continuation"]["handoff"].update(
         {
@@ -3086,7 +3088,7 @@ def test_save_state_json_normalizes_canonical_continuation_resume_paths_for_pers
     [
         ("outside_resume_file", "portable repo-local reference"),
         ("invalid_boolean", "waiting_for_review"),
-        ("unknown_key", 'dropped unknown "continuation.bounded_segment.legacy_note"'),
+        ("unknown_key", 'dropped unknown "continuation.bounded_segment.stale_note"'),
         ("empty", "bounded_segment must include at least one non-empty field"),
     ],
 )
@@ -3120,7 +3122,7 @@ def test_state_set_continuation_bounded_segment_rejects_salvageable_drift(
             "phase": "03",
             "plan": "02",
             "segment_status": "paused",
-            "legacy_note": "stale",
+            "stale_note": "stale",
         },
         "empty": {},
     }
@@ -3899,3 +3901,126 @@ def test_state_patch_unknown_underscore_field_reports_also_tried(tmp_path: Path)
     assert "not found in STATE.md" in reason
     assert "also tried" in reason
     assert '"nonexistent field"' in reason
+
+
+# ─── contract_alignment persistence ───────────────────────────────────────────
+
+
+def test_state_contract_alignment_default_is_empty() -> None:
+    """Fresh state dict carries a default ContractAlignmentGate with all-None fields."""
+    s = default_state_dict()
+    assert "contract_alignment" in s
+    assert s["contract_alignment"] == {
+        "confirmed_at": None,
+        "confirmed_contract_hash": None,
+        "confirmed_context_hash": None,
+    }
+    gate = ContractAlignmentGate.model_validate(s["contract_alignment"])
+    assert gate.confirmed_at is None
+    assert gate.confirmed_contract_hash is None
+    assert gate.confirmed_context_hash is None
+
+
+def test_state_records_contract_alignment_round_trip(tmp_path: Path) -> None:
+    """state_record_contract_alignment persists timestamp + hashes through a reload."""
+    save_state_json(tmp_path, default_state_dict())
+
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:abc",
+        context_hash="sha256:def",
+        now="2026-04-23T12:00:00+00:00",
+    )
+
+    reloaded = load_state_json(tmp_path)
+    assert reloaded is not None
+    alignment = reloaded["contract_alignment"]
+    assert alignment["confirmed_at"] == "2026-04-23T12:00:00+00:00"
+    assert alignment["confirmed_contract_hash"] == "sha256:abc"
+    assert alignment["confirmed_context_hash"] == "sha256:def"
+
+
+def test_state_record_contract_alignment_preserves_visible_non_authoritative_contract(
+    tmp_path: Path,
+) -> None:
+    """Recording alignment must not erase a visible contract with approval blockers."""
+    state = default_state_dict()
+    state["project_contract"] = _draft_invalid_project_contract()
+    _write_raw_state_json(tmp_path, state)
+
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:abc",
+        context_hash="sha256:def",
+        now="2026-04-23T12:00:00+00:00",
+    )
+
+    persisted = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
+    assert persisted["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert persisted["contract_alignment"]["confirmed_contract_hash"] == "sha256:abc"
+
+
+def test_state_contract_alignment_unconfirmed_omits_gate_keys(tmp_path: Path) -> None:
+    """Unconfirmed alignment stays absent from the visible gate projection."""
+    state = default_state_dict()
+    state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+    gate = loaded.project_contract_gate or {}
+
+    assert "confirmed_at" not in gate
+    assert "confirmed_contract_hash" not in gate
+    assert "confirmed_context_hash" not in gate
+
+
+def test_state_contract_alignment_surfaces_on_gate_dict(tmp_path: Path) -> None:
+    """After recording, state_load surfaces alignment hashes on project_contract_gate."""
+    save_state_json(tmp_path, default_state_dict())
+
+    state_record_contract_alignment(
+        tmp_path,
+        contract_hash="sha256:contract",
+        context_hash="sha256:context",
+        now="2026-04-23T13:00:00+00:00",
+    )
+
+    loaded = state_load(tmp_path)
+    gate = loaded.project_contract_gate or {}
+    assert gate.get("confirmed_at") == "2026-04-23T13:00:00+00:00"
+    assert gate.get("confirmed_contract_hash") == "sha256:contract"
+    assert gate.get("confirmed_context_hash") == "sha256:context"
+
+
+def test_state_contract_alignment_absent_from_json_loads_default(tmp_path: Path) -> None:
+    """Stale state.json without contract_alignment reloads with the default gate payload."""
+    state = default_state_dict()
+    del state["contract_alignment"]
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = load_state_json(tmp_path)
+    assert loaded["contract_alignment"] == {
+        "confirmed_at": None,
+        "confirmed_contract_hash": None,
+        "confirmed_context_hash": None,
+    }
+
+
+def test_state_contract_alignment_survives_markdown_rebuild(tmp_path: Path) -> None:
+    """contract_alignment hashes survive the generate_state_markdown / sync_state_json round-trip."""
+    state = default_state_dict()
+    state["contract_alignment"] = ContractAlignmentGate(
+        confirmed_at="2026-04-23T12:00:00+00:00",
+        confirmed_contract_hash="sha256:abc",
+        confirmed_context_hash="sha256:def",
+    ).model_dump(mode="python")
+    save_state_json(tmp_path, state)
+
+    reloaded = load_state_json(tmp_path)
+    md = generate_state_markdown(reloaded)
+    sync_state_json(tmp_path, md)
+
+    final = load_state_json(tmp_path)
+    assert final["contract_alignment"]["confirmed_at"] == "2026-04-23T12:00:00+00:00"
+    assert final["contract_alignment"]["confirmed_contract_hash"] == "sha256:abc"
+    assert final["contract_alignment"]["confirmed_context_hash"] == "sha256:def"

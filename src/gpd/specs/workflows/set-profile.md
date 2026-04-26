@@ -25,8 +25,6 @@ Ensure config exists and load current state:
 
 ```bash
 gpd config ensure-section
-# Compatibility note for installer text checks:
-# INIT=$(gpd --raw init progress --include state,config)
 INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
@@ -105,7 +103,7 @@ Focus: Computational implementation, optimization, convergence, performance
 
 Best for: Implementing solvers, running simulations, optimizing code, convergence studies, parallelization, data pipeline construction.
 
-Behavioral highlights: Convergence testing task added to every numerical computation. Grid/basis/timestep refinement required before results accepted. Richardson extrapolation automatic. Plan-checker emphasizes numerical stability and error budgets. `execution.review_cadence` stays independent; `adaptive` is usually the right default unless you explicitly want denser review gates.
+Behavioral highlights: Convergence testing task added to every numerical computation. Grid/basis/timestep refinement required before results accepted. Richardson extrapolation automatic. Plan-checker emphasizes numerical stability and error budgets. `execution.review_cadence` stays independent; `dense` is the default, giving frequent review gates; drop to `adaptive` when you want a lighter cadence.
 
 **exploratory**
 Focus: Rapid prototyping, hypothesis testing, parameter space exploration
@@ -159,7 +157,7 @@ Focus: Clear exposition, LaTeX production, figure generation, narrative flow
 
 Best for: Writing manuscripts, preparing talks, generating figures, formatting for journal submission, writing supplementary material.
 
-Behavioral highlights: Plans organized by paper sections with tasks mapped to figures, tables, and equations. Narrative-focused execution with clean intermediate expressions. Publication-readiness verification (figures match data, notation consistent, all symbols defined). All 16 plan dimensions checked with emphasis on publication readiness. Full BibTeX formatting against target journal style. Rapid first drafts with multiple revision passes. `execution.review_cadence=adaptive` or `sparse` usually fits, but cadence is not profile-owned.
+Behavioral highlights: Plans organized by paper sections with tasks mapped to figures, tables, and equations. Narrative-focused execution with clean intermediate expressions. Publication-readiness verification (figures match data, notation consistent, all symbols defined). All 16 plan dimensions checked with emphasis on publication readiness. Full BibTeX formatting against target journal style. Rapid first drafts with multiple revision passes. Keep `execution.review_cadence=dense` for publication-quality passes; use `adaptive` or `sparse` only for bounded editorial polish where correctness gates are already satisfied. Cadence is not profile-owned.
 
 ---
 
@@ -167,8 +165,8 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 
 `set-profile` changes abstract tier assignments and behavior depth. It does NOT rewrite `execution.review_cadence`.
 
-- `dense`: more bounded review stops during execution
-- `adaptive` (default): inject first-result and risky-fanout gates while letting clean segments continue
+- `dense` (default): forces first-result and pre-fanout gates on every wave, regardless of risk classifier
+- `adaptive`: injects first-result and risky-fanout gates only when the classifier marks the wave risky
 - `sparse`: fewest bounded review stops beyond the required correctness gates
 
 Change cadence with `gpd:settings` or by editing `GPD/config.json` (`execution.review_cadence`: `"dense"` / `"adaptive"` / `"sparse"`).

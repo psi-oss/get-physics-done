@@ -106,7 +106,7 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
     quick = _read("quick.md")
     verify_work = _read("verify-work.md")
 
-    for legacy_phrase in (
+    for removed_phrase in (
         "Each plan has a complete contract block (claims, deliverables, acceptance tests, forbidden proxies, uncertainty markers, and `references[]` whenever grounding is not already explicit elsewhere in the contract)",
         "Non-scoping plans keep `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` non-empty.",
         "Include `references[]` only when the plan relies on external grounding",
@@ -114,8 +114,8 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
         "If the downstream fix plan will need specialized tooling or any other machine-checkable hard validation requirement, surface it in PLAN frontmatter `tool_requirements` before drafting task prose.",
         "If the revised fix plan still needs specialized tooling or any other machine-checkable hard validation requirement, keep it in PLAN frontmatter `tool_requirements` before rewriting task prose.",
     ):
-        assert legacy_phrase not in plan_phase
-        assert legacy_phrase not in verify_work
+        assert removed_phrase not in plan_phase
+        assert removed_phrase not in verify_work
 
     assert "Render the template's `## Standard Planning Template` into `filled_prompt`" in plan_phase
     assert "Render the template's `## Revision Template` into `revision_prompt`" in plan_phase
@@ -169,12 +169,11 @@ def test_context_pressure_default_threshold_table_is_single_sourced() -> None:
     assert "This file only lists per-agent overrides and calibration notes." in thresholds
 
 
-def test_state_portability_collapses_legacy_compatibility_prose() -> None:
+def test_state_portability_uses_canonical_continuation_prose() -> None:
     state_portability = (REPO_ROOT / "src/gpd/specs/references/orchestration/state-portability.md").read_text(
         encoding="utf-8"
     )
 
-    assert "compatibility projections that only fill in when canonical state is missing or incomplete" in state_portability
-    assert "Backend compatibility cues remain backend-only inputs and are stripped after canonicalization." in state_portability
-    assert "Legacy `session` fields can still backfill missing canonical continuity" not in state_portability
+    assert "Canonical state in `state.json.continuation` wins first" in state_portability
+    assert "gpd --raw resume` emits the canonical top-level list" in state_portability
     assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability

@@ -48,12 +48,47 @@ def test_research_phase_splits_balanced_and_yolo_autonomy_rules() -> None:
     assert "autonomy=yolo" in section
 
 
+def test_autonomy_prompt_defaults_preserve_supervised_default() -> None:
+    fallback_workflows = (
+        "audit-milestone.md",
+        "debug.md",
+        "digest-knowledge.md",
+        "validate-conventions.md",
+        "literature-review.md",
+    )
+
+    for name in fallback_workflows:
+        autonomy_lines = [
+            line
+            for line in _read_workflow(name).splitlines()
+            if line.startswith("AUTONOMY=")
+        ]
+        assert autonomy_lines, name
+        assert all("--default supervised" in line for line in autonomy_lines), name
+        assert all('|| echo "balanced"' not in line for line in autonomy_lines), name
+        assert all('|| echo "supervised"' in line for line in autonomy_lines), name
+
+    for name in (
+        "audit-milestone.md",
+        "debug.md",
+        "literature-review.md",
+        "respond-to-referees.md",
+        "plan-phase.md",
+        "parameter-sweep.md",
+        "quick.md",
+        "new-milestone.md",
+    ):
+        section = _mode_aware_section(_read_workflow(name))
+        assert "`autonomy=supervised` (default)" in section, name
+        assert "`autonomy=balanced` (default)" not in section, name
+
+
 def test_help_dedupes_runtime_permission_readiness_trio() -> None:
     help_workflow = _read_workflow("help.md")
 
-    assert help_workflow.count("gpd permissions status --runtime <runtime> --autonomy balanced") == 1
-    assert help_workflow.count("gpd validate unattended-readiness --runtime <runtime> --autonomy balanced") == 1
-    assert help_workflow.count("gpd permissions sync --runtime <runtime> --autonomy balanced") == 1
+    assert help_workflow.count("gpd permissions status --runtime <runtime> --autonomy <mode>") == 1
+    assert help_workflow.count("gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>") == 1
+    assert help_workflow.count("gpd permissions sync --runtime <runtime> --autonomy <mode>") == 1
 
 
 def test_help_describes_discover_quick_depth_as_verification_only_without_files() -> None:
@@ -68,11 +103,11 @@ def test_publication_workflows_read_mode_state_from_init_context() -> None:
     respond = _read_workflow("respond-to-referees.md")
 
     assert "INIT=$(gpd --raw init phase-op --include config)" in write_paper
-    assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)' in write_paper
+    assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)' in write_paper
     assert 'RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)' in write_paper
     assert "gpd --raw config get autonomy" not in write_paper
     assert "gpd --raw config get research_mode" not in write_paper
 
     assert "INIT=$(gpd --raw init phase-op --include config)" in respond
-    assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)' in respond
+    assert 'AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default supervised)' in respond
     assert "gpd --raw config get autonomy" not in respond

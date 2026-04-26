@@ -332,7 +332,8 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
         assert "provider billing truth" in help_workflow
 
     if any(descriptor.capabilities.permissions_surface != "unsupported" for descriptor in descriptors):
-        assert "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced" in readme
+        assert "gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>" in readme
+        assert "Use `supervised` unless you intentionally selected a different autonomy mode." in readme
         assert "relaunch-required" in readme
         assert_settings_local_terminal_follow_up_contract(settings_workflow)
         assert "requires_relaunch" in settings_workflow

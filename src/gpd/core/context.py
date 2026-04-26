@@ -254,9 +254,9 @@ _RESUME_BASE_INIT_FIELDS = frozenset(
         "execution_resumable",
         "execution_paused_at",
         "current_execution_resume_file",
-        "session_resume_file",
-        "recorded_session_resume_file",
-        "missing_session_resume_file",
+        "handoff_resume_file",
+        "recorded_handoff_resume_file",
+        "missing_handoff_resume_file",
         "execution_resume_file",
         "execution_resume_file_source",
         "platform",
@@ -803,9 +803,9 @@ _EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS = frozenset(
         "execution_resumable",
         "execution_paused_at",
         "current_execution_resume_file",
-        "session_resume_file",
-        "recorded_session_resume_file",
-        "missing_session_resume_file",
+        "handoff_resume_file",
+        "recorded_handoff_resume_file",
+        "missing_handoff_resume_file",
         "execution_resume_file",
         "execution_resume_file_source",
         "resume_projection",
@@ -1087,6 +1087,25 @@ def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str | None = 
     for f in sorted(phase_dir.iterdir()):
         if f.is_file() and (f.name.endswith(suffix) or (standalone is not None and f.name == standalone)):
             return _safe_read_file_truncated(f)
+    return None
+
+
+def _find_phase_artifact_path(
+    phase_dir: Path, suffix: str, standalone: str | None = None
+) -> Path | None:
+    """Return the full path to the first file in ``phase_dir`` matching ``suffix``
+    or ``standalone``, or ``None``. Mirrors :func:`_find_phase_artifact` but
+    returns a :class:`Path` for callers that need full content (not truncated).
+    """
+    if not phase_dir.is_dir():
+        return None
+    for path in sorted(phase_dir.iterdir()):
+        if not path.is_file():
+            continue
+        if standalone is not None and path.name == standalone:
+            return path
+        if path.name.endswith(suffix):
+            return path
     return None
 
 
@@ -1750,6 +1769,11 @@ def _build_reference_runtime_context(
 ) -> dict[str, object]:
     """Build shared reference/anchor context for workflow init payloads."""
     contract, project_contract_load_info = _load_project_contract(cwd)
+    state_obj, _state_issues, _state_source = _peek_state_json(
+        cwd,
+        recover_intent=False,
+        acquire_lock=False,
+    )
     artifact_payload = _reference_artifact_payload(cwd)
     artifact_ingestion = ingest_reference_artifacts(
         cwd,
@@ -1788,6 +1812,7 @@ def _build_reference_runtime_context(
         cwd,
         visible_contract,
         project_contract_load_info,
+        state_obj=state_obj if isinstance(state_obj, dict) else None,
     )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     visible_context_contract = None
@@ -1873,6 +1898,7 @@ def _build_new_project_contract_runtime_context(cwd: Path) -> dict[str, object]:
         cwd,
         contract,
         project_contract_load_info,
+        state_obj=None,
     )
     return {
         "project_contract": contract.model_dump(mode="json") if project_contract_gate.get("visible") else None,
@@ -1907,6 +1933,7 @@ def _build_publication_bootstrap_runtime_context(
         cwd,
         visible_contract,
         project_contract_load_info,
+        state_obj=None,
     )
     visible_context_contract = None
     if project_contract_gate.get("visible"):
@@ -2257,7 +2284,7 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
         execution_resume_file_source = "current_execution"
     elif resume_projection.active_resume_source == ContinuationResumeSource.HANDOFF:
-        execution_resume_file_source = "session_resume_file"
+        execution_resume_file_source = "handoff_resume_file"
 
     paused_states = {"paused", "awaiting_user", "ready_to_continue", "waiting_review", "blocked"}
     segment_status = (snapshot.segment_status or "").lower() if snapshot is not None else ""
@@ -2303,9 +2330,9 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         "execution_resumable": is_resumable,
         "execution_paused_at": paused_at,
         "current_execution_resume_file": current_execution_resume_file,
-        "session_resume_file": resume_projection.handoff_resume_file,
-        "recorded_session_resume_file": resume_projection.recorded_handoff_resume_file,
-        "missing_session_resume_file": resume_projection.missing_handoff_resume_file,
+        "handoff_resume_file": resume_projection.handoff_resume_file,
+        "recorded_handoff_resume_file": resume_projection.recorded_handoff_resume_file,
+        "missing_handoff_resume_file": resume_projection.missing_handoff_resume_file,
         "execution_resume_file": resume_file,
         "execution_resume_file_source": execution_resume_file_source,
         "resume_projection": resume_projection,
@@ -2534,7 +2561,7 @@ def _build_resume_read_state(
             candidate.get("resume_pointer") == resume_projection.handoff_resume_file for candidate in resume_candidates
         ):
             candidate = {
-                "source": "session_resume_file",
+                "source": "handoff_resume_file",
                 "status": "handoff",
                 "resume_file": resume_projection.handoff_resume_file,
                 "resumable": False,
@@ -2557,7 +2584,7 @@ def _build_resume_read_state(
             resume_pointer=resume_projection.missing_handoff_resume_file,
         ):
             candidate = {
-                "source": "session_resume_file",
+                "source": "handoff_resume_file",
                 "status": "missing",
                 "resume_file": resume_projection.missing_handoff_resume_file,
                 "resumable": False,

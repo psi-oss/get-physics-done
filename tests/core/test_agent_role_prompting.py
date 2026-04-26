@@ -89,3 +89,39 @@ def test_consistency_checker_stays_one_shot_and_does_not_claim_resolution_work()
     assert "Do not claim ownership of code fixes, commits, convention-authoring, or pattern-library updates." in source
     assert "Create it from the template" not in source
     assert "gpd pattern add" not in source
+
+
+def test_executor_checkpoint_frequency_guidance_is_consistent() -> None:
+    source = _read_agent("gpd-executor")
+
+    assert "**checkpoint:human-verify (90% of checkpoints)**" in source
+    assert "**checkpoint:decision (9% of checkpoints)**" in source
+    assert "**checkpoint:human-action (1% -- rare)**" in source
+    assert "**checkpoint:decision (25%)**" not in source
+    assert "**checkpoint:human-action (5%)**" not in source
+
+
+def test_roadmapper_shallow_mode_keeps_contract_identity_visible() -> None:
+    source = _read_agent("gpd-roadmapper")
+
+    assert "shallow_mode=true" in source
+    assert "objective IDs" in source
+    assert "decisive contract items" in source
+    assert "required anchors/baselines" in source
+    assert "forbidden proxies" in source
+    assert "Phase 1 only under `shallow_mode=true`" in source
+    assert "Phase 2+ stubs defer detailed success criteria" in source
+    assert "Phases 2+ may defer contract-coverage detail" not in source
+    assert "only their one-line Goal and phase title" not in source
+
+
+def test_planner_backtracks_guidance_is_capped_before_injection() -> None:
+    source = _read_agent("gpd-planner")
+
+    assert "awk -F'|'" in source
+    assert 'row_stage != stage' in source
+    assert "tail -n 10" in source
+    assert "head -n 30" in source
+    assert "do not inject the full file or an unfiltered tail" in source
+    assert "for f in GPD/INSIGHTS.md GPD/ERROR-PATTERNS.md GPD/BACKTRACKS.md; do" not in source
+    assert "tail -n 30 GPD/BACKTRACKS.md" not in source

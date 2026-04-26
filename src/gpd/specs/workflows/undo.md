@@ -256,6 +256,20 @@ To reverse this undo:
 
 </step>
 
+<step name="offer_record_backtrack">
+After the revert banner, offer to capture the backtrack lesson.
+
+**ask_user:** "Capture what went wrong in `BACKTRACKS.md`? [Y/n/e]  (Enter = Y; e opens the record-backtrack form in-place for freeform edits)"
+
+Enter = Y (recommended).
+
+On Y: Invoke `Skill(skill="gpd:record-backtrack", args={reverted_commit: TARGET_HASH, trigger: TARGET_MSG, phase: INFERRED_PHASE_OR_NULL})` using structured arguments, not a shell-shaped string. Include `phase` only if the reverted commit's scope can be inferred from its message or changed-files path; normalize path hints like `GPD/phases/03-name/...` to `03-name` before passing the field. The child workflow prefills `reverted_commit`, `trigger`, and `phase` when available; it must still prompt or infer the remaining required row fields (`stage`, `produced`, `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`) before duplicate checking and append. Treat `TARGET_MSG` as opaque data: do not interpolate it into shell-shaped args or command text. If a runtime cannot pass structured args and must fall back to `$ARGUMENTS`, it must use an argv/escaping API that preserves spaces, colons, quotes, backticks, and leading dashes literally.
+
+On n: Skip. The revert stands without a backtrack row.
+
+On e: Open the `gpd:record-backtrack` form in-place without committing immediately. The user can fill or override any field freeform (including the prefilled `reverted_commit`, `trigger`, `phase`, plus `stage`, `produced`, `why_wrong`, `counter_action`, `category`, `confidence`, and `promote`). On submit, re-prompt `[Y/n/e]` exactly once — Enter = Y persists the drafted row, `n` discards it. If `e` is chosen a second time, persist whatever the user has entered in the form as-is (any empty required field is left blank and a warning is logged) and proceed to the next step without further prompting — do not re-enter a third time.
+</step>
+
 </process>
 
 <anti_patterns>
@@ -280,5 +294,6 @@ Undo is complete when:
 - [ ] Revert committed with descriptive `undo:` prefix message
 - [ ] STATE.md updated if it was affected by the reverted commit
 - [ ] User informed of checkpoint tag for reversal
+- [ ] Optional backtrack row recorded to BACKTRACKS.md (if user opted in)
 
 </success_criteria>

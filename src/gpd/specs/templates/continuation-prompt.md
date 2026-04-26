@@ -43,7 +43,7 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 {execution_segment}
 </execution_segment>
 
-`execution_segment` is the transient runtime handoff payload. `continuation.bounded_segment` is the persisted storage shape that records the same bounded stop when the orchestrator durably writes or refreshes the pause state. Clear or replace that persisted field when the bounded stop is consumed, retired, or superseded by a newer segment. Keep `.continue-here.md` as a discovery surface only, and treat the derived execution head as a compatibility projection rather than the bounded authority. Any task-summary narration belongs to the checkpoint envelope, not the persisted bounded segment.
+`execution_segment` is the transient runtime handoff payload. `continuation.bounded_segment` is the persisted storage shape that records the same bounded stop when the orchestrator durably writes or refreshes the pause state. Clear or replace that persisted field when the bounded stop is consumed, retired, or superseded by a newer segment. Keep `.continue-here.md` as a discovery surface only, and treat the derived execution head as rebuilt status rather than the bounded authority. Any task-summary narration belongs to the checkpoint envelope, not the persisted bounded segment.
 
 If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome has been incorporated into this continuation.
 

@@ -160,7 +160,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     "gpd-skills": {
         "description": (
             "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, "
-            "and indexing GPD workflow skills for agent prompt injection. Treat missing evidence or artifacts as "
+            "and indexing GPD workflow skills for runtime context assembly. Treat missing evidence or artifacts as "
             "missing, blocked, failed, or inconclusive; never fabricate fallback outputs."
         ),
         "capabilities": [

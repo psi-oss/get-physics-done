@@ -305,8 +305,9 @@ class TestEnsureStateSchema:
         })
         # Should still have valid position data
         assert result["position"]["current_phase"] == "01"
-        # Session should be either corrected or defaulted
-        assert "session" in result
+        # Internal session aliases are stripped; continuation is the canonical handoff surface.
+        assert "session" not in result
+        assert "continuation" in result
 
 
 class TestStateValidateRecovery:

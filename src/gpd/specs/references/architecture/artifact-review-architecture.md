@@ -6,11 +6,11 @@ This file is intentionally evergreen. Dated forward-looking design notes belong 
 
 ## What Exists Today
 
-- typed paper and compiler surfaces under `src/gpd/mcp/paper/`
+- typed paper and compiler surfaces exposed through the GPD paper tooling
 - verification registry and verification MCP surfaces for machine-facing check metadata
 - review and referee workflows under `{GPD_INSTALL_DIR}/workflows/`
 - durable local observability under `GPD/observability/` and `GPD/traces/`
-- result/state management under `src/gpd/core/`
+- result and state management through the GPD CLI and state surfaces
 
 ## What This Architecture Already Does Well
 

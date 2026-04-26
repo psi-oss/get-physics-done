@@ -42,10 +42,10 @@ This audit is the strict-review artifact for bibliography integrity. It summariz
       "errors": []
     },
     {
-      "key": "legacy2021",
+      "key": "benchmark2021",
       "source_type": "paper",
-      "reference_id": "ref-legacy",
-      "title": "Legacy Result",
+      "reference_id": "ref-benchmark",
+      "title": "Benchmark Result",
       "resolution_status": "enriched",
       "verification_status": "verified",
       "verification_sources": ["arXiv"],
@@ -107,4 +107,3 @@ Optional:
 - Keep the summary counters consistent with the per-entry statuses above.
 - Preserve warnings and errors as arrays of strings; do not collapse them into one paragraph.
 - Regenerate this file with `gpd paper-build` after bibliography changes instead of editing counts manually.
-

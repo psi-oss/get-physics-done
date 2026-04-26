@@ -203,7 +203,7 @@ forbidden_proxies_rejected: 0
 ## Comparison Verdicts
 
 <!-- APPEND decisive benchmark / prior-work / experiment / cross-method outcomes.
-The frontmatter `comparison_verdicts` ledger is authoritative; this section is a readable mirror. -->
+The frontmatter `comparison_verdicts` ledger is authoritative; this section is a readable summary. -->
 
 - subject_kind: claim
   subject_id: "claim-main"

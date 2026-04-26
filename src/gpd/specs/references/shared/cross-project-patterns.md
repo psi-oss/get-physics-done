@@ -128,7 +128,7 @@ Different agents read patterns at different points in the workflow.
 
 ### Planner reads before creating plans
 
-During the `consult_learned_patterns` step of plan creation:
+During the `consult_learned_patterns` step of plan creation, the planner consults both the project-local ledgers (`GPD/INSIGHTS.md`, `GPD/ERROR-PATTERNS.md`, and `GPD/BACKTRACKS.md`) and the global pattern library:
 
 1. Read `index.json`
 2. Filter by domain tags matching the current project's domain (from `GPD/PROJECT.md`)
@@ -196,7 +196,7 @@ Patterns evolve through a confidence progression and can eventually be archived.
 
 ## Integration with Agents
 
-> **Status:** Agent definitions reference the global pattern library. gpd-planner reads top 5 patterns by severity during `consult_learned_patterns`. gpd-verifier checks domain-matching patterns during verification setup. gpd-executor reads critical/high patterns before starting work. gpd-debugger reads existing patterns before investigating and writes/updates patterns after confirming root causes. Agents also use project-local `GPD/INSIGHTS.md` and `GPD/ERROR-PATTERNS.md` for within-project pattern learning.
+> **Status:** Agent definitions reference the global pattern library. gpd-planner reads top 5 patterns by severity during `consult_learned_patterns`. gpd-verifier checks domain-matching patterns during verification setup. gpd-executor reads critical/high patterns before starting work. gpd-debugger reads existing patterns before investigating and writes/updates patterns after confirming root causes. Agents also use project-local `GPD/INSIGHTS.md`, `GPD/ERROR-PATTERNS.md`, and `GPD/BACKTRACKS.md` for within-project pattern learning.
 
 Each agent integrates with the pattern library at specific points in its workflow.
 
@@ -216,7 +216,7 @@ Each agent integrates with the pattern library at specific points in its workflo
 
 | Agent        | When                            | What it reads                  | What it does with patterns                                   |
 | ------------ | ------------------------------- | ------------------------------ | ------------------------------------------------------------ |
-| gpd-planner  | `consult_learned_patterns` step | Top 5 by relevance             | Adds prevention steps to plans, contract links, and acceptance-test guards |
+| gpd-planner  | `consult_learned_patterns` step | Top 5 by relevance + project-local INSIGHTS.md / ERROR-PATTERNS.md / BACKTRACKS.md | Adds prevention steps to plans, contract links, and acceptance-test guards |
 | gpd-executor | Before starting task execution  | All critical/high for domain   | Watches for trigger conditions during derivation             |
 | gpd-verifier | During verification setup       | All patterns matching domain   | Adds pattern-specific checks to verification report          |
 | gpd-debugger | After confirming root cause     | Existing patterns for matching | Writes new pattern or updates existing one                   |

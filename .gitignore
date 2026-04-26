@@ -12,6 +12,8 @@ build/
 .mypy_cache/
 .npm-cache/
 tmp/
+# Local product/debug reports from live GPD runs do not belong in release commits.
+GPD-FIX-REPORT-*.md
 .mcp.json
 # Runtime-owned local mirrors/config snapshots.
 .agents/

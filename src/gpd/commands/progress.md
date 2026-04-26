@@ -19,6 +19,7 @@ Check physics research progress and route to the next action.
 Runtime note: `--brief`, `--full`, and `--reconcile` are runtime-surface
 options for `gpd:progress`. The local CLI `gpd progress` is a separate
 read-only renderer that takes `json|bar|table` and does not accept these flags.
+The local CLI also supports `--watch` / `-w` (with `--interval` and `--exit-on-idle`) for a polling heartbeat.
 </objective>
 
 <execution_context>

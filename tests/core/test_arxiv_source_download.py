@@ -9,11 +9,13 @@ import pytest
 from gpd.core.arxiv_source_download import (
     ARXIV_SOURCE_MAX_BYTES,
     ArxivSourceDownload,
+    arxiv_source_user_agent,
     build_source_download_url,
     download_arxiv_source_archive,
     normalize_arxiv_id,
     resolve_source_storage_dir,
 )
+from gpd.version import resolve_active_version
 
 
 class _FakeResponse:
@@ -46,6 +48,12 @@ def test_build_source_download_url_normalizes_first() -> None:
     assert build_source_download_url(" arXiv:2401.12345 ") == "https://arxiv.org/e-print/2401.12345"
 
 
+def test_arxiv_source_user_agent_tracks_package_version() -> None:
+    assert arxiv_source_user_agent() == (
+        f"get-physics-done/{resolve_active_version()} (https://github.com/psi-oss/get-physics-done)"
+    )
+
+
 def test_resolve_source_storage_dir_uses_sources_subdirectory(tmp_path: Path) -> None:
     resolved = resolve_source_storage_dir(tmp_path / "papers")
     assert resolved == (tmp_path / "papers" / "sources").resolve()
@@ -63,7 +71,7 @@ def test_download_arxiv_source_archive_streams_to_disk(tmp_path: Path) -> None:
         },
     )
 
-    with patch("gpd.core.arxiv_source_download.urlopen", return_value=response):
+    with patch("gpd.core.arxiv_source_download.urlopen", return_value=response) as mocked_urlopen:
         result = download_arxiv_source_archive("2401.12345", storage_path=tmp_path)
 
     assert isinstance(result, ArxivSourceDownload)
@@ -72,6 +80,8 @@ def test_download_arxiv_source_archive_streams_to_disk(tmp_path: Path) -> None:
     assert result.path.read_bytes() == payload
     assert result.size_bytes == len(payload)
     assert result.cached is False
+    request = mocked_urlopen.call_args.args[0]
+    assert request.headers["User-agent"] == arxiv_source_user_agent()
 
 
 def test_download_arxiv_source_archive_uses_existing_file_when_present(tmp_path: Path) -> None:
@@ -191,6 +201,17 @@ def test_download_arxiv_source_archive_rejects_large_content_length(tmp_path: Pa
     with patch("gpd.core.arxiv_source_download.urlopen", return_value=response):
         with pytest.raises(ConnectionError, match="exceeds size limit"):
             download_arxiv_source_archive("2401.12345", storage_path=tmp_path)
+
+
+def test_download_arxiv_source_archive_rejects_empty_response(tmp_path: Path) -> None:
+    response = _FakeResponse(b"", headers={"Content-Length": "0"})
+
+    with patch("gpd.core.arxiv_source_download.urlopen", return_value=response):
+        with pytest.raises(ConnectionError, match="is empty"):
+            download_arxiv_source_archive("2401.12345", storage_path=tmp_path)
+
+    storage_dir = resolve_source_storage_dir(tmp_path)
+    assert list(storage_dir.iterdir()) == []
 
 
 def test_download_arxiv_source_archive_rejects_streams_that_grow_too_large(tmp_path: Path) -> None:

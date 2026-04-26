@@ -1,7 +1,7 @@
 """MCP server for the canonical GPD skill index.
 
 Reads shared skill definitions from the GPD registry and provides discovery,
-content retrieval, auto-routing, and prompt injection support. Runtime
+content retrieval, auto-routing, and runtime context assembly support. Runtime
 adapters may project different installed or discoverable surfaces, but they
 all derive from this shared index.
 
@@ -923,10 +923,10 @@ def route_skill(
 
 @mcp.tool()
 def get_skill_index() -> dict:
-    """Return a formatted canonical skill index for actor prompt injection.
+    """Return a formatted canonical skill index for runtime context assembly.
 
-    Returns a compact summary suitable for injecting into LLM context
-    to make it aware of available GPD capabilities.
+    Returns a compact summary suitable for adding to LLM context so the
+    runtime can see available GPD capabilities.
     """
     with gpd_span("mcp.skills.index"):
         try:

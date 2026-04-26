@@ -13,7 +13,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
@@ -337,8 +337,8 @@ class GPDProjectConfig(BaseModel):
     """
 
     model_profile: ModelProfile = ModelProfile.REVIEW
-    autonomy: AutonomyMode = AutonomyMode.BALANCED
-    review_cadence: ReviewCadence = ReviewCadence.ADAPTIVE
+    autonomy: AutonomyMode = AutonomyMode.SUPERVISED
+    review_cadence: ReviewCadence = ReviewCadence.DENSE
     research_mode: ResearchMode = ResearchMode.BALANCED
 
     # Workflow toggles
@@ -347,9 +347,9 @@ class GPDProjectConfig(BaseModel):
     plan_checker: bool = True
     verifier: bool = True
     parallelization: bool = True
-    max_unattended_minutes_per_plan: int = Field(default=45, ge=1)
-    max_unattended_minutes_per_wave: int = Field(default=90, ge=1)
-    checkpoint_after_n_tasks: int = Field(default=3, ge=1)
+    max_unattended_minutes_per_plan: int = Field(default=15, ge=1)
+    max_unattended_minutes_per_wave: int = Field(default=30, ge=1)
+    checkpoint_after_n_tasks: int = Field(default=1, ge=1)
     checkpoint_after_first_load_bearing_result: bool = True
     checkpoint_before_downstream_dependent_tasks: bool = True
     project_usd_budget: float | None = Field(default=None, gt=0)
@@ -416,6 +416,18 @@ class GPDProjectConfig(BaseModel):
                 normalized[normalized_runtime_name] = normalized_runtime
 
         return normalized or None
+
+    @model_validator(mode="after")
+    def _enforce_dense_requires_first_result_gate(self) -> GPDProjectConfig:
+        if (
+            self.review_cadence is ReviewCadence.DENSE
+            and self.checkpoint_after_first_load_bearing_result is False
+        ):
+            raise ValueError(
+                "review_cadence=dense requires checkpoint_after_first_load_bearing_result=true; "
+                "remove the override or set review_cadence to adaptive or sparse."
+            )
+        return self
 
 
 # ─── Config Loading ─────────────────────────────────────────────────────────────
@@ -955,38 +967,32 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
                 None,
             ),
             execution_preferences=ExecutionPreferences(
-                strict_wait=bool(
-                    _coalesce(
-                        _get_nested(
-                            parsed,
-                            "strict_wait",
-                            section="execution_preferences",
-                            field="strict_wait",
-                        ),
-                        _CONFIG_DEFAULTS.execution_preferences.strict_wait,
-                    )
+                strict_wait=_coalesce(
+                    _get_nested(
+                        parsed,
+                        "strict_wait",
+                        section="execution_preferences",
+                        field="strict_wait",
+                    ),
+                    _CONFIG_DEFAULTS.execution_preferences.strict_wait,
                 ),
-                never_interrupt_running_workers=bool(
-                    _coalesce(
-                        _get_nested(
-                            parsed,
-                            "never_interrupt_running_workers",
-                            section="execution_preferences",
-                            field="never_interrupt_running_workers",
-                        ),
-                        _CONFIG_DEFAULTS.execution_preferences.never_interrupt_running_workers,
-                    )
+                never_interrupt_running_workers=_coalesce(
+                    _get_nested(
+                        parsed,
+                        "never_interrupt_running_workers",
+                        section="execution_preferences",
+                        field="never_interrupt_running_workers",
+                    ),
+                    _CONFIG_DEFAULTS.execution_preferences.never_interrupt_running_workers,
                 ),
-                never_auto_close_child_agents=bool(
-                    _coalesce(
-                        _get_nested(
-                            parsed,
-                            "never_auto_close_child_agents",
-                            section="execution_preferences",
-                            field="never_auto_close_child_agents",
-                        ),
-                        _CONFIG_DEFAULTS.execution_preferences.never_auto_close_child_agents,
-                    )
+                never_auto_close_child_agents=_coalesce(
+                    _get_nested(
+                        parsed,
+                        "never_auto_close_child_agents",
+                        section="execution_preferences",
+                        field="never_auto_close_child_agents",
+                    ),
+                    _CONFIG_DEFAULTS.execution_preferences.never_auto_close_child_agents,
                 ),
             ),
         )

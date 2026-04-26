@@ -220,7 +220,7 @@ def test_notify_prefers_explicit_target_hook_cache_and_target_dir_command(tmp_pa
     assert expected in output
 
 
-def test_notify_explicit_target_hook_cache_does_not_recover_missing_install_scope_from_legacy_surface(tmp_path: Path) -> None:
+def test_notify_explicit_target_hook_cache_does_not_recover_missing_install_scope_from_stale_surface(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     explicit_target = tmp_path / "custom-runtime-dir"
@@ -1330,7 +1330,7 @@ def test_emit_execution_notification_for_pre_fanout_review(tmp_path: Path) -> No
     assert "Pre-fanout review due for 05-03" in stderr.getvalue()
 
 
-def test_emit_execution_notification_prefers_lineage_head_over_legacy_current_execution_snapshot(
+def test_emit_execution_notification_prefers_lineage_head_over_stale_current_execution_snapshot(
     tmp_path: Path,
 ) -> None:
     workspace = tmp_path / "workspace"
@@ -1340,7 +1340,7 @@ def test_emit_execution_notification_prefers_lineage_head_over_legacy_current_ex
         {
             "phase": "07",
             "plan": "02",
-            "segment_id": "legacy-seg",
+            "segment_id": "recorded-seg",
             "segment_status": "paused",
             "resume_file": "GPD/phases/07/.continue-here.md",
             "updated_at": "2026-03-27T12:01:00+00:00",

@@ -327,6 +327,76 @@ fi
 **If `VALIDATION_FAILED` is true:** Present all collected errors to the user. Do not proceed with execution until structural issues are resolved.
 </step>
 
+<step name="claim_deliverable_alignment_check">
+Gate execution on explicit confirmation that the machine-readable claim matches user intent for Phase {N}.
+
+Read the persisted alignment status and the current contract/context fingerprints before rendering anything:
+
+```bash
+ALIGNMENT_STATUS=$(gpd contract alignment-status 2>/dev/null || echo '{}')
+CONTRACT_HASH=$(gpd contract fingerprint 2>/dev/null)
+CONTEXT_HASH=$(gpd contract context-fingerprint 2>/dev/null)
+CONFIRMED_AT=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_at --default null)
+CONFIRMED_CONTRACT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_contract_hash --default null)
+CONFIRMED_CONTEXT_HASH=$(echo "$ALIGNMENT_STATUS" | gpd json get .confirmed_context_hash --default null)
+```
+
+**Fingerprint gate:** Fail closed if either fingerprint command fails or resolves to an empty value before rendering the prompt or recording confirmation. Do not compare blank hashes, do not suppress the gate, and do not call `gpd contract record-alignment` on this path.
+
+```bash
+if [ -z "$CONTRACT_HASH" ] || [ -z "$CONTEXT_HASH" ]; then
+  echo "ERROR: claim_deliverable_alignment_check could not resolve contract/context fingerprints."
+  echo "Next Up: gpd:execute-phase {N}"
+  exit 1
+fi
+```
+
+**Gating:** This step fires when `autonomy=supervised` OR `review_cadence=dense` OR any selected plan is proof-bearing per `detect_proof_obligation_work`. It is skipped under `autonomy=yolo AND review_cadence in {adaptive, sparse} AND no proof-bearing plans`. When skipping for this reason, log the decision explicitly — for example `claim_deliverable_alignment_check: skipped (autonomy=yolo, cadence=adaptive, no proof-bearing plans)` — and continue to `discover_and_group_plans` without prompting.
+
+**Suppression:** If the persisted `confirmed_at` is set AND the current `contract_fingerprint == confirmed_contract_hash` AND the current `context_guidance_fingerprint == confirmed_context_hash`, skip re-prompting and log `claim_deliverable_alignment_check: skipped (already confirmed this session)`. Read the persisted status via `gpd contract alignment-status`; the hash-equality check uses `CONTRACT_HASH`/`CONTEXT_HASH` computed above.
+
+**Render:** When the step fires and is not suppressed, render a one-screen side-by-side table titled `Claim ↔ Deliverable Alignment` with the following layout. The left column is sourced from user intent (CONTEXT.md + structured `ContractContextIntake` fields); the right column is sourced from the machine contract. Cap each column at 5 bullets, truncating with an ellipsis (`…`) when more entries exist. Use `gpd contract alignment-summary` to obtain the right-column rows.
+
+```
+| User intent (CONTEXT)               | Machine contract                    |
+|-------------------------------------|-------------------------------------|
+| Observables: ...                    | Claims: ...                         |
+| Deliverables: ...                   | Deliverables: ...                   |
+| Must-have references: ...           | Acceptance tests: ...               |
+| Stop-or-rethink conditions: ...     |                                     |
+```
+
+Left-column rows MUST be: `Observables`, `Deliverables`, `Must-have references`, `Stop-or-rethink conditions`. Right-column rows MUST be: `Claims`, `Deliverables`, `Acceptance tests`. Each cell lists ≤5 bullets; when truncated, append `…` as the final bullet.
+
+**ask_user:** Present exactly one question with 4 options. Enter selects `Y`. Match the batched shape used elsewhere in the specs.
+
+```
+ask_user([
+  {
+    question: "Does the machine contract above match your intent for Phase {N}? Press Enter to proceed, or pick an option to revise.",
+    header: "Claim ↔ Deliverable Alignment",
+    multiSelect: false,
+    options: [
+      { label: "Y: proceed (Recommended, Enter = Y)", description: "Claims, deliverables, and acceptance tests match user intent. Record the confirmation and continue to discover_and_group_plans." },
+      { label: "e: edit CONTEXT", description: "User intent is off. Hand off to gpd:discuss-phase {N} to revise CONTEXT.md, then re-enter this step once." },
+      { label: "p: edit PLAN contract", description: "The machine contract is off. Hand off to gpd:plan-phase {N} --revise to revise the contract, then re-enter this step once." },
+      { label: "n: abort", description: "Stop execution cleanly without spawning any executor. Next Up is gpd:execute-phase {N} once alignment is resolved." }
+    ]
+  }
+])
+```
+
+**On "Y: proceed" (or Enter):** Record the confirmation so the same session does not re-prompt while the contract and CONTEXT are unchanged, then continue to `discover_and_group_plans`:
+
+```bash
+gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$CONTEXT_HASH"
+```
+
+**On "n: abort":** Exit cleanly. Do NOT spawn any executor and do NOT proceed to `discover_and_group_plans`. Emit a final line `"Next Up: gpd:execute-phase {N}"` so the operator can resume after resolving alignment.
+
+**On "e" (edit CONTEXT) / "p" (edit PLAN contract):** Hand off to the corresponding workflow — `gpd:discuss-phase {N}` for `e`, `gpd:plan-phase {N} --revise` for `p`. After it returns, re-enter this step exactly once to re-render the side-by-side against the revised inputs. If the same key is chosen a second time in one invocation, defer to that workflow and stop looping — do not re-enter a third time.
+</step>
+
 <step name="discover_and_group_plans">
 Load plan inventory with wave grouping in one call:
 
@@ -404,7 +474,7 @@ Report:
 Translate cadence config plus wave risk into concrete execution boundaries before any executor is spawned.
 
 ```bash
-REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default dense)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
 MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_wave --default 90)
@@ -444,6 +514,8 @@ When a wave is risky:
 - set `PRE_FANOUT_REVIEW_REQUIRED=true`
 - set `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}`
 - force bounded continuation segments even when the authored plan has no checkpoints
+
+**Dense cadence override:** when `review_cadence=dense`, treat every wave as risky regardless of the heuristic checks above, applying the "When a wave is risky" bullets unconditionally (in particular `FIRST_RESULT_GATE_REQUIRED=true` and `PRE_FANOUT_REVIEW_REQUIRED=true`). The "not risky" branch does not apply; a clean pass may auto-continue once the gate fires, but the gate must fire.
 
 When a wave is not risky:
 
@@ -498,7 +570,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `current_execution`, `has_live_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `execution_blocked`, `execution_resumable`, `execution_paused_at`, `current_execution_resume_file`, `session_resume_file`, `recorded_session_resume_file`, `missing_session_resume_file`, `execution_resume_file`, `execution_resume_file_source`, `resume_projection`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`, `session_last_date`, `session_stopped_at`, `machine_change_detected`, `machine_change_notice`, `state_load_source`, `state_integrity_issues`.
+Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `current_execution`, `has_live_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `execution_blocked`, `execution_resumable`, `execution_paused_at`, `current_execution_resume_file`, `handoff_resume_file`, `recorded_handoff_resume_file`, `missing_handoff_resume_file`, `execution_resume_file`, `execution_resume_file_source`, `resume_projection`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`, `session_last_date`, `session_stopped_at`, `machine_change_detected`, `machine_change_notice`, `state_load_source`, `state_integrity_issues`.
 
 **For each wave:**
 
@@ -761,6 +833,7 @@ Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_D
 	   - if the plan is proof-bearing, `{plan_id}-PROOF-REDTEAM.md` exists and reports `status: passed`
 	   - decisive anchors still missing were explicitly named and re-questioned if necessary
 	   - if the contract owed a decisive comparison, either that comparison now has a pass verdict or the downstream work was explicitly scoped so it does not rely on that unresolved claim
+	   - if `review_cadence=dense` and the just-completed first wave emitted no `result/produce` or `result/log` event at all, STOP and require explicit user confirmation before advancing — a dense wave that produced no result event is indistinguishable from a silent failure and the first-result gate never had anything to trip on
 
    If this gate fails: STOP — do not let wrong early assumptions scale out.
 

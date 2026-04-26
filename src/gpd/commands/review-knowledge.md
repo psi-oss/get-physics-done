@@ -109,5 +109,5 @@ Follow `@{GPD_INSTALL_DIR}/workflows/review-knowledge.md` exactly.
 - [ ] `approved` promotes the document to `stable` only when the review is fresh
 - [ ] `needs_changes` and `rejected` keep or mark the document `in_review`
 - [ ] Validation fails closed on non-canonical lookalikes, ambiguous targets, or stale approved evidence
-- [ ] No automatic migration, beginner onboarding exposure, or full supersession orchestration is claimed
+- [ ] No automatic import, beginner onboarding exposure, or full supersession orchestration is claimed
 </success_criteria>

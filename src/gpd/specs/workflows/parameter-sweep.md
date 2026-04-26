@@ -29,8 +29,8 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `
 - `research_mode=explore`: Broad parameter ranges, fine grid resolution, include secondary parameters. Spawn experiment-designer agent to validate sweep design.
 - `research_mode=exploit`: Tight ranges around known values, coarse grid, primary parameters only.
 - `research_mode=adaptive`: Start with coarse grid, refine adaptively around interesting regions.
-- `autonomy=supervised`: Show the sweep design and ask for approval before generating plans.
-- `autonomy=balanced` (default): Execute automatically unless the design exceeds context budget, has more than 100 grid points, or changes scope materially; only then pause for user approval.
+- `autonomy=supervised` (default): Show the sweep design and ask for approval before generating plans.
+- `autonomy=balanced`: Execute automatically unless the design exceeds context budget, has more than 100 grid points, or changes scope materially; only then pause for user approval.
 - `autonomy=yolo`: Execute the sweep without pausing.
 
 Run centralized command-context preflight before continuing:
@@ -595,8 +595,10 @@ Identified {K} regions needing finer sampling:
 
 Total additional points: {sum}
 
-Proceed with refinement? (y/n)
+Refine {K} regions ({sum} additional points)? [Y/n/e]  (Enter = Y; e opens freeform to tune the region selection)
 ```
+
+**Edit branch:** If the user chooses `e`, collect revised region-selection or grid-size instructions, update the refinement table and total point count, and re-present the updated `[Y/n/e]` prompt once before generating refinement plans. Do not treat the edit text itself as approval.
 
 **5. Generate and execute refinement plans:**
 

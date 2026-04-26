@@ -126,6 +126,7 @@ def test_route_skill_uses_live_registry_names_for_missing_manual_keyword_routes(
             _skill("gpd-check-todos", category="project", registry_name="check-todos"),
             _skill("gpd-new-milestone", category="project", registry_name="new-milestone"),
             _skill("gpd-compare-branches", category="project", registry_name="compare-branches"),
+            _skill("gpd-record-backtrack", category="management", registry_name="record-backtrack"),
             _skill("gpd-record-insight", category="project", registry_name="record-insight"),
             _skill("gpd-merge-phases", category="project", registry_name="merge-phases"),
             _skill("gpd-set-profile", category="project", registry_name="set-profile"),
@@ -137,6 +138,7 @@ def test_route_skill_uses_live_registry_names_for_missing_manual_keyword_routes(
         assert route_skill("start a new milestone")["suggestion"] == "gpd-new-milestone"
         assert route_skill("compare two branches side by side")["suggestion"] == "gpd-compare-branches"
         assert route_skill("record an insight from this session")["suggestion"] == "gpd-record-insight"
+        assert route_skill("record a backtrack after undoing work")["suggestion"] == "gpd-record-backtrack"
         assert route_skill("merge two phases together")["suggestion"] == "gpd-merge-phases"
         assert route_skill("set the research profile")["suggestion"] == "gpd-set-profile"
         assert route_skill("reapply local patches after update")["suggestion"] == "gpd-reapply-patches"

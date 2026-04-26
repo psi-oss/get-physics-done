@@ -74,6 +74,14 @@ If `RESEARCH_FILES` is non-empty, show up to 5 sample files so the researcher ca
 If advanced terms appear in the summary, explain them once in parentheses and then keep using the official term consistently.
 </step>
 
+<step name="frame_autonomy_posture">
+Before offering choices, set expectations for supervision:
+
+GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+
+Do not write config.json from this workflow. If the researcher wants to change autonomy, point them at `gpd:settings`.
+</step>
+
 <step name="offer_relevant_choices">
 Offer only the choices that fit the detected state.
 

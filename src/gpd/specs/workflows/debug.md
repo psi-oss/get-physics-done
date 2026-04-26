@@ -126,12 +126,12 @@ This runs in parallel - all issues investigated simultaneously.
 
 ```bash
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
-AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default supervised 2>/dev/null || echo "supervised")
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each debugger agent returns findings. Present the diagnosis to the user before proceeding to a fix.
-- `autonomy=balanced` (default): Spawn the debugger agents, collect findings, and apply routine fixes automatically. Pause only if there are multiple plausible root causes or the fix changes assumptions or scope.
+- `autonomy=supervised` (default): Pause after each debugger agent returns findings. Present the diagnosis to the user before proceeding to a fix.
+- `autonomy=balanced`: Spawn the debugger agents, collect findings, and apply routine fixes automatically. Pause only if there are multiple plausible root causes or the fix changes assumptions or scope.
 - `autonomy=yolo`: Spawn debuggers and continue automatically only after a specific evidence-backed root cause is identified. Do not apply a merely plausible fix.
 
 **Spawn investigation agents in parallel:**

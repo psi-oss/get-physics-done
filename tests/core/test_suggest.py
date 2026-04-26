@@ -1536,7 +1536,7 @@ def test_suggest_context_defaults() -> None:
     assert ctx.current_phase is None
     assert ctx.progress_percent == 0.0
     assert ctx.phase_count == 0
-    assert ctx.autonomy == "balanced"
+    assert ctx.autonomy == "supervised"
     assert ctx.research_mode == "balanced"
 
 

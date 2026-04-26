@@ -37,6 +37,33 @@ def _iso_minutes_ago(minutes: int) -> str:
     return (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
 
 
+def test_execution_policy_config_load_fallback_preserves_guard_defaults(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+
+    import gpd.core.config as config_module
+    import gpd.core.observability as observability
+    from gpd.core.config import GPDProjectConfig
+
+    defaults = GPDProjectConfig()
+
+    def _raise_load_config(_cwd: Path) -> object:
+        raise RuntimeError("config unavailable")
+
+    monkeypatch.setattr(config_module, "load_config", _raise_load_config)
+
+    policy = observability._load_execution_policy(project)
+
+    assert policy == {
+        "max_unattended_minutes_per_plan": defaults.max_unattended_minutes_per_plan,
+        "max_unattended_minutes_per_wave": defaults.max_unattended_minutes_per_wave,
+        "checkpoint_after_n_tasks": defaults.checkpoint_after_n_tasks,
+        "checkpoint_after_first_load_bearing_result": defaults.checkpoint_after_first_load_bearing_result,
+        "review_cadence": defaults.review_cadence.value,
+    }
+
+
 def test_ensure_session_writes_single_session_log_and_current_pointer(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
@@ -235,6 +262,144 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.first_result_gate_pending is True
     assert snapshot.last_result_label == "Benchmark reproduction"
     assert snapshot.downstream_locked is True
+
+
+def test_segment_review_cadence_override_is_scoped_to_current_segment(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    (project / "GPD" / "config.json").write_text(
+        json.dumps({"review_cadence": "dense"}),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-adaptive", "review_cadence": "adaptive"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-dense"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="result",
+        action="produce",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"load_bearing": False}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.segment_id == "seg-dense"
+    assert snapshot.review_cadence is None
+    assert snapshot.first_result_gate_pending is True
+
+
+def test_first_result_gate_does_not_rearm_after_clear_in_same_segment(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    (project / "GPD" / "config.json").write_text(
+        json.dumps({"review_cadence": "dense"}),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-01"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="result",
+        action="produce",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"load_bearing": False, "last_result_label": "First result"}},
+    )
+
+    gated = get_current_execution(project)
+    assert gated is not None
+    assert gated.first_result_gate_pending is True
+    assert gated.waiting_for_review is True
+
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="clear",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "first_result"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="result",
+        action="log",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"load_bearing": False, "last_result_label": "Later result"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.first_result_ready is True
+    assert snapshot.first_result_gate_pending is False
+    assert snapshot.waiting_for_review is False
+    assert snapshot.review_required is False
+    assert snapshot.last_result_label == "Later result"
 
 
 def test_execution_events_dual_write_durable_bounded_segment_from_resumable_snapshot(

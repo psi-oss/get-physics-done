@@ -73,7 +73,7 @@ def test_preset_bundle_applies_atomic_supported_keys_and_preserves_unrelated_ove
     )
     assert preview.ignored_guidance_only_keys == ("model_cost_posture",)
     assert applied["model_profile"] == "paper-writing"
-    assert applied["autonomy"] == "balanced"
+    assert applied["autonomy"] == "supervised"
     assert applied["research_mode"] == "exploit"
     assert applied["parallelization"] is False
     assert applied["model_overrides"] == original_overrides
@@ -97,7 +97,7 @@ def test_preset_bundle_applies_atomic_supported_keys_and_preserves_unrelated_ove
 
     cfg = load_config(project)
     assert cfg.model_profile == ModelProfile.PAPER_WRITING
-    assert cfg.autonomy == AutonomyMode.BALANCED
+    assert cfg.autonomy == AutonomyMode.SUPERVISED
     assert cfg.research_mode == ResearchMode.EXPLOIT
     assert cfg.review_cadence == ReviewCadence.DENSE
     assert cfg.commit_docs is True
@@ -152,7 +152,7 @@ def test_atomic_application_preserves_existing_runtime_override_and_nested_confi
         "workflow.plan_checker",
         "workflow.verifier",
     )
-    assert applied["execution"]["review_cadence"] == ReviewCadence.ADAPTIVE.value
+    assert applied["execution"]["review_cadence"] == ReviewCadence.DENSE.value
     assert applied["commit_docs"] is True
     assert applied["research"] is True
     assert applied["plan_checker"] is True
@@ -162,3 +162,28 @@ def test_atomic_application_preserves_existing_runtime_override_and_nested_confi
     assert applied["model_overrides"] == original_overrides
     assert "review_cadence" not in applied
     assert preview.ignored_guidance_only_keys == ("model_cost_posture",)
+
+
+def test_execution_preference_string_false_does_not_enable_wait_overrides(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    (project / "GPD").mkdir(parents=True, exist_ok=True)
+    (project / "GPD" / "config.json").write_text(
+        json.dumps(
+            {
+                "execution_preferences": {
+                    "strict_wait": "false",
+                    "never_interrupt_running_workers": "false",
+                    "never_auto_close_child_agents": "true",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cfg = load_config(project)
+
+    assert cfg.execution_preferences.strict_wait is False
+    assert cfg.execution_preferences.never_interrupt_running_workers is False
+    assert cfg.execution_preferences.never_auto_close_child_agents is True

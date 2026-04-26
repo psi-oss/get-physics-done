@@ -11,6 +11,8 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
 4. **Domain expertise comes from user, computation comes from the assistant** - Ask for physical constraints, then the assistant implements them
    </overview>
 
+@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md
+
 <checkpoint_types>
 
 <type name="human-verify">
@@ -35,7 +37,7 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
   <how-to-verify>
     [Exact checks to perform - limiting cases, plots, known results to compare against]
   </how-to-verify>
-  <resume-signal>[How to continue - "confirmed", "yes", or describe issues]</resume-signal>
+  <resume-signal>[Y/n/e]  (Enter = Y)  — n rejects, e opens a freeform edit</resume-signal>
 </task>
 ```
 
@@ -66,7 +68,7 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
     3. Band gap: gap between branches at q=pi/a equals sqrt(2k/m1) - sqrt(2k/m2) (for m1 > m2)
     4. Equal mass limit: gap closes, recovers monatomic chain with doubled unit cell
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe physical issues</resume-signal>
+  <resume-signal>[Y/n/e]</resume-signal>
 </task>
 ```
 
@@ -90,7 +92,7 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
     - High-T regime: |m| ~ 0 (disordered phase)
     - Finite-size rounding is visible but transition location is correct
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe issues with the simulation</resume-signal>
+  <resume-signal>[Y/n/e]</resume-signal>
 </task>
 ```
 
@@ -303,11 +305,11 @@ Every authored or auto-inserted checkpoint must return a bounded execution paylo
 
 When the stop is a first-result, skeptical, or pre-fanout review, the `execution_segment` must also carry the live gate fields that keep resume/status surfaces honest: `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared` when applicable, `skeptical_requestioning_required`, and `downstream_locked`.
 
-`execution_segment` is the runtime transport payload. If the checkpoint is durably recorded, the canonical bounded-segment subset of that payload becomes the persisted `continuation.bounded_segment` record and is captured in execution lineage so the derived execution head can be rebuilt. Do not mirror `execution_segment` into the durable `gpd_return` child-return example; use `continuation_update.handoff` and `continuation_update.bounded_segment` for the persisted handoff boundary.
+`execution_segment` is the runtime transport payload. If the checkpoint is durably recorded, the canonical bounded-segment subset of that payload becomes the persisted `continuation.bounded_segment` record and is captured in execution lineage so the derived execution head can be rebuilt. Do not copy `execution_segment` into the durable `gpd_return` child-return example; use `continuation_update.handoff` and `continuation_update.bounded_segment` for the persisted handoff boundary.
 
 Persisted bounded-segment fields: `resume_file`, `phase`, `plan`, `segment_id`, `segment_status`, `checkpoint_reason`, `waiting_reason`, `blocked_reason`, `waiting_for_review`, `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared`, `skeptical_requestioning_required`, `downstream_locked`, `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, `disconfirming_observation`, `transition_id`, `last_result_id`, `updated_at`, `source_session_id`, `recorded_by`.
 
-Task summaries, task tables, and other checkpoint prose stay in the checkpoint envelope; they are not part of canonical continuation persistence. Clear or replace that persisted copy when the bounded stop is consumed, retired, or superseded; do not rely on `.continue-here.md`, session fields, or the derived head as bounded authority.
+Task summaries, task tables, and other checkpoint prose stay in the checkpoint envelope; they are not part of canonical continuation persistence. Clear or replace that persisted copy when the bounded stop is consumed, retired, or superseded; do not rely on `.continue-here.md`, the STATE.md Session Continuity rendering, or the derived head as bounded authority.
 
 This keeps authored checkpoints and auto-inserted Stage 5 checkpoints on the same continuation path.
 
@@ -323,6 +325,10 @@ When the assistant encounters `type="checkpoint:*"`:
 
 **For checkpoint:human-verify:**
 
+The prompt opens collapsed with a one-line `Summary:` and a checklist teaser; the researcher presses `v` to expand the full `How to verify` list. The expanded state drops the `v` affordance from the resume-signal because the checklist is already on screen.
+
+_Collapsed (default):_
+
 ```
 +================================================+
 |  CHECKPOINT: Verification Required             |
@@ -331,7 +337,20 @@ When the assistant encounters `type="checkpoint:*"`:
 Progress: 5/8 tasks complete
 Task: Phonon dispersion relation
 
-Derived: Diatomic chain dispersion with acoustic and optical branches
+Summary: Diatomic chain dispersion — acoustic branch goes to 0 as q->0; optical branch has gap 2*sqrt(k/mu).
+
+How to verify (4 checks, press `v` to expand):
+  v. Expand full verification checklist
+
+-------------------------------------------------
+> YOUR ACTION: [Y/n/e/v]  (Enter = Y;  n rejects;  e opens a freeform edit;  v expands checklist)
+-------------------------------------------------
+```
+
+_Expanded (after `v`):_
+
+```
+Summary: Diatomic chain dispersion — acoustic branch goes to 0 as q->0; optical branch has gap 2*sqrt(k/mu).
 
 How to verify:
   1. Acoustic branch: omega -> 0 as q -> 0 (Goldstone mode)
@@ -340,7 +359,7 @@ How to verify:
   4. Equal mass limit recovers monatomic chain
 
 -------------------------------------------------
-> YOUR ACTION: Type "confirmed" or explain issues
+> YOUR ACTION: [Y/n/e]  (Enter = Y;  n rejects;  e opens a freeform edit)
 -------------------------------------------------
 ```
 
@@ -634,7 +653,7 @@ I'll verify: API returns band structure data for target compounds
     4. Sum rule: integral of Im[chi_0]*omega over omega gives correct f-sum rule
     5. Plots: qualitative shape matches Mahan Fig. 5.1 or similar reference
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe issues</resume-signal>
+  <resume-signal>[Y/n/e]</resume-signal>
 </task>
 ```
 
@@ -692,7 +711,7 @@ I'll verify: API returns band structure data for target compounds
 <task type="checkpoint:human-verify">
   <what-derived>Ising model magnetization curve</what-derived>
   <how-to-verify>Phase transition visible near T_c = 2.269, correct ordered/disordered phases</how-to-verify>
-  <resume-signal>Type "confirmed"</resume-signal>
+  <resume-signal>[Y/n/e]</resume-signal>
 </task>
 ```
 
@@ -715,7 +734,7 @@ I'll verify: API returns band structure data for target compounds
 <task type="checkpoint:human-verify">
   <what-derived>Complete normal mode analysis (equations + solutions + dispersion plot)</what-derived>
   <how-to-verify>Verify dispersion, check limiting cases, confirm mode counting</how-to-verify>
-  <resume-signal>Type "confirmed"</resume-signal>
+  <resume-signal>[Y/n/e]</resume-signal>
 </task>
 ```
 
@@ -738,7 +757,7 @@ I'll verify: API returns band structure data for target compounds
     3. Re[Sigma] has correct sign (negative for electron gas)
     4. Spectral weight Z = 1/(1 - dRe[Sigma]/dE) is between 0 and 1
   </how-to-verify>
-  <resume-signal>Type "confirmed" or describe physical issues</resume-signal>
+  <resume-signal>[Y/n/e]</resume-signal>
 </task>
 ```
 

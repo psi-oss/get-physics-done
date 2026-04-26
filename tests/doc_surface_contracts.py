@@ -1036,10 +1036,9 @@ def assert_resume_authority_contract(
     content: str,
     *,
     allow_explicit_alias_examples: bool,
-    require_generic_compatibility_note: bool = False,
+    require_canonical_note: bool = False,
 ) -> None:
     contract = _resume_authority_contract()
-    compatibility_note = "Compatibility-only intake fields stay internal"
     assert _contract_string(contract, "durable_authority_phrase", label="resume_authority") in content
     assert _contract_string(contract, "public_vocabulary_intro", label="resume_authority") in content
     for field in _contract_string_list(contract, "public_fields", label="resume_authority"):
@@ -1048,36 +1047,19 @@ def assert_resume_authority_contract(
         _assert_contains_any(
             content,
             (
-                compatibility_note,
-                "Compatibility-only backend intake (`gpd init resume` only):",
-            ),
-            label="resume compatibility phrase",
-        )
-        _assert_contains_any(
-            content,
-            (
                 "session.resume_file",
-                "session_resume_file",
+                "handoff_resume_file",
                 "current_execution",
                 "interrupted_agent",
             ),
             label="compatibility alias examples",
         )
     else:
-        assert "compat_resume_surface" not in content
+        assert "`resume_surface`" not in content
         for alias in resume_backend_only_fields():
             assert alias not in content
-        assert "Compatibility-only backend intake (`gpd init resume` only):" not in content
-    if require_generic_compatibility_note:
-        lowered_content = content.lower()
-        _assert_contains_any(
-            lowered_content,
-            (
-                compatibility_note.lower(),
-                _contract_string(contract, "public_vocabulary_intro", label="resume_authority").lower(),
-            ),
-            label="generic compatibility note",
-        )
+    if require_canonical_note:
+        assert _contract_string(contract, "public_vocabulary_intro", label="resume_authority") in content
 
 
 def assert_runtime_readiness_handoff_contract(content: str) -> None:

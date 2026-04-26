@@ -94,7 +94,7 @@ Project ─── the overall research goal
 3. `gpd:plan-phase N` — Create detailed plans for phase N
 4. `gpd:execute-phase N` — Run all plans (derivations, simulations, analysis)
 5. `gpd:verify-work` — Verify physics correctness
-6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
+6. Repeat 2-5 for each phase (or `gpd:autonomous` to run the remaining phases under the configured checkpoint cadence)
 7. `gpd:write-paper` — Generate publication from project results or one explicit external-authoring intake manifest into the resolved manuscript lane
 8. `gpd:peer-review` — Run manuscript review before submission on the current project manuscript or one explicit artifact
 9. `gpd:respond-to-referees` — Address reviewer comments by revising the resolved manuscript root and synchronized response artifacts
@@ -134,8 +134,8 @@ This reference lists the canonical in-runtime command names for the installed ru
 - That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
-- Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
-- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
+- Use `gpd permissions status --runtime <runtime> --autonomy <mode>` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal. Use `supervised` unless you intentionally selected a different autonomy mode.
+- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy <mode>` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - That is the generic typed command-policy check for the public runtime surface. Today, `gpd validate review-contract <command>` and `gpd validate review-preflight <command> [subject] --strict` are specialized typed surfaces for commands that expose review/publication contracts.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
@@ -201,6 +201,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:list-phase-assumptions <number>` - Preview the planned phase approach
 - `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning; `quick` is verification-only
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
+- `gpd:route [--frozen=yes|no] [--change=extend|revise] [--layer=new|change]` - Route a scope change to the right milestone/phase workflow
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
 - `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
@@ -259,6 +260,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:export [--format html|latex|zip|all]` - Export project artifacts
 - `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
+- `gpd:record-backtrack [description]` - Capture a backtrack event (what went wrong, what got reverted)
 - `gpd:record-insight [description]` - Save a project-specific lesson
 - `gpd:audit-milestone [version]` - Audit milestone completion against goals
 - `gpd:plan-milestone-gaps` - Turn audit gaps into new phases
@@ -360,7 +362,7 @@ Usage: `gpd:discuss-phase 2` / `gpd:discuss-phase 2 --compact`
 Decide whether a scope change is a new phase, a revision, a new milestone, or a milestone-completion followed by a new one.
 
 - Asks three short routing questions about the intended scope change
-- Maps the answers to exactly one next command (`gpd:add-phase`, `gpd:revise-phase`, `gpd:new-milestone`, or `gpd:complete-milestone` + `gpd:new-milestone`)
+- Maps the answers to one recommendation; the frozen scope-expansion path renders the ordered compound sequence `gpd:complete-milestone` then `gpd:new-milestone`
 - Use it when you're not sure whether new work belongs in the current milestone
 
 Usage: `gpd:route`
@@ -563,7 +565,7 @@ Archive completed milestone and prepare for next direction.
 - Creates git tag for the release
 - Prepares workspace for next research direction
 
-Usage: `gpd:complete-milestone 1.1.0`
+Usage: `gpd:complete-milestone v2.0`
 
 ### Progress Tracking
 
@@ -584,7 +586,7 @@ Usage: `gpd:progress`
 Usage: `gpd:progress --full` (detailed runtime view with all phase artifacts)
 Usage: `gpd:progress --brief` (compact runtime orientation)
 Usage: `gpd:progress --reconcile` (runtime-only state-vs-disk reconciliation mode)
-Local CLI: `gpd progress json|bar|table` (read-only render formats)
+Local CLI: `gpd progress json|bar|table` (read-only render formats; add `--watch` / `-w` for a polling heartbeat, `--interval <seconds>` tunes cadence, `--exit-on-idle` for scripting)
 
 ### Session Management
 
@@ -602,7 +604,7 @@ Usage: `gpd:resume-work`
 Create a continuation handoff artifact when pausing work mid-phase.
 
 - Creates the canonical `.continue-here.md` continuation handoff artifact with current state
-- Updates the mirrored STATE.md session continuity entry
+- Updates canonical continuation and its STATE.md Session Continuity rendering
 - Captures in-progress work context
 - Run this before leaving mid-phase so `gpd:resume-work` has an explicit recorded handoff artifact to restore from canonical continuation state
 
@@ -888,7 +890,7 @@ Suggest the most impactful next action based on current project state.
 
 - Scans phases, plans, verification status, blockers, and todos
 - Produces a prioritized action list
-- Local CLI fallback: `gpd --raw suggest`
+- Local CLI equivalent: `gpd --raw suggest`
 - Fastest way to answer "what should I do next?" without reading through progress reports
 - Fastest post-resume command when you only need the next action
 
@@ -908,7 +910,7 @@ Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 **`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
 Create or update a current-workspace knowledge document draft from a topic, paper, source file, or explicit knowledge path.
 
-- Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Accepts an explicit knowledge-doc path, a source file path, an arXiv identifier with accepted prefixes, or a topic string
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity
 - Source-file intake accepts `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied explicitly
 - Non-plain-text source intake (`.pdf`, `.docx`, `.xlsx`) is normalized through `gpd validate artifact-text <path> --output <txt-path>` before drafting; keep the original artifact path as the canonical source reference
@@ -953,6 +955,16 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 - `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
 
 Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block.
+
+**Contract alignment gate**
+
+- `gpd contract fingerprint` - Print the canonical sha256 fingerprint of the current machine contract
+- `gpd contract context-fingerprint [path]` - Print the sha256 fingerprint of a CONTEXT.md file's text (defaults to the active phase's CONTEXT.md)
+- `gpd contract record-alignment --contract-hash <hash> --context-hash <hash>` - Persist operator confirmation that the claim-deliverable alignment was reviewed
+- `gpd contract alignment-status` - Print the persisted claim-deliverable alignment confirmation as JSON
+- `gpd contract alignment-summary` - Print the claim-deliverable alignment row summary as JSON
+
+The contract subgroup is the claim-deliverable alignment precheck used by `gpd:execute-phase` before a phase can claim a deliverable.
 
 **Wolfram integration**
 
@@ -1064,6 +1076,17 @@ View accumulated physics error patterns for this project.
 Usage: `gpd:error-patterns`
 Usage: `gpd:error-patterns sign`
 
+**`gpd:record-backtrack [description]`**
+Capture a backtrack event so the planner can avoid repeating the same mistake.
+
+- Records the trigger, what was produced, why it was wrong, and the counter-action
+- Checks for duplicates on `trigger` + `why_wrong`
+- When `promote: true`, auto-copies a parallel row into `GPD/INSIGHTS.md`'s `## Execution Deviations` section
+- Updates `GPD/BACKTRACKS.md`
+
+Usage: `gpd:record-backtrack`
+Usage: `gpd:record-backtrack Proof used mostly-minus metric when lock pinned +----`
+
 **`gpd:record-insight [description]`**
 Record a project-specific learning or pattern to the insights ledger.
 
@@ -1102,7 +1125,7 @@ Usage: `gpd:plan-milestone-gaps`
 **`gpd:settings`**
 Primary guided setup for autonomy, unattended execution budgets, runtime permission sync, model profile, `execution.review_cadence`, and runtime-specific tier model overrides.
 
-- Choose how often GPD should pause for you (`Balanced (Recommended)` is the best default for most unattended runs)
+- Choose how often GPD should pause for you (`Supervised (Recommended)` is the default and matches the advisor cadence; `Balanced` for unattended runs once you trust the boundary)
 - Review unattended execution budgets and other bounded continuation limits before leaving runs alone
 - Start with a qualitative model-cost posture: `Max quality`, `Balanced`, or `Budget-aware`
 - Sync runtime-owned permissions after autonomy changes when the active runtime supports it
@@ -1123,7 +1146,7 @@ Usage: `gpd:settings`
 Direct concrete model-id setup for `tier-1`, `tier-2`, and `tier-3` on the active runtime.
 
 - `tier-1` — highest capability, usually highest cost
-- `tier-2` — balanced default
+- `tier-2` — middle/default capability tier
 - `tier-3` — fastest / most economical
 - Clears or writes only `model_overrides.<runtime>` in `GPD/config.json`
 - Leaves `model_profile`, autonomy, `execution.review_cadence`, budgets, and workflow toggles unchanged
@@ -1242,21 +1265,23 @@ GPD/
 
 ## Workflow Modes
 
+GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+
 Set during `gpd:new-project` or changed later with `gpd:settings`:
 
-**Supervised**
+**Supervised (Recommended)**
 
-- Confirms each major step
-- Uses the most checkpoints
-- Best for high-stakes work or learning the workflow
-- Best when you plan to stay nearby and approve each physics-bearing move
+- You carry the veto; GPD carries the task
+- Checkpoints at every physics-bearing decision so you can redirect early
+- Default mode; matches the advisor/graduate-student cadence
+- Best for new projects, high-stakes work, or any research where you want to see each step
 
-**Balanced (Recommended)**
+**Balanced**
 
 - Handles routine work automatically
 - Pauses on physics decisions, ambiguities, blockers, or scope changes
-- Best default for most projects
-- Best first choice for unattended runs because it still pauses on important physics, scope, and blocker decisions
+- Lighter checkpoint cadence for users who have built intuition for GPD's boundary
+- Good for unattended runs once you trust GPD's boundary on your specific research
 
 **YOLO**
 
@@ -1292,7 +1317,7 @@ Example config:
 ```json
 {
   "execution": {
-    "review_cadence": "adaptive"
+    "review_cadence": "dense"
   },
   "planning": {
     "commit_docs": false
@@ -1358,7 +1383,7 @@ gpd:execute-phase 5.1
 **Completing a milestone:**
 
 ```
-gpd:complete-milestone 1.1.0
+gpd:complete-milestone v2.0
 /clear                 # then run gpd:new-milestone for the next milestone
 gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
 ```
