@@ -4,6 +4,16 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+## v1.2.1
+
+### Workflow and release hardening
+
+- Harden runtime wiring across installers, projected commands, update checks, and runtime catalogs, including OpenCode permission preservation and fail-closed capability validation.
+- Tighten project, state, and continuation boundaries so nested repositories, live execution state, recent-project cache entries, and child-return rollback are handled more conservatively.
+- Strengthen publication and contract validation by rejecting mismatched or malformed latest review artifacts, aligning contract-link schemas with prompt-visible templates, and preserving valid optional MCP request fields.
+- Improve release recovery and CI guardrails for same-commit publish reruns, existing tag checks, release PR discovery, and human-author range validation.
+- Trim and clarify workflow and agent prompts while preserving canonical model-omission, artifact-gate, destructive-confirmation, and checkpoint semantics.
+
 ## v1.2.0
 
 ### Supervised by default
