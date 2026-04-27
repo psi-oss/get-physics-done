@@ -1047,7 +1047,7 @@ def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None
     result = _run_node_contract_validation(
         r"""
 const assert = require("node:assert/strict");
-const { validateRuntimeCatalog } = require("./bin/install.js");
+const { validateRuntimeCatalog, validateRuntimeCatalogSchemaShape } = require("./bin/install.js");
 const catalog = require("./src/gpd/adapters/runtime_catalog.json");
 const runtimeCatalogSchema = require("./src/gpd/adapters/runtime_catalog_schema.json");
 const installHelpExampleScopes = new Set(runtimeCatalogSchema.install_help_example_scopes);
@@ -1059,6 +1059,7 @@ const launchWrapperDisjunction = launchWrapperPermissionSurfaceKinds.length === 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 assert.doesNotThrow(() => validateRuntimeCatalog(catalog));
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(runtimeCatalogSchema));
 
 const helpExampleRuntimes = catalog.filter((runtime) => runtime.installer_help_example_scope);
 assert.ok(helpExampleRuntimes.length >= 2);
@@ -1228,6 +1229,36 @@ badTelemetryCatalog[0].capabilities.telemetry_source = "webhook";
 assert.throws(
   () => validateRuntimeCatalog(badTelemetryCatalog),
   /runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook/
+);
+
+const badCapabilityDefaultsSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+badCapabilityDefaultsSchema.capability_defaults.supports_context_meter = "false";
+assert.throws(
+  () => validateRuntimeCatalogSchemaShape(badCapabilityDefaultsSchema),
+  /runtime catalog schema\.capability_defaults\.supports_context_meter must be a boolean/
+);
+
+const badCapabilityDefaultEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+badCapabilityDefaultEnumSchema.capability_defaults.telemetry_source = "webhook";
+assert.throws(
+  () => validateRuntimeCatalogSchemaShape(badCapabilityDefaultEnumSchema),
+  /runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook/
+);
+
+const badAgentAttributionCatalog = JSON.parse(JSON.stringify(catalog));
+badAgentAttributionCatalog[0].capabilities.supports_agent_payload_attribution = false;
+badAgentAttributionCatalog[0].hook_payload.agent_name_keys = ["agent_name"];
+assert.throws(
+  () => validateRuntimeCatalog(badAgentAttributionCatalog),
+  /runtime catalog entry 0\.capabilities\.supports_agent_payload_attribution must match runtime catalog entry 0\.hook_payload\.agent_id_keys\/agent_name_keys\/agent_scope_keys/
+);
+
+const badSessionAttributionCatalog = JSON.parse(JSON.stringify(catalog));
+badSessionAttributionCatalog[0].capabilities.supports_runtime_session_payload_attribution = false;
+badSessionAttributionCatalog[0].hook_payload.runtime_session_id_keys = ["session_id"];
+assert.throws(
+  () => validateRuntimeCatalog(badSessionAttributionCatalog),
+  /runtime catalog entry 0\.capabilities\.supports_runtime_session_payload_attribution must match runtime catalog entry 0\.hook_payload\.runtime_session_id_keys/
 );
 
 const futureConfigSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
@@ -1442,6 +1473,25 @@ def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
     assert "startsWith(\"$\")" not in result.stdout
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_installer_enforces_node_20_floor() -> None:
+    result = _run_node_contract_validation(
+        r"""
+const assert = require("node:assert/strict");
+const { ensureSupportedNodeVersion, nodeMajorVersion } = require("./bin/install.js");
+
+assert.equal(nodeMajorVersion("20.0.0"), 20);
+assert.equal(nodeMajorVersion("v24.1.0"), 24);
+assert.doesNotThrow(() => ensureSupportedNodeVersion("20.0.0"));
+assert.doesNotThrow(() => ensureSupportedNodeVersion("24.1.0"));
+assert.throws(() => ensureSupportedNodeVersion("19.9.0"), /Node\.js 20\+ is required/);
+assert.throws(() => ensureSupportedNodeVersion("not-a-version"), /Node\.js 20\+ is required/);
+"""
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) -> None:
@@ -1498,6 +1548,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert "GPD does not verify provider credentials automatically" in result.stdout
     combined_output = result.stdout + result.stderr
     assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in combined_output
+    assert "`gpd validate unattended-readiness`" not in combined_output
+    assert "`gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>`" in combined_output
     assert "Install Summary" in result.stdout
     assert "Startup checklist" in result.stdout
     assert "Beginner Onboarding Hub:" in result.stdout

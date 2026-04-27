@@ -85,6 +85,7 @@ def _iter_runtime_descriptors_from_schema(
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_ENUMS", schema_shape["capability_enums"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_KEYS", schema_shape["global_config_keys"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_DEFAULTS", schema_shape["capability_defaults"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_KEYS", schema_shape["hook_payload_keys"])
     monkeypatch.setattr(
         runtime_catalog,
@@ -492,6 +493,48 @@ def test_runtime_catalog_merges_partial_capabilities_with_defaults(
     assert descriptors[0].capabilities.statusline_surface == "none"
 
 
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    [
+        (
+            "supports_usage_tokens",
+            "true",
+            r"runtime catalog schema\.capability_defaults\.supports_usage_tokens must be a boolean",
+        ),
+        (
+            "telemetry_source",
+            "webhook",
+            r"runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook",
+        ),
+        (
+            "prompt_free_mode_value",
+            " ",
+            r"runtime catalog schema\.capability_defaults\.prompt_free_mode_value must be a non-empty string",
+        ),
+        (
+            "statusline_config_surface",
+            "status-line",
+            (
+                r"runtime catalog schema\.capability_defaults\.statusline_config_surface must be "
+                r'"none" or a config surface label like file:key'
+            ),
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_invalid_capability_default_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["capability_defaults"][field_name] = bad_value
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_accepts_future_config_surface_labels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -650,6 +693,63 @@ def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback
     assert isinstance(merged_policy.agent_id_keys, tuple)
     assert isinstance(merged_policy.agent_name_keys, tuple)
     assert isinstance(merged_policy.agent_scope_keys, tuple)
+
+
+@pytest.mark.parametrize(
+    ("capability_key", "capability_value", "hook_payload_updates", "match"),
+    [
+        (
+            "supports_runtime_session_payload_attribution",
+            False,
+            {"runtime_session_id_keys": ["session_id"]},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_runtime_session_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.runtime_session_id_keys"
+            ),
+        ),
+        (
+            "supports_runtime_session_payload_attribution",
+            True,
+            {"runtime_session_id_keys": []},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_runtime_session_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.runtime_session_id_keys"
+            ),
+        ),
+        (
+            "supports_agent_payload_attribution",
+            False,
+            {"agent_name_keys": ["agent_name"]},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_agent_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.agent_id_keys/agent_name_keys/agent_scope_keys"
+            ),
+        ),
+        (
+            "supports_agent_payload_attribution",
+            True,
+            {"agent_id_keys": [], "agent_name_keys": [], "agent_scope_keys": []},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_agent_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.agent_id_keys/agent_name_keys/agent_scope_keys"
+            ),
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_capability_attribution_drift_from_hook_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capability_key: str,
+    capability_value: bool,
+    hook_payload_updates: dict[str, list[str]],
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"][capability_key] = capability_value
+    payload[0]["hook_payload"].update(hook_payload_updates)
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_hook_payload_policy_rejects_explicit_unknown_runtime() -> None:
@@ -835,6 +935,11 @@ def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
         assert hook_payload.supports_agent_payload_attribution == bool(
             hook_payload.agent_id_keys or hook_payload.agent_name_keys or hook_payload.agent_scope_keys
         )
+        assert (
+            capabilities.supports_runtime_session_payload_attribution
+            == hook_payload.supports_runtime_session_payload_attribution
+        )
+        assert capabilities.supports_agent_payload_attribution == hook_payload.supports_agent_payload_attribution
 
         if capabilities.statusline_surface == "explicit":
             assert capabilities.statusline_config_surface != "none"

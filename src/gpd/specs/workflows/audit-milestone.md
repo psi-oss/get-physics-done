@@ -310,7 +310,7 @@ All requirements covered. Cross-phase consistency verified. Research is complete
 
 gpd:complete-milestone {version}
 
-<sub>/clear first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 
@@ -350,7 +350,7 @@ gpd:complete-milestone {version}
 
 gpd:plan-milestone-gaps
 
-<sub>/clear first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 
@@ -394,7 +394,7 @@ gpd:complete-milestone {version}
 
 gpd:plan-milestone-gaps
 
-<sub>/clear first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

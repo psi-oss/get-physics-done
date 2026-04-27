@@ -194,6 +194,24 @@ _SHARED_RUNTIME_AGNOSTIC_PATHS = (
     REPO_ROOT / "src/gpd/registry.py",
     REPO_ROOT / "src/gpd/mcp/servers/skills_server.py",
 )
+_COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+_RAW_PROJECT_INCLUDE_PATTERN = re.compile(r"@GPD/")
+
+
+def _command_context_mode(path: Path) -> str | None:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return None
+    frontmatter_end = text.find("\n---", 4)
+    if frontmatter_end == -1:
+        return None
+    frontmatter = text[4:frontmatter_end]
+    match = re.search(r"(?m)^context_mode:\s*(?P<mode>[a-z-]+)\s*$", frontmatter)
+    if match is None:
+        return None
+    return match.group("mode")
+
+
 def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
     paths: list[Path] = []
     for path in sorted((REPO_ROOT / "tests").rglob("*.py")):
@@ -568,6 +586,23 @@ def test_shared_runtime_docs_do_not_rebuild_install_metadata_literals() -> None:
 
     assert leaks == [], (
         "Shared runtime-facing docs should consume install metadata placeholders instead of hardcoded literals:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_projectless_and_global_commands_do_not_eagerly_include_project_files() -> None:
+    leaks: list[tuple[Path, int, str]] = []
+    for path in sorted(_COMMANDS_DIR.glob("*.md")):
+        context_mode = _command_context_mode(path)
+        if context_mode not in {"projectless", "global"}:
+            continue
+        rel_path = path.relative_to(REPO_ROOT)
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if _RAW_PROJECT_INCLUDE_PATTERN.search(line):
+                leaks.append((rel_path, line_no, line))
+
+    assert leaks == [], (
+        "Projectless/global command prompts should let workflows or CLI inspect GPD files conditionally:\n"
         f"{_format_failures(leaks)}"
     )
 

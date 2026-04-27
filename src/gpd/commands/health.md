@@ -20,12 +20,6 @@ Checks include: environment, project structure, knowledge inventory, storage-pat
 Use `--fix` to automatically repair detected issues.
 </objective>
 
-<context>
-@GPD/STATE.md
-@GPD/state.json
-@GPD/config.json
-</context>
-
 <process>
 
 ## Step 1: Parse Arguments
@@ -33,6 +27,8 @@ Use `--fix` to automatically repair detected issues.
 Check `$ARGUMENTS` for `--fix` flag.
 
 ## Step 2: Run health check
+
+Let the raw CLI inspect project files conditionally from the current workspace.
 
 ```bash
 if echo "$ARGUMENTS" | grep -q "\-\-fix"; then

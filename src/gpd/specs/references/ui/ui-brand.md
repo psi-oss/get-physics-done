@@ -125,7 +125,7 @@ Always at end of major completions.
 
 `{copy-paste command}`
 
-<sub>`/clear` first → fresh context window</sub>
+<sub>Start a fresh context window, then run the command.</sub>
 
 ───────────────────────────────────────────────────────────────
 

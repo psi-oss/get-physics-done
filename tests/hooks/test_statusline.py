@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import call, patch
@@ -33,6 +34,10 @@ from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 from tests.hooks.helpers import repair_command as _repair_command
 
 _TEST_MODEL = "model-under-test"
+
+
+def _strip_ansi(value: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", value)
 
 
 def _todo_candidates(*paths: Path) -> list[TodoCandidate]:
@@ -141,12 +146,19 @@ class TestContextBar:
     """Tests for _context_bar boundary values."""
 
     def test_remaining_zero_shows_max_used(self) -> None:
-        """remaining_percentage=0 → 100% used (capped), critical color."""
+        """remaining_percentage=0 -> 100% used (capped), critical color."""
         bar = _context_bar(0)
         # raw_used=100, used = min(100, round(100/80*100)) = 100
         assert "100%" in bar
-        # Should be critical (blinking red)
-        assert "\x1b[5;31m" in bar
+        assert "\x1b[31m" in bar
+        assert "[CRITICAL]" in bar
+
+    def test_critical_context_bar_is_ascii_after_ansi_stripping(self) -> None:
+        plain = _strip_ansi(_context_bar(0))
+
+        assert "[CRITICAL]" in plain
+        assert "\U0001f480" not in plain
+        plain.encode("ascii")
 
     def test_remaining_100_shows_zero_used(self) -> None:
         """remaining_percentage=100 → 0% used, green color."""
@@ -1136,6 +1148,13 @@ class TestMain:
         """remaining_percentage=0 → shows 100% usage."""
         output = self._run_main({"context_window": {"remaining_percentage": 0}})
         assert "100%" in output
+
+    def test_critical_context_window_output_is_ascii_after_ansi_stripping(self) -> None:
+        output = self._run_main({"context_window": {"remaining_percentage": 0}})
+        plain = _strip_ansi(output)
+
+        assert "[CRITICAL]" in plain
+        plain.encode("ascii")
 
     def test_context_window_remaining_100(self) -> None:
         """remaining_percentage=100 → shows 0% usage."""

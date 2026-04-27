@@ -1,4 +1,4 @@
-"""Integration tests: install → read back → verify for all 4 runtimes.
+"""Integration tests: install → read back → verify for all catalog runtimes.
 
 Tests that installed content matches source expectations for each adapter.
 Exercises both the write path (install) and the read path (loading/parsing
@@ -27,7 +27,13 @@ from gpd.adapters.install_utils import (
     translate_frontmatter_tool_names,
 )
 from gpd.adapters.opencode import OpenCodeAdapter
-from gpd.adapters.runtime_catalog import get_runtime_descriptor, get_shared_install_metadata, resolve_global_config_dir
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+    list_runtime_names,
+    resolve_global_config_dir,
+)
 from gpd.adapters.tool_names import build_canonical_alias_map
 from gpd.core.public_surface_contract import local_cli_bridge_commands
 from gpd.registry import load_agents_from_dir
@@ -35,6 +41,7 @@ from tests.doc_surface_contracts import assert_publication_lane_boundary_contrac
 
 REPO_GPD_ROOT = Path(__file__).resolve().parents[2] / "src" / "gpd"
 RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter in iter_adapters())
+FULL_RUNTIME_MATRIX = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
 _SHARED_INSTALL = get_shared_install_metadata()
 _INSTALL_CACHE: dict[tuple[str, tuple[str, ...]], Path] = {}
 
@@ -119,6 +126,11 @@ def _install_gemini_for_tests(gpd_root: Path, target: Path) -> GeminiAdapter:
     result = adapter.install(gpd_root, target)
     adapter.finalize_install(result)
     return adapter
+
+
+def test_install_roundtrip_full_runtime_matrix_matches_catalog_runtimes() -> None:
+    assert FULL_RUNTIME_MATRIX == tuple(list_runtime_names())
+    assert FULL_RUNTIME_MATRIX == tuple(adapter.runtime_name for adapter in iter_adapters())
 
 
 def _source_signature(root: Path) -> tuple[str, ...]:
@@ -371,7 +383,7 @@ def _assert_installed_contract_visibility(
     assert "If a required proof-redteam audit is missing, stale, malformed, or not `passed`, spawn `gpd-check-proof` once" in verify_work
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_installed_peer_review_prompt_keeps_publication_lane_boundary(
     real_installed_repo_factory,
     runtime: str,
@@ -387,7 +399,7 @@ def test_installed_peer_review_prompt_keeps_publication_lane_boundary(
     )
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_installed_verifier_prompt_surface_keeps_one_wrapper_and_stays_within_budget(
     real_installed_repo_factory,
     runtime: str,
@@ -479,7 +491,7 @@ def test_shared_installed_markdown_preserves_round_aware_review_placeholders(
     assert saw_round_placeholder is True
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_installed_referee_latex_template_exists_and_matches_source(
     real_installed_repo_factory,
     runtime: str,
@@ -669,7 +681,7 @@ class TestCodexRoundtrip:
         assert "files" in manifest
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_real_installed_set_tier_models_prompt_keeps_direct_tier_override_contract(
     real_installed_repo_factory,
     runtime: str,
@@ -692,7 +704,7 @@ def test_real_installed_set_tier_models_prompt_keeps_direct_tier_override_contra
     assert "fastest / most economical" in content
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_real_installed_compare_prompts_keep_gpd_output_contract_and_interactive_intake(
     real_installed_repo_factory,
     runtime: str,
@@ -717,7 +729,7 @@ def test_real_installed_compare_prompts_keep_gpd_output_contract_and_interactive
     assert "artifacts/comparisons/{slug}/" not in compare_experiment
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_real_installed_public_local_cli_commands_stay_canonical(
     real_installed_repo_factory,
     runtime: str,
@@ -751,7 +763,7 @@ def test_help_like_skills_keep_canonical_local_cli_language(tmp_path: Path) -> N
     assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", settings_skill) is None
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_real_installed_help_prompt_keeps_relaxed_technical_analysis_contract(
     real_installed_repo_factory,
     runtime: str,
@@ -770,7 +782,7 @@ def test_real_installed_help_prompt_keeps_relaxed_technical_analysis_contract(
     assert "Usage: `gpd:numerical-convergence results/mesh-study.csv`" in help_prompt
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_real_installed_help_prompt_surfaces_bounded_write_paper_external_authoring_lane(
     real_installed_repo_factory,
     runtime: str,
@@ -785,7 +797,7 @@ def test_real_installed_help_prompt_surfaces_bounded_write_paper_external_author
     assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_prompt
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_installed_prompt_contract_visibility_survives_adapter_projection(
     real_installed_repo_factory,
     runtime: str,
@@ -815,7 +827,7 @@ def test_installed_prompt_contract_visibility_survives_adapter_projection(
     assert "Load on demand from `references/verification/examples/verifier-worked-examples.md`." in verifier
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_installed_executor_bootstrap_surface_defers_completion_only_materials(
     real_installed_repo_factory,
     runtime: str,
@@ -829,7 +841,7 @@ def test_installed_executor_bootstrap_surface_defers_completion_only_materials(
     assert "Order-of-Limits Awareness" not in bootstrap
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_installed_planner_bootstrap_surface_defers_execution_and_completion_materials(
     real_installed_repo_factory,
     runtime: str,

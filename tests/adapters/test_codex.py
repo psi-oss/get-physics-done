@@ -1097,6 +1097,36 @@ class TestRuntimePermissions:
         assert result["skills"] == len(manifest["codex_generated_skill_dirs"])
         assert (foreign_skill / "SKILL.md").exists()
 
+    def test_reinstall_removes_manifest_file_tracked_stale_skill_dirs(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        stale_skill = skills / "gpd-old-generated"
+        stale_skill.mkdir()
+        (stale_skill / "SKILL.md").write_text("stale generated skill\n", encoding="utf-8")
+        user_skill = skills / "gpd-user-keep"
+        user_skill.mkdir()
+        (user_skill / "SKILL.md").write_text("keep\n", encoding="utf-8")
+
+        manifest_path = target / "gpd-file-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("codex_generated_skill_dirs", None)
+        manifest["files"]["skills/gpd-old-generated/SKILL.md"] = "old-hash"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert not stale_skill.exists()
+        assert (user_skill / "SKILL.md").exists()
+
     def test_install_returns_counts(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
@@ -1397,6 +1427,27 @@ class TestUninstall:
         adapter.uninstall(target, skills_dir=skills)
 
         assert all(not (skills / name).exists() for name in tracked_skill_names)
+
+    def test_install_completeness_requires_skill_md_in_each_tracked_skill_dir(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        missing_skill_name = manifest["codex_generated_skill_dirs"][0]
+        (skills / missing_skill_name / "SKILL.md").unlink()
+
+        missing = adapter.missing_install_artifacts(target)
+
+        assert adapter.has_complete_install(target) is False
+        assert any(item.startswith("codex generated skills surface") for item in missing)
 
     def test_missing_install_artifacts_does_not_use_packaged_source_skill_fallback(
         self,

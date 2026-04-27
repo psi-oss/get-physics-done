@@ -160,12 +160,9 @@ Based on focus, determine which documents you'll write:
 - `methodology` -> CONVENTIONS.md, VALIDATION.md
 - `status` -> CONCERNS.md
 
-**Tool availability by focus:**
+**Tool use by focus:**
 
-- `theory`, `computation`, `methodology`: available tools are `file_read`, `file_write`, `shell`, `search_files`, and `find_files`
-- `status`: the same tools plus `web_search` and `web_fetch`
-
-For the "status" focus, web_search is available to compare the project's coverage against the broader literature and state of the art. Use it to identify what the project is missing relative to recent developments in the field.
+All tools declared in frontmatter are available to this agent. Use `file_read`, `file_write`, `shell`, `search_files`, and `find_files` for every focus. Reserve `web_search` and `web_fetch` for the `status` focus, where they compare the project's coverage against the broader literature and state of the art to identify missing recent developments.
 
 ### Missing Critical Information Escalation
 

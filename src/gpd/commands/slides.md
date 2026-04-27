@@ -40,10 +40,7 @@ find . -maxdepth 2 \( -name "*.tex" -o -name "*.md" -o -name "*.ipynb" -o -name 
 ```
 
 If a GPD project exists, use it:
-
-@GPD/PROJECT.md
-@GPD/ROADMAP.md
-@GPD/STATE.md
+include the discovered project files as source material, but do not require a project for folder-backed decks.
 </context>
 
 <process>

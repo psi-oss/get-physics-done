@@ -283,7 +283,7 @@ def copy_flattened_commands(
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     manifest_root = workflow_target_dir or dest_dir.parent
-    tracked_command_files = set(_load_manifest_opencode_generated_command_files(manifest_root))
+    tracked_command_files = set(_load_manifest_opencode_command_files(manifest_root))
     # Remove only previously generated command files before copying new ones.
     if tracked_command_files:
         for name in tracked_command_files:
@@ -1012,7 +1012,7 @@ class OpenCodeAdapter(RuntimeAdapter):
         """Return missing OpenCode install artifacts, including the command surface."""
         missing = list(super().missing_install_artifacts(target_dir))
         command_dir = target_dir / "command"
-        tracked_command_files = _load_manifest_opencode_generated_command_files(target_dir)
+        tracked_command_files = _load_manifest_opencode_command_files(target_dir)
 
         if not tracked_command_files:
             missing.append("command/gpd-*.md")
@@ -1055,6 +1055,8 @@ class OpenCodeAdapter(RuntimeAdapter):
             managed_command_files=generated_command_files,
         )
         self._generated_command_files = tuple(sorted(generated_command_files))
+        if count <= 0 or not self._generated_command_files:
+            failures.append("command/gpd-*.md")
         return count
 
     def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:

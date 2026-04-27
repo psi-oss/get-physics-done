@@ -99,7 +99,7 @@ Answers: frozen=${FROZEN}, change=${CHANGE}, layer=${LAYER}
 Recommendation: ${RECOMMENDATION}
 Why: ${RATIONALE}
 
-<sub>/clear first for fresh context, then run the command(s) above.</sub>
+<sub>Start a fresh context window, then run the command(s) above.</sub>
 ```
 
 If the recommendation is `gpd:complete-milestone` + `gpd:new-milestone`, render both on separate lines with the note:

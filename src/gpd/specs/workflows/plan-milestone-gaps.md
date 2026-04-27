@@ -167,7 +167,7 @@ gpd commit "docs(roadmap): add gap closure phases {N}-{M}" --files GPD/ROADMAP.m
 
 `gpd:plan-phase {N}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

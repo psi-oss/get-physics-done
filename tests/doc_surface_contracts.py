@@ -997,17 +997,16 @@ def assert_runtime_reset_rediscovery_contract(
     extra_reset_fragments: Iterable[str] = (),
     extra_reset_not_recovery_fragments: Iterable[str] = (),
 ) -> None:
-    assert "/clear" in content
     assert recovery_local_snapshot_command() in content
     assert recovery_cross_workspace_command() in content
     _assert_contains_any(
         content,
         (
-            "fresh-context reset",
+            "fresh context reset",
             "fresh context window",
             "reset the runtime window",
             "reset the runtime to a fresh context window",
-            "`/clear` first, then run `{next command}`",
+            "Start a fresh context window",
             *tuple(extra_reset_fragments),
         ),
         label="runtime reset wording",
@@ -1025,7 +1024,7 @@ def assert_runtime_reset_rediscovery_contract(
         content,
         (
             "not as a recovery step",
-            "instead of implying that `/clear` performs recovery",
+            "do not treat the fresh context reset as project recovery",
             *tuple(extra_reset_not_recovery_fragments),
         ),
         label="reset-not-recovery wording",

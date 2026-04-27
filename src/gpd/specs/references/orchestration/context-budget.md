@@ -1,7 +1,7 @@
 <overview>
 Context windows are finite (~80% usable before the runtime compresses). Research workflows that ignore context pressure produce degraded results: missed signs, sloppy limits, forgotten conventions. Managing context is part of research discipline, not an engineering detail.
 
-**Core principle:** A fresh context with the right files loaded outperforms a saturated context with everything accumulated. Plan segmentation, strategic `/clear`, and proactive handoffs are research quality tools.
+**Core principle:** A fresh context with the right files loaded outperforms a saturated context with everything accumulated. Plan segmentation, strategic context resets, and proactive handoffs are research quality tools.
 
 **Key ratios:**
 
@@ -118,39 +118,39 @@ Plans should be sized to fit within context budget. Segment when a plan would ex
 **Anti-pattern:** Don't segment so aggressively that each segment lacks the context to verify its own physics. A derivation + its limiting case check should be in the same segment.
 </segmentation_guidelines>
 
-<clear_and_resume>
+<context_reset_and_resume>
 
-## When to /clear and Resume
+## When to Reset Context and Resume
 
-**Always /clear between:**
+**Always reset context between:**
 
 - Phase planning and phase execution (orchestrator context vs executor context)
 - Completing one plan and starting the next
 - Literature review and derivation work
 - Debugging session and resumption of normal execution
 
-**Consider /clear when:**
+**Consider a fresh context reset when:**
 
 - Statusline shows >65% (moderate pressure)
 - You've finished a logical unit of work (completed a derivation, verified a result)
 - You're about to start a task requiring heavy file reads
 - Error investigation consumed significant context
 
-**Before /clear, always:**
+**Before resetting context, always:**
 
 1. Commit all work in progress
 2. Update STATE.md with current position
 3. If mid-plan: create `.continue-here.md` via `gpd:pause-work`
 4. Ensure intermediate results are saved to files (not just in conversation memory)
 
-**After /clear:**
+**After resetting context:**
 
 1. `gpd:resume-work` reloads the project's canonical continuation state, then uses any handoff artifact or derivation history only as supporting context
 2. Re-read only the files needed for the next unit of work
 3. Do NOT re-read files from completed work unless needed for reference
 
 **The goal:** Start each work unit with a fresh, focused context containing exactly what's needed.
-</clear_and_resume>
+</context_reset_and_resume>
 
 <planning_for_context>
 
@@ -212,7 +212,7 @@ During plan execution, monitor context usage:
 1. Commit current task's work
 2. Note completed tasks and remaining tasks
 3. Create `.continue-here.md` with derivation state, parameter values, intermediate results
-4. Recommend `/clear` + `gpd:resume-work`
+4. Recommend a fresh context reset, then `gpd:resume-work`
 
 **Never do when context is heavy:**
 

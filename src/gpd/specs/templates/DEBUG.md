@@ -50,7 +50,7 @@ started: [when it broke / always broken / after which change]
 
 ## Eliminated
 
-<!-- APPEND only - prevents re-investigating after /clear -->
+<!-- APPEND only - prevents re-investigating after a fresh context reset -->
 
 - hypothesis: [theory that was wrong]
   evidence: [what disproved it]
@@ -102,7 +102,7 @@ files_changed: []
 
 - OVERWRITE entirely on each update
 - Always reflects what GPD is doing RIGHT NOW
-- If GPD reads this after /clear, it knows exactly where to resume
+- If GPD reads this after a fresh context reset, it knows exactly where to resume
 - Fields: hypothesis, test, expecting, next_action
 
 **Symptoms:**
@@ -118,7 +118,7 @@ files_changed: []
 - APPEND only - never remove entries
 - Prevents re-investigating dead ends after context reset
 - Each entry: hypothesis, evidence that disproved it, timestamp
-- Critical for efficiency across /clear boundaries
+- Critical for efficiency across fresh context reset boundaries
 
 **Evidence:**
 
@@ -207,7 +207,7 @@ files_changed: []
 
 <resume_behavior>
 
-When GPD reads this file after /clear:
+When GPD reads this file after a fresh context reset:
 
 1. Parse frontmatter -> know status
 2. Read Current Focus -> know exactly what was happening

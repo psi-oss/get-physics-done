@@ -459,7 +459,7 @@ Based on user selection, route to appropriate workflow:
 
   `gpd:execute-phase {phase}`
 
-  <sub>`/clear` first, then run `gpd:execute-phase {phase}`</sub>
+  <sub>Start a fresh context window, then run `gpd:execute-phase {phase}`</sub>
 
   ---
   ```
@@ -475,7 +475,7 @@ Based on user selection, route to appropriate workflow:
 
   `gpd:plan-phase [phase-number]`
 
-  <sub>`/clear` first, then run `gpd:plan-phase [phase-number]`</sub>
+  <sub>Start a fresh context window, then run `gpd:plan-phase [phase-number]`</sub>
 
   ---
 

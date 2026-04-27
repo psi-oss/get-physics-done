@@ -290,7 +290,7 @@ Present completion summary:
 
    gpd:plan-phase {current_phase}
 
-   <sub>/clear first -> fresh context window</sub>
+   <sub>Start a fresh context window</sub>
 
 3. **Execute and compare** when ready:
 

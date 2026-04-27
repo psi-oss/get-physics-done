@@ -436,7 +436,7 @@ Context is finite (~80% usable before compression). After completing each task:
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend `/clear` + `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and STATE.md Session Continuity rendering are discovery surfaces; `continuation.bounded_segment` is the bounded authority for the pause.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Record the same pause in execution lineage so the execution head can be rebuilt later. Recommend a fresh context reset, then `gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and STATE.md Session Continuity rendering are discovery surfaces; `continuation.bounded_segment` is the bounded authority for the pause.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 
@@ -464,8 +464,8 @@ CHECKPOINT
    - Commit all current work
    - Create `.continue-here.md` with full derivation state and a bounded execution segment summary
    - Update STATE.md's Session Continuity block from canonical continuation
-  - **supervised/balanced:** Suggest `/clear` + `gpd:resume-work`
-   - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest `/clear` + `gpd:resume-work`
+  - **supervised/balanced:** Suggest a fresh context reset, then `gpd:resume-work`
+   - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest a fresh context reset, then `gpd:resume-work`
 
 Also stop when either bound is hit, even if context looks healthy:
 
@@ -778,7 +778,7 @@ ls -1 "${phase_dir}"/SUMMARY.md "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l
 | summaries = plans, current < highest phase | **B: Phase done**     | Show completion, suggest `gpd:plan-phase {Z+1}` + `gpd:verify-work {Z}` + `gpd:discuss-phase {Z+1}`                                                  |
 | summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `gpd:complete-milestone` + `gpd:verify-work` + `gpd:add-phase`                                                                  |
 
-All routes: `/clear` first for fresh context.
+All routes: start a fresh context window first.
 </step>
 
 </process>

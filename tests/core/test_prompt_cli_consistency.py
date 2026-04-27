@@ -351,12 +351,16 @@ def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
         f"If you still need to rediscover the project first, do that in your normal terminal with `{local_cli_resume_command()}` for the current workspace or `{local_cli_resume_recent_command()}` for the explicit multi-project picker before reopening the runtime."
         in suggest_prompt
     )
-    assert "Keep `/clear` as a fresh-context reset, not as a recovery step." in suggest_prompt
-    assert "`/clear` first -> fresh context window, then `{command}`." in suggest_prompt
+    assert (
+        "Start the recommended command in a fresh context window; do not treat the fresh context reset as project recovery."
+        in suggest_prompt
+    )
+    assert "Start a fresh context window, then run `{command}`." in suggest_prompt
     assert (
         f"If you still need to rediscover the project first, do that in your normal terminal with `{local_cli_resume_command()}` for the current workspace or `{local_cli_resume_recent_command()}` for a different project before reopening the runtime."
         in suggest_prompt
     )
+    assert "/clear" not in suggest_prompt
     assert (
         f"`/clear` first -> fresh context window, then `{{command}}`; if you still need to rediscover the project, use `{local_cli_resume_recent_command()}` before reopening the runtime"
         not in suggest_prompt

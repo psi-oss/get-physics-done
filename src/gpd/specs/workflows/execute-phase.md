@@ -1540,7 +1540,7 @@ All automated checks passed. {N} items need human review:
 
 `gpd:plan-phase {X} --gaps`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 Also: `cat {phase_dir}/{phase}-VERIFICATION.md` -- full report
 Also: `gpd:verify-work {X}` -- manual review first
@@ -1904,7 +1904,7 @@ Primary: `{chosen primary command}`
 - `{secondary command}` -- when relevant
 - `gpd:suggest-next` -- confirm the next action
 
-<sub>`/clear` first for fresh context, then run the primary command above.</sub>
+<sub>Start a fresh context window, then run the primary command above.</sub>
 ```
 
 **If milestone complete:**
@@ -1918,7 +1918,7 @@ All {N} phases executed.
 
 **Also available:** `gpd:suggest-next`
 
-<sub>`/clear` first for fresh context, then run `gpd:complete-milestone`.</sub>
+<sub>Start a fresh context window, then run `gpd:complete-milestone`.</sub>
 ```
 
 </step>

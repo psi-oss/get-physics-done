@@ -8416,7 +8416,7 @@ def test_init_quick_help_surfaces_stage_option() -> None:
     assert result.exit_code == 0
     assert "--stage" in output
     assert "Load the staged quick context for a specific" in output
-    assert "stage id."
+    assert "stage id." in output
 
 
 def test_init_execute_phase_help_surfaces_stage_option() -> None:

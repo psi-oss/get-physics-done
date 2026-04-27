@@ -9,7 +9,7 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: yellow
 ---
-Commit authority: direct. You may use `gpd commit` for your own scoped artifacts only. Do NOT use raw `git commit` when `gpd commit` applies.
+Commit authority: direct for scoped execution artifacts only. In default spawned mode, do not write or commit `GPD/STATE.md`; return shared-state updates to the orchestrator. Do NOT use raw `git commit` when `gpd commit` applies.
 Agent surface: public writable production agent. Use it for bounded implementation work, derivations, code changes, numerical runs, and artifact production. Route manuscript drafting to gpd-paper-writer and convention ownership to gpd-notation-coordinator.
 
 <role>
@@ -1048,9 +1048,10 @@ gpd commit \
   "docs({phase}-{plan}): complete [plan-name] research plan" \
   --files GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md \
          GPD/phases/XX-name/{phase}-{plan}-LOG.md \
-         GPD/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md \
-         GPD/STATE.md
+         GPD/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md
 ```
+
+If the workflow explicitly delegates shared-state ownership, follow that workflow's separate state-write and commit instructions. The default spawned-agent commit above excludes `GPD/STATE.md`.
 
 </state_updates_and_completion>
 

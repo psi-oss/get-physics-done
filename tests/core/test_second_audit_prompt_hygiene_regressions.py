@@ -1,6 +1,12 @@
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.model_visible_text import (
+    agent_visibility_note,
+    command_visibility_note,
+    review_contract_visibility_note,
+    skeptical_rigor_guardrails_section,
+)
 
 WORKFLOWS_DIR = Path("src/gpd/specs/workflows")
 COMMANDS_DIR = Path("src/gpd/commands")
@@ -272,3 +278,19 @@ def test_sync_state_workflow_keeps_optional_commit_outside_core_reconcile_path()
     assert "Only if the operator explicitly asks to commit the reconciled state" in sync_state
     assert sync_state.index("<step name=\"reconcile\">") < sync_state.index("<step name=\"optional_commit\">")
     assert sync_state.index("gpd --raw state validate") < sync_state.index("<step name=\"optional_commit\">")
+
+
+def test_model_visible_yaml_notes_do_not_duplicate_scientific_rigor_guardrails() -> None:
+    guardrail_section = skeptical_rigor_guardrails_section()
+    yaml_notes = (
+        agent_visibility_note(),
+        command_visibility_note(),
+        review_contract_visibility_note(),
+    )
+
+    assert "## Scientific Rigor Guardrails" in guardrail_section
+    assert "Use scientific skepticism and critical thinking" in guardrail_section
+    for note in yaml_notes:
+        assert "Use scientific skepticism and critical thinking" not in note
+        assert "Prefer skeptical verification" not in note
+        assert "inventing fallback content" not in note

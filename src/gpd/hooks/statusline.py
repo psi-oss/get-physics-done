@@ -30,6 +30,8 @@ _CONTEXT_REAL_LIMIT_PCT = 80
 _CONTEXT_WARN_THRESHOLD = 63
 _CONTEXT_HIGH_THRESHOLD = 81
 _CONTEXT_CRITICAL_THRESHOLD = 95
+_CONTEXT_FILLED = "#"
+_CONTEXT_EMPTY = "-"
 _STATUS_LABEL = "GPD"
 _CANONICAL_MODEL_KEYS = ("display_name", "name", "id")
 _CANONICAL_CONTEXT_WINDOW_SIZE_KEYS = ("context_window_size",)
@@ -43,7 +45,7 @@ def _context_bar(remaining_pct: float) -> str:
     used = min(100, round((raw_used / _CONTEXT_REAL_LIMIT_PCT) * 100))
 
     filled = used // 10
-    bar = "\u2588" * filled + "\u2591" * (10 - filled)
+    bar = _CONTEXT_FILLED * filled + _CONTEXT_EMPTY * (10 - filled)
 
     if used < _CONTEXT_WARN_THRESHOLD:
         return f" \x1b[32m{bar} {used}%\x1b[0m"
@@ -51,7 +53,7 @@ def _context_bar(remaining_pct: float) -> str:
         return f" \x1b[33m{bar} {used}%\x1b[0m"
     if used < _CONTEXT_CRITICAL_THRESHOLD:
         return f" \x1b[38;5;208m{bar} {used}%\x1b[0m"
-    return f" \x1b[5;31m\U0001f480 {bar} {used}%\x1b[0m"
+    return f" \x1b[31m[CRITICAL] {bar} {used}%\x1b[0m"
 
 
 def _debug(msg: str) -> None:
@@ -585,7 +587,7 @@ def _check_update(workspace_dir: str | None = None) -> str:
         )
         if command is None:
             return ""
-        return f"\x1b[33m\u2b06 {command}\x1b[0m \u2502 "
+        return f"\x1b[33mUP {command}\x1b[0m | "
     return ""
 
 
@@ -680,7 +682,7 @@ def main() -> None:
         if position:
             segments.append(f"\x1b[36m{position}\x1b[0m")
 
-        statusline = " \u2502 ".join(segments)
+        statusline = " | ".join(segments)
         if gpd_update:
             statusline = f"{gpd_update}{statusline}"
 

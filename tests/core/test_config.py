@@ -296,6 +296,29 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
+    @pytest.mark.parametrize(
+        "section",
+        ["git", "execution", "execution_preferences", "planning", "workflow"],
+    )
+    @pytest.mark.parametrize("invalid_value", ["not-an-object", ["not-an-object"]])
+    def test_known_nested_sections_must_be_objects(
+        self,
+        tmp_path: Path,
+        section: str,
+        invalid_value: object,
+    ) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps({section: invalid_value}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ConfigError,
+            match=rf"Invalid config\.json section types: `{section}` must be a JSON object",
+        ):
+            load_config(tmp_path)
+
     def test_execution_preferences_string_booleans_use_model_validation(self, tmp_path: Path) -> None:
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(

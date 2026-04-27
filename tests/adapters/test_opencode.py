@@ -229,6 +229,22 @@ class TestCopyFlattenedCommands:
         assert not (dest / "gpd-old-command.md").exists()
         assert (dest / "gpd-user-keep.md").exists()
 
+    def test_cleans_old_files_from_manifest_files_fallback(self, gpd_root: Path, tmp_path: Path) -> None:
+        target = tmp_path / ".opencode"
+        dest = target / "command"
+        dest.mkdir(parents=True)
+        (dest / "gpd-old-command.md").write_text("stale", encoding="utf-8")
+        (dest / "gpd-user-keep.md").write_text("keep", encoding="utf-8")
+        (target / MANIFEST_NAME).write_text(
+            json.dumps({"files": {"command/gpd-old-command.md": "old-hash"}}),
+            encoding="utf-8",
+        )
+
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=target)
+
+        assert not (dest / "gpd-old-command.md").exists()
+        assert (dest / "gpd-user-keep.md").exists()
+
     def test_nonexistent_src_returns_zero(self, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
@@ -444,7 +460,7 @@ class TestInstall:
         assert "command/gpd-*.md" in missing
         assert any(item.startswith("command/") for item in missing)
 
-    def test_install_completeness_requires_manifest_metadata_for_generated_commands(
+    def test_install_completeness_falls_back_to_manifest_files_when_generated_command_metadata_is_missing(
         self,
         adapter: OpenCodeAdapter,
         gpd_root: Path,
@@ -459,11 +475,21 @@ class TestInstall:
         manifest.pop("opencode_generated_command_files", None)
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
+        assert adapter.missing_install_artifacts(target) == ()
+        assert adapter.has_complete_install(target) is True
+
+        tracked_command = next(
+            rel_path.removeprefix("command/")
+            for rel_path in manifest["files"]
+            if rel_path.startswith("command/gpd-")
+        )
+        (target / "command" / tracked_command).unlink()
+
         missing = adapter.missing_install_artifacts(target)
 
         assert adapter.has_complete_install(target) is False
+        assert f"command/{tracked_command}" in missing
         assert "command/gpd-*.md" in missing
-        assert all(not item.startswith("command/gpd-") or item == "command/gpd-*.md" for item in missing)
 
     def test_install_fails_closed_for_malformed_opencode_json(
         self,
@@ -515,6 +541,26 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert config_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_when_no_command_files_are_generated(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        def _copy_no_commands(*args: object, **kwargs: object) -> int:
+            return 0
+
+        monkeypatch.setattr("gpd.adapters.opencode.copy_flattened_commands", _copy_no_commands)
+
+        with pytest.raises(RuntimeError, match=r"command/gpd-\*\.md"):
+            adapter.install(gpd_root, target)
+
+        assert not (target / MANIFEST_NAME).exists()
 
     def test_install_creates_flattened_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"

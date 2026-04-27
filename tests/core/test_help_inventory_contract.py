@@ -104,7 +104,7 @@ def test_help_command_uses_one_shared_extract_warning() -> None:
     help_command = _read("src/gpd/commands/help.md")
 
     assert help_command.count("Shared wrapper rule for every extract below") == 1
-    assert help_command.count("output only the requested section and do not rewrite, summarize, or invent alternate wording") == 1
+    assert help_command.count("Return the requested section without rewriting, summarizing, or inventing alternate wording") == 1
 
 
 def test_help_command_keeps_one_shared_workflow_authority_note() -> None:

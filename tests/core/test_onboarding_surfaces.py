@@ -751,12 +751,11 @@ def test_doc_surface_contract_helpers_refresh_dynamic_command_surfaces(
     doc_surface_contracts_module.assert_runtime_reset_rediscovery_contract(
         "\n".join(
             (
-                "/clear",
                 contract.recovery_ladder.local_snapshot_command,
                 contract.recovery_ladder.cross_workspace_command,
                 "reset the runtime to a fresh context window",
                 "use your normal terminal before reopening the runtime",
-                "do this instead of implying that `/clear` performs recovery",
+                "do not treat the fresh context reset as project recovery",
             )
         )
     )

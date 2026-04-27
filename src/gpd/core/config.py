@@ -777,6 +777,15 @@ _ALLOWED_CONFIG_SECTION_KEYS = {
 }
 
 
+def _invalid_config_section_types(parsed: dict[str, object]) -> list[str]:
+    """Return known nested config sections that are present but not objects."""
+    return sorted(
+        key
+        for key, value in parsed.items()
+        if key in _ALLOWED_CONFIG_SECTION_KEYS and not isinstance(value, dict)
+    )
+
+
 def _unsupported_config_keys(parsed: dict[str, object]) -> list[str]:
     """Return unsupported config.json keys using the current schema only."""
     unsupported: list[str] = []
@@ -842,6 +851,17 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
     """Build the canonical config model from a parsed config payload."""
     if not isinstance(parsed, dict):
         raise ConfigError("config.json must be a JSON object")
+
+    invalid_section_types = _invalid_config_section_types(parsed)
+    if invalid_section_types:
+        section_messages = ", ".join(
+            f"`{section}` must be a JSON object" for section in invalid_section_types
+        )
+        raise ConfigError(
+            "Invalid config.json section types: "
+            + section_messages
+            + f". Fix or delete {PLANNING_DIR_NAME}/config.json"
+        )
 
     unsupported_keys = _unsupported_config_keys(parsed)
     if unsupported_keys:

@@ -18,9 +18,25 @@ DIRECT_SENTENCE = (
     "Commit authority: direct. You may use `gpd commit` for your own scoped artifacts only. "
     "Do NOT use raw `git commit` when `gpd commit` applies."
 )
+SCOPED_DIRECT_SENTENCES = {
+    "gpd-executor": (
+        "Commit authority: direct for scoped execution artifacts only. In default spawned mode, do not write or "
+        "commit `GPD/STATE.md`; return shared-state updates to the orchestrator. Do NOT use raw `git commit` "
+        "when `gpd commit` applies."
+    ),
+    "gpd-planner": (
+        "Commit authority: direct for scoped plan artifacts only. In default spawned mode, do not write or commit "
+        "`GPD/STATE.md` or `GPD/ROADMAP.md`; return shared-state and roadmap updates to the orchestrator. "
+        "Do NOT use raw `git commit` when `gpd commit` applies."
+    ),
+}
 ORCHESTRATOR_SENTENCE = (
     "Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. "
     "Return changed paths in `gpd_return.files_written`."
+)
+READ_ONLY_ORCHESTRATOR_SENTENCE = (
+    "Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. "
+    "This is a read-only agent; return `gpd_return.files_written: []`."
 )
 
 
@@ -69,8 +85,12 @@ def test_agent_prompts_include_exact_commit_authority_sentence() -> None:
     for name in registry.list_agents():
         path = Path(registry.get_agent(name).path)
         content = path.read_text(encoding="utf-8")
-        expected = DIRECT_SENTENCE if name in DIRECT_AGENTS else ORCHESTRATOR_SENTENCE
-        unexpected = ORCHESTRATOR_SENTENCE if name in DIRECT_AGENTS else DIRECT_SENTENCE
+        if name in DIRECT_AGENTS:
+            expected = SCOPED_DIRECT_SENTENCES.get(name, DIRECT_SENTENCE)
+            unexpected = ORCHESTRATOR_SENTENCE
+        else:
+            expected = READ_ONLY_ORCHESTRATOR_SENTENCE if name == "gpd-plan-checker" else ORCHESTRATOR_SENTENCE
+            unexpected = DIRECT_SENTENCE
         assert content.count(expected) == 1, path.name
         assert unexpected not in content, path.name
 

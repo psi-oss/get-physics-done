@@ -37,6 +37,8 @@ const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
 const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
+const MIN_SUPPORTED_NODE_MAJOR = 20;
+const MIN_SUPPORTED_NODE_LABEL = `${MIN_SUPPORTED_NODE_MAJOR}+`;
 const MIN_SUPPORTED_PYTHON_MAJOR = 3;
 const MIN_SUPPORTED_PYTHON_MINOR = 11;
 const MIN_SUPPORTED_PYTHON_LABEL = `${MIN_SUPPORTED_PYTHON_MAJOR}.${MIN_SUPPORTED_PYTHON_MINOR}+`;
@@ -562,6 +564,34 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
   return validated;
 }
 
+function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEMA) {
+  const schema = requireJsonObject(schemaPayload, "runtime catalog schema");
+  const allowedTopLevelKeys = new Set([
+    "schema_version",
+    "entry_required_keys",
+    "entry_optional_keys",
+    "global_config_keys",
+    "capability_keys",
+    "capability_defaults",
+    "capability_enums",
+    "hook_payload_keys",
+    "install_help_example_scopes",
+    "launch_wrapper_permission_surface_kinds",
+  ]);
+  requireKnownKeys(schema, allowedTopLevelKeys, "runtime catalog schema");
+  requirePresentKeys(schema, [...allowedTopLevelKeys], "runtime catalog schema");
+  if (schema.schema_version !== 1) {
+    throw new Error(`Unsupported runtime catalog schema_version: ${JSON.stringify(schema.schema_version)}`);
+  }
+
+  const capabilityKeys = requireStrictStringList(schema.capability_keys, "runtime catalog schema.capability_keys");
+  const capabilityDefaults = requireJsonObject(schema.capability_defaults, "runtime catalog schema.capability_defaults");
+  requireKnownKeys(capabilityDefaults, new Set(capabilityKeys), "runtime catalog schema.capability_defaults");
+  requirePresentKeys(capabilityDefaults, capabilityKeys, "runtime catalog schema.capability_defaults");
+  validateRuntimeCatalogCapabilities(capabilityDefaults, "runtime catalog schema.capability_defaults");
+  return schema;
+}
+
 function validateRuntimeCatalogHookPayload(hookPayload, label) {
   const payload = requireJsonObject(hookPayload, label);
   requireKnownKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
@@ -627,6 +657,26 @@ function validateRuntimeCatalogHookPayload(hookPayload, label) {
   };
 }
 
+function validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label) {
+  const supportsRuntimeSessionPayloadAttribution = hookPayload.runtime_session_id_keys.length > 0;
+  if (capabilities.supports_runtime_session_payload_attribution !== supportsRuntimeSessionPayloadAttribution) {
+    throw new Error(
+      `${label}.capabilities.supports_runtime_session_payload_attribution must match `
+      + `${label}.hook_payload.runtime_session_id_keys`
+    );
+  }
+
+  const supportsAgentPayloadAttribution = Boolean(
+    hookPayload.agent_id_keys.length || hookPayload.agent_name_keys.length || hookPayload.agent_scope_keys.length
+  );
+  if (capabilities.supports_agent_payload_attribution !== supportsAgentPayloadAttribution) {
+    throw new Error(
+      `${label}.capabilities.supports_agent_payload_attribution must match `
+      + `${label}.hook_payload.agent_id_keys/agent_name_keys/agent_scope_keys`
+    );
+  }
+}
+
 function parsePublicCommandSurfacePrefix(value, label, commandPrefix) {
   const prefix = value === undefined || value === null ? commandPrefix : requireStrictString(value, label);
   if (!/^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$/.test(prefix)) {
@@ -655,6 +705,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
   const globalConfig = validateRuntimeCatalogGlobalConfig(payload.global_config, `${label}.global_config`);
   const capabilities = validateRuntimeCatalogCapabilities(payload.capabilities, `${label}.capabilities`);
   const hookPayload = validateRuntimeCatalogHookPayload(payload.hook_payload, `${label}.hook_payload`);
+  validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label);
 
   return {
     runtime_name: requireStrictString(payload.runtime_name, `${label}.runtime_name`),
@@ -794,6 +845,7 @@ function validateRuntimeCatalog(catalogPayload) {
   return entries;
 }
 
+validateRuntimeCatalogSchemaShape(RUNTIME_CATALOG_SCHEMA);
 RUNTIME_CATALOG = validateRuntimeCatalog(BUNDLED_RUNTIME_CATALOG_PAYLOAD);
 ALL_RUNTIMES = RUNTIME_CATALOG.map((runtime) => runtime.runtime_name);
 RUNTIME_BY_NAME = Object.fromEntries(RUNTIME_CATALOG.map((runtime) => [runtime.runtime_name, runtime]));
@@ -1110,6 +1162,22 @@ function warn(msg) {
 
 function error(msg) {
   console.error(` ${red}✗${reset} ${msg}`);
+}
+
+function nodeMajorVersion(versionText) {
+  const match = String(versionText || "").trim().match(/^v?(\d+)(?:\.|$)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function ensureSupportedNodeVersion(versionText = process.versions.node) {
+  const major = nodeMajorVersion(versionText);
+  if (major === null || major < MIN_SUPPORTED_NODE_MAJOR) {
+    const current = versionText ? ` Current Node.js: ${versionText}.` : "";
+    throw new Error(
+      `Node.js ${MIN_SUPPORTED_NODE_LABEL} is required to run the GPD bootstrap installer.${current} `
+      + "Upgrade Node.js, then rerun the installer."
+    );
+  }
 }
 
 function isWindows() {
@@ -2026,7 +2094,7 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
   log(`For the full runtime-target doctor report after install, use ${doctorHints}.`);
   log(
     `Use \`${sharedDoctorCommand()}\` for install and runtime-local readiness, `
-    + `\`${sharedUnattendedReadinessCommand().replace(/\s+--runtime\b[\s\S]*$/u, "")}\` `
+    + `\`${sharedUnattendedReadinessCommand()}\` `
     + `for the unattended or overnight verdict, \`${sharedPermissionsStatusCommand()}\` `
     + "for the read-only runtime-owned permission snapshot, and "
     + `\`${sharedPermissionsSyncCommand()}\` when runtime-owned permission alignment needs a write/sync.`
@@ -2456,6 +2524,8 @@ function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, opt
 }
 
 async function main() {
+  ensureSupportedNodeVersion();
+
   const args = normalizeBootstrapArgs(process.argv.slice(2));
   const hasHelp = args.includes("--help") || args.includes("-h");
   const isUninstall = args.includes("--uninstall");
@@ -2575,8 +2645,11 @@ if (require.main === module) {
 }
 
 module.exports = {
+  ensureSupportedNodeVersion,
   loadSharedPublicSurfaceText,
+  nodeMajorVersion,
   validateRuntimeCatalog,
+  validateRuntimeCatalogSchemaShape,
   validateSharedPublicSurfaceSchemaShape,
   validateSharedPublicSurfaceContract,
 };

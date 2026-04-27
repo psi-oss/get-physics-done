@@ -314,6 +314,14 @@ def _load_manifest_tracked_codex_skill_dirs(target_dir: Path) -> tuple[str, ...]
     return tuple(dict.fromkeys(names))
 
 
+def _load_manifest_codex_cleanup_skill_dirs(target_dir: Path) -> tuple[str, ...]:
+    """Return manifest-owned Codex skill dirs for reinstall cleanup."""
+    tracked_from_metadata = _load_manifest_codex_generated_skill_dirs(target_dir)
+    if tracked_from_metadata:
+        return tracked_from_metadata
+    return _load_manifest_tracked_codex_skill_dirs(target_dir)
+
+
 def _tracked_codex_generated_skill_dirs(
     target_dir: Path,
     *,
@@ -1101,7 +1109,7 @@ class CodexAdapter(RuntimeAdapter):
         tracked_skill_dirs = _tracked_codex_generated_skill_dirs(target_dir, skills_dir=skills_dir)
         try:
             has_gpd_skills = bool(tracked_skill_dirs) and skills_dir.is_dir() and all(
-                (skills_dir / name).is_dir() for name in tracked_skill_dirs
+                (skills_dir / name / "SKILL.md").is_file() for name in tracked_skill_dirs
             )
         except OSError:
             has_gpd_skills = False
@@ -1308,7 +1316,7 @@ def _copy_commands_as_skills(
     live_backup: Path | None = None
     generated_skill_dirs: set[str] = set()
     planned_skill_dirs = _planned_codex_skill_dirs(src_dir, prefix)
-    prior_install_skill_dirs = _load_manifest_codex_generated_skill_dirs(workflow_target_dir)
+    prior_install_skill_dirs = _load_manifest_codex_cleanup_skill_dirs(workflow_target_dir)
     try:
         if skills_dir.exists():
             for entry in sorted(skills_dir.iterdir()):

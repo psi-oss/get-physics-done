@@ -387,7 +387,7 @@ Ask 4 questions per area before offering to continue or move on. Each answer oft
    If "More questions" -> ask 4 more, then check again
    If "Next area" -> proceed to next selected area
 
-   **Hard bound: Maximum 8 question rounds per area.** If 8 rounds are reached without the user selecting "Next area", summarize progress so far and move to the next area. If context usage exceeds 50% before reaching 8 rounds, summarize progress so far and suggest the user run `/clear` followed by `gpd:resume-work` to continue with fresh context.
+   **Hard bound: Maximum 8 question rounds per area.** If 8 rounds are reached without the user selecting "Next area", summarize progress so far and move to the next area. If context usage exceeds 50% before reaching 8 rounds, summarize progress so far and suggest a fresh context reset followed by `gpd:resume-work`.
 
 4. **After all areas complete:**
    - header: "Done"
@@ -576,7 +576,7 @@ Created: GPD/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 `gpd:plan-phase ${PHASE}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

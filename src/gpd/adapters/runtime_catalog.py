@@ -141,169 +141,26 @@ def _runtime_catalog_schema_path() -> Path:
     return Path(__file__).with_name("runtime_catalog_schema.json")
 
 
-@lru_cache(maxsize=1)
-def _load_runtime_catalog_schema_shape() -> dict[str, object]:
-    schema_path = _runtime_catalog_schema_path()
-    raw_schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    if not isinstance(raw_schema, dict) or not raw_schema:
-        raise ValueError("runtime catalog schema must be a non-empty JSON object")
-
-    allowed_top_level_keys = {
-        "schema_version",
-        "entry_required_keys",
-        "entry_optional_keys",
-        "global_config_keys",
-        "capability_keys",
-        "capability_defaults",
-        "capability_enums",
-        "hook_payload_keys",
-        "install_help_example_scopes",
-        "launch_wrapper_permission_surface_kinds",
-    }
-    unknown_top_level_keys = sorted(key for key in raw_schema if key not in allowed_top_level_keys)
-    if unknown_top_level_keys:
-        formatted = ", ".join(unknown_top_level_keys)
-        raise ValueError(f"runtime catalog schema contains unknown key(s): {formatted}")
-
-    schema_version = raw_schema.get("schema_version")
-    if type(schema_version) is not int or schema_version != 1:
-        raise ValueError(f"Unsupported runtime catalog schema_version: {schema_version!r}")
-
-    def _require_string_tuple(
-        value: object,
-        *,
-        label: str,
-        allow_empty: bool,
-    ) -> tuple[str, ...]:
-        if not isinstance(value, list):
-            raise ValueError(f"{label} must be a list of strings")
-        if not value and not allow_empty:
-            raise ValueError(f"{label} must contain at least one string")
-
-        items: list[str] = []
-        seen: set[str] = set()
-        for index, item in enumerate(value):
-            item_label = f"{label}[{index}]"
-            if not isinstance(item, str) or not item or item.strip() != item:
-                raise ValueError(f"{item_label} must be a non-empty string")
-            if item in seen:
-                raise ValueError(f"{label} must not contain duplicate values")
-            seen.add(item)
-            items.append(item)
-        return tuple(items)
-
-    def _require_schema_mapping(value: object, *, label: str) -> dict[str, object]:
-        if not isinstance(value, dict) or not value:
-            raise ValueError(f"{label} must be a non-empty JSON object")
-        return value
-
-    entry_required_keys = frozenset(
-        _require_string_tuple(raw_schema.get("entry_required_keys"), label="runtime catalog schema.entry_required_keys", allow_empty=False)
-    )
-    entry_optional_keys = frozenset(
-        _require_string_tuple(raw_schema.get("entry_optional_keys"), label="runtime catalog schema.entry_optional_keys", allow_empty=True)
-    )
-    if entry_required_keys & entry_optional_keys:
-        overlap = ", ".join(sorted(entry_required_keys & entry_optional_keys))
-        raise ValueError(f"runtime catalog schema entry key overlap is not allowed: {overlap}")
-
-    global_config_keys_raw = _require_schema_mapping(raw_schema.get("global_config_keys"), label="runtime catalog schema.global_config_keys")
-    global_config_keys: dict[str, frozenset[str]] = {}
-    for strategy, keys in global_config_keys_raw.items():
-        if not isinstance(strategy, str) or not strategy or strategy.strip() != strategy:
-            raise ValueError("runtime catalog schema.global_config_keys keys must be non-empty strings")
-        global_config_keys[strategy] = frozenset(
-            _require_string_tuple(
-                keys,
-                label=f"runtime catalog schema.global_config_keys.{strategy}",
-                allow_empty=False,
-            )
-        )
-
-    capability_keys = frozenset(
-        _require_string_tuple(raw_schema.get("capability_keys"), label="runtime catalog schema.capability_keys", allow_empty=False)
-    )
-    capability_defaults_raw = _require_schema_mapping(
-        raw_schema.get("capability_defaults"),
-        label="runtime catalog schema.capability_defaults",
-    )
-    unknown_default_keys = sorted(key for key in capability_defaults_raw if key not in capability_keys)
-    missing_default_keys = sorted(key for key in capability_keys if key not in capability_defaults_raw)
-    if unknown_default_keys:
-        raise ValueError(
-            "runtime catalog schema.capability_defaults contains unknown key(s): "
-            + ", ".join(unknown_default_keys)
-        )
-    if missing_default_keys:
-        raise ValueError(
-            "runtime catalog schema.capability_defaults is missing key(s): "
-            + ", ".join(missing_default_keys)
-        )
-
-    capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
-    capability_enums: dict[str, frozenset[str]] = {}
-    for field_name, values in capability_enums_raw.items():
-        if not isinstance(field_name, str) or not field_name or field_name.strip() != field_name:
-            raise ValueError("runtime catalog schema.capability_enums keys must be non-empty strings")
-        capability_enums[field_name] = frozenset(
-            _require_string_tuple(
-                values,
-                label=f"runtime catalog schema.capability_enums.{field_name}",
-                allow_empty=False,
-            )
-        )
-
-    hook_payload_keys = frozenset(
-        _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
-    )
-    install_help_example_scopes = frozenset(
-        _require_string_tuple(
-            raw_schema.get("install_help_example_scopes"),
-            label="runtime catalog schema.install_help_example_scopes",
-            allow_empty=False,
-        )
-    )
-    launch_wrapper_permission_surface_kinds = frozenset(
-        _require_string_tuple(
-            raw_schema.get("launch_wrapper_permission_surface_kinds"),
-            label="runtime catalog schema.launch_wrapper_permission_surface_kinds",
-            allow_empty=False,
-        )
-    )
-
-    return {
-        "schema_version": schema_version,
-        "entry_required_keys": entry_required_keys,
-        "entry_optional_keys": entry_optional_keys,
-        "global_config_keys": global_config_keys,
-        "capability_keys": capability_keys,
-        "capability_defaults": dict(capability_defaults_raw),
-        "capability_enums": capability_enums,
-        "hook_payload_keys": hook_payload_keys,
-        "install_help_example_scopes": install_help_example_scopes,
-        "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
-    }
-
-
-def _catalog_path() -> Path:
-    return Path(__file__).with_name("runtime_catalog.json")
-
-
-_RUNTIME_CATALOG_SHAPE = _load_runtime_catalog_schema_shape()
-_RUNTIME_ENTRY_REQUIRED_KEYS = _RUNTIME_CATALOG_SHAPE["entry_required_keys"]
-_RUNTIME_ENTRY_OPTIONAL_KEYS = _RUNTIME_CATALOG_SHAPE["entry_optional_keys"]
-_RUNTIME_ENTRY_ALLOWED_KEYS = _RUNTIME_ENTRY_REQUIRED_KEYS | _RUNTIME_ENTRY_OPTIONAL_KEYS
-_RUNTIME_GLOBAL_CONFIG_STRATEGIES = frozenset(_RUNTIME_CATALOG_SHAPE["global_config_keys"].keys())
-_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = _RUNTIME_CATALOG_SHAPE["install_help_example_scopes"]
-_RUNTIME_VALIDATED_COMMAND_SURFACE_RE = re.compile(r"^public_runtime_[a-z0-9_]+_command$")
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
-_RUNTIME_COMMAND_PREFIX_RE = re.compile(r"^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$")
-_RUNTIME_CAPABILITY_ENUMS = _RUNTIME_CATALOG_SHAPE["capability_enums"]
-_RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
-_RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
-_RUNTIME_CAPABILITY_DEFAULTS = _RUNTIME_CATALOG_SHAPE["capability_defaults"]
-_RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
-_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
+_RUNTIME_CAPABILITY_BOOL_FIELDS = frozenset(
+    {
+        "supports_runtime_permission_sync",
+        "supports_prompt_free_mode",
+        "prompt_free_requires_relaunch",
+        "supports_usage_tokens",
+        "supports_cost_usd",
+        "supports_context_meter",
+        "supports_structured_child_results",
+        "supports_runtime_session_payload_attribution",
+        "supports_agent_payload_attribution",
+    }
+)
+_RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS = (
+    "permission_surface_kind",
+    "statusline_config_surface",
+    "notify_config_surface",
+)
+_RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS = frozenset({"prompt_free_mode_value"})
 
 
 def _require_mapping(value: object, *, label: str) -> dict[str, object]:
@@ -405,6 +262,279 @@ def _require_string_tuple(
     return tuple(items)
 
 
+def _validated_capability_values(
+    payload: dict[str, object],
+    *,
+    label: str,
+    capability_keys: frozenset[str],
+    capability_defaults: dict[str, object] | None,
+    capability_enums: dict[str, frozenset[str]],
+    launch_wrapper_permission_surface_kinds: frozenset[str],
+) -> dict[str, object]:
+    _require_allowed_keys(payload, label=label, allowed_keys=capability_keys)
+    if capability_defaults is None:
+        _require_keys(payload, label=label, required_keys=capability_keys)
+
+    def _capability_value(field_name: str) -> object:
+        if field_name in payload:
+            return payload[field_name]
+        if capability_defaults is not None:
+            return capability_defaults[field_name]
+        raise KeyError(field_name)
+
+    values: dict[str, object] = {}
+    for field_name, enum_values in capability_enums.items():
+        value = _require_string(_capability_value(field_name), label=f"{label}.{field_name}")
+        if value not in enum_values:
+            allowed = ", ".join(sorted(enum_values))
+            raise ValueError(f"{label}.{field_name} must be one of: {allowed}")
+        values[field_name] = value
+
+    for field_name in _RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS:
+        special_values = (
+            launch_wrapper_permission_surface_kinds
+            if field_name == "permission_surface_kind"
+            else frozenset()
+        )
+        values[field_name] = _require_runtime_surface_label(
+            _capability_value(field_name),
+            label=f"{label}.{field_name}",
+            special_values=special_values,
+        )
+
+    for field_name in sorted(_RUNTIME_CAPABILITY_BOOL_FIELDS):
+        values[field_name] = _require_bool(_capability_value(field_name), label=f"{label}.{field_name}")
+
+    for field_name in sorted(_RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS):
+        raw_value = _capability_value(field_name)
+        values[field_name] = (
+            None if raw_value is None else _require_string(raw_value, label=f"{label}.{field_name}")
+        )
+
+    validated_fields = set(values)
+    for field_name in sorted(capability_keys - validated_fields):
+        values[field_name] = _require_string(_capability_value(field_name), label=f"{label}.{field_name}")
+
+    return values
+
+
+def _capability_policy_from_values(values: dict[str, object]) -> RuntimeCapabilityPolicy:
+    return RuntimeCapabilityPolicy(
+        permissions_surface=values["permissions_surface"],
+        permission_surface_kind=values["permission_surface_kind"],
+        prompt_free_mode_value=values["prompt_free_mode_value"],
+        supports_runtime_permission_sync=values["supports_runtime_permission_sync"],
+        supports_prompt_free_mode=values["supports_prompt_free_mode"],
+        prompt_free_requires_relaunch=values["prompt_free_requires_relaunch"],
+        statusline_surface=values["statusline_surface"],
+        statusline_config_surface=values["statusline_config_surface"],
+        notify_surface=values["notify_surface"],
+        notify_config_surface=values["notify_config_surface"],
+        telemetry_source=values["telemetry_source"],
+        telemetry_completeness=values["telemetry_completeness"],
+        supports_usage_tokens=values["supports_usage_tokens"],
+        supports_cost_usd=values["supports_cost_usd"],
+        supports_context_meter=values["supports_context_meter"],
+        child_artifact_persistence_reliability=values["child_artifact_persistence_reliability"],
+        supports_structured_child_results=values["supports_structured_child_results"],
+        continuation_surface=values["continuation_surface"],
+        checkpoint_stop_semantics=values["checkpoint_stop_semantics"],
+        supports_runtime_session_payload_attribution=values["supports_runtime_session_payload_attribution"],
+        supports_agent_payload_attribution=values["supports_agent_payload_attribution"],
+    )
+
+
+def _validate_capability_policy_coherence(
+    policy: RuntimeCapabilityPolicy,
+    *,
+    label: str,
+    launch_wrapper_permission_surface_kinds: frozenset[str],
+) -> None:
+    if policy.permissions_surface == "config-file":
+        if policy.permission_surface_kind == "none" or policy.permission_surface_kind in launch_wrapper_permission_surface_kinds:
+            raise ValueError(f"{label}.permission_surface_kind must be a config surface label when permissions_surface=config-file")
+        if not policy.supports_runtime_permission_sync:
+            raise ValueError(f"{label}.supports_runtime_permission_sync must be true when permissions_surface=config-file")
+    elif policy.permissions_surface == "launch-wrapper":
+        if policy.permission_surface_kind not in launch_wrapper_permission_surface_kinds:
+            raise ValueError(
+                f"{label}.permission_surface_kind must be {_format_quoted_disjunction(launch_wrapper_permission_surface_kinds)} "
+                "when permissions_surface=launch-wrapper"
+            )
+        if not policy.supports_runtime_permission_sync:
+            raise ValueError(f"{label}.supports_runtime_permission_sync must be true when permissions_surface=launch-wrapper")
+    else:
+        if policy.permission_surface_kind != "none":
+            raise ValueError(f'{label}.permission_surface_kind must be "none" when permissions_surface=unsupported')
+        if policy.supports_runtime_permission_sync:
+            raise ValueError(f"{label}.supports_runtime_permission_sync must be false when permissions_surface=unsupported")
+        if policy.supports_prompt_free_mode:
+            raise ValueError(f"{label}.supports_prompt_free_mode must be false when permissions_surface=unsupported")
+        if policy.prompt_free_requires_relaunch:
+            raise ValueError(f"{label}.prompt_free_requires_relaunch must be false when permissions_surface=unsupported")
+    if not policy.supports_prompt_free_mode and policy.prompt_free_requires_relaunch:
+        raise ValueError(f"{label}.prompt_free_requires_relaunch requires supports_prompt_free_mode=true")
+    if policy.supports_structured_child_results and policy.continuation_surface != "explicit":
+        raise ValueError(
+            f"{label}.continuation_surface must be explicit when supports_structured_child_results=true"
+        )
+
+
+@lru_cache(maxsize=1)
+def _load_runtime_catalog_schema_shape() -> dict[str, object]:
+    schema_path = _runtime_catalog_schema_path()
+    raw_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    if not isinstance(raw_schema, dict) or not raw_schema:
+        raise ValueError("runtime catalog schema must be a non-empty JSON object")
+
+    allowed_top_level_keys = {
+        "schema_version",
+        "entry_required_keys",
+        "entry_optional_keys",
+        "global_config_keys",
+        "capability_keys",
+        "capability_defaults",
+        "capability_enums",
+        "hook_payload_keys",
+        "install_help_example_scopes",
+        "launch_wrapper_permission_surface_kinds",
+    }
+    unknown_top_level_keys = sorted(key for key in raw_schema if key not in allowed_top_level_keys)
+    if unknown_top_level_keys:
+        formatted = ", ".join(unknown_top_level_keys)
+        raise ValueError(f"runtime catalog schema contains unknown key(s): {formatted}")
+
+    schema_version = raw_schema.get("schema_version")
+    if type(schema_version) is not int or schema_version != 1:
+        raise ValueError(f"Unsupported runtime catalog schema_version: {schema_version!r}")
+
+    def _require_schema_mapping(value: object, *, label: str) -> dict[str, object]:
+        if not isinstance(value, dict) or not value:
+            raise ValueError(f"{label} must be a non-empty JSON object")
+        return value
+
+    entry_required_keys = frozenset(
+        _require_string_tuple(raw_schema.get("entry_required_keys"), label="runtime catalog schema.entry_required_keys", allow_empty=False)
+    )
+    entry_optional_keys = frozenset(
+        _require_string_tuple(raw_schema.get("entry_optional_keys"), label="runtime catalog schema.entry_optional_keys", allow_empty=True)
+    )
+    if entry_required_keys & entry_optional_keys:
+        overlap = ", ".join(sorted(entry_required_keys & entry_optional_keys))
+        raise ValueError(f"runtime catalog schema entry key overlap is not allowed: {overlap}")
+
+    global_config_keys_raw = _require_schema_mapping(raw_schema.get("global_config_keys"), label="runtime catalog schema.global_config_keys")
+    global_config_keys: dict[str, frozenset[str]] = {}
+    for strategy, keys in global_config_keys_raw.items():
+        if not isinstance(strategy, str) or not strategy or strategy.strip() != strategy:
+            raise ValueError("runtime catalog schema.global_config_keys keys must be non-empty strings")
+        global_config_keys[strategy] = frozenset(
+            _require_string_tuple(
+                keys,
+                label=f"runtime catalog schema.global_config_keys.{strategy}",
+                allow_empty=False,
+            )
+        )
+
+    capability_keys = frozenset(
+        _require_string_tuple(raw_schema.get("capability_keys"), label="runtime catalog schema.capability_keys", allow_empty=False)
+    )
+    capability_defaults_raw = _require_schema_mapping(
+        raw_schema.get("capability_defaults"),
+        label="runtime catalog schema.capability_defaults",
+    )
+    unknown_default_keys = sorted(key for key in capability_defaults_raw if key not in capability_keys)
+    missing_default_keys = sorted(key for key in capability_keys if key not in capability_defaults_raw)
+    if unknown_default_keys:
+        raise ValueError(
+            "runtime catalog schema.capability_defaults contains unknown key(s): "
+            + ", ".join(unknown_default_keys)
+        )
+    if missing_default_keys:
+        raise ValueError(
+            "runtime catalog schema.capability_defaults is missing key(s): "
+            + ", ".join(missing_default_keys)
+        )
+
+    capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
+    capability_enums: dict[str, frozenset[str]] = {}
+    for field_name, values in capability_enums_raw.items():
+        if not isinstance(field_name, str) or not field_name or field_name.strip() != field_name:
+            raise ValueError("runtime catalog schema.capability_enums keys must be non-empty strings")
+        capability_enums[field_name] = frozenset(
+            _require_string_tuple(
+                values,
+                label=f"runtime catalog schema.capability_enums.{field_name}",
+                allow_empty=False,
+            )
+        )
+
+    launch_wrapper_permission_surface_kinds = frozenset(
+        _require_string_tuple(
+            raw_schema.get("launch_wrapper_permission_surface_kinds"),
+            label="runtime catalog schema.launch_wrapper_permission_surface_kinds",
+            allow_empty=False,
+        )
+    )
+    default_capability_values = _validated_capability_values(
+        dict(capability_defaults_raw),
+        label="runtime catalog schema.capability_defaults",
+        capability_keys=capability_keys,
+        capability_defaults=None,
+        capability_enums=capability_enums,
+        launch_wrapper_permission_surface_kinds=launch_wrapper_permission_surface_kinds,
+    )
+    _validate_capability_policy_coherence(
+        _capability_policy_from_values(default_capability_values),
+        label="runtime catalog schema.capability_defaults",
+        launch_wrapper_permission_surface_kinds=launch_wrapper_permission_surface_kinds,
+    )
+
+    hook_payload_keys = frozenset(
+        _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
+    )
+    install_help_example_scopes = frozenset(
+        _require_string_tuple(
+            raw_schema.get("install_help_example_scopes"),
+            label="runtime catalog schema.install_help_example_scopes",
+            allow_empty=False,
+        )
+    )
+
+    return {
+        "schema_version": schema_version,
+        "entry_required_keys": entry_required_keys,
+        "entry_optional_keys": entry_optional_keys,
+        "global_config_keys": global_config_keys,
+        "capability_keys": capability_keys,
+        "capability_defaults": default_capability_values,
+        "capability_enums": capability_enums,
+        "hook_payload_keys": hook_payload_keys,
+        "install_help_example_scopes": install_help_example_scopes,
+        "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
+    }
+
+
+def _catalog_path() -> Path:
+    return Path(__file__).with_name("runtime_catalog.json")
+
+
+_RUNTIME_CATALOG_SHAPE = _load_runtime_catalog_schema_shape()
+_RUNTIME_ENTRY_REQUIRED_KEYS = _RUNTIME_CATALOG_SHAPE["entry_required_keys"]
+_RUNTIME_ENTRY_OPTIONAL_KEYS = _RUNTIME_CATALOG_SHAPE["entry_optional_keys"]
+_RUNTIME_ENTRY_ALLOWED_KEYS = _RUNTIME_ENTRY_REQUIRED_KEYS | _RUNTIME_ENTRY_OPTIONAL_KEYS
+_RUNTIME_GLOBAL_CONFIG_STRATEGIES = frozenset(_RUNTIME_CATALOG_SHAPE["global_config_keys"].keys())
+_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = _RUNTIME_CATALOG_SHAPE["install_help_example_scopes"]
+_RUNTIME_VALIDATED_COMMAND_SURFACE_RE = re.compile(r"^public_runtime_[a-z0-9_]+_command$")
+_RUNTIME_COMMAND_PREFIX_RE = re.compile(r"^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$")
+_RUNTIME_CAPABILITY_ENUMS = _RUNTIME_CATALOG_SHAPE["capability_enums"]
+_RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
+_RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
+_RUNTIME_CAPABILITY_DEFAULTS = _RUNTIME_CATALOG_SHAPE["capability_defaults"]
+_RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
+_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
+
+
 def _parse_global_config(entry: dict[str, object], *, label: str) -> GlobalConfigPolicy:
     payload = _require_mapping(entry, label=label)
     strategy = _require_string(payload.get("strategy"), label=f"{label}.strategy")
@@ -438,111 +568,21 @@ def _parse_capabilities(
     launch_wrapper_permission_surface_kinds: frozenset[str],
 ) -> RuntimeCapabilityPolicy:
     payload = _require_mapping(entry, label=label)
-    _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_CAPABILITY_KEYS)
-
-    def _capability_value(field_name: str) -> object:
-        return payload[field_name] if field_name in payload else _RUNTIME_CAPABILITY_DEFAULTS[field_name]
-
-    for field_name, enum_values in _RUNTIME_CAPABILITY_ENUMS.items():
-        value = _require_string(_capability_value(field_name), label=f"{label}.{field_name}")
-        if value not in enum_values:
-            allowed = ", ".join(sorted(enum_values))
-            raise ValueError(f"{label}.{field_name} must be one of: {allowed}")
-
-    prompt_free_mode_value_raw = _capability_value("prompt_free_mode_value")
-    prompt_free_mode_value = (
-        None
-        if prompt_free_mode_value_raw is None
-        else _require_string(prompt_free_mode_value_raw, label=f"{label}.prompt_free_mode_value")
-    )
-    policy = RuntimeCapabilityPolicy(
-        permissions_surface=_require_string(_capability_value("permissions_surface"), label=f"{label}.permissions_surface"),
-        permission_surface_kind=_require_runtime_surface_label(
-            _capability_value("permission_surface_kind"),
-            label=f"{label}.permission_surface_kind",
-            special_values=launch_wrapper_permission_surface_kinds,
-        ),
-        prompt_free_mode_value=prompt_free_mode_value,
-        supports_runtime_permission_sync=_require_bool(
-            _capability_value("supports_runtime_permission_sync"),
-            label=f"{label}.supports_runtime_permission_sync",
-        ),
-        supports_prompt_free_mode=_require_bool(
-            _capability_value("supports_prompt_free_mode"),
-            label=f"{label}.supports_prompt_free_mode",
-        ),
-        prompt_free_requires_relaunch=_require_bool(
-            _capability_value("prompt_free_requires_relaunch"),
-            label=f"{label}.prompt_free_requires_relaunch",
-        ),
-        statusline_surface=_require_string(_capability_value("statusline_surface"), label=f"{label}.statusline_surface"),
-        statusline_config_surface=_require_runtime_surface_label(
-            _capability_value("statusline_config_surface"),
-            label=f"{label}.statusline_config_surface",
-        ),
-        notify_surface=_require_string(_capability_value("notify_surface"), label=f"{label}.notify_surface"),
-        notify_config_surface=_require_runtime_surface_label(
-            _capability_value("notify_config_surface"),
-            label=f"{label}.notify_config_surface",
-        ),
-        telemetry_source=_require_string(_capability_value("telemetry_source"), label=f"{label}.telemetry_source"),
-        telemetry_completeness=_require_string(
-            _capability_value("telemetry_completeness"), label=f"{label}.telemetry_completeness"
-        ),
-        supports_usage_tokens=_require_bool(_capability_value("supports_usage_tokens"), label=f"{label}.supports_usage_tokens"),
-        supports_cost_usd=_require_bool(_capability_value("supports_cost_usd"), label=f"{label}.supports_cost_usd"),
-        supports_context_meter=_require_bool(
-            _capability_value("supports_context_meter"), label=f"{label}.supports_context_meter"
-        ),
-        child_artifact_persistence_reliability=_require_string(
-            _capability_value("child_artifact_persistence_reliability"),
-            label=f"{label}.child_artifact_persistence_reliability",
-        ),
-        supports_structured_child_results=_require_bool(
-            _capability_value("supports_structured_child_results"),
-            label=f"{label}.supports_structured_child_results",
-        ),
-        continuation_surface=_require_string(_capability_value("continuation_surface"), label=f"{label}.continuation_surface"),
-        checkpoint_stop_semantics=_require_string(
-            _capability_value("checkpoint_stop_semantics"), label=f"{label}.checkpoint_stop_semantics"
-        ),
-        supports_runtime_session_payload_attribution=_require_bool(
-            _capability_value("supports_runtime_session_payload_attribution"),
-            label=f"{label}.supports_runtime_session_payload_attribution",
-        ),
-        supports_agent_payload_attribution=_require_bool(
-            _capability_value("supports_agent_payload_attribution"),
-            label=f"{label}.supports_agent_payload_attribution",
-        ),
-    )
-    if policy.permissions_surface == "config-file":
-        if policy.permission_surface_kind == "none" or policy.permission_surface_kind in launch_wrapper_permission_surface_kinds:
-            raise ValueError(f"{label}.permission_surface_kind must be a config surface label when permissions_surface=config-file")
-        if not policy.supports_runtime_permission_sync:
-            raise ValueError(f"{label}.supports_runtime_permission_sync must be true when permissions_surface=config-file")
-    elif policy.permissions_surface == "launch-wrapper":
-        if policy.permission_surface_kind not in launch_wrapper_permission_surface_kinds:
-            raise ValueError(
-                f"{label}.permission_surface_kind must be {_format_quoted_disjunction(launch_wrapper_permission_surface_kinds)} "
-                "when permissions_surface=launch-wrapper"
-            )
-        if not policy.supports_runtime_permission_sync:
-            raise ValueError(f"{label}.supports_runtime_permission_sync must be true when permissions_surface=launch-wrapper")
-    else:
-        if policy.permission_surface_kind != "none":
-            raise ValueError(f'{label}.permission_surface_kind must be "none" when permissions_surface=unsupported')
-        if policy.supports_runtime_permission_sync:
-            raise ValueError(f"{label}.supports_runtime_permission_sync must be false when permissions_surface=unsupported")
-        if policy.supports_prompt_free_mode:
-            raise ValueError(f"{label}.supports_prompt_free_mode must be false when permissions_surface=unsupported")
-        if policy.prompt_free_requires_relaunch:
-            raise ValueError(f"{label}.prompt_free_requires_relaunch must be false when permissions_surface=unsupported")
-    if not policy.supports_prompt_free_mode and policy.prompt_free_requires_relaunch:
-        raise ValueError(f"{label}.prompt_free_requires_relaunch requires supports_prompt_free_mode=true")
-    if policy.supports_structured_child_results and policy.continuation_surface != "explicit":
-        raise ValueError(
-            f"{label}.continuation_surface must be explicit when supports_structured_child_results=true"
+    policy = _capability_policy_from_values(
+        _validated_capability_values(
+            payload,
+            label=label,
+            capability_keys=_RUNTIME_CAPABILITY_KEYS,
+            capability_defaults=_RUNTIME_CAPABILITY_DEFAULTS,
+            capability_enums=_RUNTIME_CAPABILITY_ENUMS,
+            launch_wrapper_permission_surface_kinds=launch_wrapper_permission_surface_kinds,
         )
+    )
+    _validate_capability_policy_coherence(
+        policy,
+        label=label,
+        launch_wrapper_permission_surface_kinds=launch_wrapper_permission_surface_kinds,
+    )
     return policy
 
 
@@ -678,6 +718,29 @@ def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
     )
 
 
+def _validate_runtime_descriptor_capability_contract(
+    descriptor: RuntimeDescriptor,
+    *,
+    label: str,
+) -> None:
+    if (
+        descriptor.capabilities.supports_runtime_session_payload_attribution
+        != descriptor.hook_payload.supports_runtime_session_payload_attribution
+    ):
+        raise ValueError(
+            f"{label}.capabilities.supports_runtime_session_payload_attribution must match "
+            f"{label}.hook_payload.runtime_session_id_keys"
+        )
+    if (
+        descriptor.capabilities.supports_agent_payload_attribution
+        != descriptor.hook_payload.supports_agent_payload_attribution
+    ):
+        raise ValueError(
+            f"{label}.capabilities.supports_agent_payload_attribution must match "
+            f"{label}.hook_payload.agent_id_keys/agent_name_keys/agent_scope_keys"
+        )
+
+
 @lru_cache(maxsize=1)
 def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
     raw_entries = json.loads(_catalog_path().read_text(encoding="utf-8"))
@@ -689,69 +752,70 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
         payload = _require_mapping(entry, label=label)
         _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_ENTRY_ALLOWED_KEYS)
         _require_keys(payload, label=label, required_keys=_RUNTIME_ENTRY_REQUIRED_KEYS)
-        descriptors.append(
-            RuntimeDescriptor(
-                runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
-                display_name=_require_string(payload["display_name"], label=f"{label}.display_name"),
-                priority=_require_int(payload["priority"], label=f"{label}.priority"),
-                config_dir_name=_require_string(payload["config_dir_name"], label=f"{label}.config_dir_name"),
-                install_flag=_require_string(payload["install_flag"], label=f"{label}.install_flag"),
-                launch_command=_require_string(payload["launch_command"], label=f"{label}.launch_command"),
-                adapter_module=_require_string(payload["adapter_module"], label=f"{label}.adapter_module"),
-                adapter_class=_require_string(payload["adapter_class"], label=f"{label}.adapter_class"),
-                command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
-                activation_env_vars=_require_string_tuple(
-                    payload["activation_env_vars"],
-                    label=f"{label}.activation_env_vars",
-                    allow_empty=False,
-                ),
-                selection_flags=_require_string_tuple(
-                    payload["selection_flags"],
-                    label=f"{label}.selection_flags",
-                    allow_empty=False,
-                ),
-                selection_aliases=_require_string_tuple(
-                    payload["selection_aliases"],
-                    label=f"{label}.selection_aliases",
-                    allow_empty=False,
-                ),
-                global_config=_parse_global_config(payload["global_config"], label=f"{label}.global_config"),
-                capabilities=_parse_capabilities(
-                    payload["capabilities"],
-                    label=f"{label}.capabilities",
-                    launch_wrapper_permission_surface_kinds=_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS,
-                ),
-                hook_payload=_parse_hook_payload(payload["hook_payload"], label=f"{label}.hook_payload"),
-                manifest_file_prefixes=_require_string_tuple(
-                    payload["manifest_file_prefixes"]
-                    if "manifest_file_prefixes" in payload
-                    else [],
-                    label=f"{label}.manifest_file_prefixes",
-                    allow_empty=True,
-                ),
-                native_include_support=_require_bool(
-                    payload.get("native_include_support", False),
-                    label=f"{label}.native_include_support",
-                ),
-                agent_prompt_uses_dollar_templates=_require_bool(
-                    payload.get("agent_prompt_uses_dollar_templates", False),
-                    label=f"{label}.agent_prompt_uses_dollar_templates",
-                ),
-                installer_help_example_scope=_parse_install_help_example_scope(
-                    payload.get("installer_help_example_scope"),
-                    label=f"{label}.installer_help_example_scope",
-                ),
-                validated_command_surface=_parse_validated_command_surface(
-                    payload.get("validated_command_surface"),
-                    label=f"{label}.validated_command_surface",
-                ),
-                public_command_surface_prefix=_parse_public_command_surface_prefix(
-                    payload.get("public_command_surface_prefix"),
-                    label=f"{label}.public_command_surface_prefix",
-                    command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
-                ),
-            )
-    )
+        command_prefix = _require_string(payload["command_prefix"], label=f"{label}.command_prefix")
+        descriptor = RuntimeDescriptor(
+            runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
+            display_name=_require_string(payload["display_name"], label=f"{label}.display_name"),
+            priority=_require_int(payload["priority"], label=f"{label}.priority"),
+            config_dir_name=_require_string(payload["config_dir_name"], label=f"{label}.config_dir_name"),
+            install_flag=_require_string(payload["install_flag"], label=f"{label}.install_flag"),
+            launch_command=_require_string(payload["launch_command"], label=f"{label}.launch_command"),
+            adapter_module=_require_string(payload["adapter_module"], label=f"{label}.adapter_module"),
+            adapter_class=_require_string(payload["adapter_class"], label=f"{label}.adapter_class"),
+            command_prefix=command_prefix,
+            activation_env_vars=_require_string_tuple(
+                payload["activation_env_vars"],
+                label=f"{label}.activation_env_vars",
+                allow_empty=False,
+            ),
+            selection_flags=_require_string_tuple(
+                payload["selection_flags"],
+                label=f"{label}.selection_flags",
+                allow_empty=False,
+            ),
+            selection_aliases=_require_string_tuple(
+                payload["selection_aliases"],
+                label=f"{label}.selection_aliases",
+                allow_empty=False,
+            ),
+            global_config=_parse_global_config(payload["global_config"], label=f"{label}.global_config"),
+            capabilities=_parse_capabilities(
+                payload["capabilities"],
+                label=f"{label}.capabilities",
+                launch_wrapper_permission_surface_kinds=_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS,
+            ),
+            hook_payload=_parse_hook_payload(payload["hook_payload"], label=f"{label}.hook_payload"),
+            manifest_file_prefixes=_require_string_tuple(
+                payload["manifest_file_prefixes"]
+                if "manifest_file_prefixes" in payload
+                else [],
+                label=f"{label}.manifest_file_prefixes",
+                allow_empty=True,
+            ),
+            native_include_support=_require_bool(
+                payload.get("native_include_support", False),
+                label=f"{label}.native_include_support",
+            ),
+            agent_prompt_uses_dollar_templates=_require_bool(
+                payload.get("agent_prompt_uses_dollar_templates", False),
+                label=f"{label}.agent_prompt_uses_dollar_templates",
+            ),
+            installer_help_example_scope=_parse_install_help_example_scope(
+                payload.get("installer_help_example_scope"),
+                label=f"{label}.installer_help_example_scope",
+            ),
+            validated_command_surface=_parse_validated_command_surface(
+                payload.get("validated_command_surface"),
+                label=f"{label}.validated_command_surface",
+            ),
+            public_command_surface_prefix=_parse_public_command_surface_prefix(
+                payload.get("public_command_surface_prefix"),
+                label=f"{label}.public_command_surface_prefix",
+                command_prefix=command_prefix,
+            ),
+        )
+        _validate_runtime_descriptor_capability_contract(descriptor, label=label)
+        descriptors.append(descriptor)
     descriptors.sort(key=lambda descriptor: (descriptor.priority, descriptor.runtime_name))
     _validate_runtime_catalog_uniqueness(descriptors)
     _validate_runtime_catalog_help_example_scopes(descriptors)

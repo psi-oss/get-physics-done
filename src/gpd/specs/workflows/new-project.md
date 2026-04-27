@@ -563,7 +563,7 @@ were skipped. Use gpd:settings to adjust workflow preferences.
 
 `gpd:discuss-phase 1`
 
-<sub>`/clear` first for fresh context, then run `gpd:discuss-phase 1`.</sub>
+<sub>Start a fresh context window, then run `gpd:discuss-phase 1`.</sub>
 
 ---
 
@@ -581,7 +581,7 @@ Use ask_user:
   - "Review artifacts first" — I want to check the generated files
   - "Done for now" — I'll continue later
 
-**If "Discuss phase 1":** Tell the user to run `gpd:discuss-phase 1` (and suggest `/clear` first for a fresh context window).
+**If "Discuss phase 1":** Tell the user to start a fresh context window, then run `gpd:discuss-phase 1`.
 
 **If "Review artifacts first":** List the files and let the user inspect them. Suggest edits if needed, then re-offer `gpd:discuss-phase 1` as primary and `gpd:plan-phase 1` as the direct-plan alternative.
 
@@ -2134,7 +2134,7 @@ Present completion with next steps:
 
 `gpd:plan-phase 1`
 
-<sub>`/clear` first for fresh context, then run `gpd:plan-phase 1`.</sub>
+<sub>Start a fresh context window, then run `gpd:plan-phase 1`.</sub>
 
 Phases 2+ are stubbed on purpose — flesh each one out with `gpd:plan-phase N` when its turn comes.
 

@@ -81,7 +81,7 @@ For the human-readable markdown portion of your return, end with a short continu
 - Any failed return, retry gate, manual stop, or "needs user input" checkpoint that expects later action must also end this way
 - Include `Also available:` when there are meaningful secondary options
 - Include `gpd:suggest-next` for project-backed states when the primary route may be unclear
-- Include the note `<sub>\`/clear\` first -> fresh context window</sub>` when the next step is another GPD command
+- Include `<sub>Start a fresh context window, then run the command.</sub>` when the next step is another GPD command
 
 ---
 

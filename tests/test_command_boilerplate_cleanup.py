@@ -8,14 +8,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
+SPECS_DIR = REPO_ROOT / "src" / "gpd" / "specs"
 
 LEGACY_COMMENT_FRAGMENTS = (
     "Tool names and @ includes are platform-specific.",
     "Allowed-tools are runtime-specific.",
     "Tool names and @ includes are runtime-specific.",
+    "installer rewrites paths for your runtime.",
 )
 
 MODEL_FACING_DIRS = (COMMANDS_DIR, AGENTS_DIR)
+FRESH_CONTEXT_MODEL_DIRS = (COMMANDS_DIR, AGENTS_DIR, SPECS_DIR)
 
 UNRESOLVED_PLACEHOLDER_RE = re.compile(r"(?:^|\n)\s*(?:<!--\s*)?(?:TODO|FIXME|PLACEHOLDER)(?:\b|:)")
 
@@ -25,6 +28,11 @@ LEGACY_BACKCOMPAT_WORDING = (
     "backward compatibility",
     "backwards compatibility",
 )
+STALE_MODEL_FACING_WORDING = (
+    "runtime-installer",
+    "test alignment",
+    "regression guardrail",
+)
 
 
 def test_command_sources_do_not_keep_runtime_boilerplate_html_comments() -> None:
@@ -32,6 +40,13 @@ def test_command_sources_do_not_keep_runtime_boilerplate_html_comments() -> None
         text = path.read_text(encoding="utf-8")
         for fragment in LEGACY_COMMENT_FRAGMENTS:
             assert fragment not in text, f"{path.relative_to(REPO_ROOT)} still contains: {fragment}"
+
+
+def test_command_sources_use_runtime_neutral_fresh_context_wording() -> None:
+    for directory in FRESH_CONTEXT_MODEL_DIRS:
+        for path in sorted(directory.rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            assert "/clear" not in text, f"{path.relative_to(REPO_ROOT)} still hardcodes runtime reset wording"
 
 
 def test_model_facing_prompts_do_not_ship_unresolved_placeholders() -> None:
@@ -48,4 +63,12 @@ def test_model_facing_prompts_do_not_use_legacy_backcompat_wording() -> None:
         for path in sorted(directory.glob("*.md")):
             text = path.read_text(encoding="utf-8").lower()
             for phrase in LEGACY_BACKCOMPAT_WORDING:
+                assert phrase not in text, f"{path.relative_to(REPO_ROOT)} still contains {phrase}"
+
+
+def test_model_facing_prompts_do_not_explain_test_or_installer_scaffolding() -> None:
+    for directory in MODEL_FACING_DIRS:
+        for path in sorted(directory.glob("*.md")):
+            text = path.read_text(encoding="utf-8").lower()
+            for phrase in STALE_MODEL_FACING_WORDING:
                 assert phrase not in text, f"{path.relative_to(REPO_ROOT)} still contains {phrase}"

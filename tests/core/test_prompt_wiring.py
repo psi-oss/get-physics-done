@@ -389,8 +389,18 @@ def test_continuation_format_scopes_clear_to_resolved_runtime_followups() -> Non
 
     assert_runtime_reset_rediscovery_contract(continuation)
     assert "This format is a presentation layer only" in continuation
-    assert "`/clear` first, then run `{next command}`" in continuation
+    assert "Start a fresh context window, then run `{next command}`" in continuation
     assert "If project rediscovery is still required" in continuation
+    assert "/clear" not in continuation
+
+
+def test_plan_phase_applies_planner_roadmap_updates_in_orchestrator() -> None:
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "gpd_return.roadmap_updates" in plan_phase
+    assert "The spawned planner does not own `GPD/ROADMAP.md` in default mode" in plan_phase
+    assert "Apply that update to `GPD/ROADMAP.md`" in plan_phase
+    assert "verify the phase's plan placeholders/count match the fresh `*-PLAN.md` artifacts" in plan_phase
 
 
 def test_executor_completion_examples_use_command_based_next_actions() -> None:
@@ -435,6 +445,36 @@ def test_executor_prompt_defaults_to_return_only_shared_state_updates() -> None:
     assert "decisions:" in executor_completion
     assert "blockers:" in executor_completion
     assert "continuation_update:" in executor_completion
+
+
+def test_return_only_planner_and_executor_do_not_commit_shared_state_files_by_default() -> None:
+    planner = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+
+    planner_commit_blocks = re.findall(r"```bash\n(gpd commit[\s\S]*?)\n```", planner)
+    executor_commit_blocks = re.findall(r"```bash\n(gpd commit[\s\S]*?)\n```", executor)
+
+    assert planner_commit_blocks
+    assert executor_commit_blocks
+    assert all("GPD/STATE.md" not in block and "GPD/ROADMAP.md" not in block for block in planner_commit_blocks)
+    assert all("GPD/STATE.md" not in block for block in executor_commit_blocks)
+    assert "return shared-state and roadmap updates to the orchestrator" in planner
+    assert "do not write or commit `GPD/ROADMAP.md`" in planner
+    assert "roadmap_updates" in planner
+    assert "Default spawned mode has `shared_state_policy: return_only`" in planner
+    assert "The default spawned-agent commit above excludes `GPD/STATE.md`." in executor
+
+
+def test_read_only_plan_checker_and_research_mapper_tool_policy_are_contract_aligned() -> None:
+    checker = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
+    mapper = (AGENTS_DIR / "gpd-research-mapper.md").read_text(encoding="utf-8")
+
+    assert "Return changed paths in `gpd_return.files_written`" not in checker
+    assert "return `gpd_return.files_written: []`" in checker
+    assert "This is a read-only agent" in checker
+    assert "All tools declared in frontmatter are available to this agent." in mapper
+    assert "Reserve `web_search` and `web_fetch` for the `status` focus" in mapper
+    assert "`status`: the same tools plus `web_search` and `web_fetch`" not in mapper
 
 
 def test_referee_prompt_no_longer_claims_read_only_artifact_policy() -> None:
@@ -4780,7 +4820,7 @@ def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contrac
 
     assert 'argument-hint: "[--frozen=yes|no] [--change=extend|revise] [--layer=new|change]"' in route_command
     assert "Follow `@{GPD_INSTALL_DIR}/workflows/route.md`" in route_command
-    assert "Exactly one recommendation returned; compound recommendations list the required commands in order" in route_command
+    assert "One recommendation returned; compound recommendations list the required commands in order" in route_command
     assert (
         "Exactly one recommendation returned; if the recommendation is compound, the ordered command sequence is rendered explicitly"
         in route_workflow

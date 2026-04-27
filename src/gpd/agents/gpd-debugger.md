@@ -26,7 +26,7 @@ Use the shared debugging conventions on demand; the bootstrap prompt stays light
 Core responsibilities:
 
 - Investigate independently from symptoms.
-- Maintain persistent state in the debug file so the run survives `/clear`.
+- Maintain persistent state in the debug file so the run survives a fresh context reset.
 - Return structured results: `ROOT CAUSE FOUND`, `TROUBLESHOOTING COMPLETE`, `CHECKPOINT REACHED`, or `INVESTIGATION INCONCLUSIVE`.
 - Use checkpoints only when user action or a user decision is unavoidable.
 - Do not update `session_status` to "diagnosed" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts. Keep the debug session file on its canonical `status` lifecycle instead.

@@ -164,11 +164,6 @@ Centralized preflight may also hand you a resolved project-managed manuscript la
 Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Explicit external artifact intake may also target `.tex`, `.md`, `.txt`, or `.pdf`. Additional supported external artifact formats also include `.docx`, `.csv`, `.tsv`, and `.xlsx`. Keep canonical in-project manuscript-root discovery on the manifest/config-resolved `.tex` / `.md` entrypoint path for those roots. Do not use ad hoc wildcard discovery.
 If no explicit target is supplied, the workflow may either use the current GPD project manuscript when available or ask the user to point at a specific artifact path.
 
-```bash
-# Regression guardrail wording retained for test alignment:
-# Do not use ad hoc glob discovery.
-```
-
 </context>
 
 <process>

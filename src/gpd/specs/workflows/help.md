@@ -1331,11 +1331,11 @@ Example config:
 
 ```
 gpd:new-project        # Unified flow: questioning -> survey -> discuss -> objectives -> roadmap
-/clear                  # then run gpd:discuss-phase 1
+# Start a fresh context window, then run:
 gpd:discuss-phase 1    # Gather context and clarify approach
-/clear                  # then run gpd:plan-phase 1
+# Start a fresh context window, then run:
 gpd:plan-phase 1       # Create plans for first phase
-/clear                  # then run gpd:execute-phase 1
+# Start a fresh context window, then run:
 gpd:execute-phase 1    # Execute all plans in phase
 ```
 
@@ -1350,7 +1350,7 @@ gpd:new-project --minimal @plan.md     # Generate from existing research plan fi
 
 ```
 gpd:pause-work        # Before leaving mid-phase, capture a continuation handoff artifact
-/clear                 # then run gpd resume in your normal terminal for the current workspace
+# Start a fresh context window, then run gpd resume in your normal terminal for the current workspace
 gpd resume             # Current-workspace read-only recovery snapshot from your normal terminal
 gpd resume --recent    # Find the workspace first in your normal terminal when you need to reopen a different one
 gpd:resume-work       # Continue in-runtime from the reopened project's canonical state after reopening that workspace
@@ -1384,7 +1384,7 @@ gpd:execute-phase 5.1
 
 ```
 gpd:complete-milestone v2.0
-/clear                 # then run gpd:new-milestone for the next milestone
+# Start a fresh context window, then run:
 gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
 ```
 

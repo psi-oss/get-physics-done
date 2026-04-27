@@ -6,6 +6,9 @@
   "bin": {
     "get-physics-done": "bin/install.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "files": [
     "bin/",
     "src/gpd/adapters/runtime_catalog.json",

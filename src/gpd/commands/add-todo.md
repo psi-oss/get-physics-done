@@ -29,10 +29,9 @@ Typical physics research todos include:
   </objective>
 
 <execution_context>
-@GPD/STATE.md
 @{GPD_INSTALL_DIR}/workflows/add-todo.md
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/add-todo.md` exactly.
+Follow `@{GPD_INSTALL_DIR}/workflows/add-todo.md` exactly. Let the workflow discover and inspect project state only when the current workspace has one.
    </process>
