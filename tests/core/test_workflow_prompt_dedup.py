@@ -100,8 +100,8 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
     assert verify_work_raw.count("templates/planner-subagent-prompt.md") == 2
     assert "templates/planner-subagent-prompt.md" not in quick_raw
     assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/phase-prompt.md") == 1
-    assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
-    assert "These are the hard planner contract gates." in planner_agent_raw
+    assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 0
+    assert "This template carries the hard planner contract gates." in planner_agent_raw
 
     assert planner_template.count("## Standard Planning Template") == 1
     assert planner_template.count("## Revision Template") == 1
@@ -148,6 +148,28 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
     )
     assert "The shared planner template owns the canonical planning policy and contract gate." not in verify_work
     assert "The shared planner template owns the canonical planning and revision policy." not in verify_work
+
+
+def test_planner_agent_does_not_duplicate_canonical_plan_template_blocks() -> None:
+    planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    phase_template = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+
+    canonical_only_markers = (
+        "# Phase Plan Prompt Template",
+        "## File Template",
+        "phase: XX-name",
+        "type: execute | tdd",
+        "## Required Frontmatter",
+        "## Light Plan Variant",
+        "## Contract Shape Classifier",
+    )
+
+    for marker in canonical_only_markers:
+        assert marker in phase_template
+        assert marker not in planner_agent
+
+    assert "## PLAN.md Source Of Truth" in planner_agent
+    assert "Gap-specific fields to insert into the canonical `phase-prompt.md` template:" in planner_agent
 
 
 def test_new_project_workflow_keeps_contract_preservation_rules_single_sourced() -> None:

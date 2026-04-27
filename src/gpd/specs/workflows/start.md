@@ -9,7 +9,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 
 <step name="detect_workspace_state">
-Figure out what kind of folder this is before offering any commands. Use the raw CLI classifier, which delegates to GPD's core project/root detection, instead of hand-rolled current-directory marker checks.
+Figure out what kind of folder this is before offering any commands. Use the raw CLI classifier, which delegates to GPD's workspace-bound, read-only classifier instead of hand-rolled current-directory marker checks. The classifier must describe the invoked folder itself; do not let an ancestor or home-directory GPD project claim an unrelated nested checkout.
 
 ```bash
 START_CONTEXT=$(gpd --raw init new-project --stage scope_intake)

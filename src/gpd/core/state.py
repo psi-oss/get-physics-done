@@ -530,6 +530,9 @@ class StateValidateResult(BaseModel):
     integrity_mode: str = "standard"
     integrity_status: str = "healthy"
     state_source: str | None = None
+    project_contract_load_info: dict | None = None
+    project_contract_validation: dict | None = None
+    project_contract_gate: dict | None = None
 
 
 class StateUpdateResult(BaseModel):
@@ -2048,7 +2051,7 @@ def _normalize_state_schema_with_backup_project_contract(
     *,
     allow_project_contract_salvage: bool = True,
     project_root: Path | None = None,
-) -> tuple[dict, list[str], bool, bool, bool, bool]:
+) -> tuple[dict, list[str], bool, bool, bool]:
     """Normalize state and recover backup state when the primary root is unreadable."""
 
     normalized, integrity_issues = _normalize_state_schema(
@@ -2059,7 +2062,6 @@ def _normalize_state_schema_with_backup_project_contract(
     recovered_root_from_backup = False
     recovered_position_from_backup = False
     recovered_continuation_from_backup = False
-    recovered_session_from_backup = False
 
     backup_normalized: dict | None = None
     backup_issues: list[str] = []
@@ -2126,7 +2128,6 @@ def _normalize_state_schema_with_backup_project_contract(
         recovered_root_from_backup,
         recovered_position_from_backup,
         recovered_continuation_from_backup,
-        recovered_session_from_backup,
     )
 
 
@@ -2533,6 +2534,24 @@ def _integrity_status_from(issues: list[str], warnings: list[str], mode: str) ->
     if warnings:
         return "warning"
     return "healthy"
+
+
+_NON_AUTHORITATIVE_STATE_TOP_LEVEL_KEYS = frozenset({"_synced_at", "_version", "session"})
+
+
+def _unknown_state_top_level_keys(state_obj: dict[str, object]) -> list[str]:
+    """Return persisted top-level keys outside the canonical state schema."""
+
+    known = set(ResearchState.model_fields)
+    return sorted(key for key in state_obj if key not in known and key not in _NON_AUTHORITATIVE_STATE_TOP_LEVEL_KEYS)
+
+
+def _append_unique(target: list[str], values: list[str]) -> None:
+    """Append validation findings without duplicating existing messages."""
+
+    for value in values:
+        if value not in target:
+            target.append(value)
 
 
 _STATE_MD_MIRRORED_FIELDS: dict[str, tuple[str, ...] | None] = {
@@ -3358,7 +3377,6 @@ def _load_state_json_with_integrity_issues(
                 recovered_root_from_backup,
                 recovered_position_from_backup,
                 recovered_continuation_from_backup,
-                recovered_session_from_backup,
             ) = _normalize_state_schema_with_backup_project_contract(
                 parsed,
                 backup_parsed,
@@ -3387,17 +3405,12 @@ def _load_state_json_with_integrity_issues(
                 integrity_issues.append(
                     "state.json continuation was recovered from state.json.bak after primary continuation required normalization"
                 )
-            if recovered_session_from_backup and integrity_mode != "review":
-                integrity_issues.append(
-                    "state.json session was recovered from state.json.bak after primary session required normalization"
-                )
             if integrity_mode == "review" and integrity_issues:
                 logger.warning("state.json failed review-mode integrity checks: %s", "; ".join(integrity_issues))
             if persist_recovery and (
                 state_source != "state.json"
                 or recovered_position_from_backup
                 or recovered_continuation_from_backup
-                or recovered_session_from_backup
             ):
                 preserved_contract = _preserved_visible_project_contract_from_raw_state(
                     cwd,
@@ -3607,7 +3620,6 @@ def _load_state_json_from_backup(
             _recovered_root_from_backup,
             _recovered_position_from_backup,
             _recovered_continuation_from_backup,
-            _recovered_session_from_backup,
         ) = _normalize_state_schema_with_backup_project_contract(
             bak_parsed,
             None,
@@ -5066,6 +5078,7 @@ def state_validate(
     *,
     recover_intent: bool = True,
     acquire_lock: bool = True,
+    surface_blocked_project_contract: bool = False,
 ) -> StateValidateResult:
     """Validate state consistency between state.json and STATE.md."""
     from gpd.core.contract_validation import validate_project_contract
@@ -5073,11 +5086,15 @@ def state_validate(
     md_path = _state_md_path(cwd)
     issues: list[str] = []
     warnings: list[str] = []
+    project_contract_load_info: dict | None = None
+    project_contract_validation: dict | None = None
+    project_contract_gate: dict | None = None
 
     state_json, normalization_issues, state_source = peek_state_json(
         cwd,
         integrity_mode=integrity_mode,
         recover_intent=recover_intent,
+        surface_blocked_project_contract=surface_blocked_project_contract,
         acquire_lock=acquire_lock,
     )
     if normalization_issues:
@@ -5091,6 +5108,46 @@ def state_validate(
             target.extend(other_issues)
     elif state_json is None:
         issues.append("state.json not found")
+
+    if isinstance(state_json, dict):
+        for key in _unknown_state_top_level_keys(state_json):
+            finding = (
+                f'schema: unknown top-level state.json key "{key}" is outside the GPD state schema; '
+                "do not treat it as authoritative"
+            )
+            target = issues if integrity_mode == "review" else warnings
+            if finding not in target:
+                target.append(finding)
+
+        (
+            project_contract_load_info,
+            project_contract_validation,
+            project_contract_gate,
+        ) = _project_contract_runtime_payload_for_state(
+            cwd,
+            state_obj=state_json,
+            state_source=state_source,
+        )
+        contract_target = issues if integrity_mode == "review" else warnings
+        if project_contract_load_info is not None:
+            _append_unique(
+                contract_target,
+                [f"project_contract: {error}" for error in project_contract_load_info.get("errors") or []],
+            )
+            _append_unique(
+                warnings,
+                [f"project_contract: {warning}" for warning in project_contract_load_info.get("warnings") or []],
+            )
+        if project_contract_validation is not None:
+            validation_error_target = issues if integrity_mode == "review" else warnings
+            _append_unique(
+                validation_error_target,
+                [f"project_contract: {error}" for error in project_contract_validation.get("errors") or []],
+            )
+            _append_unique(
+                warnings,
+                [f"project_contract: {warning}" for warning in project_contract_validation.get("warnings") or []],
+            )
 
     # Load and parse STATE.md
     state_md = None
@@ -5111,6 +5168,9 @@ def state_validate(
             integrity_mode=integrity_mode,
             integrity_status=_integrity_status_from(issues, warnings, integrity_mode),
             state_source=state_source,
+            project_contract_load_info=project_contract_load_info,
+            project_contract_validation=project_contract_validation,
+            project_contract_gate=project_contract_gate,
         )
 
     if isinstance(state_json, dict) and state_json.get("project_contract") is not None:
@@ -5282,6 +5342,8 @@ def state_validate(
                 f'filesystem: {PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/ directory does not exist but current_phase is "{current_phase}"'
             )
 
+    issues = list(dict.fromkeys(issues))
+    warnings = [warning for warning in dict.fromkeys(warnings) if warning not in issues]
     integrity_status = _integrity_status_from(issues, warnings, integrity_mode)
     valid = len(issues) == 0
     return StateValidateResult(
@@ -5291,6 +5353,9 @@ def state_validate(
         integrity_mode=integrity_mode,
         integrity_status=integrity_status,
         state_source=state_source,
+        project_contract_load_info=project_contract_load_info,
+        project_contract_validation=project_contract_validation,
+        project_contract_gate=project_contract_gate,
     )
 
 

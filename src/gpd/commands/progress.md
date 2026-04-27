@@ -7,6 +7,7 @@ project_reentry_capable: true
 requires:
   files: ["GPD/PROJECT.md"]
 allowed-tools:
+  - ask_user
   - file_read
   - shell
   - search_files

@@ -25,11 +25,9 @@ def test_planner_keeps_schema_bootstrap_visible_before_plan_examples() -> None:
     role = _between(planner, "<role>", "</role>")
 
     phase_prompt_idx = role.index("@{GPD_INSTALL_DIR}/templates/phase-prompt.md")
-    contract_schema_idx = role.index(
-        "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md"
-    )
     plan_emission_idx = role.index("before any `PLAN.md` emission.")
 
     assert phase_prompt_idx < plan_emission_idx
-    assert contract_schema_idx < plan_emission_idx
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" not in role
+    assert "planner contract schema is carried there" in role
     assert "Return structured results to the orchestrator." in role

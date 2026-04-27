@@ -116,10 +116,16 @@ def _walk_project_root(
         except OSError:
             return False
 
+    def _is_vcs_boundary(path: Path) -> bool:
+        """Return whether walking above *path* would cross into a different checkout."""
+        return (path / ".git").exists() or (path / ".hg").exists()
+
     search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
     for steps, path in enumerate(search_roots):
         layout = ProjectLayout(path)
         if not layout.gpd.is_dir():
+            if allow_ancestor_walk and _is_vcs_boundary(path):
+                break
             continue
 
         marker_count = sum(
@@ -151,6 +157,8 @@ def _walk_project_root(
 
         if best_bare is None or steps < best_bare[0]:
             best_bare = (steps, path)
+        if allow_ancestor_walk and _is_vcs_boundary(path):
+            break
 
     if best_bare is not None:
         return best_bare[1], best_bare[0], False

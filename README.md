@@ -275,35 +275,35 @@ Phase numbers continue across the whole project, so a new milestone may start at
 <details>
 <summary><strong>Conformal bootstrap workflow</strong></summary>
 
-The example below uses Claude Code / Gemini CLI syntax.
+The example below uses canonical command names without runtime prefixes.
 
 Suppose you want to use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 
 ```text
-gpd:new-project
+new-project
 > Use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 ```
 
 GPD will:
 - ask clarifying questions about the correlator sector, conventions, target observables, numerical precision, and verification strategy
 - create `GPD/PROJECT.md`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, and `GPD/STATE.md`
-- sketch the milestone shape (phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds) with Phase 1 ready to execute; Phases 2+ stay as stubs that you flesh out on demand with `gpd:plan-phase N`
+- sketch the milestone shape (phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds) with Phase 1 ready to execute; Phases 2+ stay as stubs that you flesh out on demand with `plan-phase N`
 
 Then continue with:
 
 ```text
-gpd:plan-phase 1
-gpd:execute-phase 1
-gpd:verify-work 1
+plan-phase 1
+execute-phase 1
+verify-work 1
 ```
 
 Once the relevant phases are complete and verified, continue toward write-up with:
 
 ```text
-gpd:write-paper
-gpd:peer-review
-gpd:respond-to-referees
-gpd:arxiv-submission
+write-paper
+peer-review
+respond-to-referees
+arxiv-submission
 ```
 
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
@@ -312,7 +312,7 @@ Typical artifacts include derivation notes, numerical scripts, convergence studi
 
 ## Key GPD Paths
 
-Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The examples below use Claude Code / Gemini CLI syntax when a runtime command is shown.
+Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The Core Runtime Paths table uses canonical command names unless a normal-terminal `gpd ...` command is shown.
 
 ### Core Runtime Paths
 

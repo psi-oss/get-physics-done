@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -156,6 +157,17 @@ def _load_artifact_manifest(path: Path | None) -> ArtifactManifest | None:
         return ArtifactManifest.model_validate(payload)
     except PydanticValidationError:
         return None
+
+
+def _sha256_file(path: Path) -> str | None:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8192), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
 
 
 def _load_bibliography_audit(path: Path | None) -> BibliographyAudit | None:
@@ -471,8 +483,13 @@ def _manifest_metadata_matches_active_entrypoint(
         if artifact.category != "tex":
             continue
         candidate = manuscript_root / artifact.path
-        if candidate.exists() and candidate.resolve(strict=False) == resolved_entrypoint:
-            return True
+        if not candidate.exists() or candidate.resolve(strict=False) != resolved_entrypoint:
+            continue
+        active_sha256 = _sha256_file(resolved_entrypoint)
+        if active_sha256 is None:
+            return False
+        manifest_sha256 = artifact_manifest.manuscript_sha256 or artifact.sha256
+        return manifest_sha256.lower() == active_sha256.lower()
     return False
 
 

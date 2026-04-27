@@ -20,7 +20,7 @@ from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
     list_runtime_names,
-    resolve_global_config_dir,
+    resolve_global_config_dir_candidates,
 )
 from gpd.adapters.runtime_catalog import (
     normalize_runtime_name as _normalize_runtime_name,
@@ -105,13 +105,13 @@ def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
     return [preferred_runtime] + [runtime for runtime in runtime_names if runtime != preferred_runtime]
 
 
-def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
-    """Resolve the global config directory for *runtime* with env overrides."""
+def _global_runtime_dirs(runtime: str, *, home: Path | None = None) -> tuple[Path, ...]:
+    """Resolve authoritative global config directories for *runtime* in lookup order."""
     try:
         descriptor = get_runtime_descriptor(runtime)
     except KeyError:
         raise KeyError(runtime) from None
-    return resolve_global_config_dir(descriptor, home=home)
+    return resolve_global_config_dir_candidates(descriptor, home=home)
 
 
 def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
@@ -169,8 +169,10 @@ def _runtime_dir_has_gpd_install(
 
     if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd)):
         return True
-    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home)):
-        return True
+    if include_global:
+        for global_dir in _global_runtime_dirs(runtime, home=resolved_home):
+            if _has_gpd_install(global_dir):
+                return True
     return False
 
 
@@ -211,12 +213,12 @@ def _detect_runtime_install_target(
             install_scope=install_scope_from_manifest(local_dir) or SCOPE_LOCAL,
         )
 
-    global_dir = _global_runtime_dir(runtime, home=resolved_home)
-    if _has_gpd_install(global_dir):
-        return RuntimeInstallTarget(
-            config_dir=global_dir,
-            install_scope=install_scope_from_manifest(global_dir) or SCOPE_GLOBAL,
-        )
+    for global_dir in _global_runtime_dirs(runtime, home=resolved_home):
+        if _has_gpd_install(global_dir):
+            return RuntimeInstallTarget(
+                config_dir=global_dir,
+                install_scope=install_scope_from_manifest(global_dir) or SCOPE_GLOBAL,
+            )
 
     return None
 
@@ -283,15 +285,15 @@ def resolve_effective_runtime(
                     install_scope=install_scope,
                 )
 
-            global_dir = _global_runtime_dir(runtime, home=resolved_home)
-            if _has_gpd_install(global_dir):
-                install_scope = install_scope_from_manifest(global_dir) or SCOPE_GLOBAL
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=_source_for_install_scope(install_scope, fallback=SOURCE_GLOBAL),
-                    has_gpd_install=True,
-                    install_scope=install_scope,
-                )
+            for global_dir in _global_runtime_dirs(runtime, home=resolved_home):
+                if _has_gpd_install(global_dir):
+                    install_scope = install_scope_from_manifest(global_dir) or SCOPE_GLOBAL
+                    return EffectiveRuntimeResolution(
+                        runtime=runtime,
+                        source=_source_for_install_scope(install_scope, fallback=SOURCE_GLOBAL),
+                        has_gpd_install=True,
+                        install_scope=install_scope,
+                    )
 
         return EffectiveRuntimeResolution()
 
@@ -399,14 +401,15 @@ def _ordered_runtime_dirs_for_lookup(
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
     local_dir = _local_runtime_dir(runtime, resolved_cwd)
-    global_dir = _global_runtime_dir(runtime, home=resolved_home)
     install_target = _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
 
     ordered_dirs: list[tuple[Path, str]] = []
     if install_target is not None:
         ordered_dirs.append((install_target.config_dir, install_target.install_scope))
 
-    for runtime_dir, scope in ((local_dir, SCOPE_LOCAL), (global_dir, SCOPE_GLOBAL)):
+    runtime_dirs = [(local_dir, SCOPE_LOCAL)]
+    runtime_dirs.extend((global_dir, SCOPE_GLOBAL) for global_dir in _global_runtime_dirs(runtime, home=resolved_home))
+    for runtime_dir, scope in runtime_dirs:
         if any(existing_dir == runtime_dir for existing_dir, _existing_scope in ordered_dirs):
             continue
         ordered_dirs.append((runtime_dir, scope))
@@ -471,7 +474,11 @@ def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, ho
         dirs.extend(_local_runtime_dir(runtime, resolved_cwd) for runtime in runtime_names)
 
     resolved_home = home or Path.home()
-    dirs.extend(_global_runtime_dir(runtime, home=resolved_home) for runtime in runtime_names)
+    dirs.extend(
+        global_dir
+        for runtime in runtime_names
+        for global_dir in _global_runtime_dirs(runtime, home=resolved_home)
+    )
     return _unique_paths(dirs)
 
 
@@ -523,13 +530,14 @@ def get_todo_candidates(
                 scope=SCOPE_LOCAL,
             )
         )
-        candidates.append(
-            TodoCandidate(
-                _global_runtime_dir(runtime, home=resolved_home) / TODOS_DIR_NAME,
-                runtime=runtime,
-                scope=SCOPE_GLOBAL,
+        for global_dir in _global_runtime_dirs(runtime, home=resolved_home):
+            candidates.append(
+                TodoCandidate(
+                    global_dir / TODOS_DIR_NAME,
+                    runtime=runtime,
+                    scope=SCOPE_GLOBAL,
+                )
             )
-        )
     return _unique_todo_candidates(candidates)
 
 
@@ -589,13 +597,14 @@ def get_update_cache_candidates(
                 scope=SCOPE_LOCAL,
             )
         )
-        candidates.append(
-            UpdateCacheCandidate(
-                _global_runtime_dir(runtime, home=resolved_home) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
-                runtime=runtime,
-                scope=SCOPE_GLOBAL,
+        for global_dir in _global_runtime_dirs(runtime, home=resolved_home):
+            candidates.append(
+                UpdateCacheCandidate(
+                    global_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+                    runtime=runtime,
+                    scope=SCOPE_GLOBAL,
+                )
             )
-        )
     candidates.append(UpdateCacheCandidate(home_update_cache_file(home=resolved_home)))
     return _unique_update_cache_candidates(candidates)
 
@@ -713,7 +722,7 @@ def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None
         if runtime == prioritized_runtime:
             continue
         dirs.append(_local_runtime_dir(runtime, resolved_cwd) / GPD_INSTALL_DIR_NAME)
-        dirs.append(_global_runtime_dir(runtime, home=resolved_home) / GPD_INSTALL_DIR_NAME)
+        dirs.extend(global_dir / GPD_INSTALL_DIR_NAME for global_dir in _global_runtime_dirs(runtime, home=resolved_home))
     return _unique_paths(dirs)
 
 

@@ -87,6 +87,15 @@ def test_route_and_backtrack_public_command_metadata_is_dispatchable() -> None:
     assert "ask_user" in backtrack.allowed_tools
 
 
+def test_progress_reconcile_public_metadata_exposes_confirmation_tool() -> None:
+    """The runtime reconcile mode must have an executable confirmation path before state writes."""
+    registry_module.invalidate_cache()
+
+    command = registry_module.get_command("progress")
+
+    assert "ask_user" in command.allowed_tools
+
+
 def test_write_paper_public_metadata_only_advertises_intake_manifest() -> None:
     """write-paper should not advertise unsupported title/topic or from-phases inputs."""
     registry_module.invalidate_cache()
@@ -1514,6 +1523,33 @@ class TestInitCommands:
         assert payload["project_exists"] is True
         assert "project_reentry_candidates" not in payload
 
+    def test_init_new_project_scope_intake_is_workspace_bound_inside_nested_checkout(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        nested_repo = gpd_project / "nested-unrelated-repo"
+        workspace = nested_repo / "analysis"
+        (nested_repo / ".git").mkdir(parents=True)
+        workspace.mkdir(parents=True)
+        (workspace / "notes.py").write_text("print('local notes')\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "init", "new-project", "--stage", "scope_intake"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["project_exists"] is False
+        assert payload["state_exists"] is False
+        assert payload["roadmap_exists"] is False
+        assert payload["recoverable_project_exists"] is False
+        assert payload["planning_exists"] is False
+        assert payload["has_research_files"] is True
+        assert payload["needs_research_map"] is True
+        assert not (gpd_project / "GPD" / "state.json.lock").exists()
+
     def test_init_phase_op_resolves_ancestor_project_root_from_nested_workspace(
         self,
         gpd_project: Path,
@@ -2571,6 +2607,25 @@ class TestReviewValidationCommands:
         assert payload["project_exists"] is True
         assert checks["project_exists"]["passed"] is True
         assert "GPD/PROJECT.md" in checks["project_exists"]["detail"]
+
+    def test_command_context_progress_reconcile_surfaces_confirmation_contract(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "command-context", "progress", "--reconcile"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:progress"
+        assert payload["passed"] is True
+        assert checks["reconcile_confirmation"]["passed"] is True
+        assert checks["reconcile_confirmation"]["blocking"] is True
+        assert "ask_user" in checks["reconcile_confirmation"]["detail"]
 
     def test_command_context_resume_work_resolves_ancestor_project_root_for_nested_workspace(
         self,
@@ -5220,6 +5275,43 @@ class TestReviewValidationCommands:
         assert resolved_subject["ownership_mode"] == "project_backed"
         assert resolved_subject["ancestor_walked_up"] is True
         assert resolved_subject["explicit_input"] is False
+
+    def test_review_preflight_peer_review_does_not_leak_ancestor_context_into_nested_checkout(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        nested_repo = gpd_project / "nested-standalone-review"
+        (nested_repo / ".git").mkdir(parents=True)
+        target = nested_repo / "standalone-review.txt"
+        target.write_text("Standalone manuscript surface.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested_repo),
+                "validate",
+                "review-preflight",
+                "peer-review",
+                target.name,
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert payload["resolved_mode"] == "standalone explicit-artifact review"
+        assert checks["command_context"]["passed"] is True
+        assert "project_state" not in checks
+        assert checks["manuscript"]["passed"] is True
+        assert resolved_subject["context_root"] == nested_repo.resolve(strict=False).as_posix()
+        assert resolved_subject["resolved_project_root"] is None
+        assert resolved_subject["ownership_mode"] == "external_artifact"
+        assert resolved_subject["ancestor_walked_up"] is False
 
     def test_review_preflight_peer_review_strict_requires_artifact_audits(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"

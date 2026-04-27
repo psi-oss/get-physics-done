@@ -134,35 +134,11 @@ class TestConvertFrontmatter:
         assert "https://example.test/gpd:help" in result
         assert "mygpd:command" in result
 
-    def test_claude_path_conversion(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("OPENCODE_CONFIG_DIR", raising=False)
-        monkeypatch.delenv("OPENCODE_CONFIG", raising=False)
-        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-
-        content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
-        result = convert_claude_to_opencode_frontmatter(content)
-        assert f"{Path.home().resolve(strict=False).as_posix()}/.config/opencode/agents/gpd-verifier.md" in result
-
-    def test_claude_path_conversion_uses_catalog_global_config_fallback(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        config_dir = tmp_path / "configured-opencode"
-        monkeypatch.setenv("OPENCODE_CONFIG_DIR", str(config_dir))
-        monkeypatch.delenv("OPENCODE_CONFIG", raising=False)
-        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-
-        content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
-        result = convert_claude_to_opencode_frontmatter(content)
-
-        assert f"{config_dir.resolve(strict=False).as_posix()}/agents/gpd-verifier.md" in result
-
-    def test_claude_path_conversion_uses_resolved_path_prefix(self) -> None:
+    def test_foreign_runtime_claude_path_is_preserved(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
         result = convert_claude_to_opencode_frontmatter(content, "./.opencode/")
-        assert "./.opencode/agents/gpd-verifier.md" in result
-        assert "~/.config/opencode/agents/gpd-verifier.md" not in result
+        assert "~/.claude/agents/gpd-verifier.md" in result
+        assert "./.opencode/agents/gpd-verifier.md" not in result
 
     def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
@@ -206,7 +182,7 @@ class TestCopyFlattenedCommands:
 
         content = (dest / "gpd-help.md").read_text(encoding="utf-8")
         assert "{GPD_INSTALL_DIR}" not in content
-        assert "~/.claude/" not in content
+        assert "~/.claude/agents path" in content
 
     def test_frontmatter_converted(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
@@ -485,7 +461,8 @@ class TestInstall:
 
         content = (target / "command" / "gpd-help.md").read_text(encoding="utf-8")
         assert "./.opencode/get-physics-done/ref" in content
-        assert "./.opencode/agents" in content
+        assert "~/.claude/agents" in content
+        assert "./.opencode/agents" not in content
         assert f"{target.as_posix()}/get-physics-done" not in content
 
     def test_install_completeness_requires_opencode_json(

@@ -230,7 +230,12 @@ def validate_state(project_dir: AbsoluteProjectDirInput) -> dict:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.validate"):
         try:
-            result = state_validate(cwd)
+            result = state_validate(
+                cwd,
+                recover_intent=False,
+                surface_blocked_project_contract=True,
+                acquire_lock=False,
+            )
             return stable_mcp_response(result.model_dump())
         except (GPDError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)

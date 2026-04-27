@@ -158,21 +158,15 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     Transformations:
     - Replace tool name references in content
     - Replace /gpd: with /gpd- (flat command structure)
-    - Replace bare ~/.claude references with the resolved OpenCode config dir
     - Parse YAML frontmatter:
       - Strip name: field (OpenCode uses filename for command name)
       - Convert color names to hex
       - Convert allowed-tools: YAML array to tools: object with {tool: true}
     """
-    resolved_config_dir = path_prefix[:-1] if path_prefix and path_prefix.endswith("/") else path_prefix
-    if not resolved_config_dir:
-        resolved_config_dir = get_opencode_global_dir().as_posix()
-
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = _GPD_SLASH_COMMAND_RE.sub(r"/gpd-\g<command>", converted)
     converted = _GPD_BARE_COMMAND_RE.sub(r"gpd-\1", converted)
-    converted = re.sub(r"~/\.claude\b", lambda m: resolved_config_dir, converted)
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
     if not frontmatter:

@@ -74,6 +74,27 @@ def _read_claude_settings_state(settings_path: Path) -> tuple[dict[str, object] 
         return None, "malformed"
     return parsed, None
 
+
+def _validated_deferred_install_payload(
+    install_result: Mapping[str, object],
+) -> tuple[str | Path, dict[str, object], str, bool]:
+    """Return deferred settings payload or fail closed before finalization."""
+    settings_path = install_result.get("settingsPath")
+    settings = install_result.get("settings")
+    statusline_command = install_result.get("statuslineCommand")
+    should_install_statusline = install_result.get("shouldInstallStatusline", True)
+
+    if not isinstance(settings_path, (str, Path)):
+        raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
+    if not isinstance(settings, dict):
+        raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
+    if not isinstance(statusline_command, str):
+        raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
+    if type(should_install_statusline) is not bool:
+        raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
+
+    return settings_path, settings, statusline_command, should_install_statusline
+
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "Read",
     "file_write": "Write",
@@ -469,21 +490,19 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         force_statusline: bool = False,
     ) -> None:
         """Persist settings.json-backed configuration after install."""
-        settings_path = install_result.get("settingsPath")
-        settings = install_result.get("settings")
-        statusline_command = install_result.get("statuslineCommand")
-        should_install_statusline = install_result.get("shouldInstallStatusline", True)
-        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
-            _, settings_parse_error = _read_claude_settings_state(Path(settings_path))
-            if settings_parse_error is not None:
-                raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during finalize.")
-            self.finish_install(
-                settings_path,
-                settings,
-                statusline_command,
-                bool(should_install_statusline),
-                force_statusline=force_statusline,
-            )
+        settings_path, settings, statusline_command, should_install_statusline = _validated_deferred_install_payload(
+            install_result
+        )
+        _, settings_parse_error = _read_claude_settings_state(Path(settings_path))
+        if settings_parse_error is not None:
+            raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during finalize.")
+        self.finish_install(
+            settings_path,
+            settings,
+            statusline_command,
+            should_install_statusline,
+            force_statusline=force_statusline,
+        )
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from Claude Code config and clean the matching MCP config."""

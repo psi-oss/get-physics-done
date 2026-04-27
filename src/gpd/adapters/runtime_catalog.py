@@ -866,12 +866,16 @@ def _validate_runtime_descriptor_capability_contract(
             raise ValueError(f"{label}.capabilities.telemetry_source requires {label}.capabilities.notify_surface=explicit")
         _require_hook_payload_fields("telemetry_source", ("notify_event_types",))
     if descriptor.capabilities.supports_usage_tokens:
-        if descriptor.capabilities.telemetry_source != "notify-hook":
-            raise ValueError(f"{label}.capabilities.supports_usage_tokens requires {label}.capabilities.telemetry_source=notify-hook")
+        if descriptor.capabilities.telemetry_source == "none":
+            raise ValueError(
+                f'{label}.capabilities.supports_usage_tokens requires {label}.capabilities.telemetry_source!="none"'
+            )
         _require_hook_payload_fields("supports_usage_tokens", _USAGE_TOKEN_HOOK_PAYLOAD_FIELDS)
     if descriptor.capabilities.supports_cost_usd:
-        if descriptor.capabilities.telemetry_source != "notify-hook":
-            raise ValueError(f"{label}.capabilities.supports_cost_usd requires {label}.capabilities.telemetry_source=notify-hook")
+        if descriptor.capabilities.telemetry_source == "none":
+            raise ValueError(
+                f'{label}.capabilities.supports_cost_usd requires {label}.capabilities.telemetry_source!="none"'
+            )
         _require_hook_payload_fields("supports_cost_usd", ("cost_usd_keys",))
     if descriptor.capabilities.supports_context_meter:
         if descriptor.capabilities.statusline_surface != "explicit":

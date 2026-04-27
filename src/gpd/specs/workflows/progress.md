@@ -65,6 +65,8 @@ Options:
 
 If user chooses sync: update STATE.md position, progress bar, and plan counters to match disk reality using `gpd state` commands.
 
+Confirmation contract: before any command that writes reconciled state, ask for an explicit user decision. If `ask_user` is available, present the three options above with `Sync STATE.md to disk` as the recommended option. If `ask_user` is not available, require a typed reply that exactly matches one of `Sync STATE.md to disk`, `Keep STATE.md`, or `Show details`; do not infer consent from a vague acknowledgement.
+
 **If no discrepancies:** Report "STATE.md is consistent with disk artifacts." and continue to full report.
 </step>
 

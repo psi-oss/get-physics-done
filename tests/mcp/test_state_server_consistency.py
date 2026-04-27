@@ -9,9 +9,10 @@ from types import SimpleNamespace
 import anyio
 import pytest
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.errors import GPDError
 from gpd.core.health import CheckStatus, HealthCheck, HealthReport, HealthSummary
-from gpd.core.state import default_state_dict
+from gpd.core.state import default_state_dict, generate_state_markdown
 from gpd.mcp.servers.state_server import (
     advance_plan,
     apply_return_updates,
@@ -309,6 +310,45 @@ def test_load_state_json_uses_read_only_peek_without_locking(monkeypatch, tmp_pa
     assert seen["kwargs"]["recover_intent"] is False
     assert seen["kwargs"]["surface_blocked_project_contract"] is True
     assert seen["kwargs"]["acquire_lock"] is False
+
+
+def test_validate_state_uses_read_only_visible_state_path(monkeypatch, tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def _state_validate(*args, **kwargs):
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return SimpleNamespace(model_dump=lambda: {"valid": True, "issues": [], "warnings": []})
+
+    monkeypatch.setattr("gpd.mcp.servers.state_server.state_validate", _state_validate)
+
+    result = validate_state(str(tmp_path))
+
+    assert result["schema_version"] == 1
+    assert result["valid"] is True
+    assert seen["args"] == (tmp_path,)
+    assert seen["kwargs"]["recover_intent"] is False
+    assert seen["kwargs"]["surface_blocked_project_contract"] is True
+    assert seen["kwargs"]["acquire_lock"] is False
+
+
+def test_validate_state_surfaces_malformed_project_contract_without_mutating(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+    layout.gpd.mkdir(parents=True)
+    baseline = default_state_dict()
+    layout.state_md.write_text(generate_state_markdown(baseline), encoding="utf-8")
+    broken_state = dict(baseline)
+    broken_state["project_contract"] = "not-an-object"
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+    before = layout.state_json.read_text(encoding="utf-8")
+
+    result = validate_state(str(tmp_path))
+
+    assert result["schema_version"] == 1
+    assert result["project_contract_load_info"]["status"] == "blocked_type"
+    assert result["project_contract_gate"]["authoritative"] is False
+    assert any("project contract must be a JSON object" in warning for warning in result["warnings"])
+    assert layout.state_json.read_text(encoding="utf-8") == before
 
 
 def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path: Path) -> None:

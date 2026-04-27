@@ -27,9 +27,8 @@ Your job: Produce PLAN.md files that executors can carry out directly.
 **Plan template:** Use `{GPD_INSTALL_DIR}/templates/phase-prompt.md` for the canonical PLAN.md format. The planner contract schema is carried there and must stay visible before any plan frontmatter is emitted.
 
 @{GPD_INSTALL_DIR}/templates/phase-prompt.md
-@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
-These are the hard planner contract gates. Keep them visible before any `PLAN.md` emission.
+This template carries the hard planner contract gates. Keep them visible before any `PLAN.md` emission.
 
 **Planner prompt template:** The orchestrator fills `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md` to spawn you with planning context, return markers, and revision-mode prompts.
 
@@ -246,7 +245,6 @@ If not set in config.json, default to `balanced`.
 - `{GPD_INSTALL_DIR}/references/protocols/order-of-limits.md` -- Non-commuting limits protocol (load on demand when a plan involves multiple limits or asymptotic ordering)
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/workflows/execute-plan.md` -- Load when aligning the planner with downstream execution details or summary handoff requirements
 - `{GPD_INSTALL_DIR}/templates/summary.md` -- Load when a plan needs to reference downstream summary shape or contract-led handoff details
 - `{GPD_INSTALL_DIR}/references/methods/approximation-selection.md` -- Decision framework for choosing approximation methods (load when planning tasks that involve non-trivial method selection)
 - `{GPD_INSTALL_DIR}/references/verification/core/code-testing-physics.md` -- Physics-specific testing patterns (load when planning TDD tasks or verification-heavy plans)
@@ -515,208 +513,39 @@ Use rough execution-time estimates to catch scope creep. Split plans that clearl
 
 <plan_format>
 
-## PLAN.md Structure
+## PLAN.md Source Of Truth
 
-```markdown
----
-phase: XX-name
-plan: NN
-type: execute
-wave: N # Execution wave (1, 2, 3...)
-depends_on: [] # Plan IDs this plan requires
-files_modified: [] # Files this plan touches
-interactive: false # true if plan has checkpoints
-researcher_setup: [] # Human-required setup (omit if empty)
-# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)
-#   - id: "wolfram-cas"
-#     tool: "wolfram"
-#     purpose: "Symbolic tensor reduction"
-#     required: false
-#     fallback: "Use SymPy if unavailable"
+Use the already-loaded `{GPD_INSTALL_DIR}/templates/phase-prompt.md` as the canonical PLAN.md file template and `{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical `contract:` schema. Do not inline, paraphrase, or reconstruct a second raw PLAN template here.
 
-conventions: # Physics conventions for this plan
-  units: "natural"
-  metric: "(+,-,-,-)"
-  coordinates: "Cartesian"
+When drafting a plan:
 
-dimensional_check: # Expected dimensions of key results
-  # e.g., E_0: '[energy]', sigma: '[area]', beta: '[1/energy]'
+- Follow `phase-prompt.md` for required frontmatter, XML task blocks, light-plan shape, context references, and output instructions.
+- Follow `plan-contract-schema.md` for every `contract:` key, enum, ID link, proof-bearing field, and anchor requirement.
+- Keep wave numbers pre-computed during planning; execute-phase reads `wave` directly from frontmatter.
+- Include prior SUMMARY references only when the executor genuinely needs that result, convention choice, or artifact. Avoid reflexive plan chaining.
+- Put human-only setup in `researcher_setup` and machine-checkable prerequisites in `tool_requirements`.
 
-approximations: # Active approximations
-  - name: "weak coupling"
-    parameter: "g << 1"
-    validity: "g < 0.3"
+Planner-local reminders for optional execution prerequisites:
 
-contract:
-  schema_version: 1
-  scope:
-    question: "[The decisive question this plan advances]"
-    in_scope: ["Recover the benchmark curve within tolerance"]
-  context_intake:
-    must_read_refs: ["ref-textbook"]
-    must_include_prior_outputs: ["GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md"]
-    user_asserted_anchors: ["GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention"]
-  claims:
-    - id: "claim-polarization"
-      statement: "Vacuum polarization tensor is transverse in the chosen gauge and scheme"
-      claim_kind: theorem
-      deliverables: ["deliv-vac-pol", "deliv-proof-vac-pol"]
-      acceptance_tests: ["test-transversality", "test-proof-alignment"]
-      references: ["ref-textbook"]
-      parameters:
-        - symbol: "q"
-          domain_or_type: "four-momentum transfer"
-          aliases: ["q"]
-          required_in_proof: true
-          notes: "Contraction variable whose longitudinal projection must vanish"
-      hypotheses:
-        - id: "hyp-gauge"
-          text: "Gauge-fixing and regularization conventions match the approved anchor"
-          symbols: ["q"]
-          category: "assumption"
-          required_in_proof: true
-      conclusion_clauses:
-        - id: "concl-transverse"
-          text: "q_mu Pi^{mu nu} = 0"
-      proof_deliverables: ["deliv-proof-vac-pol"]
-  deliverables:
-    - id: "deliv-vac-pol"
-      kind: "derivation"
-      path: "derivations/vacuum-polarization.tex"
-      description: "One-loop vacuum polarization derivation with explicit tensor contraction"
-    - id: "deliv-proof-vac-pol"
-      kind: "derivation"
-      path: "derivations/vacuum-polarization-proof-audit.md"
-      description: "Proof-oriented inventory for the transversality claim"
-  references:
-    - id: "ref-textbook"
-      kind: "paper"
-      locator: "Peskin & Schroeder, Ch. 7"
-      role: "benchmark"
-      why_it_matters: "Standard convention and benchmark derivation"
-      applies_to: ["claim-polarization"]
-      must_surface: true
-      required_actions: ["read", "compare", "cite"]
-  acceptance_tests:
-    - id: "test-transversality"
-      subject: "claim-polarization"
-      kind: "consistency"
-      procedure: "Contract Pi^{mu nu} with q_mu and verify the longitudinal part vanishes."
-      pass_condition: "q_mu Pi^{mu nu} = 0"
-      evidence_required: ["deliv-vac-pol", "ref-textbook"]
-    - id: "test-proof-alignment"
-      subject: "claim-polarization"
-      kind: "claim_to_proof_alignment"
-      procedure: "Verify the proof inventory covers the named hypothesis, parameter, and conclusion."
-      pass_condition: "Every theorem field is covered explicitly."
-      evidence_required: ["deliv-proof-vac-pol"]
-  forbidden_proxies:
-    - id: "fp-clean-algebra"
-      subject: "claim-polarization"
-      proxy: "Clean-looking algebra without an explicit transversality check"
-      reason: "Would not establish the decisive gauge-consistency result"
-  uncertainty_markers:
-    weakest_anchors: ["Choice of gauge-fixing convention"]
-    disconfirming_observations: ["Longitudinal term survives after simplification"]
-
----
-
-<objective>[What physics question this plan answers]</objective>
-
-<execution_context>Use the already-loaded `phase-prompt.md` and `plan-contract-schema.md`. Do not reload them here.</execution_context>
-
-<context>@GPD/PROJECT.md @GPD/ROADMAP.md @GPD/STATE.md @path/to/relevant/derivation.tex @path/to/relevant/simulation.py</context>
-
-<tasks>
-  <task type="auto">
-    <name>Task 1: [Action-oriented name]</name>
-    <files>path/to/file.ext</files>
-    <action>[Specific physics calculation or implementation]</action>
-    <verify>[Physics consistency checks]</verify>
-    <done>[Success criteria grounded in physics]</done>
-  </task>
-</tasks>
-
-<verification>[Overall physics consistency checks for the plan]</verification>
-
-<success_criteria>[Measurable completion: equations match known results, code converges, limits correct]</success_criteria>
-
-<output>After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`</output>
-```
-
-## Frontmatter Fields
-
-| Field              | Required | Purpose                                   |
-| ------------------ | -------- | ----------------------------------------- |
-| `phase`            | Yes      | Phase identifier (e.g., `01-free-theory`) |
-| `plan`             | Yes      | Plan number within phase                  |
-| `type`             | Yes      | `execute` or `tdd`                        |
-| `wave`             | Yes      | Execution wave number                     |
-| `depends_on`       | Yes      | Plan IDs this plan requires               |
-| `files_modified`   | Yes      | Files this plan touches                   |
-| `interactive`      | Yes      | `true` if the plan contains checkpoints   |
+| Field               | Required | Purpose                                      |
+| ------------------- | -------- | -------------------------------------------- |
 | `gap_closure`      | No       | `true` only for verification repair plans |
-| `conventions`      | Yes      | Physics conventions in effect             |
-| `contract`         | Yes      | Canonical machine-readable plan contract  |
-| `dimensional_check`| If any   | Expected dimensions of key results (e.g., `{E_0: '[energy]', sigma: '[area]'}`) — executor verifies at completion, verifier gets independent expectation |
-| `approximations`   | If any   | Active approximation schemes              |
-| `researcher_setup` | No       | Human-required setup items                |
 | `tool_requirements` | No       | Machine-checkable specialized tool requirements |
 
-Wave numbers are pre-computed during planning. Execute-phase reads `wave` directly from frontmatter.
+The canonical template shows the commented frontmatter marker `# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)`. Use `tool_requirements` when the plan depends on specialized tooling outside the guaranteed Python scientific baseline and the dependency should be machine-checkable before execution.
 
-## Context Section Rules
-
-Only include prior plan SUMMARY references if genuinely needed (uses derived results from prior plan, or prior plan made a convention choice affecting this one).
-
-**Anti-pattern:** Reflexive chaining (02 refs 01, 03 refs 02...). Independent calculations need NO prior SUMMARY references.
-
-**Physics-specific pattern:** Convention inheritance. If Plan 01 established notation, ALL subsequent plans reference `docs/conventions.md` (the artifact), not Plan 01's SUMMARY.
-
-## Researcher Setup Frontmatter
-
-When external computational resources are involved:
-
-```yaml
-researcher_setup:
-  - service: hpc_cluster
-    why: "Large-scale Monte Carlo requires MPI parallelism"
-    credentials:
-      - name: CLUSTER_SSH_KEY
-        source: "HPC admin -> account setup"
-    environment:
-      - task: "Load required modules"
-        commands: "module load python/3.11 openmpi/4.1"
-  - service: mathematica
-    why: "Symbolic integration of hypergeometric functions"
-    credentials:
-      - name: WOLFRAM_LICENSE
-        source: "Wolfram account -> license key"
-```
-
-Only include what the assistant literally cannot do.
-
-## Tool Requirements Frontmatter
-
-Use `tool_requirements` when the plan depends on specialized tooling outside the guaranteed Python scientific baseline and the dependency should be machine-checkable before execution.
+Use only the closed tool vocabulary the validator accepts: `wolfram` and `command`. For `tool: command`, the `command` field is required; for non-`command` tools it must be omitted. `tool_requirements[].id` must be unique within the list. `required` defaults to `true` when omitted, and a fallback does not make a required tool optional. Do not hide specialized tool assumptions only in task prose.
 
 When `RESEARCH.md` identifies an established package or framework that fits the phase, plan around using or lightly adapting it instead of defaulting to bespoke infrastructure. If that package or external code is a hard execution prerequisite, surface it in `tool_requirements` or `researcher_setup` rather than only mentioning it in task prose.
 
-```yaml
-tool_requirements:
-  - id: wolfram-cas
-    tool: wolfram
-    purpose: "Symbolic tensor reduction for Task 2"
-    required: true
-    fallback: "Use SymPy plus manual simplification if Wolfram is unavailable"
-  - id: latex-compiler
-    tool: command
-    command: "pdflatex --version"
-    purpose: "Verify a local LaTeX compiler exists before a paper-build plan depends on it"
-    fallback: "Switch to a text-only deliverable if LaTeX is unavailable"
-```
+Compact contract anchor checklist, not a PLAN fragment:
 
-Use only the closed tool vocabulary the validator accepts: `wolfram` and `command` (plus Wolfram aliases that normalize to `wolfram`). For `tool: command`, the `command` field is required; for non-`command` tools it must be omitted. `tool_requirements[].id` must be unique within the list. `required` defaults to `true` when omitted, and a fallback does not make a required tool optional. Keep `researcher_setup` for human credentials, licensed access, or manual environment work. Keep `tool_requirements` for the actual tool capability the executor must preflight. Do not hide specialized tool assumptions only in task prose.
+- `scope.in_scope` example: `in_scope: ["Recover the benchmark curve within tolerance"]`
+- `context_intake.must_read_refs` example: `must_read_refs: ["ref-textbook"]`
+- `context_intake.must_include_prior_outputs`: `GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md`
+- `context_intake.user_asserted_anchors`: `GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention`
+- Proof-bearing claim cues: `claim_kind: theorem`, `parameters -> symbol "q"`, `hypotheses -> hyp-gauge`, `conclusion_clauses -> concl-transverse`, `proof_deliverables: ["deliv-proof-vac-pol"]`
+- Reference anchor cues: `must_surface: true`, `required_actions: ["read", "compare", "cite"]`
 
 </plan_format>
 
@@ -872,17 +701,10 @@ Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`
 **6. Create repair tasks** that list the missing items, the existing reference, the failed check, and the new passing check.
 **7. Write PLAN.md files** with `type: execute` and `gap_closure: true`.
 
+Gap-specific fields to insert into the canonical `phase-prompt.md` template:
+
 ```yaml
----
-phase: XX-name
-plan: NN
-type: execute
-wave: 1
-depends_on: []
-files_modified: [...]
-interactive: false
 gap_closure: true # Flag for tracking
-conventions: {}
 contract:
   schema_version: 1
   scope:
@@ -917,7 +739,6 @@ contract:
   uncertainty_markers:
     weakest_anchors: ["[What still makes the repair fragile]"]
     disconfirming_observations: ["[What would show the fix did not actually hold]"]
----
 ```
 
 </gap_closure_mode>

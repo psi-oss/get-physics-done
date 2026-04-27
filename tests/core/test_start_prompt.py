@@ -44,7 +44,7 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
 
     assert_start_workflow_router_contract(workflow)
     assert "gpd --raw init new-project --stage scope_intake" in workflow
-    assert "core project/root detection" in workflow
+    assert "workspace-bound, read-only classifier" in workflow
     assert "Do not use that file search to override the core classifier." in workflow
     assert "HAS_GPD_PROJECT=false" not in workflow
     assert "RESEARCH_FILE_COUNT" not in workflow

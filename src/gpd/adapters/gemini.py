@@ -260,6 +260,31 @@ def _read_gemini_settings_state(settings_path: Path) -> tuple[dict[str, object] 
     return parsed, None
 
 
+def _validated_deferred_install_payload(
+    install_result: Mapping[str, object],
+) -> tuple[str | Path, dict[str, object], str, bool]:
+    """Return deferred settings payload or fail closed before finalization."""
+    settings_written = install_result.get("settingsWritten", False)
+    if type(settings_written) is not bool:
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+
+    settings_path = install_result.get("settingsPath")
+    settings = install_result.get("settings")
+    statusline_command = install_result.get("statuslineCommand")
+    should_install_statusline = install_result.get("shouldInstallStatusline", True)
+
+    if not isinstance(settings_path, (str, Path)):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if not isinstance(settings, dict):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if not isinstance(statusline_command, str):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if type(should_install_statusline) is not bool:
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+
+    return settings_path, settings, statusline_command, should_install_statusline
+
+
 def _gemini_policy_command_prefixes(bridge_command: str) -> tuple[str, ...]:
     """Return the narrow shell prefixes GPD auto-approves for Gemini."""
     return (
@@ -1353,27 +1378,28 @@ class GeminiAdapter(RuntimeAdapter):
         force_statusline: bool = False,
     ) -> None:
         """Persist Gemini settings when install produced an in-memory config."""
-        if install_result.get("settingsWritten"):
+        settings_written = install_result.get("settingsWritten", False)
+        if type(settings_written) is not bool:
+            raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+        if settings_written:
             return
 
-        settings_path = install_result.get("settingsPath")
-        settings = install_result.get("settings")
-        statusline_command = install_result.get("statuslineCommand")
-        should_install_statusline = install_result.get("shouldInstallStatusline", True)
-        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
-            target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
-            _validate_existing_gemini_managed_state(target_dir)
-            _, settings_parse_error = _read_gemini_settings_state(Path(settings_path))
-            if settings_parse_error is not None:
-                raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during finalize.")
-            self.finish_install(
-                settings_path,
-                settings,
-                statusline_command,
-                bool(should_install_statusline),
-                force_statusline=force_statusline,
-            )
-            install_result["settingsWritten"] = True
+        settings_path, settings, statusline_command, should_install_statusline = _validated_deferred_install_payload(
+            install_result
+        )
+        target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
+        _validate_existing_gemini_managed_state(target_dir)
+        _, settings_parse_error = _read_gemini_settings_state(Path(settings_path))
+        if settings_parse_error is not None:
+            raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during finalize.")
+        self.finish_install(
+            settings_path,
+            settings,
+            statusline_command,
+            should_install_statusline,
+            force_statusline=force_statusline,
+        )
+        install_result["settingsWritten"] = True
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from a Gemini CLI .gemini/ directory.

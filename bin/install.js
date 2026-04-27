@@ -810,16 +810,16 @@ function validateRuntimeCatalogCapabilityHookPayloadContract(capabilities, hookP
     requireHookPayloadFields("telemetry_source", ["notify_event_types"]);
   }
   if (capabilities.supports_usage_tokens) {
-    if (capabilities.telemetry_source !== "notify-hook") {
+    if (capabilities.telemetry_source === "none") {
       throw new Error(
-        `${label}.capabilities.supports_usage_tokens requires ${label}.capabilities.telemetry_source=notify-hook`
+        `${label}.capabilities.supports_usage_tokens requires ${label}.capabilities.telemetry_source!="none"`
       );
     }
     requireHookPayloadFields("supports_usage_tokens", ["usage_keys", "input_tokens_keys", "output_tokens_keys"]);
   }
   if (capabilities.supports_cost_usd) {
-    if (capabilities.telemetry_source !== "notify-hook") {
-      throw new Error(`${label}.capabilities.supports_cost_usd requires ${label}.capabilities.telemetry_source=notify-hook`);
+    if (capabilities.telemetry_source === "none") {
+      throw new Error(`${label}.capabilities.supports_cost_usd requires ${label}.capabilities.telemetry_source!="none"`);
     }
     requireHookPayloadFields("supports_cost_usd", ["cost_usd_keys"]);
   }
@@ -1808,6 +1808,7 @@ function ensureManagedEnvironment(basePython) {
   const venvDir = managedEnvDir(gpdHome);
   const managedPython = managedPythonPath(venvDir);
   const existingManaged = pythonVersionInfo(managedPython);
+  const hadExistingManaged = Boolean(existingManaged);
 
   let shouldCreate = !existingManaged;
   if (
@@ -1858,7 +1859,7 @@ function ensureManagedEnvironment(basePython) {
 
   log(`Using managed environment at ${venvDir}`);
   log(`Found ${pipVersion}`);
-  return { gpdHome, venvDir, python: managedPython };
+  return { gpdHome, venvDir, python: managedPython, reusedExisting: hadExistingManaged && !shouldCreate };
 }
 
 async function installManagedPackage(python, pythonVersion, options = {}) {
@@ -1925,6 +1926,27 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
   }
 
   return { ok: false, requestedVersion };
+}
+
+function runManagedCliCommand(python, cliArgs, options = {}) {
+  const { captureOutput = false } = options;
+  const spawnOptions = { env: process.env };
+  if (captureOutput) {
+    spawnOptions.encoding = "utf-8";
+  } else {
+    spawnOptions.stdio = "inherit";
+  }
+  return spawnSync(python, cliArgs, spawnOptions);
+}
+
+function describeFailedCommand(result) {
+  if (result.error) {
+    return result.error.message;
+  }
+  if (result.signal) {
+    return `signal ${result.signal}`;
+  }
+  return `exit ${result.status}`;
 }
 
 async function prompt(question) {
@@ -2821,6 +2843,24 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
+  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, { forceStatusline });
+
+  if (isUninstall) {
+    log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
+  }
+
+  if (isUninstall && managedEnv.reusedExisting) {
+    log("Trying existing managed GPD CLI for uninstall...");
+    const existingUninstall = runManagedCliCommand(managedEnv.python, cliArgs, { captureOutput: true });
+    if (existingUninstall.status === 0) {
+      flushCapturedOutput(existingUninstall);
+      return;
+    }
+    log(
+      "Existing managed GPD CLI could not complete uninstall "
+      + `(${describeFailedCommand(existingUninstall)}); preparing current managed GPD CLI...`
+    );
+  }
 
   const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
     forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
@@ -2843,17 +2883,8 @@ async function main() {
     }
   }
 
-  if (isUninstall) {
-    log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
-  }
-
-  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, { forceStatusline });
-
   // Run the installer/uninstaller through the managed Python interpreter.
-  const result = spawnSync(managedEnv.python, cliArgs, {
-    stdio: "inherit",
-    env: process.env,
-  });
+  const result = runManagedCliCommand(managedEnv.python, cliArgs);
 
   if (result.status === 0) {
     if (!isUninstall) {

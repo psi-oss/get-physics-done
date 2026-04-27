@@ -36,7 +36,7 @@ class TestValidateStateErrorHandling:
     def test_gpd_error(self, monkeypatch, fake_project_dir):
         monkeypatch.setattr(
             "gpd.mcp.servers.state_server.state_validate",
-            lambda _cwd: (_ for _ in ()).throw(GPDError("bad state")),
+            lambda _cwd, **_kwargs: (_ for _ in ()).throw(GPDError("bad state")),
         )
         result = validate_state(fake_project_dir)
         assert result == {"error": "bad state", "schema_version": 1}
@@ -44,7 +44,7 @@ class TestValidateStateErrorHandling:
     def test_value_error(self, monkeypatch, fake_project_dir):
         monkeypatch.setattr(
             "gpd.mcp.servers.state_server.state_validate",
-            lambda _cwd: (_ for _ in ()).throw(ValueError("invalid")),
+            lambda _cwd, **_kwargs: (_ for _ in ()).throw(ValueError("invalid")),
         )
         result = validate_state(fake_project_dir)
         assert result == {"error": "invalid", "schema_version": 1}

@@ -39,6 +39,15 @@ def test_executor_bootstrap_does_not_eagerly_load_completion_only_templates() ->
     assert "bounded execution segment envelope" not in role
 
 
+def test_executor_prompt_does_not_self_bootstrap_execute_phase() -> None:
+    executor = _read_executor_prompt()
+
+    assert "execute-plan command" not in executor
+    assert "init execute-phase" not in executor
+    assert 'gpd --raw init execute-phase "${PHASE}"' not in executor
+    assert "Do not bootstrap phase state from inside the executor." in executor
+
+
 def test_expanded_executor_prompt_stays_under_budget_and_excludes_late_publication_artifacts() -> None:
     expanded = expand_at_includes(_read_executor_prompt(), SPECS_DIR, "/runtime/")
 

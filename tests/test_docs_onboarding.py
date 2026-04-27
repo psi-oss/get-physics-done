@@ -230,10 +230,18 @@ def test_root_readme_install_source_policy_and_peer_review_target_are_current() 
 def test_root_readme_runtime_workflow_examples_are_prefixless_and_uninstall_link_is_current() -> None:
     content = _read("README.md")
     quick_start = _markdown_section(content, "## Quick Start")
+    worked_example = _markdown_section(content, "## Worked Example")
     uninstall = _markdown_section(content, "## Uninstall")
 
     assert "Typical new-project workflow, shown as command names without runtime prefixes:" in quick_start
     assert "`new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work 1`" in quick_start
+    assert "The example below uses canonical command names without runtime prefixes." in worked_example
+    assert "Claude Code / Gemini CLI syntax" not in worked_example
+    assert "```text\nnew-project\n" in worked_example
+    assert "```text\nplan-phase 1\nexecute-phase 1\nverify-work 1\n```" in worked_example
+    assert "```text\nwrite-paper\npeer-review\nrespond-to-referees\narxiv-submission\n```" in worked_example
+    assert "```text\ngpd:new-project\n" not in worked_example
+    assert "`gpd:plan-phase N`" not in worked_example
     assert "Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`" in content
     assert "Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`" in content
     assert "gpd:new-project ->" not in content

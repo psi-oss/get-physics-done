@@ -427,7 +427,7 @@ def test_installed_verifier_prompt_surface_keeps_one_wrapper_and_stays_within_bu
 
 
 @pytest.mark.no_stable_hook_python
-@pytest.mark.parametrize("runtime", ["claude-code"])
+@pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)
 def test_install_artifacts_pin_checkout_python_when_running_from_checkout(
     tmp_path: Path,
     runtime: str,
@@ -855,7 +855,10 @@ def test_installed_planner_bootstrap_surface_defers_execution_and_completion_mat
 
     assert separator == "On-demand references:"
     assert "phase-prompt.md" in bootstrap
-    assert "plan-contract-schema.md" in bootstrap
+    assert "planner contract schema is carried there" in bootstrap
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" not in bootstrap
+    if "# PLAN Contract Schema" in bootstrap:
+        assert bootstrap.count("# PLAN Contract Schema") == 1
     assert "Read config.json for planning behavior settings." not in bootstrap
     assert "## Summary Template" not in bootstrap
     assert "Order-of-Limits Awareness" not in bootstrap

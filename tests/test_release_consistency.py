@@ -548,8 +548,9 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
-    assert workflow.count('node-version: "20"') == 2
-    assert 'node-version: "24"' not in workflow
+    assert workflow.count('node-version: "20"') == 1
+    assert workflow.count('node-version: "24"') == 1
+    assert re.search(r"  publish-npm-and-github-release:\n(?:.*\n)*?          node-version: \"24\"", workflow)
     assert "actions/upload-artifact@v7" in workflow
     assert "actions/download-artifact@v8" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" in workflow
@@ -558,6 +559,11 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "NPM_TOKEN" not in workflow
     assert "pull-requests: write" in workflow
     assert "npm publish" in workflow
+    assert 'npm view "get-physics-done@${VERSION}" version' in workflow
+    assert "status=already-published" in workflow
+    assert "status=published" in workflow
+    assert "get-physics-done@${VERSION} is already published on npm; skipping npm publish." in workflow
+    assert "npm publish failed, but get-physics-done@${VERSION} is now published; continuing." in workflow
     assert "gh release create" in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
@@ -578,6 +584,10 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "GPD_WEB_DISPATCH_TOKEN not configured" in workflow
     assert 'echo "status=skipped" >> "$GITHUB_OUTPUT"' in workflow
     assert 'echo "status=dispatched" >> "$GITHUB_OUTPUT"' in workflow
+    assert "NPM_PUBLISH_STATUS: ${{ steps.npm_publish.outputs.status }}" in workflow
+    assert 'if [ "${NPM_PUBLISH_STATUS}" = "already-published" ]; then' in workflow
+    assert 'echo "- npm: already published; skipped trusted-publishing rerun"' in workflow
+    assert 'echo "- npm: published via trusted publishing from environment \\`npm\\`"' in workflow
     assert "GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}" in workflow
     assert 'if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then' in workflow
     assert 'echo "- GPD Web production rebuild: dispatched"' in workflow

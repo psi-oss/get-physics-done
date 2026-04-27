@@ -848,6 +848,51 @@ class TestRuntimePermissions:
 
         assert settings_path.read_text(encoding="utf-8") == before
 
+    @pytest.mark.parametrize("missing_field", ["settingsPath", "settings", "statuslineCommand"])
+    def test_finalize_install_fails_closed_for_missing_deferred_payload_field(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        missing_field: str,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result.pop(missing_field)
+
+        with pytest.raises(RuntimeError, match="deferred install result is malformed"):
+            adapter.finalize_install(result)
+
+        assert not (target / "settings.json").exists()
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("settingsPath", ["settings.json"]),
+            ("settings", []),
+            ("statuslineCommand", 123),
+            ("shouldInstallStatusline", "yes"),
+        ],
+    )
+    def test_finalize_install_fails_closed_for_invalid_deferred_payload_field(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        field: str,
+        value: object,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result[field] = value
+
+        with pytest.raises(RuntimeError, match="deferred install result is malformed"):
+            adapter.finalize_install(result)
+
+        assert not (target / "settings.json").exists()
+
     def test_finalize_install_fails_closed_for_structurally_invalid_settings_json(
         self,
         adapter: ClaudeCodeAdapter,

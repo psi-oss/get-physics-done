@@ -3401,7 +3401,7 @@ def init_plan_phase(
 def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new project creation."""
     requested_cwd = cwd.expanduser().resolve(strict=False)
-    project_cwd = resolve_project_root(requested_cwd, require_layout=True) or requested_cwd
+    project_cwd = _resolve_workspace_locked_cwd(requested_cwd)
     config = load_config(project_cwd)
 
     # Detect existing research files (walk up to depth 3, max 5 files)

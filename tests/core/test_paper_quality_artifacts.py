@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -17,6 +18,10 @@ STAGE0_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0
 def _write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def _sha256_text(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 def _full_convention_lock() -> dict[str, str]:
@@ -781,6 +786,91 @@ def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_e
                         "category": "tex",
                         "path": "missing-entry.tex",
                         "sha256": "b" * 64,
+                        "produced_by": "paper-compiler",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Config Title"
+    assert result.journal == "jhep"
+
+
+def test_build_paper_quality_input_trusts_manifest_metadata_when_manuscript_hash_matches(
+    tmp_path: Path,
+) -> None:
+    manuscript = (
+        "\\documentclass{article}\\begin{document}\\begin{abstract}A.\\end{abstract}"
+        "\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n"
+    )
+    manuscript_sha256 = _sha256_text(manuscript)
+    _write(tmp_path / "paper" / "active-entry.tex", manuscript)
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Config Title", "jhep", output_filename="active-entry")),
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Fresh Manifest Title",
+                "journal": "prl",
+                "created_at": "2026-03-13T00:00:00+00:00",
+                "manuscript_sha256": manuscript_sha256,
+                "artifacts": [
+                    {
+                        "artifact_id": "main-tex",
+                        "category": "tex",
+                        "path": "active-entry.tex",
+                        "sha256": manuscript_sha256,
+                        "produced_by": "paper-compiler",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Fresh Manifest Title"
+    assert result.journal == "prl"
+
+
+def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_hash_is_stale(
+    tmp_path: Path,
+) -> None:
+    manuscript = (
+        "\\documentclass{article}\\begin{document}\\begin{abstract}A.\\end{abstract}"
+        "\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n"
+    )
+    _write(tmp_path / "paper" / "active-entry.tex", manuscript)
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Config Title", "jhep", output_filename="active-entry")),
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Stale Manifest Title",
+                "journal": "prd",
+                "created_at": "2026-03-13T00:00:00+00:00",
+                "manuscript_sha256": "0" * 64,
+                "artifacts": [
+                    {
+                        "artifact_id": "main-tex",
+                        "category": "tex",
+                        "path": "active-entry.tex",
+                        "sha256": _sha256_text(manuscript),
                         "produced_by": "paper-compiler",
                         "sources": [],
                         "metadata": {},

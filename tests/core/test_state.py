@@ -2442,6 +2442,38 @@ def test_state_validate_warns_when_primary_project_contract_is_blocked(tmp_path:
     assert not any("state.json root was recovered from state.json.bak" in warning for warning in validation.warnings)
 
 
+def test_state_validate_surfaces_blocked_project_contract_diagnostics(tmp_path: Path) -> None:
+    baseline = default_state_dict()
+    save_state_json(tmp_path, baseline)
+    save_state_markdown(tmp_path, generate_state_markdown(baseline))
+    layout = ProjectLayout(tmp_path)
+
+    broken_state = default_state_dict()
+    broken_state["project_contract"] = "not-an-object"
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+
+    validation = state_validate(tmp_path, surface_blocked_project_contract=True)
+
+    assert validation.valid is True
+    assert validation.project_contract_load_info is not None
+    assert validation.project_contract_load_info["status"] == "blocked_type"
+    assert validation.project_contract_gate is not None
+    assert validation.project_contract_gate["authoritative"] is False
+    assert any("project contract must be a JSON object" in warning for warning in validation.warnings)
+
+
+def test_state_validate_reports_unknown_top_level_state_json_keys(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["custom_notes"] = "operator-only note"
+    save_state_json(tmp_path, state)
+    save_state_markdown(tmp_path, generate_state_markdown(state))
+
+    validation = state_validate(tmp_path)
+
+    assert validation.valid is True
+    assert any('unknown top-level state.json key "custom_notes"' in warning for warning in validation.warnings)
+
+
 def test_state_load_recovers_backup_project_contract_when_primary_contract_is_blocked(tmp_path: Path) -> None:
     baseline = default_state_dict()
     baseline["position"]["status"] = "Executing"

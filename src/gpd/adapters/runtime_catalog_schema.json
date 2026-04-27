@@ -102,7 +102,8 @@
     ],
     "telemetry_source": [
       "none",
-      "notify-hook"
+      "notify-hook",
+      "runtime-api"
     ],
     "telemetry_completeness": [
       "best-effort",

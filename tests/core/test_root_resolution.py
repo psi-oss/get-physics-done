@@ -80,6 +80,24 @@ def test_resolve_project_roots_prefers_verified_workspace_over_unverified_explic
     assert resolution.walk_up_steps == 2
 
 
+def test_resolve_project_roots_does_not_cross_nested_vcs_checkout_boundary(tmp_path: Path) -> None:
+    home_project = tmp_path / "home"
+    nested_repo = home_project / "GitHub" / "unrelated-repo"
+    workspace = nested_repo / "src" / "notes"
+    _make_project_root(home_project)
+    (nested_repo / ".git").mkdir(parents=True)
+    workspace.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolve_project_root(workspace, require_layout=True) is None
+
+
 def test_resolve_project_roots_falls_back_to_explicit_project_dir_when_nothing_is_verified(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     project_hint = tmp_path / "maybe-project"

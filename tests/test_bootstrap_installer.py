@@ -1066,6 +1066,7 @@ const runtimeCatalogSchema = require("./src/gpd/adapters/runtime_catalog_schema.
 const installHelpExampleScopes = new Set(runtimeCatalogSchema.install_help_example_scopes);
 const installHelpExampleScopeList = [...installHelpExampleScopes].sort();
 const launchWrapperPermissionSurfaceKinds = [...new Set(runtimeCatalogSchema.launch_wrapper_permission_surface_kinds)].sort();
+const telemetrySourceList = runtimeCatalogSchema.capability_enums.telemetry_source.join(", ");
 const launchWrapperDisjunction = launchWrapperPermissionSurfaceKinds.length === 1
   ? JSON.stringify(launchWrapperPermissionSurfaceKinds[0])
   : `one of ${launchWrapperPermissionSurfaceKinds.map((value) => JSON.stringify(value)).join(", ")}`;
@@ -1314,8 +1315,26 @@ const badTelemetryCatalog = JSON.parse(JSON.stringify(catalog));
 badTelemetryCatalog[0].capabilities.telemetry_source = "webhook";
 assert.throws(
   () => validateRuntimeCatalog(badTelemetryCatalog),
-  /runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook/
+  new RegExp(
+    `runtime catalog entry 0\\.capabilities\\.telemetry_source must be one of: ${escapeRegex(telemetrySourceList)}`
+  )
 );
+
+const runtimeApiTelemetryCatalog = JSON.parse(JSON.stringify(normalizedCatalog));
+const runtimeApiTelemetryRuntime = runtimeApiTelemetryCatalog.find(
+  (runtime) =>
+    runtime.capabilities.telemetry_source === "none"
+);
+assert.ok(runtimeApiTelemetryRuntime, "expected a catalog entry without notify telemetry");
+runtimeApiTelemetryRuntime.capabilities.telemetry_source = "runtime-api";
+runtimeApiTelemetryRuntime.capabilities.telemetry_completeness = "best-effort";
+runtimeApiTelemetryRuntime.capabilities.supports_usage_tokens = true;
+runtimeApiTelemetryRuntime.capabilities.supports_cost_usd = true;
+runtimeApiTelemetryRuntime.hook_payload.usage_keys = ["usage"];
+runtimeApiTelemetryRuntime.hook_payload.input_tokens_keys = ["input_tokens"];
+runtimeApiTelemetryRuntime.hook_payload.output_tokens_keys = ["output_tokens"];
+runtimeApiTelemetryRuntime.hook_payload.cost_usd_keys = ["cost_usd"];
+assert.doesNotThrow(() => validateRuntimeCatalog(runtimeApiTelemetryCatalog));
 
 const badCapabilityDefaultsSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
 badCapabilityDefaultsSchema.capability_defaults.supports_context_meter = "false";
@@ -1328,7 +1347,9 @@ const badCapabilityDefaultEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogS
 badCapabilityDefaultEnumSchema.capability_defaults.telemetry_source = "webhook";
 assert.throws(
   () => validateRuntimeCatalogSchemaShape(badCapabilityDefaultEnumSchema),
-  /runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook/
+  new RegExp(
+    `runtime catalog schema\\.capability_defaults\\.telemetry_source must be one of: ${escapeRegex(telemetrySourceList)}`
+  )
 );
 
 const futureCapabilityEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
@@ -1763,6 +1784,35 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
     assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
     assert "Runtime launcher/target preflight" not in result.stdout
     assert f"Uninstalling GPD from {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." in result.stdout
+    assert "runtime uninstall ok" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_reuses_existing_managed_cli_without_package_install(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", _CODEX_INSTALL_FLAG, "--local"],
+        precreate_managed_version="Python 3.13.2",
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    managed_runtime_uninstalls = [
+        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", _CODEX_RUNTIME_NAME, "--local"]
+    ]
+    venv_creates = [entry for entry in entries if entry["argv"][:2] == ["-m", "venv"] and entry["argv"] != ["-m", "venv", "--help"]]
+
+    assert managed_pip_installs == []
+    assert len(managed_runtime_uninstalls) == 1
+    assert venv_creates == []
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()
+    assert "Trying existing managed GPD CLI for uninstall..." in result.stdout
+    assert "Preparing managed GPD CLI from PyPI" not in result.stdout
     assert "runtime uninstall ok" in result.stdout
 
 

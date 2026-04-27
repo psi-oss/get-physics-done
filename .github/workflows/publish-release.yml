@@ -199,7 +199,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Run stamped release validation
@@ -209,7 +209,33 @@ jobs:
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json
 
       - name: Publish to npm
-        run: npm publish
+        id: npm_publish
+        run: |
+          VERSION="${{ needs.build-release.outputs.version }}"
+
+          npm_version_is_published() {
+            PUBLISHED_VERSION="$(npm view "get-physics-done@${VERSION}" version 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
+            [ "$PUBLISHED_VERSION" = "$VERSION" ]
+          }
+
+          if npm_version_is_published; then
+            echo "::notice::get-physics-done@${VERSION} is already published on npm; skipping npm publish."
+            echo "status=already-published" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if npm publish; then
+            echo "status=published" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if npm_version_is_published; then
+            echo "::warning::npm publish failed, but get-physics-done@${VERSION} is now published; continuing."
+            echo "status=already-published" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          exit 1
 
       - name: Create GitHub release
         id: github_release
@@ -323,6 +349,7 @@ jobs:
       - name: Write publish summary
         env:
           RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
+          NPM_PUBLISH_STATUS: ${{ steps.npm_publish.outputs.status }}
           METADATA_PR_URL: ${{ steps.metadata_pr.outputs.pr_url }}
           GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}
         run: |
@@ -337,7 +364,11 @@ jobs:
             echo "- Commit: \`${RELEASE_SHA}\`"
             echo "- Publish date: \`${RELEASE_DATE}\`"
             echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
-            echo "- npm: published via trusted publishing from environment \`npm\`"
+            if [ "${NPM_PUBLISH_STATUS}" = "already-published" ]; then
+              echo "- npm: already published; skipped trusted-publishing rerun"
+            else
+              echo "- npm: published via trusted publishing from environment \`npm\`"
+            fi
             echo "- GitHub release: ${RELEASE_URL}"
             if [ "${METADATA_CHANGED}" = "true" ]; then
               echo "- Follow-up metadata PR: ${METADATA_PR_URL}"

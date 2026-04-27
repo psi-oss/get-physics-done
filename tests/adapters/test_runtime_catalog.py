@@ -111,6 +111,19 @@ def _iter_runtime_descriptors_from_schema(
         runtime_catalog._load_catalog.cache_clear()
 
 
+def _iter_runtime_descriptors_from_schema_and_payload(
+    schema_payload: dict[str, object],
+    catalog_payload: list[dict[str, object]],
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(catalog_payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    return _iter_runtime_descriptors_from_schema(schema_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(monkeypatch) -> None:
     monkeypatch.setenv("CODEX_CONFIG_DIR", "/tmp/process-codex-config")
 
@@ -589,11 +602,13 @@ def test_runtime_catalog_rejects_invalid_capability_enum_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    allowed = ", ".join(schema["capability_enums"]["telemetry_source"])
     payload[0]["capabilities"]["telemetry_source"] = "webhook"
 
     with pytest.raises(
         ValueError,
-        match=r"runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook",
+        match=rf"runtime catalog entry 0\.capabilities\.telemetry_source must be one of: {re.escape(allowed)}",
     ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
@@ -706,7 +721,7 @@ def test_runtime_catalog_rejects_managed_install_surface_glob_escapes(
         (
             "telemetry_source",
             "webhook",
-            r"runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook",
+            r"runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook, runtime-api",
         ),
         (
             "prompt_free_mode_value",
@@ -753,6 +768,38 @@ def test_runtime_catalog_accepts_future_config_surface_labels(
     assert descriptors[0].capabilities.permission_surface_kind == "future.json:permissions.mode"
     assert descriptors[0].capabilities.statusline_config_surface == "future.json:statusLine"
     assert descriptors[0].capabilities.notify_config_surface == "future.json:notify"
+
+
+def test_runtime_catalog_accepts_non_notify_telemetry_source_with_usage_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    opencode = _catalog_entry_by_runtime_name(payload, "opencode")
+    opencode["capabilities"].update(
+        {
+            "telemetry_source": "runtime-api",
+            "telemetry_completeness": "best-effort",
+            "supports_usage_tokens": True,
+            "supports_cost_usd": True,
+        }
+    )
+    opencode["hook_payload"].update(
+        {
+            "usage_keys": ["usage"],
+            "input_tokens_keys": ["input_tokens"],
+            "output_tokens_keys": ["output_tokens"],
+            "cost_usd_keys": ["cost_usd"],
+        }
+    )
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    opencode_descriptor = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "opencode")
+
+    assert opencode_descriptor.capabilities.notify_surface == "none"
+    assert opencode_descriptor.capabilities.telemetry_source == "runtime-api"
+    assert opencode_descriptor.capabilities.supports_usage_tokens is True
+    assert opencode_descriptor.capabilities.supports_cost_usd is True
 
 
 def test_runtime_catalog_rejects_malformed_config_surface_labels(
@@ -1159,9 +1206,10 @@ def test_runtime_capabilities_are_explicit_per_runtime() -> None:
 
 
 def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
     allowed_permissions_surfaces = {"config-file", "launch-wrapper", "unsupported"}
     allowed_hook_surfaces = {"explicit", "none"}
-    allowed_telemetry_sources = {"notify-hook", "none"}
+    allowed_telemetry_sources = set(schema["capability_enums"]["telemetry_source"])
     allowed_telemetry_completeness = {"best-effort", "none"}
     allowed_child_artifact_persistence_reliability = {"best-effort", "none", "reliable"}
     allowed_continuation_surfaces = {"explicit", "none"}
@@ -1232,14 +1280,15 @@ def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
             assert not hook_payload.notify_event_types
 
         if capabilities.telemetry_completeness == "best-effort":
-            assert capabilities.telemetry_source == "notify-hook"
-            assert capabilities.notify_surface == "explicit"
-            assert capabilities.supports_usage_tokens is True
-            assert capabilities.supports_cost_usd is True
-            assert hook_payload.usage_keys
-            assert hook_payload.input_tokens_keys
-            assert hook_payload.output_tokens_keys
-            assert hook_payload.cost_usd_keys
+            assert capabilities.telemetry_source != "none"
+            if capabilities.telemetry_source == "notify-hook":
+                assert capabilities.notify_surface == "explicit"
+            if capabilities.supports_usage_tokens:
+                assert hook_payload.usage_keys
+                assert hook_payload.input_tokens_keys
+                assert hook_payload.output_tokens_keys
+            if capabilities.supports_cost_usd:
+                assert hook_payload.cost_usd_keys
         else:
             assert capabilities.telemetry_source == "none"
             assert capabilities.supports_usage_tokens is False

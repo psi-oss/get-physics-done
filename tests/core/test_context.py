@@ -2151,18 +2151,25 @@ class TestInitNewProject:
         assert ctx["planning_exists"] is False
         assert "staged_loading" not in ctx
 
-    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+    def test_new_project_is_workspace_bound_from_nested_workspace(self, tmp_path: Path) -> None:
         planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (planning / "state.json").write_text("{}", encoding="utf-8")
         nested = tmp_path / "notes" / "scratch"
         nested.mkdir(parents=True)
+        (nested / "calc.py").write_text("print('local research')\n", encoding="utf-8")
 
-        ctx = init_new_project(nested)
+        ctx = init_new_project(nested, stage="scope_intake")
 
-        assert ctx["project_exists"] is True
-        assert ctx["planning_exists"] is True
+        assert ctx["project_exists"] is False
+        assert ctx["state_exists"] is False
+        assert ctx["recoverable_project_exists"] is False
+        assert ctx["planning_exists"] is False
         assert ctx["has_research_map"] is False
+        assert ctx["has_research_files"] is True
+        assert ctx["needs_research_map"] is True
+        assert not (planning / "state.json.lock").exists()
 
     def test_detects_research_files(self, tmp_path: Path) -> None:
         (tmp_path / "calc.py").write_text("import numpy", encoding="utf-8")

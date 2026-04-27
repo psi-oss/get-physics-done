@@ -7418,6 +7418,21 @@ def _flag_values(arguments: str | None, *flags: str) -> list[str]:
     return values
 
 
+def _progress_reconcile_requested(command: object, arguments: str | None) -> bool:
+    """Return whether this invocation is the runtime progress reconciliation mode."""
+    return str(getattr(command, "name", "") or "") == "gpd:progress" and "--reconcile" in _split_command_arguments(
+        arguments
+    )
+
+
+def _progress_reconcile_confirmation_check(command: object) -> tuple[bool, str]:
+    """Return the executable confirmation contract for ``gpd:progress --reconcile``."""
+    allowed_tools = set(getattr(command, "allowed_tools", []) or [])
+    if "ask_user" in allowed_tools:
+        return True, "ask_user is available before progress reconciliation writes state"
+    return False, "progress --reconcile requires ask_user or an explicit typed-confirmation contract before state writes"
+
+
 def _write_paper_external_authoring_intake_argument(arguments: str | None) -> str | None:
     """Return the explicit ``--intake`` manifest path supplied to ``gpd:write-paper``."""
 
@@ -9339,10 +9354,22 @@ def _build_command_context_preflight(
                     manuscript_context_detail,
                     blocking=False,
                 )
+            reconcile_confirmation_passed = True
+            if _progress_reconcile_requested(command, arguments):
+                reconcile_confirmation_passed, reconcile_confirmation_detail = _progress_reconcile_confirmation_check(
+                    command
+                )
+                add_check(
+                    "reconcile_confirmation",
+                    reconcile_confirmation_passed,
+                    reconcile_confirmation_detail,
+                    blocking=True,
+                )
             recoverable = (
                 (state_exists or roadmap_exists or project_exists)
                 and required_files_present
                 and manuscript_context_passed
+                and reconcile_confirmation_passed
                 and not selected_root_requires_user_selection
             )
             guidance = (
@@ -9451,7 +9478,15 @@ def _build_command_context_preflight(
                 manuscript_context_passed,
                 manuscript_context_detail,
             )
-        passed = project_exists and required_files_present and manuscript_context_passed
+        reconcile_confirmation_passed = True
+        if _progress_reconcile_requested(command, arguments):
+            reconcile_confirmation_passed, reconcile_confirmation_detail = _progress_reconcile_confirmation_check(command)
+            add_check(
+                "reconcile_confirmation",
+                reconcile_confirmation_passed,
+                reconcile_confirmation_detail,
+            )
+        passed = project_exists and required_files_present and manuscript_context_passed and reconcile_confirmation_passed
         guidance = (
             ""
             if passed
