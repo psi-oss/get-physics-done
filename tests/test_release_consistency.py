@@ -446,6 +446,7 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "name: npm" in workflow
     assert "NODE_AUTH_TOKEN" not in workflow
     assert "NPM_TOKEN" not in workflow
+    assert "pull-requests: write" in workflow
     assert "npm publish" in workflow
     assert "gh release create" in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
