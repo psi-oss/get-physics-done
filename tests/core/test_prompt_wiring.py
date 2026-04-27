@@ -4655,11 +4655,10 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
     digest_command = (COMMANDS_DIR / "digest-knowledge.md").read_text(encoding="utf-8")
     digest_workflow = (WORKFLOWS_DIR / "digest-knowledge.md").read_text(encoding="utf-8")
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
-    peer_review_help_block = _extract_between(
-        help_workflow,
+    peer_review_help_block = help_workflow.split(
         "**`gpd:peer-review [paper directory | manuscript path | explicit artifact path]`**",
-        "**`gpd:respond-to-referees [path to referee report or 'paste']`**",
-    )
+        1,
+    )[1].split("**`gpd:respond-to-referees", 1)[0]
 
     assert (
         "Review a specific `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript directory "
@@ -4924,3 +4923,17 @@ def test_changed_continuation_surfaces_do_not_reintroduce_session_as_authority()
     for name, text in checked_surfaces.items():
         for phrase in stale_phrases:
             assert phrase not in text, f"{name} reintroduced stale session-authority wording: {phrase}"
+
+
+def test_autonomous_success_criteria_stay_provider_neutral_and_current() -> None:
+    autonomous = (WORKFLOWS_DIR / "autonomous.md").read_text(encoding="utf-8")
+    success_criteria = _extract_between(autonomous, "<success_criteria>", "</success_criteria>")
+
+    assert "current `gpd` surfaces" in success_criteria
+    assert "canonical `GPD/` paths" in success_criteria
+    assert "runtime/provider-neutral" in success_criteria
+
+    for stale_fragment in ("gsd-tools.cjs", ".planning/", "provider-specific features"):
+        assert stale_fragment not in success_criteria
+    for provider_literal in ("Anthropic", "OpenAI"):
+        assert provider_literal not in success_criteria

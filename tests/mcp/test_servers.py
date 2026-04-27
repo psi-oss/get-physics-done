@@ -536,6 +536,13 @@ class TestConventionsServer:
         assert result["found"] is False
         assert "available_domains" in result
 
+    def test_subfield_defaults_blank_returns_error_envelope(self):
+        from gpd.mcp.servers.conventions_server import subfield_defaults
+
+        result = subfield_defaults("   ")
+        assert "error" in result
+        assert "domain must be a non-empty string" in result["error"]
+
     def test_subfield_defaults_all_domains_valid(self):
         from gpd.mcp.servers.conventions_server import SUBFIELD_DEFAULTS, subfield_defaults
 
@@ -655,6 +662,20 @@ class TestConventionsServer:
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps("just a string"), encoding="utf-8")
         with pytest.raises(ValueError, match="not recoverable"):
+            _load_lock_from_project(str(tmp_path))
+
+    def test_load_lock_unknown_convention_field_fails_closed(self, tmp_path):
+        from gpd.core.errors import ConventionError
+        from gpd.mcp.servers.conventions_server import _load_lock_from_project
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(
+            json.dumps({"convention_lock": {"metric_signature": "mostly-plus", "legacy_metric": "mostly-minus"}}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConventionError, match="Malformed project state.convention_lock"):
             _load_lock_from_project(str(tmp_path))
 
     def test_update_lock_non_dict_state_json_fails_closed(self, tmp_path):
@@ -863,6 +884,13 @@ class TestErrorsMcp:
 
         result = check_error_classes("angular momentum coupling calculation")
         assert result["match_count"] >= 1
+
+    def test_check_error_classes_blank_returns_error_envelope(self):
+        from gpd.mcp.servers.errors_mcp import check_error_classes
+
+        result = check_error_classes("   ")
+        assert "error" in result
+        assert "computation_desc must be a non-empty string" in result["error"]
 
     def test_get_detection_strategy(self):
         from gpd.mcp.servers.errors_mcp import get_detection_strategy

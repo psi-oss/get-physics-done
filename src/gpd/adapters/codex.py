@@ -161,6 +161,8 @@ _CODEX_ASK_USER_PLATFORM_NOTE_RE = re.compile(
     r"^\s*>\s+\*\*Platform note:\*\* If `ask_user` is not available,[^\n]*\n(?:\s*\n)?",
     re.IGNORECASE | re.MULTILINE,
 )
+_CODEX_SLASH_COMMAND_REFERENCE_RE = re.compile(r"(?<![A-Za-z0-9_.:/\\-])/gpd:([a-z0-9-]+)\b")
+_CODEX_BARE_COMMAND_REFERENCE_RE = re.compile(r"(?<![A-Za-z0-9_.:/\\$-])gpd:([a-z0-9-]+)\b")
 # ─── Directory helpers ──────────────────────────────────────────────────────
 
 
@@ -433,6 +435,12 @@ def _convert_codex_tool_name(tool_name: str) -> str | None:
     )
 
 
+def _rewrite_codex_command_references(content: str) -> str:
+    """Rewrite runnable GPD command references without touching URLs or paths."""
+    converted = _CODEX_SLASH_COMMAND_REFERENCE_RE.sub(r"$gpd-\1", content)
+    return _CODEX_BARE_COMMAND_REFERENCE_RE.sub(r"$gpd-\1", converted)
+
+
 def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     """Convert Claude Code markdown command/agent to Codex SKILL.md format.
 
@@ -442,9 +450,7 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     - allowed-tools: optional tool restrictions
     - color: removed (not supported by Codex CLI)
     """
-    # Replace /gpd: and gpd: references with the Codex skill syntax.
-    converted = content.replace("/gpd:", "$gpd-")
-    converted = re.sub(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b", r"$gpd-\1", converted)
+    converted = _rewrite_codex_command_references(content)
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
     if not frontmatter:
@@ -668,7 +674,7 @@ class CodexAdapter(RuntimeAdapter):
         return _convert_to_codex_skill(content, f"gpd-{command_name}")
 
     def translate_shared_command_references(self, content: str) -> str:
-        return content.replace("/gpd:", self.public_command_surface_prefix)
+        return _rewrite_codex_command_references(content)
 
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """Codex uses the runtime default commit attribution behavior."""

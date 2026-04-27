@@ -31,7 +31,7 @@ const RUNTIME_CATALOG_SCHEMA = require("../src/gpd/adapters/runtime_catalog_sche
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
-const GPD_HOME_DIRNAME = "GPD";
+const GPD_HOME_DIRNAME = ".gpd";
 const GITHUB_MAIN_BRANCH = "main";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
@@ -593,6 +593,9 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
   if (!validated.supports_prompt_free_mode && validated.prompt_free_requires_relaunch) {
     throw new Error(`${label}.prompt_free_requires_relaunch requires supports_prompt_free_mode=true`);
   }
+  if (validated.supports_prompt_free_mode && validated.prompt_free_mode_value === null) {
+    throw new Error(`${label}.prompt_free_mode_value must be a non-empty string when supports_prompt_free_mode=true`);
+  }
   if (validated.supports_structured_child_results && validated.continuation_surface !== "explicit") {
     throw new Error(`${label}.continuation_surface must be explicit when supports_structured_child_results=true`);
   }
@@ -749,6 +752,14 @@ function parsePublicCommandSurfacePrefix(value, label, commandPrefix) {
   return prefix;
 }
 
+function parseCommandPrefix(value, label) {
+  const prefix = requireStrictString(value, label);
+  if (!/^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$/.test(prefix)) {
+    throw new Error(`${label} must be a slash or dollar command prefix ending in ':' or '-'`);
+  }
+  return prefix;
+}
+
 function parseInstallHelpExampleScope(value, label) {
   if (value === undefined || value === null) {
     return null;
@@ -780,7 +791,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
     launch_command: requireStrictString(payload.launch_command, `${label}.launch_command`),
     adapter_module: requireStrictString(payload.adapter_module, `${label}.adapter_module`),
     adapter_class: requireStrictString(payload.adapter_class, `${label}.adapter_class`),
-    command_prefix: requireStrictString(payload.command_prefix, `${label}.command_prefix`),
+    command_prefix: parseCommandPrefix(payload.command_prefix, `${label}.command_prefix`),
     activation_env_vars: requireStrictStringList(payload.activation_env_vars, `${label}.activation_env_vars`),
     selection_flags: requireStrictStringList(payload.selection_flags, `${label}.selection_flags`),
     selection_aliases: requireStrictStringList(payload.selection_aliases, `${label}.selection_aliases`),
@@ -823,7 +834,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
         ? payload.public_command_surface_prefix
         : undefined,
       `${label}.public_command_surface_prefix`,
-      requireStrictString(payload.command_prefix, `${label}.command_prefix`)
+      parseCommandPrefix(payload.command_prefix, `${label}.command_prefix`)
     ),
   };
 }
@@ -2287,8 +2298,8 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall ~/GPD/venv from the PyPI pinned release, with tagged GitHub fallback`);
-  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest unreleased GitHub main source`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall \${GPD_HOME:-~/.gpd}/venv from the PyPI pinned release, with tagged GitHub fallback`);
+  console.log(` ${cyan}--upgrade${reset}               Upgrade \${GPD_HOME:-~/.gpd}/venv from the latest unreleased GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));

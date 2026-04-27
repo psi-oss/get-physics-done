@@ -241,6 +241,26 @@ class TestConvertToCodexSkill:
         assert_review_contract_prompt_surface(result)
 
 
+class TestSharedCommandReferences:
+    def test_bare_runnable_command_references_convert_without_rewriting_paths_or_urls(
+        self,
+        adapter: CodexAdapter,
+    ) -> None:
+        content = (
+            "Run `gpd:resume-work`, then /gpd:help.\n"
+            "Keep https://docs.example/gpd:help, /tmp/gpd:help, ./gpd:help, and C:\\tmp\\gpd:help untouched.\n"
+        )
+
+        result = adapter.translate_shared_command_references(content)
+
+        assert "`$gpd-resume-work`" in result
+        assert "$gpd-help" in result
+        assert "https://docs.example/gpd:help" in result
+        assert "/tmp/gpd:help" in result
+        assert "./gpd:help" in result
+        assert "C:\\tmp\\gpd:help" in result
+
+
 class TestInstall:
     def test_help_skill_does_not_describe_codex_commands_as_slash_commands(
         self,

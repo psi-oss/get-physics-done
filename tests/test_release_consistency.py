@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from gpd._python_compat import MIN_SUPPORTED_PYTHON_LABEL
-from gpd.adapters.runtime_catalog import get_shared_install_metadata
+from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -601,6 +601,15 @@ def test_gitignore_covers_local_gpd_fix_reports() -> None:
     content = (repo_root / ".gitignore").read_text(encoding="utf-8")
 
     assert "GPD-FIX-REPORT-*.md" in content
+
+
+def test_gitignore_covers_runtime_config_dirs_from_runtime_catalog() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    ignored_dirs = {line.strip() for line in content if line.strip().endswith("/")}
+    expected_dirs = {".agents/", *(f"{descriptor.config_dir_name}/" for descriptor in iter_runtime_descriptors())}
+
+    assert expected_dirs <= ignored_dirs
 
 
 def test_gitignore_does_not_exclude_gpd_directory() -> None:

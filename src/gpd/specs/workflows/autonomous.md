@@ -1022,7 +1022,7 @@ When any phase operation fails or a blocker is detected, present 3 options via a
 - [ ] Smart discuss documents relationship to discuss-phase
 - [ ] Smart discuss produces the same CONTEXT.md contract as discuss-phase
 - [ ] No UI-phase or frontend-specific detection (GPD is physics research, not software)
-- [ ] All CLI commands use gpd (not gsd-tools.cjs)
-- [ ] All file paths use GPD/ (not .planning/)
-- [ ] Works with all model providers (Anthropic, OpenAI, etc.) — no provider-specific features
+- [ ] Local CLI invocations use current `gpd` surfaces
+- [ ] Project artifacts stay under canonical `GPD/` paths
+- [ ] Workflow stays runtime/provider-neutral and relies only on installed runtime command delegation
 </success_criteria>

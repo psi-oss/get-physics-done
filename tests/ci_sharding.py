@@ -231,8 +231,25 @@ def _normalized_repo_root(repo_root: Path | None) -> Path:
     return (Path.cwd() if repo_root is None else repo_root).resolve()
 
 
+def _pytest_collection_targets(repo_root: Path, *, category: str | None = None) -> tuple[str, ...]:
+    if category is None:
+        return ("tests/",)
+
+    tests_root = repo_root / "tests"
+    if category == "root":
+        return tuple(f"tests/{path.name}" for path in sorted(tests_root.glob("test_*.py")) if path.is_file())
+    return (f"tests/{category}/",)
+
+
 @cache
-def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
+def _collected_test_inventory_items(
+    repo_root: Path,
+    category: str | None = None,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    collection_targets = _pytest_collection_targets(repo_root, category=category)
+    if not collection_targets:
+        return ()
+
     env = os.environ.copy()
     env.pop("PYTEST_ADDOPTS", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -243,7 +260,7 @@ def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[s
             "pytest",
             "-p",
             "no:cacheprovider",
-            "tests/",
+            *collection_targets,
             "--collect-only",
             "-q",
             "-n",
@@ -267,14 +284,22 @@ def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[s
     return tuple((rel_path, tuple(nodeids)) for rel_path, nodeids in sorted(inventory.items()))
 
 
-def collected_test_inventory(*, repo_root: Path | None = None) -> dict[str, tuple[str, ...]]:
-    return dict(_collected_test_inventory_items(_normalized_repo_root(repo_root)))
+def collected_test_inventory(
+    *,
+    repo_root: Path | None = None,
+    category: str | None = None,
+) -> dict[str, tuple[str, ...]]:
+    return dict(_collected_test_inventory_items(_normalized_repo_root(repo_root), category))
 
 
-def collected_test_counts_by_file(*, repo_root: Path | None = None) -> dict[str, int]:
+def collected_test_counts_by_file(
+    *,
+    repo_root: Path | None = None,
+    category: str | None = None,
+) -> dict[str, int]:
     return {
         rel_path: len(nodeids)
-        for rel_path, nodeids in collected_test_inventory(repo_root=repo_root).items()
+        for rel_path, nodeids in collected_test_inventory(repo_root=repo_root, category=category).items()
     }
 
 
@@ -358,7 +383,7 @@ def plan_category_ci_shards(
 ) -> tuple[tuple[str, ...], ...]:
     if work_units is None:
         if inventory is None:
-            inventory = collected_test_inventory(repo_root=repo_root)
+            inventory = collected_test_inventory(repo_root=repo_root, category=category)
         work_units = build_ci_work_units(inventory)
     category_work_units = tuple(unit for unit in work_units if unit.category == category)
     if not category_work_units:
@@ -388,6 +413,8 @@ def select_ci_shard_targets(
     shard_total: int,
     repo_root: Path | None = None,
 ) -> tuple[str, ...]:
+    if category not in CI_CATEGORY_SHARD_COUNTS:
+        raise ValueError(f"unknown CI pytest category {category!r}")
     expected_total = CI_CATEGORY_SHARD_COUNTS[category]
     if shard_total != expected_total:
         raise ValueError(f"shard_total for {category!r} must equal {expected_total}")

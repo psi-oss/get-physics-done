@@ -17,7 +17,6 @@ from tests.ci_sharding import (
     assert_tests_readme_documents_ci_shard_policy,
     build_ci_work_units,
     category_for_test_relpath,
-    collected_test_counts_by_file,
     collected_test_inventory,
     expand_ci_targets_to_nodeids,
     plan_category_ci_shards,
@@ -110,13 +109,46 @@ def test_root_conftest_respects_xdist_auto_worker_env_override(
 def test_default_collection_matches_all_checked_in_test_files() -> None:
     repo_root = _repo_root()
     all_relpaths = all_test_relpaths(tests_root=repo_root / "tests")
-    collected_counts = collected_test_counts_by_file(repo_root=repo_root)
+    inventory = collected_test_inventory(repo_root=repo_root)
+    collected_counts = {rel_path: len(nodeids) for rel_path, nodeids in inventory.items()}
     live_categories = {category_for_test_relpath(relpath) for relpath in all_relpaths}
     unsharded_categories = live_categories - set(CI_CATEGORY_SHARD_COUNTS)
 
     assert tuple(sorted(collected_counts)) == all_relpaths
     assert all(count > 0 for count in collected_counts.values())
     assert not unsharded_categories, f"checked-in test categories missing CI shards: {sorted(unsharded_categories)}"
+    _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(inventory)
+
+
+def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    work_units = build_ci_work_units(inventory)
+    all_nodeids = tuple(nodeid for nodeids in inventory.values() for nodeid in nodeids)
+    flattened: list[str] = []
+
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        planned_shards = plan_category_ci_shards(category=category, inventory=inventory, work_units=work_units)
+        expanded_targets = [
+            expand_ci_targets_to_nodeids(shard_targets, inventory=inventory)
+            for shard_targets in planned_shards
+        ]
+        category_nodeids = tuple(
+            nodeid
+            for rel_path, nodeids in inventory.items()
+            if category_for_test_relpath(rel_path) == category
+            for nodeid in nodeids
+        )
+        category_flattened = [nodeid for shard_nodeids in expanded_targets for nodeid in shard_nodeids]
+
+        assert len(planned_shards) == shard_total
+        assert all(shard_targets for shard_targets in planned_shards), f"{category} CI shard has no targets"
+        assert sorted(category_flattened) == sorted(category_nodeids)
+        assert len(category_flattened) == len(set(category_flattened))
+        flattened.extend(category_flattened)
+
+    assert sorted(flattened) == sorted(all_nodeids)
+    assert len(flattened) == len(set(flattened))
 
 
 def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
@@ -157,6 +189,47 @@ def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
         "0",
     ]
     assert captured["cwd"] == tmp_path.resolve()
+
+
+def test_ci_shard_target_resolution_collects_only_requested_category(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["cwd"] = kwargs["cwd"]
+        return SimpleNamespace(
+            stdout="\n".join(f"tests/core/test_sample.py::test_{index}" for index in range(5)) + "\n"
+        )
+
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+    ci_sharding._collected_test_inventory_items.cache_clear()
+    try:
+        targets = ci_sharding.select_ci_shard_targets(
+            category="core",
+            shard_index=1,
+            shard_total=CI_CATEGORY_SHARD_COUNTS["core"],
+            repo_root=tmp_path,
+        )
+    finally:
+        ci_sharding._collected_test_inventory_items.cache_clear()
+
+    assert captured["args"] == [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "tests/core/",
+        "--collect-only",
+        "-q",
+        "-n",
+        "0",
+    ]
+    assert captured["cwd"] == tmp_path.resolve()
+    assert targets == ("tests/core/test_sample.py",)
 
 
 def test_ci_and_test_readme_document_default_full_suite_and_category_named_runtime_informed_shards() -> None:

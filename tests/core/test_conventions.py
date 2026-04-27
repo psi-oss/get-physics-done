@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from gpd.contracts import ConventionLock
 from gpd.core.conventions import (
@@ -17,6 +18,7 @@ from gpd.core.conventions import (
     convention_check,
     convention_diff,
     convention_list,
+    convention_lock_from_state_payload,
     convention_set,
     is_bogus_value,
     normalize_key,
@@ -27,6 +29,19 @@ from gpd.core.conventions import (
     validate_assertions,
 )
 from gpd.core.errors import ConventionError
+
+
+def test_convention_lock_rejects_unknown_top_level_fields() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        ConventionLock.model_validate({"metric_signature": "mostly-plus", "legacy_metric": "mostly-minus"})
+
+
+def test_convention_lock_from_state_payload_fails_closed_on_unknown_fields() -> None:
+    with pytest.raises(ConventionError, match="Malformed state.json.convention_lock"):
+        convention_lock_from_state_payload(
+            {"convention_lock": {"metric_signature": "mostly-plus", "legacy_metric": "mostly-minus"}},
+            source_label="state.json",
+        )
 
 # ─── normalize_key ────────────────────────────────────────────────────────────
 

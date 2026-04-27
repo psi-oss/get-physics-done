@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from gpd.adapters.install_utils import parse_at_include_path
 from tests.prompt_metrics_support import count_raw_includes
 
 
@@ -21,3 +22,11 @@ Follow @{GPD_INSTALL_DIR}/references/inline.md
 """
 
     assert count_raw_includes(text) == 4
+
+
+def test_prompt_metrics_uses_production_include_parser() -> None:
+    assert parse_at_include_path("- `@{GPD_INSTALL_DIR}/references/numbered.md` (main workflow)") == (
+        "{GPD_INSTALL_DIR}/references/numbered.md"
+    )
+    assert parse_at_include_path("@GPD/project-local.md") is None
+    assert parse_at_include_path("@article{key,") is None

@@ -737,6 +737,17 @@ def test_shared_generic_tests_do_not_hardcode_provider_or_model_literals() -> No
     )
 
 
+def test_autonomous_success_criteria_do_not_hardcode_provider_literals() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/autonomous.md").read_text(encoding="utf-8")
+    success_criteria = workflow.split("<success_criteria>", 1)[1].split("</success_criteria>", 1)[0]
+
+    provider_literals = ("Anthropic", "OpenAI", "Google", "Claude", "Gemini")
+    leaks = [literal for literal in provider_literals if literal in success_criteria]
+
+    assert "runtime/provider-neutral" in success_criteria
+    assert leaks == []
+
+
 def test_readme_optional_terminal_reference_uses_runtime_placeholders() -> None:
     block = _readme_optional_terminal_reference()
 

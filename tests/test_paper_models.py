@@ -283,6 +283,24 @@ class TestModels:
         assert spec.required_tex_files == []
         assert spec.install_hint == ""
 
+    def test_journal_spec_rejects_extra_keys(self):
+        with pytest.raises(ValidationError, match=r"legacy_field[\s\S]*Extra inputs are not permitted"):
+            JournalSpec.model_validate(
+                {
+                    "key": "test",
+                    "document_class": "article",
+                    "class_options": ["12pt"],
+                    "bib_style": "plain",
+                    "column_width_cm": 8.0,
+                    "double_width_cm": 16.0,
+                    "max_height_cm": 24.0,
+                    "dpi": 300,
+                    "preferred_formats": ["pdf"],
+                    "texlive_package": "latex-base",
+                    "legacy_field": "stale",
+                }
+            )
+
 
 # ---- Journal map tests ----
 

@@ -102,12 +102,11 @@ def _walk_project_root(
     *,
     allow_ancestor_walk: bool = True,
 ) -> tuple[Path | None, int, bool]:
-    """Walk *candidate* and its ancestors until the best ``GPD/`` anchor is found."""
+    """Walk *candidate* and its ancestors until the nearest marker-backed ``GPD/`` anchor is found."""
 
     if candidate is None:
         return None, 0, False
 
-    best_verified: tuple[int, int, Path] | None = None
     best_bare: tuple[int, Path] | None = None
     search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
     for steps, path in enumerate(search_roots):
@@ -125,15 +124,11 @@ def _walk_project_root(
             marker_count += 1
 
         if marker_count > 0:
-            if best_verified is None or (marker_count, -steps) > (best_verified[0], -best_verified[1]):
-                best_verified = (marker_count, steps, path)
-            continue
+            return path, steps, True
 
         if best_bare is None or steps < best_bare[0]:
             best_bare = (steps, path)
 
-    if best_verified is not None:
-        return best_verified[2], best_verified[1], True
     if best_bare is not None:
         return best_bare[1], best_bare[0], False
     return None, 0, False

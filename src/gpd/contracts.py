@@ -1153,7 +1153,7 @@ def _collect_artifact_contract_results_errors(value: object) -> list[str]:
 
 
 class ConventionLock(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     metric_signature: str | None = None
     fourier_convention: str | None = None

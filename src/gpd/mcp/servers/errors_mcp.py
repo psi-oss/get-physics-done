@@ -11,8 +11,10 @@ Console script: gpd-mcp-errors
 import re
 import threading
 from pathlib import Path
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field, WithJsonSchema
 
 from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
@@ -320,6 +322,19 @@ def _get_store() -> ErrorStore:
 
 mcp = FastMCP("gpd-errors")
 
+ComputationDescriptionInput = Annotated[
+    str,
+    Field(min_length=1, pattern=r"\S"),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 1,
+            "pattern": r"\S",
+            "description": "Non-empty physics computation description.",
+        }
+    ),
+]
+
 
 @mcp.tool()
 def get_error_class(error_id: int) -> dict[str, object]:
@@ -350,7 +365,7 @@ def get_error_class(error_id: int) -> dict[str, object]:
 
 
 @mcp.tool()
-def check_error_classes(computation_desc: str) -> dict[str, object]:
+def check_error_classes(computation_desc: ComputationDescriptionInput) -> dict[str, object]:
     """Identify error classes relevant to a computation description.
 
     Given a description of the physics computation being performed, finds the
@@ -362,6 +377,9 @@ def check_error_classes(computation_desc: str) -> dict[str, object]:
     """
     with gpd_span("mcp.errors.check"):
         try:
+            if not isinstance(computation_desc, str) or not computation_desc.strip():
+                return stable_mcp_error("computation_desc must be a non-empty string")
+            computation_desc = computation_desc.strip()
             store = _get_store()
             matches = store.check_relevant(computation_desc)
             return stable_mcp_response(

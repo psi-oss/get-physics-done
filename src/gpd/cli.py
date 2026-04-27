@@ -11315,30 +11315,6 @@ def paper_build(
             "Only .tex, .bib, and figures/ land in the output directory."
         ),
     ),
-    with_provenance: bool = typer.Option(
-        False,
-        "--with-provenance",
-        help=(
-            "Compatibility no-op: ARTIFACT-MANIFEST.json is written beside the manuscript by default "
-            "unless --minimal."
-        ),
-    ),
-    with_audits: bool = typer.Option(
-        False,
-        "--with-audits",
-        help=(
-            "Compatibility no-op: BIBLIOGRAPHY-AUDIT.json is written beside the manuscript when bibliography "
-            "data exists unless --minimal."
-        ),
-    ),
-    with_review_sidecars: bool = typer.Option(
-        False,
-        "--with-review-sidecars",
-        help=(
-            "Compatibility no-op: paper-build does not emit proof-review/readiness sidecars. "
-            "It always reports emitted manifest/audit paths explicitly."
-        ),
-    ),
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
 
@@ -11449,9 +11425,6 @@ def paper_build(
             emit_bibliography_audit=emit_bib_audit,
         )
     )
-    # Review-sidecar writers live in agent-authored workflows; paper-build
-    # reports this compatibility flag but does not emit those sidecars.
-
     result_tex_path = result.tex_path if isinstance(result.tex_path, Path) else None
     if result_tex_path is None:
         result_tex_path = output_path / f"{derive_output_filename(paper_config)}.tex"
@@ -11472,9 +11445,6 @@ def paper_build(
         "toolchain": toolchain,
         "mode": {
             "minimal": minimal,
-            "with_provenance": with_provenance,
-            "with_audits": with_audits,
-            "with_review_sidecars": with_review_sidecars,
             "sidecar_root": _format_display_path_from_cwd(paper_sidecar_root, cwd=cwd)
             if paper_sidecar_root is not None
             else None,
@@ -11482,14 +11452,6 @@ def paper_build(
         "warnings": list(storage_check.warnings)
         + [warning for warning in toolchain["warnings"] if warning not in storage_check.warnings]
         + ([citation_source_warning] if citation_source_warning else [])
-        + (
-            [
-                "--with-review-sidecars is accepted for compatibility but paper-build does not emit "
-                "proof-review/readiness sidecars"
-            ]
-            if with_review_sidecars
-            else []
-        )
         + list(getattr(result, "citation_warnings", [])),
     }
     _output(payload)

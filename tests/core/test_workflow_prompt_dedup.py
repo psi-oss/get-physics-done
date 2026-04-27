@@ -177,3 +177,12 @@ def test_state_portability_uses_canonical_continuation_prose() -> None:
     assert "Canonical state in `state.json.continuation` wins first" in state_portability
     assert "gpd --raw resume` emits the canonical top-level list" in state_portability
     assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability
+
+
+def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
+    execute_phase = _read("execute-phase.md")
+
+    assert execute_phase.count("references/orchestration/runtime-delegation-note.md") == 1
+    assert "The shared note owns empty-model omission" in execute_phase
+    assert "preserve empty-model omission, `readonly=false`, artifact-gated completion" not in execute_phase
+    assert execute_phase.count("Apply the canonical runtime delegation convention above.") >= 3

@@ -67,7 +67,8 @@ Publication workflow:
 **Referee report exists:**
 ```
 Revision workflow:
-  gpd:respond-to-referees [path to referee report or 'paste'] — Draft responses, keep project-backed outputs on their current GPD paths, and revise the resolved manuscript root
+  gpd:respond-to-referees --manuscript PATH --report PATH — Preferred explicit intake for drafting responses and revising the resolved manuscript root
+  gpd:respond-to-referees [path to referee report or 'paste'] — Project-manuscript shorthand when the manuscript resolves from current GPD state
   gpd:peer-review         — Re-run peer review after revision
 ```
 
@@ -243,7 +244,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:literature-review [topic or research question]` - Create a structured literature review under `GPD/literature/` in the current workspace
 - `gpd:write-paper [--intake path/to/paper-authoring-input.json]` - Draft a paper from current project results or one explicit external-authoring intake manifest into the resolved manuscript lane
 - `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow on the current project manuscript or one explicit artifact
-- `gpd:respond-to-referees [path to referee report or 'paste']` - Draft referee responses and revise the resolved manuscript root
+- `gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]` - Draft referee responses and revise the resolved manuscript root
 - `gpd:arxiv-submission [GPD-owned manuscript root]` - Package a built manuscript for arXiv from the resolved GPD-owned manuscript root
 - `gpd:slides [topic, audience, or source path]` - Create presentation slides
 
@@ -258,7 +259,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:decisions [phase or keyword]` - Search the decision log
 - `gpd:graph` - Visualize phase dependencies
 - `gpd:export [--format html|latex|zip|all]` - Export project artifacts
-- `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]` - Export observability logs
+- `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
 - `gpd:record-backtrack [description]` - Capture a backtrack event (what went wrong, what got reverted)
 - `gpd:record-insight [description]` - Save a project-specific lesson
@@ -839,8 +840,10 @@ Usage: `gpd:peer-review draft.docx`
 Usage: `gpd:peer-review notes.txt`
 Usage: `gpd:peer-review data/observables.csv`
 
-**`gpd:respond-to-referees [path to referee report or 'paste']`**
+**`gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]`**
 Structure point-by-point response to referee reports and revise the manuscript.
+- Preferred explicit intake is `--manuscript PATH --report PATH`; repeat `--report PATH` for multiple referee reports
+- Positional report paths and `paste` remain valid shorthand when the manuscript subject resolves from the current GPD project
 - `$ARGUMENTS` selects the referee report source, while manuscript edits always apply to the resolved manuscript root rather than the report path
 - Parses referee comments into structured items with severity levels
 - Project-backed continuation keeps `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` with REF-xxx issue tracking (fixed/rebutted/acknowledged/needs-calculation)
@@ -853,6 +856,7 @@ Structure point-by-point response to referee reports and revise the manuscript.
 - Bounded revision loop (max 3 iterations with re-review)
 
 Usage: `gpd:respond-to-referees`
+Usage: `gpd:respond-to-referees --manuscript paper/main.tex --report reports/referee-report.md`
 Usage: `gpd:respond-to-referees reports/referee-report.md`
 Usage: `gpd:respond-to-referees paste`
 
@@ -1041,17 +1045,19 @@ Export research results to HTML, LaTeX, or ZIP package.
 Usage: `gpd:export --format html`
 Usage: `gpd:export --format all`
 
-**`gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]`**
+**`gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]`**
 Export observability sessions and optional traces to files for review, sharing, or archival.
 
 - Reads session event streams from `GPD/observability/sessions/` and optional traces from `GPD/traces/`
 - Writes filtered exports to `GPD/exports/logs/` or a custom directory
 - Supports JSONL, JSON, and markdown output
+- Supports passthrough filters `--command <label>`, `--phase <phase>`, and `--category <name>`
 - Useful when you need to share or inspect the recorded execution history outside the runtime
 
 Usage: `gpd:export-logs`
 Usage: `gpd:export-logs --format markdown`
 Usage: `gpd:export-logs --last 5`
+Usage: `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow`
 
 **`gpd:slides [topic, audience, or source path]`**
 Create presentation slides from a GPD project or the current folder.

@@ -1830,6 +1830,33 @@ def test_load_state_json_discards_stale_intent_when_current_state_files_are_newe
     assert not md_tmp.exists()
 
 
+def test_load_state_json_completes_half_promoted_json_intent_with_markdown_temp(tmp_path: Path) -> None:
+    stale_state = default_state_dict()
+    stale_state["position"]["current_phase"] = "01"
+
+    recovered_state = default_state_dict()
+    recovered_state["position"]["current_phase"] = "05"
+    recovered_state["position"]["status"] = "Executing"
+
+    layout = _write_intent_recovery_state(tmp_path, stale_state=stale_state, recovered_state=recovered_state)
+    json_tmp = layout.gpd / ".state-json-tmp"
+    md_tmp = layout.gpd / ".state-md-tmp"
+    json_tmp.replace(layout.state_json)
+
+    assert not json_tmp.exists()
+    assert md_tmp.exists()
+    assert "**Current Phase:** 01" in layout.state_md.read_text(encoding="utf-8")
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["position"]["current_phase"] == "05"
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["position"]["current_phase"] == "05"
+    assert "**Current Phase:** 05" in layout.state_md.read_text(encoding="utf-8")
+    assert not layout.state_intent.exists()
+    assert not md_tmp.exists()
+
+
 def test_peek_state_json_fallback_does_not_consume_intent_marker(tmp_path: Path) -> None:
     stale_state = default_state_dict()
     stale_state["position"]["current_phase"] = "01"
@@ -3213,6 +3240,34 @@ def test_save_state_markdown_does_not_override_canonical_continuation_session_mi
     assert cleared_index.rows[0].resume_target_recorded_at is None
     assert cleared_index.rows[0].resume_file_available is None
     assert cleared_index.rows[0].resumable is False
+
+
+def test_save_state_markdown_does_not_mint_canonical_continuation_from_session_mirror(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
+    cwd = state_project_factory(tmp_path)
+    markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    edited_markdown = (
+        markdown.replace("**Last session:** —", "**Last session:** 2026-04-01T12:00:00+00:00", 1)
+        .replace("**Stopped at:** —", "**Stopped at:** Edited in markdown", 1)
+        .replace("**Resume file:** —", "**Resume file:** edited-in-markdown.md", 1)
+        .replace("**Hostname:** —", "**Hostname:** edited-host", 1)
+    )
+
+    result = save_state_markdown(cwd, edited_markdown)
+    stored = load_state_json(cwd)
+    persisted_markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
+
+    assert stored is not None
+    assert result["continuation"]["handoff"]["recorded_at"] is None
+    assert result["continuation"]["handoff"]["stopped_at"] is None
+    assert result["continuation"]["handoff"]["resume_file"] is None
+    assert result["continuation"]["machine"]["hostname"] is None
+    assert stored["continuation"]["handoff"]["resume_file"] is None
+    assert "Edited in markdown" not in persisted_markdown
+    assert "edited-in-markdown.md" not in persisted_markdown
+    assert "edited-host" not in persisted_markdown
 
 
 def test_state_record_session_preserves_existing_recent_project_rows(

@@ -22,7 +22,13 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.commands import SummaryExtractResult, _normalize_string_list, cmd_summary_extract
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import (
+    STANDALONE_SUMMARY,
+    STANDALONE_VERIFICATION,
+    SUMMARY_SUFFIX,
+    VERIFICATION_SUFFIX,
+    ProjectLayout,
+)
 from gpd.core.errors import ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
@@ -148,12 +154,70 @@ def _strip_top_heading(body: str) -> str:
     return re.sub(r"^# .+\n+", "", stripped, count=1).strip()
 
 
-def _summary_sort_key(path: Path) -> tuple[int, str]:
-    return (0, path.name)
+def _frontmatter_sort_value(path: Path, fields: tuple[str, ...]) -> str | None:
+    content = safe_read_file(path)
+    if content is None:
+        return None
+    try:
+        frontmatter, _body = extract_frontmatter(content)
+    except FrontmatterParseError:
+        return None
+    for field in fields:
+        value = frontmatter.get(field)
+        if value is None:
+            continue
+        normalized = str(value).strip()
+        if normalized:
+            return normalized
+    return None
 
 
-def _verification_sort_key(path: Path) -> tuple[int, str]:
-    return (0, path.name)
+def _artifact_identifier(path: Path, suffix: str, standalone: str) -> str:
+    if path.name == standalone:
+        return "0"
+    if path.name.endswith(suffix):
+        return path.name[: -len(suffix)]
+    return path.stem
+
+
+def _artifact_numeric_parts(value: str | None) -> tuple[int, ...]:
+    if value is None:
+        return (-1,)
+    parts = re.findall(r"\d+", value)
+    if not parts:
+        return (-1,)
+    return tuple(int(part) for part in parts)
+
+
+def _artifact_sort_key(
+    path: Path,
+    *,
+    frontmatter_fields: tuple[str, ...],
+    suffix: str,
+    standalone: str,
+) -> tuple[tuple[int, ...], str]:
+    sort_value = _frontmatter_sort_value(path, frontmatter_fields)
+    if sort_value is None:
+        sort_value = _artifact_identifier(path, suffix, standalone)
+    return (_artifact_numeric_parts(sort_value), path.name)
+
+
+def _summary_sort_key(path: Path) -> tuple[tuple[int, ...], str]:
+    return _artifact_sort_key(
+        path,
+        frontmatter_fields=("plan",),
+        suffix=SUMMARY_SUFFIX,
+        standalone=STANDALONE_SUMMARY,
+    )
+
+
+def _verification_sort_key(path: Path) -> tuple[tuple[int, ...], str]:
+    return _artifact_sort_key(
+        path,
+        frontmatter_fields=("plan", "phase"),
+        suffix=VERIFICATION_SUFFIX,
+        standalone=STANDALONE_VERIFICATION,
+    )
 
 
 def _markdown_relpath(target: Path, start: Path) -> str:

@@ -6286,65 +6286,7 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert kwargs["enrich_bibliography"] is True
 
 
-@pytest.mark.parametrize(
-    (
-        "extra_args",
-        "expected_sidecar",
-        "expected_manifest_override",
-        "expected_audit_override",
-        "result_manifest",
-        "result_audit",
-        "payload_sidecar",
-    ),
-    [
-        (
-            [],
-            None,
-            None,
-            None,
-            "ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
-            None,
-        ),
-        (
-            ["--with-provenance"],
-            None,
-            None,
-            None,
-            "ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
-            None,
-        ),
-        (
-            ["--with-audits"],
-            None,
-            None,
-            None,
-            "ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
-            None,
-        ),
-        (
-            ["--with-provenance", "--with-audits"],
-            None,
-            None,
-            None,
-            "ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
-            None,
-        ),
-    ],
-)
-def test_paper_build_sidecar_flags_keep_manifest_and_audit_in_manuscript_root(
-    tmp_path: Path,
-    extra_args: list[str],
-    expected_sidecar: str | None,
-    expected_manifest_override: str | None,
-    expected_audit_override: str | None,
-    result_manifest: str,
-    result_audit: str,
-    payload_sidecar: str | None,
-) -> None:
+def test_paper_build_emits_manifest_and_audit_sidecars_by_default(tmp_path: Path) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -6360,13 +6302,10 @@ def test_paper_build_sidecar_flags_keep_manifest_and_audit_in_manuscript_root(
         encoding="utf-8",
     )
 
-    def paper_path(relative_path: str | None) -> Path | None:
-        return (paper_dir / relative_path).resolve(strict=False) if relative_path is not None else None
-
     result_payload = MagicMock()
     result_payload.tex_path = paper_dir / "configured_paper.tex"
-    result_payload.manifest_path = paper_path(result_manifest)
-    result_payload.bibliography_audit_path = paper_path(result_audit)
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = paper_dir / "BIBLIOGRAPHY-AUDIT.json"
     result_payload.bibliography_audit = None
     result_payload.reference_bibtex_keys = {}
     result_payload.pdf_path = paper_dir / "configured_paper.pdf"
@@ -6376,20 +6315,20 @@ def test_paper_build_sidecar_flags_keep_manifest_and_audit_in_manuscript_root(
     with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(tmp_path), "paper-build", *extra_args],
+            ["--raw", "--cwd", str(tmp_path), "paper-build"],
             catch_exceptions=False,
         )
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["manifest_path"] == f"./paper/{result_manifest}"
-    assert payload["bibliography_audit_path"] == f"./paper/{result_audit}"
-    assert payload["mode"]["sidecar_root"] == payload_sidecar
+    assert payload["manifest_path"] == "./paper/ARTIFACT-MANIFEST.json"
+    assert payload["bibliography_audit_path"] == "./paper/BIBLIOGRAPHY-AUDIT.json"
+    assert payload["mode"] == {"minimal": False, "sidecar_root": None}
 
     kwargs = mock_build.await_args.kwargs
-    assert kwargs["sidecar_root"] == paper_path(expected_sidecar)
-    assert kwargs["artifact_manifest_output_path"] == paper_path(expected_manifest_override)
-    assert kwargs["bibliography_audit_output_path"] == paper_path(expected_audit_override)
+    assert kwargs["sidecar_root"] is None
+    assert kwargs["artifact_manifest_output_path"] is None
+    assert kwargs["bibliography_audit_output_path"] is None
     assert kwargs["emit_artifact_manifest"] is True
     assert kwargs["emit_bibliography_audit"] is True
 
@@ -6440,43 +6379,25 @@ def test_paper_build_minimal_suppresses_manifest_and_audit_sidecars(tmp_path: Pa
     assert kwargs["emit_bibliography_audit"] is False
 
 
-def test_paper_build_with_review_sidecars_is_reported_as_compatibility_noop(tmp_path: Path) -> None:
-    paper_dir = tmp_path / "paper"
-    paper_dir.mkdir()
-    (paper_dir / "PAPER-CONFIG.json").write_text(
-        json.dumps(
-            {
-                "title": "Configured Paper",
-                "authors": [{"name": "A. Researcher"}],
-                "abstract": "Abstract.",
-                "sections": [{"title": "Intro", "content": "Hello."}],
-                "figures": [],
-            }
-        ),
-        encoding="utf-8",
-    )
+@pytest.mark.parametrize("legacy_flag", ["--with-provenance", "--with-audits", "--with-review-sidecars"])
+def test_paper_build_rejects_legacy_sidecar_flags(legacy_flag: str, tmp_path: Path) -> None:
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock()) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build", legacy_flag])
 
-    result_payload = MagicMock()
-    result_payload.tex_path = paper_dir / "configured_paper.tex"
-    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
-    result_payload.bibliography_audit_path = None
-    result_payload.bibliography_audit = None
-    result_payload.reference_bibtex_keys = {}
-    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
-    result_payload.success = True
-    result_payload.errors = []
+    assert result.exit_code != 0
+    assert "No such option" in result.output
+    assert legacy_flag in result.output
+    mock_build.assert_not_called()
 
-    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)):
-        result = runner.invoke(
-            app,
-            ["--raw", "--cwd", str(tmp_path), "paper-build", "--with-review-sidecars"],
-            catch_exceptions=False,
-        )
 
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["mode"]["with_review_sidecars"] is True
-    assert any("--with-review-sidecars is accepted for compatibility" in warning for warning in payload["warnings"])
+def test_paper_build_help_omits_legacy_sidecar_flags() -> None:
+    result = runner.invoke(app, ["paper-build", "--help"])
+
+    assert result.exit_code == 0
+    assert "--minimal" in result.output
+    assert "--with-provenance" not in result.output
+    assert "--with-audits" not in result.output
+    assert "--with-review-sidecars" not in result.output
 
 
 def test_paper_build_rejects_ambiguous_supported_config_roots_without_a_resolved_manuscript(tmp_path: Path) -> None:

@@ -169,6 +169,29 @@ def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_empty_gpd_s
     assert resolution.walk_up_steps == 2
 
 
+def test_resolve_project_roots_prefers_nearest_verified_nested_project_over_marker_rich_ancestor(
+    tmp_path: Path,
+) -> None:
+    ancestor = tmp_path / "project"
+    nested_project = ancestor / "work" / "nested"
+    workspace = nested_project / "notes"
+    _make_project_root(ancestor)
+    workspace.mkdir(parents=True)
+    nested_gpd = nested_project / "GPD"
+    nested_gpd.mkdir()
+    (nested_gpd / "PROJECT.md").write_text("# Nested Project\n", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == nested_project.resolve(strict=False)
+    assert resolution.policy == RootResolutionPolicy.PROJECT_SCOPED
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 1
+
+
 def test_resolve_project_roots_does_not_verify_empty_gpd_when_no_stronger_ancestor_exists(
     tmp_path: Path,
 ) -> None:

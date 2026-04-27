@@ -427,6 +427,26 @@ def test_runtime_catalog_accepts_descriptor_owned_public_command_surface_prefix(
 
 
 @pytest.mark.parametrize("prefix", [" public:", "public", "/bad space:", "gpd:"])
+def test_runtime_catalog_rejects_malformed_command_prefix_even_with_public_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prefix: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["command_prefix"] = prefix
+    payload[0]["public_command_surface_prefix"] = "/public:"
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime catalog entry 0\.command_prefix must be "
+            r"(a non-empty string|a slash or dollar command prefix)"
+        ),
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize("prefix", [" public:", "public", "/bad space:", "gpd:"])
 def test_runtime_catalog_rejects_malformed_public_command_surface_prefix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -472,6 +492,24 @@ def test_runtime_catalog_rejects_invalid_capability_enum_values(
     with pytest.raises(
         ValueError,
         match=r"runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_prompt_free_support_without_mode_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"]["supports_prompt_free_mode"] = True
+    payload[0]["capabilities"]["prompt_free_mode_value"] = None
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime catalog entry 0\.capabilities\.prompt_free_mode_value must be "
+            r"a non-empty string when supports_prompt_free_mode=true"
+        ),
     ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 

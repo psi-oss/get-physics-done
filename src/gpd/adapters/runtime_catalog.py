@@ -350,6 +350,10 @@ def _validate_capability_policy_coherence(
     label: str,
     launch_wrapper_permission_surface_kinds: frozenset[str],
 ) -> None:
+    if policy.supports_prompt_free_mode and policy.prompt_free_mode_value is None:
+        raise ValueError(
+            f"{label}.prompt_free_mode_value must be a non-empty string when supports_prompt_free_mode=true"
+        )
     if policy.permissions_surface == "config-file":
         if policy.permission_surface_kind == "none" or policy.permission_surface_kind in launch_wrapper_permission_surface_kinds:
             raise ValueError(f"{label}.permission_surface_kind must be a config surface label when permissions_surface=config-file")
@@ -679,6 +683,13 @@ def _parse_public_command_surface_prefix(
     return prefix
 
 
+def _parse_command_prefix(value: object, *, label: str) -> str:
+    prefix = _require_string(value, label=label)
+    if _RUNTIME_COMMAND_PREFIX_RE.fullmatch(prefix) is None:
+        raise ValueError(f"{label} must be a slash or dollar command prefix ending in ':' or '-'")
+    return prefix
+
+
 def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
     payload = _require_mapping(entry, label=label)
     _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_HOOK_PAYLOAD_KEYS)
@@ -752,7 +763,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
         payload = _require_mapping(entry, label=label)
         _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_ENTRY_ALLOWED_KEYS)
         _require_keys(payload, label=label, required_keys=_RUNTIME_ENTRY_REQUIRED_KEYS)
-        command_prefix = _require_string(payload["command_prefix"], label=f"{label}.command_prefix")
+        command_prefix = _parse_command_prefix(payload["command_prefix"], label=f"{label}.command_prefix")
         descriptor = RuntimeDescriptor(
             runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
             display_name=_require_string(payload["display_name"], label=f"{label}.display_name"),

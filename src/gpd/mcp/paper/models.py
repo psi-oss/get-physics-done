@@ -775,6 +775,8 @@ class ReviewLedger(BaseModel):
 class JournalSpec(BaseModel):
     """Specification for a journal's LaTeX configuration."""
 
+    model_config = ConfigDict(extra="forbid")
+
     key: str
     document_class: str
     class_options: list[str]

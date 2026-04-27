@@ -2929,6 +2929,19 @@ def _recover_intent_locked(cwd: Path) -> None:
     except OSError:
         md_valid = False
 
+    json_path_valid = False
+    try:
+        json.loads(json_path.read_text(encoding="utf-8"))
+        json_path_valid = True
+    except (FileNotFoundError, OSError, json.JSONDecodeError, UnicodeDecodeError):
+        pass
+
+    def _mtime_ns(path: Path) -> int | None:
+        try:
+            return path.stat().st_mtime_ns
+        except OSError:
+            return None
+
     conflict_with_current = False
     if json_tmp_exists and md_tmp_exists:
         try:
@@ -2945,6 +2958,28 @@ def _recover_intent_locked(cwd: Path) -> None:
         # Both temp files ready and valid — complete the interrupted write
         _replace_with_retry(json_tmp, json_path)
         _replace_with_retry(md_tmp, md_path)
+    elif not json_tmp_exists and md_tmp_exists and json_path_valid and md_valid:
+        # The JSON temp may already have been promoted before the process died.
+        # Complete the markdown half only when neither current file looks newer
+        # than the surviving markdown temp.
+        md_tmp_mtime = _mtime_ns(md_tmp)
+        json_path_mtime = _mtime_ns(json_path)
+        md_path_mtime = _mtime_ns(md_path)
+        current_newer_than_md_tmp = (
+            md_tmp_mtime is not None
+            and (
+                (json_path_mtime is not None and json_path_mtime > md_tmp_mtime)
+                or (md_path_mtime is not None and md_path_mtime > md_tmp_mtime)
+            )
+        )
+        if not current_newer_than_md_tmp:
+            _replace_with_retry(md_tmp, md_path)
+        else:
+            logger.warning("Ignoring stale state write intent because current state files are newer than temp files")
+            try:
+                md_tmp.unlink()
+            except OSError:
+                pass
     else:
         if conflict_with_current:
             logger.warning("Ignoring stale state write intent because current state files are newer than temp files")
@@ -2971,13 +3006,14 @@ def _build_state_from_markdown(
     md_content: str,
     *,
     recover_intent: bool = True,
+    allow_markdown_continuation: bool = False,
 ) -> dict:
     """Merge markdown-derived state into the existing JSON state.
 
-    The Session Continuity block in STATE.md is projected directly into the
-    parsed dict's canonical ``continuation`` payload, so any values authored
-    in the markdown propagate when existing JSON has no continuation of its
-    own.
+    ``STATE.md`` Session Continuity is a mirror of canonical continuation.
+    Normal markdown saves keep existing JSON continuation authority and do not
+    promote edited mirror fields. Recovery paths can opt into markdown
+    continuation when STATE.md is the only surviving state source.
     """
     json_path = _state_json_path(cwd)
     backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
@@ -3075,12 +3111,14 @@ def _build_state_from_markdown(
         parsed_continuation = parsed.get("continuation")
         if _continuation_payload_has_values(existing_continuation):
             merged["continuation"] = copy.deepcopy(existing_continuation)
-        elif _continuation_payload_has_values(parsed_continuation):
+        elif allow_markdown_continuation and _continuation_payload_has_values(parsed_continuation):
             merged["continuation"] = copy.deepcopy(parsed_continuation)
         elif "continuation" in existing:
             merged["continuation"] = copy.deepcopy(existing_continuation)
     else:
         merged = parsed
+        if not allow_markdown_continuation:
+            merged.pop("continuation", None)
 
     return _normalize_state_for_persistence(merged, project_root=cwd)
 
@@ -3475,6 +3513,7 @@ def _load_state_json_with_integrity_issues(
                 cwd,
                 content,
                 recover_intent=recover_intent,
+                allow_markdown_continuation=True,
             )
             integrity_issues = [
                 "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"

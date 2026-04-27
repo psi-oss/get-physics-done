@@ -297,6 +297,46 @@ def test_resolve_continuation_falls_back_to_handoff_when_canonical_bounded_segme
     assert projection.resumable is False
 
 
+def test_resolve_continuation_uses_live_bounded_segment_when_recorded_handoff_file_is_missing(
+    tmp_path: Path,
+) -> None:
+    _write_resume(tmp_path, "GPD/phases/03-analysis/live.md")
+
+    projection = resolve_continuation(
+        tmp_path,
+        state={
+            "continuation": {
+                "handoff": {
+                    "resume_file": "GPD/phases/03-analysis/missing-handoff.md",
+                    "stopped_at": "Canonical handoff",
+                    "recorded_at": "2026-03-29T12:00:00+00:00",
+                },
+                "machine": {"hostname": "builder-01"},
+            }
+        },
+        current_execution={
+            "session_id": "sess-1",
+            "phase": "3",
+            "plan": "2",
+            "segment_id": "live-seg",
+            "segment_status": "paused",
+            "resume_file": "GPD/phases/03-analysis/live.md",
+        },
+    )
+
+    assert projection.source == ContinuationSource.DERIVED_EXECUTION
+    assert projection.recorded_handoff_resume_file == "GPD/phases/03-analysis/missing-handoff.md"
+    assert projection.missing_handoff_resume_file == "GPD/phases/03-analysis/missing-handoff.md"
+    assert projection.continuation.handoff.stopped_at == "Canonical handoff"
+    assert projection.continuation.machine.hostname == "builder-01"
+    assert projection.continuation.bounded_segment is not None
+    assert projection.continuation.bounded_segment.segment_id == "live-seg"
+    assert projection.bounded_segment_resume_file == "GPD/phases/03-analysis/live.md"
+    assert projection.active_resume_file == "GPD/phases/03-analysis/live.md"
+    assert projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT
+    assert projection.resumable is True
+
+
 def test_resolve_continuation_projects_portable_current_execution_when_canonical_continuation_is_missing(
     tmp_path: Path,
 ) -> None:

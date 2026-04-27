@@ -1405,22 +1405,28 @@ class TestUpdateCommand:
         assert update_command_for_runtime(RUNTIME_UNKNOWN) == _SHARED_INSTALL.bootstrap_command
 
     def test_claude_runtime_uses_claude_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(" --claude")
+        assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(f" {_RUNTIME_BY_NAME[RUNTIME_CLAUDE].install_flag}")
 
     def test_codex_runtime_uses_codex_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CODEX).endswith(" --codex")
+        assert update_command_for_runtime(RUNTIME_CODEX).endswith(f" {_RUNTIME_BY_NAME[RUNTIME_CODEX].install_flag}")
 
     def test_gemini_runtime_uses_gemini_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_GEMINI).endswith(" --gemini")
+        assert update_command_for_runtime(RUNTIME_GEMINI).endswith(f" {_RUNTIME_BY_NAME[RUNTIME_GEMINI].install_flag}")
 
     def test_opencode_runtime_uses_opencode_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_OPENCODE).endswith(" --opencode")
+        assert update_command_for_runtime(RUNTIME_OPENCODE).endswith(
+            f" {_RUNTIME_BY_NAME[RUNTIME_OPENCODE].install_flag}"
+        )
 
     def test_local_scope_adds_local_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CLAUDE, scope=SCOPE_LOCAL).endswith(" --claude --local")
+        assert update_command_for_runtime(RUNTIME_CLAUDE, scope=SCOPE_LOCAL).endswith(
+            f" {_RUNTIME_BY_NAME[RUNTIME_CLAUDE].install_flag} --local"
+        )
 
     def test_global_scope_adds_global_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_OPENCODE, scope=SCOPE_GLOBAL).endswith(" --opencode --global")
+        assert update_command_for_runtime(RUNTIME_OPENCODE, scope=SCOPE_GLOBAL).endswith(
+            f" {_RUNTIME_BY_NAME[RUNTIME_OPENCODE].install_flag} --global"
+        )
 
 
 # ─── _has_gpd_install ──────────────────────────────────────────────────────

@@ -76,6 +76,7 @@ _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
     suggest_next_phrase="{suggest_next}",
     pause_work_phrase="{pause_work}",
 )
+MANAGED_HOME_DIRNAME = ".gpd"
 
 
 def _render_runtime_recovery_ladder(runtime: str) -> str:
@@ -658,7 +659,7 @@ def _run_bootstrap_with_fake_python(
         _write_fake_launcher(fake_bin / launch_command, launch_command)
 
     if precreate_managed_version is not None:
-        managed_bin = home / "GPD" / "venv" / "bin"
+        managed_bin = home / MANAGED_HOME_DIRNAME / "venv" / "bin"
         for name in ("python", "python3"):
             _write_fake_python(managed_bin / name, log_path, precreate_managed_version)
 
@@ -668,7 +669,7 @@ def _run_bootstrap_with_fake_python(
         if not key.startswith("FAKE_PIP_")
     }
     env["HOME"] = str(home)
-    env["GPD_HOME"] = str(home / "GPD")
+    env.pop("GPD_HOME", None)
     env["GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES"] = "1"
     env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin)])
     if extra_env:
@@ -1383,6 +1384,13 @@ const publicSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
 publicSurfaceCatalog[0].public_command_surface_prefix = "/public:";
 const normalizedPublicSurface = validateRuntimeCatalog(publicSurfaceCatalog);
 assert.equal(normalizedPublicSurface[0].public_command_surface_prefix, "/public:");
+const badCommandPrefixCatalog = JSON.parse(JSON.stringify(catalog));
+badCommandPrefixCatalog[0].command_prefix = "gpd:";
+badCommandPrefixCatalog[0].public_command_surface_prefix = "/public:";
+assert.throws(
+  () => validateRuntimeCatalog(badCommandPrefixCatalog),
+  /runtime catalog entry 0\.command_prefix must be (a non-empty string|a slash or dollar command prefix)/
+);
 for (const badPrefix of [" public:", "public", "/bad space:", "gpd:"]) {
   const badPublicSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
   badPublicSurfaceCatalog[0].public_command_surface_prefix = badPrefix;
@@ -1391,6 +1399,14 @@ for (const badPrefix of [" public:", "public", "/bad space:", "gpd:"]) {
     /runtime catalog entry 0\.public_command_surface_prefix must be (a non-empty string|a slash or dollar command prefix)/
   );
 }
+
+const missingPromptFreeModeCatalog = JSON.parse(JSON.stringify(catalog));
+missingPromptFreeModeCatalog[0].capabilities.supports_prompt_free_mode = true;
+missingPromptFreeModeCatalog[0].capabilities.prompt_free_mode_value = null;
+assert.throws(
+  () => validateRuntimeCatalog(missingPromptFreeModeCatalog),
+  /runtime catalog entry 0\.capabilities\.prompt_free_mode_value must be a non-empty string when supports_prompt_free_mode=true/
+);
 
 const partialCapabilitiesCatalog = JSON.parse(JSON.stringify(catalog));
 const originalCapabilities = partialCapabilitiesCatalog[0].capabilities;
@@ -1546,7 +1562,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
 
     assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
     assert any(
-        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/GPD/venv")
+        entry["argv"][:2] == ["-m", "venv"]
+        and entry["argv"][-1].replace("\\", "/").endswith(f"/{MANAGED_HOME_DIRNAME}/venv")
         for entry in entries
     )
 
@@ -1582,7 +1599,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     )
     assert doctor_index < install_index
 
-    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()
     assert f"GPD v{PACKAGE_VERSION} - Get Physics Done" in result.stdout
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
@@ -1629,7 +1646,8 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
 
     assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
     assert any(
-        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/GPD/venv")
+        entry["argv"][:2] == ["-m", "venv"]
+        and entry["argv"][-1].replace("\\", "/").endswith(f"/{MANAGED_HOME_DIRNAME}/venv")
         for entry in entries
     )
 
@@ -1648,7 +1666,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
     ]
     assert managed_runtime_doctor == []
 
-    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()
     assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
     assert "Runtime launcher/target preflight" not in result.stdout
     assert f"Uninstalling GPD from {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." in result.stdout
@@ -2396,4 +2414,4 @@ def test_bootstrap_recreates_managed_env_when_selected_minor_changes(tmp_path: P
     assert len(venv_creations) == 1
     assert venv_creations[0]["exe"].endswith("python3.13")
     assert "switching to Python 3.13.2" in result.stdout
-    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()

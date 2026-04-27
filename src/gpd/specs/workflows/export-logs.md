@@ -46,6 +46,8 @@ Exit.
 | `--session <id>` | (none) | Export only this session |
 | `--last N` | (none) | Export the N most recent sessions |
 | `--command <label>` | (none) | Filter sessions by command label |
+| `--phase <phase>` | (none) | Filter events by phase identifier |
+| `--category <name>` | (none) | Filter events by event category |
 | `--no-traces` | false | Exclude execution traces |
 | `--output-dir <path>` | `GPD/exports/logs/` | Custom output directory |
 
@@ -75,6 +77,8 @@ if [ -n "$FORMAT" ]; then EXPORT_ARGS="$EXPORT_ARGS --format $FORMAT"; fi
 if [ -n "$SESSION" ]; then EXPORT_ARGS="$EXPORT_ARGS --session $SESSION"; fi
 if [ -n "$LAST" ]; then EXPORT_ARGS="$EXPORT_ARGS --last $LAST"; fi
 if [ -n "$COMMAND" ]; then EXPORT_ARGS="$EXPORT_ARGS --command $COMMAND"; fi
+if [ -n "$PHASE" ]; then EXPORT_ARGS="$EXPORT_ARGS --phase $PHASE"; fi
+if [ -n "$CATEGORY" ]; then EXPORT_ARGS="$EXPORT_ARGS --category $CATEGORY"; fi
 if [ -n "$OUTPUT_DIR" ]; then EXPORT_ARGS="$EXPORT_ARGS --output-dir $OUTPUT_DIR"; fi
 if [ "$NO_TRACES" = "true" ]; then EXPORT_ARGS="$EXPORT_ARGS --no-traces"; fi
 
@@ -116,6 +120,7 @@ Parse the JSON result for `exported`, `output_dir`, `sessions_exported`, `events
 **Also available:**
 - `gpd:export-logs --format markdown` — human-readable report
 - `gpd:export-logs --last 5` — export only recent sessions
+- `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow` — narrow by command, phase, and event category
 - `gpd observe show` — inspect events interactively
 - `gpd observe sessions` — list available sessions
 

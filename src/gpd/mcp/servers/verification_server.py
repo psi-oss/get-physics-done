@@ -83,6 +83,8 @@ logger = configure_mcp_logging("gpd-verification")
 
 mcp = FastMCP("gpd-verification")
 
+RUN_CONTRACT_CHECK_SCHEMA_SIZE_BUDGET_BYTES = 80_000
+
 
 def _approved_contract_warnings(contract: ResearchContract, *, project_root: Path | None) -> list[str]:
     """Return non-blocking approved-mode contract warnings shared by MCP tools."""
@@ -1094,19 +1096,50 @@ def _run_contract_binding_condition_schema() -> list[dict[str, object]]:
     return conditions
 
 
-def _request_section_required_schema(section_schema: dict[str, object], required_fields: Iterable[str]) -> dict[str, object]:
+def _compact_contract_payload_requirement_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "required": ["schema_version", "scope", "context_intake", "uncertainty_markers"],
+        "additionalProperties": True,
+        "properties": {
+            "schema_version": {"type": "integer", "const": 1},
+            "scope": {"type": "object"},
+            "context_intake": {"type": "object"},
+            "uncertainty_markers": {"type": "object"},
+        },
+    }
+
+
+def _request_section_required_schema(
+    section_name: str,
+    section_schema: dict[str, object],
+    required_fields: Iterable[str],
+) -> dict[str, object]:
     required_list = [field for field in required_fields if field]
-    schema = dict(section_schema)
+    if section_name == "contract":
+        schema = _compact_contract_payload_requirement_schema()
+        if required_list:
+            schema["required"] = list(dict.fromkeys([*schema["required"], *required_list]))
+        return schema
+
+    schema: dict[str, object] = {
+        "type": "object",
+        "additionalProperties": False,
+    }
     if required_list:
         schema["required"] = required_list
     properties = schema.get("properties")
-    if isinstance(properties, dict) and required_list:
-        strict_properties = dict(properties)
+    source_properties = section_schema.get("properties")
+    if isinstance(source_properties, dict) and required_list:
+        strict_properties: dict[str, object] = {}
         for field_name in required_list:
-            field_schema = strict_properties.get(field_name)
+            field_schema = source_properties.get(field_name)
             if isinstance(field_schema, dict):
                 strict_properties[field_name] = _strict_required_schema_fragment(field_schema)
-        schema["properties"] = strict_properties
+        if strict_properties:
+            schema["properties"] = strict_properties
+    elif isinstance(properties, dict):
+        schema["properties"] = properties
     return schema
 
 
@@ -1140,11 +1173,15 @@ def _request_requirement_schema(required_fields: Iterable[str]) -> dict[str, obj
     for section_name, section_schema in section_schema_sources.items():
         if section_name in section_requirements:
             section_schemas[section_name] = _request_section_required_schema(
+                section_name,
                 section_schema,
                 section_requirements[section_name],
             )
         elif section_name in top_level_required:
-            section_schemas[section_name] = _strict_required_schema_fragment(section_schema)
+            if section_name == "contract":
+                section_schemas[section_name] = _compact_contract_payload_requirement_schema()
+            else:
+                section_schemas[section_name] = {"type": "object", "minProperties": 1}
     if "artifact_content" in top_level_required:
         section_schemas["artifact_content"] = _strict_required_schema_fragment(_non_empty_string_or_null_schema())
     if section_schemas:
@@ -1221,8 +1258,9 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA: dict[str, object] = {
 _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] = (
     "Closed `run_contract_check` request object. `check_key` is required and accepts the "
     "canonical check key or a stable numeric id. `contract`, `binding`, `metadata`, "
-    "`observed`, and `artifact_content` are optional sections, but each check still enforces "
-    "its own `schema_required_request_fields` and `schema_required_request_anyof_fields`. "
+    "`observed`, and `artifact_content` are optional sections. The compact published schema keeps "
+    "per-check required-field guards while runtime validation and verdict construction remain "
+    "authoritative. "
     "When `binding` is present, use only the canonical plural `*_ids` arrays surfaced in "
     "`supported_binding_fields`. Use `suggest_contract_checks(contract, active_checks=...)` "
     "first to inspect `required_request_fields`, `schema_required_request_fields`, "
@@ -1722,7 +1760,8 @@ def _serialize_verification_check_entry(check_entry: dict[str, object]) -> dict[
 def _run_contract_check_description() -> str:
     return (
         "Run a contract-aware verification check from a single structured ``request`` object. "
-        "The full request contract lives on the ``request`` input schema itself. "
+        "The published ``request`` input schema is compact and closed; use ``suggest_contract_checks`` "
+        "for per-check required-request metadata before execution. "
         "``request.contract`` is optional, but proof-oriented checks still require an authoritative "
         "contract payload. ``project_dir`` is optional, but when the contract uses project-local anchors "
         "or prior-output paths it should be the absolute project root so those references are validated "

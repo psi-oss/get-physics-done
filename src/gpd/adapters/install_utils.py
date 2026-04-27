@@ -548,6 +548,28 @@ _UNRESOLVED_INCLUDE_MARKERS = (
 _TEXT_INSTALL_ARTIFACT_SUFFIXES = frozenset({".md", ".toml"})
 
 
+def parse_at_include_path(line: str) -> str | None:
+    """Return the include path for one installer-recognized ``@`` include line."""
+    include_match = _AT_INCLUDE_LINE_RE.match(line.strip())
+    if include_match is None:
+        return None
+
+    include_candidate = include_match.group(1)
+    if len(include_candidate) < 3 or include_candidate[1] == " " or re.match(r"^@\w+\{", include_candidate):
+        return None
+
+    include_path = include_candidate[1:]
+    include_path = include_path.split(" (see")[0]
+    include_path = include_path.split(" -> ")[0]
+    include_path = re.sub(r"\s+\([^)]*\)\s*$", "", include_path).strip()
+
+    if "/" not in include_path:
+        return None
+    if include_path.startswith(("GPD/", "path/")):
+        return None
+    return include_path
+
+
 def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
     """Rewrite agent body tokens that collide with runtime prompt templating.
 
@@ -1319,37 +1341,8 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        include_match = _AT_INCLUDE_LINE_RE.match(trimmed)
-        if not include_match:
-            result.append(line)
-            continue
-
-        include_candidate = include_match.group(1)
-
-        # Must start with @ followed by a path (not a BibTeX entry like @article{)
-        if len(include_candidate) < 3 or include_candidate[1] == " " or re.match(r"^@\w+\{", include_candidate):
-            result.append(line)
-            continue
-
-        # Extract the include path
-        include_path = include_candidate[1:]
-        include_path = include_path.split(" (see")[0]  # strip "(see ..." suffixes
-        include_path = include_path.split(" -> ")[0]  # strip "-> Section Name" suffixes
-        include_path = re.sub(r"\s+\([^)]*\)\s*$", "", include_path)  # strip trailing labels like "(main workflow)"
-        include_path = include_path.strip()
-
-        # Only treat paths that contain "/" (avoid false positives like decorators)
-        if "/" not in include_path:
-            result.append(line)
-            continue
-
-        # GPD/ relative paths — project-specific, skip
-        if include_path.startswith("GPD/"):
-            result.append(line)
-            continue
-
-        # Example paths — not real files
-        if include_path.startswith("path/"):
+        include_path = parse_at_include_path(trimmed)
+        if include_path is None:
             result.append(line)
             continue
 

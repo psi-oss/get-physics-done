@@ -91,8 +91,10 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert "Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths." in readme
     assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in help_workflow
     assert "The later publication commands stay stricter:" in readme
-    assert "**`gpd:respond-to-referees [path to referee report or 'paste']`**" in help_workflow
+    assert "**`gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]`**" in help_workflow
     assert "**`gpd:arxiv-submission [GPD-owned manuscript root]`**" in help_workflow
+    assert "Usage: `gpd:respond-to-referees --manuscript paper/main.tex --report reports/referee-report.md`" in help_workflow
+    assert "Usage: `gpd:respond-to-referees reports/referee-report.md`" in help_workflow
     assert "Usage: `gpd:respond-to-referees paste`" in help_workflow
     assert "Usage: `gpd:arxiv-submission paper/`" in help_workflow
     assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
@@ -114,6 +116,19 @@ def test_public_write_paper_help_surfaces_match_supported_command_metadata() -> 
 
     assert "Usage: `gpd:write-paper`" in help_workflow
     assert "--from-phases" not in write_paper_workflow
+
+
+def test_help_workflow_export_logs_surfaces_passthrough_filters() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    export_index = "- `gpd:export-logs"
+    export_detail = "**`gpd:export-logs"
+    assert export_index in help_workflow
+    assert export_detail in help_workflow
+    for flag in ("--command <label>", "--phase <phase>", "--category <name>"):
+        assert flag in help_workflow
+    assert "Supports passthrough filters" in help_workflow
+    assert "Usage: `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow`" in help_workflow
 
 
 def test_help_command_uses_one_shared_extract_warning() -> None:

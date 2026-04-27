@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Annotated, TypeVar
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import WithJsonSchema
+from pydantic import Field, WithJsonSchema
 
 from gpd.contracts import ConventionLock
 from gpd.core.constants import ProjectLayout
@@ -196,6 +196,20 @@ SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
         "coordinate_system": "Cartesian",
     },
 }
+
+SubfieldDomainInput = Annotated[
+    str,
+    Field(min_length=1, pattern=r"\S"),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 1,
+            "pattern": r"\S",
+            "enum": sorted(SUBFIELD_DEFAULTS),
+            "description": "Non-empty physics subfield domain key.",
+        }
+    ),
+]
 
 
 # ─── Project I/O ──────────────────────────────────────────────────────────────
@@ -588,7 +602,7 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
 
 
 @mcp.tool()
-def subfield_defaults(domain: str) -> dict:
+def subfield_defaults(domain: SubfieldDomainInput) -> dict:
     """Return recommended default conventions for a physics domain.
 
     Provides sensible starting conventions for common subfields.
@@ -599,6 +613,9 @@ def subfield_defaults(domain: str) -> dict:
     algebraic_qft, string_field_theory, quantum_info, soft_matter, fluid_plasma,
     classical_mechanics.
     """
+    if not isinstance(domain, str) or not domain.strip():
+        return stable_mcp_error("domain must be a non-empty string")
+    domain = domain.strip()
     with gpd_span("mcp.conventions.subfield_defaults", domain=domain):
         defaults = SUBFIELD_DEFAULTS.get(domain)
     if defaults is None:
