@@ -559,7 +559,7 @@ If GPD contributes to published research, please cite the software using [`CITAT
 @software{physical_superintelligence_2026_gpd,
   author = {{Physical Superintelligence PBC}},
   title = {Get Physics Done (GPD)},
-  version = {1.2.0},
+  version = {1.2.1},
   year = {2026},
   url = {https://github.com/psi-oss/get-physics-done},
   license = {Apache-2.0}
@@ -567,7 +567,7 @@ If GPD contributes to published research, please cite the software using [`CITAT
 ```
 
 ```text
-Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.2.0). https://github.com/psi-oss/get-physics-done
+Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.2.1). https://github.com/psi-oss/get-physics-done
 ```
 
 If your paper includes an acknowledgements section, use:
