@@ -34,7 +34,7 @@ This is the single-purpose sibling of `gpd:suggest-next`. `suggest-next` infers 
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/route.md`. It:
+Follow the included route workflow. It:
 
 1. Reads the current milestone + active phase from state.
 2. Asks three `ask_user` questions (or accepts pre-provided answers via `--frozen=yes|no`, `--change=extend|revise`, `--layer=new|change`).

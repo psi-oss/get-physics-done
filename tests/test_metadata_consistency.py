@@ -537,7 +537,10 @@ def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
     workflow = _read("src/gpd/specs/workflows/update.md")
 
     assert "<GPD_CONFIG_DIR>" not in workflow
-    assert '"{GPD_CONFIG_DIR}/cache/gpd-update-check.json"' in workflow
+    assert "get_update_cache_files(cwd=Path.cwd(), home=Path.home())" in workflow
+    assert "home_update_cache_file(home=Path.home())" in workflow
+    assert 'for root in (current_config, current_global_config, Path.home() / "{GPD_HOME_DATA_DIR_NAME}")' in workflow
+    assert 'root / "{GPD_CACHE_DIR_NAME}" / "{GPD_UPDATE_CACHE_FILENAME}"' in workflow
 
 
 def test_referee_response_round_suffix_convention_is_consistent() -> None:

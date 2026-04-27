@@ -56,6 +56,6 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly. The workflow owns staged loading, scope fixing, artifact gating, and citation verification.
+Follow the included literature-review workflow exactly. The workflow owns staged loading, scope fixing, artifact gating, and citation verification.
 If the invocation is empty in project-backed mode, ask one focused question to set the review topic before handing off. Standalone empty invocations should already have failed preflight.
 </process>

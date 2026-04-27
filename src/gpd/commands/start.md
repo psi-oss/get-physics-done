@@ -36,7 +36,7 @@ machine and do not silently assume the user already knows which command to run.
 </inline_guidance>
 
 <process>
-Follow the start workflow from `@{GPD_INSTALL_DIR}/workflows/start.md` end-to-end.
+Follow the included start workflow end-to-end.
 Preserve the routing-first rule: detect the folder state, show plain-language
 choices, then hand off to the real existing workflow instead of duplicating its
 logic here.

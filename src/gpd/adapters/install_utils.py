@@ -413,6 +413,9 @@ def _replace_runtime_placeholders(
     content = content.replace("{GPD_RELEASES_PAGE_URL}", shared_install.releases_page_url)
     content = content.replace("{GPD_INSTALL_ROOT_DIR_NAME}", shared_install.install_root_dir_name)
     content = content.replace("{GPD_PATCHES_DIR_NAME}", shared_install.patches_dir_name)
+    content = content.replace("{GPD_HOME_DATA_DIR_NAME}", HOME_DATA_DIR_NAME)
+    content = content.replace("{GPD_CACHE_DIR_NAME}", CACHE_DIR_NAME)
+    content = content.replace("{GPD_UPDATE_CACHE_FILENAME}", UPDATE_CACHE_FILENAME)
 
     scope_flag = _normalize_install_scope_flag(install_scope)
     if scope_flag:
@@ -500,6 +503,9 @@ def _materialize_workflow_paths(
         "GPD_GLOBAL_CONFIG_DIR": global_config_dir,
         "GPD_UPDATE_COMMAND": update_command,
         "GPD_PATCH_META": patch_meta,
+        "GPD_HOME_DATA_DIR_NAME": HOME_DATA_DIR_NAME,
+        "GPD_CACHE_DIR_NAME": CACHE_DIR_NAME,
+        "GPD_UPDATE_CACHE_FILENAME": UPDATE_CACHE_FILENAME,
         "GPD_PATCHES_DIR": f"{config_dir}/{PATCHES_DIR_NAME}",
         "GPD_GLOBAL_PATCHES_DIR": f"{global_config_dir}/{PATCHES_DIR_NAME}",
         "PATCHES_DIR": f"{config_dir}/{PATCHES_DIR_NAME}",

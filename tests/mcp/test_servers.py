@@ -585,6 +585,38 @@ class TestConventionsServer:
         assert result["status"] == "set"
         assert result["key"] == "metric_signature"
 
+    def test_convention_set_warns_for_nonstandard_standard_value(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
+
+        result = convention_set(str(tmp_path), "metric_signature", "moslty-plus")
+
+        assert result["status"] == "set"
+        assert result["non_standard"] is True
+        assert result["known_options"]
+        assert "Non-standard value" in result["warning"]
+        persisted = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        assert persisted["convention_lock"]["metric_signature"] == "moslty-plus"
+
+    def test_convention_set_persists_nonstandard_standard_value_with_escape_hatch(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
+
+        result = convention_set(str(tmp_path), "metric_signature", "custom-project-signature", allow_nonstandard=True)
+
+        assert result["status"] == "set"
+        assert result["key"] == "metric_signature"
+        assert result["non_standard"] is True
+        assert result["known_options"]
+        persisted = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        assert persisted["convention_lock"]["metric_signature"] == "custom-project-signature"
+
     def test_convention_set_already_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 

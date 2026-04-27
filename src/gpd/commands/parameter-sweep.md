@@ -74,7 +74,7 @@ fi
 
 ## 2. Delegate To Workflow
 
-Execute the parameter-sweep workflow from @{GPD_INSTALL_DIR}/workflows/parameter-sweep.md end-to-end.
+Execute the included parameter-sweep workflow end-to-end.
 Preserve its workspace-locked bootstrap, explicit current-workspace target resolution, and the split between authoritative phase-backed docs and current-workspace-only sweep roots.
 </process>
 

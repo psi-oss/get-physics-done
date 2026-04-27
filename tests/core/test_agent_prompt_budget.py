@@ -53,6 +53,14 @@ PEER_REVIEW_SPECIALIST_AGENTS = (
     "gpd-review-significance",
 )
 
+MODE_TABLE_ALLOWLIST = {
+    "gpd-bibliographer",
+    "gpd-executor",
+    "gpd-paper-writer",
+    "gpd-planner",
+    "gpd-project-researcher",
+}
+
 
 def test_agent_prompt_budget_table_covers_registered_agents() -> None:
     assert set(AGENT_BASELINES) == set(registry.list_agents())
@@ -60,6 +68,29 @@ def test_agent_prompt_budget_table_covers_registered_agents() -> None:
 
 def _budget_from_baseline(value: int, *, minimum_margin: int) -> int:
     return value + max(minimum_margin, ceil(value * PROMPT_BUDGET_MARGIN))
+
+
+def _markdown_table_blocks(text: str) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    for line in text.splitlines():
+        if line.lstrip().startswith("|"):
+            current.append(line)
+            continue
+        if current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _is_full_mode_boilerplate_table(table: list[str]) -> bool:
+    table_text = "\n".join(table).lower()
+    max_column_count = max(line.count("|") - 1 for line in table)
+    has_autonomy_modes = all(mode in table_text for mode in ("supervised", "balanced", "yolo"))
+    has_research_modes = all(mode in table_text for mode in ("explore", "balanced", "exploit"))
+    return max_column_count >= 4 and (has_autonomy_modes or has_research_modes)
 
 
 @pytest.mark.parametrize("agent_name", sorted(AGENT_BASELINES))
@@ -79,6 +110,19 @@ def test_expanded_agent_prompt_stays_under_budget(agent_name: str) -> None:
         baseline_chars,
         minimum_margin=MIN_CHAR_MARGIN,
     )
+
+
+def test_full_autonomy_and_research_mode_tables_stay_on_allowlisted_agents() -> None:
+    offenders: list[str] = []
+    for agent_path in sorted(AGENTS_DIR.glob("*.md")):
+        agent_name = agent_path.stem
+        if agent_name in MODE_TABLE_ALLOWLIST:
+            continue
+        raw_text = agent_path.read_text(encoding="utf-8")
+        if any(_is_full_mode_boilerplate_table(table) for table in _markdown_table_blocks(raw_text)):
+            offenders.append(agent_name)
+
+    assert offenders == []
 
 
 @pytest.mark.parametrize("agent_name", PEER_REVIEW_SPECIALIST_AGENTS)

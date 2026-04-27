@@ -396,7 +396,7 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/progress.md").read_text(encoding="utf-8")
 
     assert "@{GPD_INSTALL_DIR}/workflows/progress.md" in command
-    assert "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly." in command
+    assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in command
     assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command
     assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" not in command
     assert "The recent-project picker is advisory" not in command

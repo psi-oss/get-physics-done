@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter
+from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.adapters.runtime_catalog import (
     get_shared_install_metadata,
     iter_runtime_descriptors,
     resolve_global_config_dir,
 )
+from gpd.core.constants import HOME_DATA_DIR_NAME
 from gpd.hooks.install_metadata import installed_update_command, load_install_manifest_explicit_target_status
 
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
@@ -46,6 +48,9 @@ def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     assert "{GPD_RELEASES_API_URL}" in content
     assert "{GPD_RELEASES_PAGE_URL}" in content
     assert "{GPD_GLOBAL_CONFIG_DIR}" in content
+    assert "{GPD_HOME_DATA_DIR_NAME}" in content
+    assert "{GPD_CACHE_DIR_NAME}" in content
+    assert "{GPD_UPDATE_CACHE_FILENAME}" in content
     assert 'PYTHON_BIN="${GPD_PYTHON:-}"' in content
     assert "TARGET_DIR_ARG=$(" not in content
     assert "{GPD_RUNTIME_FLAG}" not in content
@@ -54,6 +59,17 @@ def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     assert "gpd install --all" not in content
     assert "gpd:update-check.json" not in content
     assert "commands/gpd/" not in content
+
+
+def test_update_workflow_clears_runtime_resolution_cache_candidates() -> None:
+    content = (GPD_ROOT / "specs" / "workflows" / "update.md").read_text(encoding="utf-8")
+
+    assert "from gpd.hooks.runtime_detect import get_update_cache_files, home_update_cache_file" in content
+    assert "cache_files.update(get_update_cache_files(cwd=Path.cwd(), home=Path.home()))" in content
+    assert "cache_files.add(home_update_cache_file(home=Path.home()))" in content
+    assert 'for root in (current_config, current_global_config, Path.home() / "{GPD_HOME_DATA_DIR_NAME}")' in content
+    assert 'root / "{GPD_CACHE_DIR_NAME}" / "{GPD_UPDATE_CACHE_FILENAME}"' in content
+    assert '.with_name(f"{cache_file.name}.inflight")' in content
 
 
 def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
@@ -95,6 +111,11 @@ def test_default_local_install_keeps_local_update_scope_and_manifest(
     assert installed_update_command(target) == f"{adapter.update_command} --local"
     assert f'GPD_CONFIG_DIR="{target.as_posix()}"' in update_content
     assert f'GPD_INSTALL_DIR="{(target / _SHARED_INSTALL.install_root_dir_name).as_posix()}"' in update_content
+    assert f'for root in (current_config, current_global_config, Path.home() / "{HOME_DATA_DIR_NAME}")' in update_content
+    assert f'root / "{CACHE_DIR_NAME}" / "{UPDATE_CACHE_FILENAME}"' in update_content
+    assert "{GPD_CACHE_DIR_NAME}" not in update_content
+    assert "{GPD_UPDATE_CACHE_FILENAME}" not in update_content
+    assert "{GPD_HOME_DATA_DIR_NAME}" not in update_content
     assert f'PATCHES_DIR="{target.as_posix()}/{_SHARED_INSTALL.patches_dir_name}"' in reapply_content
     if "skills/" in descriptor.manifest_file_prefixes:
         files = manifest.get("files", {})

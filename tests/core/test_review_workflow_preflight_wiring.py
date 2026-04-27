@@ -62,8 +62,8 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "- manuscript_path" in command
     assert "- referee_report_path" in command
     assert "- paste_referee_report" in command
-    assert "GPD/publication/*/manuscript/*.tex" in command
-    assert "GPD/publication/*/manuscript/*.md" in command
+    assert "allow_external_subjects: true" in command
+    assert "requires:" not in command
     assert "default_output_subtree: GPD" in command
     assert "scope_variants:" in command
     assert "scope: explicit_external_manuscript" in command

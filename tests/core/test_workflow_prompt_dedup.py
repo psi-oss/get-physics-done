@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
@@ -58,6 +59,17 @@ def test_command_wrappers_do_not_duplicate_workflow_routing_boilerplate() -> Non
         content = path.read_text(encoding="utf-8")
         for phrase in forbidden_phrases:
             assert phrase not in content, path.relative_to(REPO_ROOT)
+
+
+def test_command_wrappers_do_not_repeat_self_workflow_reference_after_include() -> None:
+    for path in sorted(COMMANDS_DIR.rglob("*.md")):
+        command_slug = path.stem
+        workflow_reference = re.compile(
+            rf"(?<!@)\{{GPD_INSTALL_DIR\}}/workflows/{re.escape(command_slug)}\.md"
+            rf"|@\{{GPD_INSTALL_DIR\}}/workflows/{re.escape(command_slug)}\.md"
+        )
+        content = path.read_text(encoding="utf-8")
+        assert len(workflow_reference.findall(content)) <= 1, path.relative_to(REPO_ROOT)
 
 
 def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -> None:

@@ -104,7 +104,7 @@ def _expected_beginner_runtime_surface(descriptor: object) -> BeginnerRuntimeSur
 
 
 def test_beginner_onboarding_surface_contract_exposes_hub_and_ladder() -> None:
-    assert beginner_onboarding_hub_url() == "./docs/README.md"
+    assert beginner_onboarding_hub_url() == "https://github.com/psi-oss/get-physics-done/tree/main/docs"
     assert "blob/main" not in beginner_onboarding_hub_url()
     assert beginner_startup_ladder_text() == "`help -> start -> tour -> new-project / map-research -> resume-work`"
     assert beginner_preflight_requirements() == (

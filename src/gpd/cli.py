@@ -12213,8 +12213,20 @@ def _resolve_cli_target_dir(target_dir: str) -> Path:
 
 def _target_dir_matches_global(runtime_name: str, target_dir: str, *, action: str) -> bool:
     """Return whether an explicit target-dir names the runtime's canonical global dir."""
+    from gpd.adapters.runtime_catalog import resolve_global_config_dir_candidates
+
     adapter = _get_adapter_or_error(runtime_name, action=action)
     resolved_target = _resolve_cli_target_dir(target_dir)
+    descriptor = getattr(adapter, "runtime_descriptor", None)
+    if descriptor is not None:
+        try:
+            return any(
+                resolved_target == candidate.expanduser().resolve(strict=False)
+                for candidate in resolve_global_config_dir_candidates(descriptor)
+            )
+        except (AttributeError, TypeError, ValueError):
+            return False
+
     resolve_target_dir = getattr(adapter, "resolve_target_dir", None)
     if not callable(resolve_target_dir):
         return False

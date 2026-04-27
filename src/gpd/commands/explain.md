@@ -90,7 +90,7 @@ If a GPD project exists, load project state and current-process context before s
 
 ## 3. Execute the Explain Workflow
 
-Follow the explain workflow from `@{GPD_INSTALL_DIR}/workflows/explain.md` end-to-end.
+Follow the included explain workflow end-to-end.
 
 ## 4. Return Results
 

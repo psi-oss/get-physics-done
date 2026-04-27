@@ -1971,10 +1971,31 @@ function runtimeGlobalConfigDir(runtime) {
   throw new Error(`Unsupported config policy for runtime ${runtime}`);
 }
 
+function normalizedConfigDirCandidate(targetDir) {
+  return path.resolve(expandTilde(targetDir));
+}
+
+function runtimeGlobalConfigDirCandidates(runtime) {
+  const policy = runtimeRecord(runtime).global_config;
+  const candidates = [];
+  const addCandidate = (candidate) => {
+    if (!candidate) {
+      return;
+    }
+    const resolved = normalizedConfigDirCandidate(candidate);
+    if (!candidates.includes(resolved)) {
+      candidates.push(resolved);
+    }
+  };
+
+  addCandidate(runtimeGlobalConfigDir(runtime));
+  addCandidate(path.join(os.homedir(), policy.home_subpath));
+  return candidates;
+}
+
 function targetDirMatchesGlobal(runtime, targetDir) {
-  const resolvedTargetDir = path.resolve(expandTilde(targetDir));
-  const resolvedGlobalDir = path.resolve(expandTilde(runtimeGlobalConfigDir(runtime)));
-  return resolvedTargetDir === resolvedGlobalDir;
+  const resolvedTargetDir = normalizedConfigDirCandidate(targetDir);
+  return runtimeGlobalConfigDirCandidates(runtime).includes(resolvedTargetDir);
 }
 
 function formatDisplayPath(filePath) {
@@ -2582,7 +2603,52 @@ function parseSelectedRuntimes(args) {
   return selected;
 }
 
-async function selectRuntimes(args, action = "install") {
+function runtimeSelectionMenuEntries({ allowAll = true } = {}) {
+  const entries = ALL_RUNTIMES.map((runtime, index) => ({
+    choice: String(index + 1),
+    label: runtimeDisplayName(runtime),
+    details: [runtime],
+  }));
+  if (allowAll) {
+    entries.push({
+      choice: String(ALL_RUNTIMES.length + 1),
+      label: "All runtimes",
+      details: [],
+    });
+  }
+  return entries;
+}
+
+function resolveRuntimeSelectionChoice(choice, { allowAll = true } = {}) {
+  const normalizedChoice = (choice || "1").toLowerCase();
+  if (
+    normalizedChoice === String(ALL_RUNTIMES.length + 1) ||
+    normalizedChoice === "all" ||
+    normalizedChoice === "all runtimes"
+  ) {
+    if (allowAll) {
+      return { runtimes: [...ALL_RUNTIMES] };
+    }
+    return { error: "Select exactly one runtime when using --target-dir." };
+  }
+
+  const numericIndex = Number.parseInt(normalizedChoice, 10);
+  if (Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= ALL_RUNTIMES.length) {
+    return { runtimes: [ALL_RUNTIMES[numericIndex - 1]] };
+  }
+
+  for (const runtime of ALL_RUNTIMES) {
+    const aliases = new Set([runtime, runtimeDisplayName(runtime).toLowerCase(), ...runtimeSelectionAliases(runtime)]);
+    if (aliases.has(normalizedChoice)) {
+      return { runtimes: [runtime] };
+    }
+  }
+
+  return { error: `Invalid runtime selection: ${normalizedChoice}` };
+}
+
+async function selectRuntimes(args, action = "install", options = {}) {
+  const { requireSingleRuntime = false } = options;
   const selected = parseSelectedRuntimes(args);
   if (selected.length > 0) {
     return selected;
@@ -2596,37 +2662,25 @@ async function selectRuntimes(args, action = "install") {
     process.exit(1);
   }
 
+  const allowAll = !requireSingleRuntime;
+  const menuEntries = runtimeSelectionMenuEntries({ allowAll });
   const optionLabelWidth = Math.max(
-    ...ALL_RUNTIMES.map((runtime) => runtimeDisplayName(runtime).length),
-    "All runtimes".length
+    ...menuEntries.map((entry) => entry.label.length)
   );
   const sectionTitle = action === "uninstall" ? "Select runtime(s) to uninstall" : "Select runtime(s) to install";
   console.log(` ${bold}${brandTitle}${sectionTitle}${reset}`);
   console.log("");
-  ALL_RUNTIMES.forEach((runtime, index) => {
-    console.log(formatMenuOption(index + 1, runtimeDisplayName(runtime), [runtime], { labelWidth: optionLabelWidth }));
-  });
-  console.log(formatMenuOption(ALL_RUNTIMES.length + 1, "All runtimes", [], { labelWidth: optionLabelWidth }));
+  for (const entry of menuEntries) {
+    console.log(formatMenuOption(entry.choice, entry.label, entry.details, { labelWidth: optionLabelWidth }));
+  }
   console.log("");
 
-  const choice = ((await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `)) || "1").toLowerCase();
-  if (choice === String(ALL_RUNTIMES.length + 1) || choice === "all" || choice === "all runtimes") {
-    return [...ALL_RUNTIMES];
+  const choice = await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `);
+  const selection = resolveRuntimeSelectionChoice(choice, { allowAll });
+  if (selection.runtimes) {
+    return selection.runtimes;
   }
-
-  const numericIndex = Number.parseInt(choice, 10);
-  if (Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= ALL_RUNTIMES.length) {
-    return [ALL_RUNTIMES[numericIndex - 1]];
-  }
-
-  for (const runtime of ALL_RUNTIMES) {
-    const aliases = new Set([runtime, runtimeDisplayName(runtime).toLowerCase(), ...runtimeSelectionAliases(runtime)]);
-    if (aliases.has(choice)) {
-      return [runtime];
-    }
-  }
-
-  error(`Invalid runtime selection: ${choice}`);
+  error(selection.error);
   process.exit(1);
 }
 
@@ -2744,7 +2798,7 @@ async function main() {
   }
 
   const action = isUninstall ? "uninstall" : "install";
-  const selectedRuntimes = await selectRuntimes(args, action);
+  const selectedRuntimes = await selectRuntimes(args, action, { requireSingleRuntime: Boolean(targetDir) });
   if (targetDir && selectedRuntimes.length !== 1) {
     error("Cannot combine --target-dir with --all or multiple runtimes. Select exactly one runtime.");
     process.exit(1);
@@ -2822,6 +2876,10 @@ module.exports = {
   ensureSupportedNodeVersion,
   loadSharedPublicSurfaceText,
   nodeMajorVersion,
+  resolveRuntimeSelectionChoice,
+  runtimeGlobalConfigDirCandidates,
+  runtimeSelectionMenuEntries,
+  targetDirMatchesGlobal,
   validateRuntimeCatalog,
   validateRuntimeCatalogSchemaShape,
   validateSharedPublicSurfaceSchemaShape,

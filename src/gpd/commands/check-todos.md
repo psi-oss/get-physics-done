@@ -28,5 +28,5 @@ Area filters can target research domains such as:
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/check-todos.md` exactly. Let the workflow discover and inspect project state only when the current workspace has one.
+Follow the included check-todos workflow exactly. Let the workflow discover and inspect project state only when the current workspace has one.
    </process>

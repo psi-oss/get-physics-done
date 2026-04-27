@@ -24,7 +24,7 @@ def test_wrapper_child_return_contract_is_typed_and_thin(
 ) -> None:
     text = (COMMANDS_DIR / command_name).read_text(encoding="utf-8")
 
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in text
+    assert "Follow the included literature-review workflow exactly." in text
     assert "The workflow owns staged loading, scope fixing, artifact gating, and citation verification." in text
     assert "workflow-owned child-return contract" not in text
     assert "gpd_return.status: completed" not in text

@@ -47,7 +47,7 @@ Local-only CLI passthrough filters: `--command`, `--phase`, and `--category`
 </context>
 
 <process>
-Execute the export-logs workflow from @{GPD_INSTALL_DIR}/workflows/export-logs.md end-to-end.
+Execute the included export-logs workflow end-to-end.
 
 ## Step 1: Validate project
 

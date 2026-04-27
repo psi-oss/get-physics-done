@@ -31,5 +31,5 @@ Target phase: second argument (e.g., "2")
 </context>
 
 <process>
-This wrapper runs the merge workflow directly. Follow `@{GPD_INSTALL_DIR}/workflows/merge-phases.md` exactly; any stopping points come from that workflow's validation gates.
+This wrapper runs the merge workflow directly. Follow the included merge-phases workflow exactly; any stopping points come from that workflow's validation gates.
 </process>

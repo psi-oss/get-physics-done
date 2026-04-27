@@ -54,7 +54,7 @@ from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, is_supported_pap
 __all__ = ["build_paper_quality_input"]
 
 
-_PLACEHOLDER_RE = re.compile(r"TODO|FIXME|PENDING|TBD|\\text\{\[PENDING\]\}")
+_RESULT_PENDING_RE = re.compile(r"RESULT PENDING")
 _MISSING_CITE_RE = re.compile(_CITE_CMD_PREFIX + r"(?:\[[^\]]*\])*\{MISSING:")
 _ABSTRACT_RE = re.compile(
     r"(\\begin\{abstract\}[\s\S]*?\\end\{abstract\}|^\s{0,3}#{1,6}\s*abstract\b)",
@@ -884,9 +884,10 @@ def build_paper_quality_input(
         comparison_required=contract_coverage.requires_decisive_comparison,
     )
 
-    placeholder_count = len(_PLACEHOLDER_RE.findall(manuscript_content))
     missing_cites = len(_MISSING_CITE_RE.findall(manuscript_content))
     draft_findings = validate_tex_draft(manuscript_content)
+    placeholder_count = sum(1 for finding in draft_findings if finding.check == "placeholder_marker")
+    placeholder_count += len(_RESULT_PENDING_RE.findall(manuscript_content))
     empty_citation_commands = sum(1 for finding in draft_findings if finding.check == "empty_citation_command")
     empty_reference_commands = sum(1 for finding in draft_findings if finding.check == "empty_reference_command")
     cite_keys = list(

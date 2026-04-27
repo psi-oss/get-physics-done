@@ -63,7 +63,7 @@ Phase or topic: $ARGUMENTS
 </context>
 
 <process>
-Execute the discover workflow from @{GPD_INSTALL_DIR}/workflows/discover.md end-to-end.
+Execute the included discover workflow end-to-end.
 
 ## Step 0: Validate Context
 

@@ -23,10 +23,7 @@ PATCH_META="{GPD_PATCH_META}"
 PYTHON_BIN="${GPD_PYTHON:-}"
 
 if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
-fi
-if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN="python3"
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
 fi
 
 if [ -f "$GPD_INSTALL_DIR/VERSION" ]; then
@@ -62,10 +59,7 @@ LATEST_RELEASE_URL="{GPD_RELEASE_LATEST_URL}"
 PYTHON_BIN="${GPD_PYTHON:-}"
 
 if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
-fi
-if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN="python3"
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
 fi
 
 "$PYTHON_BIN" - "$LATEST_RELEASE_URL" <<'PY'
@@ -173,12 +167,38 @@ Run the update with the public bootstrap command from step 1:
 
 Capture output. If the update command fails, show the error and exit.
 
-Then clear the configured update caches so indicators disappear immediately:
+Then clear all update-cache candidates. Prefer the hook/statusline helper; keep the literal fallback for broken import states during reinstall:
 
 ```bash
-rm -f \
-  "{GPD_CONFIG_DIR}/cache/gpd-update-check.json" \
-  "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json"
+GPD_CONFIG_DIR="${GPD_CONFIG_DIR:-{GPD_CONFIG_DIR}}"
+GPD_GLOBAL_CONFIG_DIR="${GPD_GLOBAL_CONFIG_DIR:-{GPD_GLOBAL_CONFIG_DIR}}"
+PYTHON_BIN="${PYTHON_BIN:-${GPD_PYTHON:-}}"
+if [ -z "$PYTHON_BIN" ]; then
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+fi
+"$PYTHON_BIN" - "$GPD_CONFIG_DIR" "$GPD_GLOBAL_CONFIG_DIR" <<'PY'
+from pathlib import Path; import sys
+
+current_config = Path(sys.argv[1])
+current_global_config = Path(sys.argv[2])
+cache_files = set()
+for root in (current_config, current_global_config, Path.home() / "{GPD_HOME_DATA_DIR_NAME}"):
+    cache_files.add(root / "{GPD_CACHE_DIR_NAME}" / "{GPD_UPDATE_CACHE_FILENAME}")
+
+try:
+    from gpd.hooks.runtime_detect import get_update_cache_files, home_update_cache_file
+    cache_files.update(get_update_cache_files(cwd=Path.cwd(), home=Path.home()))
+    cache_files.add(home_update_cache_file(home=Path.home()))
+except Exception:
+    pass
+
+for cache_file in sorted(cache_files):
+    for candidate in (cache_file, cache_file.with_name(f"{cache_file.name}.inflight")):
+        try:
+            candidate.unlink(missing_ok=True)
+        except OSError:
+            pass
+PY
 ```
 </step>
 

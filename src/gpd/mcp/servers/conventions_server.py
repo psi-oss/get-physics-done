@@ -21,6 +21,7 @@ from pydantic import Field, WithJsonSchema
 from gpd.contracts import ConventionLock
 from gpd.core.constants import ProjectLayout
 from gpd.core.conventions import (
+    CONVENTION_OPTIONS,
     KEY_ALIASES,
     KNOWN_CONVENTIONS,
     ConventionSetResult,
@@ -57,30 +58,6 @@ logger = configure_mcp_logging("gpd-conventions")
 mcp = FastMCP("gpd-conventions")
 
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
-
-# ─── Convention Field Metadata (for MCP tool responses) ──────────────────────
-
-# Valid options per field — enriches responses beyond what conventions.py tracks.
-CONVENTION_OPTIONS: dict[str, list[str]] = {
-    "metric_signature": ["(+,-,-,-)", "(-,+,+,+)", "Euclidean (+,+,+,+)", "mostly-minus", "mostly-plus", "euclidean"],
-    "fourier_convention": ["physics", "math", "symmetric", "QFT"],
-    "natural_units": ["natural", "SI", "CGS", "lattice"],
-    "gauge_choice": ["Coulomb", "Lorenz", "axial", "Feynman", "light-cone"],
-    "regularization_scheme": ["dim-reg", "cutoff", "lattice", "zeta", "PV"],
-    "renormalization_scheme": ["MS-bar", "on-shell", "MOM", "lattice"],
-    "coordinate_system": ["Cartesian", "spherical", "cylindrical", "light-cone"],
-    "spin_basis": ["Dirac", "Weyl", "Majorana"],
-    "state_normalization": ["relativistic", "non-relativistic", "box"],
-    "coupling_convention": ["g", "g^2", "g^2/(4pi)", "alpha=g^2/(4pi)"],
-    "index_positioning": ["Einstein", "explicit"],
-    "time_ordering": ["time-ordered", "anti-time-ordered", "path-ordered"],
-    "commutation_convention": ["canonical", "anti-canonical"],
-    "levi_civita_sign": ["+1", "-1"],
-    "generator_normalization": ["delta/2", "delta"],
-    "covariant_derivative_sign": ["D=d-igA", "D=d+igA"],
-    "gamma_matrix_convention": ["Dirac", "Weyl", "Majorana"],
-    "creation_annihilation_order": ["normal", "anti-normal", "Weyl"],
-}
 
 _CUSTOM_CONVENTION_KEY_BODY = r"[A-Za-z0-9][A-Za-z0-9_-]*"
 _CUSTOM_CONVENTION_KEY_PATTERN = rf"^{_CUSTOM_CONVENTION_KEY_BODY}$"
@@ -347,10 +324,12 @@ def convention_set(
     key: ConventionKeyInput,
     value: ConventionValueInput,
     force: bool = False,
+    allow_nonstandard: bool = False,
 ) -> dict:
     """Set a convention in the project's convention lock.
 
-    Standard convention fields are validated against known options.
+    Standard convention fields warn when the value is outside known options.
+    Set allow_nonstandard=True to mark that choice as intentional.
     Use force=True to override an already-set convention (dangerous
     mid-project -- can invalidate prior derivations).
 
@@ -414,6 +393,9 @@ def convention_set(
         if options:
             normalized_options = [normalize_value(canonical, o) for o in options]
             if result.value not in options and result.value not in normalized_options:
+                response["non_standard"] = True
+                response["known_options"] = options
+                response["allow_nonstandard"] = allow_nonstandard
                 response["warning"] = f"Non-standard value '{result.value}' for '{canonical}'. Known options: {options}"
 
         return stable_mcp_response(response)

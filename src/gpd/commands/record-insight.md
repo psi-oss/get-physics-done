@@ -31,5 +31,5 @@ Typical insights include:
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/record-insight.md` exactly.
+Follow the included record-insight workflow exactly.
 </process>

@@ -31,5 +31,5 @@ Typical backtrack events include:
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/record-backtrack.md` exactly.
+Follow the included record-backtrack workflow exactly.
 </process>

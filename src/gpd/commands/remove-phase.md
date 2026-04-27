@@ -38,6 +38,6 @@ Phase: $ARGUMENTS
 <process>
 This wrapper runs the remove-phase workflow directly. Any stopping points come from the workflow's own validation gates.
 
-Execute the remove-phase workflow from @{GPD_INSTALL_DIR}/workflows/remove-phase.md end-to-end.
+Execute the included remove-phase workflow end-to-end.
 Preserve all validation gates (future phase check, work check), renumbering logic, and commit.
 </process>

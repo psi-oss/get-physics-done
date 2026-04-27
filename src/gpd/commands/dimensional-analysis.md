@@ -74,7 +74,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Follow the dimensional-analysis workflow: @{GPD_INSTALL_DIR}/workflows/dimensional-analysis.md
+Follow the included dimensional-analysis workflow.
 Preserve workspace-locked initialization, keep standalone/current-workspace durable outputs under `GPD/analysis/`, treat missing conventions as explicit user input instead of a fake project failure, and do not promise a standalone commit.
 
 **For comprehensive verification** (dimensional analysis + limiting cases + symmetries + convergence), use `gpd:verify-work`.

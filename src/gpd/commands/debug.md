@@ -27,7 +27,7 @@ Debug session artifact: `GPD/debug/{slug}.md`
 </context>
 
 <process>
-Follow @{GPD_INSTALL_DIR}/workflows/debug.md end-to-end.
+Follow the included debug workflow end-to-end.
 
 Keep these command-surface invariants visible while delegating mechanics to the workflow:
 

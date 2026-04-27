@@ -57,6 +57,13 @@ _RUNTIME_PAUSE_WORK_COMMANDS = {name: adapter.format_command("pause-work") for n
 _RUNTIME_HELP_EXAMPLE_DESCRIPTORS = tuple(
     descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.installer_help_example_scope is not None
 )
+_RUNTIME_DESCRIPTORS_WITH_GLOBAL_ENV_OVERRIDE = tuple(
+    descriptor
+    for descriptor in _RUNTIME_DESCRIPTORS
+    if descriptor.global_config.env_var
+    or descriptor.global_config.env_dir_var
+    or descriptor.global_config.env_file_var
+)
 _CODEX_RUNTIME_NAME = PRIMARY_RUNTIME
 _CLAUDE_RUNTIME_NAME, _CLAUDE_RUNTIME_ALIAS = runtime_with_multiword_alias(exclude=(_CODEX_RUNTIME_NAME,))
 _OPENCODE_RUNTIME_NAME, _OPENCODE_RUNTIME_ALIAS = runtime_with_multiword_alias(
@@ -1559,6 +1566,31 @@ assert.throws(() => validateRuntimeCatalog(catalog), /runtime catalog contains d
     assert duplicate_result.returncode == 0, f"{duplicate_result.stdout}\n{duplicate_result.stderr}"
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_target_dir_selection_menu_requires_one_runtime() -> None:
+    result = _run_node_contract_validation(
+        r"""
+const assert = require("node:assert/strict");
+const { resolveRuntimeSelectionChoice, runtimeSelectionMenuEntries } = require("./bin/install.js");
+const catalog = require("./src/gpd/adapters/runtime_catalog.json");
+
+assert.ok(runtimeSelectionMenuEntries().some((entry) => entry.label === "All runtimes"));
+assert.ok(!runtimeSelectionMenuEntries({ allowAll: false }).some((entry) => entry.label === "All runtimes"));
+assert.equal(resolveRuntimeSelectionChoice("all").runtimes.length, catalog.length);
+assert.deepEqual(
+  resolveRuntimeSelectionChoice("all", { allowAll: false }),
+  { error: "Select exactly one runtime when using --target-dir." }
+);
+assert.deepEqual(
+  resolveRuntimeSelectionChoice(String(catalog.length + 1), { allowAll: false }),
+  { error: "Select exactly one runtime when using --target-dir." }
+);
+"""
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
@@ -2058,6 +2090,63 @@ def test_bootstrap_preserves_global_scope_for_canonical_global_target_dir(tmp_pa
     ]
     assert len(managed_runtime_doctor) == 1
     assert f"Installing GPD (global) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    _RUNTIME_DESCRIPTORS_WITH_GLOBAL_ENV_OVERRIDE,
+    ids=[descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS_WITH_GLOBAL_ENV_OVERRIDE],
+)
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_preserves_global_scope_for_home_target_when_runtime_env_points_elsewhere(
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    home = tmp_path / "home"
+    target_dir = home / descriptor.global_config.home_subpath
+    env_var = (
+        descriptor.global_config.env_var
+        or descriptor.global_config.env_dir_var
+        or descriptor.global_config.env_file_var
+    )
+    assert env_var is not None
+    env_target = tmp_path / "runtime-env-override" / descriptor.config_dir_name
+    env_value = str(env_target / "config.json") if env_var == descriptor.global_config.env_file_var else str(env_target)
+    result, _home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=[descriptor.install_flag, "--target-dir", str(target_dir)],
+        extra_env={env_var: env_value},
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_installs = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == ["-m", "gpd.cli", "install", descriptor.runtime_name, "--global", "--target-dir", str(target_dir)]
+    ]
+    assert len(managed_runtime_installs) == 1
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "--raw",
+            "doctor",
+            "--runtime",
+            descriptor.runtime_name,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+        ]
+    ]
+    assert len(managed_runtime_doctor) == 1
+    assert f"Installing GPD (global) for: {descriptor.display_name}" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

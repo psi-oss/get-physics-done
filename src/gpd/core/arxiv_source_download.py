@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from email.message import Message
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from gpd.version import resolve_active_version
@@ -82,6 +83,15 @@ def normalize_arxiv_id(arxiv_id: str) -> str:
     """Validate and normalize an arXiv identifier."""
 
     cleaned = arxiv_id.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme in {"http", "https"} and parsed.netloc.lower() in {"arxiv.org", "www.arxiv.org"}:
+        path = parsed.path.strip("/")
+        for prefix in ("abs/", "pdf/", "e-print/"):
+            if path.startswith(prefix):
+                cleaned = path[len(prefix) :]
+                break
+        if cleaned.endswith(".pdf"):
+            cleaned = cleaned.removesuffix(".pdf")
     for prefix in ("arXiv:", "arxiv:", "http://arxiv.org/abs/", "https://arxiv.org/abs/"):
         if cleaned.startswith(prefix):
             cleaned = cleaned[len(prefix):]

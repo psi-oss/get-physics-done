@@ -69,7 +69,7 @@ fi
 
 ## 2. Delegate To Workflow
 
-Execute the digest-knowledge workflow from @{GPD_INSTALL_DIR}/workflows/digest-knowledge.md end-to-end.
+Execute the included digest-knowledge workflow end-to-end.
 Preserve its current-workspace bootstrap, canonical `GPD/knowledge/` output root, draft-only lifecycle boundary, and review-knowledge routing.
 </process>
 

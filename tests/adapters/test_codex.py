@@ -18,7 +18,12 @@ from gpd.adapters.codex import (
     _normalize_codex_questioning,
     _tracked_codex_generated_skill_dirs,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command, file_hash, hook_python_interpreter
+from gpd.adapters.install_utils import (
+    build_runtime_cli_bridge_command,
+    compile_markdown_for_runtime,
+    file_hash,
+    hook_python_interpreter,
+)
 from gpd.registry import load_agents_from_dir
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -239,6 +244,52 @@ class TestConvertToCodexSkill:
         result = _convert_to_codex_skill(content, "gpd-test")
 
         assert_review_contract_prompt_surface(result)
+
+    def test_command_metadata_is_not_duplicated_in_codex_skill_frontmatter(self) -> None:
+        content = compile_markdown_for_runtime(
+            "---\n"
+            "name: gpd:respond-to-referees\n"
+            "description: D\n"
+            "argument-hint: \"[--manuscript PATH]\"\n"
+            "context_mode: project-aware\n"
+            "requires:\n"
+            "  files:\n"
+            "    - paper/*.tex\n"
+            "command-policy:\n"
+            "  schema_version: 1\n"
+            "  subject_policy:\n"
+            "    subject_kind: publication\n"
+            "    resolution_mode: explicit_or_project_manuscript\n"
+            "    explicit_input_kinds:\n"
+            "      - manuscript_path\n"
+            "    allow_external_subjects: true\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            "  schema_version: 1\n"
+            "  required_outputs:\n"
+            "    - GPD/review/REFEREE_RESPONSE{round_suffix}.md\n"
+            "allowed-tools:\n"
+            "  - Read\n"
+            "---\n"
+            "Body",
+            runtime="codex",
+            path_prefix="/prefix/",
+        )
+
+        result = _convert_to_codex_skill(content, "gpd-respond-to-referees")
+        frontmatter = result.split("---", 2)[1]
+
+        assert "name: gpd-respond-to-referees" in frontmatter
+        assert "description: D" in frontmatter
+        assert "allowed-tools:" in frontmatter
+        assert "read_file" in frontmatter
+        assert "argument-hint:" not in frontmatter
+        assert "context_mode:" not in frontmatter
+        assert "requires:" not in frontmatter
+        assert "command-policy:" not in frontmatter
+        assert "review-contract:" not in frontmatter
+        assert result.count("## Command Requirements") == 1
+        assert result.count("## Review Contract") == 1
 
 
 class TestSharedCommandReferences:

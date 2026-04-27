@@ -1362,16 +1362,6 @@ def test_respond_to_referees_command_policy_surfaces_explicit_manuscript_and_rep
         supporting_context_policy=registry.CommandSupportingContextPolicy(
             project_context_mode="project-aware",
             project_reentry_mode="disallowed",
-            required_file_patterns=[
-                "paper/*.tex",
-                "paper/*.md",
-                "manuscript/*.tex",
-                "manuscript/*.md",
-                "draft/*.tex",
-                "draft/*.md",
-                "GPD/publication/*/manuscript/*.tex",
-                "GPD/publication/*/manuscript/*.md",
-            ],
         ),
         output_policy=registry.CommandOutputPolicy(
             output_mode="managed",

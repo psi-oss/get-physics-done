@@ -18,6 +18,7 @@ START_CONTEXT=$(gpd --raw init new-project --stage scope_intake)
 Parse the JSON result and use these fields:
 
 - `project_exists=true` means this folder already has a `GPD project` (a folder where GPD already saved its own project files, notes, and state), such as `GPD/PROJECT.md`.
+- `recoverable_project_exists=true` means this folder has GPD state that should not be treated as fresh. If `partial_project_exists=true`, route to recovery/inspection rather than new setup.
 - `has_research_map=true` means this folder already has a `research map` (GPD's summary of an existing research folder before full project setup).
 - `has_research_files=true`, `has_project_manifest=true`, or `needs_research_map=true` means this looks like an existing research folder. Example files might be `.tex`, `.py`, `.ipynb`, `.pdf`, or `.csv`.
 - Otherwise, treat this as a fresh folder with no obvious GPD state yet.
@@ -34,6 +35,8 @@ Use one of these plain-English summaries:
 
 - Existing GPD project:
   `This folder already has a GPD project (GPD's saved project files and working state), so the safest next step is usually to resume it instead of starting over.`
+- Recoverable partial GPD state:
+  `This folder already has partial GPD state, so the safest next step is to inspect or recover it instead of starting over.`
 - Research map only:
   `This folder already has a GPD research map (GPD's summary of the folder before full setup), so you can refresh that map or turn it into a full project.`
 - Existing research folder:
@@ -72,24 +75,34 @@ Keep the numbered list short. Put extra capabilities in a separate `Other useful
 
 Recommended next steps:
 
-1. Resume this project (recommended) - use `gpd:resume-work`. This is the in-runtime continue command for an existing GPD project. Example: `I already worked on this GPD project and want to keep going.`
-2. Review the project status first - use `gpd:progress`. Example: `I want a broader snapshot before I continue.`
-3. Take a guided tour first - use `gpd:tour`. Example: `I want a read-only overview before I continue.`
+1. Resume this project (recommended) - use `gpd:resume-work`. This is the in-runtime continue command for an existing GPD project.
+2. Review the project status first - use `gpd:progress`.
+3. Take a guided tour first - use `gpd:tour`.
 
 Other useful options, only if one of these is what you need:
 
-- Suggest the next best step - use `gpd:suggest-next`. Example: `I resumed the project and only want the next action.`
-- Do one small bounded task - use `gpd:quick`. Example: `I only want one contained job, not a full session.`
-- Explain one concept - use `gpd:explain`. Example: `Explain a method or equation before I continue.`
+- Suggest the next best step - use `gpd:suggest-next`.
+- Do one small bounded task - use `gpd:quick`.
+- Explain one concept - use `gpd:explain`.
 - Show all commands - use `gpd:help --all`.
+
+**This folder has partial/recoverable GPD state**
+
+Recommended next steps:
+
+1. Inspect recovery state (recommended) - use `gpd:resume-work`.
+2. Reconcile state files - use `gpd:sync-state`.
+3. Review visible progress - use `gpd:progress`.
+
+Do not offer `gpd:new-project` as a fresh start unless the researcher explicitly says they want to delete or move the existing `GPD/` artifacts first.
 
 **This folder already has GPD's folder summary (`research map`)**
 
 Recommended next steps:
 
-1. Turn this into a full GPD project (recommended) - use `gpd:new-project`. A research map is GPD's summary of an existing folder before full setup. Example: `The folder was already mapped and now I want the full project.`
-2. Refresh the research map - use `gpd:map-research`. Example: `The folder changed and I want GPD to inspect it again.`
-3. Take a guided tour first - use `gpd:tour`. Example: `I want the commands explained before I choose.`
+1. Turn this into a full GPD project (recommended) - use `gpd:new-project`. A research map is GPD's summary of an existing folder before full setup.
+2. Refresh the research map - use `gpd:map-research`.
+3. Take a guided tour first - use `gpd:tour`.
 
 Other useful options, only if one of these is what you need:
 
@@ -100,9 +113,9 @@ Other useful options, only if one of these is what you need:
 
 Recommended next steps:
 
-1. Map this folder first (recommended) - use `gpd:map-research`. Example: `This folder already has papers, notes, code, or notebooks.`
+1. Map this folder first (recommended) - use `gpd:map-research`.
 2. Take a guided tour first - use `gpd:tour`.
-3. Start a brand-new GPD project anyway - use `gpd:new-project --minimal`. Example: `I want to ignore the old files and begin fresh.`
+3. Start a brand-new GPD project anyway - use `gpd:new-project --minimal`.
 
 Other useful options, only if one of these is what you need:
 
@@ -113,8 +126,8 @@ Other useful options, only if one of these is what you need:
 
 Recommended next steps:
 
-1. Fast start (recommended) - use `gpd:new-project --minimal`. Example: `I have a new project idea and want the shortest setup path.`
-2. Full guided setup - use `gpd:new-project`. Example: `I want the fuller guided questioning path.`
+1. Fast start (recommended) - use `gpd:new-project --minimal`.
+2. Full guided setup - use `gpd:new-project`.
 3. Take a guided tour first - use `gpd:tour`.
 
 Other useful options, only if one of these is what you need:
@@ -134,12 +147,17 @@ Ask for exactly one choice.
 <step name="route_choice">
 Route immediately into the real existing workflow for the chosen path.
 
-**If the researcher chooses `Resume this project (recommended)` or `Continue where I left off`:**
+**If the researcher chooses `Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`:**
 
 - Read `{GPD_INSTALL_DIR}/workflows/resume-work.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:resume-work`.
 
-**If the researcher chooses `Review project status first`:**
+**If the researcher chooses `Reconcile state files`:**
+
+- Read `{GPD_INSTALL_DIR}/workflows/sync-state.md` with the file-read tool.
+- Follow that workflow as if the researcher had run `gpd:sync-state`.
+
+**If the researcher chooses `Review project status first` or `Review visible progress`:**
 
 - Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:progress`.
@@ -154,7 +172,7 @@ Route immediately into the real existing workflow for the chosen path.
 - Read `{GPD_INSTALL_DIR}/workflows/map-research.md` with the file-read tool.
 - Follow that workflow as if the researcher had run `gpd:map-research`.
 
-**If the researcher chooses `Fast start`:**
+**If the researcher chooses `Fast start (recommended)`, `Fast start`, or `Start a brand-new GPD project anyway`:**
 
 - Follow the installed `gpd:new-project --minimal` command contract directly, as if the researcher had run it.
 

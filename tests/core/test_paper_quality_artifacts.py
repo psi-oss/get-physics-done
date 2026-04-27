@@ -457,6 +457,49 @@ TODO finalize the nested conclusion.
     assert result.completeness.placeholders_cleared.passed is False
 
 
+def test_build_paper_quality_input_ignores_latex_comment_placeholders(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "commented_placeholders.tex",
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{abstract}Done.\\end{abstract}\n"
+        "\\section{Introduction}Complete introduction.\n"
+        "% TODO legacy note should not block.\n"
+        "% FIXME another commented note should not block.\n"
+        "\\section{Conclusion}Complete conclusion.\n"
+        "\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Commented Placeholders", "jhep", output_filename="commented_placeholders")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.completeness.placeholders_cleared.passed is True
+
+
+def test_build_paper_quality_input_blocks_commented_result_pending_markers(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "pending_marker.tex",
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\begin{abstract}Pending marker test.\\end{abstract}\n"
+        "\\section{Introduction}Complete introduction.\n"
+        "% [RESULT PENDING: phase 1, task 2 -- fill benchmark value]\n"
+        "\\section{Conclusion}Complete conclusion.\n"
+        "\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Pending Marker", "jhep", output_filename="pending_marker")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.completeness.placeholders_cleared.passed is False
+
+
 def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_is_unsupported(
     tmp_path: Path,
 ) -> None:

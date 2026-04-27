@@ -110,7 +110,7 @@ This remains a project-backed manuscript workflow: package the resolved built ma
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md` exactly.
+Follow the included arxiv-submission workflow exactly.
 </process>
 
 <success_criteria>

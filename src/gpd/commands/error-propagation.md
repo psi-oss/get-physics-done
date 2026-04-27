@@ -33,7 +33,7 @@ Target: $ARGUMENTS
 </context>
 
 <process>
-Execute @{GPD_INSTALL_DIR}/workflows/error-propagation.md end-to-end.
+Execute the included error-propagation workflow end-to-end.
 Preserve the workflow-owned context preflight, result/dependency lookup, phase-backed output resolution, and canonical uncertainty state updates.
 </process>
 

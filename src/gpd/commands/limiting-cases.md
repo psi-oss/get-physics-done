@@ -83,7 +83,7 @@ Parse the returned JSON before continuing.
 - The workflow owns canonical target resolution plus `slug` and `OUTPUT_PATH` selection. Standalone durable outputs stay under `GPD/analysis/` rooted at the current workspace.
 - Do not promise phase-local artifacts, project state mutation, or commits when authoritative phase context is absent.
 
-Follow the limiting-cases workflow: @{GPD_INSTALL_DIR}/workflows/limiting-cases.md
+Follow the included limiting-cases workflow.
 
 **For comprehensive verification** (dimensional analysis + limiting cases + symmetries + convergence), use `gpd:verify-work`.
 </process>

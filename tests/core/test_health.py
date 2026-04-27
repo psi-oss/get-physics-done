@@ -2399,6 +2399,61 @@ trigger:
         assert checks["Runtime Config Target"].issues == []
         assert checks["Runtime Config Target"].warnings == []
 
+    @pytest.mark.parametrize(
+        ("manifest_payload", "expected_manifest_state"),
+        [
+            ({"runtime": PRIMARY_RUNTIME}, "missing_install_scope"),
+            ({"runtime": PRIMARY_RUNTIME, "install_scope": "workspace"}, "malformed_install_scope"),
+        ],
+    )
+    def test_runtime_readiness_blocks_manifest_without_valid_install_scope(
+        self,
+        tmp_path: Path,
+        manifest_payload: dict[str, object],
+        expected_manifest_state: str,
+    ) -> None:
+        specs_dir = self._make_specs_dir(tmp_path)
+        target_dir = runtime_target_dir(tmp_path, PRIMARY_RUNTIME)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest_payload), encoding="utf-8")
+
+        with (
+            patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
+            patch("gpd.core.health._doctor_which", return_value=_PRIMARY_LAUNCHER_PATH),
+            patch("gpd.core.health.os.access", return_value=True),
+            patch(
+                "gpd.core.health._doctor_check_bootstrap_network_access",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Bootstrap Network Access"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_provider_auth",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Provider/Auth Guidance"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_latex_toolchain",
+                return_value=_latex_toolchain_check(),
+            ),
+        ):
+            report = run_doctor(
+                specs_dir=specs_dir,
+                version="0.1.0",
+                runtime=PRIMARY_RUNTIME,
+                install_scope="local",
+                target_dir=target_dir,
+                cwd=tmp_path,
+            )
+
+        checks = {check.label: check for check in report.checks}
+        target_check = checks["Runtime Config Target"]
+
+        assert report.target_assessment is not None
+        assert report.target_assessment.state == "untrusted_manifest"
+        assert report.target_assessment.manifest_state == expected_manifest_state
+        assert report.target_assessment.readiness_state == "blocked"
+        assert target_check.status == CheckStatus.FAIL
+        assert target_check.details["install_state"] == "untrusted_manifest"
+        assert target_check.details["target_assessment"]["manifest_state"] == expected_manifest_state
+
     def test_runtime_readiness_fails_for_non_clean_install_states(self, tmp_path: Path) -> None:
         cases = (
             (

@@ -29,7 +29,7 @@ def test_resume_work_command_stays_thin_and_only_eagerly_loads_the_workflow() ->
     assert metrics.raw_include_count == 1
     assert "@{GPD_INSTALL_DIR}/workflows/resume-work.md" in command_text
     assert "Resume research from the selected project's canonical state." in command_text
-    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/resume-work.md`." in command_text
+    assert "Follow the included resume-work workflow." in command_text
     assert "requires:" in command_text
     assert 'files: ["GPD/ROADMAP.md"]' in command_text
     assert "GPD/STATE.md" not in command_text

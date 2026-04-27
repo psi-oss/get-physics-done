@@ -1491,6 +1491,29 @@ class TestInitCommands:
         assert payload["roadmap_exists"] is True
         assert payload["state_exists"] is True
 
+    def test_init_progress_without_project_reentry_keeps_ancestor_project_resolution(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "progress", "--no-project-reentry"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["workspace_root"] == nested.resolve().as_posix()
+        assert payload["project_root"] == gpd_project.resolve().as_posix()
+        assert payload["init_root_policy"] == "project_scoped"
+        assert payload["project_exists"] is True
+        assert "project_reentry_candidates" not in payload
+
     def test_init_phase_op_resolves_ancestor_project_root_from_nested_workspace(
         self,
         gpd_project: Path,
@@ -1789,6 +1812,7 @@ review_summary:
             "GPD/state.json",
             "GPD/config.json",
             "GPD/CONVENTIONS.md",
+            "GPD/init-progress.json",
             "GPD/literature/PRIOR-WORK.md",
             "GPD/literature/METHODS.md",
             "GPD/literature/COMPUTATIONAL.md",

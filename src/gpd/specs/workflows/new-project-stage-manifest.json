@@ -16,6 +16,11 @@
         "autonomy",
         "research_mode",
         "project_exists",
+        "state_exists",
+        "roadmap_exists",
+        "recoverable_project_exists",
+        "partial_project_exists",
+        "project_recovery_status",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -55,7 +60,9 @@
         "file_write",
         "task"
       ],
-      "writes_allowed": [],
+      "writes_allowed": [
+        "GPD/init-progress.json"
+      ],
       "produced_state": [
         "intake routing state",
         "scoping-contract gate state"
@@ -157,6 +164,7 @@
         "GPD/state.json",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
+        "GPD/init-progress.json",
         "GPD/literature/PRIOR-WORK.md",
         "GPD/literature/METHODS.md",
         "GPD/literature/COMPUTATIONAL.md",

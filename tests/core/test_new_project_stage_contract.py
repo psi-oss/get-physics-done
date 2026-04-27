@@ -31,6 +31,11 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "autonomy",
         "research_mode",
         "project_exists",
+        "state_exists",
+        "roadmap_exists",
+        "recoverable_project_exists",
+        "partial_project_exists",
+        "project_recovery_status",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -57,7 +62,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "surface the first scoping question",
         "preserve contract gate visibility without assuming approval-stage authority",
     )
-    assert contract.stages[0].writes_allowed == ()
+    assert contract.stages[0].writes_allowed == ("GPD/init-progress.json",)
     assert contract.stages[1].required_init_fields == (
         "project_contract",
         "project_contract_gate",
@@ -102,6 +107,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "GPD/state.json",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
+        "GPD/init-progress.json",
         "GPD/literature/PRIOR-WORK.md",
         "GPD/literature/METHODS.md",
         "GPD/literature/COMPUTATIONAL.md",

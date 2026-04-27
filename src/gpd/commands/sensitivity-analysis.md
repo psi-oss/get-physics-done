@@ -69,7 +69,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Execute the sensitivity-analysis workflow from @{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md end-to-end.
+Execute the included sensitivity-analysis workflow end-to-end.
 
 If authoritative phase-backed project context exists, the workflow may write `${phase_dir}/SENSITIVITY-REPORT.md` and update uncertainty state through the CLI.
 If no authoritative phase-backed context exists, the durable output must stay under `GPD/analysis/sensitivity-{slug}.md` in the invoking workspace, with no `STATE.md` or `state.json` mutation and no standalone commit step.

@@ -3,8 +3,6 @@ name: gpd:respond-to-referees
 description: Structure a point-by-point response to referee reports for an explicit manuscript target or the current GPD manuscript
 argument-hint: "[--manuscript PATH] (--report PATH [--report PATH...] | paste)"
 context_mode: project-aware
-requires:
-  files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md", "GPD/publication/*/manuscript/*.tex", "GPD/publication/*/manuscript/*.md"]
 command-policy:
   schema_version: 1
   subject_policy:
@@ -94,7 +92,7 @@ The workflow resolves the manuscript root, review artifacts, and revision target
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/respond-to-referees.md` exactly.
+Follow the included respond-to-referees workflow exactly.
 </process>
 
 <success_criteria>

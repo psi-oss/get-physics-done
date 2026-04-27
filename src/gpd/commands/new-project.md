@@ -42,7 +42,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 
 <process>
 **CRITICAL: First, read the full workflow file using the file_read tool:**
-Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly.
+Read the included workflow first and follow it exactly.
 
 After that, load late-stage authorities only when the workflow reaches the matching stage:
 - Read {GPD_INSTALL_DIR}/references/research/questioning.md only when entering the full questioning path.

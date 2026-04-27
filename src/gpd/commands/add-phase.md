@@ -31,5 +31,5 @@ Typical research phases include:
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/add-phase.md` exactly.
+Follow the included add-phase workflow exactly.
    </process>

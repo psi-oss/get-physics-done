@@ -27,5 +27,5 @@ The local CLI also supports `--watch` / `-w` (with `--interval` and `--exit-on-i
 </execution_context>
 
 <process>
-Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly. Do not duplicate the workflow logic here.
+Follow the included workflow exactly. Do not duplicate the workflow logic here.
 </process>

@@ -59,7 +59,7 @@ Minimal mode creates the SAME directory structure and file set as the full path 
 
 ### Minimal Initialization Path
 
-**After Step 1 completes (init checks, git, project_exists guard):**
+**After Step 1 completes (init checks, git, project/recovery guard):**
 
 #### M1. Gather Research Context
 
@@ -607,7 +607,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
+Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `state_exists`, `roadmap_exists`, `recoverable_project_exists`, `partial_project_exists`, `project_recovery_status`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`.
 
 **Mode-aware behavior:**
 - `autonomy=supervised` (default): Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
@@ -622,6 +622,8 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `commit_docs`, `autonom
 - Treat `project_contract` as approved scope only when `project_contract_gate.authoritative` is true. If the gate is false, keep the contract visible for scoping diagnostics and repair, not as authoritative downstream scope.
 
 **If `project_exists` is true:** Error — project already initialized. Use `gpd:progress`.
+
+**If `recoverable_project_exists` is true but `project_exists` is false:** Error — this folder contains partial/recoverable GPD state, not a fresh project. Do not overwrite it. Use `gpd:resume-work` or `gpd:sync-state` to inspect/recover it; if the user really wants a clean restart, ask them to explicitly move or delete the existing `GPD/` artifacts first. A `GPD/` folder with `state.json`/`STATE.md` plus `ROADMAP.md` but no `PROJECT.md` belongs in this branch.
 
 **If `has_git` is false:** Initialize git:
 

@@ -92,7 +92,7 @@ If the target is ambiguous, the workflow must stop and ask for clarification.
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/review-knowledge.md` exactly. The workflow owns schema loading, target validation, review artifact writing, freshness checks, and lifecycle updates.
+Follow the included review-knowledge workflow exactly. The workflow owns schema loading, target validation, review artifact writing, freshness checks, and lifecycle updates.
 </process>
 
 <success_criteria>

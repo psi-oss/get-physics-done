@@ -186,7 +186,7 @@ def test_literature_and_research_commands_trim_inline_methodology_blocks() -> No
     research_phase = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
 
     assert "Run the literature-review workflow as a thin wrapper" in literature
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature
+    assert "Follow the included literature-review workflow exactly." in literature
     assert "A physics literature review is not a bibliography." not in literature
     assert "Method A lineage: paper1 -> paper2 -> paper3" not in literature
     assert "What do I not know that I don't know?" not in research_phase
@@ -217,7 +217,7 @@ def test_owned_commands_keep_a_single_concise_subagent_rationale() -> None:
         text = path.read_text(encoding="utf-8")
         if path in THIN_WORKFLOW_DELEGATOR_COMMANDS:
             assert "Why subagent:" not in text, path
-            assert "Follow @{GPD_INSTALL_DIR}/workflows/" in text, path
+            assert "Follow the included " in text, path
             continue
         assert text.count("Why subagent:") == 1, path
         if path in FRESH_CONTEXT_PHRASE_EXEMPTIONS:

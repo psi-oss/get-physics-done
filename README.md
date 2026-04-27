@@ -186,9 +186,9 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 </details>
 
-Typical new-project workflow:
+Typical new-project workflow, shown as command names without runtime prefixes:
 
-`gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase 1 -> gpd:execute-phase 1 -> gpd:verify-work 1`
+`new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work 1`
 
 <details>
 <summary><strong>Install options</strong></summary>
@@ -325,9 +325,9 @@ Most research actions run inside your installed AI runtime after GPD has been in
 | Write and review | `write-paper`, `peer-review`, `respond-to-referees`, `arxiv-submission` |
 | Configure or branch | `settings`, `set-profile`, `set-tier-models`, `tangent`, `branch-hypothesis` |
 
-Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase 1 -> gpd:execute-phase 1 -> gpd:verify-work -> repeat -> gpd:complete-milestone`
+Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`
 
-Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
+Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`
 
 Publication boundary: `gpd:write-paper` supports current-project manuscripts plus one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only; it does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit manuscript/artifact path or paper directory target, and remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. The later publication commands stay stricter: `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots. See `gpd:help` Research Publishing for the full boundary.
 
@@ -543,7 +543,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 ## Uninstall
 
-Run the matching uninstall command from [Start Here](#start-here) for interactive uninstall. The equivalent subcommand form also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
+Run `npx -y get-physics-done --uninstall` for interactive uninstall. The equivalent subcommand form also works, and you can add the runtime and scope flags from [Quick Start](#quick-start) for a non-interactive uninstall.
 
 Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under the resolved GPD home/data roots; remove `${GPD_HOME:-~/.gpd}` and, if configured separately, `GPD_DATA_DIR` for a full wipe after uninstalling from all runtimes.
 

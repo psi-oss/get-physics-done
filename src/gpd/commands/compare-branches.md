@@ -27,6 +27,6 @@ Use after two or more hypothesis branches have produced results that can be mean
 </context>
 
 <process>
-Execute the compare-branches workflow from @{GPD_INSTALL_DIR}/workflows/compare-branches.md end-to-end.
+Execute the included compare-branches workflow end-to-end.
 Preserve all validation gates (branch listing, state extraction, comparison building, merge confirmation).
 </process>

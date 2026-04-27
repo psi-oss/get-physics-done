@@ -151,9 +151,9 @@ def _dir_contains_files(path: Path) -> bool:
     return False
 
 
-def inspect_managed_install_surface(config_dir: Path) -> ManagedInstallSurface:
+def inspect_managed_install_surface(config_dir: Path, *, runtime: str | None = None) -> ManagedInstallSurface:
     """Return the managed install surfaces currently materialized in *config_dir*."""
-    policy = get_managed_install_surface_policy()
+    policy = get_managed_install_surface_policy(runtime)
 
     return ManagedInstallSurface(
         has_gpd_content=_glob_contains_files(config_dir, policy.gpd_content_globs),
@@ -163,9 +163,9 @@ def inspect_managed_install_surface(config_dir: Path) -> ManagedInstallSurface:
     )
 
 
-def config_dir_has_managed_install_markers(config_dir: Path) -> bool:
+def config_dir_has_managed_install_markers(config_dir: Path, *, runtime: str | None = None) -> bool:
     """Return whether *config_dir* carries any managed GPD install markers."""
-    return inspect_managed_install_surface(config_dir).has_managed_markers
+    return inspect_managed_install_surface(config_dir, runtime=runtime).has_managed_markers
 
 
 def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object]]:
@@ -277,10 +277,21 @@ def assess_install_target(
 
     resolved = config_dir.expanduser().resolve(strict=False)
     manifest_state, _payload, manifest_runtime = load_install_manifest_runtime_status(resolved)
-    has_managed_markers = config_dir_has_managed_install_markers(resolved)
+    manifest_scope_state, _scope_payload, _manifest_scope = load_install_manifest_scope_status(resolved)
+    marker_runtime = expected_runtime if expected_runtime in list_runtime_names() else None
+    has_managed_markers = config_dir_has_managed_install_markers(resolved, runtime=marker_runtime)
     missing_install_artifacts: tuple[str, ...] = ()
 
     if manifest_state == "ok" and manifest_runtime is not None:
+        if manifest_scope_state != "ok":
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="untrusted_manifest",
+                manifest_state=manifest_scope_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
         if expected_runtime is not None and manifest_runtime != expected_runtime:
             return InstallTargetAssessment(
                 config_dir=resolved,

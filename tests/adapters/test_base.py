@@ -188,6 +188,7 @@ class TestUninstallBase:
             json.dumps(
                 {
                     "runtime": "claude-code",
+                    "install_scope": "local",
                     "files": {
                         "hooks/statusline.py": "hash-1",
                         "hooks/check_update.py": "hash-2",

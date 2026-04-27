@@ -2134,6 +2134,15 @@ class TestInitNewProject:
         assert ctx["has_research_files"] is True
         assert "has_existing_project" not in ctx
 
+    @pytest.mark.parametrize("filename", ("draft.pdf", "measurements.csv"))
+    def test_detects_documented_research_file_extensions(self, tmp_path: Path, filename: str) -> None:
+        (tmp_path / filename).write_text("research artifact\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is True
+        assert ctx["needs_research_map"] is True
+
     def test_ignores_runtime_owned_dirs_when_detecting_research_files(self, tmp_path: Path) -> None:
         for runtime_dir in _runtime_owned_local_install_dirs(tmp_path):
             runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -2234,6 +2243,23 @@ class TestInitNewProject:
         assert ctx["project_contract_validation"]["valid"] is True
         assert ctx["project_contract_gate"]["authoritative"] is True
 
+    def test_new_project_surfaces_partial_recoverable_state_without_project_md(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n\n## Phase 1: Setup\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path, stage="scope_intake")
+
+        assert ctx["project_exists"] is False
+        assert ctx["state_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["recoverable_project_exists"] is True
+        assert ctx["partial_project_exists"] is True
+        assert ctx["project_recovery_status"] == "partial"
+
     def test_new_project_stage_scope_intake_filters_payload(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
 
@@ -2312,6 +2338,7 @@ class TestInitNewProject:
             "GPD/state.json",
             "GPD/config.json",
             "GPD/CONVENTIONS.md",
+            "GPD/init-progress.json",
             "GPD/literature/PRIOR-WORK.md",
             "GPD/literature/METHODS.md",
             "GPD/literature/COMPUTATIONAL.md",
@@ -2389,7 +2416,7 @@ class TestInitNewProject:
             "surface the first scoping question",
             "preserve contract gate visibility without assuming approval-stage authority",
         ]
-        assert ctx["staged_loading"]["writes_allowed"] == []
+        assert ctx["staged_loading"]["writes_allowed"] == ["GPD/init-progress.json"]
 
     def test_stage_scope_approval_returns_only_contract_fields(self, tmp_path: Path) -> None:
         ctx = init_new_project(tmp_path, stage="scope_approval")
@@ -4068,6 +4095,34 @@ class TestInitProgress:
         assert ctx["current_phase"]["number"] == "02"
         assert ctx["next_phase"]["number"] == "03"
 
+    def test_progress_uses_roadmap_inventory_for_phases_without_directories(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "ROADMAP.md").write_text(
+            "# Roadmap\n\n"
+            "## Phase 1: Setup\n\n"
+            "**Goal:** Establish baseline.\n\n"
+            "## Phase 2: Analysis\n\n"
+            "**Goal:** Analyze the main target.\n\n"
+            "## Phase 3: Synthesis\n\n"
+            "**Goal:** Package the result.\n",
+            encoding="utf-8",
+        )
+        p1 = _create_phase_dir(tmp_path, "01-setup")
+        (p1 / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        (p1 / "a-SUMMARY.md").write_text("summary", encoding="utf-8")
+        p2 = _create_phase_dir(tmp_path, "02-analysis")
+        (p2 / "b-PLAN.md").write_text("plan", encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert [phase["number"] for phase in ctx["phases"]] == ["1", "2", "3"]
+        assert ctx["phase_count"] == 3
+        assert ctx["completed_count"] == 1
+        assert ctx["current_phase"]["number"] == "2"
+        assert ctx["current_phase"]["disk_status"] == "planned"
+        assert ctx["next_phase"]["number"] == "3"
+        assert ctx["next_phase"]["directory"] is None
+
     def test_progress_prefers_phase_inventory_over_stale_state_position(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict
 
@@ -4135,13 +4190,13 @@ class TestInitProgress:
         assert ctx["project_root"] == workspace.resolve().as_posix()
         assert ctx["project_root_source"] == "workspace"
         assert ctx["project_root_auto_selected"] is False
-        assert ctx["init_root_policy"] == "workspace_locked"
+        assert ctx["init_root_policy"] == "project_scoped"
         assert ctx["config_content"] is not None
         assert "project_reentry_mode" not in ctx
         assert "project_reentry_candidates" not in ctx
         assert "project_reentry_selected_candidate" not in ctx
 
-    def test_progress_without_project_reentry_stays_workspace_locked_under_ancestor_project(
+    def test_progress_without_recent_project_reentry_still_resolves_ancestor_project(
         self,
         tmp_path: Path,
     ) -> None:
@@ -4150,15 +4205,17 @@ class TestInitProgress:
 
         project.mkdir()
         _setup_project(project)
+        (project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
         nested.mkdir(parents=True)
 
         ctx = init_progress(nested, include_project_reentry=False)
 
         assert ctx["workspace_root"] == nested.resolve().as_posix()
-        assert ctx["project_root"] == nested.resolve().as_posix()
+        assert ctx["project_root"] == project.resolve().as_posix()
         assert ctx["project_root_source"] == "workspace"
         assert ctx["project_root_auto_selected"] is False
-        assert ctx["init_root_policy"] == "workspace_locked"
+        assert ctx["init_root_policy"] == "project_scoped"
+        assert ctx["project_exists"] is True
         assert "project_reentry_mode" not in ctx
 
     def test_progress_rejects_stale_autonomy_values(self, tmp_path: Path) -> None:

@@ -5,10 +5,7 @@ Reconcile diverged `STATE.md` and `state.json` with a deterministic, fail-closed
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-**Schema reference:** `{GPD_INSTALL_DIR}/templates/state-json-schema.md` — Canonical schema for state.json fields, types, defaults, and authoritative-vs-derived status. Consult when resolving conflicts between STATE.md and state.json.
-Before deciding any repair, read `{GPD_INSTALL_DIR}/templates/state-json-schema.md` itself and use its authoritative-vs-derived rules as the reconciliation contract rather than guessing from the current file contents.
-
-Canonical reconciliation contract:
+Canonical reconciliation contract: read `state-json-schema.md` itself.
 @{GPD_INSTALL_DIR}/templates/state-json-schema.md
 </required_reading>
 
@@ -80,8 +77,6 @@ cat GPD/state.json
 ```
 
 **Parse STATE.md into comparable fields:**
-
-Extract from STATE.md (using text parsing):
 - Current Phase (number and name)
 - Current Plan
 - Status
@@ -93,8 +88,6 @@ Extract from STATE.md (using text parsing):
 - Session info (last date, stopped at, resume file)
 
 **Parse state.json fields:**
-
-Extract from state.json:
 - `position.current_phase`, `position.current_phase_name`
 - `position.current_plan`
 - `position.status`
@@ -111,8 +104,6 @@ Extract from state.json:
 </step>
 
 <step name="classify">
-**Classify the relationship between the two files:**
-
 1. If `state.json` is unreadable, invalid JSON, or missing required structured data, use the markdown recovery path and stop treating the pair as a bidirectional merge problem.
 2. If `state.json` parses successfully, treat it as the structured source of truth for all mirrored fields.
 3. If `STATE.md` contains schema-backed edits that disagree with `state.json` while both files parse, report the drift, but do not invent a field-by-field merge. Regenerate `STATE.md` from `state.json`.
@@ -124,8 +115,6 @@ This workflow is intentionally fail-closed: no recency heuristics, no user promp
 </step>
 
 <step name="reconcile">
-**Rebuild the canonical pair deterministically:**
-
 **If `state.json` is valid:**
 
 Regenerate `STATE.md` from `state.json`:
@@ -179,7 +168,7 @@ If validation fails, report the validation issues and stop. Do not commit a part
 **Markdown projection:** regenerated from the authoritative source
 **Validation status:** {healthy / warning / degraded}
 
-If STATE.md and state.json previously diverged, report the mirrored fields that changed and note that JSON-only fields were preserved.
+If they diverged, report changed mirrored fields and note JSON-only fields were preserved.
 ```
 </step>
 
@@ -200,7 +189,7 @@ gpd commit \
 
 <failure_handling>
 
-- **STATE.md corrupt (unparseable):** If `STATE.md` cannot be parsed, check whether `state.json` is valid and regenerate the markdown view from it. If both are damaged, follow the built-in recovery chain in order: `state.json.bak`, then any surviving valid `STATE.md`, then a controlled regeneration from defaults plus surviving structured artifacts.
+- **STATE.md corrupt:** If `state.json` is valid, regenerate markdown from it. If both are damaged, try `state.json.bak`, then any valid `STATE.md`, then controlled regeneration from defaults plus surviving structured artifacts.
 - **state.json corrupt (invalid JSON):** Move it aside to `GPD/state.json.bak`, then recover from `STATE.md` through the markdown write path. Do not delete it without keeping a backup first.
 - **Both files exist but disagree:** Treat the mismatch as a reportable drift, not a bidirectional merge request. Use `state.json` for structured fields and regenerate `STATE.md` from it unless `state.json` is unreadable.
 - **Regeneration fails validation:** Stop and report the blocking issues. Do not stage or commit the pair.

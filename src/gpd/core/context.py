@@ -76,7 +76,7 @@ from gpd.core.peer_review_mode import (
     PEER_REVIEW_STANDALONE_MODE,
     resolve_peer_review_mode,
 )
-from gpd.core.phases import _milestone_completion_snapshot
+from gpd.core.phases import _milestone_completion_snapshot, roadmap_analyze
 from gpd.core.project_reentry import (
     ProjectReentryCandidate,
     recoverable_project_context,
@@ -185,7 +185,7 @@ class InitRootPolicy(StrEnum):
 
 
 # Research file extensions for project detection.
-_RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
+_RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90", ".pdf", ".csv"})
 _LITERATURE_DIR_NAME = "literature"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
@@ -3143,6 +3143,127 @@ def _build_sync_state_file_context(
     return result
 
 
+def _progress_status_from_roadmap_disk_status(disk_status: str) -> str:
+    """Map roadmap disk inventory states onto the progress init status vocabulary."""
+
+    if disk_status == "complete":
+        return "complete"
+    if disk_status in {"planned", "partial"}:
+        return "in_progress"
+    if disk_status == "researched":
+        return "researched"
+    return "pending"
+
+
+def _build_disk_progress_phase_inventory(
+    cwd: Path,
+) -> tuple[list[dict[str, object]], dict[str, object] | None, dict[str, object] | None]:
+    """Build legacy disk-only phase inventory for projects without ROADMAP.md phases."""
+
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
+    phases: list[dict[str, object]] = []
+    current_phase: dict[str, object] | None = None
+    next_phase: dict[str, object] | None = None
+
+    try:
+        dirs = sorted(
+            (d.name for d in phases_dir.iterdir() if d.is_dir()),
+            key=_phase_sort_key,
+        )
+        for dir_name in dirs:
+            dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", dir_name)
+            phase_number = dir_match.group(1) if dir_match else dir_name
+            phase_name = dir_match.group(2) if dir_match and dir_match.group(2) else None
+
+            phase_path = phases_dir / dir_name
+            phase_files = [f.name for f in phase_path.iterdir() if f.is_file()]
+
+            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
+            summaries = [f for f in phase_files if layout.is_summary_file(f)]
+            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
+
+            summary_count = _matching_phase_artifact_count(plans, summaries)
+
+            if _is_phase_complete(len(plans), summary_count):
+                status = "complete"
+            elif plans:
+                status = "in_progress"
+            elif has_research:
+                status = "researched"
+            else:
+                status = "pending"
+
+            phase_entry: dict[str, object] = {
+                "number": phase_number,
+                "name": phase_name,
+                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
+                "status": status,
+                "disk_status": status,
+                "plan_count": len(plans),
+                "summary_count": summary_count,
+                "has_research": has_research,
+            }
+            phases.append(phase_entry)
+
+            if current_phase is None and status in ("in_progress", "researched"):
+                current_phase = phase_entry
+            if next_phase is None and status == "pending":
+                next_phase = phase_entry
+    except FileNotFoundError:
+        pass
+
+    return phases, current_phase, next_phase
+
+
+def _build_progress_phase_inventory(
+    cwd: Path,
+) -> tuple[list[dict[str, object]], dict[str, object] | None, dict[str, object] | None]:
+    """Build progress phase inventory from roadmap analysis, with disk-only fallback."""
+
+    roadmap = roadmap_analyze(cwd)
+    if not roadmap.phases:
+        return _build_disk_progress_phase_inventory(cwd)
+
+    phases: list[dict[str, object]] = []
+    by_number: dict[str, dict[str, object]] = {}
+    layout = ProjectLayout(cwd)
+    phase_dir_names: list[str] = []
+    if layout.phases_dir.is_dir():
+        phase_dir_names = [path.name for path in layout.phases_dir.iterdir() if path.is_dir()]
+
+    for phase in roadmap.phases:
+        normalized = _normalize_phase_name(str(phase.number))
+        dir_match_name = next(
+            (name for name in phase_dir_names if name.startswith(normalized + "-") or name == normalized),
+            None,
+        )
+        status = _progress_status_from_roadmap_disk_status(phase.disk_status)
+        phase_entry: dict[str, object] = {
+            "number": phase.number,
+            "name": phase.name,
+            "directory": (
+                f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_match_name}" if dir_match_name is not None else None
+            ),
+            "status": status,
+            "disk_status": phase.disk_status,
+            "roadmap_complete": phase.roadmap_complete,
+            "plan_count": phase.plan_count,
+            "summary_count": phase.summary_count,
+            "has_research": phase.has_research,
+            "has_context": phase.has_context,
+        }
+        phases.append(phase_entry)
+        by_number[normalized] = phase_entry
+
+    def _lookup(number: str | None) -> dict[str, object] | None:
+        if not number:
+            return None
+        return by_number.get(_normalize_phase_name(str(number)))
+
+    return phases, _lookup(roadmap.current_phase), _lookup(roadmap.next_phase)
+
+
 def init_plan_phase(
     cwd: Path,
     phase: str | None,
@@ -3301,7 +3422,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
                 continue
             if entry.is_dir():
                 _walk(entry, depth + 1)
-            elif entry.is_file() and entry.suffix in _RESEARCH_EXTENSIONS:
+            elif entry.is_file() and entry.suffix.lower() in _RESEARCH_EXTENSIONS:
                 found_count += 1
                 has_research_files = True
 
@@ -3314,6 +3435,16 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
         or resolve_current_manuscript_entrypoint(requested_cwd) is not None
     )
 
+    state_exists, roadmap_exists, project_file_exists = recoverable_project_context(project_cwd)
+    recoverable_project_exists = state_exists or roadmap_exists or project_file_exists
+    partial_project_exists = recoverable_project_exists and not project_file_exists
+    if project_file_exists:
+        project_recovery_status = "initialized"
+    elif recoverable_project_exists:
+        project_recovery_status = "partial"
+    else:
+        project_recovery_status = "none"
+
     result = {
         # Models
         "researcher_model": _resolve_model(project_cwd, "gpd-project-researcher", config),
@@ -3324,7 +3455,12 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
         # Existing state
-        "project_exists": _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "project_exists": project_file_exists,
+        "state_exists": state_exists,
+        "roadmap_exists": roadmap_exists,
+        "recoverable_project_exists": recoverable_project_exists,
+        "partial_project_exists": partial_project_exists,
+        "project_recovery_status": project_recovery_status,
         "has_research_map": _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         "planning_exists": _path_exists(project_cwd, PLANNING_DIR_NAME),
         # Existing project detection
@@ -4379,69 +4515,18 @@ def init_progress(
         )
         init_root_policy = InitRootPolicy.PROJECT_REENTRY_ALLOWED.value
     else:
-        effective_cwd = _resolve_workspace_locked_cwd(requested_cwd)
+        effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
         reentry_metadata = {
             "workspace_root": requested_cwd.as_posix(),
             "project_root": effective_cwd.as_posix(),
             "project_root_source": "workspace",
             "project_root_auto_selected": False,
         }
-        init_root_policy = InitRootPolicy.WORKSPACE_LOCKED.value
+        init_root_policy = InitRootPolicy.PROJECT_SCOPED.value
     config = load_config(effective_cwd)
     milestone = _try_get_milestone_info(effective_cwd)
 
-    # Analyze phases
-    layout = ProjectLayout(effective_cwd)
-    phases_dir = layout.phases_dir
-    phases: list[dict[str, object]] = []
-    current_phase: dict[str, object] | None = None
-    next_phase: dict[str, object] | None = None
-
-    try:
-        dirs = sorted(
-            (d.name for d in phases_dir.iterdir() if d.is_dir()),
-            key=_phase_sort_key,
-        )
-        for dir_name in dirs:
-            dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", dir_name)
-            phase_number = dir_match.group(1) if dir_match else dir_name
-            phase_name = dir_match.group(2) if dir_match and dir_match.group(2) else None
-
-            phase_path = phases_dir / dir_name
-            phase_files = [f.name for f in phase_path.iterdir() if f.is_file()]
-
-            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
-            summaries = [f for f in phase_files if layout.is_summary_file(f)]
-            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
-
-            summary_count = _matching_phase_artifact_count(plans, summaries)
-
-            if _is_phase_complete(len(plans), summary_count):
-                status = "complete"
-            elif plans:
-                status = "in_progress"
-            elif has_research:
-                status = "researched"
-            else:
-                status = "pending"
-
-            phase_entry: dict[str, object] = {
-                "number": phase_number,
-                "name": phase_name,
-                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
-                "status": status,
-                "plan_count": len(plans),
-                "summary_count": summary_count,
-                "has_research": has_research,
-            }
-            phases.append(phase_entry)
-
-            if current_phase is None and status in ("in_progress", "researched"):
-                current_phase = phase_entry
-            if next_phase is None and status == "pending":
-                next_phase = phase_entry
-    except FileNotFoundError:
-        pass
+    phases, current_phase, next_phase = _build_progress_phase_inventory(effective_cwd)
 
     # Check for paused work
     paused_at: str | None = None

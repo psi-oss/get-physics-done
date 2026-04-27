@@ -82,6 +82,7 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
         (
             "If the researcher chooses `Resume this project (recommended)` or `Continue where I left off`:",
             "If the researcher chooses `Resume this project` or `Continue where I left off`:",
+            "If the researcher chooses `Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`:",
         ),
         (
             "If the researcher chooses `Map this folder first (recommended)` or `Refresh the research map`:",

@@ -38,6 +38,10 @@ def test_normalize_arxiv_id_accepts_known_forms() -> None:
     assert normalize_arxiv_id("2401.12345") == "2401.12345"
     assert normalize_arxiv_id("arXiv:2401.12345v2") == "2401.12345v2"
     assert normalize_arxiv_id("https://arxiv.org/abs/hep-th/9901001") == "hep-th/9901001"
+    assert normalize_arxiv_id("https://arxiv.org/abs/2401.12345?context=math#references") == "2401.12345"
+    assert normalize_arxiv_id("https://arxiv.org/pdf/2401.12345v2.pdf?download=1") == "2401.12345v2"
+    assert normalize_arxiv_id("https://arxiv.org/pdf/hep-th/9901001.pdf#page=1") == "hep-th/9901001"
+    assert normalize_arxiv_id("https://arxiv.org/e-print/2401.12345v2") == "2401.12345v2"
 
 
 def test_normalize_arxiv_id_rejects_invalid_values() -> None:

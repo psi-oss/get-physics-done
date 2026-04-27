@@ -41,7 +41,7 @@ Project context, phase list, and state are resolved inside the workflow using in
 
 <process>
 **CRITICAL: First, read the full workflow file using the file_read tool:**
-Read {GPD_INSTALL_DIR}/workflows/autonomous.md first and follow it exactly.
+Read the included workflow first and follow it exactly.
 
 Execute the autonomous workflow end-to-end.
 Preserve all workflow gates (phase discovery, per-phase execution, convention checks, blocker handling, progress display, verification routing).

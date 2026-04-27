@@ -45,14 +45,16 @@ if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
+PROJECT_ROOT=$(echo "$INIT" | gpd json get .project_root --default ".")
 ```
 
 Creates `GPD/config.json` with defaults if missing and loads current config values.
+`--no-project-reentry` disables recent-project auto-selection for this settings bootstrap only. It must still allow normal ancestor GPD project resolution when the command is launched from a nested folder inside the current project.
 </step>
 
 <step name="read_current">
 ```bash
-cat GPD/config.json
+cat "$PROJECT_ROOT/GPD/config.json"
 ```
 
 Parse current values, using the schema defaults noted below when a key is absent:
@@ -350,7 +352,7 @@ Merge new settings into existing config.json:
 }
 ```
 
-Write updated config to `GPD/config.json`.
+Write updated config to `$PROJECT_ROOT/GPD/config.json`.
 
 Then immediately sync runtime-owned permissions against the selected autonomy:
 

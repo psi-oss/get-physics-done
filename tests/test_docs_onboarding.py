@@ -227,6 +227,21 @@ def test_root_readme_install_source_policy_and_peer_review_target_are_current() 
     assert "`.tex`, `.md`, `.txt`, `.pdf`" not in command_context
 
 
+def test_root_readme_runtime_workflow_examples_are_prefixless_and_uninstall_link_is_current() -> None:
+    content = _read("README.md")
+    quick_start = _markdown_section(content, "## Quick Start")
+    uninstall = _markdown_section(content, "## Uninstall")
+
+    assert "Typical new-project workflow, shown as command names without runtime prefixes:" in quick_start
+    assert "`new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work 1`" in quick_start
+    assert "Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`" in content
+    assert "Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`" in content
+    assert "gpd:new-project ->" not in content
+    assert "gpd:write-paper ->" not in content
+    assert "matching uninstall command from [Start Here]" not in uninstall
+    assert "npx -y get-physics-done --uninstall" in uninstall
+
+
 def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces() -> None:
     content = _read("README.md")
     supported_runtimes = _markdown_section(content, "## Supported Runtimes")

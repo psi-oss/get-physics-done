@@ -32,7 +32,7 @@ Phase: $ARGUMENTS (required)
 </context>
 
 <process>
-Execute the show-phase workflow from @{GPD_INSTALL_DIR}/workflows/show-phase.md end-to-end.
+Execute the included show-phase workflow end-to-end.
 Preserve all report sections and formatting.
 
 ## Step 1: Init Context

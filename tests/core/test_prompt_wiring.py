@@ -1187,7 +1187,8 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
         "paste_referee_report",
     ]
     assert respond_command.command_policy.subject_policy.supported_roots == ["paper", "manuscript", "draft"]
-    assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md", "GPD/publication/*/manuscript/*.tex", "GPD/publication/*/manuscript/*.md"]' in respond
+    assert "allow_external_subjects: true" in respond
+    assert "requires:" not in respond
     assert "bounded continuation path, not a full relocation of manuscript-local publication artifacts." in respond
     assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex", "GPD/publication/*/manuscript/*.tex"]' in arxiv
 
@@ -1490,7 +1491,7 @@ def test_new_project_defers_workflow_setup_until_after_scope_approval() -> None:
 def test_new_project_command_avoids_stale_workflow_line_counts() -> None:
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
-    assert "Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly." in command_text
+    assert "Read the included workflow first and follow it exactly." in command_text
     assert "step-by-step instructions" not in command_text
     assert "lines)" not in command_text
 
@@ -1638,9 +1639,7 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     status_scan = 'grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$"'
     assert status_scan in workflow_text
     assert status_scan not in command_text
-    assert (
-        "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly." in command_text
-    )
+    assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in command_text
     assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command_text
     assert 'CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")' not in command_text
     assert "status: (gaps_found|diagnosed|human_needed|expert_needed)" not in workflow_text
@@ -1878,7 +1877,7 @@ def test_reference_workflows_require_anchor_registry_propagation() -> None:
     load_context_line = next(line for line in literature_workflow.splitlines() if "Parse JSON for:" in line)
     assert "reference_artifact_files" not in load_context_line
     assert "reference_artifacts_content" not in load_context_line
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature_command
+    assert "Follow the included literature-review workflow exactly." in literature_command
     assert (
         "The workflow owns staged loading, scope fixing, artifact gating, and citation verification."
         in literature_command
@@ -1909,7 +1908,7 @@ def test_reference_workflows_require_anchor_registry_propagation() -> None:
     assert "project_contract_validation" in map_workflow
     assert "reference_artifacts_content" in map_workflow
     assert "authoritative only when `project_contract_gate.authoritative` is true" in map_workflow
-    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/map-research.md`." in map_command
+    assert "Follow the included map-research workflow." in map_command
     assert "project_contract_load_info" not in map_command
     assert "reference_artifacts_content" not in map_command
     assert "REFERENCES.md is an anchor registry" in mapper_agent
@@ -1946,7 +1945,7 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
         assert "Fresh 200k context" not in content
 
     assert "gpd --raw validate command-context literature-review" in literature
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature
+    assert "Follow the included literature-review workflow exactly." in literature
     assert "First, read {GPD_AGENTS_DIR}/gpd-literature-reviewer.md for your role and instructions" not in literature
     assert "Write to: GPD/literature/{slug}-REVIEW.md" not in literature
 
@@ -1957,7 +1956,7 @@ def test_research_phase_command_delegates_file_path_and_return_routing_to_the_wo
     command = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
     workflow = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
 
-    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`." in command
+    assert "Follow the included research-phase workflow." in command
     assert "gpd --raw init phase-op --include state,config" not in command
     assert "Research depth follows the workflow-owned `research_mode`." in command
     assert "gpd_return.status: completed" not in command
@@ -2063,10 +2062,7 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
     assert "gpd --raw init map-research" not in map_command
     assert "ROADMAP=$(gpd --raw roadmap analyze)" in progress_workflow
     assert "ROADMAP=$(gpd --raw roadmap analyze)" not in progress_command
-    assert (
-        "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly."
-        in progress_command
-    )
+    assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in progress_command
     assert (
         'gpd --raw summary-extract <path> --field one_liner | gpd json get .one_liner --default ""' in progress_workflow
     )
@@ -2141,7 +2137,7 @@ def test_research_phase_uses_resolved_phase_dir_for_artifact_paths_and_context_l
     research_command = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
 
     assert "Write to: {phase_dir}/{phase_number}-RESEARCH.md" in research_workflow
-    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`." in research_command
+    assert "Follow the included research-phase workflow." in research_command
     assert "Write to: {phase_dir}/{phase_number}-RESEARCH.md" not in research_command
     assert "Research file path: {phase_dir}/{phase_number}-RESEARCH.md" not in research_command
     assert "GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md" not in research_workflow
@@ -2216,7 +2212,7 @@ def test_phase_researcher_prompt_keeps_the_one_shot_handoff_and_return_contract_
     assert "expected_artifacts" in research_workflow
     assert "Do not trust the runtime handoff status by itself." in research_workflow
     assert "gpd_return.files_written" in research_workflow
-    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`." in research_command
+    assert "Follow the included research-phase workflow." in research_command
     assert 'gpd --raw init research-phase "${phase_arg}" --stage "${stage_name}"' in research_workflow
 
 
@@ -4948,7 +4944,7 @@ def test_route_workflow_uses_physics_scope_examples_and_ordered_compound_contrac
     assert "No active milestone override" in route_workflow
 
     assert 'argument-hint: "[--frozen=yes|no] [--change=extend|revise] [--layer=new|change]"' in route_command
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/route.md`" in route_command
+    assert "Follow the included route workflow" in route_command
     assert "One recommendation returned; compound recommendations list the required commands in order" in route_command
     assert (
         "Exactly one recommendation returned; if the recommendation is compound, the ordered command sequence is rendered explicitly"

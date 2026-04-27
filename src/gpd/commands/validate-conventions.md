@@ -33,5 +33,5 @@ Scope: $ARGUMENTS (optional)
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/validate-conventions.md` exactly.
+Follow the included validate-conventions workflow exactly.
 </process>

@@ -64,7 +64,7 @@ Ask a compact set of high-leverage questions for any missing requirements, inclu
 
 ## 3. Execute the Slides Workflow
 
-Follow the slides workflow from `@{GPD_INSTALL_DIR}/workflows/slides.md` end-to-end.
+Follow the included slides workflow end-to-end.
 
 ## 4. Write Deliverables
 

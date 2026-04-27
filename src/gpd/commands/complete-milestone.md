@@ -38,7 +38,7 @@ Primary outputs remain workflow-owned:
   </context>
 
 <process>
-Follow @{GPD_INSTALL_DIR}/workflows/complete-milestone.md end-to-end after loading the execution-context files above.
+Follow the included complete-milestone workflow end-to-end after loading the execution-context files above.
 
 Use the workflow's readiness, audit, confirmation, archive, commit, and tag gates as the authority. The wrapper must not restate or fork those mechanics.
 

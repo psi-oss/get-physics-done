@@ -20,17 +20,19 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `project_reference` | `object` | see below | Pointer to PROJECT.md with key fields | Derived from PROJECT.md |
 | `project_contract` | `ResearchContract \| null` | `null` | Canonical machine-readable scoping and anchor contract | **Authoritative** (JSON-only, stage-0+ contract flow) |
 | `position` | `object` | see below | Current phase/plan/status | **Authoritative** (synced to STATE.md) |
-| `active_calculations` | `string[]` | `[]` | Work in progress descriptions | STATE.md unless JSON has structured data |
-| `intermediate_results` | `ResultObject[] \| string[]` | `[]` | Partial results with equations | **Authoritative** (structured objects from `result add`) |
-| `open_questions` | `string[]` | `[]` | Physics questions that emerged | STATE.md unless JSON has structured data |
+| `active_calculations` | `(string \| object)[]` | `[]` | Work in progress descriptions | STATE.md unless JSON has structured data |
+| `intermediate_results` | `(ResultObject \| string)[]` | `[]` | Partial results with equations | **Authoritative** (structured objects from `result add`) |
+| `open_questions` | `(string \| object)[]` | `[]` | Physics questions that emerged | STATE.md unless JSON has structured data |
+| `resolved_questions` | `ResolvedQuestionObject[]` | `[]` | Questions resolved with recorded answers | **Authoritative** (JSON-only, from question resolution with answers) |
 | `performance_metrics` | `{ rows: MetricRow[] }` | `{ rows: [] }` | Throughput tracking | Synced from STATE.md |
 | `decisions` | `DecisionObject[]` | `[]` | Accumulated decisions with rationale | Synced from STATE.md |
 | `approximations` | `ApproximationObject[]` | `[]` | Active approximations with validity | **Authoritative** (JSON-only, from `approximation add`) |
 | `convention_lock` | `ConventionLock` | see below | Locked physics conventions | **Authoritative** (JSON-only, from `convention set`) |
 | `propagated_uncertainties` | `UncertaintyObject[]` | `[]` | Uncertainty propagation tracking | **Authoritative** (JSON-only, from `uncertainty add`) |
-| `pending_todos` | `string[]` | `[]` | Ideas captured via gpd:add-todo | Synced from todos/ |
-| `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
+| `pending_todos` | `(string \| object)[]` | `[]` | Ideas captured via gpd:add-todo | Synced from todos/ |
+| `blockers` | `(string \| object)[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority for session handoff and recorded machine identity | **Authoritative** (JSON-only) |
+| `contract_alignment` | `ContractAlignmentGate` | see below | Hashes confirming the user-approved project contract and context alignment | **Authoritative** (JSON-only) |
 
 ### Authoritative vs Derived
 
@@ -191,6 +193,22 @@ Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
 
 **Note:** Markdown-derived entries in this section may be plain strings instead of structured objects. Code handles both formats.
 
+### `ResolvedQuestionObject`
+
+```json
+{
+  "question": "What is the coupling constant?",
+  "answer": "g = 0.3"
+}
+```
+
+| Field | Type | Required |
+|-------|------|----------|
+| `resolved_questions[].question` | `string` | Yes |
+| `answer` | `string` | Yes |
+
+**Written by:** `gpd question resolve --answer ...`
+
 ### `DecisionObject`
 
 ```json
@@ -271,7 +289,7 @@ Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
   "schema_version": 1,
   "handoff": {
     "recorded_at": "2026-03-15T14:30:00.000Z",
-    "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
+    "stopped_at": "Phase 3, Plan 2, work item 4: MC thermalization",
     "resume_file": "GPD/phases/03-analysis/.continue-here.md"
   },
   "bounded_segment": null,
@@ -304,6 +322,24 @@ Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
 | `recorded_at` | `string \| null` | Timestamp when the machine identity was recorded |
 | `hostname` | `string \| null` | Advisory host identity from the last session |
 | `platform` | `string \| null` | Advisory platform string from the last session |
+
+### `ContractAlignmentGate`
+
+```json
+{
+  "confirmed_at": "2026-04-23T12:00:00+00:00",
+  "confirmed_contract_hash": "sha256:abc",
+  "confirmed_context_hash": "sha256:def"
+}
+```
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `confirmed_at` | `string \| null` | `null` | Timestamp when the user-approved project contract/context alignment was recorded |
+| `confirmed_contract_hash` | `string \| null` | `null` | Hash of the confirmed project contract |
+| `confirmed_context_hash` | `string \| null` | `null` | Hash of the confirmed context packet |
+
+**Written by:** `gpd contract record-alignment`
 
 ---
 
@@ -341,7 +377,7 @@ STATE.md and state.json are kept in sync:
 state.json > state.json.bak > STATE.md
 ```
 
-For JSON-only fields (convention_lock, approximations, propagated_uncertainties, structured intermediate_results): state.json is sole authority. STATE.md renders a lossy view (structured objects become flat bullet strings).
+For JSON-only fields (`project_contract`, `resolved_questions`, `approximations`, `convention_lock`, `propagated_uncertainties`, `continuation`, `contract_alignment`, and structured `intermediate_results`): state.json is sole authority. STATE.md renders a lossy view where projections exist.
 
 For position/decisions/blockers: STATE.md is the primary edit surface; state.json is synced from it.
 

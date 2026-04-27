@@ -67,7 +67,7 @@ Use canonical phase helpers for verification artifacts:
 </inline_guidance>
 
 <process>
-Execute the audit-milestone workflow from @{GPD_INSTALL_DIR}/workflows/audit-milestone.md end-to-end.
+Execute the included audit-milestone workflow end-to-end.
 Preserve all workflow gates (scope determination, verification reading, integration check, requirements coverage, routing).
 
 The audit evaluates research completeness across these dimensions:

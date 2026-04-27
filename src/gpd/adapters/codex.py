@@ -459,12 +459,21 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     fm_lines = frontmatter.split("\n")
     new_lines: list[str] = []
     in_allowed_tools = False
+    skipping_unsupported_block = False
     tools: list[str] = []
     has_name = False
     has_description = False
 
     for line in fm_lines:
         trimmed = line.strip()
+        top_level_key_match = re.match(r"^([A-Za-z0-9_-]+):", line)
+
+        if skipping_unsupported_block:
+            if top_level_key_match is None:
+                continue
+            skipping_unsupported_block = False
+        if top_level_key_match is not None and not trimmed.startswith("allowed-tools:"):
+            in_allowed_tools = False
 
         # Convert name to hyphen-case for Codex
         if trimmed.startswith("name:"):
@@ -481,6 +490,14 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
         # Strip color field (not supported by Codex CLI)
         if trimmed.startswith("color:"):
             continue
+
+        # Strip command-only metadata after compile_markdown_for_runtime has
+        # rendered the model-visible Command Requirements / Review Contract body.
+        if top_level_key_match is not None:
+            key = top_level_key_match.group(1)
+            if key not in {"name", "description", "allowed-tools", "tools"}:
+                skipping_unsupported_block = True
+                continue
 
         # Convert allowed-tools YAML array
         if trimmed.startswith("allowed-tools:"):

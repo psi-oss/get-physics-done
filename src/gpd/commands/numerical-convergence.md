@@ -66,7 +66,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Execute the numerical-convergence workflow from @{GPD_INSTALL_DIR}/workflows/numerical-convergence.md end-to-end.
+Execute the included numerical-convergence workflow end-to-end.
 Keep its workspace-locked bootstrap, explicit target/output resolution, and the phase-backed vs standalone/current-workspace persistence split intact.
 
 If authoritative phase-backed project context exists, the workflow may write `${phase_dir}/NUMERICAL-VALIDATION.md`.

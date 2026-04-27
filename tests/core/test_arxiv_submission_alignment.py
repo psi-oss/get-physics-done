@@ -26,7 +26,7 @@ def test_arxiv_submission_command_declares_manuscript_root_gates_without_first_m
     assert "GPD/publication/*/manuscript/*.tex" in command
     assert "manuscript-root artifact manifest" in command
     assert "manuscript-root bibliography audit" in command
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md` exactly." in command
+    assert "Follow the included arxiv-submission workflow exactly." in command
     assert "artifact_manifest" in command
     assert "bibliography_audit" in command
     assert "bibliography_audit_clean" in command

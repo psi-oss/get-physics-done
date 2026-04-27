@@ -1303,7 +1303,7 @@ def test_install_target_dir_uses_canonical_global_path_when_runtime_env_override
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The default global path should not be mistaken for global when env overrides move it."""
+    """Both default and env-overridden global paths should classify as global."""
     from gpd.adapters import get_adapter
     from gpd.adapters.runtime_catalog import resolve_global_config_dir
 
@@ -1358,7 +1358,7 @@ def test_install_target_dir_uses_canonical_global_path_when_runtime_env_override
     assert captured_calls == [
         {
             "runtime": runtime_name,
-            "is_global": False,
+            "is_global": True,
             "target_dir_override": str(canonical_target),
         }
     ]

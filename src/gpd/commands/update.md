@@ -17,5 +17,5 @@ Check for GPD updates, install if available, and display what changed.
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/update.md` exactly.
+Follow the included update workflow exactly.
    </process>

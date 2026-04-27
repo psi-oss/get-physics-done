@@ -27,7 +27,7 @@ Use this when a plan, execution, or verification produced incorrect results and 
 <process>
 This wrapper runs the undo workflow directly. Any stopping points come from the workflow's own safety gates and confirmation steps.
 
-Execute the undo workflow from @{GPD_INSTALL_DIR}/workflows/undo.md end-to-end.
+Execute the included undo workflow end-to-end.
 Preserve all safety gates and confirmation steps.
 
 ## Step 1: Find Last GPD Commit
