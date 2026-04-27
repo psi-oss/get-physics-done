@@ -986,6 +986,8 @@ Treat the selected setup as a workflow preset bundle over the existing config kn
 
 First surface a preset choice so the user can start from a bundle or jump straight to customization. If a preset is selected, preview the changed knobs before writing `GPD/config.json`, then ask for explicit apply or customize. Do not persist a separate preset key.
 
+Before writing `GPD/config.json`, infer or confirm the selected runtime id using the same active-runtime rule as `gpd:settings`. Record it as `SELECTED_RUNTIME`. Any runtime-scoped model override follow-up must use `model_overrides.<SELECTED_RUNTIME>`, and runtime permissions sync must pass `--runtime "$SELECTED_RUNTIME"` so the configured model/runtime target and the permission target cannot drift.
+
 Use ask_user:
 
 - header: "Workflow Setup"
@@ -1181,7 +1183,7 @@ Create `GPD/config.json` with all settings:
 Run this regardless of whether the user chose recommended defaults or custom settings. For `autonomy=yolo`, this should persist or prepare the runtime's most autonomous permission mode. For non-yolo autonomy, it should restore any earlier GPD-managed yolo override.
 
 ```bash
-PERMISSIONS_SYNC=$(gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
+PERMISSIONS_SYNC=$(gpd --raw permissions sync --runtime "$SELECTED_RUNTIME" --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
 echo "$PERMISSIONS_SYNC"
 ```
 

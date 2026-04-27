@@ -67,6 +67,9 @@ from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
 from gpd.core.manuscript_artifacts import (
+    _supported_manuscript_root_for_target as resolve_supported_manuscript_root_for_target,
+)
+from gpd.core.manuscript_artifacts import (
     locate_publication_artifact,
     resolve_current_manuscript_resolution,
 )
@@ -6270,26 +6273,8 @@ def _allowed_manuscript_suffix_message(allowed_suffixes: Collection[str]) -> str
 
 def _supported_manuscript_root_for_target(project_root: Path, target: Path) -> Path | None:
     """Return the canonical manuscript root that owns *target*, when supported."""
-    from gpd.core.constants import ProjectLayout
 
-    try:
-        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
-    except ValueError:
-        return None
-
-    if relative.parts and relative.parts[0] in _SUPPORTED_MANUSCRIPT_ROOT_NAMES:
-        return project_root / relative.parts[0]
-
-    if (
-        len(relative.parts) >= 4
-        and relative.parts[0] == PLANNING_DIR_NAME
-        and relative.parts[1] == PUBLICATION_DIR_NAME
-        and relative.parts[2]
-        and relative.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
-    ):
-        return ProjectLayout(project_root).publication_manuscript_dir(relative.parts[2])
-
-    return None
+    return resolve_supported_manuscript_root_for_target(project_root, target)
 
 
 def _supported_explicit_manuscript_target(project_root: Path, target: Path) -> bool:
@@ -6342,7 +6327,7 @@ def _resolve_review_preflight_manuscript_target(
                 requested_target=requested_target,
                 detail=(
                     "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
-                    "or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
+                    "or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
                 ),
             )
         if not requested_target.exists():
@@ -7283,8 +7268,30 @@ def _resolve_bibliography_path(
     return _first_existing_path(*candidates)
 
 
-def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
-    """Return a single literature-review citation-source sidecar if it is unambiguous."""
+def _citation_source_bound_stems(paper_config: PaperConfig) -> frozenset[str]:
+    """Return filename stems that explicitly bind citation sources to this paper build."""
+
+    from gpd.mcp.paper.models import derive_output_filename
+
+    stems: set[str] = set()
+    output_stem = derive_output_filename(paper_config).strip()
+    if output_stem:
+        stems.add(output_stem.casefold())
+        stems.add(output_stem.replace("_", "-").casefold())
+    title_slug = normalize_ascii_slug(paper_config.title)
+    if title_slug:
+        stems.add(title_slug.casefold())
+        stems.add(title_slug.replace("-", "_").casefold())
+    return frozenset(stem for stem in stems if stem)
+
+
+def _discover_literature_review_citation_sources(
+    project_root: Path,
+    *,
+    paper_config: PaperConfig,
+) -> tuple[Path | None, str | None]:
+    """Return a citation-source sidecar only when its filename binds to the paper build."""
+
     literature_dir = project_root / "GPD" / "literature"
     if not literature_dir.is_dir():
         return None, None
@@ -7292,17 +7299,39 @@ def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Pa
     matches = sorted(path for path in literature_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
     if not matches:
         return None, None
-    if len(matches) == 1:
-        return matches[0], None
+    bound_stems = _citation_source_bound_stems(paper_config)
+    bound_matches = [
+        path
+        for path in matches
+        if path.name[: -len("-CITATION-SOURCES.json")].casefold() in bound_stems
+    ]
+    if len(bound_matches) == 1:
+        return bound_matches[0], None
+    if len(bound_matches) > 1:
+        preview = ", ".join(_format_display_path(path) for path in bound_matches[:3])
+        remaining = len(bound_matches) - 3
+        suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
+        return (
+            None,
+            "Multiple bound literature-review citation-source sidecars found; "
+            f"pass --citation-sources explicitly: {preview}{suffix}",
+        )
 
     preview = ", ".join(_format_display_path(path) for path in matches[:3])
     remaining = len(matches) - 3
     suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
-    warning = (
-        "Multiple literature-review citation-source sidecars found; "
-        "pass --citation-sources explicitly: "
-        f"{preview}{suffix}"
-    )
+    if len(matches) == 1:
+        warning = (
+            "Ignoring unbound literature-review citation-source sidecar; "
+            "pass --citation-sources explicitly to use it: "
+            f"{preview}"
+        )
+    else:
+        warning = (
+            "Multiple literature-review citation-source sidecars found; "
+            "pass --citation-sources explicitly: "
+            f"{preview}{suffix}"
+        )
     return None, warning
 
 
@@ -7733,36 +7762,21 @@ def _has_review_knowledge_explicit_inputs(arguments: str | None) -> bool:
     )
 
 
-_PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None], bool]]] = {
-    "gpd:compare-experiment": (
-        ["prediction, dataset path, phase identifier, or comparison target"],
-        _has_simple_positional_inputs,
-    ),
-    "gpd:compare-results": (
-        ["comparison target, phase, artifact path, or source-a vs source-b"],
-        _has_simple_positional_inputs,
-    ),
-    "gpd:derive-equation": (["equation or topic to derive"], _has_simple_positional_inputs),
-    "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
-    "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
-    "gpd:explain": (["concept, result, method, notation, or paper"], _has_simple_positional_inputs),
-    "gpd:digest-knowledge": (
-        ["knowledge document path", "source path", "arxiv id", "topic"],
-        _has_digest_knowledge_explicit_inputs,
-    ),
-    "gpd:review-knowledge": (
-        ["knowledge document path or canonical K-* knowledge id"],
-        _has_review_knowledge_explicit_inputs,
-    ),
-    "gpd:limiting-cases": (["phase number or file path"], _has_simple_positional_inputs),
-    "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
-    "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),
-    "gpd:parameter-sweep": (
-        ["computation anchor or file path", "--param name", "--range start:end:steps"],
-        _has_parameter_sweep_explicit_inputs,
-    ),
-    "gpd:sensitivity-analysis": (["--target quantity", "--params p1,p2,..."], _has_sensitivity_explicit_inputs),
-    "gpd:write-paper": (_WRITE_PAPER_EXTERNAL_AUTHORING_EXPLICIT_INPUTS, _has_write_paper_external_authoring_intake),
+_PROJECT_AWARE_EXPLICIT_INPUT_PREDICATES: dict[str, Callable[[str | None], bool]] = {
+    "gpd:compare-experiment": _has_simple_positional_inputs,
+    "gpd:compare-results": _has_simple_positional_inputs,
+    "gpd:derive-equation": _has_simple_positional_inputs,
+    "gpd:dimensional-analysis": _has_simple_positional_inputs,
+    "gpd:discover": _has_discover_explicit_inputs,
+    "gpd:explain": _has_simple_positional_inputs,
+    "gpd:digest-knowledge": _has_digest_knowledge_explicit_inputs,
+    "gpd:review-knowledge": _has_review_knowledge_explicit_inputs,
+    "gpd:limiting-cases": _has_simple_positional_inputs,
+    "gpd:literature-review": _has_simple_positional_inputs,
+    "gpd:numerical-convergence": _has_simple_positional_inputs,
+    "gpd:parameter-sweep": _has_parameter_sweep_explicit_inputs,
+    "gpd:sensitivity-analysis": _has_sensitivity_explicit_inputs,
+    "gpd:write-paper": _has_write_paper_external_authoring_intake,
 }
 
 
@@ -7892,7 +7906,7 @@ def _command_subject_kind(command: object) -> str:
 
 
 def _command_has_typed_subject_policy(command: object) -> bool:
-    return _command_subject_policy(command) is not None
+    return bool(_command_subject_resolution_mode(command))
 
 
 def _command_effective_context_mode(command: object) -> str:
@@ -9420,18 +9434,12 @@ def _build_command_context_preflight(
         )
 
     explicit_inputs = _command_explicit_input_labels_from_policy(command)
-    predicate: Callable[[str | None], bool] = _has_simple_positional_inputs
-    project_aware_override = _PROJECT_AWARE_EXPLICIT_INPUTS.get(str(getattr(command, "name", "") or ""))
-    if project_aware_override is not None:
-        explicit_inputs, predicate = project_aware_override
-    elif not explicit_inputs:
-        explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
-            command.name,
-            (
-                [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"],
-                _has_simple_positional_inputs,
-            ),
-        )
+    if not explicit_inputs:
+        explicit_inputs = [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"]
+    predicate = _PROJECT_AWARE_EXPLICIT_INPUT_PREDICATES.get(
+        str(getattr(command, "name", "") or ""),
+        _has_simple_positional_inputs,
+    )
     resolved_subject = _build_resolved_command_subject(
         context_cwd,
         command,
@@ -9522,20 +9530,6 @@ def _build_command_context_preflight(
             if command.name == "gpd:peer-review"
             else not project_exists and not interactive_intake_allowed
         ),
-    )
-    passed = (
-        explicit_inputs_ok
-        if command.name == "gpd:peer-review" and peer_review_has_explicit_target
-        else project_exists or explicit_inputs_ok or interactive_intake_allowed
-    )
-    guidance = (
-        ""
-        if passed
-        else (
-            explicit_inputs_detail
-            if command.name == "gpd:peer-review" and peer_review_has_explicit_target and not explicit_inputs_ok
-            else _build_project_aware_guidance(explicit_inputs, init_command=init_command)
-        )
     )
     managed_output_context_root = _command_managed_output_context_root(
         workspace_root=cwd,
@@ -11306,22 +11300,34 @@ def paper_build(
     minimal: bool = typer.Option(
         False,
         "--minimal",
-        help="Suppress all sidecars (ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json). Only .tex, .bib, and figures/ land in the output directory.",
+        help=(
+            "Suppress all sidecars (ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json). "
+            "Only .tex, .bib, and figures/ land in the output directory."
+        ),
     ),
     with_provenance: bool = typer.Option(
         False,
         "--with-provenance",
-        help="Write ARTIFACT-MANIFEST.json into the paper root instead of the hidden .paper-meta/ subdirectory.",
+        help=(
+            "Compatibility no-op: ARTIFACT-MANIFEST.json is written beside the manuscript by default "
+            "unless --minimal."
+        ),
     ),
     with_audits: bool = typer.Option(
         False,
         "--with-audits",
-        help="Write BIBLIOGRAPHY-AUDIT.json into the paper root instead of the hidden .paper-meta/ subdirectory.",
+        help=(
+            "Compatibility no-op: BIBLIOGRAPHY-AUDIT.json is written beside the manuscript when bibliography "
+            "data exists unless --minimal."
+        ),
     ),
     with_review_sidecars: bool = typer.Option(
         False,
         "--with-review-sidecars",
-        help="Keep review-oriented sidecars (proof-review, readiness) in the paper root when agents write them; off by default.",
+        help=(
+            "Compatibility no-op: paper-build does not emit proof-review/readiness sidecars. "
+            "It always reports emitted manifest/audit paths explicitly."
+        ),
     ),
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
@@ -11391,20 +11397,12 @@ def paper_build(
             citation_payload = _load_citation_sources_payload(citation_source_path)
         except GPDError as exc:
             _error(str(exc))
-    else:
-        citation_source_path, citation_source_warning = _discover_literature_review_citation_sources(project_root)
-        if citation_source_path is not None:
-            try:
-                citation_payload = _load_citation_sources_payload(citation_source_path)
-            except GPDError as exc:
-                _error(str(exc))
 
     toolchain = _paper_build_toolchain_payload()
 
-    # Sidecar routing: default sidecars to paper/.paper-meta/ so the manuscript
-    # root only contains .tex, .bib, and figures/. --with-provenance promotes
-    # ARTIFACT-MANIFEST.json back up; --with-audits promotes BIBLIOGRAPHY-AUDIT.json.
-    # --minimal suppresses sidecars entirely.
+    # Sidecar routing: strict review and arXiv preflight read manuscript-local
+    # manifest/audit sidecars from the resolved output directory. --minimal
+    # suppresses sidecars entirely.
     artifact_manifest_output_path: Path | None = None
     bibliography_audit_output_path: Path | None = None
     if minimal:
@@ -11414,12 +11412,18 @@ def paper_build(
     else:
         emit_artifact = True
         emit_bib_audit = True
-        artifact_manifest_output_path = output_path / "ARTIFACT-MANIFEST.json" if with_provenance else None
-        bibliography_audit_output_path = output_path / "BIBLIOGRAPHY-AUDIT.json" if with_audits else None
-        if not (with_provenance and with_audits):
-            paper_sidecar_root = output_path / ".paper-meta"
-        else:
-            paper_sidecar_root = None
+        paper_sidecar_root = None
+
+    if citation_sources is None:
+        citation_source_path, citation_source_warning = _discover_literature_review_citation_sources(
+            project_root,
+            paper_config=paper_config,
+        )
+        if citation_source_path is not None:
+            try:
+                citation_payload = _load_citation_sources_payload(citation_source_path)
+            except GPDError as exc:
+                _error(str(exc))
 
     result = asyncio.run(
         build_paper(
@@ -11435,9 +11439,8 @@ def paper_build(
             emit_bibliography_audit=emit_bib_audit,
         )
     )
-    # with_review_sidecars is currently advisory — the review-sidecar writers
-    # live in agent-authored workflows. Surface the preference in the payload
-    # so downstream agents can honor it.
+    # Review-sidecar writers live in agent-authored workflows; paper-build
+    # reports this compatibility flag but does not emit those sidecars.
 
     result_tex_path = result.tex_path if isinstance(result.tex_path, Path) else None
     if result_tex_path is None:
@@ -11469,6 +11472,14 @@ def paper_build(
         "warnings": list(storage_check.warnings)
         + [warning for warning in toolchain["warnings"] if warning not in storage_check.warnings]
         + ([citation_source_warning] if citation_source_warning else [])
+        + (
+            [
+                "--with-review-sidecars is accepted for compatibility but paper-build does not emit "
+                "proof-review/readiness sidecars"
+            ]
+            if with_review_sidecars
+            else []
+        )
         + list(getattr(result, "citation_warnings", [])),
     }
     _output(payload)

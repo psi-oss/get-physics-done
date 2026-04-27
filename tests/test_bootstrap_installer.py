@@ -1065,6 +1065,18 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 assert.doesNotThrow(() => validateRuntimeCatalog(catalog));
 assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(runtimeCatalogSchema));
+const normalizedCatalog = validateRuntimeCatalog(catalog);
+assert.ok(
+  catalog.some((runtime) => Object.keys(runtime.capabilities).length < runtimeCatalogSchema.capability_keys.length)
+);
+for (const runtime of normalizedCatalog) {
+  assert.deepEqual(Object.keys(runtime.capabilities).sort(), runtimeCatalogSchema.capability_keys.slice().sort());
+}
+for (const runtime of catalog) {
+  for (const [fieldName, value] of Object.entries(runtime.capabilities)) {
+    assert.notDeepEqual(value, runtimeCatalogSchema.capability_defaults[fieldName]);
+  }
+}
 
 const helpExampleRuntimes = catalog.filter((runtime) => runtime.installer_help_example_scope);
 assert.ok(helpExampleRuntimes.length >= 2);
@@ -1249,6 +1261,20 @@ assert.throws(
   () => validateRuntimeCatalogSchemaShape(badCapabilityDefaultEnumSchema),
   /runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook/
 );
+
+const futureCapabilityEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+futureCapabilityEnumSchema.capability_enums.telemetry_source.push("webhook");
+futureCapabilityEnumSchema.capability_defaults.telemetry_source = "webhook";
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(futureCapabilityEnumSchema));
+
+const futureLaunchWrapperSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+futureLaunchWrapperSchema.launch_wrapper_permission_surface_kinds.push("future-launch-wrapper");
+futureLaunchWrapperSchema.capability_defaults.permissions_surface = "launch-wrapper";
+futureLaunchWrapperSchema.capability_defaults.permission_surface_kind = "future-launch-wrapper";
+futureLaunchWrapperSchema.capability_defaults.prompt_free_mode_value = "yolo";
+futureLaunchWrapperSchema.capability_defaults.supports_runtime_permission_sync = true;
+futureLaunchWrapperSchema.capability_defaults.supports_prompt_free_mode = true;
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(futureLaunchWrapperSchema));
 
 const badAgentAttributionCatalog = JSON.parse(JSON.stringify(catalog));
 badAgentAttributionCatalog[0].capabilities.supports_agent_payload_attribution = false;

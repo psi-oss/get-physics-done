@@ -46,6 +46,9 @@ jobs:
       - name: Smoke repo graph sync with PATH python
         run: python scripts/sync_repo_graph_contract.py
 
+      - name: Verify repo graph generated artifacts are current
+        run: git diff --exit-code -- tests/README.md tests/repo_graph_contract.json
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
 

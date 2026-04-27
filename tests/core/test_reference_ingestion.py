@@ -980,7 +980,7 @@ def test_ingest_reference_artifacts_emits_warning_for_invalid_knowledge_doc(tmp_
     assert "K-broken.md" in result.knowledge_doc_warnings[0]
 
 
-def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_literature_is_missing(
+def test_ingest_reference_artifacts_reads_only_selected_legacy_research_review_sidecars(
     tmp_path: Path,
 ) -> None:
     _bootstrap_project(tmp_path)
@@ -1004,6 +1004,20 @@ def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_l
                 "title": "Legacy Reference",
                 "authors": ["A. Author"],
                 "year": "2024",
+            }
+        ],
+    )
+    (research_dir / "STALE-REVIEW.md").write_text("# Stale Review\n", encoding="utf-8")
+    _write_citation_sources_sidecar(
+        research_dir,
+        "STALE-REVIEW.md",
+        [
+            {
+                "reference_id": "ref-stale",
+                "source_type": "paper",
+                "title": "Stale Reference",
+                "authors": ["B. Author"],
+                "year": "2023",
             }
         ],
     )

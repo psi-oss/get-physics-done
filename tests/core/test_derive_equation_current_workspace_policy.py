@@ -16,6 +16,9 @@ def test_derive_equation_exposes_typed_current_workspace_output_policy() -> None
 
     assert command.command_policy == registry.CommandPolicy(
         schema_version=1,
+        subject_policy=registry.CommandSubjectPolicy(
+            explicit_input_kinds=["equation or topic to derive"],
+        ),
         supporting_context_policy=registry.CommandSupportingContextPolicy(
             project_context_mode="project-aware",
             project_reentry_mode="disallowed",

@@ -6299,43 +6299,43 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     [
         (
             [],
-            ".paper-meta",
             None,
             None,
-            ".paper-meta/ARTIFACT-MANIFEST.json",
-            ".paper-meta/BIBLIOGRAPHY-AUDIT.json",
-            "./paper/.paper-meta",
+            None,
+            "ARTIFACT-MANIFEST.json",
+            "BIBLIOGRAPHY-AUDIT.json",
+            None,
         ),
         (
             ["--with-provenance"],
-            ".paper-meta",
-            "ARTIFACT-MANIFEST.json",
+            None,
+            None,
             None,
             "ARTIFACT-MANIFEST.json",
-            ".paper-meta/BIBLIOGRAPHY-AUDIT.json",
-            "./paper/.paper-meta",
+            "BIBLIOGRAPHY-AUDIT.json",
+            None,
         ),
         (
             ["--with-audits"],
-            ".paper-meta",
             None,
+            None,
+            None,
+            "ARTIFACT-MANIFEST.json",
             "BIBLIOGRAPHY-AUDIT.json",
-            ".paper-meta/ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
-            "./paper/.paper-meta",
+            None,
         ),
         (
             ["--with-provenance", "--with-audits"],
             None,
-            "ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
+            None,
+            None,
             "ARTIFACT-MANIFEST.json",
             "BIBLIOGRAPHY-AUDIT.json",
             None,
         ),
     ],
 )
-def test_paper_build_sidecar_flags_promote_only_the_requested_file(
+def test_paper_build_sidecar_flags_keep_manifest_and_audit_in_manuscript_root(
     tmp_path: Path,
     extra_args: list[str],
     expected_sidecar: str | None,
@@ -6392,6 +6392,91 @@ def test_paper_build_sidecar_flags_promote_only_the_requested_file(
     assert kwargs["bibliography_audit_output_path"] == paper_path(expected_audit_override)
     assert kwargs["emit_artifact_manifest"] is True
     assert kwargs["emit_bibliography_audit"] is True
+
+
+def test_paper_build_minimal_suppresses_manifest_and_audit_sidecars(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.tex_path = paper_dir / "configured_paper.tex"
+    result_payload.manifest_path = None
+    result_payload.bibliography_audit_path = None
+    result_payload.bibliography_audit = None
+    result_payload.reference_bibtex_keys = {}
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", "--minimal"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["manifest_path"] == ""
+    assert payload["bibliography_audit_path"] == ""
+    assert payload["mode"]["minimal"] is True
+    assert payload["mode"]["sidecar_root"] is None
+
+    kwargs = mock_build.await_args.kwargs
+    assert kwargs["sidecar_root"] is None
+    assert kwargs["emit_artifact_manifest"] is False
+    assert kwargs["emit_bibliography_audit"] is False
+
+
+def test_paper_build_with_review_sidecars_is_reported_as_compatibility_noop(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.tex_path = paper_dir / "configured_paper.tex"
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.bibliography_audit = None
+    result_payload.reference_bibtex_keys = {}
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", "--with-review-sidecars"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["mode"]["with_review_sidecars"] is True
+    assert any("--with-review-sidecars is accepted for compatibility" in warning for warning in payload["warnings"])
 
 
 def test_paper_build_rejects_ambiguous_supported_config_roots_without_a_resolved_manuscript(tmp_path: Path) -> None:
@@ -7288,7 +7373,7 @@ def test_resolve_review_preflight_manuscript_rejects_missing_out_of_root_target_
     assert (
         detail
         == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
-        "or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
+        "or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
     )
 
 
@@ -7382,7 +7467,10 @@ def test_resolve_review_preflight_manuscript_rejects_unsupported_explicit_target
     )
 
     assert resolved is None
-    assert "must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/`" in detail
+    assert (
+        "must stay under `paper/`, `manuscript/`, `draft/`, "
+        "or `GPD/publication/<subject_slug>[/manuscript/]`"
+    ) in detail
 
 
 @pytest.mark.parametrize("suffix", [".docx", ".csv", ".tsv", ".xlsx"])
@@ -7490,7 +7578,7 @@ def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path,
     assert mock_build.await_args.kwargs["bib_data"] is None
 
 
-def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(tmp_path: Path) -> None:
+def test_paper_build_auto_discovers_bound_literature_citation_sources_sidecar(tmp_path: Path) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
     (tmp_path / "GPD").mkdir()
@@ -7511,7 +7599,7 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
 
     literature_dir = tmp_path / "GPD" / "literature"
     literature_dir.mkdir(parents=True)
-    (literature_dir / "topic-CITATION-SOURCES.json").write_text(
+    (literature_dir / "configured_paper-CITATION-SOURCES.json").write_text(
         json.dumps(
             [
                 {
@@ -7542,10 +7630,68 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["bibliography_source"] == ""
-    assert payload["citation_sources_path"] == "../GPD/literature/topic-CITATION-SOURCES.json"
+    assert payload["citation_sources_path"] == "../GPD/literature/configured_paper-CITATION-SOURCES.json"
     assert any("temporary directory" in warning for warning in payload["warnings"])
     assert mock_build.await_args.kwargs["citation_sources"] is not None
     assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"
+
+
+def test_paper_build_ignores_unbound_single_literature_citation_sources_sidecar(tmp_path: Path) -> None:
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    (tmp_path / "GPD").mkdir()
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "stale-topic-CITATION-SOURCES.json").write_text(
+        json.dumps(
+            [
+                {
+                    "reference_id": "ref-stale",
+                    "source_type": "paper",
+                    "title": "Stale Reference",
+                    "authors": ["A. Author"],
+                    "year": "2024",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with (
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=_toolchain_capability()),
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["citation_sources_path"] == ""
+    assert any(
+        "Ignoring unbound literature-review citation-source sidecar" in warning for warning in payload["warnings"]
+    )
+    assert mock_build.await_args.kwargs["citation_sources"] is None
 
 
 def test_paper_build_ignores_research_citation_sources_sidecar_when_literature_is_missing(

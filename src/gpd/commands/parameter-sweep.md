@@ -5,6 +5,11 @@ argument-hint: "[phase | computation anchor] [--param name --range start:end:ste
 context_mode: project-aware
 command-policy:
   schema_version: 1
+  subject_policy:
+    explicit_input_kinds:
+      - computation anchor or file path
+      - --param name
+      - --range start:end:steps
   supporting_context_policy:
     project_context_mode: project-aware
     project_reentry_mode: disallowed

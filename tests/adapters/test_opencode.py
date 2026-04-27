@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import gpd.adapters.opencode as opencode_module
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command, hook_python_interpreter
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
@@ -36,6 +37,30 @@ def expected_opencode_bridge(target: Path, *, is_global: bool = False, explicit_
         is_global=is_global,
         explicit_target=explicit_target,
     )
+
+
+def test_legacy_copy_with_path_replacement_delegates_to_shared_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[Path, Path, str, str, str | None]] = []
+
+    def _fake_shared_copy(
+        src_dir: Path,
+        dest_dir: Path,
+        path_prefix: str,
+        runtime: str,
+        install_scope: str | None = None,
+    ) -> None:
+        calls.append((src_dir, dest_dir, path_prefix, runtime, install_scope))
+
+    monkeypatch.setattr(opencode_module, "_shared_copy_with_path_replacement", _fake_shared_copy)
+
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    opencode_module.copy_with_path_replacement(src_dir, dest_dir, "/prefix/", "local")
+
+    assert calls == [(src_dir, dest_dir, "/prefix/", "opencode", "local")]
 
 
 class TestProperties:

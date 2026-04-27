@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
@@ -96,6 +97,20 @@ def test_settings_workflow_preset_contract_keeps_runtime_default_tier_model_path
     assert "Use runtime defaults" in settings_workflow
     assert "Configure explicit tier models" in settings_workflow
     assert 'Treat blank / `runtime default` / `none` as "no override for this tier"' in settings_workflow
+
+
+def test_settings_workflow_uses_same_selected_runtime_for_models_and_permissions() -> None:
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    permissions_sync = re.compile(
+        r"gpd --raw permissions sync\b"
+        r"(?=[^\n]*--runtime \"\$SELECTED_RUNTIME\")"
+        r"(?=[^\n]*--autonomy \"\$SELECTED_AUTONOMY\")"
+    )
+
+    assert "`SELECTED_RUNTIME`" in settings_workflow
+    assert "model_overrides.<SELECTED_RUNTIME>" in settings_workflow
+    assert permissions_sync.search(settings_workflow)
+    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' not in settings_workflow
 
 
 def test_set_tier_models_workflow_keeps_runtime_examples_generic() -> None:

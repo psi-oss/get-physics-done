@@ -63,7 +63,9 @@ def test_error_propagation_keeps_a_single_phase_report_contract() -> None:
     command_text = (COMMANDS_DIR / "error-propagation.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "error-propagation.md").read_text(encoding="utf-8")
 
-    assert "Phase target: `GPD/phases/XX-name/ERROR-BUDGET.md`" in command_text
+    assert "workflow-owned implementation" in command_text
+    assert "@{GPD_INSTALL_DIR}/workflows/error-propagation.md" in command_text
+    assert "Phase target: `GPD/phases/XX-name/ERROR-BUDGET.md`" not in command_text
     assert "Project-wide: `GPD/analysis/error-budget-{target}.md`" not in command_text
     assert 'Save to: `${target_phase_dir}/ERROR-BUDGET.md`.' in workflow_text
     assert "Do not create a second per-target `GPD/analysis/error-budget-{target}.md` report for this workflow." in workflow_text

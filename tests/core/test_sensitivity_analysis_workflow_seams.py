@@ -24,6 +24,9 @@ def test_sensitivity_analysis_command_exposes_typed_workspace_locked_policy() ->
     assert "Keep any standalone/current-workspace durable artifacts under `GPD/analysis/` rooted at the invoking workspace." in command_text
     assert parsed.command_policy == registry.CommandPolicy(
         schema_version=1,
+        subject_policy=registry.CommandSubjectPolicy(
+            explicit_input_kinds=["--target quantity", "--params p1,p2,..."],
+        ),
         supporting_context_policy=registry.CommandSupportingContextPolicy(
             project_context_mode="project-aware",
             project_reentry_mode="disallowed",

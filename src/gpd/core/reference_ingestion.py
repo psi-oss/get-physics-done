@@ -583,7 +583,13 @@ def _ingest_citation_source_sidecar(cwd: Path, path: Path, result: ArtifactRefer
 
 
 def _citation_source_sidecar_paths_for_review_file(rel_path: str) -> tuple[Path, ...]:
-    """Return citation sidecars that belong to one selected review file."""
+    """Return citation sidecars that belong to one selected review file.
+
+    Contract: selected markdown reviews under ``GPD/literature/`` and legacy
+    selected markdown reviews under ``GPD/research/`` may own a matching
+    ``*-CITATION-SOURCES.json`` sidecar. Bare sidecars are not discovered here;
+    the review file path must be selected by the caller.
+    """
     review_path = Path(rel_path)
     parts = review_path.parts
     if len(parts) < 3 or parts[0] != "GPD" or parts[1] not in {"literature", "research"}:

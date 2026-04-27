@@ -3005,6 +3005,51 @@ class TestReviewValidationCommands:
         assert payload["resolved_review_root"] == str(gpd_project)
         assert payload["staged_loading"]["stage_id"] == "bootstrap"
 
+    @pytest.mark.parametrize(
+        "review_target",
+        [
+            "GPD/publication/curvature-flow",
+            "GPD/publication/curvature-flow/manuscript",
+            "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+        ],
+    )
+    def test_init_peer_review_treats_explicit_managed_publication_target_as_project_backed(
+        self,
+        gpd_project: Path,
+        review_target: str,
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "init",
+                "peer-review",
+                review_target,
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["review_target_mode"] == "project-backed manuscript review"
+        assert payload["publication_target_mode"] == "project_explicit_manuscript"
+        assert payload["publication_target_project_context_role"] == "authoritative"
+        assert payload["publication_lane_kind"] == "managed_publication_manuscript"
+        assert payload["publication_lane_owner"] == "project_managed"
+        assert payload["publication_subject_slug"] == "curvature-flow"
+        assert payload["selected_publication_root"] == "GPD/publication/curvature-flow"
+        assert payload["selected_review_root"] == "GPD/publication/curvature-flow/review"
+        assert payload["manuscript_root"] == "GPD/publication/curvature-flow/manuscript"
+        assert payload["manuscript_entrypoint"] == "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        assert payload["artifact_manifest_path"] == "GPD/publication/curvature-flow/manuscript/ARTIFACT-MANIFEST.json"
+        assert payload["bibliography_audit_path"] == "GPD/publication/curvature-flow/manuscript/BIBLIOGRAPHY-AUDIT.json"
+        assert payload["resolved_review_target"] == str(manuscript)
+        assert payload["resolved_review_root"] == str(manuscript.parent)
+
     def test_init_peer_review_proof_review_detail_uses_active_manuscript_wording_without_final_review_artifacts(
         self,
         gpd_project: Path,
@@ -5065,6 +5110,45 @@ class TestReviewValidationCommands:
         assert "reproducibility_manifest" not in checks
         assert payload["resolved_mode"] == "standalone explicit-artifact review"
 
+    @pytest.mark.parametrize(
+        "review_target",
+        [
+            "GPD/publication/curvature-flow",
+            "GPD/publication/curvature-flow/manuscript",
+            "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+        ],
+    )
+    def test_review_preflight_peer_review_keeps_managed_publication_subject_project_backed(
+        self,
+        gpd_project: Path,
+        review_target: str,
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "review-preflight",
+                "peer-review",
+                review_target,
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["resolved_mode"] == "project-backed manuscript review"
+        assert checks["manuscript"]["passed"] is True
+        assert cli_module._format_display_path(manuscript) in checks["manuscript"]["detail"]
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["reproducibility_manifest"]["passed"] is True
+        assert "manuscript-root publication artifacts" in payload["effective_required_evidence"]
+
     def test_review_preflight_peer_review_accepts_explicit_manuscript_directory(self, gpd_project: Path) -> None:
         result = runner.invoke(
             app,
@@ -5813,11 +5897,19 @@ class TestReviewValidationCommands:
         assert checks["manuscript"]["passed"] is False
         assert (
             checks["manuscript"]["detail"]
-            == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
+            == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
         )
 
+    @pytest.mark.parametrize(
+        "review_target",
+        [
+            "GPD/publication/curvature-flow",
+            "GPD/publication/curvature-flow/manuscript",
+            "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+        ],
+    )
     def test_review_preflight_arxiv_submission_accepts_explicit_managed_publication_manuscript_subject(
-        self, gpd_project: Path
+        self, gpd_project: Path, review_target: str
     ) -> None:
         manuscript = _write_managed_publication_manuscript(gpd_project)
 
@@ -5828,7 +5920,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "review-preflight",
                 "arxiv-submission",
-                "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex",
+                review_target,
                 "--strict",
             ],
             catch_exceptions=False,
@@ -5843,7 +5935,7 @@ class TestReviewValidationCommands:
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["review_ledger"]["passed"] is False
         assert checks["referee_decision"]["passed"] is False
-        assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
+        assert cli_module._format_display_path(manuscript) in checks["manuscript"]["detail"]
 
     def test_command_context_arxiv_submission_rejects_explicit_target_outside_supported_roots(
         self,
@@ -5874,7 +5966,7 @@ class TestReviewValidationCommands:
         assert payload["resolved_subject"]["target_path"].endswith("submission")
         assert (
             payload["resolved_subject"]["detail"]
-            == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>/manuscript/` inside the current project"
+            == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
         )
 
     def test_command_context_arxiv_submission_resolves_managed_publication_lane_without_arguments(

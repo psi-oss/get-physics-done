@@ -24,6 +24,9 @@ def test_numerical_convergence_command_surfaces_typed_current_workspace_output_p
     assert "If empty outside a project: command-context validation rejects the request" in command
     assert parsed.command_policy == registry.CommandPolicy(
         schema_version=1,
+        subject_policy=registry.CommandSubjectPolicy(
+            explicit_input_kinds=["phase number or file path"],
+        ),
         supporting_context_policy=registry.CommandSupportingContextPolicy(
             project_context_mode="project-aware",
             project_reentry_mode="disallowed",
@@ -62,4 +65,3 @@ def test_numerical_convergence_workflow_keeps_standalone_outputs_uncommitted_and
     assert "If the run is not phase-scoped, do not run `gpd pre-commit-check` or `gpd commit`." in workflow
     assert '  "docs: numerical convergence validation — ${phase_slug}" \\' in workflow
     assert "${phase_slug:-standalone}" not in workflow
-

@@ -168,6 +168,16 @@ const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.insta
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
   RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
 );
+const RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS = new Set([
+  "permissions_surface",
+  "statusline_surface",
+  "notify_surface",
+  "telemetry_source",
+  "telemetry_completeness",
+  "child_artifact_persistence_reliability",
+  "continuation_surface",
+  "checkpoint_stop_semantics",
+]);
 const PUBLIC_SURFACE_CONTRACT_SHAPE = loadSharedPublicSurfaceShape(PUBLIC_SURFACE_CONTRACT);
 const PUBLIC_SURFACE_CONTRACT_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.topLevelKeys];
 const PUBLIC_SURFACE_CONTRACT_ALLOWED_KEYS = new Set(PUBLIC_SURFACE_CONTRACT_KEYS);
@@ -424,26 +434,45 @@ function validateRuntimeCatalogGlobalConfig(globalConfig, label) {
 
 validateSharedPublicSurfaceSchemaShape(PUBLIC_SURFACE_CONTRACT_SCHEMA);
 
-function validateRuntimeCatalogCapabilities(capabilities, label) {
+function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
   const payload = requireJsonObject(capabilities, label);
-  requireKnownKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
-  const capabilityValue = (fieldName) => (
-    Object.prototype.hasOwnProperty.call(payload, fieldName)
-      ? payload[fieldName]
-      : RUNTIME_CAPABILITY_DEFAULTS[fieldName]
+  const capabilityKeys = options.capabilityKeys || RUNTIME_CATALOG_CAPABILITY_KEYS;
+  const capabilityDefaults = Object.prototype.hasOwnProperty.call(options, "capabilityDefaults")
+    ? options.capabilityDefaults
+    : RUNTIME_CAPABILITY_DEFAULTS;
+  const capabilityEnums = options.capabilityEnums || RUNTIME_CATALOG_CAPABILITY_ENUMS;
+  const launchWrapperPermissionSurfaceKinds = (
+    options.launchWrapperPermissionSurfaceKinds || RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS
   );
+  requireKnownKeys(payload, capabilityKeys, label);
+  if (capabilityDefaults === null) {
+    requirePresentKeys(payload, [...capabilityKeys], label);
+  }
+  const capabilityValue = (fieldName) => {
+    if (Object.prototype.hasOwnProperty.call(payload, fieldName)) {
+      return payload[fieldName];
+    }
+    if (
+      capabilityDefaults !== null &&
+      capabilityDefaults !== undefined &&
+      Object.prototype.hasOwnProperty.call(capabilityDefaults, fieldName)
+    ) {
+      return capabilityDefaults[fieldName];
+    }
+    throw new Error(`${label} is missing required key(s): ${fieldName}`);
+  };
   const optionalPromptFreeModeValue = capabilityValue("prompt_free_mode_value");
 
   const validated = {
     permissions_surface: requireStrictEnumString(
       capabilityValue("permissions_surface"),
       `${label}.permissions_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.permissions_surface
+      capabilityEnums.permissions_surface
     ),
     permission_surface_kind: requireRuntimeSurfaceLabel(
       capabilityValue("permission_surface_kind"),
       `${label}.permission_surface_kind`,
-      { allowSpecialValues: RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS }
+      { allowSpecialValues: launchWrapperPermissionSurfaceKinds }
     ),
     prompt_free_mode_value: optionalPromptFreeModeValue === null
       ? null
@@ -463,7 +492,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     statusline_surface: requireStrictEnumString(
       capabilityValue("statusline_surface"),
       `${label}.statusline_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.statusline_surface
+      capabilityEnums.statusline_surface
     ),
     statusline_config_surface: requireRuntimeSurfaceLabel(
       capabilityValue("statusline_config_surface"),
@@ -472,7 +501,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     notify_surface: requireStrictEnumString(
       capabilityValue("notify_surface"),
       `${label}.notify_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.notify_surface
+      capabilityEnums.notify_surface
     ),
     notify_config_surface: requireRuntimeSurfaceLabel(
       capabilityValue("notify_config_surface"),
@@ -481,12 +510,12 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     telemetry_source: requireStrictEnumString(
       capabilityValue("telemetry_source"),
       `${label}.telemetry_source`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.telemetry_source
+      capabilityEnums.telemetry_source
     ),
     telemetry_completeness: requireStrictEnumString(
       capabilityValue("telemetry_completeness"),
       `${label}.telemetry_completeness`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.telemetry_completeness
+      capabilityEnums.telemetry_completeness
     ),
     supports_usage_tokens: requireStrictBoolean(capabilityValue("supports_usage_tokens"), `${label}.supports_usage_tokens`),
     supports_cost_usd: requireStrictBoolean(capabilityValue("supports_cost_usd"), `${label}.supports_cost_usd`),
@@ -494,7 +523,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     child_artifact_persistence_reliability: requireStrictEnumString(
       capabilityValue("child_artifact_persistence_reliability"),
       `${label}.child_artifact_persistence_reliability`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.child_artifact_persistence_reliability
+      capabilityEnums.child_artifact_persistence_reliability
     ),
     supports_structured_child_results: requireStrictBoolean(
       capabilityValue("supports_structured_child_results"),
@@ -503,12 +532,12 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     continuation_surface: requireStrictEnumString(
       capabilityValue("continuation_surface"),
       `${label}.continuation_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.continuation_surface
+      capabilityEnums.continuation_surface
     ),
     checkpoint_stop_semantics: requireStrictEnumString(
       capabilityValue("checkpoint_stop_semantics"),
       `${label}.checkpoint_stop_semantics`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.checkpoint_stop_semantics
+      capabilityEnums.checkpoint_stop_semantics
     ),
     supports_runtime_session_payload_attribution: requireStrictBoolean(
       capabilityValue("supports_runtime_session_payload_attribution"),
@@ -519,10 +548,16 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
       `${label}.supports_agent_payload_attribution`
     ),
   };
+  const validatedFields = new Set(Object.keys(validated));
+  for (const fieldName of [...capabilityKeys].sort()) {
+    if (!validatedFields.has(fieldName)) {
+      validated[fieldName] = requireStrictString(capabilityValue(fieldName), `${label}.${fieldName}`);
+    }
+  }
   if (validated.permissions_surface === "config-file") {
     if (
       validated.permission_surface_kind === "none" ||
-      RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind)
+      launchWrapperPermissionSurfaceKinds.has(validated.permission_surface_kind)
     ) {
       throw new Error(
         `${label}.permission_surface_kind must be a config surface label when permissions_surface=config-file`
@@ -532,9 +567,9 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
       throw new Error(`${label}.supports_runtime_permission_sync must be true when permissions_surface=config-file`);
     }
   } else if (validated.permissions_surface === "launch-wrapper") {
-    if (!RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind)) {
+    if (!launchWrapperPermissionSurfaceKinds.has(validated.permission_surface_kind)) {
       throw new Error(
-        `${label}.permission_surface_kind must be ${formatQuotedDisjunction(RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS)} `
+        `${label}.permission_surface_kind must be ${formatQuotedDisjunction(launchWrapperPermissionSurfaceKinds)} `
         + "when permissions_surface=launch-wrapper"
       );
     }
@@ -564,6 +599,20 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
   return validated;
 }
 
+function validateRuntimeCatalogCapabilityEnums(capabilityEnumsPayload, capabilityKeys, label) {
+  const payload = requireJsonObject(capabilityEnumsPayload, label);
+  requireKnownKeys(payload, capabilityKeys, label);
+  requirePresentKeys(payload, [...RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS], label);
+  const validated = {};
+  for (const [fieldName, rawValues] of Object.entries(payload)) {
+    if (typeof fieldName !== "string" || !fieldName.trim() || fieldName.trim() !== fieldName) {
+      throw new Error(`${label} keys must be non-empty strings`);
+    }
+    validated[fieldName] = new Set(requireStrictStringList(rawValues, `${label}.${fieldName}`));
+  }
+  return validated;
+}
+
 function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEMA) {
   const schema = requireJsonObject(schemaPayload, "runtime catalog schema");
   const allowedTopLevelKeys = new Set([
@@ -585,10 +634,25 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
   }
 
   const capabilityKeys = requireStrictStringList(schema.capability_keys, "runtime catalog schema.capability_keys");
+  const capabilityKeySet = new Set(capabilityKeys);
   const capabilityDefaults = requireJsonObject(schema.capability_defaults, "runtime catalog schema.capability_defaults");
-  requireKnownKeys(capabilityDefaults, new Set(capabilityKeys), "runtime catalog schema.capability_defaults");
+  requireKnownKeys(capabilityDefaults, capabilityKeySet, "runtime catalog schema.capability_defaults");
   requirePresentKeys(capabilityDefaults, capabilityKeys, "runtime catalog schema.capability_defaults");
-  validateRuntimeCatalogCapabilities(capabilityDefaults, "runtime catalog schema.capability_defaults");
+  const capabilityEnums = validateRuntimeCatalogCapabilityEnums(
+    schema.capability_enums,
+    capabilityKeySet,
+    "runtime catalog schema.capability_enums"
+  );
+  const launchWrapperPermissionSurfaceKinds = new Set(requireStrictStringList(
+    schema.launch_wrapper_permission_surface_kinds,
+    "runtime catalog schema.launch_wrapper_permission_surface_kinds"
+  ));
+  validateRuntimeCatalogCapabilities(capabilityDefaults, "runtime catalog schema.capability_defaults", {
+    capabilityKeys: capabilityKeySet,
+    capabilityDefaults: null,
+    capabilityEnums,
+    launchWrapperPermissionSurfaceKinds,
+  });
   return schema;
 }
 

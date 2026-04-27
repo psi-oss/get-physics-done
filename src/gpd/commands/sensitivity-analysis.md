@@ -5,6 +5,10 @@ argument-hint: "[--target quantity] [--params p1,p2,...] [--method analytical|nu
 context_mode: project-aware
 command-policy:
   schema_version: 1
+  subject_policy:
+    explicit_input_kinds:
+      - --target quantity
+      - --params p1,p2,...
   supporting_context_policy:
     project_context_mode: project-aware
     project_reentry_mode: disallowed

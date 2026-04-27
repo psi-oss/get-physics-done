@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import shutil
 from collections.abc import Mapping
@@ -43,10 +42,11 @@ from gpd.adapters.install_utils import (
     remove_empty_json_object_file,
     remove_stale_agents,
     render_markdown_frontmatter,
-    replace_placeholders,
     rewrite_gpd_cli_invocations_to_runtime_bridge,
     split_markdown_frontmatter,
-    strip_sub_tags,
+)
+from gpd.adapters.install_utils import (
+    copy_with_path_replacement as _shared_copy_with_path_replacement,
 )
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
@@ -666,82 +666,14 @@ def write_manifest(
     return manifest
 
 
-# ---------------------------------------------------------------------------
-# Copy directory with path replacement (OpenCode-specific)
-# ---------------------------------------------------------------------------
-
-
-def _copy_dir_contents(
-    src_dir: Path,
-    target_dir: Path,
-    path_prefix: str,
-    install_scope: str | None = None,
-) -> None:
-    """Recursively copy directory contents with path replacement in .md files.
-
-    OpenCode-specific: applies frontmatter conversion to all .md files.
-    """
-    for entry in sorted(src_dir.iterdir()):
-        dest_path = target_dir / entry.name
-        if entry.is_dir():
-            dest_path.mkdir(parents=True, exist_ok=True)
-            _copy_dir_contents(entry, dest_path, path_prefix, install_scope)
-        elif entry.name.endswith(".md"):
-            content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix, "opencode", install_scope)
-            content = convert_claude_to_opencode_frontmatter(content, path_prefix)
-            content = strip_sub_tags(content)
-            dest_path.write_text(content, encoding="utf-8")
-        else:
-            shutil.copy2(entry, dest_path)
-
-
 def copy_with_path_replacement(
     src_dir: Path,
     dest_dir: Path,
     path_prefix: str,
     install_scope: str | None = None,
 ) -> None:
-    """Safely copy directory with path replacement, using copy-to-temp-then-swap.
-
-    Prevents data loss if the copy fails partway through.
-    OpenCode-specific: uses ``_copy_dir_contents`` which applies frontmatter conversion.
-    """
-    tmp_dir = dest_dir.parent / f"{dest_dir.name}.tmp.{os.getpid()}"
-    old_dir = dest_dir.parent / f"{dest_dir.name}.old.{os.getpid()}"
-
-    # Clean up any leftover dirs from a previous interrupted install
-    if tmp_dir.exists():
-        shutil.rmtree(tmp_dir)
-    if old_dir.exists():
-        shutil.rmtree(old_dir)
-
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        _copy_dir_contents(src_dir, tmp_dir, path_prefix, install_scope)
-
-        # Swap into place: rename-old-then-rename-new
-        if dest_dir.exists():
-            dest_dir.rename(old_dir)
-        try:
-            tmp_dir.rename(dest_dir)
-        except OSError:
-            # Rename failed — restore old directory
-            if old_dir.exists():
-                old_dir.rename(dest_dir)
-            raise
-
-        # Swap succeeded — clean up old
-        if old_dir.exists():
-            shutil.rmtree(old_dir)
-    except Exception:
-        # Copy or swap failed — clean up temp, leave existing install intact
-        if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
-        if dest_dir.exists() and old_dir.exists():
-            shutil.rmtree(old_dir)
-        raise
+    """Compatibility wrapper around the shared safe-copy install pipeline."""
+    _shared_copy_with_path_replacement(src_dir, dest_dir, path_prefix, "opencode", install_scope)
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,9 @@ argument-hint: "[equation or topic to derive]"
 context_mode: project-aware
 command-policy:
   schema_version: 1
+  subject_policy:
+    explicit_input_kinds:
+      - equation or topic to derive
   supporting_context_policy:
     project_context_mode: project-aware
     project_reentry_mode: disallowed

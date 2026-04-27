@@ -825,6 +825,28 @@ def test_phase_insert(tmp_path: Path) -> None:
     assert (tmp_path / result.directory).is_dir()
 
 
+def test_phase_insert_accepts_padded_em_dash_heading(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 01 — First
+        **Goal:** do first
+
+        ### Phase 02 — Second
+        **Goal:** do second
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="First", total_phases=2)
+
+    result = phase_insert(tmp_path, "1", "Hotfix")
+
+    assert result.phase_number == "01.1"
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 01.1 — Hotfix (INSERTED)" in roadmap
+    assert "**Depends on:** Phase 01" in roadmap
+
+
 def test_phase_insert_invalid_phase(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: X\n")
@@ -884,6 +906,36 @@ def test_phase_remove_basic(tmp_path: Path) -> None:
 
     roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "Phase 2: Second" not in roadmap
+
+
+def test_phase_remove_nonexistent_phase_raises(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: Only\n**Goal:** only\n")
+    _create_phase_dir(tmp_path, "01-only")
+    before = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+
+    with pytest.raises(PhaseNotFoundError):
+        phase_remove(tmp_path, "99")
+
+    assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before
+
+
+def test_phase_remove_refuses_executed_work_without_backup_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: X\n**Goal:** x\n")
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
+    scratch_tmp = tmp_path / "temp"
+    scratch_tmp.mkdir()
+    monkeypatch.setattr(phases_module.tempfile, "tempdir", str(scratch_tmp))
+
+    with pytest.raises(PhaseValidationError, match="force"):
+        phase_remove(tmp_path, "1")
+
+    assert list(scratch_tmp.glob("gpd-phases-backup-*")) == []
 
 
 def test_phase_remove_renumber_same_slug(tmp_path: Path) -> None:
@@ -1217,6 +1269,55 @@ def test_phase_complete_uses_roadmap_for_unscaffolded_next_phase(tmp_path: Path)
     assert "**Status:** Ready to plan" in state
 
 
+def test_phase_complete_handles_padded_em_dash_roadmap_heading(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Phase Overview
+
+        - [ ] Phase 01 — Setup
+
+        | Phase | Status | Updated |
+        |---|---|---|
+        | 01. Setup | Ready | - |
+
+        ### Phase 01 — Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 02 — Build
+        **Goal:** build
+        **Plans:** 0 plans
+        """,
+    )
+    _create_state(
+        tmp_path,
+        """\
+        **Current Phase:** 01
+        **Current Phase Name:** Setup
+        **Total Phases:** 2
+        **Current Plan:** 1
+        **Total Plans in Phase:** 1
+        **Status:** in_progress
+        **Last Activity:** 2026-03-01
+        **Last Activity Description:** Working
+        """,
+    )
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
+
+    result = phase_complete(tmp_path, "1")
+
+    assert result.next_phase == "02"
+    assert result.next_phase_name == "Build"
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "- [x] Phase 01 — Setup (completed " in roadmap
+    assert "**Plans:** 1/1 plans complete" in roadmap
+    assert "| 01. Setup | Complete" in roadmap
+
+
 def test_phase_complete_not_found(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     with pytest.raises(PhaseNotFoundError):
@@ -1273,6 +1374,9 @@ def test_milestone_complete_counts_unscaffolded_roadmap_phases(tmp_path: Path) -
 
     with pytest.raises(MilestoneIncompleteError):
         milestone_complete(tmp_path, "v1.0", name="Test")
+
+    assert not (tmp_path / "GPD" / "milestones").exists()
+    assert not (tmp_path / "GPD" / "MILESTONES.md").exists()
 
 
 def test_milestone_complete_incomplete_phases(tmp_path: Path) -> None:
@@ -1390,6 +1494,50 @@ def test_phase_remove_integer_renumbers_decimal_roadmap_references(tmp_path: Pat
     assert "**Depends on:** Phase 1" in roadmap
     assert "01.1-01-PLAN.md" in roadmap
     assert "02.1-01-PLAN.md" not in roadmap
+
+
+def test_phase_remove_preserves_padded_em_dash_roadmap_format(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Phase Overview
+
+        - [ ] Phase 01 — Setup
+        - [ ] Phase 02 — Main
+        - [ ] Phase 03 — Validation
+
+        | Phase | Status | Updated |
+        |---|---|---|
+        | 01. Setup | Ready | - |
+        | 02. Main | Ready | - |
+        | 03. Validation | Ready | - |
+
+        ### Phase 01 — Setup
+        **Goal:** setup
+
+        ### Phase 02 — Main
+        **Goal:** main
+
+        ### Phase 03 — Validation
+        **Goal:** validate
+        **Artifact:** 03-01-PLAN.md
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="03", current_phase_name="Validation", total_phases=3, status="in_progress")
+    _create_phase_dir(tmp_path, "01-setup")
+    _create_phase_dir(tmp_path, "02-main")
+    validation_dir = _create_phase_dir(tmp_path, "03-validation")
+    (validation_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
+
+    phase_remove(tmp_path, "2")
+
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 02 — Validation" in roadmap
+    assert "- [ ] Phase 02 — Validation" in roadmap
+    assert "| 02. Validation | Ready | - |" in roadmap
+    assert "02-01-PLAN.md" in roadmap
+    assert "Phase 03" not in roadmap
 
 
 # ─── get_milestone_info ──────────────────────────────────────────────────────────

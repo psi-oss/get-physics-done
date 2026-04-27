@@ -93,6 +93,9 @@ Treat `gpd paper-build` as authoritative for `ARTIFACT-MANIFEST.json` and `BIBLI
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
 
+The build result must report the emitted `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` paths explicitly.
+If bibliography input comes from a literature-review citation-source sidecar, pass that file with `--citation-sources` rather than relying on an unrelated single sidecar under `GPD/literature/`.
+
 In strict mode, `bibliography_audit_clean` and `reproducibility_ready` must pass before the workflow continues. Do not package stale audit artifacts.
 Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point.
 

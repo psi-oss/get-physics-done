@@ -91,6 +91,8 @@ Use the current command syntax, tool names, environment, and local runtime confi
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
 
+Record the resulting runtime id as `SELECTED_RUNTIME`. Use this same value for `model_overrides.<SELECTED_RUNTIME>` and every permissions status/sync command in this workflow; do not let permissions sync re-detect a different runtime after model overrides are written.
+
 If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `tier-2` / `tier-3` values when presenting the settings form.
 </step>
 
@@ -353,7 +355,7 @@ Write updated config to `GPD/config.json`.
 Then immediately sync runtime-owned permissions against the selected autonomy:
 
 ```bash
-PERMISSIONS_SYNC=$(gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
+PERMISSIONS_SYNC=$(gpd --raw permissions sync --runtime "$SELECTED_RUNTIME" --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
 echo "$PERMISSIONS_SYNC"
 ```
 

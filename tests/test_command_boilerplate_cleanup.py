@@ -110,6 +110,41 @@ def test_digest_knowledge_command_wrapper_delegates_mechanics_to_workflow() -> N
     assert "ls GPD/knowledge/*.md" not in text
 
 
+def test_error_propagation_command_wrapper_delegates_mechanics_to_workflow() -> None:
+    text = (COMMANDS_DIR / "error-propagation.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/error-propagation.md" in text
+    assert "The workflow owns project bootstrap, context validation, dependency tracing" in text
+    assert "S_i = (x_i / f)" not in text
+    assert "np.random.normal" not in text
+    assert "Error Budget Table" not in text
+
+
+def test_debug_command_wrapper_delegates_mechanics_to_workflow() -> None:
+    text = (COMMANDS_DIR / "debug.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/debug.md" in text
+    assert "The workflow owns workspace bootstrap, active-session handling, symptom gathering" in text
+    assert 'subagent_type="gpd-debugger"' in text
+    assert "gpd_return.status" in text
+    assert "Use ask_user for each." not in text
+    assert "Spawn Fresh Continuation agent" not in text
+    assert "Check Active Sessions" not in text
+
+
+def test_complete_milestone_command_wrapper_delegates_mechanics_to_workflow() -> None:
+    text = (COMMANDS_DIR / "complete-milestone.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/complete-milestone.md" in text
+    assert "@{GPD_INSTALL_DIR}/templates/milestone.md" in text
+    assert "@{GPD_INSTALL_DIR}/templates/milestone-archive.md" in text
+    assert "The workflow owns audit/readiness checks" in text
+    assert "This wrapper owns the public command surface and required version argument." in text
+    assert "If audit status is `gaps_found`" not in text
+    assert "Stage: MILESTONES.md" not in text
+    assert "Ask about pushing tag" not in text
+
+
 def test_autonomous_surfaces_use_installed_command_wording_not_raw_skill_calls() -> None:
     for path in (COMMANDS_DIR / "autonomous.md", WORKFLOWS_DIR / "autonomous.md"):
         text = path.read_text(encoding="utf-8")

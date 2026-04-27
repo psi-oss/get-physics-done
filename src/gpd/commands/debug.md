@@ -10,13 +10,9 @@ allowed-tools:
   - ask_user
 ---
 <objective>
-Debug physics calculations using systematic isolation with subagent investigation.
+Route a physics debugging request into the workflow-owned debugging orchestrator.
 
-**Orchestrator role:** Gather symptoms, spawn gpd-debugger agent, handle checkpoints, spawn continuations.
-
-**Why subagent:** Investigation burns context fast. Fresh context keeps the orchestrator lean.
-
-Physics debugging differs fundamentally from software debugging. In software, a bug is deterministic: same input gives same wrong output. In physics calculations, errors can be subtle — a sign error that only matters in one regime, a factor of 2 from a symmetry argument, a gauge artifact that looks like a physical effect, a numerical instability that masquerades as a phase transition. The debugger must think like a physicist, not a programmer.
+This wrapper owns the public command surface and request text. The workflow owns workspace bootstrap, active-session handling, symptom gathering, `gpd-debugger` delegation, typed child-return routing, checkpoint continuation, and next-step presentation.
 </objective>
 
 <execution_context>
@@ -26,153 +22,26 @@ Physics debugging differs fundamentally from software debugging. In software, a 
 <context>
 User's issue: $ARGUMENTS
 
-Check for active sessions:
-
-```bash
-ls GPD/debug/*.md 2>/dev/null | grep -v resolved | head -5
-```
+Debug session artifact: `GPD/debug/{slug}.md`
 
 </context>
 
 <process>
+Follow @{GPD_INSTALL_DIR}/workflows/debug.md end-to-end.
 
-## 0. Initialize Context
+Keep these command-surface invariants visible while delegating mechanics to the workflow:
 
-```bash
-INIT=$(gpd --raw init progress --include state,roadmap,config --no-project-reentry)
-```
-
-Use a workspace-locked bootstrap here; do not auto-reenter a different recent project. Extract `commit_docs` from init JSON. Resolve debugger model:
-
-```bash
-DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
-```
-
-## 1. Check Active Sessions
-
-If active sessions exist AND no $ARGUMENTS:
-
-- List sessions with status, current hypothesis, next action
-- User picks number to resume OR describes new issue
-
-If $ARGUMENTS provided OR user describes new issue:
-
-- Continue to symptom gathering
-
-## 2. Gather Symptoms (if new issue)
-
-Use ask_user for each. Physics-specific symptom gathering:
-
-1. **Expected result** — What should the calculation give? (analytical prediction, known limit, published value, physical intuition)
-2. **Actual result** — What do you get instead? (wrong magnitude, wrong sign, wrong functional form, divergence, nonsensical value)
-3. **Discrepancy character** — How does the error behave?
-   - Constant factor off (suggests combinatorial or normalization error)
-   - Wrong sign (suggests convention mismatch or parity error)
-   - Wrong power law (suggests missed contribution or wrong scaling argument)
-   - Divergence where finite result expected (suggests regularization issue or missed cancellation)
-   - Numerical instability (suggests ill-conditioned formulation or inadequate precision)
-   - Gauge-dependent result for gauge-invariant observable (suggests gauge artifact)
-4. **Where it breaks** — In what regime or parameter range does the problem appear?
-   - Always wrong, or only for certain parameter values?
-   - Does it get worse as some parameter increases?
-   - Does the problem appear at a specific step in the derivation?
-5. **What you have tried** — Any checks already performed?
-   - Dimensional analysis?
-   - Limiting cases?
-   - Comparison with alternative derivation?
-   - Numerical spot-checks?
-
-After all gathered, confirm ready to investigate.
-
-## 3. Spawn gpd-debugger Agent
-
-Fill prompt and spawn:
-
-```markdown
-<objective>
-Investigate physics issue: {slug}
-
-**Summary:** {trigger}
-</objective>
-
-<symptoms>
-expected: {expected}
-actual: {actual}
-discrepancy_character: {discrepancy_character}
-where_it_breaks: {where_it_breaks}
-already_tried: {already_tried}
-</symptoms>
-
-<mode>
-symptoms_prefilled: true
-goal: find_root_cause_only
-</mode>
-
-<debug_file>
-Create: GPD/debug/{slug}.md
-</debug_file>
-```
-
-```
-task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\n" + filled_prompt,
-  subagent_type="gpd-debugger",
-  model="{debugger_model}",
-  readonly=false,
-  description="Debug {slug}"
-)
-```
-
-## 4. Handle Agent Return
-
-Handle the debugger return once through the workflow-owned typed child-return contract. Do not branch on heading text here.
-
-- `gpd_return.status: completed` -- Verify `GPD/debug/{slug}.md` exists and its frontmatter/body reconcile the expected debug session artifact before it passes the artifact gate, then present the confirmed root cause, evidence summary, and error classification, and offer: Fix now, Plan fix, Manual fix.
-- `gpd_return.status: checkpoint` -- Present the checkpoint details to the user, collect the response, and spawn a fresh continuation run.
-- `gpd_return.status: blocked` or `failed` -- Show what was checked, what was ruled out, and what remains unresolved, then offer: Continue investigating, Manual investigation, Add more context, Simplify the problem.
-
-## 5. Spawn Fresh Continuation agent (After Checkpoint)
-
-When user responds to checkpoint, spawn fresh agent:
-
-```markdown
-<objective>
-Continue debugging {slug}. Evidence is in the debug file.
-</objective>
-
-<prior_state>
-Debug file path: GPD/debug/{slug}.md
-Read that file before continuing so you inherit the prior investigation state instead of relying on an inline `@...` attachment.
-</prior_state>
-
-<checkpoint_response>
-**Type:** {checkpoint_type}
-**Response:** {user_response}
-</checkpoint_response>
-
-<mode>
-goal: find_root_cause_only
-</mode>
-```
-
-```
-task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\n" + continuation_prompt,
-  subagent_type="gpd-debugger",
-  model="{debugger_model}",
-  readonly=false,
-  description="Continue debug {slug}"
-)
-```
+- The workflow resolves `DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)` and spawns `subagent_type="gpd-debugger"`.
+- Debugger prompts start by asking the child to read `{GPD_AGENTS_DIR}/gpd-debugger.md` for its role and instructions.
+- New and continued runs are diagnosis-first with `goal: find_root_cause_only`.
+- Continuations are file-backed: the child reads `GPD/debug/{slug}.md` before continuing instead of relying on an inline `@...` attachment.
+- The workflow routes only on the typed `gpd_return.status` envelope and verifies the debug session artifact before treating a root cause as confirmed.
 
 </process>
 
 <success_criteria>
 
-- [ ] Active sessions checked
-- [ ] Symptoms gathered with physics-specific characterization (if new)
-- [ ] gpd-debugger spawned with context and diagnosis-only goal
-- [ ] Checkpoints handled correctly
-- [ ] Root cause confirmed and classified before fixing
-- [ ] Error type identified (algebraic, numerical, conceptual, conventional)
+- [ ] Debug workflow executed as the authority for mechanics
+- [ ] `gpd-debugger` delegation remains diagnosis-first and file-backed
+- [ ] Typed child-return status, checkpoint continuation, and artifact verification follow the workflow contract
       </success_criteria>

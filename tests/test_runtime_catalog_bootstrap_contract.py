@@ -57,8 +57,27 @@ def test_runtime_catalog_schema_matches_canonical_catalog_payload() -> None:
         assert required_entry_keys <= entry_keys
         assert entry_keys <= allowed_entry_keys
         assert set(entry["global_config"]) == required_global_config_keys[entry["global_config"]["strategy"]]
-        assert set(entry["capabilities"]) == required_capability_keys
+        assert set(entry["capabilities"]) <= required_capability_keys
         assert set(entry["hook_payload"]) == required_hook_payload_keys
+
+        descriptor_capabilities = asdict(runtime_catalog.get_runtime_descriptor(entry["runtime_name"]).capabilities)
+        assert set(descriptor_capabilities) == required_capability_keys
+        for field_name in required_capability_keys - set(entry["capabilities"]):
+            assert descriptor_capabilities[field_name] == schema["capability_defaults"][field_name]
+
+
+def test_runtime_catalog_omits_capability_values_that_match_schema_defaults() -> None:
+    schema = runtime_catalog._load_runtime_catalog_schema_shape()
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    capability_defaults = schema["capability_defaults"]
+
+    for entry in catalog:
+        duplicated_defaults = sorted(
+            field_name
+            for field_name, value in entry["capabilities"].items()
+            if value == capability_defaults[field_name]
+        )
+        assert duplicated_defaults == []
 
 
 def test_runtime_catalog_accepts_explicit_public_command_surface_prefix_roundtrip(

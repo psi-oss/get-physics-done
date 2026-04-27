@@ -316,14 +316,12 @@ def test_debug_workflow_and_command_share_the_same_one_shot_debugger_contract() 
     assert "one-shot handoff" in expanded_workflow
     assert "Always pass `readonly=false` for file-producing agents." in expanded_workflow
 
-    assert command.count('subagent_type="gpd-debugger"') == 2
-    assert command.count("readonly=false") == 2
-    assert 'description="Debug {slug}"' in command
-    assert 'description="Continue debug {slug}"' in command
-    assert "Create: GPD/debug/{slug}.md" in command
-    assert "Debug file path: GPD/debug/{slug}.md" in command
-    assert "expected debug session artifact" in command
-    assert "artifact gate" in command
+    assert command.count('subagent_type="gpd-debugger"') == 1
+    assert "readonly=false" not in command
+    assert 'description="Debug {slug}"' not in command
+    assert 'description="Continue debug {slug}"' not in command
+    assert "Debug session artifact: `GPD/debug/{slug}.md`" in command
+    assert "verifies the debug session artifact before treating a root cause as confirmed" in command
 
 
 def test_quick_and_write_paper_gate_handoffs_on_expected_artifacts() -> None:

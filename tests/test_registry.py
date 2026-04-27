@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd import cli as cli_module
 from gpd import registry
 from gpd.core.model_visible_text import (
     COMMAND_POLICY_PROMPT_WRAPPER_KEY,
@@ -1691,6 +1692,34 @@ class TestDiscovery:
             assert command.name == f"gpd:{command_name}"
             assert command.context_mode == "project-aware"
             assert command.project_reentry_capable is False
+
+    def test_project_aware_cli_predicates_take_input_labels_from_command_policy(self) -> None:
+        registry.invalidate_cache()
+
+        for command_name, predicate in cli_module._PROJECT_AWARE_EXPLICIT_INPUT_PREDICATES.items():
+            command = registry.get_command(command_name)
+
+            assert callable(predicate)
+            assert cli_module._command_explicit_input_labels_from_policy(command), command_name
+
+    def test_project_aware_label_only_policy_does_not_make_analysis_helpers_subject_required(self) -> None:
+        registry.invalidate_cache()
+
+        for command_name in (
+            "derive-equation",
+            "dimensional-analysis",
+            "limiting-cases",
+            "numerical-convergence",
+            "parameter-sweep",
+            "sensitivity-analysis",
+        ):
+            command = registry.get_command(command_name)
+            subject_policy = command.command_policy.subject_policy
+
+            assert subject_policy is not None
+            assert subject_policy.explicit_input_kinds
+            assert subject_policy.resolution_mode is None
+            assert cli_module._command_has_typed_subject_policy(command) is False
 
     def test_command_skill_categories_cover_current_registry_without_other_fallbacks(self) -> None:
         registry.invalidate_cache()

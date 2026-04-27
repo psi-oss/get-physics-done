@@ -1322,19 +1322,26 @@ def test_new_project_surfaces_supervised_default_and_core_research_preset_previe
 def test_settings_and_new_project_surface_runtime_permission_sync_for_yolo() -> None:
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    permissions_sync = re.compile(
+        r"gpd --raw permissions sync\b"
+        r"(?=[^\n]*--runtime \"\$SELECTED_RUNTIME\")"
+        r"(?=[^\n]*--autonomy \"\$SELECTED_AUTONOMY\")"
+    )
 
-    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' in new_project
-    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' in settings
+    assert permissions_sync.search(new_project)
+    assert permissions_sync.search(settings)
+    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' not in new_project
+    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' not in settings
+    assert "model_overrides.<SELECTED_RUNTIME>" in new_project
+    assert "model_overrides.<SELECTED_RUNTIME>" in settings
     assert "sync the active runtime to its most autonomous permission mode when supported" in new_project
     assert "syncs the runtime to its most autonomous permission mode when supported" in settings
-    assert (
-        "This sync only updates runtime-owned permission settings; it does not create or validate the base install or workflow-tool readiness."
-        in new_project
-    )
-    assert (
-        "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness."
-        in settings
-    )
+    assert "runtime-owned permission settings" in new_project
+    assert "base install" in new_project
+    assert "workflow-tool readiness" in new_project
+    assert "runtime-owned permission settings" in settings
+    assert "install health" in settings
+    assert "workflow/tool readiness" in settings
     assert "| Runtime Permissions  | {aligned / changed / manual follow-up required} |" in settings
     assert "If `requires_relaunch` is `true`, show `next_step` verbatim" in new_project
 
@@ -1898,9 +1905,10 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
 
     for content, agent_name, file_token in ((debug, "gpd-debugger", "GPD/debug/{slug}.md"),):
-        assert f"read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions" in content
-        assert "readonly=false" in content
-        assert f"{file_token}\nRead that file before continuing" in content
+        assert f"{{GPD_AGENTS_DIR}}/{agent_name}.md" in content
+        assert "role and instructions" in content
+        assert file_token in content
+        assert "before continuing" in content
         assert f"@{file_token}" not in content
         assert "Fresh 200k context" not in content
 
@@ -2543,14 +2551,16 @@ def test_verification_prompts_keep_suggested_contract_check_bindings_schema_tigh
     assert "suggested_subject_id: acceptance-test-main" not in verify_workflow
     assert "suggested_subject_id: reference-main" not in verify_workflow
     assert "acceptance-test-main" in research_verification
-    assert "acceptance-test-main" in verifier_agent
     assert "suggested_contract_checks" in verification_template
     assert (
         "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing"
         in verification_template
     )
     assert "proof-audit rules in the canonical schema" in verification_template
-    assert "proof_artifact_path` matches a declared `proof_deliverables` path" in verifier_agent
+    assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in verifier_agent
+    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in verifier_agent
+    assert "Do not inline a second YAML schema here." in verifier_agent
+    assert "proof-audit fields" in verifier_agent
     assert "gap_subject_kind" in verifier_agent
     assert "Each gap has: `gap_subject_kind`" in verifier_agent
     assert "Each gap has: `subject_kind`" not in verifier_agent
@@ -2587,8 +2597,10 @@ def test_lane5_prompt_examples_keep_schema_valid_contract_fields_visible() -> No
     assert "reference-main" not in verify_work
     assert "acceptance-test-main" not in verify_work
     assert "test-benchmark" not in verify_work
-    assert "reference-main" in verifier
-    assert "acceptance-test-main" in verifier
+    assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in verifier
+    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in verifier
+    assert "reference-main" not in verifier
+    assert "acceptance-test-main" not in verifier
     assert "test-benchmark" not in verifier
     assert "deliverables:" in executor_example
     assert "references:" in executor_example
@@ -3988,6 +4000,11 @@ def test_debug_command_and_workflow_wire_directly_to_gpd_debugger() -> None:
 
     assert "gpd-debugger" in debug_command
     assert "DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)" in debug_command
+    assert "The workflow owns workspace bootstrap, active-session handling, symptom gathering" in debug_command
+    assert "Use ask_user for each." not in debug_command
+    assert "Interactive mode (direct user invocation): do not parse `VERIFICATION.md`." in debug_workflow
+    assert "Interactive symptom fields:" in debug_workflow
+    assert "offer: Fix now, Plan fix, Manual fix" in debug_workflow
     assert 'subagent_type="gpd-debugger"' in debug_workflow
     assert "First, read {GPD_AGENTS_DIR}/gpd-debugger.md" in debug_workflow
     assert "public writable production agent specialized for discrepancy investigation" in debugger

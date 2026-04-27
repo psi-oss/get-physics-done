@@ -395,14 +395,22 @@ def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -
 
 
 def test_runtime_pattern_includes_capability_surface_literals() -> None:
-    capability_literals = (
-        "settings.json:permissions.defaultMode",
-        "settings.json:statusLine",
-        "config.toml:approval_policy+sandbox_mode",
-        "config.toml:notify",
-        "opencode.json:permission",
+    capability_literals = tuple(
+        sorted(
+            {
+                value
+                for descriptor in _RUNTIME_DESCRIPTORS
+                for value in (
+                    descriptor.capabilities.permission_surface_kind,
+                    descriptor.capabilities.statusline_config_surface,
+                    descriptor.capabilities.notify_config_surface,
+                )
+                if value and value != "none"
+            }
+        )
     )
 
+    assert capability_literals
     for literal in capability_literals:
         assert re.search(_RUNTIME_PATTERN, literal) is not None
 
@@ -732,9 +740,10 @@ def test_shared_generic_tests_do_not_hardcode_provider_or_model_literals() -> No
 def test_readme_optional_terminal_reference_uses_runtime_placeholders() -> None:
     block = _readme_optional_terminal_reference()
 
-    assert "--codex" not in block
-    assert "--runtime codex" not in block
-    assert "relaunch Codex" not in block
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        assert descriptor.install_flag not in block
+        assert f"--runtime {descriptor.runtime_name}" not in block
+        assert f"relaunch {descriptor.display_name}" not in block
     assert "--<runtime-flag>" in block
     assert "--runtime <runtime>" in block
 

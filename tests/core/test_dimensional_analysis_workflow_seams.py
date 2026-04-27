@@ -25,6 +25,9 @@ def test_dimensional_analysis_command_exposes_workspace_locked_policy() -> None:
     assert "Keep any standalone/current-workspace GPD-authored audit artifact under `GPD/analysis/` rooted at the invoking workspace." in command_text
     assert parsed.command_policy == registry.CommandPolicy(
         schema_version=1,
+        subject_policy=registry.CommandSubjectPolicy(
+            explicit_input_kinds=["phase number or file path"],
+        ),
         supporting_context_policy=registry.CommandSupportingContextPolicy(
             project_context_mode="project-aware",
             project_reentry_mode="disallowed",

@@ -25,6 +25,7 @@ from scripts.repo_graph_contract import (
     parse_scope_count,
     read_graph_text,
     render_generated_on_block,
+    render_same_stem_command_workflow_block,
     render_scope_block,
     replace_marked_block,
     sync_readme_text,
@@ -81,12 +82,52 @@ def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
     assert match is not None, "Missing same-stem command/workflow edge inventory"
 
     graph_stems = [stem.strip() for stem in match.group(1).split(",") if stem.strip()]
-    actual_stems = sorted(
-        {path.stem for path in (REPO_ROOT / "src/gpd/commands").glob("*.md")}
-        & {path.stem for path in (REPO_ROOT / "src/gpd/specs/workflows").glob("*.md")}
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
     )
+    tracked_paths = [Path(path) for path in tracked.stdout.decode("utf-8").split("\0") if path]
+    command_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
+    }
+    workflow_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "specs", "workflows") and path.suffix == ".md"
+    }
+    actual_stems = sorted(command_stems & workflow_stems)
 
     assert graph_stems == actual_stems
+
+
+def test_graph_same_stem_inventory_ignores_untracked_matching_files(tmp_path: Path) -> None:
+    tmp_root = tmp_path / "repo"
+    commands_dir = tmp_root / "src" / "gpd" / "commands"
+    workflows_dir = tmp_root / "src" / "gpd" / "specs" / "workflows"
+    commands_dir.mkdir(parents=True)
+    workflows_dir.mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=tmp_root, check=True, capture_output=True, text=True)
+
+    for directory in (commands_dir, workflows_dir):
+        (directory / "tracked.md").write_text("tracked\n", encoding="utf-8")
+        (directory / "scratch.md").write_text("untracked\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "src/gpd/commands/tracked.md", "src/gpd/specs/workflows/tracked.md"],
+        cwd=tmp_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    block = render_same_stem_command_workflow_block(tmp_root)
+
+    assert "{tracked}" in block
+    assert "scratch" not in block
 
 
 def test_graph_captures_hook_runtime_wiring_edges() -> None:

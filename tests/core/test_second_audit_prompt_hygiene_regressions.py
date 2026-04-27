@@ -42,6 +42,9 @@ OWNED_COMMANDS = (
 FRESH_CONTEXT_PHRASE_EXEMPTIONS = {
     COMMANDS_DIR / "write-paper.md",
 }
+THIN_WORKFLOW_DELEGATOR_COMMANDS = {
+    COMMANDS_DIR / "debug.md",
+}
 
 
 def test_help_resume_boundary_note_is_concise_and_contract_aligned() -> None:
@@ -212,6 +215,10 @@ def test_shared_context_budget_guidance_stays_runtime_neutral() -> None:
 def test_owned_commands_keep_a_single_concise_subagent_rationale() -> None:
     for path in OWNED_COMMANDS:
         text = path.read_text(encoding="utf-8")
+        if path in THIN_WORKFLOW_DELEGATOR_COMMANDS:
+            assert "Why subagent:" not in text, path
+            assert "Follow @{GPD_INSTALL_DIR}/workflows/" in text, path
+            continue
         assert text.count("Why subagent:") == 1, path
         if path in FRESH_CONTEXT_PHRASE_EXEMPTIONS:
             assert "Fresh context" not in text, path
@@ -250,8 +257,8 @@ def test_debugger_session_paths_keep_the_active_and_resolved_lifecycles_separate
     debug_agent = (AGENTS_DIR / "gpd-debugger.md").read_text(encoding="utf-8")
     debug_workflow = (WORKFLOWS_DIR / "debug.md").read_text(encoding="utf-8")
 
-    assert "Create: GPD/debug/{slug}.md" in debug_command
-    assert "Debug file path: GPD/debug/{slug}.md" in debug_command
+    assert "Debug session artifact: `GPD/debug/{slug}.md`" in debug_command
+    assert "the child reads `GPD/debug/{slug}.md` before continuing" in debug_command
     assert "files_written: [GPD/debug/{slug}.md, ...]" in debug_agent
     assert "session_file: GPD/debug/{slug}.md" in debug_agent
     assert "**Troubleshooting Session:** GPD/debug/resolved/{slug}.md" in debug_agent

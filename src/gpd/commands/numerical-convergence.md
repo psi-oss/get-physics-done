@@ -5,6 +5,9 @@ argument-hint: "[phase number or file path]"
 context_mode: project-aware
 command-policy:
   schema_version: 1
+  subject_policy:
+    explicit_input_kinds:
+      - phase number or file path
   supporting_context_policy:
     project_context_mode: project-aware
     project_reentry_mode: disallowed

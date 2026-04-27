@@ -25,6 +25,9 @@ def test_limiting_cases_command_surfaces_typed_current_workspace_output_policy()
     assert "bare numeric tokens are not valid standalone targets" in command
     assert parsed.command_policy == registry.CommandPolicy(
         schema_version=1,
+        subject_policy=registry.CommandSubjectPolicy(
+            explicit_input_kinds=["phase number or file path"],
+        ),
         supporting_context_policy=registry.CommandSupportingContextPolicy(
             project_context_mode="project-aware",
             project_reentry_mode="disallowed",

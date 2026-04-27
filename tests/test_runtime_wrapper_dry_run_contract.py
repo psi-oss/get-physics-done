@@ -17,4 +17,7 @@ def test_runtime_wrapper_docs_do_not_claim_unsupported_dry_run_support() -> None
     for relative_path in WRAPPER_FILES:
         text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
         assert "--dry-run" not in text, f"{relative_path} still claims dry-run support"
-        assert "runs the" in text and "workflow directly" in text, f"{relative_path} missing truthful contract note"
+        assert (
+            ("runs the" in text and "workflow directly" in text)
+            or ("workflow owns" in text and "Follow" in text)
+        ), f"{relative_path} missing truthful contract note"

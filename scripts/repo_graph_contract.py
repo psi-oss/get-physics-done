@@ -281,11 +281,19 @@ def render_scope_block(contract: dict[str, object]) -> str:
 
 
 def render_same_stem_command_workflow_block(repo_root: Path = REPO_ROOT) -> str:
+    repo_files = _repo_files_in_scope(repo_root)
+    command_stems = {
+        path.stem
+        for path in repo_files
+        if _has_parent(path, "src", "gpd", "commands") and path.suffix == ".md"
+    }
+    workflow_stems = {
+        path.stem
+        for path in repo_files
+        if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
+    }
     same_stems = ",".join(
-        sorted(
-            {path.stem for path in (repo_root / "src" / "gpd" / "commands").glob("*.md")}
-            & {path.stem for path in (repo_root / "src" / "gpd" / "specs" / "workflows").glob("*.md")}
-        )
+        sorted(command_stems & workflow_stems)
     )
 
     return "\n".join(
@@ -309,7 +317,7 @@ def replace_marked_block(text: str, start_marker: str, end_marker: str, replacem
     return text[:start] + replacement + text[end:]
 
 
-def sync_readme_text(readme_text: str, contract: dict[str, object]) -> str:
+def sync_readme_text(readme_text: str, contract: dict[str, object], repo_root: Path = REPO_ROOT) -> str:
     synced = replace_marked_block(
         readme_text,
         GENERATED_ON_START,
@@ -321,5 +329,5 @@ def sync_readme_text(readme_text: str, contract: dict[str, object]) -> str:
         synced,
         SAME_STEM_COMMAND_WORKFLOW_START,
         SAME_STEM_COMMAND_WORKFLOW_END,
-        render_same_stem_command_workflow_block(),
+        render_same_stem_command_workflow_block(repo_root),
     )

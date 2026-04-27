@@ -421,6 +421,10 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert f'python-version: "{MIN_SUPPORTED_PYTHON_LABEL}"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
+    assert "Smoke repo graph sync with PATH python" in workflow
+    assert "python scripts/sync_repo_graph_contract.py" in workflow
+    assert "Verify repo graph generated artifacts are current" in workflow
+    assert "git diff --exit-code -- tests/README.md tests/repo_graph_contract.json" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
     assert "Resolve pytest shard targets" in workflow
     assert "Run pytest shard" in workflow
@@ -675,6 +679,41 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     assert "GPD/STATE.md" not in staged_files
 
 
+def test_human_author_check_rejects_lowercase_codex_coauthor_in_range(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
+
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    (tmp_path / "README.md").write_text("seed\nchange\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "change", "-m", "co-authored-by: Codex"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    result = subprocess.run(
+        ["sh", str(hook_script), "--range", "HEAD~1..HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "non-human co-author lines found" in result.stderr
+    assert "change" in result.stderr
+
+
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_root = _repo_root()
     if shutil.which("npm") is None:
@@ -741,6 +780,9 @@ def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None
     assert f"{root}src/gpd/cli.py" in names
     assert f"{root}bin/install.js" in names
     assert f"{root}README.md" in names
+    assert f"{root}.github/workflows/test.yml" in names
+    assert f"{root}.gitignore" in names
+    assert f"{root}.pre-commit-config.yaml" in names
 
     forbidden_fragments = (
         ".DS_Store",

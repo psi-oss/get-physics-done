@@ -65,6 +65,9 @@ from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
 from gpd.core.manuscript_artifacts import (
+    _supported_manuscript_root_for_target as resolve_supported_manuscript_root_for_target,
+)
+from gpd.core.manuscript_artifacts import (
     resolve_current_manuscript_entrypoint,
     resolve_current_publication_subject,
     resolve_publication_bootstrap_resolution,
@@ -2112,10 +2115,11 @@ def _resolve_peer_review_target_context(
     if resolved_target.is_file():
         return resolved_target, resolved_target.parent
     if resolved_target.is_dir():
-        resolution = resolve_manuscript_entrypoint_from_root_resolution(resolved_target, allow_markdown=True)
+        manuscript_root = resolve_supported_manuscript_root_for_target(cwd, resolved_target) or resolved_target
+        resolution = resolve_manuscript_entrypoint_from_root_resolution(manuscript_root, allow_markdown=True)
         if resolution.status == "resolved" and resolution.manuscript_entrypoint is not None:
-            return resolution.manuscript_entrypoint.resolve(strict=False), resolved_target
-        return None, resolved_target
+            return resolution.manuscript_entrypoint.resolve(strict=False), manuscript_root
+        return None, manuscript_root
     return None, resolved_target.parent
 
 

@@ -325,13 +325,26 @@ def _resolve_publication_runtime_target(project_root: Path, subject: str | None)
     current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
 
     if mode_resolution.resolved_mode == PEER_REVIEW_PROJECT_BACKED_MODE:
+        explicit_subject = (
+            resolve_explicit_publication_subject(
+                project_root,
+                mode_resolution.resolved_target,
+                allow_markdown=True,
+            )
+            if mode_resolution.subject and mode_resolution.resolved_target is not None
+            else None
+        )
         return PublicationRuntimeTarget(
             mode="project_explicit_manuscript" if mode_resolution.subject else "project_manuscript",
             detail=mode_resolution.mode_reason,
             project_context_role="authoritative",
             subject_path=mode_resolution.subject_path,
             target_path=mode_resolution.resolved_target or current_artifacts.manuscript_entrypoint,
-            target_root=current_artifacts.manuscript_root,
+            target_root=(
+                explicit_subject.manuscript_root
+                if explicit_subject is not None and explicit_subject.manuscript_root is not None
+                else current_artifacts.manuscript_root
+            ),
         )
 
     if mode_resolution.resolved_mode == PEER_REVIEW_STANDALONE_MODE:
@@ -819,10 +832,26 @@ def resolve_publication_runtime_snapshot(
     target = _resolve_publication_runtime_target(project_root, target_subject)
     current_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
     current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
+    explicit_project_subject = None
+    if (
+        publication_subject is None
+        and target.mode == "project_explicit_manuscript"
+        and target.target_path is not None
+    ):
+        explicit_project_subject = resolve_explicit_publication_subject(
+            project_root,
+            target.target_path,
+            allow_markdown=True,
+        )
+
     if publication_subject is not None:
         resolved_subject = publication_subject
         manuscript_artifacts = publication_subject.as_manuscript_artifacts()
         manuscript_resolution = publication_subject.as_manuscript_resolution()
+    elif explicit_project_subject is not None and explicit_project_subject.resolved:
+        resolved_subject = explicit_project_subject
+        manuscript_artifacts = explicit_project_subject.as_manuscript_artifacts()
+        manuscript_resolution = explicit_project_subject.as_manuscript_resolution()
     else:
         manuscript_artifacts = _resolve_target_manuscript_artifacts(project_root, target, current_artifacts)
         manuscript_resolution = _resolve_target_manuscript_resolution(target, current_resolution, manuscript_artifacts)
