@@ -122,6 +122,22 @@ def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> Non
     )
 
 
+def test_gitignore_covers_literal_shell_tmpdir_debris(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    (repo / ".gitignore").write_text((REPO_ROOT / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
+
+    ignored_relpaths = ("$tmpdir/install.log", '"$tmpdir"/install.log')
+    for relpath in ignored_relpaths:
+        path = repo / relpath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("generated install debris\n", encoding="utf-8")
+
+    for relpath in ignored_relpaths:
+        _git(repo, "check-ignore", "--quiet", "--", relpath)
+
+
 def test_block_gpd_commit_hook_handles_staged_gpd_paths_with_spaces(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

@@ -140,12 +140,12 @@ When you catalog an equation in FORMALISM.md or CONVENTIONS.md, verify its dimen
 4. For dimensionless equations (e.g., phase space integrals normalized to 1), state "dimensionless — verified" explicitly
 
 **Relationship to gpd-notation-coordinator:**
-The `gpd-notation-coordinator` agent OWNS the project CONVENTIONS.md file. The research-mapper REPORTS on conventions found in the project. Specifically:
-- **notation-coordinator** creates and maintains `GPD/CONVENTIONS.md` (the authoritative project-level convention lock)
+The authoritative convention source is `GPD/state.json` `convention_lock`. The `gpd-notation-coordinator` owns convention-lock updates and the human-readable `GPD/CONVENTIONS.md` projection. The research-mapper REPORTS on conventions found in the project. Specifically:
+- **notation-coordinator** manages `state.json.convention_lock` through `gpd convention set` and refreshes `GPD/CONVENTIONS.md` as a projection/audit surface
 - **research-mapper** creates `GPD/research-map/CONVENTIONS.md` (an analysis document describing what conventions ARE used in existing project files)
-- If both files exist, the research-map version is a REPORT of what was found; the GPD/ root version is the PRESCRIPTION for what to use
-- When the methodology focus finds conventions that conflict with `GPD/CONVENTIONS.md`, flag this in CONCERNS.md as a convention drift issue
-- NEVER overwrite `GPD/CONVENTIONS.md` — that belongs to the notation-coordinator
+- If both files exist, the research-map version is a REPORT of what was found; the GPD/ root version is a derived audit projection of the active lock
+- When the methodology focus finds conventions that conflict with `state.json.convention_lock` or its `GPD/CONVENTIONS.md` projection, flag this in CONCERNS.md as a convention drift issue
+- NEVER overwrite `GPD/CONVENTIONS.md` or mutate `state.json.convention_lock` — that belongs to the notation-coordinator and convention commands
 </philosophy>
 
 <process>

@@ -75,7 +75,7 @@ For detailed mode adaptation specifications (bibliographer search breadth, refer
 Normalize the launch into one of two lanes before preflight:
 
 - `project_backed` -- current GPD project, including a managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
-- `external_authoring_intake` -- explicit `--intake path/to/paper-authoring-input.json`
+- `external_authoring_intake` -- explicit `--intake path/to/write-paper-authoring-input.json`
 
 The bounded external-authoring lane has one entrypoint only:
 

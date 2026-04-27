@@ -8936,7 +8936,15 @@ def _resolve_registry_command(command_name: str) -> tuple[object, str]:
     """Resolve a command name through the registry and preserve its public name."""
     from gpd import registry as content_registry
 
-    command = content_registry.get_command(command_name)
+    try:
+        command = content_registry.get_command(command_name)
+    except KeyError as exc:
+        requested_name = _canonical_command_name(command_name)
+        known_commands = content_registry.list_commands()
+        preview = ", ".join(f"gpd:{name}" for name in known_commands[:8])
+        if len(known_commands) > 8:
+            preview += ", ..."
+        raise GPDError(f"Unknown GPD command: {requested_name}. Known commands include: {preview}") from exc
     return command, _canonical_command_name(command_name)
 
 
@@ -9187,7 +9195,24 @@ def _build_command_context_preflight(
         required_file_patterns = _command_required_file_patterns(command)
         if _command_supports_project_reentry(command):
             reentry = _status_command_reentry(cwd)
-            selected_root = reentry.resolved_project_root or context_cwd
+            current_workspace_candidate = next(
+                (
+                    candidate
+                    for candidate in reentry.candidates
+                    if candidate.source == "current_workspace" and candidate.recoverable
+                ),
+                None,
+            )
+            selected_candidate = current_workspace_candidate or reentry.selected_candidate
+            if selected_candidate is not None:
+                selected_root = Path(selected_candidate.project_root).expanduser().resolve(strict=False)
+                selected_root_source = selected_candidate.source
+            else:
+                selected_root = reentry.resolved_project_root or context_cwd
+                selected_root_source = reentry.source or "workspace"
+            selected_root_auto_selected = current_workspace_candidate is None and reentry.auto_selected
+            selected_root_requires_user_selection = current_workspace_candidate is None and reentry.requires_user_selection
+            selected_reentry_mode = "current-workspace" if current_workspace_candidate is not None else reentry.mode
             layout = ProjectLayout(selected_root)
             state_exists, roadmap_exists, project_exists = recoverable_project_context(selected_root)
             resolved_subject = _build_resolved_command_subject(
@@ -9195,11 +9220,18 @@ def _build_command_context_preflight(
                 command,
                 arguments,
                 workspace_cwd=cwd,
-                project_root_source=reentry.source or "workspace",
-                project_root_auto_selected=reentry.auto_selected,
-                reentry_mode=reentry.mode,
+                project_root_source=selected_root_source,
+                project_root_auto_selected=selected_root_auto_selected,
+                reentry_mode=selected_reentry_mode,
             )
-            if reentry.auto_selected and reentry.project_root:
+            if current_workspace_candidate is not None:
+                add_check(
+                    "project_reentry",
+                    True,
+                    "current workspace or ancestor project root is recoverable",
+                    blocking=False,
+                )
+            elif reentry.auto_selected and reentry.project_root:
                 add_check(
                     "project_reentry",
                     True,
@@ -9311,7 +9343,7 @@ def _build_command_context_preflight(
                 (state_exists or roadmap_exists or project_exists)
                 and required_files_present
                 and manuscript_context_passed
-                and not reentry.requires_user_selection
+                and not selected_root_requires_user_selection
             )
             guidance = (
                 ""
@@ -9319,7 +9351,7 @@ def _build_command_context_preflight(
                 else (
                     "This command found multiple recoverable recent GPD projects and will not switch silently. "
                     f"Use `{local_cli_resume_recent_command()}` to pick the right project explicitly, then reopen it in the runtime."
-                    if reentry.requires_user_selection
+                    if selected_root_requires_user_selection
                     else (
                         _build_recoverable_workspace_guidance(init_command=init_command)
                         if not (state_exists or roadmap_exists or project_exists)

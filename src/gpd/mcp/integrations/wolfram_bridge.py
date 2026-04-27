@@ -21,6 +21,7 @@ from gpd.mcp import managed_integrations as _managed_integrations
 from gpd.version import __version__ as GPD_VERSION
 
 WOLFRAM_MANAGED_INTEGRATION = _managed_integrations.WOLFRAM_MANAGED_INTEGRATION
+WOLFRAM_MANAGED_SERVER_KEY = _managed_integrations.WOLFRAM_MANAGED_SERVER_KEY
 WOLFRAM_BRIDGE_MODULE = _managed_integrations.WOLFRAM_BRIDGE_MODULE
 WOLFRAM_MCP_API_KEY_ENV_VAR = _managed_integrations.WOLFRAM_MCP_API_KEY_ENV_VAR
 WOLFRAM_MCP_DEFAULT_ENDPOINT = _managed_integrations.WOLFRAM_MCP_DEFAULT_ENDPOINT
@@ -143,7 +144,7 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
         async with bridge.open():
             yield bridge
 
-    server = Server("gpd-wolfram", version=GPD_VERSION, lifespan=lifespan)
+    server = Server(WOLFRAM_MANAGED_SERVER_KEY, version=GPD_VERSION, lifespan=lifespan)
 
     @server.list_tools()
     async def _list_tools(request: types.ListToolsRequest) -> types.ListToolsResult:
@@ -195,7 +196,7 @@ async def _run() -> None:
             read_stream,
             write_stream,
             InitializationOptions(
-                server_name="gpd-wolfram",
+                server_name=WOLFRAM_MANAGED_SERVER_KEY,
                 server_version=GPD_VERSION,
                 capabilities=server.get_capabilities(NotificationOptions(), {}),
             ),
@@ -214,6 +215,7 @@ __all__ = [
     "DEFAULT_WOLFRAM_MCP_ENDPOINT",
     "GPD_WOLFRAM_MCP_API_KEY_ENV",
     "WOLFRAM_BRIDGE_MODULE",
+    "WOLFRAM_MANAGED_SERVER_KEY",
     "WolframBridge",
     "WolframBridgeConfig",
     "build_auth_headers",

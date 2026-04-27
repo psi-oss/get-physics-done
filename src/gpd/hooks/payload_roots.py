@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
+from inspect import Parameter, signature
 from pathlib import Path
 
 from gpd.core.root_resolution import ProjectRootResolution, resolve_project_roots
@@ -271,51 +272,39 @@ def _resolve_with_shared_service(
     if service is None:
         return None
 
-    attempts = (
-        {
-            "payload": data,
-            "workspace_dir": workspace_dir,
-            "project_dir": project_dir,
-            "target_path": target_path,
-            "target_root": target_root,
-            "cwd": cwd,
-        },
-        {
-            "data": data,
-            "workspace_dir": workspace_dir,
-            "project_dir": project_dir,
-            "target_path": target_path,
-            "target_root": target_root,
-            "cwd": cwd,
-        },
-        {
-            "workspace_dir": workspace_dir,
-            "project_dir": project_dir,
-            "target_path": target_path,
-            "target_root": target_root,
-            "cwd": cwd,
-        },
-        {
-            "workspace_dir": workspace_dir,
-            "project_dir": project_dir,
-            "target_path": target_path,
-            "target_root": target_root,
-        },
-        {"cwd": workspace_dir, "project_dir": project_dir, "target_path": target_path, "target_root": target_root},
-        {"cwd": workspace_dir},
-    )
-    for kwargs in attempts:
+    kwargs: dict[str, object] = {
+        "payload": data,
+        "workspace_dir": workspace_dir,
+        "project_dir": project_dir,
+        "target_path": target_path,
+        "target_root": target_root,
+        "cwd": cwd,
+    }
+    try:
         try:
-            resolved = service(**kwargs)
-        except TypeError:
-            continue
-        except Exception as exc:
-            raise RuntimeError("shared root resolution service failed") from exc
-        return _coerce_root_pair(
-            resolved,
-            fallback_workspace_dir=workspace_dir,
-        )
-    return None
+            service_signature = signature(service)
+        except (TypeError, ValueError):
+            service_kwargs = kwargs
+        else:
+            parameters = service_signature.parameters
+            if any(parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values()):
+                service_kwargs = kwargs
+            else:
+                service_kwargs = {}
+                for name, parameter in parameters.items():
+                    if parameter.kind not in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY):
+                        continue
+                    if name == "data":
+                        service_kwargs[name] = data
+                    elif name in kwargs:
+                        service_kwargs[name] = kwargs[name]
+        resolved = service(**service_kwargs)
+    except Exception as exc:
+        raise RuntimeError("shared root resolution service failed") from exc
+    return _coerce_root_pair(
+        resolved,
+        fallback_workspace_dir=workspace_dir,
+    )
 
 
 def workspace_dir_from_payload(

@@ -63,6 +63,8 @@ def test_get_skill_surfaces_malformed_reference_frontmatter(tmp_path: Path) -> N
 
     assert "peer-review-panel.md" in contract_documents
     assert contract_documents["peer-review-panel.md"]["kind"] == "reference"
+    assert "content" not in contract_documents["peer-review-panel.md"]
+    assert "# Peer Review Panel" in contract_documents["peer-review-panel.md"]["body"]
     assert "frontmatter_error" in contract_documents["peer-review-panel.md"]
     assert contract_documents["peer-review-panel.md"]["frontmatter_error"]
 
@@ -130,5 +132,9 @@ def test_get_skill_loading_hint_does_not_eager_load_transitive_schema_documents(
     assert result["schema_documents"] == []
     assert any(path.endswith("nested-schema.md") for path in result["transitive_schema_references"])
     assert any(entry["name"] == "nested-schema.md" for entry in result["transitive_schema_documents"])
+    nested_doc = next(entry for entry in result["transitive_schema_documents"] if entry["name"] == "nested-schema.md")
+    assert "content" not in nested_doc
+    assert nested_doc["frontmatter"] == {"type": "schema"}
+    assert "# Nested Schema" in nested_doc["body"]
     assert "transitive_schema_documents" not in result["loading_hint"]
     assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]

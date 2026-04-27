@@ -692,21 +692,23 @@ class TestCheckUpdateHook:
         ):
             assert _check_update() == ""
 
-    def test_cache_with_update_available(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
+    def test_runtime_cache_with_update_available(self, tmp_path: Path) -> None:
+        runtime_dir = tmp_path / ".codex"
+        runtime_cache = runtime_dir / "cache"
+        runtime_cache.mkdir(parents=True)
+        _mark_complete_install(runtime_dir, runtime="codex")
+        (runtime_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
         ):
             result = _check_update()
-            expected = update_command_for_runtime("claude-code")
+            expected = _repair_command("codex", install_scope="local", target_dir=runtime_dir, explicit_target=False)
             assert expected in result
 
     def test_cache_with_no_update(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+        gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": False}), encoding="utf-8")
         with (
@@ -716,7 +718,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_corrupt_cache_returns_empty(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+        gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text("broken{json", encoding="utf-8")
         with (
@@ -726,7 +728,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_non_mapping_cache_is_ignored_instead_of_crashing(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+        gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
 
@@ -738,7 +740,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_can_override_stale_home_cache(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / "GPD" / "cache"
+        home_cache = home / ".gpd" / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -765,7 +767,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_uses_cache_runtime_when_install_exists(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / "GPD" / "cache"
+        home_cache = home / ".gpd" / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -1074,14 +1076,15 @@ class TestCheckUpdateHook:
         ):
             assert _check_update() == ""
 
-    def test_unknown_runtime_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+    def test_home_update_cache_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        gpd_cache = home / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
         ):
             result = _check_update()
@@ -1089,21 +1092,22 @@ class TestCheckUpdateHook:
         assert update_command_for_runtime("unknown") in result
         assert "gpd-update" not in result
 
-    def test_known_runtime_resolves_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
+    def test_home_update_cache_resolves_known_runtime_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
         """Known runtimes should still resolve scope before rendering the bootstrap command."""
-        gpd_cache = tmp_path / "GPD" / "cache"
+        home = tmp_path / "home"
+        gpd_cache = home / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
             patch("gpd.hooks.runtime_detect.detect_install_scope") as mock_scope,
         ):
             result = _check_update()
 
-        mock_scope.assert_called_once_with("claude-code", cwd=None, home=tmp_path)
+        mock_scope.assert_called_once_with("claude-code", cwd=None, home=home)
         assert result != ""
 
 

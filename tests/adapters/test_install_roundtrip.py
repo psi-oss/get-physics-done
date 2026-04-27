@@ -797,7 +797,7 @@ def test_real_installed_help_prompt_surfaces_bounded_write_paper_external_author
     )
 
     assert_publication_lane_boundary_contract(help_prompt)
-    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_prompt
+    assert "Usage: `gpd:write-paper --intake intake/write-paper-authoring-input.json`" in help_prompt
 
 
 @pytest.mark.parametrize("runtime", FULL_RUNTIME_MATRIX)

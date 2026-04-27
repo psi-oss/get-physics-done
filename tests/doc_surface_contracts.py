@@ -1388,8 +1388,8 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "`gpd:arxiv-submission` only packages a GPD-owned manuscript root",
-            "`gpd:arxiv-submission` packages only a GPD-owned manuscript root",
+            "`gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint",
+            "`gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint",
             "resolved GPD-owned manuscript root",
             "optional GPD-owned manuscript-root target",
         ),

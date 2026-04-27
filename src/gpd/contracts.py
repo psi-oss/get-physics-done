@@ -2318,6 +2318,9 @@ def collect_contract_integrity_errors(contract: ResearchContract) -> list[str]:
     owners_by_id: dict[str, list[str]] = defaultdict(list)
     errors: list[str] = []
 
+    if not contract.scope.in_scope:
+        errors.append("scope.in_scope must include at least one non-empty string")
+
     for kind, field_name in _CONTRACT_ID_GROUPS:
         counts: dict[str, int] = defaultdict(int)
         for item in getattr(contract, field_name):

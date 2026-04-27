@@ -17,6 +17,7 @@ CI_CATEGORY_SHARD_COUNTS = {
 }
 CI_FAST_SUITE_BUDGET_SECONDS = 180
 CI_PYTEST_SHARD_TIMEOUT_MINUTES = 10
+CI_SHARD_WEIGHT_SPREAD_TOLERANCE = 0.2
 
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
 # real bottlenecks inside their category. Split them inside the file so the
@@ -199,7 +200,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert pytest_steps[-1]["timeout-minutes"] == CI_PYTEST_SHARD_TIMEOUT_MINUTES
     assert pytest_steps[-1]["env"]["GPD_FAST_SUITE_BUDGET_SECONDS"] == str(CI_FAST_SUITE_BUDGET_SECONDS)
     assert (
-        f"Fast suite budget target: ${{GPD_FAST_SUITE_BUDGET_SECONDS}}s full-suite wall clock; "
+        f"Fast suite advisory target: ${{GPD_FAST_SUITE_BUDGET_SECONDS}}s full-suite wall clock; "
         f"shard timeout: {CI_PYTEST_SHARD_TIMEOUT_MINUTES} minutes"
     ) in pytest_shard_command
     assert '--durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
@@ -221,6 +222,7 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "Both inherit `-n auto --dist=worksteal` from `pyproject.toml`" in tests_readme
     assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
     assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
+    assert "The 180 second fast-suite budget is an advisory full-suite wall-clock target" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert (
         "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, "

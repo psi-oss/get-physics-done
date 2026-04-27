@@ -12,6 +12,9 @@ build/
 .mypy_cache/
 .npm-cache/
 tmp/
+# Literal shell-temp dirs created by misquoted install/debug commands.
+/$tmpdir/
+/"$tmpdir"/
 # Local product/debug reports from live GPD runs do not belong in release commits.
 GPD-FIX-REPORT-*.md
 .mcp.json

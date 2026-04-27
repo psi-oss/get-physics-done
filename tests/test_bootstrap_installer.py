@@ -1070,12 +1070,26 @@ const normalizedCatalog = validateRuntimeCatalog(catalog);
 assert.ok(
   catalog.some((runtime) => Object.keys(runtime.capabilities).length < runtimeCatalogSchema.capability_keys.length)
 );
+assert.ok(
+  catalog.some((runtime) => Object.keys(runtime.hook_payload).length < runtimeCatalogSchema.hook_payload_keys.length)
+);
 for (const runtime of normalizedCatalog) {
   assert.deepEqual(Object.keys(runtime.capabilities).sort(), runtimeCatalogSchema.capability_keys.slice().sort());
+  assert.deepEqual(Object.keys(runtime.hook_payload).sort(), runtimeCatalogSchema.hook_payload_keys.slice().sort());
+  assert.deepEqual(
+    Object.keys(runtime.managed_install_surface).sort(),
+    runtimeCatalogSchema.managed_install_surface_keys.slice().sort()
+  );
 }
 for (const runtime of catalog) {
   for (const [fieldName, value] of Object.entries(runtime.capabilities)) {
     assert.notDeepEqual(value, runtimeCatalogSchema.capability_defaults[fieldName]);
+  }
+  for (const [fieldName, value] of Object.entries(runtime.hook_payload)) {
+    assert.notDeepEqual(value, runtimeCatalogSchema.hook_payload_defaults[fieldName]);
+  }
+  for (const [fieldName, value] of Object.entries(runtime.managed_install_surface || {})) {
+    assert.notDeepEqual(value, runtimeCatalogSchema.managed_install_surface_defaults[fieldName]);
   }
 }
 
@@ -1138,6 +1152,53 @@ assert.deepEqual(
 assert.deepEqual(
   validatedSurfaceCatalog[0].hook_payload.target_root_keys,
   explicitSurfaceCatalog[0].hook_payload.target_root_keys
+);
+
+const partialHookPayloadCatalog = JSON.parse(JSON.stringify(catalog));
+partialHookPayloadCatalog[0].capabilities = { permissions_surface: "unsupported" };
+partialHookPayloadCatalog[0].hook_payload = { target_path_keys: ["selected_path"] };
+const normalizedPartialHookPayload = validateRuntimeCatalog(partialHookPayloadCatalog);
+assert.deepEqual(
+  Object.keys(normalizedPartialHookPayload[0].hook_payload).sort(),
+  runtimeCatalogSchema.hook_payload_keys.slice().sort()
+);
+assert.deepEqual(normalizedPartialHookPayload[0].hook_payload.target_path_keys, ["selected_path"]);
+assert.deepEqual(
+  normalizedPartialHookPayload[0].hook_payload.target_root_keys,
+  runtimeCatalogSchema.hook_payload_defaults.target_root_keys
+);
+
+const contextMeterRuntimeIndex = catalog.findIndex((runtime) => runtime.capabilities.supports_context_meter);
+assert.notEqual(contextMeterRuntimeIndex, -1);
+const badContextMeterHookCatalog = JSON.parse(JSON.stringify(catalog));
+delete badContextMeterHookCatalog[contextMeterRuntimeIndex].hook_payload.context_window_size_keys;
+delete badContextMeterHookCatalog[contextMeterRuntimeIndex].hook_payload.context_remaining_keys;
+assert.throws(
+  () => validateRuntimeCatalog(badContextMeterHookCatalog),
+  new RegExp(
+    `runtime catalog entry ${contextMeterRuntimeIndex}\\.capabilities\\.supports_context_meter requires `
+    + `runtime catalog entry ${contextMeterRuntimeIndex}\\.hook_payload\\.context_window_size_keys, `
+    + `runtime catalog entry ${contextMeterRuntimeIndex}\\.hook_payload\\.context_remaining_keys`
+  )
+);
+
+const partialManagedSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
+partialManagedSurfaceCatalog[0].managed_install_surface = { flat_command_globs: ["custom-command/gpd-*.md"] };
+const normalizedPartialManagedSurface = validateRuntimeCatalog(partialManagedSurfaceCatalog);
+assert.deepEqual(
+  Object.keys(normalizedPartialManagedSurface[0].managed_install_surface).sort(),
+  runtimeCatalogSchema.managed_install_surface_keys.slice().sort()
+);
+assert.deepEqual(
+  normalizedPartialManagedSurface[0].managed_install_surface.managed_agent_globs,
+  runtimeCatalogSchema.managed_install_surface_defaults.managed_agent_globs
+);
+
+const badManagedSurfaceGlobCatalog = JSON.parse(JSON.stringify(catalog));
+badManagedSurfaceGlobCatalog[0].managed_install_surface = { flat_command_globs: ["../tmp/*"] };
+assert.throws(
+  () => validateRuntimeCatalog(badManagedSurfaceGlobCatalog),
+  /runtime catalog entry 0\.managed_install_surface\.flat_command_globs\.0 must be a relative managed install glob without traversal/
 );
 
 const unknownKeyCatalog = JSON.parse(JSON.stringify(catalog));

@@ -87,9 +87,21 @@ def apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str | 
     cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
+    requested_path = Path(file_path)
+    if not requested_path.parts or (not requested_path.is_absolute() and ".." in requested_path.parts):
+        return stable_mcp_error("file_path must be a project-relative path without traversal")
     with gpd_span("mcp.state.apply_return_updates"):
         try:
-            resolved = cwd / Path(file_path)
+            cwd_resolved = cwd.resolve(strict=False)
+            resolved = (
+                requested_path.expanduser().resolve(strict=False)
+                if requested_path.is_absolute()
+                else (cwd_resolved / requested_path).resolve(strict=False)
+            )
+            try:
+                resolved.relative_to(cwd_resolved)
+            except ValueError:
+                return stable_mcp_error("file_path must stay within project_dir after symlink resolution")
             return stable_mcp_response(cmd_apply_return_updates(cwd, resolved).model_dump())
         except (GPDError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)

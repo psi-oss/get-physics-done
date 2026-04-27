@@ -81,6 +81,18 @@ def _schema_error_messages(schema: dict[str, object], payload: dict[str, object]
     return [error.message for error in Draft202012Validator(schema).iter_errors(payload)]
 
 
+def _schema_errors_with_context(schema: dict[str, object], payload: dict[str, object]):
+    from jsonschema import Draft202012Validator
+
+    pending = list(Draft202012Validator(schema).iter_errors(payload))
+    errors = []
+    while pending:
+        error = pending.pop(0)
+        errors.append(error)
+        pending[0:0] = list(error.context)
+    return errors
+
+
 def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> None:
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA
 
@@ -90,6 +102,54 @@ def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> 
     for schema in (run_project_dir, suggest_project_dir):
         assert schema["anyOf"] == [ABSOLUTE_PROJECT_DIR_SCHEMA, {"type": "null"}]
         assert schema["default"] is None
+
+
+def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
+    contract = _load_project_contract_fixture()
+    contract["scope"]["in_scope"] = []
+
+    run_errors = _schema_errors_with_context(
+        _run_contract_check_input_schema(),
+        {
+            "request": {
+                "check_key": "contract.benchmark_reproduction",
+                "contract": contract,
+                "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+            }
+        },
+    )
+    suggest_errors = _schema_errors_with_context(_suggest_contract_checks_input_schema(), {"contract": contract})
+
+    assert any(
+        list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message
+        for error in run_errors
+    )
+    assert any(
+        list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message
+        for error in suggest_errors
+    )
+
+
+def test_contract_tools_reject_empty_scope_in_scope() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["scope"]["in_scope"] = []
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+    expected = {
+        "error": "Invalid contract payload: scope.in_scope must include at least one non-empty string",
+        "schema_version": 1,
+    }
+
+    assert run_contract_check(request) == expected
+    assert suggest_contract_checks(contract) == expected
 
 
 def test_contract_check_tools_reject_relative_project_dir() -> None:
@@ -446,7 +506,10 @@ def _mismatched_direct_proxy_template_contract() -> dict[str, object]:
 def _proof_obligation_contract() -> dict[str, object]:
     return {
         "schema_version": 1,
-        "scope": {"question": "Does the proof cover every named parameter and hypothesis?"},
+        "scope": {
+            "question": "Does the proof cover every named parameter and hypothesis?",
+            "in_scope": ["proof obligation coverage"],
+        },
         "context_intake": {
             "must_read_refs": ["ref-proof-outline"],
             "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
@@ -2258,7 +2321,10 @@ def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_coll
             "check_key": "contract.limit_recovery",
             "contract": {
                 "schema_version": 1,
-                "scope": {"question": "What is the asymptotic limit?"},
+                "scope": {
+                    "question": "What is the asymptotic limit?",
+                    "in_scope": ["asymptotic limit recovery"],
+                },
                 "context_intake": {"context_gaps": ["Need benchmark reconciliation."]},
                 "claims": [],
                 "deliverables": [],
@@ -2286,7 +2352,10 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
             "check_key": "contract.limit_recovery",
             "contract": {
                 "schema_version": 1,
-                "scope": {"question": "What is the large-k limit?"},
+                "scope": {
+                    "question": "What is the large-k limit?",
+                    "in_scope": ["large-k limit recovery"],
+                },
                 "context_intake": {"must_read_refs": ["ref-main", " ref-main "]},
                 "uncertainty_markers": {
                     "weakest_anchors": ["Benchmark still tentative"],
@@ -2865,10 +2934,12 @@ def test_contract_tools_reject_blank_or_malformed_contract_list_members_at_mcp_b
         (
             lambda contract: contract["scope"].__setitem__("in_scope", "   "),
             (
+                "scope.in_scope must include at least one non-empty string; "
                 "scope.in_scope must not be blank; "
                 "scope.in_scope was normalized from blank string to empty list"
             ),
             [
+                "scope.in_scope must include at least one non-empty string",
                 "scope.in_scope must not be blank",
                 "scope.in_scope was normalized from blank string to empty list",
             ],
@@ -3167,6 +3238,7 @@ def test_contract_tools_surface_full_contract_error_details_for_multi_error_payl
     suggest_result = suggest_contract_checks(contract)
 
     expected_details = [
+        "scope.in_scope must include at least one non-empty string",
         "scope.in_scope must not be blank",
         "scope.in_scope was normalized from blank string to empty list",
         "claims.0.references must not be blank",
@@ -3177,9 +3249,10 @@ def test_contract_tools_surface_full_contract_error_details_for_multi_error_payl
     ]
 
     assert run_result["error"] == (
-        "Invalid contract payload: scope.in_scope must not be blank; "
+        "Invalid contract payload: scope.in_scope must include at least one non-empty string; "
+        "scope.in_scope must not be blank; "
         "scope.in_scope was normalized from blank string to empty list; "
-        "claims.0.references must not be blank; +4 more"
+        "+5 more"
     )
     assert run_result["contract_error_details"] == expected_details
     assert suggest_result["error"] == run_result["error"]

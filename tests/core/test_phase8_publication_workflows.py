@@ -12,7 +12,7 @@ def test_write_paper_balanced_mode_keeps_outline_as_working_draft_and_threads_mo
 
     assert "Do not force a routine outline-approval pause in balanced mode." in workflow
     assert 'WRITE_PAPER_ARGUMENTS="$ARGUMENTS"' in workflow
-    assert "explicit `--intake path/to/paper-authoring-input.json`" in workflow
+    assert "explicit `--intake path/to/write-paper-authoring-input.json`" in workflow
     assert "For `external_authoring_intake`, use the strict command preflight's managed subject handoff" in workflow
     assert (
         "If `autonomy=supervised`, present the outline for approval before proceeding. "
@@ -78,7 +78,7 @@ def test_paper_writer_prompt_supports_bounded_external_authoring_without_workspa
 
     assert "for bounded external authoring, an explicit intake-manifest handoff" in agent
     assert "When the orchestrator says this is `external_authoring_intake`" in agent
-    assert "the only supported non-project intake is explicit `--intake path/to/paper-authoring-input.json`" in agent
+    assert "the only supported non-project intake is explicit `--intake path/to/write-paper-authoring-input.json`" in agent
     assert "Do not scan `GPD/phases/*`, `GPD/milestones/*`, `GPD/STATE.md`, or unrelated folders to fill gaps." in agent
     assert "missing evidence bindings are hard blocks" in agent
 

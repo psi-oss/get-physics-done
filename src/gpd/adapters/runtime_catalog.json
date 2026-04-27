@@ -27,26 +27,16 @@
       "supports_context_meter": true
     },
     "hook_payload": {
-      "notify_event_types": [],
       "workspace_keys": ["cwd", "current_dir", "path", "workspace_dir"],
       "project_dir_keys": ["project_dir"],
       "target_path_keys": ["target_path"],
       "target_root_keys": ["target_root"],
-      "runtime_session_id_keys": [],
       "model_keys": ["display_name", "name", "id"],
-      "provider_keys": [],
-      "usage_keys": [],
-      "input_tokens_keys": [],
-      "output_tokens_keys": [],
-      "total_tokens_keys": [],
-      "cached_input_tokens_keys": [],
-      "cache_write_input_tokens_keys": [],
-      "cost_usd_keys": [],
-      "agent_id_keys": [],
-      "agent_name_keys": [],
-      "agent_scope_keys": [],
       "context_window_size_keys": ["context_window_size"],
       "context_remaining_keys": ["remaining_percentage", "remainingPercent", "remaining"]
+    },
+    "managed_install_surface": {
+      "nested_command_globs": ["commands/gpd/**/*"]
     },
     "global_config": {
       "strategy": "env_or_home",
@@ -82,26 +72,16 @@
       "supports_context_meter": true
     },
     "hook_payload": {
-      "notify_event_types": [],
       "workspace_keys": ["cwd", "current_dir", "path", "workspace_dir"],
       "project_dir_keys": ["project_dir"],
       "target_path_keys": ["target_path"],
       "target_root_keys": ["target_root"],
-      "runtime_session_id_keys": [],
       "model_keys": ["display_name", "name", "id"],
-      "provider_keys": [],
-      "usage_keys": [],
-      "input_tokens_keys": [],
-      "output_tokens_keys": [],
-      "total_tokens_keys": [],
-      "cached_input_tokens_keys": [],
-      "cache_write_input_tokens_keys": [],
-      "cost_usd_keys": [],
-      "agent_id_keys": [],
-      "agent_name_keys": [],
-      "agent_scope_keys": [],
       "context_window_size_keys": ["context_window_size"],
       "context_remaining_keys": ["remaining_percentage", "remainingPercent", "remaining"]
+    },
+    "managed_install_surface": {
+      "nested_command_globs": ["commands/gpd/**/*"]
     },
     "global_config": {
       "strategy": "env_or_home",
@@ -148,7 +128,6 @@
       "project_dir_keys": ["project_dir"],
       "target_path_keys": ["target_path"],
       "target_root_keys": ["target_root"],
-      "runtime_session_id_keys": [],
       "model_keys": ["display_name", "name", "id"],
       "provider_keys": ["provider", "vendor"],
       "usage_keys": ["usage", "token_usage", "tokens"],
@@ -157,12 +136,7 @@
       "total_tokens_keys": ["total_tokens", "totalTokens"],
       "cached_input_tokens_keys": ["cached_input_tokens", "cache_read_input_tokens", "cachedInputTokens", "cacheReadInputTokens"],
       "cache_write_input_tokens_keys": ["cache_write_input_tokens", "cache_creation_input_tokens", "cacheWriteInputTokens", "cacheCreationInputTokens"],
-      "cost_usd_keys": ["cost_usd", "costUsd", "usd_cost", "usdCost"],
-      "agent_id_keys": [],
-      "agent_name_keys": [],
-      "agent_scope_keys": [],
-      "context_window_size_keys": [],
-      "context_remaining_keys": []
+      "cost_usd_keys": ["cost_usd", "costUsd", "usd_cost", "usdCost"]
     },
     "global_config": {
       "strategy": "env_or_home",
@@ -196,26 +170,11 @@
       "prompt_free_requires_relaunch": true
     },
     "hook_payload": {
-      "notify_event_types": [],
-      "workspace_keys": [],
-      "project_dir_keys": [],
       "target_path_keys": ["target_path"],
-      "target_root_keys": ["target_root"],
-      "runtime_session_id_keys": [],
-      "model_keys": [],
-      "provider_keys": [],
-      "usage_keys": [],
-      "input_tokens_keys": [],
-      "output_tokens_keys": [],
-      "total_tokens_keys": [],
-      "cached_input_tokens_keys": [],
-      "cache_write_input_tokens_keys": [],
-      "cost_usd_keys": [],
-      "agent_id_keys": [],
-      "agent_name_keys": [],
-      "agent_scope_keys": [],
-      "context_window_size_keys": [],
-      "context_remaining_keys": []
+      "target_root_keys": ["target_root"]
+    },
+    "managed_install_surface": {
+      "flat_command_globs": ["command/gpd-*.md"]
     },
     "global_config": {
       "strategy": "xdg_app",

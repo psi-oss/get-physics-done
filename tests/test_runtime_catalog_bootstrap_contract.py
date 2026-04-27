@@ -34,9 +34,14 @@ def test_runtime_catalog_schema_loader_exposes_canonical_optional_keys() -> None
 
     assert "public_command_surface_prefix" in runtime_catalog._RUNTIME_ENTRY_OPTIONAL_KEYS
     assert "public_command_surface_prefix" in schema["entry_optional_keys"]
+    assert "managed_install_surface" in runtime_catalog._RUNTIME_ENTRY_OPTIONAL_KEYS
+    assert "managed_install_surface" in schema["entry_optional_keys"]
     assert "unsupported" in runtime_catalog._RUNTIME_CAPABILITY_ENUMS["permissions_surface"]
     assert "unsupported" in schema["capability_enums"]["permissions_surface"]
     assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
+    assert {key: tuple(value) for key, value in schema["hook_payload_defaults"].items()} == asdict(
+        runtime_catalog.HookPayloadPolicy()
+    )
 
 
 def test_runtime_catalog_schema_matches_canonical_catalog_payload() -> None:
@@ -50,6 +55,7 @@ def test_runtime_catalog_schema_matches_canonical_catalog_payload() -> None:
     }
     required_capability_keys = set(schema["capability_keys"])
     required_hook_payload_keys = set(schema["hook_payload_keys"])
+    required_managed_install_surface_keys = set(schema["managed_install_surface_keys"])
 
     assert catalog
     for entry in catalog:
@@ -58,18 +64,35 @@ def test_runtime_catalog_schema_matches_canonical_catalog_payload() -> None:
         assert entry_keys <= allowed_entry_keys
         assert set(entry["global_config"]) == required_global_config_keys[entry["global_config"]["strategy"]]
         assert set(entry["capabilities"]) <= required_capability_keys
-        assert set(entry["hook_payload"]) == required_hook_payload_keys
+        assert set(entry["hook_payload"]) <= required_hook_payload_keys
+        if "managed_install_surface" in entry:
+            assert set(entry["managed_install_surface"]) <= required_managed_install_surface_keys
 
-        descriptor_capabilities = asdict(runtime_catalog.get_runtime_descriptor(entry["runtime_name"]).capabilities)
+        descriptor = runtime_catalog.get_runtime_descriptor(entry["runtime_name"])
+
+        descriptor_capabilities = asdict(descriptor.capabilities)
         assert set(descriptor_capabilities) == required_capability_keys
         for field_name in required_capability_keys - set(entry["capabilities"]):
             assert descriptor_capabilities[field_name] == schema["capability_defaults"][field_name]
+
+        descriptor_hook_payload = asdict(descriptor.hook_payload)
+        assert set(descriptor_hook_payload) == required_hook_payload_keys
+        for field_name in required_hook_payload_keys - set(entry["hook_payload"]):
+            assert descriptor_hook_payload[field_name] == tuple(schema["hook_payload_defaults"][field_name])
+
+        descriptor_managed_surface = asdict(descriptor.managed_install_surface)
+        assert set(descriptor_managed_surface) == required_managed_install_surface_keys
+        raw_managed_surface = entry.get("managed_install_surface", {})
+        for field_name in required_managed_install_surface_keys - set(raw_managed_surface):
+            assert descriptor_managed_surface[field_name] == tuple(schema["managed_install_surface_defaults"][field_name])
 
 
 def test_runtime_catalog_omits_capability_values_that_match_schema_defaults() -> None:
     schema = runtime_catalog._load_runtime_catalog_schema_shape()
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     capability_defaults = schema["capability_defaults"]
+    hook_payload_defaults = schema["hook_payload_defaults"]
+    managed_surface_defaults = schema["managed_install_surface_defaults"]
 
     for entry in catalog:
         duplicated_defaults = sorted(
@@ -78,6 +101,18 @@ def test_runtime_catalog_omits_capability_values_that_match_schema_defaults() ->
             if value == capability_defaults[field_name]
         )
         assert duplicated_defaults == []
+        duplicated_hook_defaults = sorted(
+            field_name
+            for field_name, value in entry["hook_payload"].items()
+            if tuple(value) == hook_payload_defaults[field_name]
+        )
+        assert duplicated_hook_defaults == []
+        duplicated_managed_defaults = sorted(
+            field_name
+            for field_name, value in entry.get("managed_install_surface", {}).items()
+            if tuple(value) == managed_surface_defaults[field_name]
+        )
+        assert duplicated_managed_defaults == []
 
 
 def test_runtime_catalog_accepts_explicit_public_command_surface_prefix_roundtrip(

@@ -102,7 +102,7 @@ Output: A submission-ready tarball and checklist of manual steps remaining.
 </execution_context>
 
 <context>
-Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the active GPD-owned manuscript root).
+Paper target: $ARGUMENTS (optional manuscript root or `.tex` entrypoint; when omitted, the workflow resolves the active GPD-owned manuscript root).
 
 Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`.
 When `$ARGUMENTS` is omitted, use the current GPD project's resolved manuscript subject only; do not switch to standalone interactive intake or arbitrary external directories.

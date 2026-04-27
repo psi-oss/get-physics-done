@@ -2704,6 +2704,20 @@ def test_validate_command_context_help_surfaces_registry_argument_name() -> None
     assert "Command registry key or gpd:name" in result.output
 
 
+def test_validate_command_context_unknown_command_surfaces_user_facing_error(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "not-a-real-command"],
+    )
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, cli_module.GPDError)
+    assert "Unknown GPD command: gpd:not-a-real-command" in str(result.exception)
+    assert "Internal error" not in str(result.exception)
+    assert "Internal error" not in result.output
+    assert "Internal error" not in result.stderr
+
+
 @patch("gpd.core.contract_validation.validate_project_contract")
 def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
     mock_validate_contract,

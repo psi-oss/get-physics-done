@@ -742,11 +742,11 @@ _CONTRACT_OBSERVED_INPUT_SCHEMA: dict[str, object] = _object_schema(
 _CONTRACT_SCOPE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "question": _non_empty_string_schema(),
-        "in_scope": _contract_string_list_schema(),
+        "in_scope": _contract_string_list_schema(min_items=1),
         "out_of_scope": _contract_string_list_schema(),
         "unresolved_questions": _contract_string_list_schema(),
     },
-    required=("question",),
+    required=("question", "in_scope"),
     additional_properties=False,
 )
 _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (

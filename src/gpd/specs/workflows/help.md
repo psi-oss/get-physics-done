@@ -132,7 +132,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
 - `gpd:route [--frozen=yes|no] [--change=extend|revise] [--layer=new|change]` - Route a scope change to the right milestone/phase workflow
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
-- `gpd:execute-phase <phase-number>` - Run all plans in a phase
+- `gpd:execute-phase <phase-number> [--gaps-only]` - Run all plans in a phase, or only gap-closure plans
 - `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
 - `gpd:derive-equation` - Run a rigorous derivation workflow from project context or one explicit current-workspace target
 
@@ -170,10 +170,10 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 ### Writing and publication
 
 - `gpd:literature-review [topic or research question]` - Create a structured literature review under `GPD/literature/` in the current workspace
-- `gpd:write-paper [--intake path/to/paper-authoring-input.json]` - Draft a paper from current project results or one explicit external-authoring intake manifest into the resolved manuscript lane
+- `gpd:write-paper [--intake path/to/write-paper-authoring-input.json]` - Draft a paper from current project results or one explicit external-authoring intake manifest into the resolved manuscript lane
 - `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review workflow on the current project manuscript or one explicit artifact
 - `gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]` - Draft referee responses and revise the resolved manuscript root
-- `gpd:arxiv-submission [GPD-owned manuscript root]` - Package a built manuscript for arXiv from the resolved GPD-owned manuscript root
+- `gpd:arxiv-submission [manuscript root or .tex entrypoint]` - Package a built manuscript for arXiv from the resolved GPD-owned manuscript root or entrypoint
 - `gpd:slides [topic, audience, or source path]` - Create presentation slides
 
 ### Tangents, memory, and exports
@@ -189,7 +189,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:export [--format html|latex|zip|all]` - Export project artifacts
 - `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]` - Export observability logs
 - `gpd:error-patterns [category]` - Review common project-specific errors
-- `gpd:record-backtrack [description]` - Capture a backtrack event (what went wrong, what got reverted)
+- `gpd:record-backtrack [--reverted-commit=<sha>] [--trigger=<text>] [--phase=<NN-slug>] [description]` - Capture a backtrack event (what went wrong, what got reverted)
 - `gpd:record-insight [description]` - Save a project-specific lesson
 - `gpd:audit-milestone [version]` - Audit milestone completion against goals
 - `gpd:plan-milestone-gaps` - Turn audit gaps into new phases
@@ -349,7 +349,7 @@ Create detailed execution plan for a specific phase.
 - `--research` — Force literature research even if RESEARCH.md already exists
 - `--skip-research` — Skip literature research entirely
 - `--gaps` — Gap closure mode: plan from VERIFICATION.md issues instead of fresh research
-- `--skip-verify` — Skip plan checker verification after planning
+- `--skip-verify` — Skip non-proof plan checker verification after planning; proof-bearing plans still require checker review or an equivalent main-context audit
 - `--light` — Produce simplified strategic outline (contract, constraints, high-level approach only)
 - `--inline-discuss` — Run discuss-phase inline before planning (skip if already done)
 
@@ -372,15 +372,17 @@ Run all remaining phases autonomously — discuss → plan → execute → verif
 
 Usage: `gpd:autonomous` or `gpd:autonomous --from 3`
 
-**`gpd:execute-phase <phase-number>`**
+**`gpd:execute-phase <phase-number> [--gaps-only]`**
 Execute all plans in a phase.
 
 - Groups plans by wave (from frontmatter), executes waves sequentially
 - Plans within each wave run in parallel via task tool
+- `--gaps-only` executes only gap-closure plans marked `gap_closure: true`
 - Verifies phase goal after all plans complete (limiting cases, dimensional analysis, benchmarks)
 - Updates REQUIREMENTS.md, ROADMAP.md, STATE.md
 
 Usage: `gpd:execute-phase 5`
+Usage: `gpd:execute-phase 5 --gaps-only`
 
 ### Derivation
 
@@ -724,9 +726,9 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit subject allowed by its command policy (manuscript root/path or publication-artifact path); it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` packages only a GPD-owned manuscript root. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
+Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit subject allowed by its command policy (manuscript root/path or publication-artifact path); it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
 
-**`gpd:write-paper [--intake path/to/paper-authoring-input.json]`**
+**`gpd:write-paper [--intake path/to/write-paper-authoring-input.json]`**
 Structure and write a physics paper from current project research results or one bounded explicit external-authoring intake manifest.
 
 - Loads research digest from milestone completion (if available)
@@ -744,7 +746,7 @@ Structure and write a physics paper from current project research results or one
 - Supports revision mode for referee responses (bounded 3-iteration loop)
 
 Usage: `gpd:write-paper`
-Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`
+Usage: `gpd:write-paper --intake intake/write-paper-authoring-input.json`
 
 **`gpd:peer-review [paper directory | manuscript path | explicit artifact path]`**
 Run skeptical peer review on an existing manuscript or explicit review artifact.
@@ -788,7 +790,7 @@ Usage: `gpd:respond-to-referees --manuscript paper/main.tex --report reports/ref
 Usage: `gpd:respond-to-referees reports/referee-report.md`
 Usage: `gpd:respond-to-referees paste`
 
-**`gpd:arxiv-submission [GPD-owned manuscript root]`**
+**`gpd:arxiv-submission [manuscript root or .tex entrypoint]`**
 Prepare a completed GPD-owned manuscript for arXiv submission with validation and packaging.
 
 - Requires a successful `gpd paper-build` before packaging
@@ -1008,16 +1010,18 @@ View accumulated physics error patterns for this project.
 Usage: `gpd:error-patterns`
 Usage: `gpd:error-patterns sign-error`
 
-**`gpd:record-backtrack [description]`**
+**`gpd:record-backtrack [--reverted-commit=<sha>] [--trigger=<text>] [--phase=<NN-slug>] [description]`**
 Capture a backtrack event so the planner can avoid repeating the same mistake.
 
 - Records the trigger, what was produced, why it was wrong, and the counter-action
 - Checks for duplicates on `trigger` + `why_wrong`
+- Optional flags can pin the reverted commit, trigger text, or phase slug
 - When `promote: true`, auto-copies a parallel row into `GPD/INSIGHTS.md`'s `## Execution Deviations` section
 - Updates `GPD/BACKTRACKS.md`
 
 Usage: `gpd:record-backtrack`
 Usage: `gpd:record-backtrack Proof used mostly-minus metric when lock pinned +----`
+Usage: `gpd:record-backtrack --phase=03-proof --trigger="metric mismatch" --reverted-commit=abc123 "Wrong signature assumption"`
 
 **`gpd:record-insight [description]`**
 Record a project-specific learning or pattern to the insights ledger.

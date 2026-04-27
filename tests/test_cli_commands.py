@@ -2631,11 +2631,27 @@ class TestReviewValidationCommands:
             project = sandbox_root / "recoverable-project"
             nested = project / "workspace" / "notes"
             gpd_dir = project / "GPD"
+            recent = sandbox_root / "recent-project"
             nested.mkdir(parents=True)
             gpd_dir.mkdir()
+            (recent / "GPD").mkdir(parents=True)
+            (recent / "GPD" / "PROJECT.md").write_text("# Recent\n", encoding="utf-8")
             (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
             (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
             monkeypatch.setattr(cli_module, "_cwd", nested)
+            monkeypatch.setattr(
+                "gpd.core.project_reentry.list_recent_projects",
+                lambda _data_root=None: [
+                    {
+                        "project_root": recent.resolve(strict=False).as_posix(),
+                        "available": True,
+                        "resumable": True,
+                        "resume_file": "GPD/phases/01/.continue-here.md",
+                        "resume_file_available": True,
+                        "last_session_at": "2026-03-28T12:00:00+00:00",
+                    }
+                ],
+            )
 
             for command_name in ("progress", "resume-work"):
                 preflight = cli_module._build_command_context_preflight(command_name)
@@ -2647,6 +2663,7 @@ class TestReviewValidationCommands:
                 assert checks["roadmap_exists"].passed is True
                 assert checks["project_exists"].passed is False
                 assert checks["required_files"].passed is (command_name == "resume-work")
+                assert "recent-project" not in checks["roadmap_exists"].detail
 
     def test_command_context_plan_milestone_gaps_requires_globbed_files_in_project_root(
         self, gpd_project: Path

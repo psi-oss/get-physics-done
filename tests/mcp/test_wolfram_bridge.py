@@ -272,12 +272,12 @@ async def test_bridge_list_resource_templates_preserves_cursor_and_next_cursor()
 
 
 def test_build_server_registers_expected_server_name() -> None:
-    from gpd.mcp.integrations.wolfram_bridge import WolframBridgeConfig, build_server
+    from gpd.mcp.integrations.wolfram_bridge import WOLFRAM_MANAGED_SERVER_KEY, WolframBridgeConfig, build_server
 
     server, bridge = build_server(WolframBridgeConfig(api_key="bridge-token", endpoint="https://example.invalid/mcp"))
 
     assert bridge.config.endpoint == "https://example.invalid/mcp"
-    assert server.name == "gpd-wolfram"
+    assert server.name == WOLFRAM_MANAGED_SERVER_KEY
 
 
 @pytest.mark.asyncio

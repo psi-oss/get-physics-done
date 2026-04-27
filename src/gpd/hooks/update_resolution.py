@@ -8,7 +8,6 @@ from pathlib import Path
 
 import gpd.hooks.install_context as hook_layout
 from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
-from gpd.core.root_resolution import resolve_project_root
 
 DebugLogger = Callable[[str], None]
 
@@ -115,18 +114,6 @@ def primary_update_cache_file(candidates: list[object], *, home: str | Path | No
     return home_update_cache_file(home=home)
 
 
-def _project_layout_update_cache_candidate(workspace_path: Path | None):
-    """Return the project-layout cache candidate when a GPD project root is visible."""
-    from gpd.hooks.runtime_detect import UpdateCacheCandidate
-
-    if workspace_path is None:
-        return None
-    project_root = resolve_project_root(workspace_path)
-    if project_root is None or not (project_root / "GPD").is_dir():
-        return None
-    return UpdateCacheCandidate(project_root / "GPD" / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
-
-
 def _candidate_config_dir(candidate_path: object) -> Path | None:
     """Return the runtime config dir for a standard runtime update-cache path."""
     if not isinstance(candidate_path, Path):
@@ -194,11 +181,6 @@ def latest_update_cache(
                 return cache, self_candidate
 
     fallback_hit: tuple[dict[str, object], object] | None = None
-    project_candidate = _project_layout_update_cache_candidate(workspace_path)
-    if project_candidate is not None:
-        project_cache = _read_update_cache(project_candidate.path, debug=debug)
-        if project_cache is not None:
-            fallback_hit = (project_cache, project_candidate)
     for candidate in ordered_update_cache_candidates(
         cwd=workspace_path,
         preferred_runtime=preferred_runtime,

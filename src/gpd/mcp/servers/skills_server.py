@@ -586,7 +586,6 @@ def _load_reference_document(path: str, *, kind: str) -> dict[str, object]:
         return document
 
     frontmatter, body, parse_error = parse_frontmatter_with_error(content)
-    document["content"] = content
     document["body"] = body
     if frontmatter:
         document["frontmatter"] = frontmatter
@@ -827,7 +826,31 @@ def route_skill(
                 "gpd-verify-work": ["verify", "check", "validate", "test"],
                 "gpd-debug": ["debug", "fix", "investigate", "error", "bug"],
                 "gpd-write-paper": ["write", "paper", "draft", "manuscript"],
-                "gpd-peer-review": ["peer", "referee", "reviewer", "manuscript"],
+                "gpd-peer-review": [
+                    "peer review",
+                    "review manuscript",
+                    "review paper",
+                    "referee report",
+                    "peer",
+                    "referee",
+                    "reviewer",
+                    "manuscript",
+                ],
+                "gpd-respond-to-referees": [
+                    "referee response",
+                    "respond to referee",
+                    "respond to referees",
+                    "response to referee",
+                    "response to referees",
+                    "referee comments",
+                ],
+                "gpd-review-knowledge": [
+                    "approve knowledge",
+                    "promote knowledge",
+                    "review knowledge",
+                    "knowledge approval",
+                    "knowledge promotion",
+                ],
                 "gpd-literature-review": ["literature", "review", "papers", "citations", "references"],
                 "gpd-progress": ["progress", "status", "where", "current"],
                 "gpd-derive-equation": ["derive", "equation", "calculate", "computation"],
@@ -890,7 +913,13 @@ def route_skill(
                 scored.append((new_project_score, "gpd-new-project"))
 
             skill_order = {name: index for index, name in enumerate(skills_by_name)}
-            scored.sort(key=lambda item: (-item[0], skill_order.get(item[1], len(skill_order))))
+            scored.sort(
+                key=lambda item: (
+                    -item[0],
+                    0 if skills_by_name[item[1]].source_kind == "command" else 1,
+                    skill_order.get(item[1], len(skill_order)),
+                )
+            )
 
             if scored:
                 best = scored[0][1]

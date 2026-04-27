@@ -100,38 +100,36 @@ Before using any equation from a prior phase or external source, verify conventi
 
 Not every agent needs the same depth of convention knowledge. Convention awareness is tiered to keep prompts focused:
 
-**Tier 1 — Convention Consumer (~10 lines, ALL agents)**
+**Tier 1 — Convention Consumer (~10 lines, default for agents without equation-writing or convention-authoring duties)**
 
 All agents load conventions from `state.json convention_lock` at startup. Tier 1 agents:
 - Read locked conventions but never modify them
 - Flag suspected convention mismatches to the orchestrator (do not resolve)
 - Do not write ASSERT_CONVENTION headers in output files
 
-Agents: project-researcher, phase-researcher, literature-reviewer, roadmapper, planner, plan-checker, research-synthesizer, research-mapper, bibliographer, referee, experiment-designer
+Use this tier when the agent's frontmatter and role keep it to research synthesis, planning, review, bibliography, roadmap, or other non-equation-writing work.
 
 **Tier 2 — Convention Enforcer (full tracking protocol, equation-working agents)**
 
 Agents that write or verify equations must actively enforce conventions:
 - Write `ASSERT_CONVENTION` headers in derivation files and canonical phase verification reports
-- Verify test values from CONVENTIONS.md against equations they produce or check
+- Verify test values from the `GPD/CONVENTIONS.md` projection against equations they produce or check
 - Apply the 5-point convention checklist (metric, Fourier, normalization, coupling, renormalization) when importing formulas from prior phases or references
 - Flag convention violations as DEVIATION Rule 5 (not just "suspected mismatch")
 
-Agents: executor, verifier, consistency-checker, debugger, gpd-paper-writer
+Use this tier when the agent's role writes, verifies, debugs, or typesets equations or canonical verification artifacts.
 
 **Tier 3 — Convention Authority (full protocol + establishment + evolution)**
 
-Only the notation-coordinator operates at Tier 3:
-- Creates and modifies CONVENTIONS.md
+Only an agent explicitly assigned convention-authoring authority for the handoff operates at Tier 3:
+- Creates or modifies the `GPD/CONVENTIONS.md` projection
 - Manages `state.json convention_lock` via `gpd convention set`
 - Handles mid-execution convention establishment
 - Manages convention changes with conversion tables
 - Resolves cross-convention interactions (metric + Fourier → propagator form)
 - Owns subfield-specific convention defaults
 
-Agent: notation-coordinator (sole authority)
-
-**Tier escalation:** If a Tier 1 agent encounters a convention issue, it flags for the orchestrator. If a Tier 2 agent encounters an unresolvable conflict, it requests notation-coordinator intervention. Only Tier 3 modifies conventions.
+**Tier escalation:** If a Tier 1 agent encounters a convention issue, it flags for the orchestrator. If a Tier 2 agent encounters an unresolvable conflict, it requests a Tier 3 convention-authoring handoff. Only Tier 3 modifies conventions or the lock.
 
 ---
 
@@ -185,9 +183,7 @@ Commit authority is default-deny. Only agents with `commit_authority: direct` ma
 - Orchestrator-owned agents return changed paths in `gpd_return.files_written`; the orchestrator commits after the agent returns.
 - Direct-commit agents may use `gpd commit` only for their own scoped artifacts and should avoid raw `git commit` when `gpd commit` applies.
 
-Direct-commit allowlist: `gpd-debugger`, `gpd-executor`, `gpd-planner`.
-
-Every other agent is orchestrator-owned by default and must return changed paths in `gpd_return.files_written`. The exhaustive ownership inventory lives in each agent's frontmatter (`commit_authority`) and is validated by the registry; do not duplicate a hand-maintained matrix in prompt prose.
+The exhaustive ownership inventory lives in each agent's frontmatter (`commit_authority`) and is validated by the registry; do not duplicate a hand-maintained matrix or named allowlist in prompt prose.
 
 **Rule:** Only `commit_authority: direct` agents call `gpd commit` directly. All other agents write files, report them in `gpd_return.files_written`, and leave commit/staging decisions to the orchestrating workflow.
 

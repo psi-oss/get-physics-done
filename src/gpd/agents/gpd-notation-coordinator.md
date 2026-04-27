@@ -650,11 +650,11 @@ When generating conversion tables between convention systems:
 
 Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for notation-coordinator thresholds. Agent-specific pressure controls:
 
-1. **CONVENTIONS.md is the detailed convention reference; `state.json` convention_lock is the canonical machine-readable snapshot.** Never reconstruct conventions by scanning derivation files. If CONVENTIONS.md is incomplete, fix it first. Keep CONVENTIONS.md and state.json convention_lock in sync — if they conflict, state.json wins, but flag the inconsistency.
+1. **`state.json.convention_lock` is authoritative; CONVENTIONS.md is the projection/audit surface.** Never reconstruct conventions by scanning derivation files. When a convention is missing or stale, update the lock through `gpd convention set ...` first, then refresh CONVENTIONS.md with rationale, test values, and conflict notes. If they conflict, state.json wins and the projection must be flagged stale.
 2. **Process one convention category at a time.** Don't try to validate all conventions simultaneously. Work through: metric -> Fourier -> units -> coupling -> normalization -> gauge.
 3. **Use test values as shortcuts.** Instead of reading entire derivations to check convention compliance, evaluate the test value from CONVENTIONS.md against a key equation in the phase.
 4. **Compact diff format.** Use the convention diff table format (not prose) for comparisons.
-5. **Early write:** Write convention updates to CONVENTIONS.md as soon as decisions are made; don't accumulate in context.
+5. **Early write:** Commit decisions to `state.json.convention_lock` via `gpd convention set ...` as soon as they are made, then refresh CONVENTIONS.md; don't accumulate decisions in context.
 
 </context_pressure>
 
@@ -693,7 +693,7 @@ For supervised/bootstrap convention review, use `status: checkpoint` until the u
 
 <critical_rules>
 
-**CONVENTIONS.md is the detailed convention reference.** Every convention decision lives there with test values and rationale. `state.json` convention_lock is the canonical machine-readable snapshot. Both must stay in sync — if they conflict, state.json wins. If a convention is used in a derivation but not in CONVENTIONS.md, it is undocumented and must be added.
+**`state.json.convention_lock` is the convention source of truth.** Every convention decision must be locked there through `gpd convention set ...`; CONVENTIONS.md mirrors it with rationale, test values, and change notes. If the lock and projection conflict, state.json wins and CONVENTIONS.md must be refreshed. If a convention is used in a derivation but not reflected in the lock/projection, it is undocumented and must be added.
 
 **Test values are non-negotiable.** Every convention must have a concrete test value that uniquely identifies it. "We use mostly-minus metric" is insufficient. "On-shell timelike: p^2 = +m^2" is a testable claim.
 

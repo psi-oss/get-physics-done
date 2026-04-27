@@ -1156,10 +1156,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
     """Run all health checks and return a full report.
 
     Args:
-        cwd: Project root directory.
+        cwd: Project root or nested workspace directory.
         fix: If True, attempt auto-fixes for common issues.
     """
     with gpd_span("health.run", **{"gpd.health.fix": fix}):
+        project_root = _resolve_health_project_root(cwd)
         checks: list[HealthCheck] = []
 
         for name, check_fn in _ALL_CHECKS:
@@ -1167,11 +1168,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                 if name == "environment":
                     checks.append(check_fn())  # type: ignore[operator]
                 else:
-                    checks.append(check_fn(cwd))  # type: ignore[operator]
+                    checks.append(check_fn(project_root))  # type: ignore[operator]
 
         fixes: list[str] = []
         if fix:
-            fixes, refreshed_labels = _apply_fixes(cwd, checks, return_refreshed_labels=True)
+            fixes, refreshed_labels = _apply_fixes(project_root, checks, return_refreshed_labels=True)
             if refreshed_labels:
                 refreshed_checks: list[HealthCheck] = []
                 check_labels = {
@@ -1200,7 +1201,7 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                         if name == "environment":
                             refreshed_checks.append(check_fn())  # type: ignore[operator]
                         else:
-                            refreshed_checks.append(check_fn(cwd))  # type: ignore[operator]
+                            refreshed_checks.append(check_fn(project_root))  # type: ignore[operator]
                 checks = refreshed_checks
 
         ok_count = sum(1 for c in checks if c.status == CheckStatus.OK)

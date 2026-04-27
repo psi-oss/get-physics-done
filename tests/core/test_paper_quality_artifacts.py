@@ -68,6 +68,7 @@ contract:
   schema_version: 1
   scope:
     question: What benchmark must this plan recover?
+    in_scope: [benchmark comparison]
   context_intake:
     must_read_refs: [ref-benchmark]
     must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]

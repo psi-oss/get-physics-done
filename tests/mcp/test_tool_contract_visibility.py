@@ -302,11 +302,12 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
 
     scope = _schema_object(contract_schema, contract_schema["properties"]["scope"])
     _assert_closed_object(scope, label="contract.scope")
-    assert scope["required"] == ["question"]
+    assert scope["required"] == ["question", "in_scope"]
     assert scope["properties"]["question"]["minLength"] == 1
     assert scope["properties"]["question"]["pattern"] == r"\S"
     for field_name in ("in_scope", "out_of_scope", "unresolved_questions"):
         _assert_string_list_schema(scope["properties"][field_name], label=f"contract.scope.{field_name}")
+    assert _schema_anyof_array(scope["properties"]["in_scope"])["minItems"] == 1
 
     context_intake = _schema_object(contract_schema, contract_schema["properties"]["context_intake"])
     _assert_closed_object(context_intake, label="contract.context_intake")

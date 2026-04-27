@@ -1428,7 +1428,7 @@ def validate_project_contract(
     if not question:
         errors.append("scope.question is required")
     if not parsed.scope.in_scope:
-        errors.append("scope.in_scope must name at least one project boundary or objective")
+        errors.append("scope.in_scope must include at least one non-empty string")
     if decisive_target_count == 0:
         errors.append("project contract must include at least one observable, claim, or deliverable")
     if not parsed.uncertainty_markers.weakest_anchors:

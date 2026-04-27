@@ -143,14 +143,14 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in help_workflow
     assert "The later publication commands stay stricter:" in readme
     assert "**`gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]`**" in help_workflow
-    assert "**`gpd:arxiv-submission [GPD-owned manuscript root]`**" in help_workflow
+    assert "**`gpd:arxiv-submission [manuscript root or .tex entrypoint]`**" in help_workflow
     assert "Usage: `gpd:respond-to-referees --manuscript paper/main.tex --report reports/referee-report.md`" in help_workflow
     assert "Usage: `gpd:respond-to-referees reports/referee-report.md`" in help_workflow
     assert "Usage: `gpd:respond-to-referees paste`" in help_workflow
     assert "Usage: `gpd:arxiv-submission paper/`" in help_workflow
-    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
-    assert "`gpd:arxiv-submission` only packages a GPD-owned manuscript root" in readme
-    assert "`gpd:arxiv-submission` packages only a GPD-owned manuscript root" in help_workflow
+    assert "Usage: `gpd:write-paper --intake intake/write-paper-authoring-input.json`" in help_workflow
+    assert "`gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint" in readme
+    assert "`gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint" in help_workflow
 
 
 def test_public_write_paper_help_surfaces_match_supported_command_metadata() -> None:
@@ -163,7 +163,7 @@ def test_public_write_paper_help_surfaces_match_supported_command_metadata() -> 
         assert "gpd:write-paper [title or topic]" not in content
         assert "--from-phases" not in content
         assert 'gpd:write-paper "' not in content
-        assert "gpd:write-paper --intake intake/paper-authoring-input.json" in content
+        assert "gpd:write-paper --intake intake/write-paper-authoring-input.json" in content
 
     assert "Usage: `gpd:write-paper`" in help_workflow
     assert "--from-phases" not in write_paper_workflow
@@ -187,7 +187,7 @@ def test_help_workflow_error_patterns_uses_pattern_library_categories() -> None:
     error_patterns_section = _section(
         help_workflow,
         "**`gpd:error-patterns [category]`**",
-        "**`gpd:record-backtrack [description]`**",
+        "**`gpd:record-backtrack [--reverted-commit=<sha>] [--trigger=<text>] [--phase=<NN-slug>] [description]`**",
     )
     expected_categories = {
         "sign-error",

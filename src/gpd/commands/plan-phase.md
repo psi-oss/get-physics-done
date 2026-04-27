@@ -33,7 +33,7 @@ Canonical contract schema and hard validation rules are enforced later by the st
 - `--research` -- Re-research even if `RESEARCH.md` exists
 - `--skip-research` -- Skip research and plan directly
 - `--gaps` -- Gap-closure mode (`VERIFICATION.md`, no research)
-- `--skip-verify` -- Skip the verification loop
+- `--skip-verify` -- Skip non-proof plan checker verification after planning; proof-bearing plans still require checker review or an equivalent main-context audit
 - `--light` -- Produce contract-plus-constraints plans only
 
 Normalize the phase input before any directory lookups.

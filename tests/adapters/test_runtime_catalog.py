@@ -87,6 +87,17 @@ def _iter_runtime_descriptors_from_schema(
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_DEFAULTS", schema_shape["capability_defaults"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_KEYS", schema_shape["hook_payload_keys"])
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_DEFAULTS", schema_shape["hook_payload_defaults"])
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_MANAGED_INSTALL_SURFACE_KEYS",
+        schema_shape["managed_install_surface_keys"],
+    )
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS",
+        schema_shape["managed_install_surface_defaults"],
+    )
     monkeypatch.setattr(
         runtime_catalog,
         "_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS",
@@ -219,6 +230,15 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
     assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
+    assert {key: tuple(value) for key, value in schema["hook_payload_defaults"].items()} == asdict(
+        runtime_catalog.HookPayloadPolicy()
+    )
+    assert set(schema["managed_install_surface_keys"]) == {
+        field.name for field in fields(runtime_catalog.ManagedInstallSurfacePolicy)
+    }
+    assert set(schema["managed_install_surface_defaults"]) == {
+        field.name for field in fields(runtime_catalog.ManagedInstallSurfacePolicy)
+    }
 
 
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
@@ -378,22 +398,37 @@ def test_normalize_runtime_name_accepts_launch_command_from_fake_catalog_payload
 
 
 def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:
+    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    agent_glob_defaults = tuple(schema["managed_install_surface_defaults"]["managed_agent_globs"])
+    claude_entry = _catalog_entry_by_runtime_name(catalog_payload, "claude-code")
+    opencode_entry = _catalog_entry_by_runtime_name(catalog_payload, "opencode")
     claude_policy = get_managed_install_surface_policy("claude-code")
     opencode_policy = get_managed_install_surface_policy("opencode")
     codex_policy = get_managed_install_surface_policy("codex")
     merged_policy = get_managed_install_surface_policy()
 
-    assert claude_policy.gpd_content_globs == ("get-physics-done/**/*",)
-    assert claude_policy.nested_command_globs == ("commands/gpd/**/*",)
+    assert claude_policy.gpd_content_globs == (f"{get_shared_install_metadata().install_root_dir_name}/**/*",)
+    assert claude_policy.nested_command_globs == tuple(claude_entry["managed_install_surface"]["nested_command_globs"])
     assert claude_policy.flat_command_globs == ()
-    assert claude_policy.managed_agent_globs == ("agents/gpd-*.md", "agents/gpd-*.toml")
+    assert claude_policy.managed_agent_globs == agent_glob_defaults
 
     assert opencode_policy.nested_command_globs == ()
-    assert opencode_policy.flat_command_globs == ("command/gpd-*.md",)
+    assert opencode_policy.flat_command_globs == tuple(opencode_entry["managed_install_surface"]["flat_command_globs"])
     assert codex_policy.nested_command_globs == ()
     assert codex_policy.flat_command_globs == ()
-    assert merged_policy.nested_command_globs == ("commands/gpd/**/*",)
-    assert merged_policy.flat_command_globs == ("command/gpd-*.md",)
+    assert merged_policy.nested_command_globs == claude_policy.nested_command_globs
+    assert merged_policy.flat_command_globs == opencode_policy.flat_command_globs
+
+
+def test_runtime_catalog_source_does_not_hardcode_managed_agent_globs() -> None:
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    source = (Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.py").read_text(
+        encoding="utf-8"
+    )
+
+    for glob in schema["managed_install_surface_defaults"]["managed_agent_globs"]:
+        assert glob not in source
 
 
 def test_runtime_catalog_runtime_keys_are_unique() -> None:
@@ -596,6 +631,68 @@ def test_runtime_catalog_merges_partial_capabilities_with_defaults(
     assert descriptors[0].capabilities.permission_surface_kind == "none"
     assert descriptors[0].capabilities.supports_runtime_permission_sync is False
     assert descriptors[0].capabilities.statusline_surface == "none"
+
+
+def test_runtime_catalog_merges_partial_hook_payload_with_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    opencode = _catalog_entry_by_runtime_name(payload, "opencode")
+    opencode["hook_payload"] = {
+        "target_path_keys": ["selected_path"],
+    }
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    opencode_descriptor = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "opencode")
+
+    assert opencode_descriptor.hook_payload.target_path_keys == ("selected_path",)
+    assert opencode_descriptor.hook_payload.target_root_keys == ()
+    assert opencode_descriptor.hook_payload.workspace_keys == ()
+    assert opencode_descriptor.hook_payload.supports_runtime_session_payload_attribution is False
+
+
+def test_runtime_catalog_merges_partial_managed_install_surface_with_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["managed_install_surface"] = {
+        "flat_command_globs": ["custom-command/gpd-*.md"],
+    }
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    codex_descriptor = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "codex")
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    assert codex_descriptor.managed_install_surface.flat_command_globs == ("custom-command/gpd-*.md",)
+    assert codex_descriptor.managed_install_surface.managed_agent_globs == tuple(
+        schema["managed_install_surface_defaults"]["managed_agent_globs"]
+    )
+
+
+@pytest.mark.parametrize(
+    "bad_pattern",
+    ["../tmp/*", "commands/../../tmp/*", "/tmp/gpd-*", "~/gpd-*", "C:/tmp/gpd-*", r"commands\..\tmp\*"],
+)
+def test_runtime_catalog_rejects_managed_install_surface_glob_escapes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bad_pattern: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["managed_install_surface"] = {
+        "flat_command_globs": [bad_pattern],
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry \d+\.managed_install_surface\.flat_command_globs\.0 "
+        r"must be a relative managed install glob without traversal",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 @pytest.mark.parametrize(

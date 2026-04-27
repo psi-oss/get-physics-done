@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -28,6 +29,7 @@ from scripts.repo_graph_contract import (
     replace_marked_block,
     sync_readme_text,
 )
+from scripts.sync_repo_graph_contract import check_generated_artifacts
 
 _WORKFLOW_ONLY_STEMS = {"execute-plan", "transition", "verify-phase"}
 _COMMAND_ONLY_STEMS = {"health", "suggest-next"}
@@ -240,6 +242,27 @@ def test_graph_readme_generated_blocks_match_contract() -> None:
 
     assert extract_marked_block(graph_text, GENERATED_ON_START, GENERATED_ON_END) == render_generated_on_block(contract)
     assert extract_marked_block(graph_text, SCOPE_START, SCOPE_END) == render_scope_block(contract)
+
+
+def test_graph_check_detects_stale_generated_contract_without_mutation(tmp_path: Path) -> None:
+    graph_path = tmp_path / "README.md"
+    contract_path = tmp_path / "repo_graph_contract.json"
+    contract = load_contract()
+    stale_contract = dict(contract)
+    stale_contract["scope_counts"] = {
+        label: int(value) + 1 for label, value in contract["scope_counts"].items()
+    }
+    graph_path.write_text(read_graph_text(), encoding="utf-8")
+    contract_path.write_text(json.dumps(stale_contract, indent=2) + "\n", encoding="utf-8")
+
+    before_graph = graph_path.read_text(encoding="utf-8")
+    before_contract = contract_path.read_text(encoding="utf-8")
+
+    diffs = check_generated_artifacts(graph_path=graph_path, contract_path=contract_path)
+
+    assert any("repo_graph_contract.json" in diff for diff in diffs)
+    assert graph_path.read_text(encoding="utf-8") == before_graph
+    assert contract_path.read_text(encoding="utf-8") == before_contract
 
 
 def test_graph_sync_repairs_stale_marked_blocks() -> None:

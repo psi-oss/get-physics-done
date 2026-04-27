@@ -256,6 +256,9 @@ _SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS = (
     REPO_ROOT / "src/gpd/hooks/notify.py",
     REPO_ROOT / "src/gpd/hooks/payload_roots.py",
     REPO_ROOT / "src/gpd/hooks/statusline.py",
+    REPO_ROOT / "tests/hooks/test_notify.py",
+    REPO_ROOT / "tests/hooks/test_payload_roots.py",
+    REPO_ROOT / "tests/hooks/test_statusline.py",
 )
 _RUNTIME_ADAPTER_IMPLEMENTATION_PATHS = tuple(
     REPO_ROOT / f"src/gpd/adapters/{adapter.__class__.__module__.rsplit('.', 1)[-1]}.py"
@@ -475,7 +478,7 @@ def test_shared_hook_policy_consumers_do_not_duplicate_catalog_hook_payload_key_
             )
 
     assert leaks == [], (
-        "Shared hooks should consume hook payload keys from runtime_catalog policies instead of duplicating them:\n"
+        "Shared hooks and hook tests should consume hook payload keys from runtime_catalog policies instead of duplicating them:\n"
         f"{_format_failures(leaks)}"
     )
 

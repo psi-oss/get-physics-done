@@ -411,7 +411,7 @@ Runtime sync:
 - If relaunch is still required, say clearly that unattended use is not ready yet under the newly selected autonomy setting.
 - `gpd permissions status --runtime <runtime> --autonomy <mode>` and `gpd permissions sync --runtime <runtime> --autonomy <mode>` in this workflow only handle runtime-owned permission alignment, not install validation. Use the selected autonomy value; if unchanged, that is `supervised`.
 
-Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`.
+Project conventions still live in `GPD/state.json` (`convention_lock`) with `GPD/CONVENTIONS.md` as the projection/audit surface, not in `GPD/config.json`.
 
 Quick commands:
 - gpd:set-profile <profile> -- switch research profile
@@ -445,7 +445,7 @@ Workflow config from `GPD/config.json` is consumed by:
 - **gpd cost / runtime hints**: advisory USD budget guardrails for the current project/session when configured
 - **gpd hooks / runtime adapters**: Runtime-specific model overrides and related execution defaults
 
-Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
+Project conventions propagate separately through `GPD/state.json` (`convention_lock`) and the `GPD/CONVENTIONS.md` projection, with the lock as the source of truth for planning, execution, and verification.
 </downstream_consumption>
 
 <success_criteria>

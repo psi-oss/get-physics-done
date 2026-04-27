@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +117,7 @@ class RuntimeDescriptor:
     global_config: GlobalConfigPolicy
     hook_payload: HookPayloadPolicy
     capabilities: RuntimeCapabilityPolicy = RuntimeCapabilityPolicy()
+    managed_install_surface: ManagedInstallSurfacePolicy = ManagedInstallSurfacePolicy()
     manifest_file_prefixes: tuple[str, ...] = ()
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
@@ -319,6 +320,51 @@ def _validated_capability_values(
     return values
 
 
+def _validated_string_tuple_policy_values(
+    payload: dict[str, object],
+    *,
+    label: str,
+    policy_keys: frozenset[str],
+    policy_defaults: dict[str, object] | None,
+) -> dict[str, tuple[str, ...]]:
+    _require_allowed_keys(payload, label=label, allowed_keys=policy_keys)
+    if policy_defaults is None:
+        _require_keys(payload, label=label, required_keys=policy_keys)
+
+    values: dict[str, tuple[str, ...]] = {}
+    for field_name in sorted(policy_keys):
+        if field_name in payload:
+            values[field_name] = _require_string_tuple(
+                payload[field_name],
+                label=f"{label}.{field_name}",
+                allow_empty=True,
+            )
+            continue
+        if policy_defaults is None:
+            raise KeyError(field_name)
+        default_value = policy_defaults[field_name]
+        if not isinstance(default_value, tuple):
+            raise ValueError(f"{label}.{field_name} default must be a tuple of strings")
+        values[field_name] = default_value
+    return values
+
+
+def _validate_managed_install_surface_globs(values: dict[str, tuple[str, ...]], *, label: str) -> None:
+    for field_name, patterns in values.items():
+        for index, pattern in enumerate(patterns):
+            normalized = pattern.replace("\\", "/")
+            if (
+                normalized.startswith("/")
+                or normalized.startswith("~")
+                or PureWindowsPath(pattern).drive
+                or PureWindowsPath(pattern).is_absolute()
+                or ".." in PurePosixPath(normalized).parts
+            ):
+                raise ValueError(
+                    f"{label}.{field_name}.{index} must be a relative managed install glob without traversal"
+                )
+
+
 def _capability_policy_from_values(values: dict[str, object]) -> RuntimeCapabilityPolicy:
     return RuntimeCapabilityPolicy(
         permissions_surface=values["permissions_surface"],
@@ -420,6 +466,9 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "capability_defaults",
         "capability_enums",
         "hook_payload_keys",
+        "hook_payload_defaults",
+        "managed_install_surface_keys",
+        "managed_install_surface_defaults",
         "install_help_example_scopes",
         "launch_wrapper_permission_surface_kinds",
     }
@@ -517,6 +566,61 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     hook_payload_keys = frozenset(
         _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
     )
+    hook_payload_defaults_raw = _require_schema_mapping(
+        raw_schema.get("hook_payload_defaults"),
+        label="runtime catalog schema.hook_payload_defaults",
+    )
+    unknown_hook_payload_default_keys = sorted(key for key in hook_payload_defaults_raw if key not in hook_payload_keys)
+    missing_hook_payload_default_keys = sorted(key for key in hook_payload_keys if key not in hook_payload_defaults_raw)
+    if unknown_hook_payload_default_keys:
+        raise ValueError(
+            "runtime catalog schema.hook_payload_defaults contains unknown key(s): "
+            + ", ".join(unknown_hook_payload_default_keys)
+        )
+    if missing_hook_payload_default_keys:
+        raise ValueError(
+            "runtime catalog schema.hook_payload_defaults is missing key(s): "
+            + ", ".join(missing_hook_payload_default_keys)
+        )
+    hook_payload_defaults = _validated_string_tuple_policy_values(
+        dict(hook_payload_defaults_raw),
+        label="runtime catalog schema.hook_payload_defaults",
+        policy_keys=hook_payload_keys,
+        policy_defaults=None,
+    )
+    managed_install_surface_keys = frozenset(
+        _require_string_tuple(
+            raw_schema.get("managed_install_surface_keys"),
+            label="runtime catalog schema.managed_install_surface_keys",
+            allow_empty=False,
+        )
+    )
+    managed_install_surface_defaults_raw = _require_schema_mapping(
+        raw_schema.get("managed_install_surface_defaults"),
+        label="runtime catalog schema.managed_install_surface_defaults",
+    )
+    unknown_managed_surface_default_keys = sorted(
+        key for key in managed_install_surface_defaults_raw if key not in managed_install_surface_keys
+    )
+    missing_managed_surface_default_keys = sorted(
+        key for key in managed_install_surface_keys if key not in managed_install_surface_defaults_raw
+    )
+    if unknown_managed_surface_default_keys:
+        raise ValueError(
+            "runtime catalog schema.managed_install_surface_defaults contains unknown key(s): "
+            + ", ".join(unknown_managed_surface_default_keys)
+        )
+    if missing_managed_surface_default_keys:
+        raise ValueError(
+            "runtime catalog schema.managed_install_surface_defaults is missing key(s): "
+            + ", ".join(missing_managed_surface_default_keys)
+        )
+    managed_install_surface_defaults = _validated_string_tuple_policy_values(
+        dict(managed_install_surface_defaults_raw),
+        label="runtime catalog schema.managed_install_surface_defaults",
+        policy_keys=managed_install_surface_keys,
+        policy_defaults=None,
+    )
     install_help_example_scopes = frozenset(
         _require_string_tuple(
             raw_schema.get("install_help_example_scopes"),
@@ -534,6 +638,9 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "capability_defaults": default_capability_values,
         "capability_enums": capability_enums,
         "hook_payload_keys": hook_payload_keys,
+        "hook_payload_defaults": hook_payload_defaults,
+        "managed_install_surface_keys": managed_install_surface_keys,
+        "managed_install_surface_defaults": managed_install_surface_defaults,
         "install_help_example_scopes": install_help_example_scopes,
         "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
     }
@@ -556,6 +663,9 @@ _RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
 _RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
 _RUNTIME_CAPABILITY_DEFAULTS = _RUNTIME_CATALOG_SHAPE["capability_defaults"]
 _RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
+_RUNTIME_HOOK_PAYLOAD_DEFAULTS = _RUNTIME_CATALOG_SHAPE["hook_payload_defaults"]
+_RUNTIME_MANAGED_INSTALL_SURFACE_KEYS = _RUNTIME_CATALOG_SHAPE["managed_install_surface_keys"]
+_RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS = _RUNTIME_CATALOG_SHAPE["managed_install_surface_defaults"]
 _RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
 
 
@@ -712,40 +822,27 @@ def _parse_command_prefix(value: object, *, label: str) -> str:
 
 def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
     payload = _require_mapping(entry, label=label)
-    _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_HOOK_PAYLOAD_KEYS)
-    _require_keys(payload, label=label, required_keys=_RUNTIME_HOOK_PAYLOAD_KEYS)
-
     return HookPayloadPolicy(
-        notify_event_types=_require_string_tuple(payload.get("notify_event_types"), label=f"{label}.notify_event_types", allow_empty=True),
-        workspace_keys=_require_string_tuple(payload.get("workspace_keys"), label=f"{label}.workspace_keys", allow_empty=True),
-        project_dir_keys=_require_string_tuple(payload.get("project_dir_keys"), label=f"{label}.project_dir_keys", allow_empty=True),
-        target_path_keys=_require_string_tuple(payload.get("target_path_keys"), label=f"{label}.target_path_keys", allow_empty=True),
-        target_root_keys=_require_string_tuple(payload.get("target_root_keys"), label=f"{label}.target_root_keys", allow_empty=True),
-        runtime_session_id_keys=_require_string_tuple(
-            payload.get("runtime_session_id_keys"), label=f"{label}.runtime_session_id_keys", allow_empty=True
-        ),
-        model_keys=_require_string_tuple(payload.get("model_keys"), label=f"{label}.model_keys", allow_empty=True),
-        provider_keys=_require_string_tuple(payload.get("provider_keys"), label=f"{label}.provider_keys", allow_empty=True),
-        usage_keys=_require_string_tuple(payload.get("usage_keys"), label=f"{label}.usage_keys", allow_empty=True),
-        input_tokens_keys=_require_string_tuple(payload.get("input_tokens_keys"), label=f"{label}.input_tokens_keys", allow_empty=True),
-        output_tokens_keys=_require_string_tuple(payload.get("output_tokens_keys"), label=f"{label}.output_tokens_keys", allow_empty=True),
-        total_tokens_keys=_require_string_tuple(payload.get("total_tokens_keys"), label=f"{label}.total_tokens_keys", allow_empty=True),
-        cached_input_tokens_keys=_require_string_tuple(
-            payload.get("cached_input_tokens_keys"), label=f"{label}.cached_input_tokens_keys", allow_empty=True
-        ),
-        cache_write_input_tokens_keys=_require_string_tuple(
-            payload.get("cache_write_input_tokens_keys"), label=f"{label}.cache_write_input_tokens_keys", allow_empty=True
-        ),
-        cost_usd_keys=_require_string_tuple(payload.get("cost_usd_keys"), label=f"{label}.cost_usd_keys", allow_empty=True),
-        agent_id_keys=_require_string_tuple(payload.get("agent_id_keys"), label=f"{label}.agent_id_keys", allow_empty=True),
-        agent_name_keys=_require_string_tuple(payload.get("agent_name_keys"), label=f"{label}.agent_name_keys", allow_empty=True),
-        agent_scope_keys=_require_string_tuple(payload.get("agent_scope_keys"), label=f"{label}.agent_scope_keys", allow_empty=True),
-        context_window_size_keys=_require_string_tuple(
-            payload.get("context_window_size_keys"), label=f"{label}.context_window_size_keys", allow_empty=True
-        ),
-        context_remaining_keys=_require_string_tuple(
-            payload.get("context_remaining_keys"), label=f"{label}.context_remaining_keys", allow_empty=True
-        ),
+        **_validated_string_tuple_policy_values(
+            payload,
+            label=label,
+            policy_keys=_RUNTIME_HOOK_PAYLOAD_KEYS,
+            policy_defaults=_RUNTIME_HOOK_PAYLOAD_DEFAULTS,
+        )
+    )
+
+
+def _parse_managed_install_surface(entry: object, *, label: str) -> ManagedInstallSurfacePolicy:
+    payload = _require_mapping(entry, label=label)
+    values = _validated_string_tuple_policy_values(
+        payload,
+        label=label,
+        policy_keys=_RUNTIME_MANAGED_INSTALL_SURFACE_KEYS,
+        policy_defaults=_RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS,
+    )
+    _validate_managed_install_surface_globs(values, label=label)
+    return ManagedInstallSurfacePolicy(
+        **values
     )
 
 
@@ -845,6 +942,10 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 launch_wrapper_permission_surface_kinds=_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS,
             ),
             hook_payload=_parse_hook_payload(payload["hook_payload"], label=f"{label}.hook_payload"),
+            managed_install_surface=_parse_managed_install_surface(
+                payload["managed_install_surface"] if "managed_install_surface" in payload else {},
+                label=f"{label}.managed_install_surface",
+            ),
             manifest_file_prefixes=_require_string_tuple(
                 payload["manifest_file_prefixes"]
                 if "manifest_file_prefixes" in payload
@@ -901,13 +1002,12 @@ def get_shared_install_metadata() -> SharedInstallMetadata:
 
 def _runtime_managed_install_surface_policy(descriptor: RuntimeDescriptor) -> ManagedInstallSurfacePolicy:
     install_root = get_shared_install_metadata().install_root_dir_name
-    flat_command_runtime = "command/" in descriptor.manifest_file_prefixes
-    external_command_runtime = "skills/" in descriptor.manifest_file_prefixes
+    configured = descriptor.managed_install_surface
     return ManagedInstallSurfacePolicy(
-        gpd_content_globs=(f"{install_root}/**/*",),
-        nested_command_globs=() if flat_command_runtime or external_command_runtime else ("commands/gpd/**/*",),
-        flat_command_globs=("command/gpd-*.md",) if flat_command_runtime else (),
-        managed_agent_globs=("agents/gpd-*.md", "agents/gpd-*.toml"),
+        gpd_content_globs=_merge_unique(((f"{install_root}/**/*",), configured.gpd_content_globs)),
+        nested_command_globs=configured.nested_command_globs,
+        flat_command_globs=configured.flat_command_globs,
+        managed_agent_globs=configured.managed_agent_globs,
     )
 
 

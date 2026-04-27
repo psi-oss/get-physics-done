@@ -2088,6 +2088,175 @@ class TestRegistryPromptIncludeInlining:
             )
         ]
 
+    def test_write_paper_registry_surface_matches_frontmatter_external_authoring_contract(self) -> None:
+        command = registry.get_command("gpd:write-paper")
+        meta, _ = _parse_frontmatter(Path(command.path).read_text(encoding="utf-8"))
+        policy_meta = meta["command-policy"]
+        subject_policy_meta = policy_meta["subject_policy"]
+        supporting_context_meta = policy_meta["supporting_context_policy"]
+        review_contract_meta = meta["review-contract"]
+        frontmatter_scope_variants = {
+            str(variant["scope"]): variant for variant in review_contract_meta["scope_variants"]
+        }
+        scope_variant_meta = frontmatter_scope_variants["explicit_intake_manifest"]
+
+        assert command.argument_hint == meta["argument-hint"]
+        assert command.context_mode == meta["context_mode"]
+        assert command.command_policy is not None
+        assert command.command_policy.subject_policy is not None
+        assert command.command_policy.subject_policy.explicit_input_kinds == subject_policy_meta["explicit_input_kinds"]
+        assert command.command_policy.subject_policy.allow_external_subjects == subject_policy_meta[
+            "allow_external_subjects"
+        ]
+        assert command.command_policy.subject_policy.allow_interactive_without_subject == subject_policy_meta[
+            "allow_interactive_without_subject"
+        ]
+        assert command.command_policy.subject_policy.bootstrap_allowed == subject_policy_meta["bootstrap_allowed"]
+        assert command.command_policy.supporting_context_policy is not None
+        assert (
+            command.command_policy.supporting_context_policy.project_context_mode
+            == supporting_context_meta["project_context_mode"]
+        )
+        assert (
+            command.command_policy.supporting_context_policy.project_reentry_mode
+            == supporting_context_meta["project_reentry_mode"]
+        )
+
+        assert command.review_contract is not None
+        scope_variants = {
+            str(variant.scope): variant for variant in command.review_contract.scope_variants
+        }
+        scope_variant = scope_variants["explicit_intake_manifest"]
+        assert scope_variant.relaxed_preflight_checks == scope_variant_meta["relaxed_preflight_checks"]
+        assert scope_variant.optional_preflight_checks == scope_variant_meta["optional_preflight_checks"]
+        assert scope_variant.required_outputs_override == scope_variant_meta["required_outputs_override"]
+        assert scope_variant.required_evidence_override == scope_variant_meta["required_evidence_override"]
+        assert scope_variant.blocking_conditions_override == scope_variant_meta["blocking_conditions_override"]
+
+    def test_write_paper_external_authoring_validator_accepts_order_equivalent_scope_lists(self) -> None:
+        command_policy = registry.CommandPolicy(
+            subject_policy=registry.CommandSubjectPolicy(
+                explicit_input_kinds=["authoring_intake_manifest"],
+                allow_external_subjects=False,
+                allow_interactive_without_subject=False,
+                bootstrap_allowed=True,
+            ),
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-aware",
+                project_reentry_mode="disallowed",
+            ),
+        )
+        review_contract = registry.ReviewCommandContract(
+            review_mode="publication",
+            required_outputs=[],
+            required_evidence=[],
+            blocking_conditions=[],
+            preflight_checks=[],
+            scope_variants=[
+                registry.ReviewContractScopeVariant(
+                    scope="explicit_intake_manifest",
+                    activation="validated external intake",
+                    relaxed_preflight_checks=[
+                        "manuscript_proof_review",
+                        "verification_reports",
+                        "research_artifacts",
+                        "conventions",
+                        "roadmap",
+                        "project_state",
+                    ],
+                    optional_preflight_checks=[
+                        "reproducibility_ready",
+                        "reproducibility_manifest",
+                        "bibliography_audit_clean",
+                        "bibliography_audit",
+                        "artifact_manifest",
+                    ],
+                    required_outputs_override=[
+                        "${PAPER_DIR}/reproducibility-manifest.json",
+                        "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                        "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                        "${PAPER_DIR}/PAPER-CONFIG.json",
+                        "${PAPER_DIR}/{topic_specific_stem}.tex",
+                    ],
+                    required_evidence_override=[
+                        "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                    ],
+                    blocking_conditions_override=["invalid or incomplete external authoring intake manifest"],
+                )
+            ],
+        )
+
+        registry._validate_write_paper_external_authoring_frontmatter(
+            Path(registry.get_command("gpd:write-paper").path),
+            command_name="gpd:write-paper",
+            context_mode="project-aware",
+            command_policy=command_policy,
+            review_contract=review_contract,
+        )
+
+    def test_write_paper_external_authoring_validator_rejects_duplicate_scope_list_entries(self) -> None:
+        command_policy = registry.CommandPolicy(
+            subject_policy=registry.CommandSubjectPolicy(
+                explicit_input_kinds=["authoring_intake_manifest"],
+                allow_external_subjects=False,
+                allow_interactive_without_subject=False,
+                bootstrap_allowed=True,
+            ),
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-aware",
+                project_reentry_mode="disallowed",
+            ),
+        )
+        review_contract = registry.ReviewCommandContract(
+            review_mode="publication",
+            required_outputs=[],
+            required_evidence=[],
+            blocking_conditions=[],
+            preflight_checks=[],
+            scope_variants=[
+                registry.ReviewContractScopeVariant(
+                    scope="explicit_intake_manifest",
+                    activation="validated external intake",
+                    relaxed_preflight_checks=[
+                        "project_state",
+                        "project_state",
+                        "roadmap",
+                        "conventions",
+                        "research_artifacts",
+                        "verification_reports",
+                        "manuscript_proof_review",
+                    ],
+                    optional_preflight_checks=[
+                        "artifact_manifest",
+                        "bibliography_audit",
+                        "bibliography_audit_clean",
+                        "reproducibility_manifest",
+                        "reproducibility_ready",
+                    ],
+                    required_outputs_override=[
+                        "${PAPER_DIR}/{topic_specific_stem}.tex",
+                        "${PAPER_DIR}/PAPER-CONFIG.json",
+                        "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                        "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                        "${PAPER_DIR}/reproducibility-manifest.json",
+                    ],
+                    required_evidence_override=[
+                        "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                    ],
+                    blocking_conditions_override=["invalid or incomplete external authoring intake manifest"],
+                )
+            ],
+        )
+
+        with pytest.raises(ValueError, match=r"relaxed_preflight_checks must not contain duplicates"):
+            registry._validate_write_paper_external_authoring_frontmatter(
+                Path(registry.get_command("gpd:write-paper").path),
+                command_name="gpd:write-paper",
+                context_mode="project-aware",
+                command_policy=command_policy,
+                review_contract=review_contract,
+            )
+
     def test_publication_review_skills_keep_the_needed_contract_references_visible(self) -> None:
         from gpd.mcp.servers.skills_server import get_skill
 

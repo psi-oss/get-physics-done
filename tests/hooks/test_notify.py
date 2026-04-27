@@ -51,7 +51,7 @@ class _ExecutionSnapshot(SimpleNamespace):
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
-    home_cache = home / "GPD" / "cache"
+    home_cache = home / ".gpd" / "cache"
     home_cache.mkdir(parents=True)
     (home_cache / "gpd-update-check.json").write_text(
         json.dumps({"update_available": False, "checked": 10}),
@@ -492,10 +492,10 @@ def test_record_usage_telemetry_prefers_resolved_active_runtime_when_supplied(tm
     assert mock_record.call_args.kwargs["runtime"] == _TELEMETRY_RUNTIME
 
 
-def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
-    gpd_cache = tmp_path / "GPD" / "cache"
-    gpd_cache.mkdir(parents=True)
-    (gpd_cache / "gpd-update-check.json").write_text(
+def test_notify_home_update_cache_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
+    home_cache = tmp_path / "home" / ".gpd" / "cache"
+    home_cache.mkdir(parents=True)
+    (home_cache / "gpd-update-check.json").write_text(
         json.dumps(
             {
                 "update_available": True,
@@ -510,7 +510,7 @@ def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp
     stderr = io.StringIO()
     with (
         patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
         patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
         patch("sys.stderr", stderr),
     ):
@@ -519,6 +519,26 @@ def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp
     output = stderr.getvalue()
     assert f"Run: {update_command_for_runtime('unknown')}" in output
     assert "Run: gpd-update" not in output
+
+
+def test_notify_ignores_stale_project_local_update_cache(tmp_path: Path) -> None:
+    project_cache = tmp_path / "GPD" / "cache"
+    project_cache.mkdir(parents=True)
+    (project_cache / "gpd-update-check.json").write_text(
+        json.dumps({"update_available": True, "installed": "2.0.0", "latest": "2.1.0", "checked": 30}),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update()
+
+    assert stderr.getvalue() == ""
 
 
 def test_notification_state_path_uses_project_layout_observability_root(tmp_path: Path) -> None:

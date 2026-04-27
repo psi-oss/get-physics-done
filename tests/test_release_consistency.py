@@ -13,6 +13,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 
 from gpd._python_compat import MIN_SUPPORTED_PYTHON_LABEL
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
@@ -24,6 +25,7 @@ from scripts.release_workflow import (
     stamp_publish_date,
     update_readme_version_text,
 )
+from tests.ci_sharding import assert_ci_workflow_pytest_shard_policy
 
 
 def _repo_root() -> Path:
@@ -471,6 +473,7 @@ def test_public_cli_surface_is_unified() -> None:
 def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+    workflow_data = yaml.safe_load(workflow)
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
 
     assert "name: tests" in workflow
@@ -479,33 +482,13 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert "branches: [main]" in workflow
     assert "workflow_dispatch:" in workflow
     assert f"name: pytest ${{{{ matrix.display_name }}}} ({MIN_SUPPORTED_PYTHON_LABEL})" in workflow
-    assert "fail-fast: false" in workflow
-    assert "display_name: root 1/9" in workflow
-    assert "display_name: root 9/9" in workflow
-    assert "display_name: adapters 1/2" in workflow
-    assert "display_name: adapters 2/2" in workflow
-    assert "display_name: hooks 1/2" in workflow
-    assert "display_name: hooks 2/2" in workflow
-    assert "display_name: mcp" in workflow
-    assert "display_name: core 5/5" in workflow
-    assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert f'python-version: "{MIN_SUPPORTED_PYTHON_LABEL}"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
-    assert "uv sync --dev" in workflow
-    assert "Smoke repo graph sync with PATH python" in workflow
-    assert "python scripts/sync_repo_graph_contract.py" in workflow
-    assert "Verify repo graph generated artifacts are current" in workflow
-    assert "git diff --exit-code -- tests/README.md tests/repo_graph_contract.json" in workflow
+    assert "Check repo graph generated artifacts" in workflow
+    assert "python scripts/sync_repo_graph_contract.py --check" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
-    assert "Resolve pytest shard targets" in workflow
-    assert "Run pytest shard" in workflow
-    assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
-    assert "PYTEST_CATEGORY" in workflow
-    assert "GPD_FAST_SUITE_BUDGET_SECONDS: \"180\"" in workflow
-    assert "timeout-minutes: 10" in workflow
-    assert "--durations=20 --durations-min=1.0" in workflow
-    assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in workflow
+    assert_ci_workflow_pytest_shard_policy(workflow_data, pyproject_text=pyproject)
 
     # Staging rebuild trigger lives in a separate workflow (staging-rebuild.yml)
     # to avoid showing as a skipped check on PRs. It gates on tests via workflow_run.

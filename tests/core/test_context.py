@@ -2685,7 +2685,7 @@ class TestInitNewProject:
         manuscript_dir.mkdir(parents=True)
         intake_dir = manuscript_dir.parent / "intake"
         intake_dir.mkdir(parents=True)
-        (intake_dir / "paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
+        (intake_dir / "write-paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
         (manuscript_dir / "main.tex").write_text(
             "\\documentclass{article}\\begin{document}External lane draft.\\end{document}\n",
             encoding="utf-8",

@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 
-import gpd.adapters.install_utils as install_utils
 from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
     get_shared_install_metadata,
@@ -128,12 +127,27 @@ class ManagedInstallSurface:
 def _glob_contains_files(config_dir: Path, patterns: tuple[str, ...]) -> bool:
     """Return whether any configured managed-surface glob materializes files."""
 
-    for pattern in patterns:
-        for match in config_dir.glob(pattern):
-            if match.is_file():
+    try:
+        for pattern in patterns:
+            for match in config_dir.glob(pattern):
+                if match.is_file():
+                    return True
+                if match.is_dir() and _dir_contains_files(match):
+                    return True
+    except OSError:
+        return True
+    return False
+
+
+def _dir_contains_files(path: Path) -> bool:
+    """Return whether *path* contains at least one regular file."""
+
+    try:
+        for child in path.rglob("*"):
+            if child.is_file():
                 return True
-            if match.is_dir() and install_utils._dir_contains_files(match):
-                return True
+    except OSError:
+        return True
     return False
 
 

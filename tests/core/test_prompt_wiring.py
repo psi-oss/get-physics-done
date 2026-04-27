@@ -310,6 +310,10 @@ def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
     return content[start:end]
 
 
+def _stage0_plan_with_contract_text() -> str:
+    return (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8")
+
+
 def test_planner_templates_exist():
     planner_prompt = TEMPLATES_DIR / "planner-subagent-prompt.md"
     phase_prompt = TEMPLATES_DIR / "phase-prompt.md"
@@ -373,6 +377,19 @@ def test_paper_writer_uses_lightweight_path_mentions_for_metadata_only_reference
         eager = f"@{{GPD_INSTALL_DIR}}/{path}"
         assert lightweight in writer_text
         assert eager not in writer_text
+
+
+def test_paper_writer_keeps_cookbook_material_lazy_loaded() -> None:
+    writer_text = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
+    cookbook = (REFERENCES_DIR / "publication" / "paper-writer-cookbook.md").read_text(encoding="utf-8")
+
+    assert "<writing_reference_packs>" in writer_text
+    assert "<figure_design>" not in writer_text
+    assert "<supplemental_material>" not in writer_text
+    assert "Journal-Specific Figure Requirements" not in writer_text
+    assert "Abstract And Section Shape" in cookbook
+    assert "Equation And Figure Details" in cookbook
+    assert "Supplemental Material Placement" in cookbook
 
 
 def test_bibliographer_uses_lightweight_path_mentions_for_metadata_only_reference_packs() -> None:
@@ -908,7 +925,7 @@ def test_readme_command_context_taxonomy_surfaces_global_mode_and_project_aware_
         "gpd:review-knowledge",
         "gpd:literature-review",
         "gpd:peer-review",
-        "gpd:write-paper --intake intake/paper-authoring-input.json",
+        "gpd:write-paper --intake intake/write-paper-authoring-input.json",
     ):
         assert command_name in project_aware_line
     assert "Project-aware commands stay rooted in the current workspace" in command_context
@@ -1154,7 +1171,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond_command = registry.get_command("respond-to-referees")
 
     assert "context_mode: project-aware" in write_paper
-    assert "--intake path/to/paper-authoring-input.json" in write_paper
+    assert "--intake path/to/write-paper-authoring-input.json" in write_paper
     assert "managed project manuscript lane such as `GPD/publication/{subject_slug}/manuscript`" in write_paper
     assert "GPD-owned review/response auxiliaries stay under `GPD/`" in write_paper
     assert "`paper/`, `manuscript/`, and `draft/`" in peer_review
@@ -2281,6 +2298,39 @@ def test_validator_backed_examples_use_concrete_machine_readable_values() -> Non
     ).read_text(encoding="utf-8")
 
 
+def test_convention_templates_are_state_lock_projections_not_authorities() -> None:
+    conventions = (TEMPLATES_DIR / "conventions.md").read_text(encoding="utf-8")
+    notation = (TEMPLATES_DIR / "notation-glossary.md").read_text(encoding="utf-8")
+    mapper = (AGENTS_DIR / "gpd-research-mapper.md").read_text(encoding="utf-8")
+    infra = (REFERENCES_DIR / "orchestration" / "agent-infrastructure.md").read_text(encoding="utf-8")
+
+    assert "human-readable projection and audit surface" in conventions
+    assert "**Authoritative lock:** `GPD/state.json` -> `convention_lock`" in conventions
+    assert "not the source\n> of truth" in conventions
+    assert "This glossary is not a second convention authority" in notation
+    assert "`state.json.convention_lock` plus the `GPD/CONVENTIONS.md` / `GPD/NOTATION_GLOSSARY.md` projections" in (
+        AGENTS_DIR / "gpd-paper-writer.md"
+    ).read_text(encoding="utf-8")
+    assert "state.json.convention_lock` through `gpd convention set`" in mapper
+    assert "authoritative project-level convention lock" not in mapper
+    assert "Direct-commit allowlist:" not in infra
+    assert "Agents: project-researcher" not in infra
+    assert "Agents that write or verify equations" in infra
+
+
+def test_verification_report_top_level_status_excludes_partial_while_nested_contracts_keep_it() -> None:
+    verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
+
+    assert "Top-level `status` is limited to `passed`, `gaps_found`, `expert_needed`, or `human_needed`" in (
+        verification_template
+    )
+    assert "use `partial`, `gaps_found`" not in verification_template
+    assert "Nested `contract_results` entries" in verification_template
+    assert "including `partial` when a specific claim, deliverable, or acceptance test is only partly satisfied" in (
+        verification_template
+    )
+
+
 def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() -> None:
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
     planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
@@ -2627,7 +2677,7 @@ def test_verification_prompt_wiring_rejects_invalid_reference_and_proxy_scaffold
     phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)
     (phase_dir / "01-01-PLAN.md").write_text(
-        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        _stage0_plan_with_contract_text(),
         encoding="utf-8",
     )
     verification_path = phase_dir / "01-VERIFICATION.md"
@@ -2679,7 +2729,7 @@ def test_verification_prompt_wiring_requires_suggested_checks_for_compare_requir
     phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)
     (phase_dir / "01-01-PLAN.md").write_text(
-        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        _stage0_plan_with_contract_text(),
         encoding="utf-8",
     )
     verification_path = phase_dir / "01-VERIFICATION.md"
@@ -3575,6 +3625,27 @@ def test_peer_review_workflow_and_generated_skill_surface_keep_lifecycle_cleanup
 
     _assert_contains_fragments(peer_review_workflow, *expected_fragments)
     _assert_contains_fragments(peer_review_skill_content, *expected_fragments)
+
+
+def test_peer_review_spawned_stage_prompts_require_typed_child_returns() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "<step name=\"child_return_contract\">" in peer_review
+    assert "Human-readable `STAGE X COMPLETE` / `REVIEW COMPLETE` text is presentation only" in peer_review
+    assert "status: completed | checkpoint | blocked | failed" in peer_review
+    for stage_name in (
+        "reader",
+        "literature",
+        "math",
+        "proof_redteam",
+        "physics",
+        "interestingness",
+        "referee",
+    ):
+        assert f"`peer_review_stage: {stage_name}`" in peer_review
+    assert "files_written` exactly `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`" in peer_review
+    assert "files_written` exactly `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`" in peer_review
+    assert "files_written` naming only Stage 6-owned artifacts written in this run" in peer_review
 
 
 def test_bibliographer_skill_surface_stays_direct_only() -> None:

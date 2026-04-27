@@ -43,11 +43,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Smoke repo graph sync with PATH python
-        run: python scripts/sync_repo_graph_contract.py
-
-      - name: Verify repo graph generated artifacts are current
-        run: git diff --exit-code -- tests/README.md tests/repo_graph_contract.json
+      - name: Check repo graph generated artifacts
+        run: python scripts/sync_repo_graph_contract.py --check
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -194,7 +191,7 @@ jobs:
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
-          echo "Fast suite budget target: ${GPD_FAST_SUITE_BUDGET_SECONDS}s full-suite wall clock; shard timeout: 10 minutes"
+          echo "Fast suite advisory target: ${GPD_FAST_SUITE_BUDGET_SECONDS}s full-suite wall clock; shard timeout: 10 minutes"
           uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
 
   # Staging rebuild trigger moved to staging-rebuild.yml so it doesn't

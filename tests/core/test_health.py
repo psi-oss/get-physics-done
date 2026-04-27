@@ -1537,6 +1537,30 @@ class TestRunHealth:
         assert state_check.details["state_source"] == "state.json"
         assert report.fixes_applied == ["Regenerated state.json from STATE.md"]
 
+    def test_fix_mode_from_nested_workspace_repairs_project_root_without_creating_nested_gpd(
+        self, tmp_path: Path
+    ) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        nested = cwd / "scratch" / "notes"
+        nested.mkdir(parents=True)
+        layout = ProjectLayout(cwd)
+
+        state = default_state_dict()
+        state["position"]["status"] = "Executing"
+        state["position"]["current_phase"] = "12"
+        layout.state_md.write_text(generate_state_markdown(state), encoding="utf-8")
+        layout.state_json.unlink()
+        if layout.state_json_backup.exists():
+            layout.state_json_backup.unlink()
+
+        report = run_health(nested, fix=True)
+        state_check = next(check for check in report.checks if check.label == "State Validity")
+
+        assert layout.state_json.exists()
+        assert not (nested / "GPD").exists()
+        assert state_check.details["state_source"] == "state.json"
+        assert report.fixes_applied == ["Regenerated state.json from STATE.md"]
+
     def test_state_validity_phase_format_warning_uses_recovered_backup_state(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         layout = ProjectLayout(cwd)
@@ -2544,7 +2568,15 @@ def _init_git_repo(tmp_path: Path) -> Path:
 
 
 def _canonical_plan_frontmatter() -> str:
-    return (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+    content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+    return content.replace(
+        "    in_scope: [benchmark recovery]",
+        "    in_scope: [primary benchmark comparison]\n"
+        "    out_of_scope: [adjacent publication tasks]",
+    ).replace("depends_on: []", "depends_on: [GPD/STATE.md]").replace(
+        "files_modified: []",
+        "files_modified: [GPD/STATE.md]",
+    )
 
 
 class TestCheckLatestReturn:

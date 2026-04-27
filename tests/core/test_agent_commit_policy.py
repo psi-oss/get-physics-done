@@ -52,7 +52,8 @@ def test_registry_agent_commit_authority_values_are_valid() -> None:
 def test_agent_infrastructure_commit_policy_uses_frontmatter_inventory_instead_of_manual_matrix() -> None:
     infra = INFRA_PATH.read_text(encoding="utf-8")
 
-    assert "Direct-commit allowlist: `gpd-debugger`, `gpd-executor`, `gpd-planner`." in infra
+    assert "named allowlist" in infra
+    assert "Direct-commit allowlist:" not in infra
     assert "validated by the registry; do not duplicate a hand-maintained matrix" in infra
     assert "Canonical ownership matrix:" not in infra
     assert not re.search(r"^\| (gpd-[a-z-]+) \| `(?:direct|orchestrator)` \|", infra, re.MULTILINE)

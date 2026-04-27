@@ -164,6 +164,11 @@ const RUNTIME_CATALOG_CAPABILITY_ENUMS = Object.fromEntries(
 );
 const RUNTIME_CAPABILITY_DEFAULTS = Object.freeze(RUNTIME_CATALOG_SCHEMA.capability_defaults);
 const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.hook_payload_keys);
+const RUNTIME_HOOK_PAYLOAD_DEFAULTS = Object.freeze(RUNTIME_CATALOG_SCHEMA.hook_payload_defaults);
+const RUNTIME_CATALOG_MANAGED_INSTALL_SURFACE_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.managed_install_surface_keys);
+const RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS = Object.freeze(
+  RUNTIME_CATALOG_SCHEMA.managed_install_surface_defaults
+);
 const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.install_help_example_scopes);
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
   RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
@@ -627,6 +632,9 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
     "capability_defaults",
     "capability_enums",
     "hook_payload_keys",
+    "hook_payload_defaults",
+    "managed_install_surface_keys",
+    "managed_install_surface_defaults",
     "install_help_example_scopes",
     "launch_wrapper_permission_surface_kinds",
   ]);
@@ -656,72 +664,105 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
     capabilityEnums,
     launchWrapperPermissionSurfaceKinds,
   });
+  const hookPayloadKeys = requireStrictStringList(schema.hook_payload_keys, "runtime catalog schema.hook_payload_keys");
+  const hookPayloadKeySet = new Set(hookPayloadKeys);
+  const hookPayloadDefaults = requireJsonObject(
+    schema.hook_payload_defaults,
+    "runtime catalog schema.hook_payload_defaults"
+  );
+  requireKnownKeys(hookPayloadDefaults, hookPayloadKeySet, "runtime catalog schema.hook_payload_defaults");
+  requirePresentKeys(hookPayloadDefaults, hookPayloadKeys, "runtime catalog schema.hook_payload_defaults");
+  validateRuntimeCatalogHookPayload(hookPayloadDefaults, "runtime catalog schema.hook_payload_defaults", {
+    hookPayloadKeys: hookPayloadKeySet,
+    hookPayloadDefaults: null,
+  });
+  const managedInstallSurfaceKeys = requireStrictStringList(
+    schema.managed_install_surface_keys,
+    "runtime catalog schema.managed_install_surface_keys"
+  );
+  const managedInstallSurfaceKeySet = new Set(managedInstallSurfaceKeys);
+  const managedInstallSurfaceDefaults = requireJsonObject(
+    schema.managed_install_surface_defaults,
+    "runtime catalog schema.managed_install_surface_defaults"
+  );
+  requireKnownKeys(
+    managedInstallSurfaceDefaults,
+    managedInstallSurfaceKeySet,
+    "runtime catalog schema.managed_install_surface_defaults"
+  );
+  requirePresentKeys(
+    managedInstallSurfaceDefaults,
+    managedInstallSurfaceKeys,
+    "runtime catalog schema.managed_install_surface_defaults"
+  );
+  validateRuntimeCatalogManagedInstallSurface(
+    managedInstallSurfaceDefaults,
+    "runtime catalog schema.managed_install_surface_defaults",
+    {
+      managedInstallSurfaceKeys: managedInstallSurfaceKeySet,
+      managedInstallSurfaceDefaults: null,
+    }
+  );
   return schema;
 }
 
-function validateRuntimeCatalogHookPayload(hookPayload, label) {
-  const payload = requireJsonObject(hookPayload, label);
-  requireKnownKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
-  requirePresentKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
+function validateStringListPolicy(payload, keys, defaults, label) {
+  requireKnownKeys(payload, keys, label);
+  if (defaults === null) {
+    requirePresentKeys(payload, [...keys], label);
+  }
+  const validated = {};
+  for (const fieldName of [...keys].sort()) {
+    if (Object.prototype.hasOwnProperty.call(payload, fieldName)) {
+      validated[fieldName] = requireStrictStringList(payload[fieldName], `${label}.${fieldName}`, {
+        allowEmpty: true,
+      });
+      continue;
+    }
+    if (defaults === null) {
+      throw new Error(`${label} is missing required key(s): ${fieldName}`);
+    }
+    validated[fieldName] = [...defaults[fieldName]];
+  }
+  return validated;
+}
 
-  return {
-    notify_event_types: requireStrictStringList(payload.notify_event_types, `${label}.notify_event_types`, {
-      allowEmpty: true,
-    }),
-    workspace_keys: requireStrictStringList(payload.workspace_keys, `${label}.workspace_keys`, { allowEmpty: true }),
-    project_dir_keys: requireStrictStringList(payload.project_dir_keys, `${label}.project_dir_keys`, {
-      allowEmpty: true,
-    }),
-    runtime_session_id_keys: requireStrictStringList(
-      payload.runtime_session_id_keys,
-      `${label}.runtime_session_id_keys`,
-      { allowEmpty: true }
-    ),
-    model_keys: requireStrictStringList(payload.model_keys, `${label}.model_keys`, { allowEmpty: true }),
-    provider_keys: requireStrictStringList(payload.provider_keys, `${label}.provider_keys`, { allowEmpty: true }),
-    target_path_keys: requireStrictStringList(payload.target_path_keys, `${label}.target_path_keys`, {
-      allowEmpty: true,
-    }),
-    target_root_keys: requireStrictStringList(payload.target_root_keys, `${label}.target_root_keys`, {
-      allowEmpty: true,
-    }),
-    usage_keys: requireStrictStringList(payload.usage_keys, `${label}.usage_keys`, { allowEmpty: true }),
-    input_tokens_keys: requireStrictStringList(payload.input_tokens_keys, `${label}.input_tokens_keys`, {
-      allowEmpty: true,
-    }),
-    output_tokens_keys: requireStrictStringList(payload.output_tokens_keys, `${label}.output_tokens_keys`, {
-      allowEmpty: true,
-    }),
-    total_tokens_keys: requireStrictStringList(payload.total_tokens_keys, `${label}.total_tokens_keys`, {
-      allowEmpty: true,
-    }),
-    cached_input_tokens_keys: requireStrictStringList(
-      payload.cached_input_tokens_keys,
-      `${label}.cached_input_tokens_keys`,
-      { allowEmpty: true }
-    ),
-    cache_write_input_tokens_keys: requireStrictStringList(
-      payload.cache_write_input_tokens_keys,
-      `${label}.cache_write_input_tokens_keys`,
-      { allowEmpty: true }
-    ),
-    cost_usd_keys: requireStrictStringList(payload.cost_usd_keys, `${label}.cost_usd_keys`, { allowEmpty: true }),
-    agent_id_keys: requireStrictStringList(payload.agent_id_keys, `${label}.agent_id_keys`, { allowEmpty: true }),
-    agent_name_keys: requireStrictStringList(payload.agent_name_keys, `${label}.agent_name_keys`, { allowEmpty: true }),
-    agent_scope_keys: requireStrictStringList(payload.agent_scope_keys, `${label}.agent_scope_keys`, {
-      allowEmpty: true,
-    }),
-    context_window_size_keys: requireStrictStringList(
-      payload.context_window_size_keys,
-      `${label}.context_window_size_keys`,
-      { allowEmpty: true }
-    ),
-    context_remaining_keys: requireStrictStringList(
-      payload.context_remaining_keys,
-      `${label}.context_remaining_keys`,
-      { allowEmpty: true }
-    ),
-  };
+function validateRuntimeCatalogHookPayload(hookPayload, label, options = {}) {
+  const payload = requireJsonObject(hookPayload, label);
+  return validateStringListPolicy(
+    payload,
+    options.hookPayloadKeys || RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS,
+    Object.prototype.hasOwnProperty.call(options, "hookPayloadDefaults")
+      ? options.hookPayloadDefaults
+      : RUNTIME_HOOK_PAYLOAD_DEFAULTS,
+    label
+  );
+}
+
+function validateRuntimeCatalogManagedInstallSurface(managedInstallSurface, label, options = {}) {
+  const payload = requireJsonObject(managedInstallSurface, label);
+  const validated = validateStringListPolicy(
+    payload,
+    options.managedInstallSurfaceKeys || RUNTIME_CATALOG_MANAGED_INSTALL_SURFACE_KEYS,
+    Object.prototype.hasOwnProperty.call(options, "managedInstallSurfaceDefaults")
+      ? options.managedInstallSurfaceDefaults
+      : RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS,
+    label
+  );
+  for (const [fieldName, patterns] of Object.entries(validated)) {
+    patterns.forEach((pattern, index) => {
+      const normalized = pattern.replace(/\\/g, "/");
+      if (
+        normalized.startsWith("/") ||
+        normalized.startsWith("~") ||
+        /^[A-Za-z]:(?:\/|$)/.test(normalized) ||
+        normalized.split("/").includes("..")
+      ) {
+        throw new Error(`${label}.${fieldName}.${index} must be a relative managed install glob without traversal`);
+      }
+    });
+  }
+  return validated;
 }
 
 function validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label) {
@@ -741,6 +782,53 @@ function validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, l
       `${label}.capabilities.supports_agent_payload_attribution must match `
       + `${label}.hook_payload.agent_id_keys/agent_name_keys/agent_scope_keys`
     );
+  }
+}
+
+function validateRuntimeCatalogCapabilityHookPayloadContract(capabilities, hookPayload, label) {
+  const requireHookPayloadFields = (capabilityField, fieldNames) => {
+    const missing = fieldNames.filter((fieldName) => hookPayload[fieldName].length === 0);
+    if (missing.length > 0) {
+      throw new Error(
+        `${label}.capabilities.${capabilityField} requires `
+        + missing.map((fieldName) => `${label}.hook_payload.${fieldName}`).join(", ")
+      );
+    }
+  };
+
+  if (capabilities.statusline_surface === "explicit") {
+    requireHookPayloadFields("statusline_surface", ["model_keys"]);
+  }
+  if (capabilities.notify_surface === "explicit") {
+    requireHookPayloadFields("notify_surface", ["notify_event_types"]);
+  }
+  if (capabilities.telemetry_source === "notify-hook") {
+    if (capabilities.notify_surface !== "explicit") {
+      throw new Error(`${label}.capabilities.telemetry_source requires ${label}.capabilities.notify_surface=explicit`);
+    }
+    requireHookPayloadFields("telemetry_source", ["notify_event_types"]);
+  }
+  if (capabilities.supports_usage_tokens) {
+    if (capabilities.telemetry_source !== "notify-hook") {
+      throw new Error(
+        `${label}.capabilities.supports_usage_tokens requires ${label}.capabilities.telemetry_source=notify-hook`
+      );
+    }
+    requireHookPayloadFields("supports_usage_tokens", ["usage_keys", "input_tokens_keys", "output_tokens_keys"]);
+  }
+  if (capabilities.supports_cost_usd) {
+    if (capabilities.telemetry_source !== "notify-hook") {
+      throw new Error(`${label}.capabilities.supports_cost_usd requires ${label}.capabilities.telemetry_source=notify-hook`);
+    }
+    requireHookPayloadFields("supports_cost_usd", ["cost_usd_keys"]);
+  }
+  if (capabilities.supports_context_meter) {
+    if (capabilities.statusline_surface !== "explicit") {
+      throw new Error(
+        `${label}.capabilities.supports_context_meter requires ${label}.capabilities.statusline_surface=explicit`
+      );
+    }
+    requireHookPayloadFields("supports_context_meter", ["context_window_size_keys", "context_remaining_keys"]);
   }
 }
 
@@ -780,6 +868,11 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
   const globalConfig = validateRuntimeCatalogGlobalConfig(payload.global_config, `${label}.global_config`);
   const capabilities = validateRuntimeCatalogCapabilities(payload.capabilities, `${label}.capabilities`);
   const hookPayload = validateRuntimeCatalogHookPayload(payload.hook_payload, `${label}.hook_payload`);
+  const managedInstallSurface = validateRuntimeCatalogManagedInstallSurface(
+    Object.prototype.hasOwnProperty.call(payload, "managed_install_surface") ? payload.managed_install_surface : {},
+    `${label}.managed_install_surface`
+  );
+  validateRuntimeCatalogCapabilityHookPayloadContract(capabilities, hookPayload, label);
   validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label);
 
   return {
@@ -798,6 +891,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
     global_config: globalConfig,
     capabilities,
     hook_payload: hookPayload,
+    managed_install_surface: managedInstallSurface,
     manifest_file_prefixes: Object.prototype.hasOwnProperty.call(payload, "manifest_file_prefixes")
       ? requireStrictStringList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
           allowEmpty: true,

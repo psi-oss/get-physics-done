@@ -2210,7 +2210,7 @@ def test_validate_project_contract_salvages_singleton_list_string_drift_at_valid
         (
             lambda contract: contract["scope"].__setitem__("in_scope", "   "),
             False,
-            "scope.in_scope must name at least one project boundary or objective",
+            "scope.in_scope must include at least one non-empty string",
             "scope.in_scope must not be blank",
         ),
     ],
@@ -2261,14 +2261,16 @@ def test_parse_project_contract_data_salvage_normalizes_blank_string_list_corrup
     result = parse_project_contract_data_salvage(contract)
 
     assert result.contract is not None
-    assert result.blocking_errors == []
     assert any(expected_path in error and "must not be blank" in error for error in result.recoverable_errors)
 
     if expected_path == "context_intake.must_read_refs":
+        assert result.blocking_errors == []
         assert result.contract.context_intake.must_read_refs == []
     elif expected_path == "references.0.required_actions":
+        assert result.blocking_errors == []
         assert result.contract.references[0].required_actions == []
     else:
+        assert result.blocking_errors == ["scope.in_scope must include at least one non-empty string"]
         assert result.contract.scope.in_scope == []
 
 
@@ -2436,7 +2438,7 @@ def test_validate_project_contract_propagates_schema_errors() -> None:
     result = validate_project_contract(contract)
 
     assert result.valid is False
-    assert "scope.in_scope must name at least one project boundary or objective" in result.errors
+    assert "scope.in_scope must include at least one non-empty string" in result.errors
 
 
 def test_validate_project_contract_rejects_reference_aliases_list_shape_drift_at_validation_boundary() -> None:

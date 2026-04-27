@@ -2,11 +2,11 @@
 template_version: 1
 ---
 
-# Conventions Ledger Template
+# Conventions Projection Template
 
-Template for `GPD/CONVENTIONS.md` — persistent, append-only record of all physics conventions adopted across the project lifetime.
+Template for `GPD/CONVENTIONS.md` — human-readable projection and audit surface for the active `state.json` `convention_lock`.
 
-**Purpose:** Single source of truth for every convention that could cause a cross-phase inconsistency. Read by the consistency checker to verify current-phase work against ALL accumulated conventions, not just adjacent phases.
+**Purpose:** Make the structured convention lock inspectable by humans and reviewers. The authoritative convention values live in `GPD/state.json` under `convention_lock` and are managed by `gpd convention ...` commands. This file mirrors those locked values, records rationale/test values/change notes, and gives checkers a readable audit trail for convention drift.
 
 **Convention selection by project type:**
 
@@ -35,8 +35,9 @@ Populate sections marked "Required" for your project type. Sections marked "—"
 **Relationship to other files:**
 
 - `research-map/CONVENTIONS.md` is an analysis snapshot produced by `gpd:map-research` — it documents what conventions ARE in existing work
-- `CONVENTIONS.md` (this file) is prescriptive and persistent — it documents what conventions MUST BE followed going forward
-- `NOTATION_GLOSSARY.md` lists every symbol; CONVENTIONS.md records the choices that govern how those symbols behave (signs, factors, normalizations)
+- `state.json` `convention_lock` is prescriptive and machine-readable — it documents what conventions MUST BE followed going forward
+- `CONVENTIONS.md` (this file) is a derived projection/audit surface — it must match the lock, add rationale/test values, and flag stale or conflicting entries instead of becoming a second authority
+- `NOTATION_GLOSSARY.md` lists symbols against the same lock; CONVENTIONS.md records the locked choices that govern how those symbols behave (signs, factors, normalizations)
 
 ---
 
@@ -48,9 +49,13 @@ Populate sections marked "Required" for your project type. Sections marked "—"
 **Project:** [project name]
 **Created:** [YYYY-MM-DD]
 **Last updated:** [YYYY-MM-DD] (Phase [N])
+**Authoritative lock:** `GPD/state.json` -> `convention_lock`
+**Projection status:** [synced | stale | drift_detected]
 
-> This file is append-only for convention entries. When a convention changes, add a new
-> entry with the updated value and mark the old entry as superseded. Never delete entries.
+> This file is a human-readable projection of `state.json.convention_lock`, not the source
+> of truth. When a convention changes, update the lock through `gpd convention set ...`,
+> then refresh this projection with rationale, test values, and supersession notes. Do not
+> hand-edit this file into disagreement with the lock.
 
 ---
 
@@ -411,27 +416,29 @@ _Last updated: [date] (Phase [N])_
 
 <lifecycle>
 
-**Creation:** During project initialization, after PROJECT.md
+**Creation:** During project initialization, after PROJECT.md and convention-lock creation
 
-- Pre-populate spacetime and quantum sections from PROJECT.md notation conventions
+- Pre-populate spacetime and quantum sections from `state.json.convention_lock`, using PROJECT.md only as explanatory context
 - Leave sections blank if not yet relevant (e.g., no field theory section for a classical mechanics project)
 - Mark as "[Not yet established]" rather than guessing
 
-**Appending:** During phase transitions
+**Appending:** During phase transitions or convention updates
 
-- Extract new conventions from phase SUMMARY.md and CONTEXT.md
-- Add convention change entries if any convention was modified
+- Extract new convention candidates from phase SUMMARY.md and CONTEXT.md, but write accepted values through `gpd convention set`
+- Refresh this projection after the lock changes
+- Add convention change entries if any locked convention was modified
 - Add cross-convention compatibility notes when subtle interactions are discovered
 
-**Reading:** By consistency checker at every milestone audit
+**Reading/audit:** By consistency checker at every milestone audit
 
-- Read ALL entries (not just recent ones)
-- Check current phase work against every accumulated convention
-- Flag any convention that was established in phase M but not followed in phase N (for any M < N)
+- Load `state.json.convention_lock` first
+- Read this projection for rationale, test values, and change history
+- Check current phase work against the active lock plus relevant supersession notes
+- Flag any mismatch between this file and `state.json.convention_lock` as convention-ledger drift
 
 **Reading:** By executor during phase work
 
-- Check active conventions before writing any equation
+- Check active conventions from `state.json.convention_lock` before writing any equation
 - Verify that new expressions are compatible with all listed conventions
 - Consult cross-convention compatibility notes when combining results from different domains
 
@@ -441,12 +448,15 @@ _Last updated: [date] (Phase [N])_
 
 **What belongs in CONVENTIONS.md:**
 
+- The human-readable projection of each active `state.json.convention_lock` value
 - Every choice that has a "the other sign/factor/normalization would also be valid" alternative
 - Every choice where getting it wrong produces a silently incorrect result (not a crash)
 - Every choice that affects how expressions look in more than one phase
+- Rationale, test values, compatibility notes, and supersession history for locked choices
 
 **What does NOT belong here:**
 
+- A convention value that disagrees with `state.json.convention_lock`
 - Results and derived expressions (those go in SUMMARY.md)
 - Symbol definitions without ambiguity (those go in NOTATION_GLOSSARY.md)
 - Methodology decisions (those go in DECISIONS.md and CONTEXT.md)
@@ -464,7 +474,7 @@ Examples of good test values:
 
 **Convention changes require conversion procedures:**
 
-When a convention changes, the entry in the Convention Changes table MUST include the explicit conversion factor or procedure. This enables the consistency checker to verify that old-convention results imported into new-convention phases are correctly translated.
+When a convention changes, update `state.json.convention_lock` first. The entry in this projection's Convention Changes table MUST include the explicit conversion factor or procedure. This enables the consistency checker to verify that old-convention results imported into new-convention phases are correctly translated.
 
 **Cross-convention compatibility notes prevent subtle errors:**
 

@@ -134,6 +134,7 @@ def _write_proof_contract_phase(tmp_path: Path) -> tuple[Path, Path]:
               schema_version: 1
               scope:
                 question: Prove the full theorem without silently dropping r_0
+                in_scope: [test scope]
               context_intake:
                 must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]
               observables:

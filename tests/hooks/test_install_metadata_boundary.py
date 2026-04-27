@@ -126,6 +126,25 @@ def test_config_dir_has_managed_install_markers_ignores_empty_managed_dirs(tmp_p
     assert config_dir_has_managed_install_markers(config_dir) is False
 
 
+def test_config_dir_has_managed_install_markers_fails_closed_on_scan_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / ".codex"
+    managed_dir = config_dir / "get-physics-done"
+    (managed_dir / "commands").mkdir(parents=True, exist_ok=True)
+    original_rglob = Path.rglob
+
+    def _rglob(path: Path, pattern: str):
+        if path == managed_dir / "commands":
+            raise OSError("permission denied")
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _rglob)
+
+    assert config_dir_has_managed_install_markers(config_dir) is True
+
+
 def test_config_dir_has_managed_install_markers_ignores_user_agents_and_hooks(tmp_path: Path) -> None:
     config_dir = tmp_path / ".codex"
     hooks_dir = config_dir / "hooks"
@@ -438,5 +457,6 @@ def test_install_metadata_keeps_manifest_boundary_free_of_install_utils_imports(
     source = inspect.getsource(install_metadata)
 
     assert "from gpd.adapters.install_utils import" not in source
+    assert "import gpd.adapters.install_utils as" not in source
     assert "get_managed_install_surface_policy" in source
     assert "get_shared_install_metadata" in source

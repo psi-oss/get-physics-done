@@ -21,7 +21,7 @@ from gpd.core.public_surface_contract import (
     local_cli_validate_command_context_command,
     resume_authority_fields,
 )
-from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
+from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter, get_command
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
     assert_beginner_startup_routing_contract,
@@ -654,7 +654,23 @@ def test_help_prompt_surfaces_bounded_write_paper_external_authoring_lane() -> N
     assert "`GPD/publication/{subject_slug}/intake/`" in help_workflow
     assert "does not mine arbitrary folders" in help_workflow
     assert "embedded external staged-review parity is out of scope" in help_workflow
-    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
+    assert "Usage: `gpd:write-paper --intake intake/write-paper-authoring-input.json`" in help_workflow
+
+
+def test_help_prompt_selected_signatures_match_registry_argument_hints() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    for command_name in ("write-paper", "arxiv-submission", "record-backtrack", "execute-phase"):
+        command = get_command(command_name)
+        signature = f"`{command.name} {command.argument_hint}`"
+        assert signature in help_workflow
+
+
+def test_help_prompt_plan_phase_skip_verify_keeps_proof_bearing_exception() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "`--skip-verify`" in help_workflow
+    assert "proof-bearing plans still require checker review or an equivalent main-context audit" in help_workflow
 
 
 def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command() -> None:

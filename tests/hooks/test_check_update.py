@@ -348,7 +348,7 @@ class TestMainThrottle:
 
     def test_recent_cache_skips_check(self, tmp_path: Path) -> None:
         """If cache was checked recently, main() returns without spawning."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}), encoding="utf-8")
@@ -367,7 +367,7 @@ class TestMainThrottle:
 
     def test_stale_cache_spawns_check(self, tmp_path: Path) -> None:
         """If cache is stale (older than TTL), main() spawns background check."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         stale_time = int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100
@@ -401,7 +401,7 @@ class TestMainThrottle:
 
     def test_corrupt_cache_spawns_check(self, tmp_path: Path) -> None:
         """If cache file is corrupt JSON, main() spawns background check."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text("not json!", encoding="utf-8")
@@ -435,7 +435,7 @@ class TestMainThrottle:
 
     def test_cache_with_missing_checked_field_spawns(self, tmp_path: Path) -> None:
         """Cache JSON without 'checked' field → spawns check."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text(json.dumps({"update_available": False}), encoding="utf-8")
@@ -454,7 +454,7 @@ class TestMainThrottle:
 
     def test_cache_with_non_numeric_checked_spawns(self, tmp_path: Path) -> None:
         """Cache with non-numeric 'checked' → isinstance check fails → spawns."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text(json.dumps({"checked": "not-a-number"}), encoding="utf-8")
@@ -646,7 +646,7 @@ class TestMainThrottle:
 
     def test_non_dict_cache_json_spawns_check(self, tmp_path: Path) -> None:
         """If cache file contains valid JSON but not a dict (e.g. a list), main() spawns background check."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
@@ -665,7 +665,7 @@ class TestMainThrottle:
 
     def test_string_cache_json_spawns_check(self, tmp_path: Path) -> None:
         """If cache file contains a JSON string instead of a dict, main() spawns background check."""
-        cache_dir = tmp_path / "GPD" / "cache"
+        cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         cache_file.write_text(json.dumps("just a string"), encoding="utf-8")
