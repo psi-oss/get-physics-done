@@ -597,6 +597,128 @@ class TestApplyReturnUpdates:
         assert any("state_updates" in error and "unexpected_operation" in error for error in result.errors)
         assert state_path.read_text(encoding="utf-8") == before
 
+    def test_invalid_handoff_state_error_returns_structured_failure(self, tmp_path: Path):
+        _, state_path = self._write_state_project(tmp_path)
+        before = state_path.read_text(encoding="utf-8")
+        f = self._write_return(
+            tmp_path,
+            (
+                "gpd_return:\n"
+                "  status: checkpoint\n"
+                "  files_written: [GPD/STATE.md]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:resume-work]\n"
+                "  continuation_update:\n"
+                "    handoff:\n"
+                "      stopped_at: Paused outside project\n"
+                "      resume_file: /tmp/outside-project-handoff.md\n"
+            ),
+        )
+
+        result = cmd_apply_return_updates(tmp_path, f)
+
+        assert result.passed is False
+        assert result.status == "failed"
+        assert any("record_session" in error and "repo-relative path" in error for error in result.errors)
+        assert result.applied_continuation_operations == []
+        assert state_path.read_text(encoding="utf-8") == before
+
+    def test_invalid_bounded_segment_rejects_before_decision_mutation(self, tmp_path: Path):
+        _, state_path = self._write_state_project(tmp_path)
+        before = state_path.read_text(encoding="utf-8")
+        f = self._write_return(
+            tmp_path,
+            (
+                "gpd_return:\n"
+                "  status: checkpoint\n"
+                "  files_written: [GPD/STATE.md]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:resume-work]\n"
+                "  decisions:\n"
+                "    - summary: This must not be appended\n"
+                '      phase: "10"\n'
+                "  continuation_update:\n"
+                "    bounded_segment:\n"
+                "      resume_file: /tmp/outside-project-segment.md\n"
+                "      phase: 10\n"
+                "      plan: 01\n"
+                "      segment_id: seg-invalid\n"
+                "      segment_status: paused\n"
+            ),
+        )
+
+        result = cmd_apply_return_updates(tmp_path, f)
+
+        assert result.passed is False
+        assert any("set_bounded_segment" in error and "resume_file" in error for error in result.errors)
+        assert result.applied_decisions == 0
+        assert state_path.read_text(encoding="utf-8") == before
+
+    def test_invalid_continuation_update_rolls_back_prior_state_edits_and_retries_cleanly(self, tmp_path: Path):
+        planning, state_path = self._write_state_project(tmp_path)
+        state_json_path = planning / "state.json"
+        before_md = state_path.read_text(encoding="utf-8")
+        before_json = state_json_path.read_text(encoding="utf-8")
+        f = self._write_return(
+            tmp_path,
+            (
+                "gpd_return:\n"
+                "  status: checkpoint\n"
+                "  files_written: [GPD/STATE.md]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:resume-work]\n"
+                "  decisions:\n"
+                "    - summary: Keep retry idempotent\n"
+                '      phase: "10"\n'
+                "  blockers:\n"
+                "    - retry should not duplicate this blocker\n"
+                "  continuation_update:\n"
+                "    handoff:\n"
+                "      stopped_at: Waiting on missing result\n"
+                "      last_result_id: missing-result\n"
+            ),
+        )
+
+        first = cmd_apply_return_updates(tmp_path, f)
+        second = cmd_apply_return_updates(tmp_path, f)
+
+        for result in (first, second):
+            assert result.passed is False
+            assert result.applied_decisions == 0
+            assert result.applied_blockers == 0
+            assert any("last_result_id" in error and "missing-result" in error for error in result.errors)
+        assert state_path.read_text(encoding="utf-8") == before_md
+        assert state_json_path.read_text(encoding="utf-8") == before_json
+
+        f.write_text(
+            "# Result\n\n```yaml\n"
+            "gpd_return:\n"
+            "  status: checkpoint\n"
+            "  files_written: [GPD/STATE.md]\n"
+            "  issues: []\n"
+            "  next_actions: [/gpd:resume-work]\n"
+            "  decisions:\n"
+            "    - summary: Keep retry idempotent\n"
+            '      phase: "10"\n'
+            "  blockers:\n"
+            "    - retry should not duplicate this blocker\n"
+            "  continuation_update:\n"
+            "    handoff:\n"
+            "      stopped_at: Retry now valid\n"
+            "      resume_file: null\n"
+            "```\n",
+            encoding="utf-8",
+        )
+
+        fixed = cmd_apply_return_updates(tmp_path, f)
+
+        updated_state = state_path.read_text(encoding="utf-8")
+        assert fixed.passed is True
+        assert fixed.applied_decisions == 1
+        assert fixed.applied_blockers == 1
+        assert updated_state.count("Keep retry idempotent") == 1
+        assert updated_state.count("retry should not duplicate this blocker") == 1
+
     def test_quoted_values_stripped(self, tmp_path: Path):
         f = self._write_return(
             tmp_path,
@@ -652,8 +774,6 @@ class TestApplyReturnUpdates:
                 "    update_progress: true\n"
                 "  continuation_update:\n"
                 "    handoff:\n"
-                "      recorded_at: 2026-04-08T12:00:00Z\n"
-                "      recorded_by: execute-plan\n"
                 "      stopped_at: Completed phase 01\n"
                 "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
                 "    bounded_segment:\n"
@@ -671,7 +791,7 @@ class TestApplyReturnUpdates:
         assert result.passed is True
         assert result.fields["state_updates"]["advance_plan"] is True
         assert result.fields["state_updates"]["update_progress"] is True
-        assert result.fields["continuation_update"]["handoff"]["recorded_by"] == "execute-plan"
+        assert result.fields["continuation_update"]["handoff"]["stopped_at"] == "Completed phase 01"
         assert result.fields["continuation_update"]["bounded_segment"]["segment_id"] == "seg-01"
 
     def test_rejects_transport_only_execution_segment_inside_continuation_update(self, tmp_path: Path):

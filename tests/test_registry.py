@@ -24,6 +24,7 @@ from gpd.registry import (
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
+    _parse_spawn_contracts,
     _parse_tools,
     _RegistryCache,
     load_agents_from_dir,
@@ -98,6 +99,8 @@ class TestParseFrontmatter:
         assert agent_visibility_note().startswith("Agent YAML rules. Use this YAML.")
         assert command_visibility_note().startswith("Command YAML rules. Use this YAML.")
         assert review_contract_visibility_note().startswith("Review-contract YAML rules. Use this YAML.")
+        assert len(command_visibility_note()) <= 2_500
+        assert len(review_contract_visibility_note()) <= 2_500
 
     def test_malformed_yaml_frontmatter_raises(self) -> None:
         text = "---\nname: test\nbad: [unterminated\n---\nBody."
@@ -416,6 +419,109 @@ class TestParseAgentFile:
 
         with pytest.raises(ValueError, match=expected_error):
             _parse_agent_file(f, source="agents")
+
+
+class TestParseSpawnContracts:
+    """Tests for spawn-contract sidecar parsing and validation."""
+
+    @staticmethod
+    def _contract_block(
+        *,
+        output: str = "GPD/out.md",
+        mode: str = "scoped_write",
+        shared_state_policy: str = "return_only",
+        allowed_paths: tuple[str, ...] | None = None,
+        expected_artifacts: tuple[str, ...] | None = None,
+    ) -> str:
+        allowed = allowed_paths if allowed_paths is not None else (output,)
+        expected = expected_artifacts if expected_artifacts is not None else (output,)
+        allowed_lines = "".join(f"    - {path}\n" for path in allowed)
+        expected_lines = "".join(f"  - {path}\n" for path in expected)
+        return (
+            "<spawn_contract>\n"
+            "write_scope:\n"
+            f"  mode: {mode}\n"
+            "  allowed_paths:\n"
+            f"{allowed_lines}"
+            "expected_artifacts:\n"
+            f"{expected_lines}"
+            f"shared_state_policy: {shared_state_policy}\n"
+            "</spawn_contract>"
+        )
+
+    def test_parse_spawn_contracts_dedupes_identical_blocks_in_first_seen_order(self) -> None:
+        first = self._contract_block(output="GPD/first.md")
+        second = self._contract_block(output="GPD/second.md", shared_state_policy="direct")
+
+        contracts = _parse_spawn_contracts(
+            "\n\n".join([first, first, second, first]),
+            owner_name="gpd:test",
+        )
+
+        assert contracts == (
+            {
+                "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/first.md"]},
+                "expected_artifacts": ["GPD/first.md"],
+                "shared_state_policy": "return_only",
+            },
+            {
+                "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/second.md"]},
+                "expected_artifacts": ["GPD/second.md"],
+                "shared_state_policy": "direct",
+            },
+        )
+
+    def test_parse_spawn_contracts_rejects_invalid_write_scope_mode(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="invalid write_scope\\.mode 'global'; expected one of: scoped_write, direct",
+        ):
+            _parse_spawn_contracts(
+                self._contract_block(mode="global"),
+                owner_name="gpd:test",
+            )
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_error"),
+        [
+            (
+                {"allowed_paths": ()},
+                r"write_scope\.allowed_paths must not be empty",
+            ),
+            (
+                {"allowed_paths": ("GPD/out.md", "GPD/out.md")},
+                r"write_scope\.allowed_paths\[1\] duplicates write_scope\.allowed_paths\[0\]",
+            ),
+            (
+                {"expected_artifacts": ()},
+                r"expected_artifacts must not be empty",
+            ),
+            (
+                {"expected_artifacts": ("GPD/out.md", "GPD/out.md")},
+                r"expected_artifacts\[1\] duplicates expected_artifacts\[0\]",
+            ),
+        ],
+    )
+    def test_parse_spawn_contracts_rejects_empty_or_duplicate_lists(
+        self,
+        kwargs: dict[str, tuple[str, ...]],
+        expected_error: str,
+    ) -> None:
+        with pytest.raises(ValueError, match=expected_error):
+            _parse_spawn_contracts(
+                self._contract_block(**kwargs),
+                owner_name="gpd:test",
+            )
+
+    def test_parse_spawn_contracts_rejects_invalid_shared_state_policy(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="invalid shared_state_policy 'mutable'; expected one of: return_only, direct",
+        ):
+            _parse_spawn_contracts(
+                self._contract_block(shared_state_policy="mutable"),
+                owner_name="gpd:test",
+            )
 
 
 class TestParseCommandFile:
@@ -2420,6 +2526,23 @@ class TestPublicAPI:
             "direct",
         }
         assert {contract["write_scope"]["mode"] for contract in command.spawn_contracts} == {"scoped_write"}
+
+    def test_registry_spawn_contract_inventory_dedupes_repeated_continuation_sidecars(self) -> None:
+        registry.invalidate_cache()
+
+        plan_phase = registry.get_command("gpd:plan-phase")
+        research_phase = registry.get_command("gpd:research-phase")
+
+        expected = {
+            "write_scope": {
+                "mode": "scoped_write",
+                "allowed_paths": ["{phase_dir}/{phase_number}-RESEARCH.md"],
+            },
+            "expected_artifacts": ["{phase_dir}/{phase_number}-RESEARCH.md"],
+            "shared_state_policy": "return_only",
+        }
+        assert plan_phase.spawn_contracts == (expected,)
+        assert research_phase.spawn_contracts == (expected,)
 
     def test_get_command_new_milestone_surfaces_roadmapper_handoff(self) -> None:
         registry.invalidate_cache()

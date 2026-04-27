@@ -174,12 +174,18 @@ def test_autonomous_surfaces_use_installed_command_wording_not_raw_skill_calls()
         assert f"runtime-installed `{command_name}` command" in workflow
 
 
-def test_review_knowledge_command_includes_large_schema_surfaces_once() -> None:
+def test_review_knowledge_command_delegates_schema_surfaces_to_workflow() -> None:
     text = (COMMANDS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
 
-    assert text.count("@{GPD_INSTALL_DIR}/templates/knowledge-schema.md") == 1
-    assert text.count("@{GPD_INSTALL_DIR}/templates/knowledge.md") == 1
-    assert text.count("@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md") == 1
+    assert "@{GPD_INSTALL_DIR}/workflows/review-knowledge.md" in text
+    assert "The workflow owns schema loading" in text
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" not in text
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge.md" not in text
+    assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" not in text
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in workflow
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge.md" in workflow
+    assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" in workflow
 
 
 def test_legacy_publication_contract_stubs_are_removed_in_favor_of_canonical_files() -> None:

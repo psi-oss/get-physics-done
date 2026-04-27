@@ -385,7 +385,11 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     dependencies: list[str] = project["dependencies"]
     optional = project.get("optional-dependencies", {})
     assert not any(item.startswith("arxiv-mcp-server") for item in dependencies)
-    assert set(optional) == {"arxiv"}
+    assert set(optional) == {"arxiv", "paper"}
+    assert set(optional["paper"]) == {
+        "cairosvg>=2.7.0",
+        "pypdf>=5.0",
+    }
     assert set(optional["arxiv"]) == {
         "arxiv-mcp-server>=0.4.11",
         "arxiv>=2.4.1",

@@ -100,6 +100,18 @@ def test_write_paper_public_metadata_only_advertises_intake_manifest() -> None:
     assert "from_phases_flag" not in command.content
 
 
+def test_health_runtime_wrapper_accepts_unhealthy_json_exit_status() -> None:
+    """Runtime prompt must parse raw health JSON even when the CLI uses exit 1 for fail."""
+    health_command = (Path(__file__).resolve().parents[1] / "src/gpd/commands/health.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "HEALTH_STATUS=$?" in health_command
+    assert "Do not treat a nonzero `HEALTH_STATUS` as a wrapper failure" in health_command
+    assert "parses as the valid report JSON" in health_command
+    assert 'echo "ERROR: health check failed: $HEALTH"' not in health_command
+
+
 def _command_with_analysis_output_policy(command_name: str):
     command = registry_module.get_command(command_name)
     command_policy = command.command_policy or registry_module.CommandPolicy()
@@ -2112,6 +2124,33 @@ class TestReadOnlyCommandRouting:
         assert seen == {"cwd": gpd_project.resolve(), "fix": True}
         assert (gpd_project / "GPD" / "PROJECT.md").read_text(encoding="utf-8") == "# Root PROJECT.md\n"
         assert (gpd_project / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == "# Root ROADMAP.md\n"
+
+    def test_raw_health_failure_still_emits_parseable_json(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def _fake_run_health(cwd: Path, fix: bool = False):
+            return SimpleNamespace(
+                overall="fail",
+                model_dump=lambda mode="json", by_alias=True: {
+                    "cwd": str(cwd),
+                    "fix": fix,
+                    "overall": "fail",
+                    "summary": {"ok": 1, "warn": 0, "fail": 1, "total": 2},
+                    "checks": [],
+                    "fixes_applied": [],
+                },
+            )
+
+        monkeypatch.setattr("gpd.core.health.run_health", _fake_run_health)
+
+        result = runner.invoke(app, ["--cwd", str(gpd_project), "--raw", "health"], catch_exceptions=False)
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["overall"] == "fail"
+        assert payload["summary"]["fail"] == 1
 
 
 class TestReadOnlyStateBackedLists:

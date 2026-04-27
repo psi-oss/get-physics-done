@@ -81,5 +81,8 @@ def test_executor_completion_spawned_handoff_example_keeps_base_fields_and_exten
     assert "continuation_update:" in completion
     assert "handoff:" in completion
     assert "bounded_segment:" in completion
+    assert "omit `recorded_at` and `recorded_by` from child returns" in completion
+    assert 'recorded_at: "{timestamp}"' not in completion
+    assert 'recorded_by: "gpd-executor"' not in completion
     assert "state_updates: [...]" not in completion
     assert "continuation_update: {...}" not in completion

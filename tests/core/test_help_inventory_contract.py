@@ -57,6 +57,18 @@ def test_help_inventory_uses_runtime_neutral_framing_in_shared_source() -> None:
     assert all("slash-command" not in content for content in help_sources)
 
 
+def test_help_wrapper_followups_do_not_hard_code_gpd_help_runtime_syntax() -> None:
+    help_command = _read("src/gpd/commands/help.md")
+
+    assert "gpd:help --all" not in help_command
+    assert "gpd:help --command <name>" not in help_command
+    assert "this runtime's help command" not in help_command
+    assert "never print the placeholder" in help_command
+    assert "Run <current-help-command> --all for the compact command index." in help_command
+    assert "Run <current-help-command> --command <name> for detailed help on one command." in help_command
+    assert "Unknown command. Run <current-help-command> --all for the compact command index." in help_command
+
+
 def test_help_workflow_paper_toolchain_doctor_row_is_single_sourced() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 

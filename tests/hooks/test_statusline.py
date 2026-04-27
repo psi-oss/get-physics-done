@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import call, patch
 
+from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.hooks.runtime_detect import TodoCandidate, update_command_for_runtime
 from gpd.hooks.statusline import (
     _check_update,
@@ -21,6 +22,7 @@ from gpd.hooks.statusline import (
     _execution_badge,
     _format_context_window_size,
     _project_state_dir,
+    _read_context_remaining,
     _read_current_task,
     _read_execution_state,
     _read_model_label,
@@ -213,15 +215,26 @@ class TestStatusMetadata:
         assert _format_context_window_size(200_000) == "200k context"
 
     def test_read_model_label_combines_display_name_and_context_size(self) -> None:
-        label = _read_model_label({"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}})
-        assert label == "Opus 4.6 (1M context)"
-
-    def test_read_model_label_uses_canonical_fallback_keys_when_policy_is_sparse(self) -> None:
         label = _read_model_label(
             {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}},
-            SimpleNamespace(model_keys=(), context_window_size_keys=()),
+            get_hook_payload_policy(),
         )
         assert label == "Opus 4.6 (1M context)"
+
+    def test_statusline_payload_fields_come_only_from_resolved_policy_keys(self) -> None:
+        sparse_policy = SimpleNamespace(model_keys=(), context_window_size_keys=(), context_remaining_keys=())
+
+        label = _read_model_label(
+            {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}},
+            sparse_policy,
+        )
+        remaining = _read_context_remaining(
+            {"context_window": {"remaining_percentage": 0}},
+            sparse_policy,
+        )
+
+        assert label == ""
+        assert remaining is None
 
     def test_read_workspace_label_prefers_project_relative_path(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
@@ -1101,11 +1114,12 @@ class TestMain:
     """Tests for main() entry point with various JSON inputs."""
 
     def _run_main(self, input_data: dict[str, object]) -> str:
-        """Run main() with given input data, capture stdout."""
+        """Run main() with generic catalog-merged payload keys, capture stdout."""
         captured = io.StringIO()
         with (
             patch("sys.stdin", io.StringIO(json.dumps(input_data))),
             patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=get_hook_payload_policy()),
             patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())),
             patch("gpd.hooks.statusline._read_position", return_value=""),
             patch("gpd.hooks.statusline._read_current_task", return_value=""),
@@ -1401,7 +1415,24 @@ class TestMain:
         output = self._run_main({"context_window": {"remainingPercent": 20}})
         assert "100%" in output
 
-    def test_context_window_uses_canonical_aliases_when_policy_is_sparse(self) -> None:
+    def test_context_window_uses_catalog_merged_policy_for_no_runtime_aliases(self) -> None:
+        captured = io.StringIO()
+        merged_policy = get_hook_payload_policy()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"context_window": {"remaining_percentage": 0}}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=merged_policy),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value=""),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        assert "100%" in captured.getvalue()
+
+    def test_context_window_ignores_runtime_aliases_when_policy_is_sparse(self) -> None:
         captured = io.StringIO()
         sparse_policy = SimpleNamespace(
             workspace_keys=(),
@@ -1423,7 +1454,9 @@ class TestMain:
         ):
             main()
 
-        assert "100%" in captured.getvalue()
+        output = captured.getvalue()
+        assert "GPD" in output
+        assert "100%" not in output
 
     def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
         output = self._run_main(

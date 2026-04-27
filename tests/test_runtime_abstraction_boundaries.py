@@ -13,8 +13,10 @@ Everywhere else, shared code should stay runtime-agnostic.
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
+from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -250,6 +252,16 @@ _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
 _SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN = re.compile(
     r"""["'](?:openai|anthropic|google|gpt-[^"']+|claude-(?!code)[^"']+|gemini-(?!cli)[^"']+)["']"""
 )
+_SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS = (
+    REPO_ROOT / "src/gpd/hooks/notify.py",
+    REPO_ROOT / "src/gpd/hooks/payload_roots.py",
+    REPO_ROOT / "src/gpd/hooks/statusline.py",
+)
+_RUNTIME_ADAPTER_IMPLEMENTATION_PATHS = tuple(
+    REPO_ROOT / f"src/gpd/adapters/{adapter.__class__.__module__.rsplit('.', 1)[-1]}.py"
+    for adapter in iter_adapters()
+)
+_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
@@ -385,6 +397,103 @@ def _runtime_tool_alias_literal_pattern() -> re.Pattern[str]:
         return re.compile(r"$^")
     pieces = [rf'["\'`]{re.escape(alias)}["\'`]' for alias in aliases]
     return re.compile(rf"(?:{'|'.join(pieces)})")
+
+
+def _literal_string_tuple(node: ast.AST) -> tuple[str, ...] | None:
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "frozenset"
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        return _literal_string_tuple(node.args[0])
+    if not isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return None
+
+    values: list[str] = []
+    for element in node.elts:
+        if not isinstance(element, ast.Constant) or not isinstance(element.value, str):
+            return None
+        values.append(element.value)
+    return tuple(values)
+
+
+def _assignment_target_names(node: ast.Assign | ast.AnnAssign) -> tuple[str, ...]:
+    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+    names: list[str] = []
+
+    def collect(target: ast.AST) -> None:
+        if isinstance(target, ast.Name):
+            names.append(target.id)
+        elif isinstance(target, ast.Attribute):
+            names.append(target.attr)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                collect(element)
+
+    for target in targets:
+        collect(target)
+    return tuple(names)
+
+
+def _runtime_hook_payload_key_tuples() -> dict[tuple[str, ...], set[str]]:
+    key_tuples: dict[tuple[str, ...], set[str]] = {}
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for field in fields(descriptor.hook_payload):
+            if not field.name.endswith("_keys"):
+                continue
+            values = getattr(descriptor.hook_payload, field.name)
+            if values:
+                key_tuples.setdefault(tuple(values), set()).add(field.name)
+    return key_tuples
+
+
+def test_shared_hook_policy_consumers_do_not_duplicate_catalog_hook_payload_key_tuples() -> None:
+    catalog_key_tuples = _runtime_hook_payload_key_tuples()
+    leaks: list[tuple[Path, int, str]] = []
+
+    for path in _SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(REPO_ROOT)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            target_names = _assignment_target_names(node)
+            if not any("key" in name.casefold() for name in target_names):
+                continue
+            literal = _literal_string_tuple(node.value)
+            if literal not in catalog_key_tuples:
+                continue
+            fields_text = ", ".join(sorted(catalog_key_tuples[literal]))
+            leaks.append(
+                (
+                    rel_path,
+                    node.lineno,
+                    f"{', '.join(target_names)} duplicates runtime_catalog hook_payload {fields_text}",
+                )
+            )
+
+    assert leaks == [], (
+        "Shared hooks should consume hook payload keys from runtime_catalog policies instead of duplicating them:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_runtime_adapters_use_shared_shell_fence_language_constant() -> None:
+    leaks: list[tuple[Path, int, str]] = []
+    for path in _RUNTIME_ADAPTER_IMPLEMENTATION_PATHS:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(REPO_ROOT)
+        for node in ast.walk(tree):
+            literal = _literal_string_tuple(node)
+            if literal is not None and frozenset(literal) == _RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES:
+                leaks.append((rel_path, node.lineno, "duplicate runtime bridge shell fence languages literal"))
+
+    assert leaks == [], (
+        "Runtime adapters should use DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES from install_utils:\n"
+        f"{_format_failures(leaks)}"
+    )
 
 
 def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -> None:

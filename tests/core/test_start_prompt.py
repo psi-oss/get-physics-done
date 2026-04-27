@@ -120,6 +120,9 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
     ):
         assert any(fragment in workflow for fragment in fragment_options)
 
+    assert "- `Keep the numbered list short." not in workflow
+    assert "this is an internal structuring rule, not a line to show the researcher" in workflow
+
     assert "Read `{GPD_INSTALL_DIR}/workflows/new-project.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/tour.md` with the file-read tool." not in workflow

@@ -22,6 +22,7 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     UPDATE_CACHE_FILENAME,
@@ -89,7 +90,6 @@ _COLOR_NAME_TO_HEX: dict[str, str] = {
 }
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$")
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GPD_SLASH_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9/_.-])/gpd:(?P<command>[A-Za-z][A-Za-z0-9-]*)\b")
 _GPD_BARE_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b")
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
@@ -245,7 +245,7 @@ def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
         content,
         bridge_command,
-        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+        shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
 
 

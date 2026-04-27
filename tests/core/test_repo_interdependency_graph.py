@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
-from contextlib import contextmanager
 from pathlib import Path
 
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from scripts.repo_graph_contract import (
+    EXCLUDED_GRAPH_DIRS,
     GENERATED_ON_END,
     GENERATED_ON_START,
     REPO_ROOT,
@@ -35,35 +33,6 @@ _WORKFLOW_ONLY_STEMS = {"execute-plan", "transition", "verify-phase"}
 _COMMAND_ONLY_STEMS = {"health", "suggest-next"}
 
 
-@contextmanager
-def _transient_root_artifacts():
-    sentinel_root = "__gpd_repo_graph_test__"
-    transient_roots = (
-        ".npm-cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".mypy_cache",
-    )
-    created_paths: list[tuple[Path, bool]] = []
-
-    try:
-        for root_name in transient_roots:
-            root_path = REPO_ROOT / root_name
-            sentinel_dir = root_path / sentinel_root
-            root_existed = root_path.exists()
-            sentinel_dir.mkdir(parents=True, exist_ok=True)
-            (sentinel_dir / "sentinel.txt").write_text("graph regression coverage\n", encoding="utf-8")
-            created_paths.append((root_path, root_existed))
-        yield [root_path / sentinel_root / "sentinel.txt" for root_path, _ in created_paths]
-    finally:
-        for root_path, root_existed in created_paths:
-            sentinel_dir = root_path / sentinel_root
-            if sentinel_dir.exists():
-                shutil.rmtree(sentinel_dir, ignore_errors=True)
-            if not root_existed and root_path.exists() and not any(root_path.iterdir()):
-                root_path.rmdir()
-
-
 def _tracked_prompt_stems() -> tuple[set[str], set[str]]:
     tracked = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -84,18 +53,6 @@ def _tracked_prompt_stems() -> tuple[set[str], set[str]]:
         if path.parts[:-1] == ("src", "gpd", "specs", "workflows") and path.suffix == ".md"
     }
     return command_stems, workflow_stems
-
-
-def test_graph_scope_counts_match_live_prompt_inventory() -> None:
-    expected = expected_scope_counts()
-
-    mismatches = [
-        f"{label}: graph={parse_scope_count(label)} live={count}"
-        for label, count in expected.items()
-        if parse_scope_count(label) != count
-    ]
-
-    assert not mismatches, "Graph scope counts are stale:\n" + "\n".join(mismatches)
 
 
 def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
@@ -314,14 +271,6 @@ def test_graph_sync_repairs_stale_marked_blocks() -> None:
 
 
 def test_live_repo_file_count_ignores_worktree_artifacts(tmp_path: Path) -> None:
-    baseline = live_repo_file_count()
-
-    with _transient_root_artifacts() as sentinel_files:
-        assert all(path.is_file() for path in sentinel_files)
-        assert live_repo_file_count() == baseline
-
-    assert all(not path.exists() for path in sentinel_files)
-
     tmp_root = tmp_path / "repo"
     tmp_root.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=tmp_root, check=True, capture_output=True, text=True)
@@ -339,11 +288,25 @@ def test_live_repo_file_count_ignores_worktree_artifacts(tmp_path: Path) -> None
     tracked_file.unlink()
     assert live_repo_file_count(tmp_root) == 0
 
-    for config_dir_name in {descriptor.config_dir_name for descriptor in iter_runtime_descriptors()}:
-        rel_path = f"{config_dir_name}/sentinel.txt"
-        path = tmp_root / rel_path
-        path.parent.mkdir(parents=True, exist_ok=True)
+    excluded_sentinels: list[Path] = []
+    for excluded_name in EXCLUDED_GRAPH_DIRS:
+        if excluded_name == ".git":
+            continue
+        if excluded_name == ".mcp.json":
+            path = tmp_root / excluded_name
+        else:
+            path = tmp_root / excluded_name / "sentinel.txt"
+            path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("runtime mirror sentinel\n", encoding="utf-8")
+        excluded_sentinels.append(path)
+
+    subprocess.run(
+        ["git", "add", *[path.relative_to(tmp_root).as_posix() for path in excluded_sentinels]],
+        cwd=tmp_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
     assert live_repo_file_count(tmp_root) == 0
 

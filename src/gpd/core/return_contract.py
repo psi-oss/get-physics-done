@@ -65,6 +65,16 @@ class GpdReturnContinuationHandoff(ContinuationHandoff):
 
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_applicator_owned_metadata(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            forbidden = sorted({"recorded_at", "recorded_by"}.intersection(value))
+            if forbidden:
+                fields = ", ".join(forbidden)
+                raise ValueError(f"{fields} are applicator-owned handoff fields; omit them from child returns")
+        return value
+
 
 class GpdReturnContinuationBoundedSegment(ContinuationBoundedSegment):
     """Durable bounded-segment payload visible in ``gpd_return``."""

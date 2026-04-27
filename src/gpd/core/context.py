@@ -154,6 +154,24 @@ from gpd.core.workflow_staging import (
 from gpd.core.workflow_staging import (
     RESEARCH_PHASE_INIT_FIELDS as _RESEARCH_PHASE_INIT_FIELDS,
 )
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_CONTRACT_GATE_FIELDS as _VERIFY_WORK_CONTRACT_GATE_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_INIT_FIELDS as _VERIFY_WORK_INIT_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_REFERENCE_RUNTIME_FIELDS as _VERIFY_WORK_REFERENCE_RUNTIME_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_STAGE_ALLOWED_TOOLS as _VERIFY_WORK_STAGE_ALLOWED_TOOLS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_STATE_MEMORY_FIELDS as _VERIFY_WORK_STATE_MEMORY_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_STRUCTURED_STATE_FIELDS as _VERIFY_WORK_STRUCTURED_STATE_FIELDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -604,115 +622,6 @@ _NEW_MILESTONE_INIT_FIELDS = frozenset(
         *_NEW_MILESTONE_FILE_CONTENT_FIELDS,
     }
 )
-_VERIFY_WORK_STAGE_ALLOWED_TOOLS = frozenset(
-    {
-        "ask_user",
-        "file_read",
-        "file_edit",
-        "file_write",
-        "find_files",
-        "search_files",
-        "shell",
-        "task",
-    }
-)
-_VERIFY_WORK_BASE_INIT_FIELDS = frozenset(
-    {
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "platform",
-    }
-)
-_VERIFY_WORK_CONTRACT_GATE_FIELDS = frozenset(
-    {
-        "project_contract",
-        "project_contract_validation",
-        "project_contract_load_info",
-        "project_contract_gate",
-    }
-)
-_VERIFY_WORK_REFERENCE_RUNTIME_FIELDS = frozenset(
-    {
-        "contract_intake",
-        "effective_reference_intake",
-        "derived_active_references",
-        "derived_active_reference_count",
-        "derived_knowledge_docs",
-        "derived_knowledge_doc_count",
-        "knowledge_doc_warnings",
-        "citation_source_files",
-        "citation_source_count",
-        "citation_source_warnings",
-        "derived_citation_sources",
-        "derived_citation_source_count",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "active_references",
-        "active_reference_count",
-        "selected_protocol_bundle_ids",
-        "protocol_bundle_count",
-        "protocol_bundle_verifier_extensions",
-        "protocol_bundle_context",
-        "active_reference_context",
-        "knowledge_doc_files",
-        "knowledge_doc_count",
-        "stable_knowledge_doc_files",
-        "stable_knowledge_doc_count",
-        "knowledge_doc_status_counts",
-        "literature_review_files",
-        "literature_review_count",
-        "research_map_reference_files",
-        "research_map_reference_count",
-        "reference_artifact_files",
-        "reference_artifacts_content",
-    }
-)
-_VERIFY_WORK_STRUCTURED_STATE_FIELDS = frozenset(
-    {
-        "state_load_source",
-        "state_integrity_issues",
-        "convention_lock",
-        "convention_lock_count",
-        "intermediate_results",
-        "intermediate_result_count",
-        "approximations",
-        "approximation_count",
-        "propagated_uncertainties",
-        "propagated_uncertainty_count",
-    }
-)
-_VERIFY_WORK_STATE_MEMORY_FIELDS = frozenset(
-    {
-        "derived_convention_lock",
-        "derived_convention_lock_count",
-        "derived_intermediate_results",
-        "derived_intermediate_result_count",
-        "derived_approximations",
-        "derived_approximation_count",
-    }
-)
-_VERIFY_WORK_INIT_FIELDS = frozenset(
-    {
-        *_VERIFY_WORK_BASE_INIT_FIELDS,
-        *_VERIFY_WORK_CONTRACT_GATE_FIELDS,
-        *_VERIFY_WORK_REFERENCE_RUNTIME_FIELDS,
-        *_VERIFY_WORK_STRUCTURED_STATE_FIELDS,
-        *_VERIFY_WORK_STATE_MEMORY_FIELDS,
-    }
-)
-
 _EXECUTE_PHASE_STAGE_ALLOWED_TOOLS = frozenset(
     {
         "ask_user",

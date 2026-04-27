@@ -2570,8 +2570,6 @@ class TestValidateReturn:
             "    update_progress: true\n"
             "  continuation_update:\n"
             "    handoff:\n"
-            "      recorded_at: 2026-04-08T12:00:00Z\n"
-            "      recorded_by: execute-plan\n"
             "      stopped_at: Completed phase 01\n"
             "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
             "    bounded_segment:\n"
@@ -2587,7 +2585,7 @@ class TestValidateReturn:
         assert parsed["passed"] is True
         assert parsed["fields"]["state_updates"]["advance_plan"] is True
         assert parsed["fields"]["state_updates"]["update_progress"] is True
-        assert parsed["fields"]["continuation_update"]["handoff"]["recorded_by"] == "execute-plan"
+        assert parsed["fields"]["continuation_update"]["handoff"]["stopped_at"] == "Completed phase 01"
         assert parsed["fields"]["continuation_update"]["bounded_segment"]["segment_id"] == "seg-01"
 
     def test_validate_return_rejects_transport_only_execution_segment_in_continuation_update(

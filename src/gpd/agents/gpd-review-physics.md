@@ -19,10 +19,10 @@ This stage is where mathematically respectable but physically weak papers should
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md`
-- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md`
-- `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md`
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md`
+- `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
 </references>
 
 <process>
@@ -37,7 +37,7 @@ This stage is where mathematically respectable but physically weak papers should
 </process>
 
 <artifact_format>
-Use `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
+Use `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
 
 Physics-specific deltas:
 

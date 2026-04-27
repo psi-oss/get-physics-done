@@ -19,10 +19,10 @@ You must be willing to say: "The math may be fine, but the physics story is weak
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md`
-- `@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`
-- `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md`
+- `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`
+- `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
 </references>
 
 <process>
@@ -37,7 +37,7 @@ You must be willing to say: "The math may be fine, but the physics story is weak
 </process>
 
 <artifact_format>
-Use `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
+Use `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
 
 Significance-specific deltas:
 

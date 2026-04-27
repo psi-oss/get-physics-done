@@ -31,6 +31,7 @@ from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
     COMMANDS_DIR_NAME,
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     GPD_INSTALL_DIR_NAME,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
@@ -134,7 +135,6 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
     auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
 )
 _CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
@@ -568,7 +568,7 @@ def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
         content,
         launcher,
-        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+        shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
 
 

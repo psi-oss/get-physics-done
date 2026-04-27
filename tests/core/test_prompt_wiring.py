@@ -449,11 +449,17 @@ def test_executor_prompt_defaults_to_return_only_shared_state_updates() -> None:
     assert "decisions" in executor
     assert "blockers" in executor
     assert "continuation_update" in executor
+    assert "omit `recorded_at` and `recorded_by` from child returns" in executor
+    assert 'recorded_at: "{timestamp}"' not in executor
+    assert 'recorded_by: "gpd-executor"' not in executor
     assert "state_updates:" in executor_completion
     assert "contract_updates:" in executor_completion
     assert "decisions:" in executor_completion
     assert "blockers:" in executor_completion
     assert "continuation_update:" in executor_completion
+    assert "omit `recorded_at` and `recorded_by` from child returns" in executor_completion
+    assert 'recorded_at: "{timestamp}"' not in executor_completion
+    assert 'recorded_by: "gpd-executor"' not in executor_completion
 
 
 def test_return_only_planner_and_executor_do_not_commit_shared_state_files_by_default() -> None:
@@ -3617,7 +3623,8 @@ def test_review_and_execution_prompts_expand_required_schema_sources() -> None:
     assert "{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md" in referee_raw
     assert "{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md" in referee_raw
     assert "Peer Review Panel Protocol" not in review_reader
-    assert "Peer Review Panel Protocol" in review_literature
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in review_literature
+    assert "Peer Review Panel Protocol" not in review_literature
     assert "Review Ledger Schema" not in referee
     assert "Referee Decision Schema" not in referee
 

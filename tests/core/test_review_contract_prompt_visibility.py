@@ -251,7 +251,7 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert agent_note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert command_note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
-    assert "Empty optional fields may be omitted." in note
+    assert "Omit empty optional fields." in note
     assert "strict booleans" in command_note.lower()
     assert (
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper"
@@ -295,15 +295,21 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert f"`required_state` when present must be {required_states}" in note
     assert f"`conditional_requirements[].when` must be one of {conditional_whens}" in note
     assert f"`preflight_checks` entries must be {preflight_checks};" in note
-    assert "`conditional_requirements[].blocking_preflight_checks` is a list when present" in note
-    assert "its entries must also be valid `preflight_checks` values." in note
+    assert (
+        "`conditional_requirements[].preflight_checks` and `conditional_requirements[].blocking_preflight_checks`"
+        in note
+    )
+    assert "are lists of valid `preflight_checks` values when present." in note
     assert "Each `conditional_requirements[].when` value may appear at most once." in note
     assert "List fields reject blank entries and duplicates." in note
-    assert "Each conditional requirement must declare at least one non-empty field." in note
-    assert "`scope_variants[].scope` and `scope_variants[].activation` must be non-empty strings." in note
-    assert "`scope_variants[].relaxed_preflight_checks` and `scope_variants[].optional_preflight_checks`" in note
-    assert "Each `scope_variants[].scope` value may appear at most once." in note
-    assert "Each scope variant must declare at least one non-empty override or preflight field." in note
+    assert "Each conditional requirement needs one non-empty field." in note
+    assert "`scope_variants[].scope`/`.activation` must be non-empty strings." in note
+    assert "`scope_variants[].relaxed_preflight_checks`/`.optional_preflight_checks`" in note
+    assert "`relaxed_preflight_checks` make named checks non-blocking for that scope" in note
+    assert "`optional_preflight_checks` make missing inputs advisory" in note
+    assert "Non-empty scope override lists replace matching top-level lists." in note
+    assert "Each `scope_variants[].scope` may appear at most once." in note
+    assert "Each scope variant needs one non-empty override or preflight field." in note
     assert "Runtime applies active scope variants additively" in note
 
 
@@ -458,16 +464,20 @@ def test_review_contract_visibility_note_surfaces_the_hard_constraints() -> None
     assert f"`conditional_requirements[].when` must be one of {conditional_whens};" in note
     assert "`required_state` when present must be" in note
     assert (
-        "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, `stage_artifacts`, "
-        "and `scope_variants` are lists when present;"
+        "List fields when present: `required_outputs`, `required_evidence`, `blocking_conditions`, "
+        "`preflight_checks`, `stage_artifacts`, `scope_variants`;"
     ) in note
     assert f"`preflight_checks` entries must be {preflight_checks};" in note
-    assert "`conditional_requirements[].blocking_preflight_checks` is a list when present" in note
     assert (
-        "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present."
+        "`conditional_requirements[].preflight_checks` and `conditional_requirements[].blocking_preflight_checks`"
         in note
     )
-    assert "its entries must also be valid `preflight_checks` values." in note
+    assert (
+        "Scope override fields `required_outputs_override`, `required_evidence_override`, "
+        "`blocking_conditions_override` are lists when present."
+        in note
+    )
+    assert "are lists of valid `preflight_checks` values when present." in note
 
 
 @pytest.mark.parametrize(

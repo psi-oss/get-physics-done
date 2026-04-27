@@ -110,9 +110,10 @@ def test_review_stage_prompts_keep_only_stage_specific_deltas() -> None:
             assert fragment in text
 
         expanded = _expanded(agent_name)
-        assert "Peer Review Panel Protocol" in expanded
-        assert "Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:" in expanded
-        assert "StageReviewReport`, nested `ReviewFinding`, and nested `ProofAuditRecord` entries use a closed schema" in expanded
+        assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in expanded
+        assert "Peer Review Panel Protocol" not in expanded
+        assert "Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:" not in expanded
+        assert "StageReviewReport`, nested `ReviewFinding`, and nested `ProofAuditRecord` entries use a closed schema" not in expanded
 
 
 def test_peer_review_panel_protocol_surfaces_full_review_enum_vocabularies() -> None:

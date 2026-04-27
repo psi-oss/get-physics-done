@@ -21,6 +21,7 @@ from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     _is_hook_command_for_script,
@@ -108,7 +109,6 @@ _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "mkdir -p GPD",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
     "Gemini shell compatibility:\n"
@@ -304,7 +304,7 @@ def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
         content,
         bridge_command,
-        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+        shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
 
 

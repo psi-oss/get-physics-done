@@ -35,18 +35,24 @@ If `--fix` is present, stop before running the command and ask for explicit conf
 Let the raw CLI inspect project files conditionally from the current workspace.
 
 ```bash
+HEALTH_ERR=$(mktemp)
 if echo "$ARGUMENTS" | grep -q "\-\-fix"; then
   # Only after explicit confirmation in Step 1.
-  HEALTH=$(gpd --raw health --fix)
+  HEALTH=$(gpd --raw health --fix 2>"$HEALTH_ERR")
+  HEALTH_STATUS=$?
 else
-  HEALTH=$(gpd --raw health)
+  HEALTH=$(gpd --raw health 2>"$HEALTH_ERR")
+  HEALTH_STATUS=$?
 fi
-
-if [ $? -ne 0 ]; then
-  echo "ERROR: health check failed: $HEALTH"
-  exit 1
-fi
+HEALTH_STDERR=$(cat "$HEALTH_ERR")
+rm -f "$HEALTH_ERR"
 ```
+
+Do not treat a nonzero `HEALTH_STATUS` as a wrapper failure when `HEALTH`
+parses as the valid report JSON below. `gpd --raw health` may exit 1 to signal
+an unhealthy project while still returning the report the researcher needs. If
+`HEALTH` is not valid JSON, then report the raw command failure using
+`HEALTH_STATUS` and `HEALTH_STDERR`.
 
 ## Step 3: Parse and present
 

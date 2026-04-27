@@ -127,37 +127,29 @@ def command_visibility_note() -> str:
     )
     return render_model_visible_note(
         "Command YAML rules.",
-        "Strict booleans only.",
+        "Strict booleans only. Empty optional fields may be omitted.",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper; "
         f"its canonical frontmatter key is `{COMMAND_POLICY_FRONTMATTER_KEY}`;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy`, and "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.output_policy` are closed mappings when present;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
         "are lists of strings when present;",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.project_context_mode` "
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.project_context_mode` and `context_mode` "
         f"must be {_join_disjunction(VALID_CONTEXT_MODES)} when present;",
         f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes like `.tex` or `.md` when present;",
         "Typed command policy is runtime-authoritative for command intake, supporting-context routing, and managed-output "
-        "surfaces when a command declares it. Keep the baseline `context_mode`, `project_reentry_capable`, and `requires.files` "
-        "fields declared alongside typed policy so flat-field consumers keep a consistent view of runtime routing.",
-        f"`context_mode` must be {_join_disjunction(VALID_CONTEXT_MODES)};",
+        "surfaces when a command declares it.",
         "`allowed_tools` is a list of tool names when present;",
         "`requires` is a closed mapping when present; only `files` is supported.",
         "`requires.files` is a string or list of strings.",
-        "Empty optional fields may be omitted.",
         agent_clause,
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
-        "Missing required files or other decisive evidence are blocking for strong claims; do not treat omissions or proxies as success.",
         "Any user-visible completion, checkpoint, blocked return, failed return, retry gate, or stop that expects later "
         "action must end with a concrete `## > Next Up` or `## >> Next Up` section. Include copy-pasteable GPD "
-        "commands when they exist; otherwise name the exact artifact or review action. Use `gpd:suggest-next` as the "
-        "recovery/confirmation command for project-backed states.",
+        "commands when they exist and `gpd:suggest-next` for project-backed recovery.",
     )
 
 
@@ -169,27 +161,28 @@ def review_contract_visibility_note() -> str:
     return render_model_visible_note(
         "Review-contract YAML rules.",
         f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key; `schema_version` must be the integer `1`;",
-        "Empty optional fields may be omitted.",
+        "Omit empty optional fields.",
         f"`review_mode` must be {review_modes};",
         f"`required_state` when present must be {required_states};",
-        "`required_outputs`, `required_evidence`, `blocking_conditions`, `preflight_checks`, `stage_artifacts`, "
-        "and `scope_variants` are lists when present;",
+        "List fields when present: `required_outputs`, `required_evidence`, `blocking_conditions`, "
+        "`preflight_checks`, `stage_artifacts`, `scope_variants`;",
         f"`preflight_checks` entries must be {preflight_checks};",
         f"`conditional_requirements[].when` must be one of {conditional_whens};",
-        "`conditional_requirements[].preflight_checks` is a list when present and its entries must also be valid `preflight_checks` values.",
-        "`conditional_requirements[].blocking_preflight_checks` is a list when present and its entries must also be valid `preflight_checks` values.",
+        "`conditional_requirements[].preflight_checks` and `conditional_requirements[].blocking_preflight_checks` "
+        "are lists of valid `preflight_checks` values when present.",
         "Each `conditional_requirements[].when` value may appear at most once.",
         "List fields reject blank entries and duplicates.",
-        "Each conditional requirement must declare at least one non-empty field.",
-        "`scope_variants[].scope` and `scope_variants[].activation` must be non-empty strings.",
-        "`scope_variants[].relaxed_preflight_checks` and `scope_variants[].optional_preflight_checks` are lists when present and their entries must also satisfy the top-level `preflight_checks` vocabulary.",
-        "`scope_variants[].required_outputs_override`, `scope_variants[].required_evidence_override`, and `scope_variants[].blocking_conditions_override` are lists when present.",
-        "Each `scope_variants[].scope` value may appear at most once.",
-        "Each scope variant must declare at least one non-empty override or preflight field.",
-        "Runtime applies active scope variants additively: `relaxed_preflight_checks` make checks non-blocking, "
-        "`optional_preflight_checks` make missing inputs advisory while still validating present artifacts, and "
-        "non-empty `*_override` lists replace the top-level list for the active scope.",
-        "Missing required outputs or evidence must stay explicit; do not omit, invent, or replace them with proxies.",
+        "Each conditional requirement needs one non-empty field.",
+        "`scope_variants[].scope`/`.activation` must be non-empty strings.",
+        "`scope_variants[].relaxed_preflight_checks`/`.optional_preflight_checks` are lists of valid "
+        "`preflight_checks` values when present.",
+        "Scope override fields `required_outputs_override`, `required_evidence_override`, "
+        "`blocking_conditions_override` are lists when present.",
+        "`relaxed_preflight_checks` make named checks non-blocking for that scope; `optional_preflight_checks` make missing inputs advisory.",
+        "Non-empty scope override lists replace matching top-level lists.",
+        "Each `scope_variants[].scope` may appear at most once.",
+        "Each scope variant needs one non-empty override or preflight field.",
+        "Runtime applies active scope variants additively.",
     )
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from gpd import registry
-from tests.prompt_metrics_support import measure_prompt_surface
+from tests.prompt_metrics_support import expanded_prompt_text, measure_prompt_surface
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
@@ -41,6 +41,13 @@ AGENT_BUDGETS = {
     "gpd-verifier": (6_500, 430_000),
 }
 
+PEER_REVIEW_SPECIALIST_AGENTS = (
+    "gpd-review-literature",
+    "gpd-review-math",
+    "gpd-review-physics",
+    "gpd-review-significance",
+)
+
 
 def test_agent_prompt_budget_table_covers_registered_agents() -> None:
     assert set(AGENT_BUDGETS) == set(registry.list_agents())
@@ -57,3 +64,18 @@ def test_expanded_agent_prompt_stays_under_budget(agent_name: str) -> None:
 
     assert metrics.expanded_line_count <= max_lines
     assert metrics.expanded_char_count <= max_chars
+
+
+@pytest.mark.parametrize("agent_name", PEER_REVIEW_SPECIALIST_AGENTS)
+def test_peer_review_specialists_reference_panel_contract_without_eager_inline(agent_name: str) -> None:
+    path = AGENTS_DIR / f"{agent_name}.md"
+    raw_text = path.read_text(encoding="utf-8")
+    expanded_text = expanded_prompt_text(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
+    agent = registry.get_agent(agent_name)
+
+    assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" not in raw_text
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in expanded_text
+    assert "full `StageReviewReport` contract" in expanded_text
+    assert "# Peer Review Panel Protocol" not in expanded_text
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in agent.system_prompt
+    assert "# Peer Review Panel Protocol" not in agent.system_prompt

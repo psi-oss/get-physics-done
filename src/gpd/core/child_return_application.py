@@ -13,14 +13,22 @@ fail-closed:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
+from gpd.core.constants import ProjectLayout
+from gpd.core.continuation import (
+    normalize_continuation_bounded_segment_with_issues,
+    normalize_continuation_reference,
+)
+from gpd.core.errors import StateError
 from gpd.core.return_contract import GpdReturnContinuationUpdate, GpdReturnEnvelope
 from gpd.core.state import (
     StateUpdateResult,
+    load_state_json_readonly,
     state_add_blocker,
     state_add_decision,
     state_advance_plan,
@@ -42,6 +50,13 @@ __all__ = [
 # Explicit supported update surfaces for the canonical child-return applicator.
 SUPPORTED_STATE_UPDATE_FIELDS: tuple[str, ...] = ("advance_plan", "update_progress", "record_metric")
 SUPPORTED_CONTINUATION_UPDATE_FIELDS: tuple[str, ...] = ("handoff", "bounded_segment")
+
+
+@dataclass(frozen=True)
+class _FileSnapshot:
+    path: Path
+    existed: bool
+    content: bytes | None
 
 
 class _RecordMetricPayload(BaseModel):
@@ -105,6 +120,7 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
     decisions = _validate_decisions(envelope.decisions, errors)
     blockers = _validate_blockers(envelope.blockers, errors)
     continuation_update = _validate_continuation_update(envelope.continuation_update, errors)
+    _validate_continuation_update_semantics(cwd, continuation_update, errors)
     contract_updates = dict(envelope.contract_updates or {})
 
     if errors:
@@ -116,123 +132,148 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
             errors=errors,
         )
 
-    if state_updates is not None:
-        if state_updates.advance_plan:
-            result = state_advance_plan(cwd)
-            _record_bool_result(
-                result.advanced,
-                error=getattr(result, "error", None),
-                reason=getattr(result, "reason", None),
-                operation="advance_plan",
-                errors=errors,
-                warnings=warnings,
-                applied=applied_state_operations,
-            )
-        if state_updates.update_progress:
-            result = state_update_progress(cwd)
-            _record_bool_result(
-                result.updated,
-                error=result.error,
-                reason=result.reason,
-                operation="update_progress",
-                errors=errors,
-                warnings=warnings,
-                applied=applied_state_operations,
-            )
-        if state_updates.record_metric is not None:
-            metric = state_updates.record_metric
-            result = state_record_metric(
+    state_snapshot = _capture_state_mutation_snapshot(cwd)
+    current_operation = "apply_child_return_updates"
+
+    try:
+        if state_updates is not None:
+            if state_updates.advance_plan:
+                current_operation = "advance_plan"
+                result = state_advance_plan(cwd)
+                _record_bool_result(
+                    result.advanced,
+                    error=getattr(result, "error", None),
+                    reason=getattr(result, "reason", None),
+                    operation="advance_plan",
+                    errors=errors,
+                    warnings=warnings,
+                    applied=applied_state_operations,
+                )
+            if state_updates.update_progress:
+                current_operation = "update_progress"
+                result = state_update_progress(cwd)
+                _record_bool_result(
+                    result.updated,
+                    error=result.error,
+                    reason=result.reason,
+                    operation="update_progress",
+                    errors=errors,
+                    warnings=warnings,
+                    applied=applied_state_operations,
+                )
+            if state_updates.record_metric is not None:
+                current_operation = "record_metric"
+                metric = state_updates.record_metric
+                result = state_record_metric(
+                    cwd,
+                    phase=str(metric.phase),
+                    plan=str(metric.plan),
+                    duration=str(metric.duration),
+                    tasks=None if metric.tasks is None else str(metric.tasks),
+                    files=None if metric.files is None else str(metric.files),
+                )
+                _record_bool_result(
+                    result.recorded,
+                    error=result.error,
+                    reason=result.reason,
+                    operation="record_metric",
+                    errors=errors,
+                    warnings=warnings,
+                    applied=applied_state_operations,
+                )
+
+        for decision in decisions:
+            current_operation = "add_decision"
+            result = state_add_decision(
                 cwd,
-                phase=str(metric.phase),
-                plan=str(metric.plan),
-                duration=str(metric.duration),
-                tasks=None if metric.tasks is None else str(metric.tasks),
-                files=None if metric.files is None else str(metric.files),
+                phase=decision.phase,
+                summary=decision.summary,
+                rationale=decision.rationale,
             )
             _record_bool_result(
-                result.recorded,
+                result.added,
                 error=result.error,
                 reason=result.reason,
-                operation="record_metric",
+                operation="add_decision",
                 errors=errors,
                 warnings=warnings,
-                applied=applied_state_operations,
+                applied=None,
             )
+            if result.added:
+                applied_decisions += 1
 
-    for decision in decisions:
-        result = state_add_decision(
-            cwd,
-            phase=decision.phase,
-            summary=decision.summary,
-            rationale=decision.rationale,
-        )
-        _record_bool_result(
-            result.added,
-            error=result.error,
-            reason=result.reason,
-            operation="add_decision",
-            errors=errors,
-            warnings=warnings,
-            applied=None,
-        )
-        if result.added:
-            applied_decisions += 1
-
-    for blocker in blockers:
-        result = state_add_blocker(cwd, blocker.text)
-        _record_bool_result(
-            result.added,
-            error=result.error,
-            reason=result.reason,
-            operation="add_blocker",
-            errors=errors,
-            warnings=warnings,
-            applied=None,
-        )
-        if result.added:
-            applied_blockers += 1
-
-    if continuation_update is not None:
-        if continuation_update.handoff is not None:
-            handoff = continuation_update.handoff
-            result = state_record_session(
-                cwd,
-                stopped_at=handoff.stopped_at,
-                resume_file=handoff.resume_file,
-                last_result_id=handoff.last_result_id,
-                clear_resume_file="resume_file" in handoff.model_fields_set and handoff.resume_file is None,
-                clear_last_result_id="last_result_id" in handoff.model_fields_set and handoff.last_result_id is None,
-            )
+        for blocker in blockers:
+            current_operation = "add_blocker"
+            result = state_add_blocker(cwd, blocker.text)
             _record_bool_result(
-                result.recorded,
+                result.added,
                 error=result.error,
                 reason=result.reason,
-                operation="record_session",
+                operation="add_blocker",
                 errors=errors,
                 warnings=warnings,
-                applied=applied_continuation_operations,
+                applied=None,
             )
+            if result.added:
+                applied_blockers += 1
 
-        if "bounded_segment" in continuation_update.model_fields_set:
-            bounded_segment = continuation_update.bounded_segment
-            if bounded_segment is None:
-                result = state_clear_continuation_bounded_segment(cwd)
-                _record_state_update_result(
-                    result,
-                    operation="clear_bounded_segment",
+        if continuation_update is not None:
+            if continuation_update.handoff is not None:
+                current_operation = "record_session"
+                handoff = continuation_update.handoff
+                result = state_record_session(
+                    cwd,
+                    stopped_at=handoff.stopped_at,
+                    resume_file=handoff.resume_file,
+                    last_result_id=handoff.last_result_id,
+                    clear_resume_file="resume_file" in handoff.model_fields_set and handoff.resume_file is None,
+                    clear_last_result_id="last_result_id" in handoff.model_fields_set and handoff.last_result_id is None,
+                )
+                _record_bool_result(
+                    result.recorded,
+                    error=result.error,
+                    reason=result.reason,
+                    operation="record_session",
                     errors=errors,
                     warnings=warnings,
                     applied=applied_continuation_operations,
                 )
-            else:
-                result = state_set_continuation_bounded_segment(cwd, bounded_segment)
-                _record_state_update_result(
-                    result,
-                    operation="set_bounded_segment",
-                    errors=errors,
-                    warnings=warnings,
-                    applied=applied_continuation_operations,
-                )
+
+            if "bounded_segment" in continuation_update.model_fields_set:
+                bounded_segment = continuation_update.bounded_segment
+                if bounded_segment is None:
+                    current_operation = "clear_bounded_segment"
+                    result = state_clear_continuation_bounded_segment(cwd)
+                    _record_state_update_result(
+                        result,
+                        operation="clear_bounded_segment",
+                        errors=errors,
+                        warnings=warnings,
+                        applied=applied_continuation_operations,
+                    )
+                else:
+                    current_operation = "set_bounded_segment"
+                    result = state_set_continuation_bounded_segment(cwd, bounded_segment)
+                    _record_state_update_result(
+                        result,
+                        operation="set_bounded_segment",
+                        errors=errors,
+                        warnings=warnings,
+                        applied=applied_continuation_operations,
+                    )
+    except StateError as exc:
+        errors.append(f"{current_operation}: {exc}")
+
+    if errors:
+        rollback_errors = _restore_state_mutation_snapshot(state_snapshot)
+        if rollback_errors:
+            errors.extend(rollback_errors)
+        elif applied_state_operations or applied_continuation_operations or applied_decisions or applied_blockers:
+            warnings.append("rolled back partial child-return state updates after failure")
+        applied_state_operations = []
+        applied_continuation_operations = []
+        applied_decisions = 0
+        applied_blockers = 0
 
     passed = not errors
     return ApplyChildReturnResult(
@@ -305,6 +346,91 @@ def _validate_continuation_update(raw: object, errors: list[str]) -> GpdReturnCo
     except PydanticValidationError as exc:
         errors.extend(_format_validation_errors(exc, prefix="continuation_update"))
         return None
+
+
+def _validate_continuation_update_semantics(
+    cwd: Path,
+    continuation_update: GpdReturnContinuationUpdate | None,
+    errors: list[str],
+) -> None:
+    if continuation_update is None:
+        return
+
+    if continuation_update.handoff is not None:
+        handoff = continuation_update.handoff
+        if handoff.resume_file is not None and normalize_continuation_reference(cwd, handoff.resume_file) is None:
+            errors.append("record_session: resume_file must be a repo-relative path inside the project root")
+        if handoff.last_result_id is not None:
+            state_obj = load_state_json_readonly(cwd)
+            if not isinstance(state_obj, dict):
+                errors.append("record_session: State not found")
+            elif not _state_has_canonical_result_id(state_obj, handoff.last_result_id):
+                errors.append(
+                    f'record_session: last_result_id "{handoff.last_result_id}" does not match any canonical result '
+                    "in intermediate_results"
+                )
+
+    if "bounded_segment" not in continuation_update.model_fields_set:
+        return
+
+    bounded_segment = continuation_update.bounded_segment
+    if bounded_segment is None:
+        return
+
+    normalized_segment, normalization_issues = normalize_continuation_bounded_segment_with_issues(
+        cwd,
+        bounded_segment,
+    )
+    if normalization_issues:
+        errors.append(
+            "set_bounded_segment: Invalid continuation bounded_segment schema: "
+            + "; ".join(dict.fromkeys(normalization_issues))
+        )
+    elif normalized_segment is None or normalized_segment.is_empty:
+        errors.append(
+            "set_bounded_segment: Invalid continuation bounded_segment schema: "
+            "bounded_segment must include at least one non-empty field"
+        )
+
+
+def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
+    results = state_obj.get("intermediate_results")
+    if not isinstance(results, list):
+        return False
+    for item in results:
+        result_id_value = item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+        if isinstance(result_id_value, str) and result_id_value.strip() == result_id:
+            return True
+    return False
+
+
+def _capture_state_mutation_snapshot(cwd: Path) -> tuple[_FileSnapshot, ...]:
+    layout = ProjectLayout(cwd)
+    return tuple(
+        _capture_file_snapshot(path)
+        for path in (layout.state_json, layout.state_md, layout.state_json_backup, layout.state_intent)
+    )
+
+
+def _capture_file_snapshot(path: Path) -> _FileSnapshot:
+    try:
+        return _FileSnapshot(path=path, existed=True, content=path.read_bytes())
+    except FileNotFoundError:
+        return _FileSnapshot(path=path, existed=False, content=None)
+
+
+def _restore_state_mutation_snapshot(snapshots: tuple[_FileSnapshot, ...]) -> list[str]:
+    errors: list[str] = []
+    for snapshot in snapshots:
+        try:
+            if snapshot.existed:
+                snapshot.path.parent.mkdir(parents=True, exist_ok=True)
+                snapshot.path.write_bytes(snapshot.content or b"")
+            else:
+                snapshot.path.unlink(missing_ok=True)
+        except OSError as exc:
+            errors.append(f"rollback failed for {snapshot.path}: {exc}")
+    return errors
 
 
 def _record_bool_result(

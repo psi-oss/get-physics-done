@@ -34,8 +34,6 @@ def test_validate_and_apply_the_same_durable_continuation_payload(tmp_path: Path
             "  next_actions: [/gpd:resume-work]\n"
             "  continuation_update:\n"
             "    handoff:\n"
-            "      recorded_at: 2026-04-08T12:00:00Z\n"
-            "      recorded_by: execute-plan\n"
             "      stopped_at: Completed phase 01\n"
             "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
             "    bounded_segment:\n"
@@ -51,7 +49,7 @@ def test_validate_and_apply_the_same_durable_continuation_payload(tmp_path: Path
 
     validation = validate_gpd_return_markdown(return_file.read_text(encoding="utf-8"))
     assert validation.passed is True
-    assert validation.fields["continuation_update"]["handoff"]["recorded_by"] == "execute-plan"
+    assert validation.fields["continuation_update"]["handoff"]["stopped_at"] == "Completed phase 01"
     assert validation.fields["continuation_update"]["bounded_segment"]["segment_id"] == "seg-01"
 
     result = cmd_apply_return_updates(tmp_path, return_file)

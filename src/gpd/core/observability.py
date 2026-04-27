@@ -2135,12 +2135,6 @@ def observe_event(
             _persist_durable_bounded_segment(layout, next_execution)
     else:
         _append_event(session_log, payload.model_dump(mode="json"))
-        next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
-        if next_execution is None:
-            _clear_current_execution(layout)
-        else:
-            _save_current_execution(layout, next_execution)
-        _persist_durable_bounded_segment(layout, next_execution)
 
     updated = _updated_session(
         session,

@@ -687,6 +687,10 @@ arxiv = [
     { name = "cairosvg" },
     { name = "pypdf" },
 ]
+paper = [
+    { name = "cairosvg" },
+    { name = "pypdf" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -701,17 +705,19 @@ requires-dist = [
     { name = "arxiv", marker = "extra == 'arxiv'", specifier = ">=2.4.1" },
     { name = "arxiv-mcp-server", marker = "extra == 'arxiv'", specifier = ">=0.4.11" },
     { name = "cairosvg", marker = "extra == 'arxiv'", specifier = ">=2.7.0" },
+    { name = "cairosvg", marker = "extra == 'paper'", specifier = ">=2.7.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.27.0" },
     { name = "pillow", specifier = ">=12.1.1" },
     { name = "pybtex", specifier = ">=0.25.1" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "pypdf", marker = "extra == 'arxiv'", specifier = ">=5.0" },
+    { name = "pypdf", marker = "extra == 'paper'", specifier = ">=5.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "typer", specifier = ">=0.24.2" },
 ]
-provides-extras = ["arxiv"]
+provides-extras = ["paper", "arxiv"]
 
 [package.metadata.requires-dev]
 dev = [

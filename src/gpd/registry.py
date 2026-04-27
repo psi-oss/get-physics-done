@@ -72,6 +72,7 @@ _SPAWN_CONTRACT_BLOCK_RE = re.compile(
     r"^[ \t]*<spawn_contract>[ \t]*$\n(?P<body>.*?)^[ \t]*</spawn_contract>[ \t]*$",
     re.DOTALL | re.MULTILINE,
 )
+_SPAWN_CONTRACT_WRITE_SCOPE_MODES = ("scoped_write", "direct")
 _COMMAND_FRONTMATTER_KEYS = frozenset(
     {
         "name",
@@ -1877,13 +1878,113 @@ def _parse_spawn_contracts(content: str, *, owner_name: str) -> tuple[dict[str, 
     """Parse canonical spawn-contract blocks from rendered markdown content."""
 
     contracts: list[dict[str, object]] = []
+    seen_contracts: set[tuple[object, ...]] = set()
     for match in _SPAWN_CONTRACT_BLOCK_RE.finditer(content):
         block = textwrap.dedent(match.group("body")).strip()
         if not block:
             raise ValueError(f"spawn-contract for {owner_name}: empty block")
         parsed = _parse_spawn_contract_block(block, owner_name=owner_name)
+        contract_key = _spawn_contract_key(parsed)
+        if contract_key in seen_contracts:
+            continue
+        seen_contracts.add(contract_key)
         contracts.append(parsed)
     return tuple(contracts)
+
+
+def _spawn_contract_key(value: object) -> tuple[object, ...]:
+    """Return a hashable, order-preserving key for parsed spawn-contract metadata."""
+
+    if isinstance(value, dict):
+        return tuple((key, _spawn_contract_key(item)) for key, item in value.items())
+    if isinstance(value, list):
+        return tuple(_spawn_contract_key(item) for item in value)
+    return (value,)
+
+
+def _validate_spawn_contract_list(
+    values: object,
+    *,
+    field_name: str,
+    owner_name: str,
+) -> list[str]:
+    """Validate a spawn-contract string list and reject empty or duplicate entries."""
+
+    if not isinstance(values, list):
+        raise ValueError(f"spawn-contract for {owner_name}: {field_name} must be a list")
+    if not values:
+        raise ValueError(f"spawn-contract for {owner_name}: {field_name} must not be empty")
+
+    normalized: list[str] = []
+    first_indices: dict[str, int] = {}
+    for index, value in enumerate(values):
+        if not isinstance(value, str):
+            raise ValueError(f"spawn-contract for {owner_name}: {field_name}[{index}] must be a string")
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(f"spawn-contract for {owner_name}: {field_name}[{index}] must be a non-empty string")
+        if stripped in first_indices:
+            first_index = first_indices[stripped]
+            raise ValueError(
+                f"spawn-contract for {owner_name}: {field_name}[{index}] duplicates {field_name}[{first_index}]: {stripped}"
+            )
+        first_indices[stripped] = index
+        normalized.append(stripped)
+    return normalized
+
+
+def _validate_spawn_contract(contract: dict[str, object], *, owner_name: str) -> dict[str, object]:
+    """Validate and normalize one parsed spawn-contract block."""
+
+    if "write_scope" not in contract:
+        raise ValueError(f"spawn-contract for {owner_name}: missing write_scope")
+    if "expected_artifacts" not in contract:
+        raise ValueError(f"spawn-contract for {owner_name}: missing expected_artifacts")
+    if "shared_state_policy" not in contract:
+        raise ValueError(f"spawn-contract for {owner_name}: missing shared_state_policy")
+
+    raw_write_scope = contract["write_scope"]
+    if not isinstance(raw_write_scope, dict):
+        raise ValueError(f"spawn-contract for {owner_name}: write_scope must be a mapping")
+    write_scope = dict(raw_write_scope)
+    mode = write_scope.get("mode")
+    if not isinstance(mode, str) or not mode.strip():
+        raise ValueError(f"spawn-contract for {owner_name}: write_scope.mode must be a non-empty string")
+    mode = mode.strip()
+    if mode not in _SPAWN_CONTRACT_WRITE_SCOPE_MODES:
+        valid = ", ".join(_SPAWN_CONTRACT_WRITE_SCOPE_MODES)
+        raise ValueError(f"spawn-contract for {owner_name}: invalid write_scope.mode {mode!r}; expected one of: {valid}")
+    write_scope["mode"] = mode
+    if "allowed_paths" not in write_scope:
+        raise ValueError(f"spawn-contract for {owner_name}: missing write_scope.allowed_paths")
+    write_scope["allowed_paths"] = _validate_spawn_contract_list(
+        write_scope["allowed_paths"],
+        field_name="write_scope.allowed_paths",
+        owner_name=owner_name,
+    )
+
+    expected_artifacts = _validate_spawn_contract_list(
+        contract["expected_artifacts"],
+        field_name="expected_artifacts",
+        owner_name=owner_name,
+    )
+
+    shared_state_policy = contract["shared_state_policy"]
+    if not isinstance(shared_state_policy, str) or not shared_state_policy.strip():
+        raise ValueError(f"spawn-contract for {owner_name}: shared_state_policy must be a non-empty string")
+    shared_state_policy = shared_state_policy.strip()
+    if shared_state_policy not in AGENT_SHARED_STATE_AUTHORITIES:
+        valid = ", ".join(AGENT_SHARED_STATE_AUTHORITIES)
+        raise ValueError(
+            f"spawn-contract for {owner_name}: invalid shared_state_policy {shared_state_policy!r}; "
+            f"expected one of: {valid}"
+        )
+
+    return {
+        "write_scope": write_scope,
+        "expected_artifacts": expected_artifacts,
+        "shared_state_policy": shared_state_policy,
+    }
 
 
 def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, object]:
@@ -1934,7 +2035,7 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
         raise ValueError(f"spawn-contract for {owner_name}: missing expected_artifacts")
     if "shared_state_policy" not in contract:
         raise ValueError(f"spawn-contract for {owner_name}: missing shared_state_policy")
-    return contract
+    return _validate_spawn_contract(contract, owner_name=owner_name)
 
 
 def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> WorkflowStageManifest | None:

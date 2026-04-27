@@ -56,6 +56,9 @@ def test_execute_plan_decision_and_continuation_handoffs_use_canonical_applicato
 
     assert "gpd apply-return-updates" in continuation
     assert "gpd state record-session" not in continuation
+    assert "do not include `recorded_at` or `recorded_by` in child returns" in continuation
+    assert "recorded_at:" not in continuation
+    assert "recorded_by:" not in continuation
 
 
 def test_execute_plan_routes_state_application_through_canonical_applicator() -> None:

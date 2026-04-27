@@ -1107,13 +1107,13 @@ gpd_return:
     - text: "{blocker text}"
   continuation_update:
     handoff:
-      recorded_at: "{timestamp}"
-      recorded_by: "gpd-executor"
       stopped_at: "Completed {phase}-{plan}-PLAN.md"
       resume_file: null
       last_result_id: null
     bounded_segment: null
 ```
+
+`gpd apply-return-updates` records handoff timestamp/provenance; omit `recorded_at` and `recorded_by` from child returns.
 
 Keep these keys in the same `gpd_return` object. Do not invent a second return object.
 

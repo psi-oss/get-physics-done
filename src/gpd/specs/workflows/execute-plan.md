@@ -696,12 +696,12 @@ Include continuation update in the `gpd_return` envelope so `gpd apply-return-up
 gpd_return:
   continuation_update:
     handoff:
-      recorded_at: "[current ISO timestamp]"
-      recorded_by: "execute-plan"
       stopped_at: "Completed ${phase}-${plan}-PLAN.md"
       resume_file: null
     bounded_segment: null
 ```
+
+`gpd apply-return-updates` records handoff timestamp/provenance; do not include `recorded_at` or `recorded_by` in child returns.
 
 **Exception:** If executing in Pattern C (main context, no subagent), apply directly through the same applicator:
 

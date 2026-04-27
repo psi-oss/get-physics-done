@@ -65,7 +65,8 @@ Before listing choices, add one short line in plain English such as:
 
 - `I will show the safest next steps first and the broader options second.`
 - `The official GPD command names are included so you can learn them as you go.`
-- `Keep the numbered list short. Put extra capabilities in a separate \`Other useful options\` block instead of making the user compare too many first choices.`
+
+Keep the numbered list short. Put extra capabilities in a separate `Other useful options` block instead of making the user compare too many first choices; this is an internal structuring rule, not a line to show the researcher.
 
 **This folder already has saved GPD work (`GPD project`)**
 

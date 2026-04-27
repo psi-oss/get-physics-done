@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.core import context as context_module
 from gpd.core.context import init_write_paper
 from gpd.core.workflow_staging import (
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
@@ -16,6 +17,9 @@ from gpd.core.workflow_staging import (
     PLAN_PHASE_STAGE_MANIFEST_PATH,
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
+    VERIFY_WORK_INIT_FIELDS,
+    VERIFY_WORK_MCP_VERIFICATION_TOOLS,
+    VERIFY_WORK_STAGE_ALLOWED_TOOLS,
     WRITE_PAPER_MANAGED_INTAKE_ROOT,
     WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     invalidate_workflow_stage_manifest_cache,
@@ -180,6 +184,9 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "protocol_bundle_verifier_extensions" in manifest.stages[2].required_init_fields
     assert "active_reference_context" in manifest.stages[2].required_init_fields
     assert "reference_artifacts_content" not in manifest.stages[2].required_init_fields
+    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).issubset(manifest.stages[2].allowed_tools)
+    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).isdisjoint(manifest.stages[0].allowed_tools)
+    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).isdisjoint(manifest.stages[1].allowed_tools)
     assert manifest.stages[3].allowed_tools == (
         "ask_user",
         "file_read",
@@ -223,6 +230,11 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     )
     assert "reference_artifact_files" in manifest.stages[4].required_init_fields
     assert "reference_artifacts_content" in manifest.stages[4].required_init_fields
+    assert "contract_intake" in manifest.stages[4].required_init_fields
+    assert "effective_reference_intake" in manifest.stages[4].required_init_fields
+    assert "selected_protocol_bundle_ids" in manifest.stages[4].required_init_fields
+    assert "protocol_bundle_context" in manifest.stages[4].required_init_fields
+    assert "protocol_bundle_verifier_extensions" in manifest.stages[4].required_init_fields
     assert manifest.stages[4].loaded_authorities == (
         "workflows/verify-work.md",
         "templates/research-verification.md",
@@ -231,6 +243,50 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
         "references/shared/canonical-schema-discipline.md",
         "references/protocols/error-propagation-protocol.md",
     )
+
+
+def test_verify_work_context_uses_workflow_staging_init_field_source() -> None:
+    assert context_module._VERIFY_WORK_INIT_FIELDS == VERIFY_WORK_INIT_FIELDS
+    assert context_module._VERIFY_WORK_CONTRACT_GATE_FIELDS <= VERIFY_WORK_INIT_FIELDS
+    assert context_module._VERIFY_WORK_REFERENCE_RUNTIME_FIELDS <= VERIFY_WORK_INIT_FIELDS
+    assert context_module._VERIFY_WORK_STRUCTURED_STATE_FIELDS <= VERIFY_WORK_INIT_FIELDS
+    assert context_module._VERIFY_WORK_STATE_MEMORY_FIELDS <= VERIFY_WORK_INIT_FIELDS
+    assert {
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_files",
+        "stable_knowledge_doc_files",
+        "knowledge_doc_status_counts",
+    } <= VERIFY_WORK_INIT_FIELDS
+
+
+def test_verify_work_manifest_accepts_declared_mcp_verification_tools() -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        _workflow_payload("verify-work"),
+        expected_workflow_id="verify-work",
+        allowed_tools=VERIFY_WORK_STAGE_ALLOWED_TOOLS,
+    )
+
+    inventory = manifest.stage("inventory_build")
+    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).issubset(inventory.allowed_tools)
+
+
+def test_staged_loading_payload_exposes_eager_authority_metadata() -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        _workflow_payload("verify-work"),
+        expected_workflow_id="verify-work",
+    )
+    stage = manifest.stage("inventory_build")
+
+    payload = manifest.staged_loading_payload(stage.id)
+
+    assert payload["mode_paths"] == list(stage.mode_paths)
+    assert payload["loaded_authorities"] == list(stage.loaded_authorities)
+    assert payload["eager_authorities"] == list(stage.eager_authorities())
+    assert payload["eager_authorities"] == [
+        "workflows/verify-work.md",
+        "references/verification/meta/verification-independence.md",
+    ]
 
 
 def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifest_workflow_id(
@@ -244,6 +300,17 @@ def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifes
 
     assert manifest.workflow_id == "execute-phase"
     assert manifest.stage_ids()[0] == "phase_bootstrap"
+
+
+def test_load_verify_work_manifest_from_path_uses_workflow_mcp_tool_defaults(tmp_path: Path) -> None:
+    payload = _workflow_payload("verify-work")
+    manifest_path = tmp_path / "verify-work-stage-manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    manifest = load_workflow_stage_manifest_from_path(manifest_path)
+
+    assert manifest.workflow_id == "verify-work"
+    assert set(VERIFY_WORK_MCP_VERIFICATION_TOOLS).issubset(manifest.stage("inventory_build").allowed_tools)
 
 
 def test_known_init_fields_for_verify_work_include_proof_gate_and_artifact_context() -> None:

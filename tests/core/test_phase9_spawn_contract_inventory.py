@@ -15,9 +15,14 @@ EXPECTED_WORKFLOW_COUNTS = {
     "new-milestone.md": 3,
     "new-project.md": 7,
     "parameter-sweep.md": 1,
+    "plan-phase.md": 1,
+    "research-phase.md": 1,
+    "verify-work.md": 1,
+}
+EXPECTED_RAW_WORKFLOW_COUNTS = {
+    **EXPECTED_WORKFLOW_COUNTS,
     "plan-phase.md": 2,
     "research-phase.md": 2,
-    "verify-work.md": 1,
 }
 
 
@@ -65,3 +70,9 @@ def test_spawn_contract_blocks_are_structural_and_count_stable() -> None:
         assert len(contracts) == expected_count, workflow_name
         for index, contract in enumerate(contracts, start=1):
             _assert_contract_shape(contract, workflow_name=workflow_name, index=index)
+
+
+def test_spawn_contract_source_blocks_preserve_distinct_handoff_sites() -> None:
+    for workflow_name, expected_count in EXPECTED_RAW_WORKFLOW_COUNTS.items():
+        text = _read(WORKFLOWS_DIR / workflow_name)
+        assert text.count("<spawn_contract>") == expected_count, workflow_name

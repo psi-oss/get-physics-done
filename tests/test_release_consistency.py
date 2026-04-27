@@ -38,7 +38,8 @@ _BOOTSTRAP_JSON_ASSETS = (
     "src/gpd/core/public_surface_contract_schema.json",
 )
 _EXPECTED_OPTIONAL_DEPENDENCIES = {
-    "arxiv": ["arxiv-mcp-server>=0.4.11", "arxiv>=2.4.1", "cairosvg>=2.7.0", "pypdf>=5.0"]
+    "paper": ["cairosvg>=2.7.0", "pypdf>=5.0"],
+    "arxiv": ["arxiv-mcp-server>=0.4.11", "arxiv>=2.4.1", "cairosvg>=2.7.0", "pypdf>=5.0"],
 }
 _OPTIONAL_DECLARED_PUBLICATION_IMPORTS = {
     "src/gpd/mcp/paper/bibliography.py": {"arxiv"},

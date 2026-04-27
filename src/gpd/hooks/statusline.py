@@ -33,9 +33,6 @@ _CONTEXT_CRITICAL_THRESHOLD = 95
 _CONTEXT_FILLED = "#"
 _CONTEXT_EMPTY = "-"
 _STATUS_LABEL = "GPD"
-_CANONICAL_MODEL_KEYS = ("display_name", "name", "id")
-_CANONICAL_CONTEXT_WINDOW_SIZE_KEYS = ("context_window_size",)
-_CANONICAL_CONTEXT_REMAINING_KEYS = ("remaining_percentage", "remainingPercent", "remaining")
 
 
 def _context_bar(remaining_pct: float) -> str:
@@ -85,14 +82,10 @@ def _first_value(value: object, *keys: str) -> object | None:
     return None
 
 
-def _merged_policy_keys(value: object, attribute: str, *, fallback: tuple[str, ...]) -> tuple[str, ...]:
-    """Return policy-owned keys plus canonical fallbacks, deduplicated in order."""
-    raw_keys = getattr(value, attribute, ())
-    merged: list[str] = []
-    for key in (*raw_keys, *fallback):
-        if isinstance(key, str) and key and key not in merged:
-            merged.append(key)
-    return tuple(merged)
+def _policy_keys(value: object, attribute: str) -> tuple[str, ...]:
+    """Return non-empty string keys owned by the resolved hook payload policy."""
+    raw_keys = getattr(value, attribute, ()) or ()
+    return tuple(key for key in raw_keys if isinstance(key, str) and key)
 
 
 def _object_value(value: object, key: str) -> object | None:
@@ -179,13 +172,13 @@ def _read_model_label(data: dict[str, object], hook_payload=None) -> str:
     else:
         model_label = _first_string(
             model_value,
-            *_merged_policy_keys(policy, "model_keys", fallback=_CANONICAL_MODEL_KEYS),
+            *_policy_keys(policy, "model_keys"),
         )
 
     context_label = _format_context_window_size(
         _first_value(
             data.get("context_window"),
-            *_merged_policy_keys(policy, "context_window_size_keys", fallback=_CANONICAL_CONTEXT_WINDOW_SIZE_KEYS),
+            *_policy_keys(policy, "context_window_size_keys"),
         )
     )
     if model_label and context_label:
@@ -340,7 +333,7 @@ def _read_context_remaining(data: dict[str, object], hook_payload) -> float | in
     """Read remaining context percentage from runtime payload aliases."""
     remaining = _first_value(
         data.get("context_window"),
-        *_merged_policy_keys(hook_payload, "context_remaining_keys", fallback=_CANONICAL_CONTEXT_REMAINING_KEYS),
+        *_policy_keys(hook_payload, "context_remaining_keys"),
     )
     if isinstance(remaining, (int, float)) and math.isfinite(remaining):
         return remaining

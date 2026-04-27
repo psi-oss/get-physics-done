@@ -8,6 +8,7 @@ from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     _is_hook_command_for_script,
@@ -33,8 +34,6 @@ from gpd.adapters.install_utils import (
 from gpd.mcp import managed_integrations as _managed_integrations
 
 logger = logging.getLogger(__name__)
-
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
 def _claude_settings_shape_is_valid(settings: dict[str, object]) -> bool:
@@ -677,7 +676,7 @@ def _rewrite_gpd_cli_invocations(content: str, command: str) -> str:
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
         content,
         command,
-        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+        shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
 
 
