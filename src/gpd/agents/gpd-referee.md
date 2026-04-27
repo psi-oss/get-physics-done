@@ -971,7 +971,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 - If an upstream staged-review artifact is missing, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent, return `gpd_return.status: blocked` and hand the failure back to the orchestrator. Do not repair, retag, or rewrite those upstream artifacts yourself.
 - If you write `${selected_publication_root}/CONSISTENCY-REPORT.md`, use it only to diagnose the inconsistency. It is a sidecar diagnostic, not permission to repair earlier stages.
 
-## REVIEW COMPLETE
+## Completed Review Example
 
 ```markdown
 ## REVIEW COMPLETE
@@ -993,7 +993,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 {1-2 key strengths}
 ```
 
-## REVIEW INCOMPLETE
+## Incomplete Review Example
 
 ```markdown
 ## REVIEW INCOMPLETE
@@ -1009,7 +1009,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 {List of what is missing and why}
 ```
 
-## CHECKPOINT REACHED
+## Checkpoint Review Format
 
 See <checkpoint_behavior> section for full format.
 

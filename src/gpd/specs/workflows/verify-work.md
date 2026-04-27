@@ -44,19 +44,19 @@ Targeted flags narrow the optional check mix only. They do not change canonical 
 </step>
 
 <step name="initialize" priority="first">
-Load the workflow context:
+Load only the session-router stage first. Load later stages where their fields are used.
 
 ```bash
-INIT=$(gpd --raw init verify-work "${PHASE_ARG}")
+SESSION_ROUTER_INIT=$(gpd --raw init verify-work "${PHASE_ARG}" --stage session_router)
 if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
+  echo "ERROR: gpd initialization failed: $SESSION_ROUTER_INIT"
   # STOP - display the error to the user and do not proceed.
 fi
 ```
 
-Parse the init JSON for the wrapper-facing fields only: `planner_model`, `checker_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `phase_proof_review_status`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`.
+Parse only `session_router.required_init_fields`.
 
-Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
+Do not assume reference ledgers, protocol bundles, or report-writing schemas are loaded during session routing. Reload the explicit later stage before relying on those fields.
 
 **If `phase_found` is false:**
 
@@ -106,6 +106,18 @@ Read all PLAN.md files in ${phase_dir}/ using the file_read tool.
 <step name="proof_readiness_gate">
 Detect whether the phase is proof-bearing before any verifier handoff.
 
+Load proof/bootstrap before using proof freshness or proof-repair routing:
+
+```bash
+PHASE_BOOTSTRAP_INIT=$(gpd --raw init verify-work "${PHASE_ARG}" --stage phase_bootstrap)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd phase-bootstrap initialization failed: $PHASE_BOOTSTRAP_INIT"
+  # STOP - display the error to the user and do not proceed.
+fi
+```
+
+Use `phase_bootstrap.required_init_fields` as the refreshed bootstrap payload.
+
 Use `phase_proof_review_status` as the structured freshness summary for the phase proof-review manifest if present. If a required proof-redteam audit is missing, stale, malformed, or not `passed`, spawn `gpd-check-proof` once before finalizing the gap ledger.
 Proof-bearing phases require a canonical `*-PROOF-REDTEAM.md` artifact.
 For proof-bearing work, an additional mandatory floor applies before the wrapper can accept a passed verification result.
@@ -138,7 +150,20 @@ If `gpd-check-proof` still cannot produce a passed audit, keep the verification 
 </step>
 
 <step name="load_anchor_context">
+Load inventory-building before using anchor, protocol-bundle, state, or verifier-handoff fields:
+
+```bash
+INVENTORY_BUILD_INIT=$(gpd --raw init verify-work "${PHASE_ARG}" --stage inventory_build)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd inventory-build initialization failed: $INVENTORY_BUILD_INIT"
+  # STOP - display the error to the user and do not proceed.
+fi
+```
+
+Treat `inventory_build.required_init_fields` as the source of truth for contract, reference, and protocol-bundle fields.
+
 Use `active_reference_context` from init JSON as a mandatory input to verification.
+Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
 
 - If it names a benchmark, prior artifact, or must-read reference, verification must explicitly check it or report why it could not.
 - Treat `effective_reference_intake` as the structured source of must-read refs, prior outputs, baselines, user anchors, and context gaps. `active_reference_context` is the readable rendering of that ledger, not its substitute.
@@ -301,6 +326,16 @@ Read the verifier-produced verification file or report path.
 - Do not recompute canonical verification status in this workflow.
 
 Load the staged researcher-session scaffold and canonical schema pack at this stage.
+
+```bash
+INTERACTIVE_VALIDATION_INIT=$(gpd --raw init verify-work "${PHASE_ARG}" --stage interactive_validation)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd interactive-validation initialization failed: $INTERACTIVE_VALIDATION_INIT"
+  # STOP - display the error to the user and do not proceed.
+fi
+```
+
+Use `interactive_validation.required_init_fields` before writing the session overlay.
 Keep the session overlay frontmatter compatible with the authoritative verification report.
 Write to `${phase_dir}/${phase_number}-VERIFICATION.md`.
 Changed verification files fail `gpd pre-commit-check` when this header is missing or mismatched against the active lock.
@@ -431,7 +466,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse the same wrapper-facing fields from the staged payload as in the main init, then treat the staged payload as the source of truth for planner and checker routing. Use the staged `planner_model`, `checker_model`, `phase_dir`, `phase_number`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, and `phase_proof_review_status` values for the gap-repair route.
+Treat the staged payload as the source of truth for planner and checker routing.
 
 If the staged init is blocked, stale, or missing required fields, stop and surface the blocking issues instead of falling back to unstaged plan repair.
 </step>

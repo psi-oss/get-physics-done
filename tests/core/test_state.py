@@ -276,6 +276,52 @@ def test_parse_state_md_treats_plain_not_set_placeholders_as_unset() -> None:
     assert parsed["session"]["last_result_id"] is None
 
 
+def test_parse_state_md_filters_exact_placeholder_bullets_only() -> None:
+    markdown = (
+        "# Research State\n\n"
+        "## Active Calculations\n\n"
+        "- Nonequilibrium saddle expansion\n"
+        "- None of the counterterms cancel\n"
+        "- none\n"
+        "- None yet.\n"
+        "- -\n"
+        "- \u2014\n\n"
+        "## Intermediate Results\n\n"
+        "- Nonequilibrium dispersion relation\n"
+        "- none yet\n\n"
+        "## Open Questions\n\n"
+        "- Nonequilibrium Ward identity?\n"
+        "- none\n\n"
+        "## Accumulated Context\n\n"
+        "### Decisions\n\n"
+        "- [Phase 02]: Nonequilibrium branch is physical\n"
+        "- Nonequilibrium normalization stays explicit\n"
+        "- none\n\n"
+        "### Pending Todos\n\n"
+        "- Nonequilibrium limit check\n"
+        "- None yet.\n\n"
+        "### Blockers/Concerns\n\n"
+        "- Nonequilibrium convergence is slow\n"
+        "- -\n"
+        "- none\n\n"
+    )
+
+    parsed = parse_state_md(markdown)
+
+    assert parsed["active_calculations"] == [
+        "Nonequilibrium saddle expansion",
+        "None of the counterterms cancel",
+    ]
+    assert parsed["intermediate_results"] == ["Nonequilibrium dispersion relation"]
+    assert parsed["open_questions"] == ["Nonequilibrium Ward identity?"]
+    assert parsed["decisions"] == [
+        {"phase": "02", "summary": "Nonequilibrium branch is physical", "rationale": None},
+        {"phase": None, "summary": "Nonequilibrium normalization stays explicit", "rationale": None},
+    ]
+    assert parsed["pending_todos"] == ["Nonequilibrium limit check"]
+    assert parsed["blockers"] == ["Nonequilibrium convergence is slow"]
+
+
 # ─── ensure_state_schema ─────────────────────────────────────────────────────
 
 

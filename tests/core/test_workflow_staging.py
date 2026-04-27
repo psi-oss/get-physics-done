@@ -20,6 +20,8 @@ from gpd.core.workflow_staging import (
     VERIFY_WORK_INIT_FIELDS,
     VERIFY_WORK_MCP_VERIFICATION_TOOLS,
     VERIFY_WORK_STAGE_ALLOWED_TOOLS,
+    WORKFLOW_STAGE_MANIFEST_DIR,
+    WORKFLOW_STAGE_MANIFEST_SUFFIX,
     WRITE_PAPER_MANAGED_INTAKE_ROOT,
     WRITE_PAPER_MANAGED_MANUSCRIPT_ROOT,
     invalidate_workflow_stage_manifest_cache,
@@ -29,6 +31,8 @@ from gpd.core.workflow_staging import (
     resolve_workflow_stage_manifest_path,
     validate_workflow_stage_manifest_payload,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _workflow_payload(workflow_id: str) -> dict[str, object]:
@@ -168,6 +172,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     )
 
     assert manifest.workflow_id == "verify-work"
+    assert manifest.prompt_usage == "staged_init"
     assert manifest.stage_ids() == (
         "session_router",
         "phase_bootstrap",
@@ -265,6 +270,31 @@ def test_verify_work_context_uses_workflow_staging_init_field_source() -> None:
         "stable_knowledge_doc_files",
         "knowledge_doc_status_counts",
     } <= VERIFY_WORK_INIT_FIELDS
+
+
+def test_stage_manifests_are_prompt_used_cli_reachable_or_explicitly_metadata_only() -> None:
+    cli_text = (REPO_ROOT / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
+
+    for manifest_path in sorted(WORKFLOW_STAGE_MANIFEST_DIR.glob(f"*{WORKFLOW_STAGE_MANIFEST_SUFFIX}")):
+        workflow_id = manifest_path.name.removesuffix(WORKFLOW_STAGE_MANIFEST_SUFFIX)
+        manifest = load_workflow_stage_manifest(workflow_id)
+        workflow_text = (WORKFLOW_STAGE_MANIFEST_DIR / f"{workflow_id}.md").read_text(encoding="utf-8")
+
+        prompt_uses_staged_init = f"gpd --raw init {workflow_id}" in workflow_text and "--stage" in workflow_text
+        cli_init_reachable = f'@init_app.command("{workflow_id}")' in cli_text
+
+        if manifest.prompt_usage == "metadata_only":
+            assert workflow_id == "arxiv-submission"
+            assert "metadata-only for the prompt path today" in workflow_text
+            assert not prompt_uses_staged_init
+            assert not cli_init_reachable
+            continue
+
+        assert manifest.prompt_usage == "staged_init"
+        assert prompt_uses_staged_init or cli_init_reachable, (
+            f"{manifest_path.name} must be used by its prompt, reachable through gpd init, "
+            "or marked prompt_usage=metadata_only"
+        )
 
 
 def test_verify_work_manifest_accepts_declared_mcp_verification_tools() -> None:

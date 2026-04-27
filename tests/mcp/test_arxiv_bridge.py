@@ -99,6 +99,34 @@ async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
 
 
 @pytest.mark.asyncio
+async def test_download_source_schema_rejects_whitespace_only_paper_id() -> None:
+    from jsonschema import Draft202012Validator
+    from mcp.types import ListToolsResult, Tool
+
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def list_tools(self, cursor=None):
+            return ListToolsResult(tools=[Tool(name="search_papers", inputSchema={"type": "object"})])
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = FakeSession()  # type: ignore[assignment]
+    try:
+        result = await bridge.list_tools()
+    finally:
+        bridge._session = None
+
+    schema = next(tool.inputSchema for tool in result.tools if tool.name == "download_source")
+    paper_id = schema["properties"]["paper_id"]
+    validator = Draft202012Validator(schema)
+
+    assert paper_id["minLength"] == 1
+    assert paper_id["pattern"] == r"\S"
+    assert not list(validator.iter_errors({"paper_id": "2401.12345"}))
+    assert list(validator.iter_errors({"paper_id": "   "}))
+
+
+@pytest.mark.asyncio
 async def test_bridge_preserves_upstream_pagination_and_only_adds_download_source_on_first_page() -> None:
     from mcp.types import ListToolsResult, Tool
 

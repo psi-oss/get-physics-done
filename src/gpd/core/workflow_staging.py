@@ -38,6 +38,7 @@ RESUME_WORK_INIT_FIELDS = frozenset(
         "workspace_project_exists",
         "workspace_planning_exists",
         "state_exists",
+        "state_json_backup_exists",
         "roadmap_exists",
         "project_exists",
         "planning_exists",
@@ -996,7 +997,9 @@ _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW = {
     "execute-phase": EXECUTE_PHASE_INIT_FIELDS,
 }
 
-_ALLOWED_TOP_LEVEL_KEYS = frozenset({"schema_version", "workflow_id", "stages"})
+_ALLOWED_TOP_LEVEL_KEYS = frozenset({"schema_version", "workflow_id", "prompt_usage", "stages"})
+_REQUIRED_TOP_LEVEL_KEYS = frozenset({"schema_version", "workflow_id", "stages"})
+_ALLOWED_PROMPT_USAGE_VALUES = frozenset({"staged_init", "metadata_only"})
 _ALLOWED_STAGE_KEYS = frozenset(
     {
         "id",
@@ -1106,6 +1109,7 @@ class WorkflowStageManifest:
     schema_version: int
     workflow_id: str
     stages: tuple[WorkflowStage, ...]
+    prompt_usage: str = "staged_init"
 
     def stage_ids(self) -> tuple[str, ...]:
         return tuple(stage.id for stage in self.stages)
@@ -1126,11 +1130,14 @@ class WorkflowStageManifest:
         return self.stage(stage_id).to_staged_loading_payload(self.workflow_id)
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "schema_version": self.schema_version,
             "workflow_id": self.workflow_id,
             "stages": [stage.to_payload() for stage in self.stages],
         }
+        if self.prompt_usage != "staged_init":
+            payload["prompt_usage"] = self.prompt_usage
+        return payload
 
 
 def _require_string(raw: object, *, label: str) -> str:
@@ -1408,7 +1415,7 @@ def validate_workflow_stage_manifest_payload(
     if unknown_keys:
         raise ValueError(f"workflow stage manifest contains unexpected key(s): {', '.join(unknown_keys)}")
 
-    missing_keys = sorted(key for key in _ALLOWED_TOP_LEVEL_KEYS if key not in raw)
+    missing_keys = sorted(key for key in _REQUIRED_TOP_LEVEL_KEYS if key not in raw)
     if missing_keys:
         raise ValueError(f"workflow stage manifest is missing required key(s): {', '.join(missing_keys)}")
 
@@ -1419,6 +1426,12 @@ def validate_workflow_stage_manifest_payload(
     workflow_id = _normalize_workflow_id(raw["workflow_id"])
     if expected_workflow_id is not None and workflow_id != expected_workflow_id:
         raise ValueError(f"workflow stage manifest workflow_id must be {expected_workflow_id!r}, got {workflow_id!r}")
+
+    prompt_usage = _require_string(raw.get("prompt_usage", "staged_init"), label="prompt_usage")
+    if prompt_usage not in _ALLOWED_PROMPT_USAGE_VALUES:
+        raise ValueError(
+            f"workflow stage manifest prompt_usage must be one of: {', '.join(sorted(_ALLOWED_PROMPT_USAGE_VALUES))}"
+        )
 
     stages_raw = raw["stages"]
     if not isinstance(stages_raw, list) or not stages_raw:
@@ -1467,7 +1480,12 @@ def validate_workflow_stage_manifest_payload(
         if backward_next:
             raise ValueError(f"stage {stage.id!r} must only point to later stages; got {', '.join(backward_next)}")
 
-    return WorkflowStageManifest(schema_version=schema_version, workflow_id=workflow_id, stages=stages)
+    return WorkflowStageManifest(
+        schema_version=schema_version,
+        workflow_id=workflow_id,
+        stages=stages,
+        prompt_usage=prompt_usage,
+    )
 
 
 def _cache_key_tools(values: Iterable[str] | None, *, workflow_id: str) -> tuple[str, ...] | None:

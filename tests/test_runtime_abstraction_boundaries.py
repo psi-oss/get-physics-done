@@ -360,6 +360,19 @@ def _runtime_fixture_values() -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
+def _runtime_name_or_display_literal_values() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                value
+                for descriptor in _RUNTIME_DESCRIPTORS
+                for value in (descriptor.runtime_name, descriptor.display_name)
+                if value
+            }
+        )
+    )
+
+
 def _runtime_command_surface_prefix_values() -> tuple[str, ...]:
     return tuple(
         sorted(
@@ -390,6 +403,18 @@ def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2)
         }
         if len(matched_values) >= minimum_matches:
             findings.append(block.replace("\n", " "))
+    return findings
+
+
+def _standalone_runtime_name_or_display_literal_findings(content: str) -> list[tuple[int, str]]:
+    tree = ast.parse(content)
+    runtime_literals = set(_runtime_name_or_display_literal_values())
+    findings: list[tuple[int, str]] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in runtime_literals:
+            findings.append((node.lineno, node.value))
+
     return findings
 
 
@@ -516,6 +541,17 @@ def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -
     findings = _runtime_fixture_literal_findings(f'(["{runtime_literal}"])', minimum_matches=1)
 
     assert findings == [f'(["{runtime_literal}"])']
+
+
+def test_standalone_runtime_literal_findings_flags_single_runtime_display_literal() -> None:
+    runtime_literal = next(
+        descriptor.display_name
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.display_name != descriptor.runtime_name
+    )
+    findings = _standalone_runtime_name_or_display_literal_findings(f'assert "{runtime_literal}" not in content\n')
+
+    assert findings == [(1, runtime_literal)]
 
 
 def test_runtime_pattern_includes_capability_surface_literals() -> None:
@@ -812,6 +848,14 @@ def test_shared_core_runtime_surface_tests_do_not_hardcode_single_runtime_catalo
         content = path.read_text(encoding="utf-8")
         for block in _runtime_fixture_literal_findings(content, minimum_matches=1):
             leaks.append((path, 0, f"hard-coded single-runtime fixture block: {block[:160]}"))
+        for line_no, literal in _standalone_runtime_name_or_display_literal_findings(content):
+            leaks.append(
+                (
+                    path,
+                    line_no,
+                    f"hard-coded standalone runtime name/display literal: {literal!r}",
+                )
+            )
 
     assert leaks == [], (
         "Shared core runtime-surface tests should derive runtime literals from the runtime catalog:\n"

@@ -406,10 +406,6 @@ def resolve_project_reentry(
     elif len(strong_recent) > 1:
         mode = "ambiguous-recent-projects"
         requires_user_selection = True
-    elif current_candidate is not None:
-        selected_project_root = current_candidate.project_root
-        selected_source = current_candidate.source
-        mode = "current-workspace"
     elif recent_candidates:
         mode = "recent-projects"
 

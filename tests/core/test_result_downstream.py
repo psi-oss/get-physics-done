@@ -142,6 +142,22 @@ def test_result_downstream_handles_raw_string_depends_on_field():
     assert downstream.transitive_dependents == []
 
 
+def test_result_downstream_resolves_normalized_target_and_dependencies():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "depends_on": []},
+            {"id": "R-02", "depends_on": "r 01"},
+            {"id": "R-03", "depends_on": ["r 02"]},
+        ]
+    }
+
+    downstream = result_downstream(state, "r 01")
+
+    assert downstream.result.id == "R-01"
+    assert [d.id for d in downstream.direct_dependents] == ["R-02"]
+    assert [d.id for d in downstream.transitive_dependents] == ["R-03"]
+
+
 def test_result_downstream_deep_chain():
     """A -> B -> C -> D -> E: downstream of A returns B (direct), C/D/E (transitive)."""
     state: dict = {}

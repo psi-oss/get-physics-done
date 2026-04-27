@@ -120,10 +120,12 @@ def test_sync_phase_checkpoints_generates_root_and_phase_docs(tmp_path: Path) ->
     assert "# Phase 01 Checkpoint" in phase_checkpoint
     assert "[01-SUMMARY.md](../phases/01-test-phase/01-SUMMARY.md)" in phase_checkpoint
     assert "[01-VERIFICATION.md](../phases/01-test-phase/01-VERIFICATION.md)" in phase_checkpoint
-    assert "The headline result was straightforward" in phase_checkpoint
+    assert "Result: Set up the project." in phase_checkpoint
+    assert "The headline result was straightforward" not in phase_checkpoint
 
     checkpoints_index = (cwd / "GPD" / "CHECKPOINTS.md").read_text(encoding="utf-8")
     assert "[Phase 01: Test Phase](phase-checkpoints/01-test-phase.md)" in checkpoints_index
+    assert "Generated from canonical SUMMARY and VERIFICATION artifacts" in checkpoints_index
     assert "\\" not in phase_checkpoint
     assert "\\" not in checkpoints_index
 
@@ -148,7 +150,7 @@ def test_sync_phase_checkpoints_renders_canonical_list_provides(tmp_path: Path) 
 
     assert result.phase_count == 1
     phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "01-test-phase.md").read_text(encoding="utf-8")
-    assert "In practical terms, this phase now gives the project solver." in phase_checkpoint
+    assert "Provides: solver." in phase_checkpoint
 
 
 def test_sync_phase_checkpoints_skips_malformed_summary_and_still_regenerates_other_phases(

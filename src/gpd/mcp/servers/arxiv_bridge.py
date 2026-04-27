@@ -38,6 +38,7 @@ _DOWNLOAD_SOURCE_SCHEMA: dict[str, object] = {
         "paper_id": {
             "type": "string",
             "minLength": 1,
+            "pattern": r"\S",
             "description": "arXiv paper identifier, for example 2401.12345 or hep-th/9901001.",
         },
         "overwrite": {

@@ -234,15 +234,19 @@ Use the file_write tool to create each document.
 <step name="return_confirmation">
 Return a brief confirmation. DO NOT include document contents.
 
-Format:
+Canonical format. Include optional blocks only when relevant:
 
 ```
 ## Mapping Complete
 
 **Focus:** {focus}
 **Documents written:**
-- `GPD/research-map/{DOC1}.md` ({N} lines)
-- `GPD/research-map/{DOC2}.md` ({N} lines)
+- `GPD/research-map/{DOC1}.md` ({N} lines) [optional quality: COVERAGE/SPECIFICITY/ACCURACY/ACTIONABILITY]
+- `GPD/research-map/{DOC2}.md` ({N} lines) [optional quality: COVERAGE/SPECIFICITY/ACCURACY/ACTIONABILITY]
+
+[Optional: quality warnings for documents below the minimum gate.]
+
+[Optional: staleness of other research-map docs.]
 
 Ready for orchestrator summary.
 ```
@@ -556,22 +560,13 @@ done
 
 ### Reporting Staleness
 
-When spawned for any focus area, report staleness in the confirmation:
+When spawned for any focus area, report staleness in the canonical confirmation by adding this optional block:
 
 ```
-## Mapping Complete
-
-**Focus:** {focus}
-**Documents written:**
-- `GPD/research-map/{DOC1}.md` ({N} lines)
-- `GPD/research-map/{DOC2}.md` ({N} lines)
-
 **Staleness of other research-map docs:**
 - FORMALISM.md: CURRENT
 - VALIDATION.md: STALE (3 referenced .py files modified since last map)
 - CONCERNS.md: MILDLY STALE (1 .tex file updated)
-
-Ready for orchestrator summary.
 ```
 
 This lets the orchestrator decide whether to re-run other focus areas.
@@ -616,20 +611,13 @@ A document must score at least:
 - Physics Accuracy: PLAUSIBLE or better
 - Actionability: PARTIALLY ACTIONABLE or better
 
-If a document fails any criterion, flag it in the confirmation:
+If a document fails any criterion, flag it in the canonical confirmation by annotating the document bullet and adding a quality warning:
 
 ```
-## Mapping Complete
-
-**Focus:** methodology
-**Documents written:**
 - `GPD/research-map/CONVENTIONS.md` (180 lines) — Quality: COMPLETE/HIGH/VERIFIED/ACTIONABLE
 - `GPD/research-map/VALIDATION.md` (95 lines) — Quality: PARTIAL/MEDIUM/PLAUSIBLE/PARTIALLY ACTIONABLE
-  ⚠️ VALIDATION.md has limited coverage: no test scripts found in project, numerical
-  validation section based on code comments only. Recommend running gpd:verify-work
-  after Phase 1 execution to fill gaps.
 
-Ready for orchestrator summary.
+Quality warning: VALIDATION.md has limited coverage: no test scripts found in project, numerical validation section based on code comments only. Recommend running gpd:verify-work after Phase 1 execution to fill gaps.
 ```
 
 ### Self-Assessment Questions

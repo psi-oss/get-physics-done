@@ -64,3 +64,19 @@ def test_sync_state_stage_manifest_rejects_invalid_field_drift() -> None:
 
     with pytest.raises(ValueError, match="unknown field name"):
         validate_workflow_stage_manifest_payload(payload, expected_workflow_id="sync-state")
+
+
+def test_sync_state_workflow_uses_staged_fields_instead_of_manual_state_probing() -> None:
+    text = (WORKFLOWS_DIR / "sync-state.md").read_text(encoding="utf-8")
+
+    assert "SYNC_BOOTSTRAP_INIT=$(gpd --raw init sync-state --stage sync_bootstrap)" in text
+    assert "SINGLE_SOURCE_RECOVERY_INIT=$(gpd --raw init sync-state --stage single_source_recovery)" in text
+    assert "CONFLICT_ANALYSIS_INIT=$(gpd --raw init sync-state --stage conflict_analysis)" in text
+    assert "RECONCILE_INIT=$(gpd --raw init sync-state --stage reconcile_and_validate)" in text
+    assert "Do not re-probe `GPD/STATE.md`, `GPD/state.json`, or `GPD/state.json.bak` by hand during routing." in text
+    assert "Do not re-read the mirrored files by hand for comparison." in text
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in text
+    assert "MD_EXISTS=$(test -f" not in text
+    assert "JSON_EXISTS=$(test -f" not in text
+    assert "cat GPD/STATE.md" not in text
+    assert "cat GPD/state.json" not in text

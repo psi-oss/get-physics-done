@@ -5237,6 +5237,16 @@ def init_literature_review(
     _output(payload)
 
 
+def _emit_init_resume(stage: str | None) -> None:
+    from gpd.core.context import init_resume
+
+    try:
+        payload = init_resume(_get_cwd(), stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
+
+
 @init_app.command("resume")
 def init_resume(
     stage: str | None = typer.Option(
@@ -5246,13 +5256,19 @@ def init_resume(
     ),
 ) -> None:
     """Assemble context for resuming previous work."""
-    from gpd.core.context import init_resume
+    _emit_init_resume(stage)
 
-    try:
-        payload = init_resume(_get_cwd(), stage=stage)
-    except ValueError as exc:
-        _error(str(exc))
-    _output(payload)
+
+@init_app.command("resume-work", hidden=True)
+def init_resume_work(
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged resume-work context for a specific stage id.",
+    ),
+) -> None:
+    """Compatibility alias for staged resume-work init payloads."""
+    _emit_init_resume(stage)
 
 
 @init_app.command("sync-state")

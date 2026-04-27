@@ -113,6 +113,27 @@ def test_catalog_filter_schemas_publish_authoritative_enum_values() -> None:
     assert _collect_enum_values(skill_schema["properties"]["category"]) == expected_skill_categories
 
 
+def test_add_pattern_title_schema_matches_slug_validation() -> None:
+    from jsonschema import Draft202012Validator
+
+    schema = _tool_schema("gpd.mcp.servers.patterns_server", "add_pattern")
+    title = schema["properties"]["title"]
+    validator = Draft202012Validator(schema)
+    valid_payload = {
+        "domain": "qft",
+        "title": "Test sign error",
+        "category": "sign-error",
+        "severity": "high",
+    }
+
+    assert title["type"] == "string"
+    assert title["minLength"] == 1
+    assert title["pattern"] == r"[A-Za-z0-9]"
+    assert not list(validator.iter_errors(valid_payload))
+    assert list(validator.iter_errors({**valid_payload, "title": "   "}))
+    assert list(validator.iter_errors({**valid_payload, "title": "!!!"}))
+
+
 def test_run_check_schema_publishes_live_identifier_enum() -> None:
     from gpd.mcp.servers import verification_server
 

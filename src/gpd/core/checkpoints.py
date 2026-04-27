@@ -310,9 +310,9 @@ def _render_story_paragraphs(doc: _PhaseSummaryDoc, plan_count: int) -> list[str
     if doc.completed:
         intro += f" It closed on {doc.completed}."
     if doc.one_liner:
-        intro += f" The headline result was straightforward: {_clean_sentence(doc.one_liner)}"
+        intro += f" Result: {_clean_sentence(doc.one_liner)}"
     if plan_count > 1:
-        intro += f" This checkpoint reflects the latest of {plan_count} recorded plan summaries for the phase."
+        intro += f" Latest of {plan_count} recorded plan summaries."
     paragraphs.append(intro)
 
     decisions = [
@@ -322,10 +322,10 @@ def _render_story_paragraphs(doc: _PhaseSummaryDoc, plan_count: int) -> list[str
         for decision in doc.summary_extract.decisions[:4]
     ]
     if decisions:
-        paragraphs.append(f"The main project decisions were concrete. {_natural_join(decisions)}")
+        paragraphs.append(f"Decisions: {_natural_join(decisions)}")
 
     provides = _prefixed_summary(
-        "In practical terms, this phase now gives the project ",
+        "Provides: ",
         doc.provides or doc.summary_extract.affects or doc.summary_extract.key_files or [],
         limit=4,
     )
@@ -334,7 +334,7 @@ def _render_story_paragraphs(doc: _PhaseSummaryDoc, plan_count: int) -> list[str
 
     patterns = _natural_join(doc.summary_extract.patterns[:3])
     if patterns:
-        paragraphs.append(f"What this phase clarified was simple. {patterns}")
+        paragraphs.append(f"Patterns: {patterns}")
 
     next_step = _extract_next_step(doc.body)
     if next_step:
@@ -424,11 +424,7 @@ def _render_root_index(cwd: Path, entries: list[_CheckpointIndexEntry]) -> str:
         "",
         "# Phase Checkpoints",
         "",
-        "This is the human-facing checkpoint shelf for the project.",
-        "Each phase note is generated from the canonical SUMMARY and VERIFICATION artifacts under `GPD/phases/`.",
-        "",
-        "Read one checkpoint file when you want the end-of-phase story in plain English.",
-        "Use the linked summary and verification artifacts when you want the full underlying record.",
+        "Generated from canonical SUMMARY and VERIFICATION artifacts under `GPD/phases/`.",
         "",
         "## Phase Index",
         "",

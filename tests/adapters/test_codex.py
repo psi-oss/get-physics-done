@@ -1806,6 +1806,61 @@ class TestUninstall:
 
 
 class TestNotifyConfiguration:
+    def test_uninstall_preserves_section_scoped_notify_when_removing_top_level_gpd_notify(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            '# GPD update notification\n'
+            'notify = ["python3", ".codex/hooks/notify.py"]\n'
+            "\n"
+            "[profiles.test]\n"
+            'notify = ["python3", ".codex/hooks/notify.py"]\n',
+            encoding="utf-8",
+        )
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.uninstall(target, skills_dir=skills)
+
+        content = config_toml.read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+        assert "notify" not in parsed
+        assert parsed["profiles"]["test"]["notify"] == ["python3", ".codex/hooks/notify.py"]
+        assert "GPD update notification" not in content
+
+    def test_uninstall_preserves_array_table_scoped_notify_when_removing_top_level_gpd_notify(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            '# GPD update notification\n'
+            'notify = ["python3", ".codex/hooks/notify.py"]\n'
+            "\n"
+            "[[profiles]]\n"
+            'name = "test"\n'
+            'notify = ["python3", ".codex/hooks/notify.py"]\n',
+            encoding="utf-8",
+        )
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.uninstall(target, skills_dir=skills)
+
+        content = config_toml.read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+        assert "notify" not in parsed
+        assert parsed["profiles"][0]["notify"] == ["python3", ".codex/hooks/notify.py"]
+        assert "GPD update notification" not in content
+
     def test_wraps_existing_notify_and_restores_it_on_uninstall(
         self,
         adapter: CodexAdapter,

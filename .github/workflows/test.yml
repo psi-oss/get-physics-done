@@ -18,7 +18,7 @@ jobs:
   human-authors:
     name: human authors
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
 
     steps:
       - name: Check out repository
@@ -26,9 +26,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check commit attribution uses human authors
+      - name: Check PR commit attribution uses human authors
+        if: github.event_name == 'pull_request'
         run: |
           bash scripts/check-human-authors.sh --range "origin/${{ github.base_ref }}..HEAD"
+
+      - name: Check pushed commit attribution uses human authors
+        if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            range="$HEAD_SHA"
+          else
+            range="${BEFORE_SHA}..${HEAD_SHA}"
+          fi
+          bash scripts/check-human-authors.sh --range "$range"
 
   ruff:
     name: ruff check

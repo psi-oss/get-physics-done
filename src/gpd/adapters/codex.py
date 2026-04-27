@@ -1930,7 +1930,7 @@ def _remove_gpd_agent_role_sections(content: str) -> str:
         if section_name is not None and section_name.startswith("agents.gpd-"):
             end = len(lines)
             for scan in range(idx + 1, len(lines)):
-                if _parse_section_name(lines[scan]) is not None:
+                if _is_toml_section_header(lines[scan]):
                     end = scan
                     break
             existing_body = lines[idx + 1 : end]
@@ -1952,6 +1952,11 @@ def _parse_section_name(line: str) -> str | None:
     return stripped[1:-1].strip()
 
 
+def _is_toml_section_header(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("[") and stripped.endswith("]")
+
+
 def _split_toml_section(toml_content: str, section_name: str) -> tuple[list[str], list[str] | None, list[str]]:
     lines = toml_content.splitlines()
     start: int | None = None
@@ -1966,7 +1971,7 @@ def _split_toml_section(toml_content: str, section_name: str) -> tuple[list[str]
 
     end = len(lines)
     for idx in range(start + 1, len(lines)):
-        if _parse_section_name(lines[idx]) is not None:
+        if _is_toml_section_header(lines[idx]):
             end = idx
             break
 
@@ -2126,7 +2131,7 @@ def _root_assignment_line(toml_content: str, key: str) -> str | None:
     """Return the top-level assignment line for *key*, if present."""
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if _parse_section_name(stripped) is not None:
+        if _is_toml_section_header(stripped):
             break
         if _toml_assignment_key(stripped) == key:
             return stripped
@@ -2137,7 +2142,7 @@ def _root_assignment_has_gpd_marker(toml_content: str, comment: str, backup_pref
     """Return True when a GPD-managed root assignment block is present."""
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if _parse_section_name(stripped) is not None:
+        if _is_toml_section_header(stripped):
             break
         if stripped == comment or stripped.startswith(backup_prefix):
             return True
@@ -2161,7 +2166,7 @@ def _install_gpd_root_string_setting(
     past_first_section = False
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if _parse_section_name(stripped) is not None:
+        if _is_toml_section_header(stripped):
             past_first_section = True
         if not past_first_section and _toml_assignment_key(stripped) == key:
             if insert_at is None:
@@ -2203,7 +2208,7 @@ def _remove_gpd_root_string_setting(
 
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if _parse_section_name(stripped) is not None:
+        if _is_toml_section_header(stripped):
             past_first_section = True
         if not past_first_section and stripped == comment:
             had_managed_block = True
@@ -2334,7 +2339,7 @@ def _serialize_toml_lines(lines: list[str]) -> str:
 def _first_section_index(lines: list[str]) -> int:
     """Return the index of the first TOML section header, or len(lines) if none."""
     for idx, line in enumerate(lines):
-        if _parse_section_name(line) is not None:
+        if _is_toml_section_header(line):
             return idx
     return len(lines)
 
@@ -2354,7 +2359,7 @@ def _install_gpd_notify_config(
     past_first_section = False
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if _parse_section_name(stripped) is not None:
+        if _is_toml_section_header(stripped):
             past_first_section = True
         if not past_first_section and (
             stripped == _GPD_NOTIFY_COMMENT or stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX)
@@ -2421,27 +2426,34 @@ def _remove_gpd_notify_config(toml_content: str, *, target_dir: Path | None = No
     original_notify: str | None = None
     pending_managed_block = False
 
+    past_first_section = False
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if stripped == _GPD_NOTIFY_COMMENT:
+        if _is_toml_section_header(stripped):
+            past_first_section = True
+            pending_managed_block = False
+
+        if not past_first_section and stripped == _GPD_NOTIFY_COMMENT:
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             pending_managed_block = True
             continue
-        if stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
+        if not past_first_section and stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             original_notify = stripped[len(_GPD_NOTIFY_BACKUP_PREFIX) :].strip()
             pending_managed_block = True
             continue
-        parsed = _parse_notify_assignment(line)
-        if stripped.startswith("notify") and (
-            pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir)
-        ):
-            if insert_at is None:
-                insert_at = len(cleaned_lines)
-            pending_managed_block = False
-            continue
+
+        if not past_first_section:
+            parsed = _parse_notify_assignment(line)
+            if stripped.startswith("notify") and (
+                pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir)
+            ):
+                if insert_at is None:
+                    insert_at = len(cleaned_lines)
+                pending_managed_block = False
+                continue
         pending_managed_block = False
         cleaned_lines.append(line)
 

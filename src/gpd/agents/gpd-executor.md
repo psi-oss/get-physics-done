@@ -604,20 +604,22 @@ For each task:
 <step name="context_pressure_monitoring">
 After completing each task, estimate context window consumption:
 
+Use the executor row in `{GPD_INSTALL_DIR}/references/orchestration/context-pressure-thresholds.md` as canonical: GREEN <40%, YELLOW 40-55%, ORANGE 55-70%, RED >70%. The executor also has a separate forced-checkpoint rule at 50%; that rule is a preservation checkpoint inside YELLOW, not an ORANGE reclassification.
+
 | Context Used | Status | Action | Justification |
 | ------------ | ------ | ------ | ------------- |
 | Below 40%    | GREEN  | Continue normally | Executor does the heaviest work — derivations, code, equations — needs 60%+ budget for actual physics |
-| 40-55%       | YELLOW | Flag in research log. Prioritize remaining tasks by importance. Consider compressing verbose derivation steps. **Note:** Forced checkpoint at 50% (see Escalation 2). | Derivation steps cost ~1-2% each; at 40% you've loaded conventions + plan + completed ~5-8 tasks |
-| 55-70%       | ORANGE | STOP after current task completes. Create SUMMARY with what's done. Checkpoint. Return to orchestrator. | Must reserve ~10% for SUMMARY and checkpoint; forced checkpoint at 50% to avoid data loss |
+| 40-55%       | YELLOW | Flag in research log. Prioritize remaining tasks by importance. Compress verbose derivation steps. At 50%, apply the forced-checkpoint rule before starting new substantive work. | Derivation steps cost ~1-2% each; at 40% you've loaded conventions + plan + completed ~5-8 tasks |
+| 55-70%       | ORANGE | STOP after current task completes. Create SUMMARY with what's done. Checkpoint. Return to orchestrator. | Must reserve ~10% for SUMMARY and checkpoint |
 | Above 70%    | RED    | EMERGENCY STOP. Checkpoint immediately. Do NOT start new tasks. Return partial SUMMARY. | Emergency because executor output (derivations) cannot be reconstructed if context is lost mid-derivation |
 
 **How to estimate:** Track BOTH input and output context:
 - **Input**: Each loaded file consumes ~2-5% of context. Count files read via file_read tool.
 - **Output**: Each substantial derivation step ~1-2%. Each code block ~0.5-1%.
 - **Running total**: (loaded_files × 3%) + (equations × 1.5%) + (code_blocks × 0.75%)
-- If running total exceeds 50%, you are in ORANGE. Verify by checking if you can still recall conventions from the start of the session.
+- If the running total reaches 50%, checkpoint because executor state is costly to reconstruct. This is a forced YELLOW-band checkpoint; ORANGE still begins at 55%. Verify by checking if you can still recall conventions from the start of the session.
 
-**When ORANGE/RED:** The orchestrator will spawn a continuation agent. Your job is to checkpoint cleanly so the continuation can resume without re-deriving.
+**When the 50% forced checkpoint, ORANGE, or RED triggers:** The orchestrator will spawn a continuation agent. Your job is to checkpoint cleanly so the continuation can resume without re-deriving.
 </step>
 
 <step name="stuck_protocol">
@@ -750,7 +752,7 @@ Apply these rules automatically. Track all deviations as `[Rule N - Type] descri
 | Escalation | Trigger | Action |
 | --- | --- | --- |
 | **Repeated approximation** | Rule 3 applied **2x** in same plan | Escalate to Rule 5 (framework may be wrong) |
-| **Context pressure** | >50% context consumed | Immediate checkpoint, flag for plan splitting |
+| **Context pressure** | >=50% context consumed (forced checkpoint; ORANGE still starts at 55%) | Immediate checkpoint, flag for plan splitting |
 | **Convergence failure** | **3 distinct** Rule 2 attempts without convergence | Escalate to Rule 5 with structured diagnostic |
 
 Track escalation counters after every deviation rule application. Threshold crossings are immediate and non-negotiable.
@@ -1170,7 +1172,7 @@ Plan execution complete when:
 - [ ] Shared-state updates handled per workflow contract (`gpd_return` by default; direct writes only when explicitly delegated)
 - [ ] Final metadata commit made
 - [ ] Completion format returned to orchestrator
-- [ ] Context pressure monitored: ORANGE/RED triggers checkpoint, never exceeds RED
+- [ ] Context pressure monitored: 50% forced checkpoint and ORANGE/RED triggers honored, never exceeds RED
 - [ ] Stuck protocol followed: no plausible-but-wrong answers produced; all stuck points documented as deviations
 - [ ] Analytic continuation protocol followed (if applicable): Wick rotation verified, spectral function checked, i*epsilon prescription consistent
 - [ ] Order-of-limits protocol followed (if applicable): non-commuting limits identified, order stated and justified

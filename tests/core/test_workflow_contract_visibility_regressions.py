@@ -178,13 +178,14 @@ def test_sync_state_keeps_state_json_authority_before_markdown_repair() -> None:
 
     assert "@{GPD_INSTALL_DIR}/workflows/sync-state.md" in raw_sync_state_command
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in raw_sync_state_command
-    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_sync_state_workflow
+    assert "{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_sync_state_workflow
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in raw_sync_state_workflow
     assert "`state.json` is the authoritative store for structured state" in raw_sync_state_workflow
     assert "`STATE.md` is the human-readable projection" in raw_sync_state_workflow
 
     for content in (sync_state_command, sync_state_workflow):
-        assert "# state.json Schema" in content
-        assert "Authoritative vs Derived" in content
+        assert "state-json-schema.md" in content
+        assert "# state.json Schema" not in content
         assert "Markdown is only used as a recovery source when `state.json` is missing or unreadable." in content
         assert "do not invent a field-by-field merge" in content
 

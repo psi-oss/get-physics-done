@@ -25,6 +25,7 @@ from gpd.core.continuation import (
     normalize_continuation_reference,
 )
 from gpd.core.recent_projects import recent_projects_index_path
+from gpd.core.results import state_has_canonical_result_id
 from gpd.core.return_contract import GpdReturnContinuationUpdate, GpdReturnEnvelope
 from gpd.core.state import (
     StateUpdateResult,
@@ -367,7 +368,7 @@ def _validate_continuation_update_semantics(
             state_obj = load_state_json_readonly(cwd)
             if not isinstance(state_obj, dict):
                 errors.append("record_session: State not found")
-            elif not _state_has_canonical_result_id(state_obj, handoff.last_result_id):
+            elif not state_has_canonical_result_id(state_obj, handoff.last_result_id):
                 errors.append(
                     f'record_session: last_result_id "{handoff.last_result_id}" does not match any canonical result '
                     "in intermediate_results"
@@ -394,17 +395,6 @@ def _validate_continuation_update_semantics(
             "set_bounded_segment: Invalid continuation bounded_segment schema: "
             "bounded_segment must include at least one non-empty field"
         )
-
-
-def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
-    results = state_obj.get("intermediate_results")
-    if not isinstance(results, list):
-        return False
-    for item in results:
-        result_id_value = item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
-        if isinstance(result_id_value, str) and result_id_value.strip() == result_id:
-            return True
-    return False
 
 
 def _capture_state_mutation_snapshot(cwd: Path) -> tuple[_FileSnapshot, ...]:

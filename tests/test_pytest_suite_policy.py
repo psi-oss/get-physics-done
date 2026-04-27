@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,6 +10,7 @@ import yaml
 
 import tests.ci_sharding as ci_sharding
 import tests.conftest as tests_conftest
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_HOT_TEST_FILE_SPLITS,
@@ -27,17 +29,45 @@ from tests.ci_sharding import (
     synthetic_test_inventory,
 )
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+TESTS_ROOT = REPO_ROOT / "tests"
+TOP_LEVEL_CONFTEST = TESTS_ROOT / "conftest.py"
+
 
 def _read(relpath: str) -> str:
     return (Path(__file__).resolve().parent / relpath).read_text(encoding="utf-8")
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return REPO_ROOT
+
+
+def _assigned_literal(path: Path, *, name: str) -> object | None:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in tree.body:
+        value_node: ast.AST | None = None
+        if isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                value_node = node.value
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == name:
+                value_node = node.value
+        if value_node is not None:
+            return ast.literal_eval(value_node)
+    return None
 
 
 def _workflow_data() -> dict[str, object]:
     return yaml.safe_load((_repo_root() / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
+
+
+def _catalog_runtime_adapter_test_relpaths() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            f"adapters/test_{descriptor.adapter_module.rsplit('.', 1)[-1]}.py"
+            for descriptor in iter_runtime_descriptors()
+        )
+    )
 
 
 def test_root_conftest_keeps_default_collection_as_full_suite() -> None:
@@ -46,12 +76,37 @@ def test_root_conftest_keeps_default_collection_as_full_suite() -> None:
 
     assert "_isolate_machine_local_gpd_data" in root_conftest
     assert "pytest_xdist_auto_num_workers" in root_conftest
-    assert "test suite mode: full (default)" in root_conftest
+    assert "test suite mode: full default suite" in root_conftest
+    assert "test suite mode: targeted/sharded args" in root_conftest
+    assert not hasattr(tests_conftest, "FAST_SUITE_EXCLUDES")
+    assert not hasattr(tests_conftest, "pytest_ignore_collect")
     assert "FAST_SUITE_EXCLUDES" not in root_conftest
     assert "--full-suite" not in root_conftest
     assert "GPD_TEST_FULL" not in root_conftest
     assert "pytest_ignore_collect" not in root_conftest
     assert "collect_ignore" not in core_conftest
+
+
+def test_pytest_report_header_distinguishes_default_full_suite_from_targeted_args() -> None:
+    default_config = SimpleNamespace(args=["tests"])
+    targeted_config = SimpleNamespace(args=["tests/test_runtime_cli.py"])
+    sharded_config = SimpleNamespace(args=["tests/test_runtime_cli.py::test_example"])
+
+    assert tests_conftest.pytest_report_header(default_config) == "test suite mode: full default suite"
+    assert tests_conftest.pytest_report_header(targeted_config) == "test suite mode: targeted/sharded args"
+    assert tests_conftest.pytest_report_header(sharded_config) == "test suite mode: targeted/sharded args"
+
+
+def test_nested_test_conftests_do_not_hide_suites_via_collect_ignore() -> None:
+    offenders: list[str] = []
+
+    for path in sorted(TESTS_ROOT.rglob("conftest.py")):
+        if path == TOP_LEVEL_CONFTEST:
+            continue
+        if _assigned_literal(path, name="collect_ignore") is not None:
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    assert offenders == []
 
 
 def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
@@ -182,6 +237,16 @@ def test_mcp_hotspot_metadata_tracks_measured_slow_mcp_files() -> None:
     assert measured_slow_mcp_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
     assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in measured_slow_mcp_files)
     assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_mcp_files)
+
+
+def test_adapter_hotspot_metadata_tracks_catalog_runtime_adapter_tests() -> None:
+    runtime_adapter_test_files = set(_catalog_runtime_adapter_test_relpaths())
+
+    assert runtime_adapter_test_files <= set(all_test_relpaths(tests_root=TESTS_ROOT))
+    assert runtime_adapter_test_files <= set(CI_HOT_TEST_FILE_SPLITS)
+    assert runtime_adapter_test_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+    assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in runtime_adapter_test_files)
+    assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in runtime_adapter_test_files)
 
 
 def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(

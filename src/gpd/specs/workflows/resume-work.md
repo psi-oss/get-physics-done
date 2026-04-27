@@ -13,28 +13,30 @@ Restore the selected project's full context so "Where were we?" has an immediate
 </purpose>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md
-@{GPD_INSTALL_DIR}/references/orchestration/state-portability.md
-@{GPD_INSTALL_DIR}/templates/state-json-schema.md
+Bootstrap loads only immediate resume vocabulary. Later staged payloads name
+`{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md`,
+`{GPD_INSTALL_DIR}/references/orchestration/state-portability.md`, and
+`{GPD_INSTALL_DIR}/templates/state-json-schema.md`; read them when entering those stages.
 </required_reading>
 
 <process>
 
 <step name="initialize">
-Load the shared resume context in one call. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface and workspace picker, and `gpd --raw resume` returns the canonical public view:
+Load the shared resume bootstrap stage. `gpd:resume-work` is the guided runtime path, `gpd resume` is the public local read-only summary, `gpd resume --recent` is the cross-project discovery surface, and `gpd --raw resume` is the raw local view:
 
 ```bash
-INIT=$(gpd --raw resume)
+INIT=$(gpd --raw init resume-work --stage resume_bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON once and read it semantically:
+Parse JSON semantically:
 
 - **Requested workspace availability:** `workspace_state_exists`, `workspace_roadmap_exists`, `workspace_project_exists`, `workspace_planning_exists`
-- **Availability and contract authority:** `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `commit_docs`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`
+- **Selected project availability:** `state_exists`, `state_json_backup_exists`, `roadmap_exists`, `project_exists`, `planning_exists`
+- **Availability and contract authority:** `project_contract_gate` and peers are loaded by `STATE_RESTORE_INIT` before use
 - **Canonical continuation and recovery authority:** `resume_surface_schema_version`, `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, `has_continuity_handoff`, `resume_candidates`, `execution_resumable`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `has_interrupted_agent`, `interrupted_agent_id`
 - **Machine advisory state:** `machine_change_detected`, `machine_change_notice`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`
 
@@ -74,6 +76,17 @@ If `active_bounded_segment.first_result_gate_pending` is true, do not treat late
 </step>
 
 <step name="load_state">
+Load state-restore before using contract, reference, or readable state fields:
+
+```bash
+STATE_RESTORE_INIT=$(gpd --raw init resume-work --stage state_restore)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd state-restore initialization failed: $STATE_RESTORE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use `state_restore.required_init_fields` as the state/contract/reference payload.
 
 **machine_change_detection:** Compare the current hostname/platform with `state.json.continuation.machine.hostname` and `state.json.continuation.machine.platform`. If they differ, display the non-blocking machine-change notice from INIT and recommend rerunning the installer so runtime-local config stays current.
 
@@ -117,6 +130,18 @@ cat GPD/PROJECT.md
 </step>
 
 <step name="restore_persistent_state">
+Load derivation-restore before reconstructing derivation history:
+
+```bash
+DERIVATION_RESTORE_INIT=$(gpd --raw init resume-work --stage derivation_restore)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd derivation-restore initialization failed: $DERIVATION_RESTORE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use `derivation_restore.required_init_fields` as the derivation-history payload.
+
 **Read cumulative derivation history from `GPD/DERIVATION-STATE.md`:**
 
 This step reconstructs the full derivation history that has accumulated across
@@ -223,6 +248,18 @@ If convention check fails, flag in the status presentation (step present_status)
 </step>
 
 <step name="check_incomplete_work">
+Load resume-routing before deciding what work is incomplete or resumable:
+
+```bash
+RESUME_ROUTING_INIT=$(gpd --raw init resume-work --stage resume_routing)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd resume-routing initialization failed: $RESUME_ROUTING_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```
+
+Use `resume_routing.required_init_fields` as the routing payload.
+
 Look for incomplete work that needs attention:
 
 ```bash

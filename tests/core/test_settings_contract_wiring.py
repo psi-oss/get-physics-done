@@ -6,12 +6,14 @@ import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
+_RUNTIME_DISPLAY_NAMES = tuple(descriptor.display_name for descriptor in iter_runtime_descriptors())
 
 
 def test_new_project_minimal_contract_guidance_surfaces_contract_enum_vocabulary() -> None:
@@ -119,10 +121,8 @@ def test_settings_workflow_uses_same_selected_runtime_for_models_and_permissions
 def test_set_tier_models_workflow_keeps_runtime_examples_generic() -> None:
     set_tier_models = (WORKFLOWS_DIR / "set-tier-models.md").read_text(encoding="utf-8")
 
-    assert "Claude Code" not in set_tier_models
-    assert "Codex" not in set_tier_models
-    assert "Gemini CLI" not in set_tier_models
-    assert "OpenCode" not in set_tier_models
+    for display_name in _RUNTIME_DISPLAY_NAMES:
+        assert display_name not in set_tier_models
     assert "gpt-5.4" not in set_tier_models
     assert "runtime-native examples are intentionally not hard-coded here" in set_tier_models.lower()
 

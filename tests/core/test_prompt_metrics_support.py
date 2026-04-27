@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from gpd.adapters.install_utils import parse_at_include_path
-from tests.prompt_metrics_support import count_raw_includes
+from tests.prompt_metrics_support import count_raw_includes, count_unfenced_heading
 
 
 def test_count_raw_includes_matches_installer_include_line_forms() -> None:
@@ -30,3 +30,19 @@ def test_prompt_metrics_uses_production_include_parser() -> None:
     )
     assert parse_at_include_path("@GPD/project-local.md") is None
     assert parse_at_include_path("@article{key,") is None
+
+
+def test_count_unfenced_heading_ignores_example_blocks() -> None:
+    text = """
+## Outside
+
+```markdown
+## Outside
+## Inside Only
+```
+
+## Outside
+"""
+
+    assert count_unfenced_heading(text, "## Outside") == 2
+    assert count_unfenced_heading(text, "## Inside Only") == 0

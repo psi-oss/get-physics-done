@@ -83,7 +83,7 @@ from gpd.core.recent_projects import (
 from gpd.core.recent_projects import (
     recent_projects_index_path as _recent_projects_index_path_impl,
 )
-from gpd.core.results import IntermediateResult
+from gpd.core.results import IntermediateResult, state_has_canonical_result_id
 from gpd.core.utils import (
     _replace_with_retry,
     atomic_write,
@@ -163,9 +163,9 @@ __all__ = [
 EM_DASH = "\u2014"
 
 # Inactive-state sentinel rendered into STATE.md when a field has no value.
-# `_strip_placeholder` and `state_extract_field` treat EM_DASH, "none", "no",
-# "not set", and "[not set]" as semantic null on re-parse, so round-trip
-# stability is preserved regardless of which form is on disk.
+# `_strip_placeholder` and `state_extract_field` treat exact placeholder values
+# as semantic null on re-parse, so round-trip stability is preserved regardless
+# of which placeholder form is on disk.
 INACTIVE_FIELD_SENTINEL = "none"
 
 
@@ -726,19 +726,6 @@ def _optional_state_text(value: object) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
-
-
-def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
-    """Return whether the state tracks a canonical intermediate result with this ID."""
-    results = state_obj.get("intermediate_results")
-    if not isinstance(results, list):
-        return False
-    for item in results:
-        if isinstance(item, dict) and _optional_state_text(item.get("id")) == result_id:
-            return True
-        if isinstance(item, IntermediateResult) and _optional_state_text(item.id) == result_id:
-            return True
-    return False
 
 
 def _blank_session_payload() -> dict[str, str | None]:
@@ -1423,20 +1410,15 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 def state_extract_field(content: str, field_name: str) -> str | None:
     """Extract a **Field:** value from STATE.md content.
 
-    Placeholder forms (EM_DASH, "none", "no", "not set", "[not set]") are
-    returned as ``None`` so inactive-state snapshots round-trip cleanly.
+    Exact placeholder forms are returned as ``None`` so inactive-state
+    snapshots round-trip cleanly.
     """
     escaped = re.escape(field_name)
     pattern = re.compile(rf"\*\*{escaped}:\*\*[ \t]*(.+)", re.IGNORECASE)
     match = pattern.search(content)
     if not match:
         return None
-    value = match.group(1).strip()
-    if value == "\u2014":
-        return None
-    if value.lower() in {"none", "no", "not set", "[not set]"}:
-        return None
-    return value
+    return _strip_placeholder(match.group(1))
 
 
 def state_replace_field(content: str, field_name: str, new_value: str) -> str:
@@ -1506,6 +1488,29 @@ def _unescape_pipe(v: str) -> str:
     return v.replace("\\|", "|")
 
 
+def _placeholder_comparison_text(value: str) -> str:
+    stripped = value.strip()
+    if stripped.endswith(".") and not stripped.endswith(".."):
+        stripped = stripped[:-1].rstrip()
+    return stripped.casefold()
+
+
+def _is_state_placeholder(value: str | None) -> bool:
+    """Return whether a STATE.md value is an exact empty placeholder."""
+    if value is None:
+        return True
+    stripped = value.strip()
+    if stripped in {"-", "\u2013", "\u2014"}:
+        return True
+    return _placeholder_comparison_text(stripped) in {
+        "none",
+        "none yet",
+        "no",
+        "not set",
+        "[not set]",
+    }
+
+
 def _extract_bullets(content: str, section_name: str) -> list[str]:
     """Extract bullet list items from a ## Section."""
     escaped = re.escape(section_name)
@@ -1514,7 +1519,7 @@ def _extract_bullets(content: str, section_name: str) -> list[str]:
     if not match:
         return []
     bullets = re.findall(r"^\s*-\s+(.+)$", match.group(1), re.MULTILINE)
-    return [b.strip() for b in bullets if b.strip() and not re.match(r"^none", b.strip(), re.IGNORECASE)]
+    return [b.strip() for b in bullets if b.strip() and not _is_state_placeholder(b)]
 
 
 def _extract_subsection(content: str, heading: str) -> str | None:
@@ -1612,7 +1617,7 @@ def _parse_table_rows(section: str | None) -> list[list[str]]:
         cells = [_unescape_pipe(cell.strip()) for cell in re.split(r"(?<!\\)\|", row) if cell.strip()]
         if not cells:
             continue
-        if cells[0] == "-" or re.match(r"^none", cells[0], re.IGNORECASE):
+        if _is_state_placeholder(cells[0]):
             continue
         parsed_rows.append(cells)
     return parsed_rows
@@ -1673,7 +1678,7 @@ def parse_state_md(content: str) -> dict:
         items = re.findall(r"^\s*-\s+(.+)$", dec_bullet_match.group(1), re.MULTILINE)
         for item in items:
             text = item.strip()
-            if not text or re.match(r"^none", text, re.IGNORECASE):
+            if not text or _is_state_placeholder(text):
                 continue
             phase_match = re.match(r"^\[Phase\s+([^\]]+)\]:\s*(.*)", text, re.IGNORECASE)
             if phase_match:
@@ -1702,7 +1707,7 @@ def parse_state_md(content: str) -> dict:
         items = re.findall(r"^\s*-\s+(.+)$", blockers_match.group(1), re.MULTILINE)
         for item in items:
             text = item.strip()
-            if text and not re.match(r"^none", text, re.IGNORECASE):
+            if text and not _is_state_placeholder(text):
                 blockers.append(text)
 
     # Session
@@ -1751,7 +1756,7 @@ def parse_state_md(content: str) -> dict:
         rows = [r for r in metrics_match.group(1).strip().split("\n") if "|" in r]
         for row in rows:
             cells = [_unescape_pipe(c.strip()) for c in re.split(r"(?<!\\)\|", row) if c.strip()]
-            if len(cells) >= 2 and cells[0] != "-" and not re.match(r"none yet", cells[0], re.IGNORECASE):
+            if len(cells) >= 2 and not _is_state_placeholder(cells[0]):
                 metrics.append(
                     {
                         "label": cells[0],
@@ -1768,7 +1773,7 @@ def parse_state_md(content: str) -> dict:
     pending_todos = [
         bullet.strip()
         for bullet in re.findall(r"^\s*-\s+(.+)$", _extract_subsection(content, "Pending Todos") or "", re.MULTILINE)
-        if bullet.strip() and not re.match(r"^none", bullet.strip(), re.IGNORECASE)
+        if bullet.strip() and not _is_state_placeholder(bullet)
     ]
 
     approximations: list[dict[str, str]] = []
@@ -1804,7 +1809,7 @@ def parse_state_md(content: str) -> dict:
     label_to_key = {label.lower(): key for key, label in _CONVENTION_LABELS.items()}
     for entry in re.findall(r"^\s*-\s+(.+)$", _extract_bold_block(content, "Convention Lock") or "", re.MULTILINE):
         text = entry.strip()
-        if not text or re.match(r"^(?:none|no conventions locked yet)", text, re.IGNORECASE):
+        if not text or _is_state_placeholder(text) or _placeholder_comparison_text(text) == "no conventions locked yet":
             continue
         label, separator, value = text.partition(":")
         if not separator:
@@ -1839,15 +1844,14 @@ def parse_state_md(content: str) -> dict:
 def _strip_placeholder(value: str | None) -> str | None:
     """Return None if *value* is a markdown placeholder.
 
-    Recognized placeholders: EM_DASH, 'none', 'no', 'not set',
-    '[not set]'. Case-insensitive for word forms.
+    Recognized placeholders are exact markdown empty values such as EM_DASH,
+    "-", "none", "none yet", "no", "not set", and "[not set]".
+    Case-insensitive for word forms.
     """
     if value is None:
         return None
     stripped = value.strip()
-    if stripped == "\u2014":
-        return None
-    if stripped.lower() in {"none", "no", "not set", "[not set]"}:
+    if _is_state_placeholder(stripped):
         return None
     return stripped
 
@@ -4452,7 +4456,7 @@ def state_carry_forward_continuation_last_result_id(
         return StateUpdateResult(updated=False, reason="last_result_id must be a non-empty string when provided")
 
     def _apply(loaded_state_obj: dict[str, object]) -> StateUpdateResult:
-        if not _state_has_canonical_result_id(loaded_state_obj, requested_last_result_id):
+        if not state_has_canonical_result_id(loaded_state_obj, requested_last_result_id):
             return StateUpdateResult(
                 updated=False,
                 reason=(
@@ -5046,7 +5050,7 @@ def state_record_session(
         if last_result_id is not None:
             if requested_last_result_id is None:
                 raise StateError("last_result_id must be a non-empty string when provided")
-            if not _state_has_canonical_result_id(state_obj, requested_last_result_id):
+            if not state_has_canonical_result_id(state_obj, requested_last_result_id):
                 raise StateError(
                     f'last_result_id "{requested_last_result_id}" does not match any canonical result in intermediate_results'
                 )
@@ -5056,7 +5060,7 @@ def state_record_session(
             if current_bounded_segment is not None
             else None
         )
-        if bounded_segment_last_result_id is not None and not _state_has_canonical_result_id(
+        if bounded_segment_last_result_id is not None and not state_has_canonical_result_id(
             state_obj, bounded_segment_last_result_id
         ):
             bounded_segment_last_result_id = None

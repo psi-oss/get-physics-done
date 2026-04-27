@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.prompt_metrics_support import count_unfenced_heading
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 
@@ -18,6 +20,9 @@ def test_referee_routes_on_status_and_shows_base_return_fields_first() -> None:
         in source
     )
     assert "Route on `gpd_return.status` and the written review artifacts, not on heading text." in source
+    assert count_unfenced_heading(source, "## REVIEW COMPLETE") == 0
+    assert count_unfenced_heading(source, "## REVIEW INCOMPLETE") == 0
+    assert count_unfenced_heading(source, "## CHECKPOINT REACHED") == 0
 
     base_idx = source.index("# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.")
     allowlist_idx = source.index("# files_written must stay within the Stage 6 allowlist")
@@ -53,6 +58,8 @@ def test_plan_checker_uses_typed_status_and_drops_nested_return_payload_examples
     assert "`gpd_return.status: checkpoint`" in source
     assert "`gpd_return.status: failed`" in source
     assert "`gpd_return.status: blocked`" in source
+    assert count_unfenced_heading(source, "## VERIFICATION PASSED") == 0
+    assert count_unfenced_heading(source, "## ISSUES FOUND") == 0
 
     base_idx = source.index("  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.")
     files_idx = source.index("  # This read-only agent always uses files_written: [].")

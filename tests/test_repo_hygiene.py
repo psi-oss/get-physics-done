@@ -62,7 +62,10 @@ def _tracked_test_python_paths() -> list[Path]:
     return [
         path
         for path in _tracked_paths()
-        if path.parts[:1] == ("tests",) and path.suffix == ".py" and path.name.startswith("test_")
+        if path.parts[:1] == ("tests",)
+        and path.suffix == ".py"
+        and path.name.startswith("test_")
+        and (REPO_ROOT / path).is_file()
     ]
 
 

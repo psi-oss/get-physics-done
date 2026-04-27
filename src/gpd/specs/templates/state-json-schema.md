@@ -36,7 +36,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 
 ### Authoritative vs Derived
 
-Fields marked **Authoritative** exist only in state.json (not representable in STATE.md markdown). When `sync_state_json()` merges markdown into JSON, it preserves these fields. If state.json is lost, these fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
+Fields marked **Authoritative** exist only in state.json (not representable in STATE.md markdown). Public state commands preserve these fields when they sync markdown-visible state into JSON. If state.json is lost, these fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
 
 ---
 
@@ -301,7 +301,7 @@ Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
 }
 ```
 
-**Written by:** `gpd state record-session`, `save_state_markdown()`, `save_state_json()`
+**Written by:** `gpd state record-session` and the public state persistence path used by `gpd state update`, `gpd state patch`, and related state commands
 
 `continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. The STATE.md ``## Session Continuity`` block is a human-readable rendering of `continuation.handoff` plus `continuation.machine`; parsing STATE.md projects that block back into canonical continuation.
 
@@ -365,11 +365,11 @@ Run via `gpd state validate`. Current checks:
 
 STATE.md and state.json are kept in sync:
 
-1. **STATE.md → state.json**: `sync_state_json()` parses markdown, merges into existing JSON (preserving JSON-only fields)
-2. **state.json → STATE.md**: `save_state_json()` calls `generate_state_markdown()` to regenerate markdown
-3. **Crash recovery**: `state.json.bak` created after every successful write; state saves fail closed if the backup cannot be refreshed, and `load_state_json()` tries the backup before falling back to STATE.md when primary JSON is missing or blocked
-4. **Atomic writes**: Uses intent-marker protocol (`.state-write-intent`) to detect and recover from interrupted writes
-5. **Locking**: `file_lock()` context manager prevents concurrent writes (TOCTOU races)
+1. **STATE.md → state.json**: Public state commands parse markdown-visible fields and merge them into existing JSON while preserving JSON-only fields
+2. **state.json → STATE.md**: Public state commands that update canonical JSON regenerate the human-readable STATE.md view
+3. **Crash recovery**: `state.json.bak` is refreshed after successful writes; state saves fail closed if the backup cannot be refreshed, and state reads recover from backup before falling back to STATE.md when primary JSON is missing or blocked
+4. **Atomic writes**: State persistence uses the intent-marker protocol (`.state-write-intent`) to detect and recover from interrupted writes
+5. **Locking**: State persistence serializes concurrent writes to avoid TOCTOU races
 
 ### Authority hierarchy
 

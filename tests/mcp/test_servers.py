@@ -373,6 +373,18 @@ class TestBuiltinServerDescriptors:
         assert observed["command"][3] == "arxiv_mcp_server"
         assert observed["check"] is False
 
+    def test_public_infra_descriptors_match_builtin_descriptor_builder(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+
+        repo_root = Path(__file__).resolve().parents[2]
+        expected = build_public_descriptors()
+        committed = {
+            path.stem: json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((repo_root / "infra").glob("gpd-*.json"))
+        }
+
+        assert committed == expected
+
 
 class TestMcpServerRunner:
     """Tests for shared MCP server CLI transport wiring."""
@@ -1023,6 +1035,22 @@ class TestPatternsServer:
                 description="A test pattern",
             )
         assert result["added"] is True
+
+    @pytest.mark.parametrize("title", ["   ", "!!!"])
+    def test_add_pattern_rejects_titles_that_cannot_generate_slug(self, title, monkeypatch, tmp_path):
+        from gpd.mcp.servers.patterns_server import add_pattern
+
+        monkeypatch.setattr("gpd.mcp.servers.patterns_server._DEFAULT_PATTERNS_ROOT", tmp_path / "patterns")
+
+        result = add_pattern(
+            domain="qft",
+            title=title,
+            category="sign-error",
+            severity="high",
+        )
+
+        assert result["schema_version"] == 1
+        assert result["error"] == "title cannot be empty"
 
     def test_promote_pattern(self):
         from gpd.mcp.servers.patterns_server import promote_pattern

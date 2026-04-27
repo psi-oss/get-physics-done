@@ -3021,7 +3021,7 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "references/publication/peer-review-panel.md" not in write_paper_command
     assert "Canonical schema for `${PAPER_DIR}/reproducibility-manifest.json`:" in write_paper
     assert "Canonical reconciliation contract:" in sync_state
-    assert "state-json-schema.md` itself" in sync_state
+    assert "state-json-schema.md" in sync_state
     assert "state.json is authoritative for structured fields" in sync_state
     assert "This workflow is intentionally fail-closed" in sync_state
     assert "optional_commit" in sync_state
@@ -3806,17 +3806,13 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "single detailed rule source" in summary_template
 
 
-def test_sync_state_and_write_paper_command_prompts_expand_required_schema_bodies() -> None:
+def test_sync_state_defers_state_schema_while_write_paper_expands_required_schema_bodies() -> None:
     sync_state = _expand_prompt_surface(COMMANDS_DIR / "sync-state.md")
     write_paper = _expand_prompt_surface(COMMANDS_DIR / "write-paper.md")
 
-    assert "# state.json Schema" in sync_state
-    assert "Authoritative vs Derived" in sync_state
-    assert "`project_contract`" in sync_state
-    assert (
-        "Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, "
-        "`references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous." in sync_state
-    )
+    assert "state-json-schema.md" in sync_state
+    assert "# state.json Schema" not in sync_state
+    assert "Authoritative vs Derived" not in sync_state
     assert "`convention_lock`" in sync_state
     assert "Reproducibility Manifest Template" in write_paper
     assert "bibliographer search breadth" in write_paper
@@ -4132,7 +4128,8 @@ def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
     resume_work = expand_at_includes(raw_resume_work, REPO_ROOT / "src/gpd", "/runtime/")
     resume_vocabulary = (REFERENCES_DIR / "orchestration" / "resume-vocabulary.md").read_text(encoding="utf-8")
 
-    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_resume_work
+    assert "{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_resume_work
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in raw_resume_work
     assert "project_contract_validation" in resume_work
     assert "project_contract_load_info" in resume_work
     assert "workspace_state_exists" in resume_work

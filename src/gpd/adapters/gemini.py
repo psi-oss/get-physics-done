@@ -111,13 +111,20 @@ _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
 )
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
+    "Gemini runtime compatibility:\n"
+    "- Keep user-facing command names canonical in prose: `gpd ...` for your normal terminal and `/gpd:...` for Gemini commands.\n"
+    "- When runnable shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
+    "</gemini_runtime_notes>\n\n"
+)
+_GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE = (
+    "<gemini_shell_runtime_notes>\n"
     "Gemini shell compatibility:\n"
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
     "- Gemini's enforced shell-prefix allowlist for GPD auto-edit mode is:\n{allowlist}\n"
     "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
     "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
     "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
-    "</gemini_runtime_notes>\n\n"
+    "</gemini_shell_runtime_notes>\n\n"
 )
 _GEMINI_NEW_PROJECT_INIT_REPLACEMENT = """Run the init command as its own shell call in Gemini auto-edit mode. Do not wrap it in `INIT=$(...)` or an `if` block.
 
@@ -330,12 +337,30 @@ def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
     )
 
 
-def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> str:
+def _contains_gemini_shell_fence(content: str) -> bool:
+    """Return whether content contains a fenced shell block Gemini will execute under policy."""
+    return any(
+        line.lstrip().startswith("```")
+        and line.lstrip()[3:].strip().lower() in DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES
+        for line in content.splitlines()
+    )
+
+
+def _inject_gemini_command_runtime_note(
+    content: str,
+    bridge_command: str,
+    *,
+    include_shell_allowlist: bool = False,
+) -> str:
     """Prepend Gemini-specific shell guidance to installed top-level commands."""
     note = _GEMINI_COMMAND_RUNTIME_NOTE.format(
         launcher=bridge_command,
-        allowlist=_render_gemini_shell_allowlist(bridge_command),
     )
+    if include_shell_allowlist:
+        note += _GEMINI_COMMAND_SHELL_ALLOWLIST_NOTE.format(
+            launcher=bridge_command,
+            allowlist=_render_gemini_shell_allowlist(bridge_command),
+        )
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
         return note + content
@@ -347,8 +372,14 @@ def _render_gemini_command_prompt(content: str, *, bridge_command: str) -> str:
     content = strip_sub_tags(content)
     content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
     content = _rewrite_gemini_shell_workflow_guidance(content)
-    content = _rewrite_gpd_cli_invocations(content, bridge_command)
-    return _inject_gemini_command_runtime_note(content, bridge_command)
+    shell_allowlist_required = _contains_gemini_shell_fence(content)
+    rewritten = _rewrite_gpd_cli_invocations(content, bridge_command)
+    shell_allowlist_required = shell_allowlist_required or rewritten != content
+    return _inject_gemini_command_runtime_note(
+        rewritten,
+        bridge_command,
+        include_shell_allowlist=shell_allowlist_required,
+    )
 
 
 def _validate_existing_gemini_managed_state(target_dir: Path) -> None:

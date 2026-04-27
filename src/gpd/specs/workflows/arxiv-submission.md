@@ -9,7 +9,7 @@ This workflow is staged:
 4. `package`
 5. `finalize`
 
-The `arxiv-submission-stage-manifest.json` sidecar is metadata-only for the prompt path today: it documents staged authority loading and registry contracts, but there is no public staged init CLI command to call from this workflow. Use the executable `gpd --raw validate command-context arxiv-submission ...` and `gpd --raw validate review-preflight arxiv-submission ... --strict` surfaces below as the prompt's runtime entrypoints until a public staged init command exists.
+The `arxiv-submission-stage-manifest.json` sidecar is metadata-only for the prompt path today (`prompt_usage: metadata_only`): it documents staged authority loading and registry contracts, but there is no public staged init CLI command to call from this workflow. Use the executable `gpd --raw validate command-context arxiv-submission ...` and `gpd --raw validate review-preflight arxiv-submission ... --strict` surfaces below as the prompt's runtime entrypoints until a public staged init command exists.
 
 Keep only arXiv-specific rules inline. Use the shared publication bootstrap reference for manuscript-root resolution, latest-review/latest-response gating, and fail-closed paired artifact handling.
 

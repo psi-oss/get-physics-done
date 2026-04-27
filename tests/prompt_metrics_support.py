@@ -11,8 +11,10 @@ from gpd.adapters.install_utils import expand_at_includes, parse_at_include_path
 __all__ = [
     "PromptSurfaceMetrics",
     "count_raw_includes",
+    "count_unfenced_heading",
     "expanded_prompt_text",
     "first_line_containing_any",
+    "iter_unfenced_lines",
     "line_number_for_fragment",
     "measure_prompt_surface",
     "parse_at_include_path",
@@ -60,6 +62,29 @@ def count_raw_includes(text: str) -> int:
         if parse_at_include_path(stripped) is not None:
             include_count += 1
     return include_count
+
+
+def iter_unfenced_lines(text: str) -> Sequence[str]:
+    """Return lines outside fenced code blocks."""
+
+    lines: list[str] = []
+    in_code_fence = False
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_fence = not in_code_fence
+            continue
+        if in_code_fence:
+            continue
+        lines.append(line)
+    return lines
+
+
+def count_unfenced_heading(text: str, heading: str) -> int:
+    """Count exact markdown heading lines outside fenced code blocks."""
+
+    return sum(1 for line in iter_unfenced_lines(text) if line.strip() == heading)
 
 
 def line_number_for_fragment(text: str, fragment: str, *, start: int = 1) -> int | None:

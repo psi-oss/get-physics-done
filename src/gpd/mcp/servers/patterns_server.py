@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import WithJsonSchema
+from pydantic import Field, WithJsonSchema
 
 from gpd.core.errors import PatternError
 from gpd.core.observability import gpd_span
@@ -66,6 +66,18 @@ PatternOptionalCategoryInput = Annotated[
 PatternSeverityInput = Annotated[
     str,
     WithJsonSchema({"type": "string", "enum": _PATTERN_SEVERITY_VALUES}),
+]
+PatternTitleInput = Annotated[
+    str,
+    Field(min_length=1, pattern=r"[A-Za-z0-9]"),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 1,
+            "pattern": r"[A-Za-z0-9]",
+            "description": "Pattern title must contain at least one ASCII letter or digit so it can produce a slug.",
+        }
+    ),
 ]
 
 
@@ -127,7 +139,7 @@ def lookup_pattern(
 @mcp.tool()
 def add_pattern(
     domain: PatternDomainInput,
-    title: str,
+    title: PatternTitleInput,
     category: PatternCategoryInput = "conceptual-error",
     severity: PatternSeverityInput = "medium",
     description: str = "",

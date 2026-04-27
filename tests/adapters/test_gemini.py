@@ -17,6 +17,7 @@ from gpd.adapters.gemini import (
     _convert_frontmatter_to_gemini,
     _convert_gemini_tool_name,
     _convert_to_gemini_toml,
+    _render_gemini_command_prompt,
     _render_gemini_policy_toml,
     _rewrite_gemini_shell_workflow_guidance,
     _rewrite_gpd_cli_invocations,
@@ -314,6 +315,47 @@ class TestRewriteGeminiShellWorkflowGuidance:
         assert "gpd --raw init progress --include state,config --no-project-reentry" in result
         assert "INIT=$(" not in result
         assert "if [ $? -ne 0 ]" not in result
+
+
+class TestGeminiCommandRuntimeNotes:
+    def test_non_shell_command_prompt_omits_full_shell_allowlist(self) -> None:
+        bridge_command = "/runtime/gpd-cli"
+        content = (
+            "---\n"
+            "name: gpd:status\n"
+            "description: Show project status\n"
+            "---\n"
+            "Summarize the current project state and ask exactly one question."
+        )
+
+        result = _render_gemini_command_prompt(content, bridge_command=bridge_command)
+
+        assert "<gemini_runtime_notes>" in result
+        assert "Gemini runtime compatibility" in result
+        assert "enforced shell-prefix allowlist" not in result
+        assert "`git init`" not in result
+        assert "`mkdir -p GPD`" not in result
+
+    def test_shell_command_prompt_keeps_full_shell_allowlist(self) -> None:
+        bridge_command = "/runtime/gpd-cli"
+        content = (
+            "---\n"
+            "name: gpd:status\n"
+            "description: Show project status\n"
+            "---\n"
+            "```bash\n"
+            "gpd status\n"
+            "```\n"
+        )
+
+        result = _render_gemini_command_prompt(content, bridge_command=bridge_command)
+
+        assert "<gemini_runtime_notes>" in result
+        assert "<gemini_shell_runtime_notes>" in result
+        assert "enforced shell-prefix allowlist" in result
+        assert f"`{bridge_command}`" in result
+        assert "`git init`" in result
+        assert f"{bridge_command} status" in result
 
 
 class TestInstall:

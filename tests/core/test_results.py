@@ -77,6 +77,29 @@ def test_result_add_depends_on_string():
     assert result.depends_on == ["R-01"]
 
 
+def test_result_add_canonicalizes_uniquely_resolvable_dependency_ids():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+
+    result = result_add(state, result_id="R-02", depends_on=["r 01", "R-missing"])
+
+    assert result.depends_on == ["R-01", "R-missing"]
+    assert state["intermediate_results"][1]["depends_on"] == ["R-01", "R-missing"]
+
+
+def test_result_add_preserves_ambiguous_normalized_dependency_id():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "verified": False, "verification_records": []},
+            {"id": "R 01", "verified": False, "verification_records": []},
+        ]
+    }
+
+    result = result_add(state, result_id="R-02", depends_on="r 01")
+
+    assert result.depends_on == ["r 01"]
+
+
 def test_result_add_inherits_phase_from_position():
     state: dict = {"position": {"current_phase": "5"}}
     result = result_add(state, result_id="R-05-01")
@@ -692,6 +715,23 @@ def test_result_deps_handles_raw_string_depends_on_field():
     assert deps.direct_deps[0].id == "R-01"
 
 
+def test_result_deps_resolves_normalized_target_and_dependencies():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "depends_on": [], "verified": False, "verification_records": []},
+            {"id": "R-02", "depends_on": "r 01", "verified": False, "verification_records": []},
+            {"id": "R-03", "depends_on": ["r 02"], "verified": False, "verification_records": []},
+        ]
+    }
+
+    deps = result_deps(state, "r 03")
+
+    assert deps.result.id == "R-03"
+    assert deps.depends_on == ["R-02"]
+    assert [dep.id for dep in deps.direct_deps] == ["R-02"]
+    assert [dep.id for dep in deps.transitive_deps] == ["R-01"]
+
+
 def test_result_deps_not_found():
     state: dict = {}
     with pytest.raises(ResultNotFoundError):
@@ -891,6 +931,37 @@ def test_result_update_fields():
     assert "description" in fields
     assert result.equation == "new"
     assert result.description == "updated"
+
+
+def test_result_update_canonicalizes_dependencies_and_returns_deterministic_fields():
+    state: dict = {}
+    result_add(state, result_id="R-02")
+    result_add(state, result_id="R-01")
+
+    fields, result = result_update(
+        state,
+        "R-01",
+        verification_records=[{"verifier": "auditor", "method": "manual", "confidence": "low"}],
+        description="updated",
+        depends_on="r 02",
+        equation="E",
+        units="J",
+        validity="weak field",
+        phase="3",
+    )
+
+    assert fields == [
+        "equation",
+        "description",
+        "units",
+        "validity",
+        "phase",
+        "depends_on",
+        "verified",
+        "verification_records",
+    ]
+    assert result.depends_on == ["R-02"]
+    assert state["intermediate_results"][1]["depends_on"] == ["R-02"]
 
 
 def test_result_update_no_recognized_fields():

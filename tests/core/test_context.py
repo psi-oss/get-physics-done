@@ -3634,6 +3634,30 @@ class TestInitVerifyWork:
         assert "reference_artifacts_content" not in ctx
         assert "convention_lock" not in ctx
 
+    def test_stage_session_router_allows_missing_phase_for_active_session_routing(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_verify_work(tmp_path, "", stage="session_router")
+
+        assert ctx["phase_found"] is False
+        assert ctx["phase_dir"] is None
+        assert ctx["phase_number"] is None
+        assert ctx["project_contract_gate"]["visible"] is True
+        assert ctx["staged_loading"]["stage_id"] == "session_router"
+
+    def test_staged_verify_work_init_does_not_bootstrap_phase_proof_review_manifest(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "01-SUMMARY.md").write_text("# Summary\n", encoding="utf-8")
+        (phase_dir / "01-VERIFICATION.md").write_text("# Verification\n", encoding="utf-8")
+
+        ctx = init_verify_work(tmp_path, "1", stage="session_router")
+
+        assert ctx["phase_proof_review_status"]["state"] == "fresh"
+        assert ctx["phase_proof_review_status"]["manifest_bootstrapped"] is False
+        assert not (phase_dir / "01-PROOF-REVIEW-MANIFEST.json").exists()
+
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValidationError, match="phase is required"):
             init_verify_work(tmp_path, "")

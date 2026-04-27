@@ -83,6 +83,36 @@ def test_github_actions_loader_preserves_on_key_without_losing_boolean_inputs() 
     assert dry_run["default"] is False
 
 
+def test_ci_workflow_runs_human_author_check_on_pull_requests_and_main_pushes() -> None:
+    workflow = _workflow_data()
+    triggers = workflow["on"]
+    jobs = workflow["jobs"]
+    human_author_job = jobs["human-authors"]
+    steps = human_author_job["steps"]
+    step_by_name = {step["name"]: step for step in steps}
+
+    assert triggers["pull_request"]["branches"] == ["main"]
+    assert triggers["push"]["branches"] == ["main"]
+    assert human_author_job["if"] == "github.event_name == 'pull_request' || github.event_name == 'push'"
+
+    checkout_step = step_by_name["Check out repository"]
+    assert checkout_step["uses"] == "actions/checkout@v6"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
+    pr_step = step_by_name["Check PR commit attribution uses human authors"]
+    assert pr_step["if"] == "github.event_name == 'pull_request'"
+    assert pr_step["run"].strip() == 'bash scripts/check-human-authors.sh --range "origin/${{ github.base_ref }}..HEAD"'
+
+    push_step = step_by_name["Check pushed commit attribution uses human authors"]
+    assert push_step["if"] == "github.event_name == 'push'"
+    assert push_step["env"] == {
+        "BEFORE_SHA": "${{ github.event.before }}",
+        "HEAD_SHA": "${{ github.sha }}",
+    }
+    assert 'range="${BEFORE_SHA}..${HEAD_SHA}"' in push_step["run"]
+    assert 'bash scripts/check-human-authors.sh --range "$range"' in push_step["run"]
+
+
 def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_default_parallelism_and_ci_worksteal() -> (
     None
 ):

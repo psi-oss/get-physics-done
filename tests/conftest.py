@@ -64,4 +64,7 @@ def _isolate_machine_local_gpd_data(tmp_path_factory) -> Iterator[None]:
 
 
 def pytest_report_header(config) -> str:
-    return "test suite mode: full (default)"
+    args = [str(arg) for arg in config.args]
+    if _is_default_full_suite_invocation(args):
+        return "test suite mode: full default suite"
+    return "test suite mode: targeted/sharded args"

@@ -3959,18 +3959,18 @@ def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | N
 
 def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> dict:
     """Assemble context for work verification."""
-    if not phase:
+    if not phase and stage != "session_router":
         raise ValidationError(
             "phase is required for init verify-work. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
     cwd = _resolve_project_scoped_cwd(cwd)
     config = load_config(cwd)
-    phase_info = _try_find_phase(cwd, phase)
+    phase_info = _try_find_phase(cwd, phase) if phase else None
     phase_proof_review_status = resolve_phase_proof_review_status(
         cwd,
         cwd / phase_info["directory"] if phase_info else None,
-        persist_manifest=True,
+        persist_manifest=stage is None,
     )
 
     base_result = {
