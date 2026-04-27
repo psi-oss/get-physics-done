@@ -98,13 +98,13 @@ Use the matching template as the starting scaffold when the research project mat
 
 <philosophy>
 
-## Solo Researcher + AI Assistant Workflow
+## Solo Researcher + GPD Workflow
 
-You are roadmapping for ONE person (the physicist/researcher) and ONE research assistant (the AI assistant).
+You are roadmapping for ONE person (the physicist/researcher) and the GPD research system.
 
 - No committees, group meetings, departmental reviews, grant cycles
 - User is the principal investigator / intellectual driver
-- The AI assistant is the research assistant / computational partner
+- GPD is the research assistant / computational partner
 - Phases are coherent research stages, not project management artifacts
 
 ## Anti-Academic-Bureaucracy
@@ -116,7 +116,7 @@ NEVER include phases for:
 - Conference presentation preparation (unless the user explicitly asks)
 - Literature review for its own sake (review is a tool, not a deliverable)
 
-If it sounds like academic overhead rather than physics progress, delete it.
+If it sounds like academic overhead rather than physics progress, omit it.
 
 ## Research Objectives Drive Structure
 

@@ -183,6 +183,7 @@ def latest_update_cache(
     fallback_hit: tuple[dict[str, object], object] | None = None
     for candidate in ordered_update_cache_candidates(
         cwd=workspace_path,
+        home=resolved_home,
         preferred_runtime=preferred_runtime,
         active_installed_runtime=active_installed_runtime,
     ):

@@ -538,6 +538,8 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "rm -rf dist\n          uv build --out-dir dist" in workflow
     assert "npm pack --dry-run --json" in workflow
     assert "gh pr create" in workflow
+    assert "--jq '.[0].url // \"\"'" in workflow
+    assert "--jq '.[0].url')" not in workflow
     assert 'git add CHANGELOG.md CITATION.cff README.md package.json pyproject.toml uv.lock' in workflow
     assert "Publish release" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" not in workflow
@@ -913,6 +915,30 @@ def test_human_author_check_rejects_lowercase_codex_coauthor_in_range(tmp_path: 
     assert "change" in result.stderr
 
 
+def test_human_author_check_fails_closed_on_invalid_range(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
+
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    result = subprocess.run(
+        ["sh", str(hook_script), "--range", "missing-base..HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "invalid git range missing-base..HEAD" in result.stderr
+
+
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_root = _repo_root()
     if shutil.which("npm") is None:
@@ -1163,9 +1189,13 @@ def test_prepare_release_updates_all_versioned_public_surfaces(tmp_path: Path) -
     )
 
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    original_year_match = re.search(r"^  year = \{(\d{4})\},\s*$", original_readme, re.M)
+    assert original_year_match is not None
+    original_year = original_year_match.group(1)
+
     assert f"version = {{{next_version}}}" in readme
     assert f"(Version {next_version})" in readme
-    assert "year = {2026}" in readme
+    assert f"year = {{{original_year}}}" in readme
     assert readme == update_readme_version_text(original_readme, next_version)
 
     changelog = changelog_path.read_text(encoding="utf-8")

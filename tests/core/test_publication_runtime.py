@@ -239,6 +239,25 @@ def test_publication_runtime_marks_review_round_invalid_when_ledger_content_roun
     assert "review ledger round 1 does not match review artifact round 2" in snapshot.latest_review_artifacts.detail
 
 
+def test_publication_runtime_does_not_fall_back_past_malformed_latest_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(review_dir / "REVIEW-LEDGER-R3.json", "{malformed json")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 3
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "review ledger could not be loaded" in snapshot.latest_review_artifacts.detail
+
+
 def test_publication_runtime_reference_status_uses_canonical_subject_fields_for_invalid_explicit_target(
     tmp_path: Path,
 ) -> None:
@@ -256,7 +275,9 @@ def test_publication_runtime_reference_status_uses_canonical_subject_fields_for_
     assert status.subject_resolution_detail == "missing explicit manuscript target ./submission/missing.tex"
     assert [record.reference_id for record in status.reference_status] == ["ref-benchmark"]
     assert context["manuscript_reference_subject_status"] == "invalid"
-    assert context["manuscript_reference_subject_detail"] == "missing explicit manuscript target ./submission/missing.tex"
+    assert (
+        context["manuscript_reference_subject_detail"] == "missing explicit manuscript target ./submission/missing.tex"
+    )
 
 
 def test_publication_runtime_invalid_explicit_target_does_not_fall_back_to_current_project_manuscript(
@@ -436,7 +457,9 @@ def test_publication_runtime_snapshot_reuses_managed_publication_subject_slug_fo
     assert context["publication_subject"]["artifact_base"] == "GPD/publication/ising-bootstrap/manuscript"
     assert context["publication_subject"]["publication_root"] == "GPD/publication/ising-bootstrap"
     assert context["publication_subject"]["review_dir"] == "GPD/publication/ising-bootstrap/review"
-    assert context["publication_subject"]["manuscript_entrypoint"] == "GPD/publication/ising-bootstrap/manuscript/main.tex"
+    assert (
+        context["publication_subject"]["manuscript_entrypoint"] == "GPD/publication/ising-bootstrap/manuscript/main.tex"
+    )
 
 
 def test_publication_runtime_snapshot_uses_subject_owned_review_roots_for_standalone_managed_lane(

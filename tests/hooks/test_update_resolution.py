@@ -290,6 +290,33 @@ def test_latest_update_cache_falls_back_when_self_owned_cache_is_missing(tmp_pat
     assert candidate is fallback_candidate
 
 
+def test_latest_update_cache_reuses_resolved_home_for_candidate_ordering(tmp_path: Path) -> None:
+    resolved_home = tmp_path / "home"
+    resolved_home.mkdir()
+    candidate = SimpleNamespace(path=tmp_path / "runtime-cache.json", runtime="codex", scope="global")
+    candidate.path.write_text(json.dumps({"update_available": True, "checked": 43}), encoding="utf-8")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
+        patch(
+            "gpd.hooks.update_resolution.resolve_update_cache_inputs",
+            return_value=(tmp_path, resolved_home, "codex", "codex"),
+        ),
+        patch("gpd.hooks.runtime_detect.detect_runtime_install_target", return_value=None),
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[candidate]) as ordered,
+    ):
+        cache, selected = latest_update_cache(hook_file=__file__, cwd=str(tmp_path), debug=_noop_debug)
+
+    assert cache == {"update_available": True, "checked": 43}
+    assert selected is candidate
+    ordered.assert_called_once_with(
+        cwd=tmp_path,
+        home=resolved_home,
+        preferred_runtime="codex",
+        active_installed_runtime="codex",
+    )
+
+
 def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path: Path) -> None:
     from gpd.hooks.install_context import SelfOwnedInstallContext
 

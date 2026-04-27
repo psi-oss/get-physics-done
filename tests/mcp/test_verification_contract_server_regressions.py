@@ -104,6 +104,24 @@ def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> 
         assert schema["default"] is None
 
 
+def test_run_contract_check_schema_allows_optional_fields_alongside_required_branch_fields() -> None:
+    schema = _run_contract_check_input_schema()
+    request = {
+        "check_key": "contract.claim_to_proof_alignment",
+        "contract": _load_project_contract_fixture(),
+        "metadata": {
+            "claim_statement": "The proof covers every stated case.",
+            "conclusion_clause_ids": ["conclusion-main"],
+        },
+        "observed": {
+            "scope_status": "matched",
+            "uncovered_conclusion_clause_ids": [],
+        },
+    }
+
+    assert _schema_error_messages(schema, {"request": request}) == []
+
+
 def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
     contract = _load_project_contract_fixture()
     contract["scope"]["in_scope"] = []
@@ -121,8 +139,7 @@ def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
     suggest_errors = _schema_errors_with_context(_suggest_contract_checks_input_schema(), {"contract": contract})
 
     assert any(
-        list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message
-        for error in run_errors
+        list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message for error in run_errors
     )
     assert any(
         list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message
@@ -1185,15 +1202,15 @@ def test_contract_tools_salvage_lossy_singleton_section(
         assert run_result["contract_salvaged"] is True
         assert "approach_policy must be an object, not list" in run_result["contract_salvage_findings"]
         assert suggest_result["contract_salvaged"] is True
-        assert any("approach_policy must be an object, not list" in warning for warning in suggest_result["contract_warnings"])
+        assert any(
+            "approach_policy must be an object, not list" in warning for warning in suggest_result["contract_warnings"]
+        )
         return
 
     for result in (run_result, suggest_result):
         assert result["schema_version"] == 1
         assert result["error"] == expected_error
-        assert result["contract_error_details"] == [
-            str(expected_error).removeprefix("Invalid contract payload: ")
-        ]
+        assert result["contract_error_details"] == [str(expected_error).removeprefix("Invalid contract payload: ")]
 
 
 def test_contract_tools_reject_missing_context_intake() -> None:
@@ -1330,7 +1347,9 @@ def test_contract_tools_accept_recoverable_scalar_to_list_contract_drift(
             "context_intake.must_read_refs must be a list, not str",
         ),
         (
-            lambda contract: contract.setdefault("approach_policy", {}).__setitem__("allowed_fit_families", "power_law"),
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__(
+                "allowed_fit_families", "power_law"
+            ),
             "approach_policy.allowed_fit_families must be a list, not str",
         ),
     ],
@@ -1565,7 +1584,9 @@ def test_suggest_contract_checks_requires_forbidden_proxy_binding_when_contract_
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     result = suggest_contract_checks(_ambiguous_direct_proxy_contract())
-    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    direct_proxy = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency"
+    )
 
     assert direct_proxy["required_request_fields"] == ["binding.forbidden_proxy_ids"]
     assert direct_proxy["request_template"]["binding"] == {}
@@ -1576,7 +1597,9 @@ def test_suggest_contract_checks_ambiguous_direct_proxy_template_round_trips_to_
 
     contract = _ambiguous_direct_proxy_contract()
     result = suggest_contract_checks(contract)
-    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    direct_proxy = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency"
+    )
 
     run_result = run_contract_check(
         {
@@ -1595,7 +1618,9 @@ def test_suggest_contract_checks_direct_proxy_template_does_not_mix_subject_bind
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     result = suggest_contract_checks(_mismatched_direct_proxy_template_contract())
-    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    direct_proxy = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency"
+    )
     binding = direct_proxy["request_template"]["binding"]
 
     assert binding["forbidden_proxy_ids"] == ["fp-01"]
@@ -2053,7 +2078,9 @@ def test_run_contract_check_schema_rejects_benchmark_requests_without_source_ref
     assert any("any of the given schemas" in message for message in messages)
 
 
-def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> None:
+def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> (
+    None
+):
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2325,12 +2352,15 @@ def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_
     assert result["contract_salvaged"] is True
     assert "claims.0.parameters.0.aliases must be a list, not str" in result["contract_salvage_findings"]
     assert "claims.0.hypotheses.0.symbols must be a list, not str" in result["contract_salvage_findings"]
-    assert "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage" in result[
-        "contract_salvage_findings"
-    ]
+    assert (
+        "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage"
+        in result["contract_salvage_findings"]
+    )
 
 
-def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_collections_when_metadata_is_missing() -> None:
+def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_collections_when_metadata_is_missing() -> (
+    None
+):
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2571,7 +2601,9 @@ def test_run_contract_check_direct_proxy_consistency_bound_proxy_can_resolve_amb
     assert result["contract_impacts"] == ["fp-01"]
 
 
-def test_run_contract_check_direct_proxy_consistency_rejects_mixed_forbidden_proxy_and_acceptance_test_subjects() -> None:
+def test_run_contract_check_direct_proxy_consistency_rejects_mixed_forbidden_proxy_and_acceptance_test_subjects() -> (
+    None
+):
     from gpd.mcp.servers.verification_server import run_contract_check
 
     result = run_contract_check(
@@ -3307,7 +3339,9 @@ def test_contract_tool_responses_copy_binding_targets_lists() -> None:
     assert second_run["binding_targets"] == ["claim", "deliverable", "acceptance_test", "reference"]
 
     first_suggest = suggest_contract_checks(_load_project_contract_fixture())
-    benchmark = next(entry for entry in first_suggest["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+    benchmark = next(
+        entry for entry in first_suggest["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction"
+    )
     benchmark["binding_targets"].append("poisoned")
 
     second_suggest = suggest_contract_checks(_load_project_contract_fixture())

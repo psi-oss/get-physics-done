@@ -126,6 +126,15 @@ def test_roadmapper_shallow_mode_keeps_contract_identity_visible() -> None:
     assert "only their one-line Goal and phase title" not in source
 
 
+def test_public_agent_prompts_avoid_legacy_ai_assistant_role_labels() -> None:
+    for name in registry.list_agents():
+        agent = registry.get_agent(name)
+        if agent.surface != "public":
+            continue
+        content = _read_agent(name)
+        assert "AI assistant" not in content, name
+
+
 def test_planner_backtracks_guidance_is_capped_before_injection() -> None:
     source = _read_agent("gpd-planner")
 

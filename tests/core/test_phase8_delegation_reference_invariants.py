@@ -33,9 +33,9 @@ def test_runtime_delegation_note_reuses_the_same_one_shot_and_artifact_language(
     assert "agent-delegation.md" in text
     assert "one-shot" in text
     assert "`status: checkpoint`" in text
-    assert "artifact gate" in text
-    assert "fresh-continuation ownership" in text
-    assert "empty-model omission" in text
+    assert "Artifact gate" in text
+    assert "Fresh-continuation ownership" in text
+    assert "Empty-model omission" in text
     assert "`readonly=false`" in text
     assert "execute sequentially in the main context" in text
 

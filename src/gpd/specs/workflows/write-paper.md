@@ -54,7 +54,7 @@ fi
 INIT="$PAPER_BOOTSTRAP_INIT"
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `publication_subject`, `publication_subject_status`, `publication_subject_source`, `publication_subject_detail`, `publication_artifact_base`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_bootstrap`, `publication_bootstrap_mode`, `publication_bootstrap_root`, `publication_bootstrap_detail`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse bootstrap JSON for: the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`, including `project_contract_gate`, `contract_intake`, `effective_reference_intake`, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `publication_lane_owner`, `selected_publication_root`, `selected_review_root`, `managed_publication_root`, `managed_manuscript_root`, `publication_intake_root`), manuscript artifact paths, protocol bundle fields, active reference context, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, and `derived_manuscript_proof_review_status`. Do not maintain a second inline field list here.
 
 **Load mode settings:**
 

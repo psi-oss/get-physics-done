@@ -509,23 +509,25 @@ def _review_artifact_state(
     round_number: int,
 ) -> tuple[str, str, tuple[str, ...]]:
     missing: list[str] = []
+    ledger = None
+    decision = None
     if review_ledger is None:
         missing.append("review_ledger")
+    else:
+        try:
+            ledger = read_review_ledger(review_ledger)
+        except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+            return "invalid", f"review ledger could not be loaded: {exc}", ()
+
     if referee_decision is None:
         missing.append("referee_decision")
-    if missing:
-        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing)
+    else:
+        try:
+            decision = read_referee_decision(referee_decision)
+        except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+            return "invalid", f"referee decision could not be loaded: {exc}", ()
 
-    try:
-        ledger = read_review_ledger(review_ledger)
-    except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-        return "invalid", f"review ledger could not be loaded: {exc}", ()
-    try:
-        decision = read_referee_decision(referee_decision)
-    except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-        return "invalid", f"referee decision could not be loaded: {exc}", ()
-
-    if ledger.round != round_number:
+    if ledger is not None and ledger.round != round_number:
         return (
             "invalid",
             f"review ledger round {ledger.round} does not match review artifact round {round_number}",
@@ -533,20 +535,31 @@ def _review_artifact_state(
         )
 
     if manuscript_entrypoint is not None:
-        ledger_matches = manuscript_matches_review_artifact_path(
+        mismatched: list[str] = []
+        if ledger is not None and not manuscript_matches_review_artifact_path(
             ledger.manuscript_path,
             manuscript_entrypoint,
             cwd=project_root,
-        )
-        decision_matches = manuscript_matches_review_artifact_path(
+        ):
+            mismatched.append("review ledger")
+        if decision is not None and not manuscript_matches_review_artifact_path(
             decision.manuscript_path,
             manuscript_entrypoint,
             cwd=project_root,
-        )
-        if not ledger_matches or not decision_matches:
-            return "mismatched", "review ledger or referee decision does not match the resolved publication subject", ()
+        ):
+            mismatched.append("referee decision")
+        if mismatched:
+            return (
+                "mismatched",
+                " or ".join(mismatched) + " does not match the resolved publication subject",
+                (),
+            )
+
+    if missing:
+        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing)
 
     return "complete", "latest review round is complete for the active manuscript", ()
+
 
 def _publication_lineage_roots_for_subject(
     project_root: Path,
@@ -573,38 +586,6 @@ def _coerce_publication_subject(
             allow_markdown=True,
         )
     return resolve_current_publication_subject(project_root, allow_markdown=True)
-
-
-def _review_round_matches_manuscript(
-    *,
-    review_ledger: Path | None,
-    referee_decision: Path | None,
-    manuscript_entrypoint: Path,
-    project_root: Path,
-) -> bool:
-    if review_ledger is not None:
-        try:
-            ledger = read_review_ledger(review_ledger)
-        except (OSError, json.JSONDecodeError, PydanticValidationError):
-            ledger = None
-        if ledger is not None and manuscript_matches_review_artifact_path(
-            ledger.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            return True
-    if referee_decision is not None:
-        try:
-            decision = read_referee_decision(referee_decision)
-        except (OSError, json.JSONDecodeError, PydanticValidationError):
-            decision = None
-        if decision is not None and manuscript_matches_review_artifact_path(
-            decision.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            return True
-    return False
 
 
 def _metadata_round_value(metadata: dict[str, object]) -> int | None:
@@ -672,18 +653,26 @@ def _response_artifact_metadata_errors(
         errors.append(f"{path.name} response_to does not match round suffix {round_suffix or '(round 1)'}")
 
     review_ledger = _metadata_text(metadata, "review_ledger")
-    if review_ledger and review_artifacts is not None and not _path_metadata_matches_project_path(
-        review_ledger,
-        review_artifacts.review_ledger,
-        project_root=project_root,
+    if (
+        review_ledger
+        and review_artifacts is not None
+        and not _path_metadata_matches_project_path(
+            review_ledger,
+            review_artifacts.review_ledger,
+            project_root=project_root,
+        )
     ):
         errors.append(f"{path.name} review_ledger does not match the active review artifact")
 
     referee_decision = _metadata_text(metadata, "referee_decision")
-    if referee_decision and review_artifacts is not None and not _path_metadata_matches_project_path(
-        referee_decision,
-        review_artifacts.referee_decision,
-        project_root=project_root,
+    if (
+        referee_decision
+        and review_artifacts is not None
+        and not _path_metadata_matches_project_path(
+            referee_decision,
+            review_artifacts.referee_decision,
+            project_root=project_root,
+        )
     ):
         errors.append(f"{path.name} referee_decision does not match the active review artifact")
 
@@ -756,13 +745,6 @@ def resolve_latest_publication_review_artifacts(
     for round_number in round_numbers:
         review_ledger = ledger_by_round.get(round_number)
         referee_decision = decision_by_round.get(round_number)
-        if resolved_manuscript is not None and not _review_round_matches_manuscript(
-            review_ledger=review_ledger,
-            referee_decision=referee_decision,
-            manuscript_entrypoint=resolved_manuscript,
-            project_root=project_root,
-        ):
-            continue
         round_suffix = review_round_suffix(round_number)
         referee_report_md = _first_existing_path(
             publication_root / f"REFEREE-REPORT{round_suffix}.md",
@@ -829,9 +811,13 @@ def resolve_latest_publication_response_artifacts(
         manuscript=resolved_manuscript,
         include_review_roots_for_author_response=True,
     )
-    round_number = review_artifacts.round_number if review_artifacts is not None else latest_publication_round_number(
-        author_by_round,
-        referee_by_round,
+    round_number = (
+        review_artifacts.round_number
+        if review_artifacts is not None
+        else latest_publication_round_number(
+            author_by_round,
+            referee_by_round,
+        )
     )
     if round_number is None:
         return None
@@ -894,11 +880,7 @@ def resolve_publication_runtime_snapshot(
     current_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
     current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
     explicit_project_subject = None
-    if (
-        publication_subject is None
-        and target.mode == "project_explicit_manuscript"
-        and target.target_path is not None
-    ):
+    if publication_subject is None and target.mode == "project_explicit_manuscript" and target.target_path is not None:
         explicit_project_subject = resolve_explicit_publication_subject(
             project_root,
             target.target_path,

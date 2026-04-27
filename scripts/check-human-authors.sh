@@ -32,7 +32,12 @@ fi
 # --- Mode 2: range check (--range <range>) ---
 if [ "${1:-}" = "--range" ] && [ -n "${2:-}" ]; then
     range="$2"
-    offenders=$(git log "$range" --format="%H" 2>/dev/null | while read -r hash; do
+    if ! git rev-list "$range" >/dev/null 2>&1; then
+        echo "${RED}ERROR: invalid git range ${range}.${NC}" >&2
+        exit 1
+    fi
+
+    offenders=$(git log "$range" --format="%H" | while read -r hash; do
         subject=$(git log -1 --format="%s" "$hash")
         body=$(git log -1 --format="%B" "$hash")
         if printf '%s\n' "$body" | grep -Eqi "$NON_HUMAN_COAUTHOR_PATTERN"; then

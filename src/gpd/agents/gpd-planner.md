@@ -395,7 +395,7 @@ Every task has four required fields:
 
 ## Task Sizing
 
-Each task: **15-60 minutes** AI assistant execution time.
+Each task: **15-60 minutes** agent execution time.
 
 | Duration  | Action                                 |
 | --------- | -------------------------------------- |

@@ -569,7 +569,7 @@ For each evaluation dimension, rate your confidence:
 ---
 
 _Reviewed: {timestamp}_
-_Reviewer: AI assistant (gpd-referee)_
+_Reviewer: GPD referee agent_
 _Disclaimer: This is an AI-generated mock referee report. It supplements but does not replace expert peer review._
 ```
 
@@ -899,7 +899,7 @@ actionable_items:
 ---
 
 _Round {N} review: {timestamp}_
-_Reviewer: AI assistant (gpd-referee)_
+_Reviewer: GPD referee agent_
 ```
 
 ### Revision Review Success Criteria

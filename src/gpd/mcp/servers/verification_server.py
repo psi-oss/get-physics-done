@@ -97,6 +97,7 @@ def _approved_contract_warnings(contract: ResearchContract, *, project_root: Pat
     locator_warnings = _must_surface_locator_warnings(contract, project_root=project_root)
     return list(dict.fromkeys([*missing_anchor_warnings, *locator_warnings]))
 
+
 _CONTRACT_ERROR_PATH_RE = re.compile(
     r"^(schema_version|[A-Za-z_][A-Za-z0-9_]*(?:\.\d+|\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*)(?:: | )"
 )
@@ -313,7 +314,12 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "observed.quantifier_status",
             "observed.scope_status",
         ],
-        "optional_request_fields": ["binding.*", "metadata.quantifiers", "observed.uncovered_quantifiers", "artifact_content"],
+        "optional_request_fields": [
+            "binding.*",
+            "metadata.quantifiers",
+            "observed.uncovered_quantifiers",
+            "artifact_content",
+        ],
         "request_template": {
             "contract": None,
             "binding": {},
@@ -397,10 +403,14 @@ ContractBindingRequest = create_model(
                 description=f"Binding to one or more {target.replace('_', '-')} ids.",
             ),
         )
-        for target, binding_field_name in zip(VERIFICATION_BINDING_TARGETS, VERIFICATION_BINDING_FIELD_NAMES, strict=True)
+        for target, binding_field_name in zip(
+            VERIFICATION_BINDING_TARGETS, VERIFICATION_BINDING_FIELD_NAMES, strict=True
+        )
     },
 )
-ContractBindingRequest.__doc__ = "Closed binding request surface derived from the canonical verification binding fields."
+ContractBindingRequest.__doc__ = (
+    "Closed binding request surface derived from the canonical verification binding fields."
+)
 
 
 class ContractMetadataRequest(_ContractRequestBase):
@@ -679,16 +689,10 @@ def _check_identifier_values(entry: dict[str, object]) -> tuple[str, ...]:
 
 
 _CONTRACT_CHECK_IDENTIFIER_VALUES: tuple[str, ...] = tuple(
-    identifier
-    for entry in _CONTRACT_AWARE_CHECK_ENTRIES
-    for identifier in _check_identifier_values(entry)
+    identifier for entry in _CONTRACT_AWARE_CHECK_ENTRIES for identifier in _check_identifier_values(entry)
 )
 _RUN_CHECK_IDENTIFIER_VALUES: tuple[str, ...] = tuple(
-    dict.fromkeys(
-        identifier
-        for entry in list_verification_checks()
-        for identifier in _check_identifier_values(entry)
-    )
+    dict.fromkeys(identifier for entry in list_verification_checks() for identifier in _check_identifier_values(entry))
 )
 _RUN_CHECK_IDENTIFIER_SCHEMA: dict[str, object] = {
     **dict(_trimmed_non_empty_string_schema()),
@@ -755,16 +759,12 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
     "does not infer it."
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA: dict[str, object] = _object_schema(
-    {
-        field_name: _contract_string_list_schema(min_items=1)
-        for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
-    },
+    {field_name: _contract_string_list_schema(min_items=1) for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES},
     additional_properties=False,
 )
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["minProperties"] = 1
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["anyOf"] = [
-    {"required": [field_name]}
-    for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
+    {"required": [field_name]} for field_name in CONTRACT_CONTEXT_INTAKE_FIELD_NAMES
 ]
 _CONTRACT_CONTEXT_INTAKE_INPUT_SCHEMA["description"] = (
     "`context_intake` is required and must stay non-empty. Use it to surface anchors, prior outputs, baselines, "
@@ -877,8 +877,7 @@ _CONTRACT_CLAIM_INPUT_SCHEMA["allOf"] = [
             "properties": {
                 "statement": {
                     "anyOf": [
-                        {"type": "string", "pattern": pattern}
-                        for pattern in _THEOREM_STYLE_STATEMENT_SCHEMA_PATTERNS
+                        {"type": "string", "pattern": pattern} for pattern in _THEOREM_STYLE_STATEMENT_SCHEMA_PATTERNS
                     ]
                 }
             }
@@ -1057,9 +1056,7 @@ _CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _object_schema(
     required=("schema_version", "scope", "context_intake", "uncertainty_markers"),
     additional_properties=False,
 )
-_CONTRACT_PAYLOAD_INPUT_SCHEMA["description"] = (
-    verification_contract_policy_text()
-)
+_CONTRACT_PAYLOAD_INPUT_SCHEMA["description"] = verification_contract_policy_text()
 _CONTRACT_PAYLOAD_INPUT_SCHEMA["allOf"] = [
     {
         "if": {"required": ["claims"], "properties": {"claims": {"type": "array", "minItems": 1}}},
@@ -1124,11 +1121,10 @@ def _request_section_required_schema(
 
     schema: dict[str, object] = {
         "type": "object",
-        "additionalProperties": False,
+        "additionalProperties": True,
     }
     if required_list:
         schema["required"] = required_list
-    properties = schema.get("properties")
     source_properties = section_schema.get("properties")
     if isinstance(source_properties, dict) and required_list:
         strict_properties: dict[str, object] = {}
@@ -1138,8 +1134,6 @@ def _request_section_required_schema(
                 strict_properties[field_name] = _strict_required_schema_fragment(field_schema)
         if strict_properties:
             schema["properties"] = strict_properties
-    elif isinstance(properties, dict):
-        schema["properties"] = properties
     return schema
 
 
@@ -1189,7 +1183,9 @@ def _request_requirement_schema(required_fields: Iterable[str]) -> dict[str, obj
     return schema
 
 
-def _run_contract_request_requirement_condition_schema(check_key: str, hint: dict[str, object]) -> dict[str, object] | None:
+def _run_contract_request_requirement_condition_schema(
+    check_key: str, hint: dict[str, object]
+) -> dict[str, object] | None:
     check_meta = get_verification_check(check_key)
     if check_meta is None:
         return None
@@ -1314,11 +1310,7 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
     ]
     optional_request_fields = [
         *supported_binding_fields,
-        *[
-            field
-            for field in hint.get("optional_request_fields", [])
-            if field != "binding.*"
-        ],
+        *[field for field in hint.get("optional_request_fields", []) if field != "binding.*"],
     ]
     enriched_hint = {
         "required_request_fields": required_request_fields,
@@ -1362,7 +1354,11 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
                 _set_single_binding_value(
                     binding,
                     "reference_ids",
-                    [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
+                    [
+                        reference_id
+                        for reference_id in benchmark_test.evidence_required
+                        if reference_id in benchmark_reference_ids
+                    ],
                 )
             _demote_required_field("metadata.source_reference_id")
 
@@ -1391,7 +1387,9 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
                 include_observable_binding=True,
             )
             if limit_test is None:
-                binding_ids = {target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS}
+                binding_ids = {
+                    target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS
+                }
                 limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
             if limit_test is not None and limit_test.pass_condition:
                 metadata["expected_behavior"] = limit_test.pass_condition
@@ -1522,7 +1520,9 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             enriched_hint["required_request_fields"].insert(0, "contract")
         enriched_hint["request_template"]["contract"] = None
         enriched_hint["optional_request_fields"] = [
-            field for field in enriched_hint["optional_request_fields"] if field not in enriched_hint["required_request_fields"]
+            field
+            for field in enriched_hint["optional_request_fields"]
+            if field not in enriched_hint["required_request_fields"]
         ]
 
     return enriched_hint
@@ -1788,6 +1788,7 @@ def _suggest_contract_checks_description() -> str:
         "runtime execution requires an authoritative contract payload."
     )
 
+
 # ─── Domain Checklists ────────────────────────────────────────────────────────
 
 DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
@@ -1924,7 +1925,9 @@ def _payload_mapping(value: object, *, field_name: str) -> tuple[dict[str, objec
     return None, _error_result(f"{field_name} must be an object")
 
 
-def _optional_mapping_field(request: dict[str, object], field_name: str) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+def _optional_mapping_field(
+    request: dict[str, object], field_name: str
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
     """Return an optional mapping payload or an MCP error envelope."""
     raw = request.get(field_name)
     if raw is None:
@@ -2037,9 +2040,7 @@ def _validate_string_mapping(
         if not stripped_key:
             return None, _error_result(f"{field_name} keys must be non-empty strings")
         if stripped_key in seen_keys:
-            return None, _error_result(
-                f"{field_name} must not contain duplicate keys after trimming whitespace"
-            )
+            return None, _error_result(f"{field_name} must not contain duplicate keys after trimming whitespace")
         seen_keys.add(stripped_key)
         if not isinstance(item, str):
             return None, _error_result(f"{field_name}[{key}] must be a string")
@@ -2058,6 +2059,7 @@ def _validate_int_list(value: object, *, field_name: str) -> tuple[list[int] | N
         if isinstance(item, bool) or not isinstance(item, int):
             return None, _error_result(f"{field_name}[{index}] must be an integer")
     return value, None
+
 
 # ─── Dimension Parsing ────────────────────────────────────────────────────────
 
@@ -2122,8 +2124,7 @@ def run_check(
             check_meta = get_verification_check(check_id)
             if check_meta is None:
                 return _error_result(
-                    f"Unknown check_id: {check_id}. "
-                    f"Valid identifiers include: {list(_RUN_CHECK_IDENTIFIER_VALUES)}"
+                    f"Unknown check_id: {check_id}. Valid identifiers include: {list(_RUN_CHECK_IDENTIFIER_VALUES)}"
                 )
 
             # Get domain-specific guidance
@@ -2131,7 +2132,8 @@ def run_check(
             relevant_domain_checks = [
                 c
                 for c in domain_checks
-                if check_meta.check_id in [token.strip() for token in c.get("check_ids", "").split(",") if token.strip()]
+                if check_meta.check_id
+                in [token.strip() for token in c.get("check_ids", "").split(",") if token.strip()]
             ]
 
             # Scan artifact for obvious issues
@@ -2174,7 +2176,9 @@ def run_check(
             elif check_meta.check_id == "5.18":
                 fit_keywords = ["fit", "regression", "extrapolat", "ansatz", "model family"]
                 diagnostics = ["residual", "aic", "bic", "cross-validation", "goodness of fit", "family comparison"]
-                if any(kw in artifact_lower for kw in fit_keywords) and not any(kw in artifact_lower for kw in diagnostics):
+                if any(kw in artifact_lower for kw in fit_keywords) and not any(
+                    kw in artifact_lower for kw in diagnostics
+                ):
                     issues.append("Fit family is present without residual or family-selection diagnostics")
 
             elif check_meta.check_id == "5.19":
@@ -2435,8 +2439,7 @@ def _collect_binding_context(
     if binding_supplied and not any(valid_by_target.values()):
         expected = ", ".join(_binding_key_labels_for_targets(check_targets))
         binding_issues.append(
-            "binding must include at least one valid bound ID for this check"
-            + (f" via {expected}" if expected else "")
+            "binding must include at least one valid bound ID for this check" + (f" via {expected}" if expected else "")
         )
 
     return valid_by_target, binding_issues, contract_impacts
@@ -2693,7 +2696,9 @@ def _proof_claim_candidates(
     if candidates or issue:
         return candidates, issue
 
-    if binding_supplied and any(binding_ids.get(target) for target in ("observable", "claim", "deliverable", "acceptance_test")):
+    if binding_supplied and any(
+        binding_ids.get(target) for target in ("observable", "claim", "deliverable", "acceptance_test")
+    ):
         return [], "binding does not resolve to a proof-bearing claim"
 
     if not binding_supplied and not binding_ids and len(proof_claim_id_set) == 1:
@@ -2706,17 +2711,13 @@ def _proof_metadata_defaults_for_claim(check_key: str, claim: object) -> dict[st
     if check_key == "contract.proof_hypothesis_coverage":
         return {
             "hypothesis_ids": [
-                hypothesis.id
-                for hypothesis in claim.hypotheses
-                if getattr(hypothesis, "required_in_proof", True)
+                hypothesis.id for hypothesis in claim.hypotheses if getattr(hypothesis, "required_in_proof", True)
             ]
         }
     if check_key == "contract.proof_parameter_coverage":
         return {
             "theorem_parameter_symbols": [
-                parameter.symbol
-                for parameter in claim.parameters
-                if getattr(parameter, "required_in_proof", True)
+                parameter.symbol for parameter in claim.parameters if getattr(parameter, "required_in_proof", True)
             ]
         }
     if check_key == "contract.proof_quantifier_domain":
@@ -2838,9 +2839,7 @@ def _benchmark_references_for_subject_ids(
         if claim is None:
             continue
         candidate_reference_ids.extend(
-            reference_id
-            for reference_id in claim.references
-            if reference_id in benchmark_reference_ids
+            reference_id for reference_id in claim.references if reference_id in benchmark_reference_ids
         )
 
     return _unique_strings(candidate_reference_ids)
@@ -2894,7 +2893,9 @@ def _benchmark_reference_candidates(
         test = tests_by_id.get(test_id)
         if test is None:
             continue
-        direct_benchmark_refs = [evidence_id for evidence_id in test.evidence_required if evidence_id in references_by_id]
+        direct_benchmark_refs = [
+            evidence_id for evidence_id in test.evidence_required if evidence_id in references_by_id
+        ]
         if direct_benchmark_refs:
             acceptance_test_candidates.extend(direct_benchmark_refs)
             continue
@@ -3143,9 +3144,7 @@ def _limit_regime_candidates(
     if candidates or issue:
         return candidates, issue
 
-    global_regimes = _unique_strings(
-        observable.regime for observable in contract.observables if observable.regime
-    )
+    global_regimes = _unique_strings(observable.regime for observable in contract.observables if observable.regime)
     if not binding_supplied and not binding_ids and len(global_regimes) == 1:
         return global_regimes, None
     return [], None
@@ -3200,9 +3199,7 @@ def _resolve_single_limit_acceptance_test(
 
     tests_by_id = {test.id: test for test in limit_tests}
     bound_acceptance_tests = [
-        tests_by_id[test_id]
-        for test_id in binding_ids.get("acceptance_test", [])
-        if test_id in tests_by_id
+        tests_by_id[test_id] for test_id in binding_ids.get("acceptance_test", []) if test_id in tests_by_id
     ]
     if len(bound_acceptance_tests) == 1:
         return bound_acceptance_tests[0]
@@ -3494,12 +3491,10 @@ def _parse_contract_payload(
     strict_result = parse_project_contract_data_strict(contract_raw)
     salvage_result = parse_project_contract_data_salvage(contract_raw)
     normalized_strict_errors = [
-        _normalize_contract_parse_error(error, contract_raw=contract_raw)
-        for error in strict_result.errors
+        _normalize_contract_parse_error(error, contract_raw=contract_raw) for error in strict_result.errors
     ]
     normalized_salvage_recoverable_errors = [
-        _normalize_contract_parse_error(error, contract_raw=contract_raw)
-        for error in salvage_result.recoverable_errors
+        _normalize_contract_parse_error(error, contract_raw=contract_raw) for error in salvage_result.recoverable_errors
     ]
     nonblocking_errors = sorted(
         dict.fromkeys(
@@ -3511,9 +3506,7 @@ def _parse_contract_payload(
     )
     recoverable_errors = list(nonblocking_errors)
     authoritative_errors = [
-        error
-        for error in normalized_strict_errors
-        if _is_authoritative_contract_parse_error(error)
+        error for error in normalized_strict_errors if _is_authoritative_contract_parse_error(error)
     ]
     if authoritative_errors:
         return None, [], _contract_payload_error(authoritative_errors)
@@ -3587,10 +3580,7 @@ def _validate_benchmark_reference_binding(
     if candidates and source_reference_id not in candidates:
         expected = ", ".join(candidates)
         context_label = "bound contract context" if binding_ids else "resolved contract context"
-        return None, (
-            f"metadata.source_reference_id does not match the {context_label}; "
-            f"expected one of {expected}"
-        )
+        return None, (f"metadata.source_reference_id does not match the {context_label}; expected one of {expected}")
     return source_reference_id, None
 
 
@@ -3619,10 +3609,7 @@ def _validate_limit_regime_binding(
     if candidates and regime_label not in candidates:
         expected = ", ".join(candidates)
         context_label = "bound contract context" if binding_ids else "resolved contract context"
-        return None, (
-            f"metadata.regime_label does not match the {context_label}; "
-            f"expected one of {expected}"
-        )
+        return None, (f"metadata.regime_label does not match the {context_label}; expected one of {expected}")
     return regime_label, None
 
 
@@ -3784,7 +3771,9 @@ def _apply_single_acceptance_test_binding_if_consistent(
     if test is None:
         return None
 
-    binding_ids = {target: _binding_values_for_target(candidate_binding, target) for target in VERIFICATION_BINDING_TARGETS}
+    binding_ids = {
+        target: _binding_values_for_target(candidate_binding, target) for target in VERIFICATION_BINDING_TARGETS
+    }
     if _binding_claim_context_issue(binding_ids=binding_ids, contract=contract) is not None:
         return None
 
@@ -4001,7 +3990,9 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     missing_inputs.append("metadata.regime_label")
                 if not expected_behavior:
                     missing_inputs.append("metadata.expected_behavior")
-                limit_passed, error = _validate_boolean(observed.get("limit_passed"), field_name="observed.limit_passed")
+                limit_passed, error = _validate_boolean(
+                    observed.get("limit_passed"), field_name="observed.limit_passed"
+                )
                 if error is not None:
                     return error
                 observed_limit, error_message = _validate_optional_string(
@@ -4016,13 +4007,17 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     status = "pass"
                     evidence_directness = "direct"
                 elif limit_passed is False and not missing_inputs:
-                    automated_issues.append("Observed limit behavior does not match the contracted asymptotic expectation")
+                    automated_issues.append(
+                        "Observed limit behavior does not match the contracted asymptotic expectation"
+                    )
                     status = "fail"
                     evidence_directness = "direct"
                 elif (
                     artifact_content
                     and not missing_inputs
-                    and any(token in artifact_content.lower() for token in ["limit", "asymptotic", "scaling", "boundary"])
+                    and any(
+                        token in artifact_content.lower() for token in ["limit", "asymptotic", "scaling", "boundary"]
+                    )
                 ):
                     status = "warning"
                     evidence_directness = "mixed"
@@ -4058,11 +4053,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 metrics["source_reference_id"] = source_reference_id
                 metrics["metric_value"] = metric_value
                 metrics["threshold_value"] = threshold_value
-                if (
-                    metric_value is not None
-                    and threshold_value is not None
-                    and source_reference_id
-                ):
+                if metric_value is not None and threshold_value is not None and source_reference_id:
                     evidence_directness = "direct"
                     if metric_value <= threshold_value:
                         status = "pass"
@@ -4185,7 +4176,9 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     return _error_result(error_message)
                 allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
                 forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
-                bias_checked, error = _validate_boolean(observed.get("bias_checked"), field_name="observed.bias_checked")
+                bias_checked, error = _validate_boolean(
+                    observed.get("bias_checked"), field_name="observed.bias_checked"
+                )
                 if error is not None:
                     return error
                 calibration_checked, error = _validate_boolean(
@@ -4274,7 +4267,9 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 if covered_hypothesis_ids is None:
                     missing_inputs.append("observed.covered_hypothesis_ids")
                 if explicit_missing.intersection(covered):
-                    automated_issues.append("Proof hypothesis coverage marks the same hypothesis as both covered and missing")
+                    automated_issues.append(
+                        "Proof hypothesis coverage marks the same hypothesis as both covered and missing"
+                    )
                     status = "insufficient_evidence"
                 elif missing and not missing_inputs:
                     automated_issues.append("Proof audit reports missing hypotheses")
@@ -4341,7 +4336,9 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 if covered_parameter_symbols is None:
                     missing_inputs.append("observed.covered_parameter_symbols")
                 if explicit_missing.intersection(covered):
-                    automated_issues.append("Proof parameter coverage marks the same parameter as both covered and missing")
+                    automated_issues.append(
+                        "Proof parameter coverage marks the same parameter as both covered and missing"
+                    )
                     status = "insufficient_evidence"
                 elif missing and not missing_inputs:
                     automated_issues.append("Proof audit reports missing theorem parameters")
@@ -4409,7 +4406,9 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     status = "warning"
 
             elif check_meta.check_key == "contract.claim_to_proof_alignment":
-                supplied_conclusion_clause_ids = _normalized_unique_strings(supplied_metadata.get("conclusion_clause_ids"))
+                supplied_conclusion_clause_ids = _normalized_unique_strings(
+                    supplied_metadata.get("conclusion_clause_ids")
+                )
                 claim_statement, error_message = _validate_optional_string(
                     metadata.get("claim_statement"),
                     field_name="metadata.claim_statement",
@@ -4456,8 +4455,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 if scope_status == "matched" and not (uncovered_conclusion_clause_ids or []) and not missing_inputs:
                     status = "pass"
                 elif (
-                    scope_status in {"narrower_than_claim", "mismatched"}
-                    or bool(uncovered_conclusion_clause_ids)
+                    scope_status in {"narrower_than_claim", "mismatched"} or bool(uncovered_conclusion_clause_ids)
                 ) and not missing_inputs:
                     automated_issues.append("Proof establishes a narrower claim or leaves conclusion clauses uncovered")
                     status = "fail"
@@ -4614,7 +4612,8 @@ def suggest_contract_checks(
                 )
 
             if any(test.kind == "benchmark" for test in parsed.acceptance_tests) or any(
-                reference.role == "benchmark" or "compare" in reference.required_actions for reference in parsed.references
+                reference.role == "benchmark" or "compare" in reference.required_actions
+                for reference in parsed.references
             ):
                 _add(
                     "contract.benchmark_reproduction",
@@ -4631,18 +4630,26 @@ def suggest_contract_checks(
             ):
                 _add("contract.limit_recovery", "Contract mentions regimes or limit-like acceptance behavior")
 
-            if any(
-                keyword in " ".join([test.procedure, test.pass_condition]).lower()
-                for test in parsed.acceptance_tests
-                for keyword in ("fit", "residual", "extrapolat", "ansatz")
-            ) or parsed.approach_policy.allowed_fit_families or parsed.approach_policy.forbidden_fit_families:
+            if (
+                any(
+                    keyword in " ".join([test.procedure, test.pass_condition]).lower()
+                    for test in parsed.acceptance_tests
+                    for keyword in ("fit", "residual", "extrapolat", "ansatz")
+                )
+                or parsed.approach_policy.allowed_fit_families
+                or parsed.approach_policy.forbidden_fit_families
+            ):
                 _add("contract.fit_family_mismatch", "Acceptance tests mention fitting or extrapolation families")
 
-            if any(
-                keyword in " ".join([test.procedure, test.pass_condition]).lower()
-                for test in parsed.acceptance_tests
-                for keyword in ("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance")
-            ) or parsed.approach_policy.allowed_estimator_families or parsed.approach_policy.forbidden_estimator_families:
+            if (
+                any(
+                    keyword in " ".join([test.procedure, test.pass_condition]).lower()
+                    for test in parsed.acceptance_tests
+                    for keyword in ("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance")
+                )
+                or parsed.approach_policy.allowed_estimator_families
+                or parsed.approach_policy.forbidden_estimator_families
+            ):
                 _add(
                     "contract.estimator_family_mismatch",
                     "Acceptance tests mention estimator-family assumptions",
@@ -4713,10 +4720,10 @@ def get_checklist(domain: Annotated[str, Field(min_length=1, pattern=r"\S")]) ->
             if checklist is None:
                 return stable_mcp_response(
                     {
-                    "found": False,
-                    "domain": domain,
-                    "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
-                    "message": f"No checklist for domain '{domain}'.",
+                        "found": False,
+                        "domain": domain,
+                        "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
+                        "message": f"No checklist for domain '{domain}'.",
                     }
                 )
 
@@ -4725,12 +4732,12 @@ def get_checklist(domain: Annotated[str, Field(min_length=1, pattern=r"\S")]) ->
 
             return stable_mcp_response(
                 {
-                "found": True,
-                "domain": domain,
-                "domain_checks": copy.deepcopy(checklist),
-                "domain_check_count": len(checklist),
-                "universal_checks": copy.deepcopy(universal),
-                "universal_check_count": len(universal),
+                    "found": True,
+                    "domain": domain,
+                    "domain_checks": copy.deepcopy(checklist),
+                    "domain_check_count": len(checklist),
+                    "universal_checks": copy.deepcopy(universal),
+                    "universal_check_count": len(universal),
                 }
             )
         except Exception as exc:  # pragma: no cover - defensive envelope
@@ -4765,7 +4772,9 @@ def get_bundle_checklist(bundle_ids: BundleIdListInput) -> dict:
                     "summary": bundle.summary,
                     "asset_paths": [asset.path for _role, asset in bundle.assets.iter_assets()],
                     "verification_domains": verification_domain_paths,
-                    "verifier_extensions": [extension.model_dump(mode="json") for extension in bundle.verifier_extensions],
+                    "verifier_extensions": [
+                        extension.model_dump(mode="json") for extension in bundle.verifier_extensions
+                    ],
                 }
                 bundles.append(bundle_payload)
                 resolved_bundles.append(
@@ -4849,9 +4858,7 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
         lhs_dims = _parse_dimensions(lhs_str)
         rhs_dims = _parse_dimensions(rhs_str)
 
-        no_annotations = all(v == 0 for v in lhs_dims.values()) and all(
-            v == 0 for v in rhs_dims.values()
-        )
+        no_annotations = all(v == 0 for v in lhs_dims.values()) and all(v == 0 for v in rhs_dims.values())
         match = _dims_equal(lhs_dims, rhs_dims)
         result: dict[str, object] = {
             "expression": expr,
@@ -4861,9 +4868,7 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
             "rhs_dimensions": {k: v for k, v in rhs_dims.items() if v != 0},
         }
         if no_annotations:
-            result["note"] = (
-                "No dimension annotations found — cannot verify"
-            )
+            result["note"] = "No dimension annotations found — cannot verify"
         elif not match:
             mismatches = {}
             for dim in set(lhs_dims.keys()) | set(rhs_dims.keys()):

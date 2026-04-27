@@ -9,7 +9,13 @@ AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 
 def test_write_paper_balanced_mode_keeps_outline_as_working_draft_and_threads_mode_context() -> None:
     workflow = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    bootstrap_parse_line = next(
+        line for line in workflow.splitlines() if line.startswith("Parse bootstrap JSON for:")
+    )
 
+    assert "paper_bootstrap.required_init_fields" in bootstrap_parse_line
+    assert "selected_publication_root" in bootstrap_parse_line
+    assert "selected_review_root" in bootstrap_parse_line
     assert "Do not force a routine outline-approval pause in balanced mode." in workflow
     assert 'WRITE_PAPER_ARGUMENTS="$ARGUMENTS"' in workflow
     assert "explicit `--intake path/to/write-paper-authoring-input.json`" in workflow
