@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -206,8 +207,7 @@ def _validate_unique_reference_ids(sources: list[CitationSource]) -> None:
             continue
         if reference_id in seen:
             raise ValueError(
-                f"citation source reference_id {reference_id!r} duplicates entries "
-                f"{seen[reference_id]} and {index}"
+                f"citation source reference_id {reference_id!r} duplicates entries {seen[reference_id]} and {index}"
             )
         seen[reference_id] = index
 
@@ -267,14 +267,153 @@ _SOURCE_TYPE_TO_BIBTEX = {
 # Patterns that match "et al." variants (with optional leading comma/and)
 _ET_AL_RE = re.compile(
     r",?\s*\band\s+(?:et\s*al\.?)\b"  # "and et al."
-    r"|,?\s*\bet\s*\.?\s*al\.?\b"      # "et al." / "etal." / "et. al."
-    r"|,?\s*\bet\s+alia\b",            # "et alia"
+    r"|,?\s*\bet\s*\.?\s*al\.?\b"  # "et al." / "etal." / "et. al."
+    r"|,?\s*\bet\s+alia\b",  # "et alia"
     re.IGNORECASE,
 )
 
 # Characters safe in BibTeX author fields: Basic Latin, Latin Extended-A/B,
 # common punctuation.  Anything outside this set is stripped.
 _SAFE_BIB_CHAR_RE = re.compile(r"[^\x20-\x7E\u00C0-\u024F]")
+
+_LATEX_UNICODE_REPLACEMENTS: dict[str, str] = {
+    "Α": r"{\ensuremath{A}}",
+    "Β": r"{\ensuremath{B}}",
+    "Γ": r"{\ensuremath{\Gamma}}",
+    "Δ": r"{\ensuremath{\Delta}}",
+    "Ε": r"{\ensuremath{E}}",
+    "Ζ": r"{\ensuremath{Z}}",
+    "Η": r"{\ensuremath{H}}",
+    "Θ": r"{\ensuremath{\Theta}}",
+    "Ι": r"{\ensuremath{I}}",
+    "Κ": r"{\ensuremath{K}}",
+    "Λ": r"{\ensuremath{\Lambda}}",
+    "Μ": r"{\ensuremath{M}}",
+    "Ν": r"{\ensuremath{N}}",
+    "Ξ": r"{\ensuremath{\Xi}}",
+    "Ο": r"{\ensuremath{O}}",
+    "Π": r"{\ensuremath{\Pi}}",
+    "Ρ": r"{\ensuremath{P}}",
+    "Σ": r"{\ensuremath{\Sigma}}",
+    "Τ": r"{\ensuremath{T}}",
+    "Υ": r"{\ensuremath{\Upsilon}}",
+    "Φ": r"{\ensuremath{\Phi}}",
+    "Χ": r"{\ensuremath{X}}",
+    "Ψ": r"{\ensuremath{\Psi}}",
+    "Ω": r"{\ensuremath{\Omega}}",
+    "α": r"{\ensuremath{\alpha}}",
+    "β": r"{\ensuremath{\beta}}",
+    "γ": r"{\ensuremath{\gamma}}",
+    "δ": r"{\ensuremath{\delta}}",
+    "ε": r"{\ensuremath{\epsilon}}",
+    "ζ": r"{\ensuremath{\zeta}}",
+    "η": r"{\ensuremath{\eta}}",
+    "θ": r"{\ensuremath{\theta}}",
+    "ι": r"{\ensuremath{\iota}}",
+    "κ": r"{\ensuremath{\kappa}}",
+    "λ": r"{\ensuremath{\lambda}}",
+    "μ": r"{\ensuremath{\mu}}",
+    "ν": r"{\ensuremath{\nu}}",
+    "ξ": r"{\ensuremath{\xi}}",
+    "ο": r"{\ensuremath{o}}",
+    "π": r"{\ensuremath{\pi}}",
+    "ρ": r"{\ensuremath{\rho}}",
+    "σ": r"{\ensuremath{\sigma}}",
+    "ς": r"{\ensuremath{\sigma}}",
+    "τ": r"{\ensuremath{\tau}}",
+    "υ": r"{\ensuremath{\upsilon}}",
+    "φ": r"{\ensuremath{\phi}}",
+    "χ": r"{\ensuremath{\chi}}",
+    "ψ": r"{\ensuremath{\psi}}",
+    "ω": r"{\ensuremath{\omega}}",
+    "ϵ": r"{\ensuremath{\epsilon}}",
+    "ϑ": r"{\ensuremath{\vartheta}}",
+    "ϕ": r"{\ensuremath{\varphi}}",
+    "ℏ": r"{\ensuremath{\hbar}}",
+    "ħ": r"{\ensuremath{\hbar}}",
+    "∂": r"{\ensuremath{\partial}}",
+    "∇": r"{\ensuremath{\nabla}}",
+    "∞": r"{\ensuremath{\infty}}",
+    "±": r"{\ensuremath{\pm}}",
+    "∓": r"{\ensuremath{\mp}}",
+    "×": r"{\ensuremath{\times}}",
+    "·": r"{\ensuremath{\cdot}}",
+    "≤": r"{\ensuremath{\leq}}",
+    "≥": r"{\ensuremath{\geq}}",
+    "≠": r"{\ensuremath{\neq}}",
+    "≈": r"{\ensuremath{\approx}}",
+    "≃": r"{\ensuremath{\simeq}}",
+    "∼": r"{\ensuremath{\sim}}",
+    "∝": r"{\ensuremath{\propto}}",
+    "∈": r"{\ensuremath{\in}}",
+    "∉": r"{\ensuremath{\notin}}",
+    "⊂": r"{\ensuremath{\subset}}",
+    "⊃": r"{\ensuremath{\supset}}",
+    "⊆": r"{\ensuremath{\subseteq}}",
+    "⊇": r"{\ensuremath{\supseteq}}",
+    "∑": r"{\ensuremath{\sum}}",
+    "∏": r"{\ensuremath{\prod}}",
+    "∫": r"{\ensuremath{\int}}",
+    "⟨": r"{\ensuremath{\langle}}",
+    "⟩": r"{\ensuremath{\rangle}}",
+    "→": r"{\ensuremath{\to}}",
+    "←": r"{\ensuremath{\leftarrow}}",
+    "↔": r"{\ensuremath{\leftrightarrow}}",
+    "⇒": r"{\ensuremath{\Rightarrow}}",
+    "⇔": r"{\ensuremath{\Leftrightarrow}}",
+    "†": r"{\ensuremath{\dagger}}",
+    "‡": r"{\ensuremath{\ddagger}}",
+    "′": r"{\ensuremath{'}}",
+    "″": r"{\ensuremath{''}}",
+    "°": r"{\ensuremath{^\circ}}",
+    "¹": r"{\ensuremath{^1}}",
+    "²": r"{\ensuremath{^2}}",
+    "³": r"{\ensuremath{^3}}",
+    "⁰": r"{\ensuremath{^0}}",
+    "⁴": r"{\ensuremath{^4}}",
+    "⁵": r"{\ensuremath{^5}}",
+    "⁶": r"{\ensuremath{^6}}",
+    "⁷": r"{\ensuremath{^7}}",
+    "⁸": r"{\ensuremath{^8}}",
+    "⁹": r"{\ensuremath{^9}}",
+    "₀": r"{\ensuremath{_0}}",
+    "₁": r"{\ensuremath{_1}}",
+    "₂": r"{\ensuremath{_2}}",
+    "₃": r"{\ensuremath{_3}}",
+    "₄": r"{\ensuremath{_4}}",
+    "₅": r"{\ensuremath{_5}}",
+    "₆": r"{\ensuremath{_6}}",
+    "₇": r"{\ensuremath{_7}}",
+    "₈": r"{\ensuremath{_8}}",
+    "₉": r"{\ensuremath{_9}}",
+    "–": "--",
+    "—": "---",
+    "−": "-",
+    "‐": "-",
+    "‑": "-",
+    "“": "``",
+    "”": "''",
+    "‘": "`",
+    "’": "'",
+    "…": r"\ldots{}",
+    "\u00a0": " ",
+}
+
+_LATEX_ACCENT_COMMANDS: dict[str, str] = {
+    "\u0300": r"\`",
+    "\u0301": r"\'",
+    "\u0302": r"\^",
+    "\u0303": r"\~",
+    "\u0304": r"\=",
+    "\u0306": r"\u",
+    "\u0307": r"\.",
+    "\u0308": '\\"',
+    "\u030a": r"\r",
+    "\u030b": r"\H",
+    "\u030c": r"\v",
+    "\u0327": r"\c",
+    "\u0328": r"\k",
+}
 
 
 def sanitize_bib_author_field(author_string: str) -> str:
@@ -342,6 +481,62 @@ def sanitize_bib_authors(authors: list[str]) -> list[str]:
     return cleaned
 
 
+def _latex_accented_ascii(char: str) -> str | None:
+    decomposed = unicodedata.normalize("NFD", char)
+    if not decomposed:
+        return ""
+
+    base = decomposed[0]
+    accents = decomposed[1:]
+    if not accents or not base.isascii():
+        return None
+
+    rendered = base
+    for accent in accents:
+        command = _LATEX_ACCENT_COMMANDS.get(accent)
+        if command is None:
+            return None
+        rendered = f"{command}{{{rendered}}}"
+    return f"{{{rendered}}}"
+
+
+def _ascii_fallback_for_unicode(char: str) -> str:
+    accented = _latex_accented_ascii(char)
+    if accented is not None:
+        return accented
+
+    normalized = unicodedata.normalize("NFKD", char).encode("ascii", "ignore").decode("ascii")
+    return normalized
+
+
+def sanitize_bibtex_text_field(value: str, *, field_name: str) -> str:
+    """Sanitize prose BibTeX fields that LaTeX will typeset directly."""
+    rendered: list[str] = []
+    changed = False
+
+    for char in value:
+        if "\x20" <= char <= "\x7e":
+            rendered.append(char)
+            continue
+
+        replacement = _LATEX_UNICODE_REPLACEMENTS.get(char)
+        if replacement is None:
+            replacement = _ascii_fallback_for_unicode(char)
+        if replacement != char:
+            changed = True
+        rendered.append(replacement)
+
+    sanitized = "".join(rendered)
+    if changed:
+        logger.warning(
+            "Sanitized unsupported Unicode from BibTeX %s field: %r -> %r",
+            field_name,
+            value,
+            sanitized,
+        )
+    return sanitized
+
+
 def _source_to_entry(source: CitationSource, existing_keys: set[str]) -> tuple[str, Entry]:
     """Convert a CitationSource to a pybtex Entry."""
     key = _create_bib_key(source, existing_keys)
@@ -351,9 +546,9 @@ def _source_to_entry(source: CitationSource, existing_keys: set[str]) -> tuple[s
     if source.authors:
         safe_authors = sanitize_bib_authors(source.authors)
         fields.append(("author", " and ".join(safe_authors)))
-    fields.append(("title", source.title))
+    fields.append(("title", sanitize_bibtex_text_field(source.title, field_name="title")))
     if source.journal:
-        fields.append(("journal", source.journal))
+        fields.append(("journal", sanitize_bibtex_text_field(source.journal, field_name="journal")))
     if source.year:
         fields.append(("year", source.year))
     if source.volume:
@@ -365,7 +560,7 @@ def _source_to_entry(source: CitationSource, existing_keys: set[str]) -> tuple[s
     if source.url:
         fields.append(("url", source.url))
     if source.arxiv_id:
-        fields.append(("note", f"arXiv:{source.arxiv_id}"))
+        fields.append(("note", sanitize_bibtex_text_field(f"arXiv:{source.arxiv_id}", field_name="note")))
 
     return key, Entry(entry_type, fields)
 
@@ -428,7 +623,11 @@ def audit_citation_source(
                 for field in ("title", "authors", "year")
                 if (
                     (field == "authors" and not getattr(source, field) and getattr(resolved, field))
-                    or (field != "authors" and not str(getattr(source, field)).strip() and str(getattr(resolved, field)).strip())
+                    or (
+                        field != "authors"
+                        and not str(getattr(source, field)).strip()
+                        and str(getattr(resolved, field)).strip()
+                    )
                 )
             ]
             resolution_status = "enriched" if not _core_missing_fields(resolved) else "incomplete"
@@ -670,16 +869,16 @@ def _bibliography_audit_from_entries(
     for key, entry in bib_data.entries.items():
         source_record = source_records_by_key.get(key) if source_records_by_key else None
         if source_record is not None:
-            audit_entries.append(source_record if source_record.key == key else source_record.model_copy(update={"key": key}))
+            audit_entries.append(
+                source_record if source_record.key == key else source_record.model_copy(update={"key": key})
+            )
         else:
             audit_entries.append(_bibliography_audit_record_from_entry(key, entry))
 
     return BibliographyAudit(
         generated_at=datetime.now(UTC).isoformat(),
         total_sources=len(audit_entries),
-        resolved_sources=sum(
-            1 for entry in audit_entries if entry.resolution_status in {"provided", "enriched"}
-        ),
+        resolved_sources=sum(1 for entry in audit_entries if entry.resolution_status in {"provided", "enriched"}),
         partial_sources=sum(1 for entry in audit_entries if entry.verification_status == "partial"),
         unverified_sources=sum(1 for entry in audit_entries if entry.verification_status == "unverified"),
         failed_sources=sum(1 for entry in audit_entries if entry.resolution_status == "failed"),

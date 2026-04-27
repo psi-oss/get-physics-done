@@ -13,6 +13,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from gpd.core.constants import ProjectLayout
 from gpd.core.root_resolution import resolve_project_root
@@ -39,6 +40,16 @@ def _strict_unknown_keys_error(*, section: str, unknown_keys: list[str], support
     joined_unknown = ", ".join(unknown_keys)
     joined_supported = ", ".join(supported_keys)
     return RuntimeError(f"{section} contains unsupported keys: {joined_unknown}; supported keys are {joined_supported}")
+
+
+def _validate_wolfram_endpoint(endpoint: str, *, source: str) -> str:
+    cleaned = endpoint.strip()
+    if not cleaned:
+        raise RuntimeError(f"{source} is set but empty")
+    parsed = urlparse(cleaned)
+    if parsed.scheme.lower() != "https" or not parsed.netloc:
+        raise RuntimeError(f"{source} must be an HTTPS URL")
+    return cleaned
 
 
 def _load_project_integrations_payload(cwd: Path) -> dict[str, object]:
@@ -103,12 +114,17 @@ class ManagedIntegrationDescriptor:
             return None
         if not isinstance(raw, dict):
             raise RuntimeError(f"integrations.{self.integration_id} must be a JSON object")
-        unknown_keys = sorted(str(key) for key in raw if str(key) not in {"enabled", "endpoint"})
+        if "endpoint" in raw:
+            raise RuntimeError(
+                f"integrations.{self.integration_id}.endpoint is not supported in project-owned "
+                f"{INTEGRATIONS_CONFIG_FILENAME}; set {self.endpoint_env_var} in your local environment instead"
+            )
+        unknown_keys = sorted(str(key) for key in raw if str(key) not in {"enabled"})
         if unknown_keys:
             raise _strict_unknown_keys_error(
                 section=f"integrations.{self.integration_id}",
                 unknown_keys=unknown_keys,
-                supported_keys=["enabled", "endpoint"],
+                supported_keys=["enabled"],
             )
 
         record: dict[str, object] = {}
@@ -117,11 +133,6 @@ class ManagedIntegrationDescriptor:
             if not isinstance(enabled, bool):
                 raise RuntimeError(f"integrations.{self.integration_id}.enabled must be a boolean")
             record["enabled"] = enabled
-        if "endpoint" in raw:
-            endpoint = raw.get("endpoint")
-            if not isinstance(endpoint, str) or not endpoint.strip():
-                raise RuntimeError(f"integrations.{self.integration_id}.endpoint must be a non-empty string")
-            record["endpoint"] = endpoint.strip()
         return record
 
     def project_enabled(self, cwd: Path | None = None) -> bool:
@@ -136,18 +147,13 @@ class ManagedIntegrationDescriptor:
         env: Mapping[str, str] | None = None,
         cwd: Path | None = None,
     ) -> str:
-        record = self.project_record(cwd)
-        if record is not None:
-            endpoint = record.get("endpoint")
-            if isinstance(endpoint, str) and endpoint:
-                return endpoint
+        if cwd is not None:
+            self.project_record(cwd)
         env_source = self._env(env)
         if self.endpoint_env_var in env_source:
             raw_value = env_source.get(self.endpoint_env_var, "")
-            cleaned = raw_value.strip() if isinstance(raw_value, str) else ""
-            if not cleaned:
-                raise RuntimeError(f"{self.endpoint_env_var} is set but empty")
-            return cleaned
+            cleaned = raw_value if isinstance(raw_value, str) else ""
+            return _validate_wolfram_endpoint(cleaned, source=self.endpoint_env_var)
         return self.default_endpoint
 
     def resolve_api_key(self, env: Mapping[str, str] | None = None) -> str:
@@ -157,11 +163,7 @@ class ManagedIntegrationDescriptor:
             cleaned = raw_value.strip() if isinstance(raw_value, str) else ""
             if cleaned:
                 return cleaned
-        raise RuntimeError(
-            "Wolfram MCP auth is not configured. Set "
-            + " or ".join(self.api_key_env_vars)
-            + "."
-        )
+        raise RuntimeError("Wolfram MCP auth is not configured. Set " + " or ".join(self.api_key_env_vars) + ".")
 
     def api_key_present(self, env: Mapping[str, str] | None = None) -> bool:
         try:

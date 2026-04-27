@@ -38,6 +38,14 @@ def expected_opencode_bridge(target: Path, *, is_global: bool = False, explicit_
     )
 
 
+def _assert_no_manifestless_gpd_artifacts(target: Path) -> None:
+    assert not (target / MANIFEST_NAME).exists()
+    assert not (target / "get-physics-done").exists()
+    assert not (target / "command").exists()
+    assert not (target / "agents").exists()
+    assert not (target / "hooks").exists()
+
+
 class TestProperties:
     def test_runtime_name(self, adapter: OpenCodeAdapter) -> None:
         assert adapter.runtime_name == "opencode"
@@ -419,8 +427,10 @@ class TestUninstallOwnership:
 
         manifest_path = target / MANIFEST_NAME
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["opencode_generated_command_files"] = {"not": "a list"}
-        manifest["files"] = ["not", "a", "mapping"]
+        manifest.pop("opencode_generated_command_files", None)
+        manifest["files"] = {
+            rel_path: digest for rel_path, digest in manifest["files"].items() if not rel_path.startswith("command/")
+        }
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
         adapter.uninstall(target)
@@ -519,9 +529,7 @@ class TestInstall:
         assert adapter.has_complete_install(target) is True
 
         tracked_command = next(
-            rel_path.removeprefix("command/")
-            for rel_path in manifest["files"]
-            if rel_path.startswith("command/gpd-")
+            rel_path.removeprefix("command/") for rel_path in manifest["files"] if rel_path.startswith("command/gpd-")
         )
         (target / "command" / tracked_command).unlink()
 
@@ -547,6 +555,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert config_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_structurally_invalid_opencode_json(
         self,
@@ -564,6 +573,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert config_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_structurally_invalid_opencode_mcp_config(
         self,
@@ -581,6 +591,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert config_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_when_no_command_files_are_generated(
         self,
@@ -777,14 +788,14 @@ class TestInstall:
         agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
 
         assert expected_bridge + " config ensure-section" in command
-        assert f'INIT=$({expected_bridge} --raw init progress --include state,config --no-project-reentry)' in command
+        assert f"INIT=$({expected_bridge} --raw init progress --include state,config --no-project-reentry)" in command
         assert expected_bridge + " config ensure-section" in workflow
-        assert f'INIT=$({expected_bridge} --raw init progress --include state,config --no-project-reentry)' in workflow
+        assert f"INIT=$({expected_bridge} --raw init progress --include state,config --no-project-reentry)" in workflow
         assert 'echo "ERROR: gpd initialization failed: $INIT"' in workflow
         assert f'if ! {expected_bridge} verify plan "$plan"; then' in execute_phase
         assert f'INIT=$({expected_bridge} --raw init plan-phase "<PHASE>")' in agent
         assert "```bash\ngpd config ensure-section\n" not in workflow
-        assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' not in workflow
+        assert "INIT=$(gpd --raw init progress --include state,config --no-project-reentry)" not in workflow
         assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
         assert 'INIT=$(gpd --raw init plan-phase "<PHASE>")' not in agent
 

@@ -21,7 +21,9 @@ from gpd.mcp.managed_integrations import (
 
 
 class _FakeManagedIntegration:
-    def __init__(self, integration_id: str, managed_server_key: str, configured: bool, server_entry: dict[str, object]) -> None:
+    def __init__(
+        self, integration_id: str, managed_server_key: str, configured: bool, server_entry: dict[str, object]
+    ) -> None:
         self.integration_id = integration_id
         self.managed_server_key = managed_server_key
         self._configured = configured
@@ -149,24 +151,59 @@ def test_projected_managed_optional_wolfram_server_uses_module_launch_without_se
     assert WOLFRAM_MCP_API_KEY_ENV_VAR not in serialized
 
 
-def test_wolfram_descriptor_respects_project_local_disable_and_endpoint_override(tmp_path) -> None:
+def test_wolfram_descriptor_respects_project_local_disable_without_endpoint_override(tmp_path) -> None:
     descriptor = get_managed_integration("wolfram")
     assert descriptor is not None
 
     config_path = tmp_path / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(
-        '{"wolfram":{"enabled":false,"endpoint":"https://project.invalid/api/mcp"}}',
+        '{"wolfram":{"enabled":false}}',
         encoding="utf-8",
     )
 
-    env = {WOLFRAM_MCP_API_KEY_ENV_VAR: "secret"}
+    env = {
+        WOLFRAM_MCP_API_KEY_ENV_VAR: "secret",
+        WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://env.invalid/api/mcp",
+    }
 
-    assert descriptor.project_record(tmp_path) == {"enabled": False, "endpoint": "https://project.invalid/api/mcp"}
+    assert descriptor.project_record(tmp_path) == {"enabled": False}
     assert descriptor.project_enabled(tmp_path) is False
     assert descriptor.is_configured(env, cwd=tmp_path) is False
-    assert descriptor.resolved_endpoint(env, cwd=tmp_path) == "https://project.invalid/api/mcp"
+    assert descriptor.resolved_endpoint(env, cwd=tmp_path) == "https://env.invalid/api/mcp"
     assert descriptor.config_summary(env, cwd=tmp_path)["enabled"] is False
+
+
+def test_wolfram_descriptor_rejects_project_local_endpoint_override(tmp_path: Path) -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    config_path = tmp_path / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '{"wolfram":{"enabled":true,"endpoint":"https://project.invalid/api/mcp"}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=r"endpoint is not supported in project-owned integrations\.json"):
+        descriptor.project_record(tmp_path)
+    with pytest.raises(RuntimeError, match=r"endpoint is not supported in project-owned integrations\.json"):
+        descriptor.resolved_endpoint({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://env.invalid/api/mcp"}, cwd=tmp_path)
+
+
+def test_projected_wolfram_server_rejects_project_owned_endpoint_redirect(tmp_path: Path) -> None:
+    config_path = tmp_path / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '{"wolfram":{"enabled":true,"endpoint":"https://attacker.invalid/api/mcp"}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=r"endpoint is not supported in project-owned integrations\.json"):
+        managed_integrations.projected_managed_optional_mcp_servers(
+            {WOLFRAM_MCP_API_KEY_ENV_VAR: "secret"},
+            cwd=tmp_path,
+        )
 
 
 @pytest.mark.parametrize(
@@ -192,7 +229,7 @@ def test_wolfram_descriptor_strict_parsing_rejects_unknown_keys(tmp_path, payloa
     ("payload", "expected_error"),
     [
         ({"wolfram": {"enabled": "false"}}, r"integrations\.wolfram\.enabled must be a boolean"),
-        ({"wolfram": {"endpoint": "   "}}, r"integrations\.wolfram\.endpoint must be a non-empty string"),
+        ({"wolfram": {"enabled": None}}, r"integrations\.wolfram\.enabled must be a boolean"),
         ({"wolfram": []}, r"integrations\.wolfram must be a JSON object"),
         (
             {"wolfram": {"enabled": True}, "legacy_notes": "unexpected"},
@@ -293,6 +330,14 @@ def test_wolfram_descriptor_rejects_empty_endpoint_env_override() -> None:
 
     with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_ENDPOINT is set but empty"):
         descriptor.resolved_endpoint({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "   "})
+
+
+def test_wolfram_descriptor_rejects_non_https_endpoint_env_override() -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_ENDPOINT must be an HTTPS URL"):
+        descriptor.resolved_endpoint({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "http://example.invalid/api/mcp"})
 
 
 def test_get_managed_integration_rejects_malformed_ids() -> None:

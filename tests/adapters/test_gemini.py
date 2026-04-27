@@ -47,6 +47,15 @@ def _make_managed_home_python(tmp_path: Path) -> Path:
     return managed_python
 
 
+def _assert_no_manifestless_gpd_artifacts(target: Path) -> None:
+    assert not (target / "gpd-file-manifest.json").exists()
+    assert not (target / "get-physics-done").exists()
+    assert not (target / "commands" / "gpd").exists()
+    assert not (target / "agents").exists()
+    assert not (target / "hooks").exists()
+    assert not (target / "policies").exists()
+
+
 @pytest.fixture()
 def adapter() -> GeminiAdapter:
     return GeminiAdapter()
@@ -584,11 +593,11 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hook_python = hook_python_interpreter()
-        expected_statusline_path = str(target / 'hooks' / 'statusline.py').replace("\\", "/")
+        expected_statusline_path = str(target / "hooks" / "statusline.py").replace("\\", "/")
         assert settings["statusLine"]["command"] == f"{shlex.quote(hook_python)} {expected_statusline_path}"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        expected_check_update_path = str(target / 'hooks' / 'check_update.py').replace("\\", "/")
+        expected_check_update_path = str(target / "hooks" / "check_update.py").replace("\\", "/")
         expected_check_update_cmd = f"{shlex.quote(hook_python)} {expected_check_update_path}"
         assert expected_check_update_cmd in cmds
 
@@ -754,6 +763,7 @@ class TestInstall:
         assert 'modes = ["autoEdit"]' in policy
         assert "allow_redirection = true" in policy
         import tomllib
+
         parsed_policy = tomllib.loads(policy)
         bridge = expected_gemini_bridge(target)
         assert bridge in parsed_policy["rule"][0]["commandPrefix"]
@@ -860,7 +870,7 @@ class TestInstall:
         assert f"When shell steps call the GPD CLI, use {expected_bridge}" in command
         assert "Run the init command as its own shell call in Gemini auto-edit mode." in workflow
         assert "INIT=$(gpd --raw init new-project)" not in workflow
-        assert f'INIT=$({expected_bridge} --raw init new-project)' not in workflow
+        assert f"INIT=$({expected_bridge} --raw init new-project)" not in workflow
         assert f"{expected_bridge} --raw init new-project" in workflow
         assert f"{expected_bridge} commit " in workflow
         assert ' gpd commit "' not in workflow
@@ -892,8 +902,10 @@ class TestInstall:
         assert "INIT=$(" not in content
         assert "if [ $? -ne 0 ]" not in content
         assert expected_gemini_bridge(target) + " config ensure-section" in content
-        assert expected_gemini_bridge(target) + " --raw init progress --include state,config --no-project-reentry" in content
-
+        assert (
+            expected_gemini_bridge(target) + " --raw init progress --include state,config --no-project-reentry"
+            in content
+        )
 
     def test_install_agents_replace_runtime_placeholders(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
@@ -986,6 +998,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_structurally_invalid_settings_json(
         self,
@@ -1003,6 +1016,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_structurally_invalid_mcp_server_entry(
         self,
@@ -1020,6 +1034,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_reinstall_fails_closed_for_malformed_managed_config_manifest(
         self,
@@ -1094,6 +1109,32 @@ class TestInstall:
             adapter.finalize_install(result)
 
         assert settings_path.read_text(encoding="utf-8") == before
+
+    @pytest.mark.parametrize(
+        ("settings_key", "expected_error"),
+        [
+            ("hooks", "update hook not configured"),
+            ("mcpServers", "MCP servers are not configured"),
+        ],
+    )
+    def test_finalize_install_verifies_persisted_settings(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        settings_key: str,
+        expected_error: str,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result["settings"].pop(settings_key)
+
+        with pytest.raises(RuntimeError, match=expected_error):
+            adapter.finalize_install(result)
+
+        assert (target / "settings.json").exists()
+        assert result.get("settingsWritten") is not True
 
     @pytest.mark.parametrize("missing_field", ["settingsPath", "settings", "statuslineCommand"])
     def test_finalize_install_fails_closed_for_missing_deferred_payload_field(
@@ -1176,8 +1217,7 @@ class TestInstall:
             encoding="utf-8",
         )
         (agents_src / "gpd-includer.md").write_text(
-            "---\nname: gpd-includer\ndescription: test\n---\n"
-            "@{GPD_INSTALL_DIR}/references/runtime-ref.md\n",
+            "---\nname: gpd-includer\ndescription: test\n---\n@{GPD_INSTALL_DIR}/references/runtime-ref.md\n",
             encoding="utf-8",
         )
 
@@ -1271,8 +1311,7 @@ class TestRuntimePermissions:
         wrapper = target / "get-physics-done" / "bin" / "gemini-gpd-yolo"
 
         assert wrapper.read_text(encoding="utf-8") == (
-            "#!/bin/sh\n"
-            f"exec {shlex.quote(_Descriptor.launch_command)} --approval-mode=yolo \"$@\"\n"
+            f'#!/bin/sh\nexec {shlex.quote(_Descriptor.launch_command)} --approval-mode=yolo "$@"\n'
         )
 
     def test_sync_runtime_permissions_non_yolo_removes_launcher_wrapper(

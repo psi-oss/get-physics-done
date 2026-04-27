@@ -1339,11 +1339,13 @@ gpd:check-todos numerical                          # Filter by area
 - Read `GPD/STATE.md` for current context and key results
 - Check `GPD/ROADMAP.md` for phase status
 - Run `gpd:progress` to check where you are
+- Run `gpd:start` when you need the safest route for this folder
+- Run `gpd:suggest-next` when you only need the next action
   </reference>
 
 <success_criteria>
 - [ ] Available commands listed with descriptions
 - [ ] Common workflows shown with examples
 - [ ] Quick reference table presented
-- [ ] Next action guidance provided based on current project state
+- [ ] Static reference stays project-independent; current-state routing is delegated to `gpd:start`, `gpd:progress`, or `gpd:suggest-next`
 </success_criteria>

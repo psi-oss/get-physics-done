@@ -47,6 +47,7 @@ from gpd.core.paper_quality import (
     ResultsQualityInput,
     VerificationConfidence,
     VerificationQualityInput,
+    _visible_tex_content,
     validate_tex_draft,
 )
 from gpd.mcp.paper.bibliography import BibliographyAudit
@@ -854,16 +855,12 @@ def build_paper_quality_input(
     manuscript_content = ""
     if paper_dir is not None:
         artifact_manifest = _load_artifact_manifest(
-            (
-                subject.artifact_manifest or locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
-            )
+            (subject.artifact_manifest or locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json"))
             if manuscript_resolution.status == "resolved"
             else locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json")
         )
         bibliography_audit = _load_bibliography_audit(
-            (
-                subject.bibliography_audit or locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
-            )
+            (subject.bibliography_audit or locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json"))
             if manuscript_resolution.status == "resolved"
             else locate_publication_artifact(paper_dir, "BIBLIOGRAPHY-AUDIT.json")
         )
@@ -901,7 +898,8 @@ def build_paper_quality_input(
         comparison_required=contract_coverage.requires_decisive_comparison,
     )
 
-    missing_cites = len(_MISSING_CITE_RE.findall(manuscript_content))
+    visible_manuscript_content = _visible_tex_content(manuscript_content)
+    missing_cites = len(_MISSING_CITE_RE.findall(visible_manuscript_content))
     draft_findings = validate_tex_draft(manuscript_content)
     placeholder_count = sum(1 for finding in draft_findings if finding.check == "placeholder_marker")
     placeholder_count += len(_RESULT_PENDING_RE.findall(manuscript_content))
@@ -909,7 +907,10 @@ def build_paper_quality_input(
     empty_reference_commands = sum(1 for finding in draft_findings if finding.check == "empty_reference_command")
     cite_keys = list(
         dict.fromkeys(
-            part.strip() for match in _CITE_RE.findall(manuscript_content) for part in match.split(",") if part.strip()
+            part.strip()
+            for match in _CITE_RE.findall(visible_manuscript_content)
+            for part in match.split(",")
+            if part.strip()
         )
     )
     required_sections = 3

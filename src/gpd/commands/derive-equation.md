@@ -48,7 +48,9 @@ Keep standalone/current-workspace durable derivation artifacts under `GPD/analys
   </objective>
 
 <context>
-@GPD/STATE.md
+Target: $ARGUMENTS
+
+Validated command-context owns optional current-workspace state detection. Use the `CONTEXT` payload plus the workflow-owned init/result lookup for any available `GPD/STATE.md` background; this wrapper must not attach raw project-file includes.
 </context>
 
 <execution_context>

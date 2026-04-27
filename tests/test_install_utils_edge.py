@@ -30,11 +30,13 @@ from gpd.adapters.install_utils import (
     generate_manifest,
     get_global_dir,
     hook_python_interpreter,
+    normalize_manifest_relpath,
     parse_jsonc,
     pre_install_cleanup,
     protect_runtime_agent_prompt,
     read_settings,
     replace_placeholders,
+    tracked_hook_paths_from_manifest,
     translate_frontmatter_tool_names,
     verify_installed,
     write_manifest,
@@ -373,14 +375,7 @@ class TestProtectRuntimeAgentPrompt:
 class TestCommandVisibilityInjection:
     def test_agent_frontmatter_with_allowed_tools_is_injected_as_agent_surface(self) -> None:
         content = (
-            "---\n"
-            "name: gpd-executor\n"
-            "allowed-tools:\n"
-            "  - shell\n"
-            "surface: internal\n"
-            "role_family: worker\n"
-            "---\n"
-            "Body.\n"
+            "---\nname: gpd-executor\nallowed-tools:\n  - shell\nsurface: internal\nrole_family: worker\n---\nBody.\n"
         )
 
         result = _inject_command_visibility_sections_from_frontmatter(content)
@@ -566,14 +561,7 @@ class TestCommandVisibilityInjection:
             _inject_command_visibility_sections_from_frontmatter(content)
 
     def test_compile_markdown_rejects_invalid_review_contract_schema_version(self) -> None:
-        content = (
-            "---\n"
-            "review-contract:\n"
-            "  schema_version: true\n"
-            "  review_mode: review\n"
-            "---\n"
-            "Prompt body.\n"
-        )
+        content = "---\nreview-contract:\n  schema_version: true\n  review_mode: review\n---\nPrompt body.\n"
 
         with pytest.raises(ValueError, match="schema_version(?: .*?)? must be the integer 1"):
             compile_markdown_for_runtime(
@@ -769,7 +757,7 @@ class TestBuildHookCommand:
             explicit_target=True,
         )
 
-        expected_path = str(tmp_path / 'hooks' / 'statusline.py').replace("\\", "/")
+        expected_path = str(tmp_path / "hooks" / "statusline.py").replace("\\", "/")
         assert command == f"/custom/venv/bin/python {expected_path}"
 
     def test_gpd_python_override_beats_other_resolution(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -778,7 +766,9 @@ class TestBuildHookCommand:
 
         assert hook_python_interpreter() == "/env/override/python"
 
-    def test_defaults_to_hidden_home_venv_when_gpd_home_is_unset(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_defaults_to_hidden_home_venv_when_gpd_home_is_unset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         fake_home = tmp_path / "home"
         venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
         managed_python = fake_home / HOME_DATA_DIR_NAME / "venv" / venv_python_rel
@@ -940,24 +930,33 @@ class TestEnsureUpdateHook:
         managed_hook = target_dir / "hooks" / "check_update.py"
         managed_hook.parent.mkdir(parents=True)
 
-        assert _is_hook_command_for_script(
-            f"python3 {managed_hook}",
-            "check_update.py",
-            target_dir=target_dir,
-            config_dir_name=".claude",
-        ) is True
-        assert _is_hook_command_for_script(
-            "python3 check_update.py",
-            "check_update.py",
-            target_dir=target_dir,
-            config_dir_name=".claude",
-        ) is False
-        assert _is_hook_command_for_script(
-            "python3 /tmp/third-party/hooks/check_update.py",
-            "check_update.py",
-            target_dir=target_dir,
-            config_dir_name=".claude",
-        ) is False
+        assert (
+            _is_hook_command_for_script(
+                f"python3 {managed_hook}",
+                "check_update.py",
+                target_dir=target_dir,
+                config_dir_name=".claude",
+            )
+            is True
+        )
+        assert (
+            _is_hook_command_for_script(
+                "python3 check_update.py",
+                "check_update.py",
+                target_dir=target_dir,
+                config_dir_name=".claude",
+            )
+            is False
+        )
+        assert (
+            _is_hook_command_for_script(
+                "python3 /tmp/third-party/hooks/check_update.py",
+                "check_update.py",
+                target_dir=target_dir,
+                config_dir_name=".claude",
+            )
+            is False
+        )
 
     def test_rewrites_stale_managed_command_and_preserves_other_hooks(self) -> None:
         settings = {
@@ -1331,6 +1330,24 @@ class TestCopyWithPathReplacement:
 
 
 class TestInstallBackupSafety:
+    @pytest.mark.parametrize(
+        "relpath",
+        [
+            "",
+            "/tmp/statusline.py",
+            "C:/Users/example/statusline.py",
+            "../statusline.py",
+            "hooks/../statusline.py",
+            "hooks//statusline.py",
+            "hooks\\..\\statusline.py",
+        ],
+    )
+    def test_manifest_relpath_validator_rejects_escape_forms(self, relpath: str) -> None:
+        assert normalize_manifest_relpath(relpath) is None
+
+    def test_manifest_relpath_validator_accepts_posix_relative_paths(self) -> None:
+        assert normalize_manifest_relpath("hooks/statusline.py") == "hooks/statusline.py"
+
     def test_write_manifest_tracks_hooks(self, tmp_path: Path) -> None:
         config_dir = tmp_path / ".claude"
         (config_dir / "get-physics-done").mkdir(parents=True)
@@ -1341,6 +1358,24 @@ class TestInstallBackupSafety:
         manifest = write_manifest(config_dir, "1.0.0")
 
         assert "hooks/statusline.py" in manifest["files"]
+
+    def test_manifest_hook_tracking_skips_untrusted_relpaths(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".claude"
+        config_dir.mkdir()
+        (config_dir / "gpd-file-manifest.json").write_text(
+            json.dumps(
+                {
+                    "files": {
+                        "hooks/statusline.py": "hash",
+                        "hooks/../../outside.py": "hash",
+                        "hooks\\..\\outside.py": "hash",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert tracked_hook_paths_from_manifest(config_dir) == {"hooks/statusline.py"}
 
     def test_pre_install_cleanup_backs_up_modified_hook_files(self, tmp_path: Path) -> None:
         config_dir = tmp_path / ".claude"
@@ -1359,6 +1394,35 @@ class TestInstallBackupSafety:
         assert backup_path.exists()
         assert backup_path.read_text(encoding="utf-8") == "print('user edit')\n"
         assert not hook_path.exists()
+
+    def test_pre_install_cleanup_does_not_follow_forged_manifest_relpath_outside_target(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        config_dir = workspace / ".claude"
+        config_dir.mkdir(parents=True)
+        outside = tmp_path / "outside-secret.txt"
+        outside.write_text("do not copy or overwrite\n", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "statusline.py").write_text(_bundled_hook_text("statusline.py"), encoding="utf-8")
+        (config_dir / "gpd-file-manifest.json").write_text(
+            json.dumps(
+                {
+                    "runtime": "claude-code",
+                    "install_scope": "local",
+                    "files": {
+                        "../../outside-secret.txt": "forged-hash",
+                        "hooks/statusline.py": "stale-hash",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        pre_install_cleanup(config_dir)
+
+        assert outside.read_text(encoding="utf-8") == "do not copy or overwrite\n"
+        meta = json.loads((config_dir / "gpd-local-patches" / "backup-meta.json").read_text(encoding="utf-8"))
+        assert "../../outside-secret.txt" not in meta["files"]
+        assert "hooks/statusline.py" in meta["files"]
 
     def test_opencode_manifest_does_not_claim_uninstalled_hook_files(self, tmp_path: Path) -> None:
         from gpd.adapters.opencode import write_manifest as write_opencode_manifest

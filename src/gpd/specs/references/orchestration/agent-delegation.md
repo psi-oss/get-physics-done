@@ -98,6 +98,8 @@ shared_state_policy: return_only | direct
 </spawn_contract>
 ```
 
+File-producing or state-sensitive spawned prompts must include this block directly in the prompt text. The only allowed exemption is an adjacent documented exemption stating that the task is read-only, produces no artifacts, and returns no shared-state update; the prompt must still state the structured return envelope.
+
 Use the fields this way:
 
 - `write_scope.mode`: `scoped_write` for normal subagents with isolated artifact ownership. Use `direct` only when the subagent is explicitly allowed to mutate canonical shared state.

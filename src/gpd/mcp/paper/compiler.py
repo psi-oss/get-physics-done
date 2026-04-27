@@ -281,9 +281,7 @@ def get_latex_install_guidance() -> str:
     if system == "Windows":
         return (
             "No LaTeX compiler found.\n"
-            "Install one of the following:\n"
-            + tectonic_guidance
-            + "  - MiKTeX: https://miktex.org/download\n"
+            "Install one of the following:\n" + tectonic_guidance + "  - MiKTeX: https://miktex.org/download\n"
             "    After install, open the MiKTeX Console and enable automatic\n"
             "    package installation so missing .sty/.cls files are fetched\n"
             "    on demand.\n"
@@ -408,20 +406,21 @@ def check_citation_bib_coherence(
     Handles ``\\nocite{*}`` (standard LaTeX: all bib entries are considered
     referenced).  Splits multi-key citations (``\\cite{a,b,c}``).
     """
-    from gpd.core.paper_quality import _CITE_CMD_PREFIX_WITH_NOCITE
+    from gpd.core.paper_quality import _CITE_CMD_PREFIX_WITH_NOCITE, _visible_tex_content
 
     all_cite_re = re.compile(
         _CITE_CMD_PREFIX_WITH_NOCITE
         + r"(?:\[[^\]]*\])*"  # optional [] arguments (natbib)
         + r"\{([^}]*)\}"  # capture the key list
     )
+    visible_tex_content = _visible_tex_content(tex_content)
 
     # Detect \nocite{*} -- all bib entries are considered referenced
-    nocite_star = bool(_NOCITE_STAR_RE.search(tex_content))
+    nocite_star = bool(_NOCITE_STAR_RE.search(visible_tex_content))
 
     # Parse all \cite-family commands from .tex
     tex_cite_keys: set[str] = set()
-    for match in all_cite_re.finditer(tex_content):
+    for match in all_cite_re.finditer(visible_tex_content):
         for key in match.group(1).split(","):
             stripped = key.strip()
             if stripped:
@@ -589,6 +588,8 @@ async def compile_paper(
     including Windows MiKTeX and TeX Live installations that may not be on
     the system PATH.
     """
+    tex_path = Path(tex_path).resolve(strict=False)
+    output_dir = Path(output_dir).resolve(strict=False)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Prefer Tectonic when available — it handles bibtex + multi-pass itself.

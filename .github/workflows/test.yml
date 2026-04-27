@@ -55,6 +55,72 @@ jobs:
       - name: Run ruff check
         run: uv run ruff check .
 
+  python-compatibility:
+    name: python compatibility (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --dev --frozen
+
+      - name: Import package surfaces
+        run: |
+          uv run python - <<'PY'
+          import importlib
+
+          modules = [
+              "gpd",
+              "gpd.cli",
+              "gpd.runtime_cli",
+              "gpd.adapters.runtime_catalog",
+              "gpd.core.artifact_text",
+              "gpd.mcp.paper.compiler",
+              "gpd.mcp.servers.arxiv_bridge",
+          ]
+          for module in modules:
+              importlib.import_module(module)
+          print(f"Imported {len(modules)} package surfaces")
+          PY
+
+      - name: Smoke console script
+        run: |
+          uv run gpd --version
+          uv run gpd --help > /tmp/gpd-help.txt
+          test -s /tmp/gpd-help.txt
+
+      - name: Run installer and runtime compatibility tests
+        run: |
+          uv run pytest -q \
+            tests/test_metadata_consistency.py::test_python_floor_is_consistent_across_install_surfaces \
+            tests/test_runtime_catalog_bootstrap_contract.py \
+            tests/test_runtime_install_smoke.py \
+            tests/test_install_lifecycle.py::test_markdown_command_runtime_lifecycle_round_trip \
+            tests/test_bootstrap_installer.py::test_bootstrap_prefers_versioned_python_when_generic_alias_is_newer \
+            tests/test_bootstrap_installer.py::test_bootstrap_recreates_managed_env_when_selected_minor_changes
+
+      - name: Build wheel
+        run: uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}
+
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)
     runs-on: ubuntu-latest
@@ -164,6 +230,7 @@ jobs:
         run: uv sync --dev --frozen
 
       - name: Resolve pytest shard targets
+        timeout-minutes: 3
         env:
           PYTEST_CATEGORY: ${{ matrix.category }}
           PYTEST_SHARD_INDEX: ${{ matrix.shard_index }}
@@ -172,19 +239,23 @@ jobs:
         run: |
           uv run python - <<'PY'
           import os
+          import time
           from pathlib import Path
 
           from tests.ci_sharding import write_ci_shard_targets_file
 
+          started_at = time.perf_counter()
           targets = write_ci_shard_targets_file(
               target_file=Path(os.environ["PYTEST_SHARD_TARGET_FILE"]),
               category=os.environ["PYTEST_CATEGORY"],
               shard_index=int(os.environ["PYTEST_SHARD_INDEX"]),
               shard_total=int(os.environ["PYTEST_SHARD_TOTAL"]),
           )
+          elapsed_seconds = time.perf_counter() - started_at
           print(
               f"Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']} "
-              f"shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}"
+              f"shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']} "
+              f"in {elapsed_seconds:.2f}s"
           )
           PY
 

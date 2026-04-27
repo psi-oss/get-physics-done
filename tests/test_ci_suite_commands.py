@@ -83,20 +83,58 @@ def test_github_actions_loader_preserves_on_key_without_losing_boolean_inputs() 
     assert dry_run["default"] is False
 
 
-def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_default_parallelism_and_ci_worksteal() -> None:
+def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_default_parallelism_and_ci_worksteal() -> (
+    None
+):
     workflow = _workflow_data()
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
 
 
+def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:
+    workflow = _workflow_data()
+    jobs = workflow["jobs"]
+    compat_job = jobs["python-compatibility"]
+    steps = compat_job["steps"]
+    step_by_name = {step["name"]: step for step in steps}
+
+    assert compat_job["name"] == "python compatibility (${{ matrix.python-version }})"
+    assert compat_job["runs-on"] == "ubuntu-latest"
+    assert compat_job["strategy"]["fail-fast"] is False
+    assert compat_job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
+    assert step_by_name["Check out repository"]["uses"] == "actions/checkout@v6"
+    assert step_by_name["Set up Python"]["uses"] == "actions/setup-python@v6"
+    assert step_by_name["Set up Python"]["with"]["python-version"] == "${{ matrix.python-version }}"
+    assert step_by_name["Set up Node.js"]["uses"] == "actions/setup-node@v6"
+    assert step_by_name["Set up Node.js"]["with"]["node-version"] == "20"
+    assert step_by_name["Set up uv"]["uses"] == "astral-sh/setup-uv@v7"
+    assert step_by_name["Install dependencies"]["run"] == "uv sync --dev --frozen"
+
+    import_smoke = step_by_name["Import package surfaces"]["run"]
+    assert "importlib.import_module(module)" in import_smoke
+    assert '"gpd.cli"' in import_smoke
+    assert '"gpd.core.artifact_text"' in import_smoke
+    assert '"gpd.mcp.paper.compiler"' in import_smoke
+    assert '"gpd.mcp.servers.arxiv_bridge"' in import_smoke
+
+    console_smoke = step_by_name["Smoke console script"]["run"]
+    assert "uv run gpd --version" in console_smoke
+    assert "uv run gpd --help > /tmp/gpd-help.txt" in console_smoke
+    assert "test -s /tmp/gpd-help.txt" in console_smoke
+
+    targeted_tests = step_by_name["Run installer and runtime compatibility tests"]["run"]
+    assert "tests/test_runtime_catalog_bootstrap_contract.py" in targeted_tests
+    assert "tests/test_runtime_install_smoke.py" in targeted_tests
+    assert "tests/test_install_lifecycle.py::test_markdown_command_runtime_lifecycle_round_trip" in targeted_tests
+    assert "test_bootstrap_prefers_versioned_python_when_generic_alias_is_newer" in targeted_tests
+    assert "test_bootstrap_recreates_managed_env_when_selected_minor_changes" in targeted_tests
+    assert "uv run pytest -q tests/" not in targeted_tests
+    assert step_by_name["Build wheel"]["run"] == "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}"
+
+
 def test_ci_workflow_uses_current_action_versions() -> None:
     workflow = _workflow_data()
-    action_uses = [
-        step["uses"]
-        for job in workflow["jobs"].values()
-        for step in job.get("steps", [])
-        if "uses" in step
-    ]
+    action_uses = [step["uses"] for job in workflow["jobs"].values() for step in job.get("steps", []) if "uses" in step]
 
     assert "actions/checkout@v6" in action_uses
     assert "actions/setup-node@v6" in action_uses
@@ -114,7 +152,7 @@ def test_ci_workflow_installs_dev_dependencies_from_frozen_lockfile() -> None:
             if step.get("name") == "Install dependencies":
                 install_commands.append(step["run"])
 
-    assert install_commands == ["uv sync --dev --frozen", "uv sync --dev --frozen"]
+    assert install_commands == ["uv sync --dev --frozen", "uv sync --dev --frozen", "uv sync --dev --frozen"]
 
 
 def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:

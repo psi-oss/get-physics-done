@@ -295,10 +295,7 @@ def _gemini_policy_command_prefixes(bridge_command: str) -> tuple[str, ...]:
 
 def _render_gemini_shell_allowlist(bridge_command: str) -> str:
     """Render the enforced Gemini shell-prefix allowlist for model-facing content."""
-    return "\n".join(
-        f"  - `{prefix}`"
-        for prefix in _gemini_policy_command_prefixes(bridge_command)
-    )
+    return "\n".join(f"  - `{prefix}`" for prefix in _gemini_policy_command_prefixes(bridge_command))
 
 
 def _project_managed_mcp_servers(
@@ -411,11 +408,11 @@ def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
         content,
     )
     content = content.replace(
-        'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -',
+        "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd --raw validate project-contract -",
         f"gpd --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}",
     )
     content = content.replace(
-        'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -',
+        "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\" | gpd state set-project-contract -",
         f"gpd state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}",
     )
     content = content.replace(
@@ -752,7 +749,7 @@ def _managed_gemini_yolo_wrapper_path(target_dir: Path) -> Path:
 def _render_gemini_yolo_wrapper() -> str:
     """Render a small launcher that starts Gemini in yolo approval mode."""
     launcher = shlex.quote(get_runtime_descriptor("gemini").launch_command)
-    return f"#!/bin/sh\nexec {launcher} --approval-mode=yolo \"$@\"\n"
+    return f'#!/bin/sh\nexec {launcher} --approval-mode=yolo "$@"\n'
 
 
 def _render_gemini_policy_toml(bridge_command: str) -> str:
@@ -830,6 +827,8 @@ def _convert_to_gemini_toml(content: str) -> str:
         toml += f"prompt = '''\n{body}\n'''\n"
 
     return toml
+
+
 def _render_preserved_frontmatter_comments(frontmatter: str) -> str:
     """Render non-runtime frontmatter metadata as TOML comments.
 
@@ -1169,6 +1168,15 @@ class GeminiAdapter(RuntimeAdapter):
             )
         )
 
+    def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
+        """Fail before copying files when Gemini-owned config is malformed."""
+        del is_global
+        settings_path = target_dir / "settings.json"
+        _validate_existing_gemini_managed_state(target_dir)
+        _, settings_parse_error = _read_gemini_settings_state(settings_path)
+        if settings_parse_error is not None:
+            raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during install.")
+
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
         _validate_existing_gemini_managed_state(target_dir)
@@ -1229,7 +1237,9 @@ class GeminiAdapter(RuntimeAdapter):
         ]
 
         policy_dir_setting = str(policy_path.parent.resolve())
-        merged_policy_paths, added_policy_paths = _merge_unique_strings(settings.get("policyPaths"), [policy_dir_setting])
+        merged_policy_paths, added_policy_paths = _merge_unique_strings(
+            settings.get("policyPaths"), [policy_dir_setting]
+        )
         if merged_policy_paths:
             settings["policyPaths"] = merged_policy_paths
         self._managed_policy_paths = added_policy_paths
@@ -1269,9 +1279,7 @@ class GeminiAdapter(RuntimeAdapter):
         message = "Gemini is using its normal approval-mode defaults."
         if desired_mode == "yolo":
             if wrapper_exists:
-                message = (
-                    "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session."
-                )
+                message = "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session."
                 next_step = (
                     "Exit the current Gemini session and relaunch with "
                     f"{shlex.quote(str(wrapper_path))} so the runtime itself starts in yolo mode."
@@ -1381,13 +1389,15 @@ class GeminiAdapter(RuntimeAdapter):
         settings_written = install_result.get("settingsWritten", False)
         if type(settings_written) is not bool:
             raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
-        if settings_written:
-            return
 
         settings_path, settings, statusline_command, should_install_statusline = _validated_deferred_install_payload(
             install_result
         )
         target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
+        if settings_written:
+            self._verify(target_dir)
+            return
+
         _validate_existing_gemini_managed_state(target_dir)
         _, settings_parse_error = _read_gemini_settings_state(Path(settings_path))
         if settings_parse_error is not None:
@@ -1399,6 +1409,7 @@ class GeminiAdapter(RuntimeAdapter):
             should_install_statusline,
             force_statusline=force_statusline,
         )
+        self._verify(target_dir)
         install_result["settingsWritten"] = True
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
@@ -1539,13 +1550,14 @@ class GeminiAdapter(RuntimeAdapter):
         if not isinstance(experimental, dict) or experimental.get("enableAgents") is not True:
             raise RuntimeError("Gemini install incomplete: experimental.enableAgents is not enabled")
 
-        hooks = settings.get("hooks")
-        session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
-        if not isinstance(session_start, list) or not any(
-            _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
-            for entry in session_start
-        ):
-            raise RuntimeError("Gemini install incomplete: update hook not configured")
+        if self._installed_hook_script_available(HOOK_SCRIPTS["check_update"]):
+            hooks = settings.get("hooks")
+            session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+            if not isinstance(session_start, list) or not any(
+                _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+                for entry in session_start
+            ):
+                raise RuntimeError("Gemini install incomplete: update hook not configured")
 
         mcp_servers = settings.get("mcpServers")
         if not isinstance(mcp_servers, dict) or not mcp_servers:

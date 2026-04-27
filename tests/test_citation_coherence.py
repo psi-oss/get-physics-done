@@ -25,6 +25,18 @@ class TestCitationBibCoherence:
         assert result.unreferenced_bib_keys == set()
         assert result.unresolved_cite_keys == set()
 
+    def test_commented_citations_ignored_but_escaped_percent_keeps_visible_citation(self) -> None:
+        tex = "% \\cite{hidden2026}\nValue is 50\\% of \\cite{visible2026}."
+        bib = (
+            "@article{hidden2026,\n  title={Hidden},\n  author={Doe},\n  year={2026}\n}\n"
+            "@article{visible2026,\n  title={Visible},\n  author={Doe},\n  year={2026}\n}\n"
+        )
+        result = check_citation_bib_coherence(tex, bib)
+
+        assert result.tex_cite_keys == {"visible2026"}
+        assert result.unreferenced_bib_keys == {"hidden2026"}
+        assert result.unresolved_cite_keys == set()
+
     def test_partial_citation_warns_unreferenced(self) -> None:
         tex = r"\cite{einstein1905}"
         bib = (

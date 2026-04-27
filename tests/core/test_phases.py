@@ -221,6 +221,21 @@ def test_list_phases_empty(tmp_path: Path) -> None:
     assert result.directories == []
 
 
+def test_list_phases_ignores_symlinked_phase_directory(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    outside_phase = tmp_path / "outside-phase"
+    outside_phase.mkdir()
+    try:
+        (tmp_path / "GPD" / "phases" / "01-escape").symlink_to(outside_phase, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    result = list_phases(tmp_path)
+
+    assert result.count == 0
+    assert result.directories == []
+
+
 def test_list_phase_files_preserves_phase_directory_identity(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     first = _create_phase_dir(tmp_path, "01-alpha")
@@ -505,7 +520,9 @@ def test_phase_add_no_roadmap(tmp_path: Path) -> None:
         phase_add(tmp_path, "Something")
 
 
-def test_phase_add_leaves_state_files_unchanged_when_atomic_state_save_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_phase_add_leaves_state_files_unchanged_when_atomic_state_save_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _setup_project(tmp_path)
     _create_roadmap(
         tmp_path,
@@ -536,6 +553,34 @@ def test_phase_add_leaves_state_files_unchanged_when_atomic_state_save_fails(tmp
     assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == []
 
 
+def test_phase_add_does_not_create_directory_when_roadmap_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Existing Phase
+        **Goal:** exist
+        """,
+    )
+    _seed_state_pair(tmp_path)
+    real_atomic_write = phases_module.atomic_write
+
+    def _fail_roadmap(path: Path, content: str) -> None:
+        if Path(path).name == "ROADMAP.md":
+            raise RuntimeError("roadmap exploded")
+        real_atomic_write(path, content)
+
+    monkeypatch.setattr(phases_module, "atomic_write", _fail_roadmap)
+
+    with pytest.raises(RuntimeError, match="roadmap exploded"):
+        phase_add(tmp_path, "New Feature")
+
+    assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == []
+
+
 def test_phase_insert_rolls_back_roadmap_and_directory_when_atomic_state_save_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -561,6 +606,34 @@ def test_phase_insert_rolls_back_roadmap_and_directory_when_atomic_state_save_fa
         phase_insert(tmp_path, "1", "Hotfix")
 
     assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before_roadmap
+    assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == []
+
+
+def test_phase_insert_does_not_create_directory_when_roadmap_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Existing Phase
+        **Goal:** exist
+        """,
+    )
+    _seed_state_pair(tmp_path)
+    real_atomic_write = phases_module.atomic_write
+
+    def _fail_roadmap(path: Path, content: str) -> None:
+        if Path(path).name == "ROADMAP.md":
+            raise RuntimeError("roadmap exploded")
+        real_atomic_write(path, content)
+
+    monkeypatch.setattr(phases_module, "atomic_write", _fail_roadmap)
+
+    with pytest.raises(RuntimeError, match="roadmap exploded"):
+        phase_insert(tmp_path, "1", "Hotfix")
+
     assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == []
 
 
@@ -602,7 +675,9 @@ def test_phase_add_uses_canonical_state_lock_and_locked_writer(tmp_path: Path, m
     assert not any(path.name == "STATE.md" for path in lock_calls)
 
 
-def test_phase_insert_uses_canonical_state_lock_and_locked_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_phase_insert_uses_canonical_state_lock_and_locked_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _create_roadmap(
         tmp_path,
         """\
@@ -628,7 +703,9 @@ def test_phase_insert_uses_canonical_state_lock_and_locked_writer(tmp_path: Path
     assert not any(path.name == "STATE.md" for path in lock_calls)
 
 
-def test_phase_remove_uses_canonical_state_lock_and_locked_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_phase_remove_uses_canonical_state_lock_and_locked_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _create_roadmap(
         tmp_path,
         """\
@@ -709,7 +786,9 @@ def test_phase_remove_rolls_back_roadmap_and_phase_tree_when_atomic_state_save_f
     assert sorted(d.name for d in (tmp_path / "GPD" / "phases").iterdir() if d.is_dir()) == before_dirs
 
 
-def test_phase_complete_uses_canonical_state_lock_and_locked_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_phase_complete_uses_canonical_state_lock_and_locked_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _create_roadmap(
         tmp_path,
         """\
@@ -780,7 +859,9 @@ def test_phase_complete_rolls_back_roadmap_when_atomic_state_save_fails(
     assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before_roadmap
 
 
-def test_milestone_complete_uses_canonical_state_lock_and_locked_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_milestone_complete_uses_canonical_state_lock_and_locked_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _create_roadmap(tmp_path, "## Milestone v1.0: Test\n### Phase 1: X\n**Goal:** x\n")
     state = default_state_dict()
     state["status"] = "in_progress"
@@ -798,6 +879,44 @@ def test_milestone_complete_uses_canonical_state_lock_and_locked_writer(tmp_path
     assert result.version == "v1.0"
     assert any(path.name == "state.json" for path in lock_calls)
     assert not any(path.name == "STATE.md" for path in lock_calls)
+
+
+def test_milestone_complete_checks_completion_under_roadmap_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _create_roadmap(tmp_path, "## Milestone v1.0: Test\n### Phase 1: X\n**Goal:** x\n")
+    _write_state_pair(tmp_path, default_state_dict())
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Did the thing\n---\n## Task 1\nDone", encoding="utf-8")
+    original_file_lock = phases_module.file_lock
+    original_snapshot = phases_module._milestone_completion_snapshot
+    roadmap_lock_active = False
+
+    @contextmanager
+    def _recording_lock(path: Path, *args, **kwargs):
+        nonlocal roadmap_lock_active
+        with original_file_lock(path, *args, **kwargs):
+            if Path(path).name == "ROADMAP.md":
+                roadmap_lock_active = True
+                try:
+                    yield
+                finally:
+                    roadmap_lock_active = False
+            else:
+                yield
+
+    def _assert_locked(cwd: Path):
+        assert roadmap_lock_active
+        return original_snapshot(cwd)
+
+    monkeypatch.setattr(phases_module, "file_lock", _recording_lock)
+    monkeypatch.setattr(phases_module, "_milestone_completion_snapshot", _assert_locked)
+
+    result = milestone_complete(tmp_path, "v1.0", name="Test Milestone")
+
+    assert result.version == "v1.0"
 
 
 def test_milestone_complete_rolls_back_archives_when_atomic_state_save_fails(
@@ -869,7 +988,6 @@ def test_milestone_complete_rolls_back_partial_archives_when_audit_move_fails(
     assert not (archive_dir / "v1.0-REQUIREMENTS.md").exists()
     assert not (archive_dir / "v1.0-MILESTONE-AUDIT.md").exists()
     assert not (tmp_path / "GPD" / "MILESTONES.md").exists()
-
 
 
 # ─── phase_insert ────────────────────────────────────────────────────────────────
@@ -1593,7 +1711,9 @@ def test_phase_remove_preserves_padded_em_dash_roadmap_format(tmp_path: Path) ->
         **Artifact:** 03-01-PLAN.md
         """,
     )
-    _seed_state_pair(tmp_path, current_phase="03", current_phase_name="Validation", total_phases=3, status="in_progress")
+    _seed_state_pair(
+        tmp_path, current_phase="03", current_phase_name="Validation", total_phases=3, status="in_progress"
+    )
     _create_phase_dir(tmp_path, "01-setup")
     _create_phase_dir(tmp_path, "02-main")
     validation_dir = _create_phase_dir(tmp_path, "03-validation")
@@ -1689,8 +1809,12 @@ def test_phase_plan_index_basic(tmp_path: Path) -> None:
 def test_phase_plan_index_rejects_scalar_dependency_fields(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\nfiles_modified: []\n---\n## Task 1\nDo stuff", encoding="utf-8")
-    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: a\nfiles_modified: []\n---\n## Task 1\nMore stuff", encoding="utf-8")
+    (phase_dir / "a-PLAN.md").write_text(
+        "---\nwave: 1\ndepends_on: []\nfiles_modified: []\n---\n## Task 1\nDo stuff", encoding="utf-8"
+    )
+    (phase_dir / "b-PLAN.md").write_text(
+        "---\nwave: 2\ndepends_on: a\nfiles_modified: []\n---\n## Task 1\nMore stuff", encoding="utf-8"
+    )
 
     result = phase_plan_index(tmp_path, "1")
     assert result.validation.valid is False
@@ -1710,7 +1834,8 @@ def test_phase_plan_index_detects_checkpoint_tasks_without_interactive_flag(tmp_
               <name>Review the checkpoint</name>
             </task>
             """
-        ), encoding="utf-8"
+        ),
+        encoding="utf-8",
     )
 
     result = phase_plan_index(tmp_path, "1")
@@ -1772,7 +1897,9 @@ def test_phase_plan_index_reports_ambiguous_phase_filter(tmp_path: Path) -> None
 
     assert result.plans == []
     assert result.validation.valid is False
-    assert result.validation.errors == ["Phase 1 is ambiguous; matching directories: 01-alpha, 01-beta. Use the exact phase directory name to disambiguate."]
+    assert result.validation.errors == [
+        "Phase 1 is ambiguous; matching directories: 01-alpha, 01-beta. Use the exact phase directory name to disambiguate."
+    ]
 
 
 def test_phase_plan_index_not_found(tmp_path: Path) -> None:

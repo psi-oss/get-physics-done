@@ -60,7 +60,7 @@ COMMAND_BASELINES = {
     "numerical-convergence": (570, 27_200, 1),
     "parameter-sweep": (840, 31_582, 1),
     "pause-work": (300, 13_612, 1),
-    "peer-review": (1_148, 71_076, 1),
+    "peer-review": (1_233, 73_521, 1),
     "plan-milestone-gaps": (357, 11_455, 1),
     "plan-phase": (1_067, 53_460, 1),
     "progress": (605, 19_549, 1),

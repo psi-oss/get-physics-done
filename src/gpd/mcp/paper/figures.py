@@ -34,7 +34,9 @@ def _missing_optional_module(exc: ImportError, module_name: str) -> bool:
     return f"No module named '{module_name}'" in str(exc)
 
 
-def _describe_inkscape_failure(exc: FileNotFoundError | subprocess.CalledProcessError | subprocess.TimeoutExpired) -> str:
+def _describe_inkscape_failure(
+    exc: FileNotFoundError | subprocess.CalledProcessError | subprocess.TimeoutExpired,
+) -> str:
     if isinstance(exc, FileNotFoundError):
         return f"Inkscape fallback failed: {exc}"
     if isinstance(exc, subprocess.TimeoutExpired):
@@ -73,6 +75,12 @@ def _unique_dest(output_dir: Path, source: Path) -> Path:
         dest = output_dir / f"{stem}_{counter}{suffix}"
         counter += 1
     return dest
+
+
+def _path_is_within_directory(path: Path, directory: Path) -> bool:
+    resolved_path = path.resolve(strict=False)
+    resolved_directory = directory.resolve(strict=False)
+    return resolved_path == resolved_directory or resolved_path.is_relative_to(resolved_directory)
 
 
 def normalize_figure(source: Path, output_dir: Path) -> Path:
@@ -242,6 +250,9 @@ def _prepare_figures_with_sources(
             normalized_path = normalize_figure(fig.path, output_dir)
         except (OSError, RuntimeError, ValueError) as exc:
             errors.append(f"Figure preparation failed for {fig.path}: {exc}")
+            continue
+        if not _path_is_within_directory(normalized_path, output_dir):
+            errors.append(f"Figure preparation failed for {fig.path}: normalized output escaped {output_dir}")
             continue
 
         passes, msg = check_figure_resolution(normalized_path, journal, double_column=fig.double_column)

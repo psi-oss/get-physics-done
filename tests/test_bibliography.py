@@ -169,6 +169,32 @@ class TestBibtexCreation:
         assert "@article" in content.lower() or "@misc" in content.lower()
         assert "Test Paper" in content
 
+    def test_non_author_bibtex_fields_sanitize_physics_unicode(self, tmp_path):
+        sources = [
+            CitationSource(
+                source_type="paper",
+                title="α_s bounds with Δm ≤ 10² GeV and ℏ corrections",
+                authors=["J. Smith"],
+                year="2026",
+                journal="Journal of β Physics",
+            )
+        ]
+
+        bib = create_bibliography(sources)
+        entry = list(bib.entries.values())[0]
+        output = tmp_path / "refs.bib"
+        write_bib_file(bib, output)
+        content = output.read_text(encoding="utf-8")
+
+        assert r"\alpha" in entry.fields["title"]
+        assert r"\Delta" in entry.fields["title"]
+        assert r"\leq" in entry.fields["title"]
+        assert r"\hbar" in entry.fields["title"]
+        assert r"\beta" in entry.fields["journal"]
+        assert "α" not in content
+        assert "β" not in content
+        assert "≤" not in content
+
 
 class TestCitationSourceParsing:
     def test_parse_citation_source_payload_normalizes_reference_id(self) -> None:
@@ -579,7 +605,9 @@ class TestBibliographyAudit:
         )
         bib = create_bibliography([source])
 
-        plain_entry = Entry("misc", fields=[("title", "Project Note"), ("year", "2024"), ("url", "https://example.com")])
+        plain_entry = Entry(
+            "misc", fields=[("title", "Project Note"), ("year", "2024"), ("url", "https://example.com")]
+        )
         plain_entry.persons["author"] = [Person("Doe, J.")]
         bib.entries["doe2024"] = plain_entry
 
@@ -606,7 +634,9 @@ class TestBibliographyAudit:
             doi="10.1002/andp.19053221004",
         )
         source_bib, source_audit = build_bibliography_with_audit([source], enrich=False)
-        plain_entry = Entry("misc", fields=[("title", "Project Note"), ("year", "2024"), ("url", "https://example.com")])
+        plain_entry = Entry(
+            "misc", fields=[("title", "Project Note"), ("year", "2024"), ("url", "https://example.com")]
+        )
         plain_entry.persons["author"] = [Person("Doe, J.")]
         source_bib.entries["doe2024"] = plain_entry
 

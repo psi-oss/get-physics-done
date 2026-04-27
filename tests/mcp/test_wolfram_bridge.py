@@ -107,6 +107,22 @@ def test_load_settings_rejects_an_empty_endpoint_override() -> None:
         )
 
 
+def test_load_settings_rejects_a_non_https_endpoint_override() -> None:
+    from gpd.mcp.integrations.wolfram_bridge import (
+        GPD_WOLFRAM_MCP_API_KEY_ENV,
+        WOLFRAM_MCP_ENDPOINT_ENV_VAR,
+        load_settings,
+    )
+
+    with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_ENDPOINT must be an HTTPS URL"):
+        load_settings(
+            {
+                GPD_WOLFRAM_MCP_API_KEY_ENV: "secret-token",
+                WOLFRAM_MCP_ENDPOINT_ENV_VAR: "http://example.invalid/api/mcp",
+            }
+        )
+
+
 def test_load_settings_uses_process_environment_when_no_mapping_is_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -37,6 +37,14 @@ def expected_claude_bridge(target: Path) -> str:
     )
 
 
+def _assert_no_manifestless_gpd_artifacts(target: Path) -> None:
+    assert not (target / "gpd-file-manifest.json").exists()
+    assert not (target / "get-physics-done").exists()
+    assert not (target / "commands" / "gpd").exists()
+    assert not (target / "agents").exists()
+    assert not (target / "hooks").exists()
+
+
 def _make_checkout(tmp_path: Path, version: str) -> Path:
     """Create a minimal GPD source checkout with an explicit version."""
     repo_root = tmp_path / "checkout"
@@ -155,6 +163,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_structurally_invalid_settings_json(
         self,
@@ -172,6 +181,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_malformed_managed_mcp_config(
         self,
@@ -189,6 +199,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert mcp_config_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_fails_closed_for_structurally_invalid_managed_mcp_config(
         self,
@@ -206,6 +217,7 @@ class TestInstall:
             adapter.install(gpd_root, target)
 
         assert mcp_config_path.read_text(encoding="utf-8") == before
+        _assert_no_manifestless_gpd_artifacts(target)
 
     def test_install_commands_have_placeholder_replacement(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
@@ -464,11 +476,11 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hook_python = hook_python_interpreter()
-        expected_statusline_path = str(target / 'hooks' / 'statusline.py').replace("\\", "/")
+        expected_statusline_path = str(target / "hooks" / "statusline.py").replace("\\", "/")
         assert settings["statusLine"]["command"] == f"{shlex.quote(hook_python)} {expected_statusline_path}"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        expected_check_update_path = str(target / 'hooks' / 'check_update.py').replace("\\", "/")
+        expected_check_update_path = str(target / "hooks" / "check_update.py").replace("\\", "/")
         expected_check_update_cmd = f"{shlex.quote(hook_python)} {expected_check_update_path}"
         assert expected_check_update_cmd in cmds
 
@@ -670,7 +682,6 @@ class TestInstall:
 
         assert not (agents_dir / "gpd-old-agent.md").exists()
         assert (agents_dir / "custom-agent.md").exists()
-
 
     def test_install_agents_replace_runtime_placeholders(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
@@ -1006,7 +1017,9 @@ class TestUninstall:
         assert "custom-server" in workspace_cleaned["mcpServers"]
         assert "MCP servers from .mcp.json" not in result["removed"]
 
-    def test_local_uninstall_cleans_jsonc_workspace_mcp_config(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
+    def test_local_uninstall_cleans_jsonc_workspace_mcp_config(
+        self, adapter: ClaudeCodeAdapter, tmp_path: Path
+    ) -> None:
         target = tmp_path / "workspace" / ".claude"
         target.mkdir(parents=True)
 
@@ -1149,7 +1162,9 @@ class TestUninstall:
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
         settings["statusLine"] = {"type": "command", "command": "python3 /tmp/third-party/hooks/statusline.py"}
         session_start = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
-        session_start.append({"hooks": [{"type": "command", "command": "python3 /tmp/third-party/hooks/check_update.py"}]})
+        session_start.append(
+            {"hooks": [{"type": "command", "command": "python3 /tmp/third-party/hooks/check_update.py"}]}
+        )
         session_start.append({"hooks": [{"type": "command", "command": "python3 .claude/hooks/check_update.py"}]})
         settings_path.write_text(json.dumps(settings), encoding="utf-8")
 

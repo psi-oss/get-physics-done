@@ -37,6 +37,15 @@ def _resolve_output_path(path: Path, output_dir: Path) -> Path:
     return path if path.is_absolute() else output_dir / path
 
 
+def _resolve_contained_output_path(path: Path, output_dir: Path) -> Path | None:
+    candidate = _resolve_output_path(path, output_dir)
+    resolved_candidate = candidate.resolve(strict=False)
+    resolved_output_dir = output_dir.resolve(strict=False)
+    if resolved_candidate == resolved_output_dir or resolved_candidate.is_relative_to(resolved_output_dir):
+        return candidate
+    return None
+
+
 def build_artifact_manifest(
     config: PaperConfig,
     output_dir: Path,
@@ -107,7 +116,9 @@ def build_artifact_manifest(
 
     source_pairs = figure_source_pairs or list(zip(original_figures or [], prepared_figures or [], strict=False))
     for original, prepared in source_pairs:
-        prepared_path = _resolve_output_path(prepared.path, output_dir)
+        prepared_path = _resolve_contained_output_path(prepared.path, output_dir)
+        if prepared_path is None:
+            continue
         if not prepared_path.exists():
             continue
         artifacts.append(
@@ -117,7 +128,9 @@ def build_artifact_manifest(
                 path=_display_path(prepared_path, output_dir),
                 sha256=_sha256(prepared_path),
                 produced_by="build_paper:prepare_figures",
-                sources=[ArtifactSourceRef(path=_portable_source_path(original.path, output_dir), role="source-figure")],
+                sources=[
+                    ArtifactSourceRef(path=_portable_source_path(original.path, output_dir), role="source-figure")
+                ],
                 metadata={
                     "label": prepared.label,
                     "caption_length": len(prepared.caption),

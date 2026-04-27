@@ -10,7 +10,25 @@ from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-_CACHE_DIRS = {".ruff_cache", ".pytest_cache", ".mypy_cache", ".npm-cache"}
+_GENERATED_ARTIFACT_DIRS = {
+    ".mypy_cache",
+    ".nox",
+    ".npm-cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".uv-cache",
+    "htmlcov",
+    "node_modules",
+}
+_GENERATED_ARTIFACT_FILE_NAMES = {
+    ".coverage",
+    "coverage.xml",
+    "junit.xml",
+    "pytest-report.xml",
+}
+_GENERATED_ARTIFACT_NAME_PREFIXES = ("GPD-FIX-REPORT",)
+_GENERATED_ARTIFACT_SUFFIXES = {".prof", ".profraw", ".profdata"}
 _RUNTIME_CONFIG_DIRS = {
     ".agents",
     *(descriptor.config_dir_name for descriptor in iter_runtime_descriptors()),
@@ -54,7 +72,7 @@ def _is_hygiene_artifact(rel_path: Path) -> bool:
     if "__pycache__" in parts or rel_path.suffix in {".pyc", ".pyo", ".pyd"}:
         return True
 
-    if any(part in _CACHE_DIRS for part in parts):
+    if any(part in _GENERATED_ARTIFACT_DIRS for part in parts):
         return True
 
     if any(part == ".venv" for part in parts):
@@ -70,6 +88,14 @@ def _is_hygiene_artifact(rel_path: Path) -> bool:
         return True
 
     if parts[:1] == ("GPD",) and rel_path.name in _GENERATED_GPD_FILES:
+        return True
+
+    if (
+        rel_path.name in _GENERATED_ARTIFACT_FILE_NAMES
+        or rel_path.name.startswith(".coverage.")
+        or rel_path.name.startswith(_GENERATED_ARTIFACT_NAME_PREFIXES)
+        or rel_path.suffix in _GENERATED_ARTIFACT_SUFFIXES
+    ):
         return True
 
     if rel_path.name in _LOCAL_RUNTIME_FILES or rel_path.suffix == ".log":
@@ -126,18 +152,16 @@ def _duplicate_test_definition_locations(rel_path: Path) -> list[str]:
 def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> None:
     offenders = [path.as_posix() for path in _tracked_paths() if _is_hygiene_artifact(path)]
 
-    assert not offenders, (
-        "Tracked ignored/runtime-owned artifacts found in git index:\n"
-        + "\n".join(f"- {path}" for path in offenders)
+    assert not offenders, "Tracked ignored/runtime-owned artifacts found in git index:\n" + "\n".join(
+        f"- {path}" for path in offenders
     )
 
 
 def test_tracked_paths_do_not_include_gpd_runtime_artifacts() -> None:
     offenders = [path.as_posix() for path in _tracked_paths() if _is_gpd_runtime_artifact(path)]
 
-    assert not offenders, (
-        "Tracked GPD runtime artifacts found in git index:\n"
-        + "\n".join(f"- {path}" for path in offenders)
+    assert not offenders, "Tracked GPD runtime artifacts found in git index:\n" + "\n".join(
+        f"- {path}" for path in offenders
     )
 
 
@@ -152,6 +176,38 @@ def test_gitignore_covers_literal_shell_tmpdir_debris(tmp_path: Path) -> None:
         path = repo / relpath
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("generated install debris\n", encoding="utf-8")
+
+    for relpath in ignored_relpaths:
+        _git(repo, "check-ignore", "--quiet", "--", relpath)
+
+
+def test_gitignore_covers_generated_local_artifact_families(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    (repo / ".gitignore").write_text((REPO_ROOT / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
+
+    ignored_relpaths = (
+        ".uv-cache/archive-v0/cache.db",
+        ".tox/py312/.coverage",
+        ".nox/tests/tmp.txt",
+        "htmlcov/index.html",
+        ".coverage",
+        ".coverage.local",
+        "coverage.xml",
+        "junit.xml",
+        "pytest-report.xml",
+        "profile.prof",
+        "coverage.profraw",
+        "coverage.profdata",
+        "GPD-FIX-REPORT-20260427.md",
+        "GPD-FIX-REPORT/report.json",
+        "GPD-FIX-REPORT-20260427/details.json",
+    )
+    for relpath in ignored_relpaths:
+        path = repo / relpath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("generated local artifact\n", encoding="utf-8")
 
     for relpath in ignored_relpaths:
         _git(repo, "check-ignore", "--quiet", "--", relpath)

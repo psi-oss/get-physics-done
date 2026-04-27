@@ -53,9 +53,7 @@ Interpretation:
 - If `--method` is omitted, let the workflow choose analytical, numerical, or combined
 - In standalone/current-workspace mode, centralized preflight requires explicit `--target` and `--params`
 - `GPD/STATE.md`, `GPD/ROADMAP.md`, and `GPD/analysis/PARAMETERS.md` are optional current-workspace background context when they exist
-
-@GPD/ROADMAP.md
-@GPD/STATE.md
+- Validated command-context owns optional current-workspace supporting context; the workflow re-loads needed background through its workspace-locked init step instead of this wrapper attaching raw project-file includes
 </context>
 
 <process>
