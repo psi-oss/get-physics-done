@@ -2894,6 +2894,7 @@ def init_execute_phase(
             "phase is required for init execute-phase. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
+    cwd = _resolve_project_scoped_cwd(cwd)
     includes = includes or set()
     if stage is not None and includes:
         raise ValueError(
@@ -3963,6 +3964,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
             "phase is required for init verify-work. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
+    cwd = _resolve_project_scoped_cwd(cwd)
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase)
     phase_proof_review_status = resolve_phase_proof_review_status(
@@ -4616,6 +4618,13 @@ def init_progress(
                 "summary_count": None,
                 "has_research": False,
             }
+        result["has_work_in_progress"] = True
+    execution_resume_file = result.get("execution_resume_file")
+    if (
+        result.get("execution_resume_file_source") == "handoff_resume_file"
+        and isinstance(execution_resume_file, str)
+        and execution_resume_file.strip()
+    ):
         result["has_work_in_progress"] = True
 
     # Include file contents

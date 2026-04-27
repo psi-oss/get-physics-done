@@ -12,6 +12,24 @@ from gpd.core.workflow_staging import WorkflowStage, WorkflowStageConditionalAut
 from gpd.registry import AgentDef, CommandDef, SkillDef
 
 
+def test_get_skill_tool_schema_publishes_transitive_reference_body_opt_in() -> None:
+    import anyio
+
+    from gpd.mcp.servers.skills_server import mcp
+
+    async def _get_schema() -> dict[str, object]:
+        tools = await mcp.list_tools()
+        tool = next(tool for tool in tools if tool.name == "get_skill")
+        return tool.inputSchema
+
+    schema = anyio.run(_get_schema)
+    opt_in = schema["properties"]["include_transitive_reference_bodies"]
+
+    assert opt_in["type"] == "boolean"
+    assert opt_in["default"] is False
+    assert schema["required"] == ["name"]
+
+
 def test_get_skill_command_allowed_tools_are_defensive_copies() -> None:
     from gpd.mcp.servers.skills_server import get_skill
 
@@ -433,9 +451,9 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     with (
         patch(
             "gpd.registry.resolve_workflow_stage_manifest_path",
-            lambda workflow_id: manifest_path
-            if workflow_id == "verify-work"
-            else original_resolve_manifest_path(workflow_id),
+            lambda workflow_id: (
+                manifest_path if workflow_id == "verify-work" else original_resolve_manifest_path(workflow_id)
+            ),
         ),
     ):
         registry_module.invalidate_cache()
@@ -453,8 +471,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     assert "Follow the included workflow file exactly." in result["content"]
     assert (
         "The workflow file owns the detailed check taxonomy; this wrapper only bootstraps the canonical "
-        "verification surfaces and delegates the physics checks."
-        in result["content"]
+        "verification surfaces and delegates the physics checks." in result["content"]
     )
     assert "Severity Classification" not in result["content"]
     assert "One check at a time, plain text responses, no interrogation." not in result["content"]

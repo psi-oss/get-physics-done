@@ -82,6 +82,40 @@ def _first_value(value: object, *keys: str) -> object | None:
     return None
 
 
+def _canonical_project_dir_hint(data: dict[str, object]) -> str:
+    """Return the canonical project-dir hint accepted across hook payloads."""
+    workspace_value = data.get("workspace")
+    return _first_string(workspace_value, "project_dir") or _first_string(data, "project_dir")
+
+
+def _trusted_canonical_project_root(data: dict[str, object], workspace_dir: str) -> Path | None:
+    """Return a canonical payload project root when it is a real ancestor project."""
+    project_dir = _canonical_project_dir_hint(data)
+    if not project_dir:
+        return None
+
+    workspace_path = Path(workspace_dir).expanduser()
+    project_path = Path(project_dir).expanduser()
+    try:
+        resolved_workspace = workspace_path.resolve(strict=False)
+        resolved_project = project_path.resolve(strict=False)
+    except OSError:
+        resolved_workspace = workspace_path
+        resolved_project = project_path
+
+    try:
+        resolved_workspace.relative_to(resolved_project)
+    except ValueError:
+        return None
+
+    resolution = resolve_project_roots(str(resolved_workspace), project_dir=str(resolved_project))
+    if resolution is None or resolution.project_root != resolved_project:
+        return None
+    if resolution.has_project_layout or ProjectLayout(resolved_project).gpd.is_dir():
+        return resolved_project
+    return None
+
+
 def _policy_keys(value: object, attribute: str) -> tuple[str, ...]:
     """Return non-empty string keys owned by the resolved hook payload policy."""
     raw_keys = getattr(value, attribute, ()) or ()
@@ -200,9 +234,11 @@ def _read_workspace_label(
     policy = hook_payload or _hook_payload_policy(workspace_dir)
     workspace_path = Path(workspace_dir).expanduser()
     workspace_value = data.get("workspace")
-    project_dir = project_root or _first_string(workspace_value, *policy.project_dir_keys) or _first_string(
-        data,
-        *policy.project_dir_keys,
+    project_dir = (
+        project_root
+        or _first_string(workspace_value, *policy.project_dir_keys)
+        or _first_string(data, *policy.project_dir_keys)
+        or _canonical_project_dir_hint(data)
     )
 
     try:
@@ -598,7 +634,10 @@ def main() -> None:
             hook_payload=payload_policy,
         ):
             project_dir_trusted = False
-        statusline_project_root = _statusline_project_root(workspace_dir)
+        statusline_project_root = (
+            _trusted_canonical_project_root(data, workspace_dir)
+            or _statusline_project_root(workspace_dir)
+        )
         if statusline_project_root is not None:
             project_root = str(statusline_project_root)
         elif not project_dir_trusted:

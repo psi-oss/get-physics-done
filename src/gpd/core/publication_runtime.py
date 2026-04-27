@@ -140,7 +140,13 @@ class PublicationReviewArtifacts:
 
     @property
     def complete(self) -> bool:
-        return self.review_ledger is not None and self.referee_decision is not None and self.state == "complete"
+        return (
+            self.review_ledger is not None
+            and self.referee_decision is not None
+            and self.referee_report_md is not None
+            and self.referee_report_tex is not None
+            and self.state == "complete"
+        )
 
     def to_context_dict(self, project_root: Path) -> dict[str, object]:
         return {
@@ -504,6 +510,8 @@ def _review_artifact_state(
     *,
     review_ledger: Path | None,
     referee_decision: Path | None,
+    referee_report_md: Path | None,
+    referee_report_tex: Path | None,
     manuscript_entrypoint: Path | None,
     project_root: Path,
     round_number: int,
@@ -526,6 +534,11 @@ def _review_artifact_state(
             decision = read_referee_decision(referee_decision)
         except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
             return "invalid", f"referee decision could not be loaded: {exc}", ()
+
+    if referee_report_md is None:
+        missing.append("referee_report_md")
+    if referee_report_tex is None:
+        missing.append("referee_report_tex")
 
     if ledger is not None and ledger.round != round_number:
         return (
@@ -759,6 +772,8 @@ def resolve_latest_publication_review_artifacts(
         state, detail, missing_artifacts = _review_artifact_state(
             review_ledger=review_ledger,
             referee_decision=referee_decision,
+            referee_report_md=referee_report_md,
+            referee_report_tex=referee_report_tex,
             manuscript_entrypoint=resolved_manuscript,
             project_root=project_root,
             round_number=round_number,

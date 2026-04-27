@@ -44,7 +44,7 @@ Levels 1-3 can often be checked programmatically. Level 4 requires deeper analys
 Every VERIFICATION.md MUST include at least one Level 5 check — an executed code block with actual output. See `references/verification/core/computational-verification-templates.md` for copy-paste-ready templates.
 </core_principle>
 
-> **Key companion document:** See `../errors/llm-physics-errors.md` for the catalog of 104 LLM-specific physics error classes with detection strategies and traceability matrix.
+> **Key companion documents:** See `../errors/llm-physics-errors.md` for the 104-class error catalog and `../errors/llm-errors-traceability.md` for the traceability matrix.
 
 <dimensional_analysis>
 

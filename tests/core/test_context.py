@@ -1197,6 +1197,19 @@ class TestInitExecutePhase:
         assert ctx["review_cadence"] == "dense"
         assert ctx["checkpoint_after_first_load_bearing_result"] is True
 
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_execute_phase(nested, "1")
+
+        assert ctx["phase_found"] is True
+        assert ctx["phase_number"] == "01"
+        assert ctx["plan_count"] == 1
+
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValidationError, match="phase is required"):
             init_execute_phase(tmp_path, "")
@@ -3586,6 +3599,19 @@ class TestInitVerifyWork:
         assert ctx["phase_found"] is True
         assert ctx["has_verification"] is True
 
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "01-VERIFICATION.md").write_text("verified", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_verify_work(nested, "1")
+
+        assert ctx["phase_found"] is True
+        assert ctx["phase_number"] == "01"
+        assert ctx["has_verification"] is True
+
     def test_stage_session_router_returns_bootstrap_only_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-setup")
@@ -4382,6 +4408,27 @@ class TestInitProgress:
 
         assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
         assert ctx["execution_resumable"] is True
+        assert ctx["has_work_in_progress"] is True
+
+    def test_progress_marks_handoff_only_resume_target_as_work_in_progress(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        resume_file = "GPD/phases/02-analysis/.continue-here.md"
+        resume_path = tmp_path / resume_file
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        state = default_state_dict()
+        state["continuation"]["handoff"]["resume_file"] = resume_file
+        state["continuation"]["handoff"]["stopped_at"] = "2026-03-11T08:00:00+00:00"
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["current_phase"] is None
+        assert ctx["current_execution"] is None
+        assert ctx["execution_resume_file_source"] == "handoff_resume_file"
+        assert ctx["execution_resume_file"] == resume_file
         assert ctx["has_work_in_progress"] is True
 
     def test_progress_normalizes_absolute_live_execution_resume_file(self, tmp_path: Path) -> None:

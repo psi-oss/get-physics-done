@@ -198,6 +198,8 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert snapshot.latest_review_artifacts.round_number == 2
     assert snapshot.latest_review_artifacts.referee_report_md == planning_dir / "REFEREE-REPORT-R2.md"
     assert snapshot.latest_review_artifacts.referee_report_tex == planning_dir / "REFEREE-REPORT-R2.tex"
+    assert snapshot.latest_review_artifacts.state == "complete"
+    assert snapshot.latest_review_artifacts.complete is True
     assert snapshot.latest_response_artifacts is not None
     assert snapshot.latest_response_artifacts.round_number == 2
     assert snapshot.latest_response_artifacts.author_response == planning_dir / "AUTHOR-RESPONSE-R2.md"
@@ -237,6 +239,31 @@ def test_publication_runtime_marks_review_round_invalid_when_ledger_content_roun
     assert snapshot.latest_review_artifacts.round_number == 2
     assert snapshot.latest_review_artifacts.state == "invalid"
     assert "review ledger round 1 does not match review artifact round 2" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_requires_referee_reports_for_complete_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+    context = publication_runtime_snapshot_context(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_review_artifacts.state == "partial"
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.missing_artifacts == ("referee_report_md", "referee_report_tex")
+    assert "missing review artifact(s): referee_report_md, referee_report_tex" in (
+        snapshot.latest_review_artifacts.detail
+    )
+    assert context["latest_review_artifacts"]["complete"] is False
+    assert context["latest_review_artifacts"]["missing_artifacts"] == ["referee_report_md", "referee_report_tex"]
 
 
 def test_publication_runtime_does_not_fall_back_past_malformed_latest_review_round(

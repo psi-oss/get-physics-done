@@ -244,6 +244,19 @@ class TestStatusMetadata:
         label = _read_workspace_label({"workspace": {"project_dir": str(project)}}, str(current))
         assert label == "[project/src/gpd]"
 
+    def test_read_workspace_label_uses_top_level_project_dir_with_sparse_policy(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        current = project / "src" / "gpd"
+        current.mkdir(parents=True)
+
+        label = _read_workspace_label(
+            {"project_dir": str(project)},
+            str(current),
+            hook_payload=SimpleNamespace(project_dir_keys=()),
+        )
+
+        assert label == "[project/src/gpd]"
+
     def test_read_workspace_label_prefers_resolved_project_root_argument(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
         current = project / "src" / "gpd"

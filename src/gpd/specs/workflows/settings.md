@@ -87,9 +87,9 @@ Project conventions do **not** live in `GPD/config.json`. Do not invent or prese
   </step>
 
 <step name="determine_runtime_for_model_overrides">
-Infer the active runtime before prompting for explicit model IDs.
+Infer the active runtime identifier before prompting for explicit model IDs.
 
-Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install. For GPD-owned model resolution surfaces, prefer the runtime with a concrete GPD install when a higher-priority runtime appears active but is not actually installed for this workspace.
+Shared active-runtime rule: infer the active runtime identifier from command syntax, tool names, environment, and local runtime config directories; for GPD-owned model resolution surfaces, prefer a runtime with a concrete GPD install over a higher-priority hint that is not installed for this workspace.
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
 

@@ -46,6 +46,20 @@ GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
 CACHE_DIR_NAME = "cache"
 UPDATE_CACHE_FILENAME = "gpd-update-check.json"
 
+# Top-level manifest fields owned by the shared install contract. Adapter
+# metadata may add runtime-specific keys, but it must not rewrite these.
+_RESERVED_MANIFEST_METADATA_KEYS = frozenset(
+    {
+        "version",
+        "timestamp",
+        "runtime",
+        "install_scope",
+        "install_target_dir",
+        "explicit_target",
+        "files",
+    }
+)
+
 # Subdirectories of specs/ that make up the installed get-physics-done/ content.
 # Shared by all adapters.
 GPD_CONTENT_DIRS = ("references", "templates", "workflows")
@@ -1709,6 +1723,12 @@ def write_manifest(
 
     Returns the manifest dict.
     """
+    if metadata:
+        colliding_keys = sorted(set(metadata) & _RESERVED_MANIFEST_METADATA_KEYS)
+        if colliding_keys:
+            keys = ", ".join(colliding_keys)
+            raise ValueError(f"Install manifest metadata cannot override reserved keys: {keys}")
+
     config_dir = Path(config_dir)
     gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
     commands_dir = config_dir / "commands" / "gpd"

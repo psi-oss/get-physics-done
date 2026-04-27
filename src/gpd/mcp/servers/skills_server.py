@@ -96,7 +96,9 @@ _REFERENCE_PREFIX_SPECS: tuple[_ReferencePrefixSpec, ...] = (
     _ReferencePrefixSpec("publication/", "@{GPD_INSTALL_DIR}/publication/", _SPEC_ROOT / "publication", "reference"),
     _ReferencePrefixSpec("protocols/", "@{GPD_INSTALL_DIR}/protocols/", _SPEC_ROOT / "protocols", "reference"),
     _ReferencePrefixSpec("subfields/", "@{GPD_INSTALL_DIR}/subfields/", _SPEC_ROOT / "subfields", "reference"),
-    _ReferencePrefixSpec("orchestration/", "@{GPD_INSTALL_DIR}/orchestration/", _SPEC_ROOT / "orchestration", "reference"),
+    _ReferencePrefixSpec(
+        "orchestration/", "@{GPD_INSTALL_DIR}/orchestration/", _SPEC_ROOT / "orchestration", "reference"
+    ),
     _ReferencePrefixSpec("commands/", "@{GPD_INSTALL_DIR}/commands/", _COMMAND_ROOT, "command"),
     _ReferencePrefixSpec("agents/", "@{GPD_AGENTS_DIR}/", _AGENT_ROOT, "agent"),
     _ReferencePrefixSpec("docs/", "@GPD/docs/", _REPO_ROOT / "docs", "docs", allow_missing=True),
@@ -113,6 +115,8 @@ def _markdown_reference_re() -> re.Pattern[str]:
         r"(?P<path>(?:@?\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
         rf"(?:{relative_prefixes}|GPD/|src/gpd/))[^\s`\"')]+?\.md)"
     )
+
+
 _SKILL_BEHAVIORAL_GUARDRAIL_HINT = (
     "Use scientific skepticism and critical thinking without treating the user as an adversary. Treat missing "
     "evidence or artifacts as missing, blocked, failed, or inconclusive, and never fabricate references, results, "
@@ -160,7 +164,14 @@ def _public_skill(skill: content_registry.SkillDef) -> dict[str, str]:
     }
 
 
-def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_documents: bool) -> str:
+def _skill_loading_hint(
+    *,
+    source_kind: str,
+    referenced_files: bool,
+    reference_documents: bool,
+    transitive_reference_documents: bool = False,
+    include_transitive_reference_bodies: bool = False,
+) -> str:
     """Return a concise, content-first loading hint for a skill payload."""
     if reference_documents:
         dependency_hint = (
@@ -170,11 +181,15 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
         )
     elif referenced_files:
         dependency_hint = (
-            "Treat `content` as the wrapper/context surface. See `referenced_files` for external "
-            "markdown dependencies."
+            "Treat `content` as the wrapper/context surface. See `referenced_files` for external markdown dependencies."
         )
     else:
         dependency_hint = "Treat `content` as the wrapper/context surface."
+    if transitive_reference_documents and not include_transitive_reference_bodies:
+        dependency_hint = (
+            f"{dependency_hint} Transitive schema/contract document entries are metadata-only by default; "
+            "set `include_transitive_reference_bodies=true` when their markdown bodies are needed."
+        )
     if source_kind == "command":
         return (
             f"{dependency_hint} It already embeds the model-visible `Command Requirements` section. "
@@ -188,7 +203,9 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
     return f"{dependency_hint} {_SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
 
 
-def _skill_review_contract_payload(review_contract: content_registry.ReviewCommandContract | None) -> dict[str, object] | None:
+def _skill_review_contract_payload(
+    review_contract: content_registry.ReviewCommandContract | None,
+) -> dict[str, object] | None:
     """Return the canonical MCP payload for a command review contract."""
     if review_contract is None:
         return None
@@ -412,7 +429,11 @@ def _portable_reference_path(raw_path: str, *, base_path: Path | None = None) ->
 
     if candidate.startswith("@{GPD_INSTALL_DIR}/") or candidate.startswith("{GPD_INSTALL_DIR}/"):
         relative = candidate.split("}/", 1)[1]
-        resolved = _SPEC_ROOT / relative if not relative.startswith("commands/") else _COMMAND_ROOT / relative.removeprefix("commands/")
+        resolved = (
+            _SPEC_ROOT / relative
+            if not relative.startswith("commands/")
+            else _COMMAND_ROOT / relative.removeprefix("commands/")
+        )
         normalized = _normalize_resolved_path(resolved)
         return normalized
 
@@ -563,7 +584,7 @@ def _is_contract_reference(path: str) -> bool:
     return any(token in document_type for token in ("contract", "protocol", "reliability"))
 
 
-def _load_reference_document(path: str, *, kind: str) -> dict[str, object]:
+def _load_reference_document(path: str, *, kind: str, include_body: bool = True) -> dict[str, object]:
     document: dict[str, object] = {
         "path": path,
         "name": Path(path).name,
@@ -586,7 +607,8 @@ def _load_reference_document(path: str, *, kind: str) -> dict[str, object]:
         return document
 
     frontmatter, body, parse_error = parse_frontmatter_with_error(content)
-    document["body"] = body
+    if include_body:
+        document["body"] = body
     if frontmatter:
         document["frontmatter"] = frontmatter
     if parse_error is not None:
@@ -598,11 +620,15 @@ def _expanded_reference_documents(
     referenced_files: list[dict[str, object]],
     *,
     predicate: Callable[[str], bool],
+    include_bodies: bool = True,
 ) -> tuple[list[str], list[dict[str, object]]]:
     selected = [entry for entry in referenced_files if predicate(entry["path"])]
     return (
         [entry["path"] for entry in selected],
-        [_load_reference_document(entry["path"], kind=entry["kind"]) for entry in selected],
+        [
+            _load_reference_document(entry["path"], kind=entry["kind"], include_body=include_bodies)
+            for entry in selected
+        ],
     )
 
 
@@ -645,18 +671,29 @@ def list_skills(
 
 
 @mcp.tool()
-def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
+def get_skill(
+    name: Annotated[str, Field(min_length=1, pattern=r"\S")],
+    include_transitive_reference_bodies: bool = False,
+) -> dict:
     """Get the full content of a canonical skill definition.
 
     Returns the skill prompt and metadata for injection into agent context.
 
     Args:
         name: Skill name (e.g., "gpd-execute-phase", "gpd-plan-phase").
+        include_transitive_reference_bodies: Include markdown bodies for transitive schema/contract
+            reference documents. Defaults to metadata-only transitive documents to keep MCP payloads small.
     """
     if not isinstance(name, str) or not name.strip():
         return stable_mcp_response(error="name must be a non-empty string")
+    if not isinstance(include_transitive_reference_bodies, bool):
+        return stable_mcp_response(error="include_transitive_reference_bodies must be a boolean")
 
-    with gpd_span("mcp.skills.get", skill_name=name):
+    with gpd_span(
+        "mcp.skills.get",
+        skill_name=name,
+        include_transitive_reference_bodies=include_transitive_reference_bodies,
+    ):
         try:
             skill = _resolve_skill(name)
             if skill is None:
@@ -682,18 +719,19 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
             transitive_schema_references, transitive_schema_documents = _expanded_reference_documents(
                 transitive_referenced_files,
                 predicate=_is_schema_reference,
+                include_bodies=include_transitive_reference_bodies,
             )
             transitive_contract_references, transitive_contract_documents = _expanded_reference_documents(
                 transitive_referenced_files,
                 predicate=lambda path: _is_contract_reference(path) and not _is_schema_reference(path),
+                include_bodies=include_transitive_reference_bodies,
             )
             loading_hint = _skill_loading_hint(
                 source_kind=skill.source_kind,
                 referenced_files=bool(referenced_files),
-                reference_documents=bool(
-                    schema_documents
-                    or contract_documents
-                ),
+                reference_documents=bool(schema_documents or contract_documents),
+                transitive_reference_documents=bool(transitive_schema_documents or transitive_contract_documents),
+                include_transitive_reference_bodies=include_transitive_reference_bodies,
             )
             payload = {
                 "name": skill.name,

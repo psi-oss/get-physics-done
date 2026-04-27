@@ -10,7 +10,7 @@ context_cost: medium
 
 # LLM Error Traceability Matrix
 
-Extracted from `references/verification/errors/llm-physics-errors.md` for lightweight loading. Maps each error class to the verification checks most likely to catch it.
+Companion index for `references/verification/errors/llm-physics-errors.md`. Maps each error class to the verification checks most likely to catch it.
 
 **Full catalog:** See `references/verification/errors/llm-physics-errors.md` (index) for detailed descriptions, detection strategies, and examples of all 104 error classes across 4 part files.
 
@@ -148,7 +148,7 @@ The most dangerous errors produce plausible-looking results:
 - **CRITICAL (0-1 layers):** 11 (hallucinated identities), 13 (BC hallucination)
 - **HIGH danger (plausible wrong results, core):** 3, 5, 9, 17, 21, 42
 - **HIGH danger (extended/deep):** 52 (NR constraints), 63 (GW templates), 71 (Berry phase), 72 (gauge leakage), 76 (Debye resolution), 77 (kinetic/fluid mismatch), 87 (reconnection topology)
-- **HIGH danger (uncataloged):** 102 (catastrophic cancellation), 103 (functional Jacobian), 104 (IR safety)
+- **HIGH danger (extended):** 102 (catastrophic cancellation), 103 (functional Jacobian), 104 (IR safety)
 - **Caught by consistency (sign/factor errors):** 7, 12, 22, 36, 37
 - **Caught by dimensional analysis:** 2, 6, 8, 15, 19, 33, 41, 64
 - **Caught by substitution:** 13, 14, 16, 18, 43, 46

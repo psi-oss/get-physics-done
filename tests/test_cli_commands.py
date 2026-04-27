@@ -1475,6 +1475,47 @@ class TestInitCommands:
         assert payload["roadmap_exists"] is True
         assert payload["state_exists"] is True
 
+    def test_init_resume_raw_unknown_stage_reports_clean_error(self, gpd_project: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "init", "resume", "--stage", "bogus"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["error"].startswith("Unknown resume-work stage 'bogus'.")
+        assert "Traceback" not in result.output
+
+    @pytest.mark.parametrize(
+        ("command_args", "expected_keys"),
+        [
+            (["init", "execute-phase", "1"], {"phase_found": True, "phase_number": "01", "plan_count": 0}),
+            (["init", "verify-work", "1"], {"phase_found": True, "phase_number": "01", "has_verification": True}),
+        ],
+    )
+    def test_project_scoped_init_phase_commands_resolve_ancestor_project_root(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_args: list[str],
+        expected_keys: dict[str, object],
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), *command_args],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        for key, expected in expected_keys.items():
+            assert payload[key] == expected
+
     def test_init_progress_resolves_ancestor_project_root_from_nested_workspace(
         self,
         gpd_project: Path,

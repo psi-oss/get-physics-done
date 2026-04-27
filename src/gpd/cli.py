@@ -5248,7 +5248,11 @@ def init_resume(
     """Assemble context for resuming previous work."""
     from gpd.core.context import init_resume
 
-    _output(init_resume(_get_cwd(), stage=stage))
+    try:
+        payload = init_resume(_get_cwd(), stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
 
 
 @init_app.command("sync-state")

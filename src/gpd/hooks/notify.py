@@ -52,6 +52,53 @@ def _first_string(value: object, *keys: str) -> str:
     return ""
 
 
+def _canonical_project_dir_hint(data: dict[str, object]) -> str:
+    """Return the canonical project-dir hint accepted across hook payloads."""
+    workspace_value = data.get("workspace")
+    return _first_string(workspace_value, "project_dir") or _first_string(data, "project_dir")
+
+
+def _trusted_canonical_project_root(data: dict[str, object], workspace_dir: str) -> str | None:
+    """Return a canonical payload project root when it is a real ancestor project."""
+    project_dir = _canonical_project_dir_hint(data)
+    if not project_dir:
+        return None
+
+    workspace_path = Path(workspace_dir).expanduser()
+    project_path = Path(project_dir).expanduser()
+    try:
+        resolved_workspace = workspace_path.resolve(strict=False)
+        resolved_project = project_path.resolve(strict=False)
+    except OSError:
+        resolved_workspace = workspace_path
+        resolved_project = project_path
+
+    try:
+        resolved_workspace.relative_to(resolved_project)
+    except ValueError:
+        return None
+
+    resolution = resolve_project_roots(str(resolved_workspace), project_dir=str(resolved_project))
+    if resolution is None or resolution.project_root != resolved_project:
+        return None
+    if resolution.has_project_layout or ProjectLayout(resolved_project).gpd.is_dir():
+        return str(resolved_project)
+    return None
+
+
+def _trusted_side_effect_project_root(
+    data: dict[str, object],
+    *,
+    workspace_dir: str,
+    project_root: str,
+    project_dir_trusted: bool,
+) -> str | None:
+    """Return the project root that should own project side effects, when trusted."""
+    if project_dir_trusted and project_root:
+        return str(Path(project_root).expanduser().resolve(strict=False))
+    return _trusted_canonical_project_root(data, workspace_dir)
+
+
 def _has_project_layout(cwd: str) -> bool:
     return _notification_project_root(cwd) is not None
 
@@ -337,11 +384,22 @@ def main() -> None:
         project_dir_present = roots.project_dir_present
         project_dir_trusted = roots.project_dir_trusted
         payload_policy = _hook_payload_policy(workspace_dir)
-        if project_dir_trusted is True and _workspace_mapping_prefers_local_notify_lookup(
+        prefer_local_notify_lookup = project_dir_trusted is True and _workspace_mapping_prefers_local_notify_lookup(
             data,
             hook_payload=payload_policy,
-        ):
+        )
+        if prefer_local_notify_lookup:
             project_dir_trusted = False
+        side_effect_project_root = (
+            None
+            if prefer_local_notify_lookup
+            else _trusted_side_effect_project_root(
+                data,
+                workspace_dir=workspace_dir,
+                project_root=project_root,
+                project_dir_trusted=project_dir_trusted,
+            )
+        )
         runtime_roots = SimpleNamespace(
             workspace_dir=workspace_dir,
             project_root=project_root,
@@ -356,6 +414,7 @@ def main() -> None:
         )
         runtime_lookup_dir = runtime_lookup.lookup_dir
         hook_payload = _hook_payload_policy(runtime_lookup_dir)
+        side_effect_dir = side_effect_project_root or runtime_lookup_dir
         allowed_event_types = hook_payload.notify_event_types
         event_type = data.get("type")
         if allowed_event_types and event_type not in allowed_event_types:
@@ -363,12 +422,12 @@ def main() -> None:
         _record_usage_telemetry(
             data,
             workspace_dir=workspace_dir,
-            project_root=project_root,
+            project_root=side_effect_project_root or (runtime_lookup_dir if prefer_local_notify_lookup else project_root),
             active_runtime=runtime_lookup.active_runtime,
         )
-        _trigger_update_check(runtime_lookup_dir)
-        _check_and_notify_update(runtime_lookup_dir)
-        _emit_execution_notification(runtime_lookup_dir)
+        _trigger_update_check(side_effect_dir)
+        _check_and_notify_update(side_effect_dir)
+        _emit_execution_notification(side_effect_dir)
     except Exception as exc:
         _debug(f"notify handler failed: {exc}")
 

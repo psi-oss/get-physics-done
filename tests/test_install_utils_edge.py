@@ -1359,6 +1359,59 @@ class TestInstallBackupSafety:
 
         assert "hooks/statusline.py" in manifest["files"]
 
+    @pytest.mark.parametrize(
+        "reserved_key",
+        [
+            "version",
+            "timestamp",
+            "runtime",
+            "install_scope",
+            "install_target_dir",
+            "explicit_target",
+            "files",
+        ],
+    )
+    def test_write_manifest_rejects_metadata_that_overrides_reserved_contract_fields(
+        self, tmp_path: Path, reserved_key: str
+    ) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+
+        with pytest.raises(ValueError, match=f"reserved keys: {reserved_key}"):
+            write_manifest(config_dir, "1.0.0", metadata={reserved_key: "adapter-owned"})
+
+        assert not (config_dir / _SHARED_INSTALL.manifest_name).exists()
+
+    def test_write_manifest_persists_allowed_adapter_metadata(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".codex"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        version_file = config_dir / "get-physics-done" / "VERSION"
+        version_file.write_text("1.0.0", encoding="utf-8")
+
+        metadata = {
+            "managed_config": {"experimental.enableAgents": True},
+            "codex_generated_skill_dirs": ["gpd-help"],
+        }
+
+        manifest = write_manifest(
+            config_dir,
+            "1.0.0",
+            runtime="codex",
+            install_scope="local",
+            explicit_target=False,
+            metadata=metadata,
+        )
+        persisted = json.loads((config_dir / _SHARED_INSTALL.manifest_name).read_text(encoding="utf-8"))
+
+        assert manifest["version"] == "1.0.0"
+        assert manifest["runtime"] == "codex"
+        assert manifest["install_scope"] == "local"
+        assert manifest["explicit_target"] is False
+        assert manifest["managed_config"] == {"experimental.enableAgents": True}
+        assert manifest["codex_generated_skill_dirs"] == ["gpd-help"]
+        assert persisted == manifest
+        assert "get-physics-done/VERSION" in persisted["files"]
+
     def test_manifest_hook_tracking_skips_untrusted_relpaths(self, tmp_path: Path) -> None:
         config_dir = tmp_path / ".claude"
         config_dir.mkdir()
