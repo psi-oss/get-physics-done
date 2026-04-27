@@ -270,6 +270,11 @@ def test_public_release_surfaces_share_agentic_system_positioning() -> None:
     assert "Open-source agentic AI system for physics research" in installer
 
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
+    """
+    Verify the public npm bootstrap package exposes the npx installer and includes required bootstrap assets.
+    
+    Asserts that package.json declares the package name "get-physics-done", contains the expected repository object, provides a `get-physics-done` bin entry pointing to `bin/install.js`, includes `bin/` and the set of bootstrap JSON asset filenames in its `files` list, and that `bin/install.js` exists in the repository.
+    """
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
     packaged_files = set(package_json.get("files", []))
@@ -419,6 +424,11 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
 
 
 def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_commit() -> None:
+    """
+    Verify the repository's publish-release GitHub Actions workflow is an admin-run, manual-after-merge flow that uses trusted publishing and required guarded steps.
+    
+    Checks include: the workflow is manual (`workflow_dispatch`) and described as admin-owned, uses an identity token (`id-token: write`), includes `skip-existing: true`, pins Node to "24", contains setup and publish steps for Python and npm, ensures an npm auth step named `npm` does not reference `NODE_AUTH_TOKEN` or `NPM_TOKEN`, and invokes `npm publish` and GitHub release creation tied to the release commit.
+    """
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
 
