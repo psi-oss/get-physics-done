@@ -67,6 +67,15 @@ def _assert_contains_fragments(text: str, *fragments: str) -> None:
     assert not missing, "Missing expected prompt fragments:\n" + "\n".join(missing)
 
 
+def _assert_workflow_calls_staged_init_for_manifest_stages(workflow_id: str, workflow_text: str) -> None:
+    staged_loading = registry.get_command(workflow_id).staged_loading
+
+    assert staged_loading is not None
+    for stage_id in staged_loading.stage_ids():
+        pattern = rf"gpd --raw init {re.escape(workflow_id)}(?: \"\$[A-Z_]+\")? --stage {re.escape(stage_id)}"
+        assert re.search(pattern, workflow_text), f"missing staged init call for {workflow_id}:{stage_id}"
+
+
 COMMAND_SPAWN_TOKENS = {
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
     "debug.md": ["gpd-debugger"],
@@ -3363,6 +3372,32 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
         assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in content
 
 
+def test_staged_publication_and_quick_workflow_prompts_match_executable_init_paths() -> None:
+    write_paper_workflow = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    peer_review_workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    quick_workflow = (WORKFLOWS_DIR / "quick.md").read_text(encoding="utf-8")
+    arxiv_workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    arxiv_staging = registry.get_command("arxiv-submission").staged_loading
+
+    _assert_workflow_calls_staged_init_for_manifest_stages("write-paper", write_paper_workflow)
+    _assert_workflow_calls_staged_init_for_manifest_stages("peer-review", peer_review_workflow)
+    _assert_workflow_calls_staged_init_for_manifest_stages("quick", quick_workflow)
+
+    assert arxiv_staging is not None
+    assert arxiv_staging.stage_ids() == (
+        "bootstrap",
+        "manuscript_preflight",
+        "review_gate",
+        "package",
+        "finalize",
+    )
+    assert "metadata-only for the prompt path today" in arxiv_workflow
+    assert "no public staged init CLI command" in arxiv_workflow
+    assert "gpd --raw init arxiv-submission" not in arxiv_workflow
+    assert "gpd --raw validate command-context arxiv-submission" in arxiv_workflow
+    assert "gpd --raw validate review-preflight arxiv-submission" in arxiv_workflow
+
+
 def test_research_verification_body_scaffold_keeps_body_only_subject_labels_distinct() -> None:
     research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
 
@@ -4247,7 +4282,9 @@ def test_stage7_runtime_parity_docs_use_canonical_model_resolution_and_generic_h
     assert "False failure report despite delivered work" in execute_phase
     assert "Handoff verification" in quick
     assert "First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions." in quick
-    assert "supports staged planner loading when available" in quick
+    assert "loads staged quick init at the task-bootstrap and task-authoring boundaries" in quick
+    assert 'gpd --raw init quick "$DESCRIPTION" --stage task_bootstrap' in quick
+    assert 'gpd --raw init quick "$DESCRIPTION" --stage task_authoring' in quick
     assert "project_contract_load_info.status" in quick
     assert "project_contract_validation.valid" in quick
     assert "project_contract_validation" in quick
@@ -4676,10 +4713,7 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
         "In `project-backed manuscript review`, resolve the manuscript entrypoint under `paper/`, `manuscript/`, or "
         "`draft/`" in peer_review_workflow
     )
-    assert (
-        'INIT=$(gpd --raw init peer-review "$REVIEW_TARGET")'
-        in peer_review_workflow
-    )
+    assert 'gpd --raw init peer-review "$REVIEW_TARGET" --stage bootstrap' in peer_review_workflow
     assert (
         "When the user explicitly points at `.docx`, `.csv`, `.tsv`, or `.xlsx`, treat it as an explicit "
         "external-artifact intake surface only; do not widen the default `paper/`, `manuscript/`, or `draft/` "

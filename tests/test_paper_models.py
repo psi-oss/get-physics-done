@@ -13,11 +13,17 @@ from gpd.mcp.paper.models import (
     REQUIRED_GPD_ACKNOWLEDGMENT,
     ArtifactManifest,
     Author,
+    ClaimIndex,
     FigureRef,
     JournalSpec,
     PaperConfig,
     PublicationPathSemantics,
+    ReviewConfidence,
+    ReviewLedger,
+    ReviewRecommendation,
+    ReviewStageKind,
     Section,
+    StageReviewReport,
 )
 
 # ---- Model validation tests ----
@@ -530,3 +536,41 @@ def test_publication_path_semantics_derives_project_and_subject_relative_views(t
     assert semantics.manuscript_root_path == "paper"
     assert semantics.manuscript_entrypoint_path == "paper/sections/main.tex"
     assert semantics.subject_relative_entrypoint_path == "sections/main.tex"
+
+
+@pytest.mark.parametrize(
+    ("model_cls", "payload"),
+    [
+        (
+            ClaimIndex,
+            {"version": 1, "manuscript_sha256": "a" * 64, "claims": []},
+        ),
+        (
+            StageReviewReport,
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "reader",
+                "stage_kind": ReviewStageKind.reader,
+                "manuscript_sha256": "a" * 64,
+                "claims_reviewed": [],
+                "summary": "Reviewed.",
+                "confidence": ReviewConfidence.high,
+                "recommendation_ceiling": ReviewRecommendation.minor_revision,
+            },
+        ),
+        (
+            ReviewLedger,
+            {"version": 1, "round": 1, "issues": []},
+        ),
+    ],
+)
+def test_review_manuscript_path_models_share_nonempty_normalization(
+    model_cls: type[ClaimIndex] | type[StageReviewReport] | type[ReviewLedger],
+    payload: dict[str, object],
+) -> None:
+    parsed = model_cls.model_validate({**payload, "manuscript_path": "  paper/main.tex  "})
+    assert parsed.manuscript_path == "paper/main.tex"
+
+    with pytest.raises(ValidationError, match=r"manuscript_path[\s\S]*must be non-empty"):
+        model_cls.model_validate({**payload, "manuscript_path": "   "})

@@ -12522,15 +12522,20 @@ def install(
 
     if not _raw:
         console.print(f"\n[bold]Runtime readiness preflight for: {_format_runtime_list(selected)}[/]")
-        for runtime_name in selected:
-            display_name = _get_adapter_or_error(runtime_name, action="install readiness").display_name
-            advisories = preflight_advisories.get(runtime_name, [])
-            if advisories:
-                console.print(f"- {display_name}: readiness check passed with advisories.")
-                for advisory in advisories:
-                    console.print(f"  - {advisory}")
-            else:
-                console.print(f"- {display_name}: readiness check passed.")
+        if skip_readiness_check:
+            for runtime_name in selected:
+                display_name = _get_adapter_or_error(runtime_name, action="install readiness").display_name
+                console.print(f"- {display_name}: readiness check skipped.")
+        else:
+            for runtime_name in selected:
+                display_name = _get_adapter_or_error(runtime_name, action="install readiness").display_name
+                advisories = preflight_advisories.get(runtime_name, [])
+                if advisories:
+                    console.print(f"- {display_name}: readiness check passed with advisories.")
+                    for advisory in advisories:
+                        console.print(f"  - {advisory}")
+                else:
+                    console.print(f"- {display_name}: readiness check passed.")
         console.print()
         console.print(f"\n[bold]Installing GPD ({location_label}) for: {_format_runtime_list(selected)}[/]\n")
 

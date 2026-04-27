@@ -1139,7 +1139,12 @@ class TestCheckGitStatus:
 class TestCheckCheckpointTags:
     def test_non_git_dir(self, tmp_path: Path):
         completed = subprocess.CompletedProcess(
-            args=["git", "tag", "-l", "gpd-checkpoint-*"],
+            args=[
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)%00%(creatordate:unix)",
+                "refs/tags/gpd-checkpoint-*",
+            ],
             returncode=128,
             stdout="",
             stderr="fatal: not a git repository (or any of the parent directories): .git",
@@ -1153,11 +1158,17 @@ class TestCheckCheckpointTags:
         assert any("not a git repository" in warning for warning in result.warnings)
 
     def test_warns_on_stale_checkpoint_tags(self, tmp_path: Path):
+        calls: list[list[str]] = []
+
         def _run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-            if args[:3] == ["git", "tag", "-l"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\n", stderr="")
-            if args[:4] == ["git", "log", "-1", "--format=%ct"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
+            calls.append(args)
+            if args[:2] == ["git", "for-each-ref"]:
+                return subprocess.CompletedProcess(
+                    args=args,
+                    returncode=0,
+                    stdout="gpd-checkpoint-old\x000\n",
+                    stderr="",
+                )
             raise AssertionError(f"Unexpected args: {args}")
 
         with patch("gpd.core.health.subprocess.run", side_effect=_run):
@@ -1165,6 +1176,14 @@ class TestCheckCheckpointTags:
 
         assert result.status == CheckStatus.WARN
         assert result.details["stale_tags"] == ["gpd-checkpoint-old"]
+        assert calls == [
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)%00%(creatordate:unix)",
+                "refs/tags/gpd-checkpoint-*",
+            ]
+        ]
         assert any("older than" in warning for warning in result.warnings)
 
 
@@ -1340,6 +1359,43 @@ class TestCheckStateValidityProjectContract:
         assert not any(issue.startswith("project_contract: ") for issue in result.issues)
         assert not any(warning.startswith("project_contract: ") for warning in result.warnings)
 
+    def test_nested_workspace_state_validity_uses_resolved_project_root(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        nested = cwd / "scratch" / "notes"
+        nested.mkdir(parents=True)
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        artifact = cwd / "artifacts" / "benchmark" / "report.json"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text('{"status": "ok"}\n', encoding="utf-8")
+
+        contract["references"][0]["kind"] = "prior_artifact"
+        contract["references"][0]["locator"] = "artifacts/benchmark/report.json"
+        contract["references"][0]["role"] = "benchmark"
+        contract["references"][0]["must_surface"] = True
+        contract["references"][0]["applies_to"] = ["claim-benchmark"]
+        contract["references"][0]["required_actions"] = ["compare"]
+        contract["context_intake"] = {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+
+        state = default_state_dict()
+        state["project_contract"] = contract
+        save_state_json(cwd, state)
+        (cwd / "GPD" / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+        result = check_state_validity(nested)
+
+        assert result.details["has_json"] is True
+        assert result.details["has_md"] is True
+        assert not any(issue.startswith("state.json not found") for issue in result.issues)
+        assert not any(issue.startswith("project_contract: ") for issue in result.issues)
+        assert not any(warning.startswith("project_contract: ") for warning in result.warnings)
+
     def test_draft_invalid_project_contract_is_promoted_during_health_approval_checks(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         state = default_state_dict()
@@ -1469,10 +1525,8 @@ class TestRunHealth:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
             if args[:3] == ["git", "check-ignore", "--quiet"]:
                 return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
-            if args[:3] == ["git", "tag", "-l"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\n", stderr="")
-            if args[:4] == ["git", "log", "-1", "--format=%ct"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
+            if args[:2] == ["git", "for-each-ref"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\x000\n", stderr="")
             if args[:3] == ["git", "tag", "-d"]:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="Deleted tag\n", stderr="")
             raise AssertionError(f"Unexpected args: {args}")

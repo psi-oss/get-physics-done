@@ -2391,6 +2391,31 @@ def test_validate_project_contract_rejects_invalid_forbidden_proxy_and_link_bind
     assert "link link-01 references unknown acceptance test missing-test" in result.errors
 
 
+def test_validate_project_contract_accepts_link_endpoints_for_all_contract_node_types() -> None:
+    contract = _load_contract_fixture()
+    contract["links"] = [
+        {
+            "id": "link-observable-to-proxy",
+            "source": "obs-benchmark",
+            "target": "fp-01",
+            "relation": "depends_on",
+            "verified_by": ["test-benchmark"],
+        },
+        {
+            "id": "link-reference-to-test",
+            "source": "ref-benchmark",
+            "target": "test-benchmark",
+            "relation": "benchmarks",
+            "verified_by": ["test-benchmark"],
+        },
+    ]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is True
+    assert not any(error.startswith("link ") for error in result.errors)
+
+
 def test_validate_project_contract_reports_nested_object_schema_errors() -> None:
     contract = _load_contract_fixture()
     contract["observables"] = ["benchmark observable"]

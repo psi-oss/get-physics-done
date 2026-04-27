@@ -16,6 +16,13 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def test_execution_lineage_does_not_export_a_separate_append_helper() -> None:
+    import gpd.core.execution_lineage as execution_lineage
+
+    assert "append_execution_lineage_entry" not in execution_lineage.__all__
+    assert not hasattr(execution_lineage, "append_execution_lineage_entry")
+
+
 def test_execution_stream_appends_rows_and_reducer_stays_in_parity(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
@@ -187,6 +194,62 @@ def test_execution_finish_appends_clear_row_and_removes_derived_head(tmp_path: P
     assert lineage_rows[-1]["head_effect"] == "clear"
     assert lineage_rows[-1]["head_after"] is None
     assert not layout.execution_lineage_head.exists()
+    assert get_current_execution(project) is None
+
+
+def test_get_current_execution_honors_clear_lineage_when_head_cache_is_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="06",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-clear"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="finish",
+        status="ok",
+        command="execute-phase",
+        phase="06",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_status": "completed"}},
+    )
+
+    layout = ProjectLayout(project)
+    layout.current_observability_execution.write_text(
+        json.dumps(
+            {
+                "session_id": "stale-session",
+                "phase": "06",
+                "plan": "01",
+                "segment_id": "seg-clear",
+                "segment_status": "waiting_review",
+                "current_task": "Stale snapshot task",
+                "updated_at": "2026-03-29T12:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
     assert get_current_execution(project) is None
 
 

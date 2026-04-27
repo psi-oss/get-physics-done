@@ -405,7 +405,9 @@ def _read_current_execution_raw(layout: ProjectLayout) -> dict[str, object] | No
 
 def _current_execution_snapshot(layout: ProjectLayout) -> CurrentExecutionState | None:
     head_snapshot = load_execution_lineage_head(layout.root)
-    if head_snapshot is not None and isinstance(head_snapshot.execution, dict):
+    if head_snapshot is not None:
+        if head_snapshot.execution is None:
+            return None
         try:
             return CurrentExecutionState.model_validate(head_snapshot.execution)
         except Exception:

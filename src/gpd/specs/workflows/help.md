@@ -1074,11 +1074,11 @@ Usage: `gpd:slides -- "20 minute seminar for condensed matter theorists"`
 View accumulated physics error patterns for this project.
 
 - Shows common mistakes discovered during debugging and verification
-- Optional category filter (sign, dimension, approximation, etc.)
+- Category filters use the pattern-library names, such as `sign-error`, `factor-error`, `convention-pitfall`, `convergence-issue`, `approximation-failure`, `numerical-instability`, `conceptual-error`, or `dimensional-error`
 - Helps avoid repeating known pitfalls
 
 Usage: `gpd:error-patterns`
-Usage: `gpd:error-patterns sign`
+Usage: `gpd:error-patterns sign-error`
 
 **`gpd:record-backtrack [description]`**
 Capture a backtrack event so the planner can avoid repeating the same mistake.

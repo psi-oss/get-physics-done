@@ -258,7 +258,7 @@ If `HEALTH.summary.warn > 0` or `HEALTH.summary.fail > 0`, append a summary:
 
 ```
 ## System Health
-{warn_count} warning(s), {fail_count} failure(s) detected. Run `gpd health --fix` to auto-repair what it can.
+{warn_count} warning(s), {fail_count} failure(s) detected. Run `gpd:health --fix` to auto-repair what it can.
 ```
 
 </step>

@@ -37,8 +37,10 @@ _BOOTSTRAP_JSON_ASSETS = (
     "src/gpd/core/public_surface_contract.json",
     "src/gpd/core/public_surface_contract_schema.json",
 )
-_EXPECTED_OPTIONAL_DEPENDENCIES = {"arxiv": ["arxiv-mcp-server>=0.4.11", "pypdf>=5.0"]}
-_OPTIONAL_UNDECLARED_PUBLICATION_IMPORTS = {
+_EXPECTED_OPTIONAL_DEPENDENCIES = {
+    "arxiv": ["arxiv-mcp-server>=0.4.11", "arxiv>=2.4.1", "cairosvg>=2.7.0", "pypdf>=5.0"]
+}
+_OPTIONAL_DECLARED_PUBLICATION_IMPORTS = {
     "src/gpd/mcp/paper/bibliography.py": {"arxiv"},
     "src/gpd/mcp/paper/figures.py": {"cairosvg"},
 }
@@ -172,7 +174,12 @@ def _expected_runtime_dependency_names() -> set[str]:
 
 
 def _expected_wheel_dependency_names() -> set[str]:
-    return _expected_runtime_dependency_names() | {"arxiv-mcp-server"}
+    optional_requirements = [
+        requirement
+        for requirements in _EXPECTED_OPTIONAL_DEPENDENCIES.values()
+        for requirement in requirements
+    ]
+    return _expected_runtime_dependency_names() | _normalized_dependency_names(optional_requirements)
 
 
 def _normalized_requirement_name(requirement: str) -> str:
@@ -535,19 +542,51 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     assert optional == _EXPECTED_OPTIONAL_DEPENDENCIES
 
 
-def test_optional_publication_imports_stay_explicitly_undeclared_integrations() -> None:
+def test_optional_publication_imports_stay_explicitly_declared_integrations() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
     optional = project.get("optional-dependencies", {})
-    declared_requirement_names = _normalized_dependency_names(
-        dependencies + [requirement for requirements in optional.values() for requirement in requirements]
+    runtime_requirement_names = _normalized_dependency_names(dependencies)
+    optional_requirement_names = _normalized_dependency_names(
+        [requirement for requirements in optional.values() for requirement in requirements]
     )
 
-    for relative_path, expected_imports in _OPTIONAL_UNDECLARED_PUBLICATION_IMPORTS.items():
+    for relative_path, expected_imports in _OPTIONAL_DECLARED_PUBLICATION_IMPORTS.items():
         direct_imports = _direct_imported_modules(repo_root, relative_path)
         assert direct_imports & expected_imports == expected_imports
-        assert not expected_imports & declared_requirement_names
+        assert not expected_imports & runtime_requirement_names
+        assert expected_imports <= optional_requirement_names
+
+
+def test_registry_command_surface_rewrite_surfaces_live_registry_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    import gpd.command_labels as command_labels
+
+    def _raise_registry_error(*, name_format: str) -> list[str]:
+        raise RuntimeError(f"registry parse failed for {name_format}")
+
+    monkeypatch.setattr(
+        command_labels,
+        "_load_content_registry",
+        lambda: SimpleNamespace(list_commands=_raise_registry_error),
+    )
+
+    with pytest.raises(RuntimeError, match="registry parse failed for slug"):
+        command_labels.rewrite_runtime_command_surfaces("$gpd-help", canonical="command")
+
+
+def test_model_visible_command_note_surfaces_live_registry_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    import gpd.core.model_visible_text as model_visible_text
+
+    def _raise_registry_error() -> tuple[str, ...]:
+        raise RuntimeError("registry agent parse failed")
+
+    monkeypatch.setattr(model_visible_text, "_load_canonical_agent_names", lambda: _raise_registry_error)
+
+    with pytest.raises(RuntimeError, match="registry agent parse failed"):
+        model_visible_text.command_visibility_note()
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:

@@ -161,6 +161,7 @@ _RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS = (
     "notify_config_surface",
 )
 _RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS = frozenset({"prompt_free_mode_value"})
+_USAGE_TOKEN_HOOK_PAYLOAD_FIELDS = ("usage_keys", "input_tokens_keys", "output_tokens_keys")
 
 
 def _require_mapping(value: object, *, label: str) -> dict[str, object]:
@@ -382,6 +383,25 @@ def _validate_capability_policy_coherence(
         raise ValueError(
             f"{label}.continuation_surface must be explicit when supports_structured_child_results=true"
         )
+    if policy.statusline_surface == "explicit":
+        if policy.statusline_config_surface == "none":
+            raise ValueError(f'{label}.statusline_config_surface must not be "none" when statusline_surface=explicit')
+    elif policy.statusline_config_surface != "none":
+        raise ValueError(f'{label}.statusline_config_surface must be "none" when statusline_surface=none')
+    if policy.notify_surface == "explicit":
+        if policy.notify_config_surface == "none":
+            raise ValueError(f'{label}.notify_config_surface must not be "none" when notify_surface=explicit')
+    elif policy.notify_config_surface != "none":
+        raise ValueError(f'{label}.notify_config_surface must be "none" when notify_surface=none')
+    if policy.telemetry_completeness == "none":
+        if policy.telemetry_source != "none":
+            raise ValueError(f'{label}.telemetry_source must be "none" when telemetry_completeness=none')
+        if policy.supports_usage_tokens:
+            raise ValueError(f"{label}.supports_usage_tokens must be false when telemetry_completeness=none")
+        if policy.supports_cost_usd:
+            raise ValueError(f"{label}.supports_cost_usd must be false when telemetry_completeness=none")
+    elif policy.telemetry_source == "none":
+        raise ValueError(f'{label}.telemetry_source must not be "none" when telemetry_completeness is not none')
 
 
 @lru_cache(maxsize=1)
@@ -734,6 +754,35 @@ def _validate_runtime_descriptor_capability_contract(
     *,
     label: str,
 ) -> None:
+    def _require_hook_payload_fields(capability_field: str, field_names: tuple[str, ...]) -> None:
+        missing = [field_name for field_name in field_names if not getattr(descriptor.hook_payload, field_name)]
+        if missing:
+            formatted = ", ".join(f"{label}.hook_payload.{field_name}" for field_name in missing)
+            raise ValueError(f"{label}.capabilities.{capability_field} requires {formatted}")
+
+    if descriptor.capabilities.statusline_surface == "explicit":
+        _require_hook_payload_fields("statusline_surface", ("model_keys",))
+    if descriptor.capabilities.notify_surface == "explicit":
+        _require_hook_payload_fields("notify_surface", ("notify_event_types",))
+    if descriptor.capabilities.telemetry_source == "notify-hook":
+        if descriptor.capabilities.notify_surface != "explicit":
+            raise ValueError(f"{label}.capabilities.telemetry_source requires {label}.capabilities.notify_surface=explicit")
+        _require_hook_payload_fields("telemetry_source", ("notify_event_types",))
+    if descriptor.capabilities.supports_usage_tokens:
+        if descriptor.capabilities.telemetry_source != "notify-hook":
+            raise ValueError(f"{label}.capabilities.supports_usage_tokens requires {label}.capabilities.telemetry_source=notify-hook")
+        _require_hook_payload_fields("supports_usage_tokens", _USAGE_TOKEN_HOOK_PAYLOAD_FIELDS)
+    if descriptor.capabilities.supports_cost_usd:
+        if descriptor.capabilities.telemetry_source != "notify-hook":
+            raise ValueError(f"{label}.capabilities.supports_cost_usd requires {label}.capabilities.telemetry_source=notify-hook")
+        _require_hook_payload_fields("supports_cost_usd", ("cost_usd_keys",))
+    if descriptor.capabilities.supports_context_meter:
+        if descriptor.capabilities.statusline_surface != "explicit":
+            raise ValueError(f"{label}.capabilities.supports_context_meter requires {label}.capabilities.statusline_surface=explicit")
+        _require_hook_payload_fields(
+            "supports_context_meter",
+            ("context_window_size_keys", "context_remaining_keys"),
+        )
     if (
         descriptor.capabilities.supports_runtime_session_payload_attribution
         != descriptor.hook_payload.supports_runtime_session_payload_attribution

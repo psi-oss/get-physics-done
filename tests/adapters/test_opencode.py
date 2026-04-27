@@ -708,6 +708,23 @@ class TestInstall:
 
         assert not (target / "hooks").exists()
 
+    def test_install_manifest_does_not_own_preexisting_hooks(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        hooks = target / "hooks"
+        hooks.mkdir(parents=True)
+        (hooks / "install_metadata.py").write_text("# user hook\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target)
+
+        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert not any(path.startswith("hooks/") for path in manifest["files"])
+        assert (hooks / "install_metadata.py").read_text(encoding="utf-8") == "# user hook\n"
+
     def test_install_writes_version(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()
@@ -1048,7 +1065,7 @@ class TestUninstall:
         config["mcp"]["custom-server"] = {"type": "local", "command": ["node", "custom.js"]}
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
-        adapter.uninstall(target)
+        result = adapter.uninstall(target)
 
         cleaned = json.loads(config_path.read_text(encoding="utf-8"))
         read_permissions = cleaned.get("permission", {}).get("read", {})
@@ -1059,6 +1076,7 @@ class TestUninstall:
         assert not any("get-physics-done" in key for key in external_permissions)
         assert "gpd-wolfram" not in mcp_servers
         assert mcp_servers == {"custom-server": {"type": "local", "command": ["node", "custom.js"]}}
+        assert any("GPD MCP servers" in item for item in result["removed"])
 
     def test_uninstall_removes_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
@@ -1085,7 +1103,7 @@ class TestUninstall:
         result = adapter.uninstall(target)
         assert result["removed"] == []
 
-    def test_uninstall_allows_manifestless_hook_residue_with_empty_flat_command_dir(
+    def test_uninstall_preserves_manifestless_hook_residue_with_empty_flat_command_dir(
         self,
         adapter: OpenCodeAdapter,
         tmp_path: Path,
@@ -1103,8 +1121,8 @@ class TestUninstall:
 
         result = adapter.uninstall(target)
 
-        assert "1 GPD hooks" in result["removed"]
-        assert not (hooks / "install_metadata.py").exists()
+        assert "1 GPD hooks" not in result["removed"]
+        assert (hooks / "install_metadata.py").exists()
         assert not (target / "command").exists()
         assert not (target / "agents").exists()
 

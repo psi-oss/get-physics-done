@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import importlib
 import re
 from functools import lru_cache
+from types import ModuleType
 
 from gpd.adapters.runtime_catalog import RuntimeDescriptor
 
@@ -75,15 +77,20 @@ def validated_public_command_prefix(descriptor: RuntimeDescriptor) -> str:
     return prefix
 
 
+def _load_content_registry() -> ModuleType:
+    return importlib.import_module("gpd.registry")
+
+
 def _registered_command_slugs() -> set[str]:
     """Return live registry command slugs for public command-surface rewrites."""
 
     try:
-        from gpd import registry as content_registry
-
-        return set(content_registry.list_commands(name_format="slug"))
-    except Exception:
+        content_registry = _load_content_registry()
+    except ModuleNotFoundError as exc:
+        if exc.name != "gpd.registry":
+            raise
         return set()
+    return set(content_registry.list_commands(name_format="slug"))
 
 
 def command_slug_from_label(label: str) -> str:

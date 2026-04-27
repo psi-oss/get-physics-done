@@ -17,6 +17,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from gpd.core.constants import (
+    OPTIONAL_PLANNING_FILES,
     REQUIRED_PLANNING_DIRS,
     REQUIRED_PLANNING_FILES,
     STATE_JSON_BACKUP_FILENAME,
@@ -108,6 +109,13 @@ def _walk_project_root(
         return None, 0, False
 
     best_bare: tuple[int, Path] | None = None
+
+    def _has_directory_content(path: Path) -> bool:
+        try:
+            return path.is_dir() and any(path.iterdir())
+        except OSError:
+            return False
+
     search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
     for steps, path in enumerate(search_roots):
         layout = ProjectLayout(path)
@@ -119,7 +127,22 @@ def _walk_project_root(
             for name in REQUIRED_PLANNING_FILES
             if (layout.gpd / name).exists()
         )
-        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if (layout.gpd / name).is_dir())
+        marker_count += sum(1 for name in OPTIONAL_PLANNING_FILES if (layout.gpd / name).exists())
+        marker_count += 1 if layout.agent_id_file.exists() else 0
+        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
+        marker_count += sum(
+            1
+            for path in (
+                layout.research_map_dir,
+                layout.literature_dir,
+                layout.knowledge_dir,
+                layout.publication_dir,
+                layout.review_dir,
+                layout.milestones_dir,
+                layout.todos_dir,
+            )
+            if _has_directory_content(path)
+        )
         if (layout.gpd / STATE_JSON_BACKUP_FILENAME).exists():
             marker_count += 1
 

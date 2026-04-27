@@ -43,12 +43,15 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 <step name="init" priority="first">
 **Load project context and resolve models:**
 
+This workflow uses the staged write-paper init surface at stage boundaries. Load the matching `--stage` payload before relying on fields or authority documents introduced by that stage.
+
 ```bash
-INIT=$(gpd --raw init write-paper)
+PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap)
 if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
+  echo "ERROR: gpd initialization failed: $PAPER_BOOTSTRAP_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
+INIT="$PAPER_BOOTSTRAP_INIT"
 ```
 
 Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `publication_subject`, `publication_subject_status`, `publication_subject_source`, `publication_subject_detail`, `publication_artifact_base`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_bootstrap`, `publication_bootstrap_mode`, `publication_bootstrap_root`, `publication_bootstrap_detail`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
@@ -547,6 +550,17 @@ Wait for user decision before proceeding. Do NOT silently continue past critical
 <step name="create_outline">
 Generate a detailed outline tailored to the journal format.
 
+Load the staged outline/scaffold payload before using outline-time publication scaffolding fields or paper schema authorities:
+
+```bash
+OUTLINE_INIT=$(gpd --raw init write-paper --stage outline_and_scaffold)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper outline/scaffold init failed: $OUTLINE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$OUTLINE_INIT"
+```
+
 For each section:
 
 - **Purpose:** What this section accomplishes in the narrative
@@ -638,6 +652,17 @@ Treat both emitted JSON artifacts as strict review inputs. If they need to be re
 
 <step name="generate_figures">
 ## Figure Generation
+
+Load the staged figure/section authoring payload before generating figures or spawning paper-writer section agents:
+
+```bash
+AUTHORING_INIT=$(gpd --raw init write-paper --stage figure_and_section_authoring)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper authoring init failed: $AUTHORING_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$AUTHORING_INIT"
+```
 
 Ensure the paper directory structure exists before writing any files:
 
@@ -813,6 +838,17 @@ Each figure must:
 
 <step name="consistency_check">
 After all sections are drafted, verify internal consistency:
+
+Load the staged consistency/reference payload before notation checks, bibliography verification, or reproducibility manifest work:
+
+```bash
+CONSISTENCY_INIT=$(gpd --raw init write-paper --stage consistency_and_references)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper consistency/reference init failed: $CONSISTENCY_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$CONSISTENCY_INIT"
+```
 
 **Notation audit:**
 
@@ -1022,6 +1058,17 @@ If validation fails, stop and fix the manifest now. Do not enter `pre_submission
 
 <step name="pre_submission_review">
 Branch by write-paper lane before finalizing:
+
+Load the staged publication-review payload before running the embedded peer-review panel or evaluating review-round artifacts:
+
+```bash
+PUBLICATION_REVIEW_INIT=$(gpd --raw init write-paper --stage publication_review)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper publication-review init failed: $PUBLICATION_REVIEW_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$PUBLICATION_REVIEW_INIT"
+```
 
 **Project-backed lane:** run the same staged peer-review panel used by `gpd:peer-review`. Do not fall back to a single generalist referee pass here, because that is precisely the failure mode this workflow is meant to avoid.
 

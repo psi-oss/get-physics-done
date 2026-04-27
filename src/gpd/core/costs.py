@@ -39,6 +39,7 @@ __all__ = [
     "PricingSnapshot",
     "UsageRecord",
     "build_cost_summary",
+    "cost_advisory_requires_inspection",
     "cost_data_root",
     "list_usage_records",
     "load_pricing_snapshot",
@@ -51,6 +52,7 @@ __all__ = [
 _RECENT_SESSION_DEFAULT = 5
 _DEDUP_WINDOW_SECONDS = 10.0
 _COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
+_COST_ADVISORY_INSPECT_STATES = frozenset({"at_or_over_budget", "near_budget", "mixed"})
 
 
 def _active_runtime_tier_models_command(*, cwd: Path | None = None) -> str:
@@ -227,6 +229,18 @@ class CostAdvisorySummary(BaseModel):
     message: str
     scope: str | None = None
     config_key: str | None = None
+
+
+def _cost_advisory_state(advisory: object | None) -> str:
+    if advisory is None:
+        return ""
+    value = advisory.get("state") if isinstance(advisory, dict) else getattr(advisory, "state", "")
+    return str(value or "").strip()
+
+
+def cost_advisory_requires_inspection(advisory: object | None) -> bool:
+    """Return whether one structured cost advisory should surface a cost-inspection action."""
+    return _cost_advisory_state(advisory) in _COST_ADVISORY_INSPECT_STATES
 
 
 def _now_iso() -> str:

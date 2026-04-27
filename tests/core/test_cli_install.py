@@ -59,6 +59,22 @@ _ENV_OVERRIDE_INSTALL_DESCRIPTOR = next(
         or descriptor.global_config.env_file_var
     )
 )
+
+
+def _descriptors_with_uninstall_counter(tmp_path: Path, counter_name: str) -> tuple[object, ...]:
+    matches: list[object] = []
+    probe_root = tmp_path / "runtime-uninstall-counter-probe"
+    for descriptor in _INSTALL_TEST_DESCRIPTORS:
+        target = probe_root / descriptor.config_dir_name
+        target.mkdir(parents=True, exist_ok=True)
+        result = get_adapter(descriptor.runtime_name).uninstall(target)
+        if counter_name in result:
+            matches.append(descriptor)
+    if not matches:
+        raise AssertionError(f"Expected at least one runtime uninstall result to expose {counter_name!r}")
+    return tuple(matches)
+
+
 def _descriptor_with_selection_alias_fragment(fragment: str):
     matches = [
         descriptor
@@ -1019,6 +1035,27 @@ def test_install_preflight_forwards_scope_and_explicit_target_dir(mock_run_docto
     assert kwargs["target_dir"] == target_dir.resolve(strict=False)
 
 
+@patch("gpd.core.health.run_doctor")
+def test_install_skip_readiness_check_reports_skipped_not_passed(mock_run_doctor, tmp_path: Path) -> None:
+    runtime_name = _PRIMARY_INSTALL_DESCRIPTOR.runtime_name
+    target_dir = tmp_path / "target-config"
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target_dir)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        mock_get.return_value = _mock_install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
+        result = runner.invoke(app, ["install", runtime_name, "--local", "--skip-readiness-check"])
+
+    assert result.exit_code == 0
+    mock_run_doctor.assert_not_called()
+    assert "readiness check skipped" in result.output
+    assert "readiness check passed" not in result.output
+
+
 def test_uninstall_raw_outputs_json(tmp_path: Path):
     """--raw flag on uninstall outputs clean JSON."""
     target = _install_target(tmp_path)
@@ -1036,6 +1073,36 @@ def test_uninstall_raw_outputs_json(tmp_path: Path):
     assert payload["uninstalled"][0]["target"] == str(target)
     assert payload["uninstalled"][0]["reason"] == "nothing to remove"
     assert payload["uninstalled"][0]["removed"] == []
+
+
+def test_uninstall_human_reports_managed_mcp_server_removal(gpd_root: Path, tmp_path: Path) -> None:
+    for descriptor in _descriptors_with_uninstall_counter(tmp_path, "mcpServers"):
+        adapter = get_adapter(descriptor.runtime_name)
+        target = tmp_path / "human-uninstall" / descriptor.config_dir_name
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target, is_global=False)
+
+        result = runner.invoke(app, ["uninstall", descriptor.runtime_name, "--target-dir", str(target)])
+
+        assert result.exit_code == 0
+        assert "GPD" in result.output
+        assert "MCP servers" in result.output
+
+
+def test_uninstall_raw_reports_managed_mcp_server_removal(gpd_root: Path, tmp_path: Path) -> None:
+    for descriptor in _descriptors_with_uninstall_counter(tmp_path, "mcpServers"):
+        adapter = get_adapter(descriptor.runtime_name)
+        target = tmp_path / "raw-uninstall" / descriptor.config_dir_name
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target, is_global=False)
+
+        result = runner.invoke(app, ["--raw", "uninstall", descriptor.runtime_name, "--target-dir", str(target)])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        outcome = payload["uninstalled"][0]
+        assert any("GPD MCP servers" in item for item in outcome["removed"])
+        assert outcome["mcpServers"] > 0
 
 
 @patch("gpd.core.health.run_doctor")

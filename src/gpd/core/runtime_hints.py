@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.context import init_resume
-from gpd.core.costs import build_cost_summary, resolve_cost_advisory
+from gpd.core.costs import build_cost_summary, cost_advisory_requires_inspection, resolve_cost_advisory
 from gpd.core.observability import derive_execution_visibility, get_current_session_id
 from gpd.core.project_reentry import (
     project_reentry_candidate_summary,
@@ -476,8 +476,7 @@ def _workflow_next_actions(*, base_ready: bool) -> list[str]:
 
 
 def _cost_next_action(advisory: dict[str, object]) -> str | None:
-    state = str(advisory.get("state", "") or "").strip()
-    if state in {"at_or_over_budget", "near_budget", "mixed"}:
+    if cost_advisory_requires_inspection(advisory):
         return cost_inspect_action()
     return None
 

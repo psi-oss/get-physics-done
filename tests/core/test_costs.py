@@ -10,6 +10,7 @@ import gpd.core.costs as costs
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.costs import (
     build_cost_summary,
+    cost_advisory_requires_inspection,
     list_usage_records,
     pricing_snapshot_path,
     record_usage_from_runtime_payload,
@@ -110,6 +111,21 @@ def test_active_runtime_tier_models_command_falls_back_to_runtime_neutral_refere
     )
 
     assert costs._active_runtime_tier_models_command(cwd=Path("/tmp")) == "the active runtime's `set-tier-models` command"
+
+
+@pytest.mark.parametrize("state", ["at_or_over_budget", "near_budget", "mixed"])
+def test_cost_advisory_inspection_states_are_single_sourced(state: str) -> None:
+    advisory = costs.CostAdvisorySummary(state=state, message="inspect usage")
+
+    assert cost_advisory_requires_inspection(advisory)
+    assert cost_advisory_requires_inspection(advisory.model_dump(mode="json"))
+
+
+@pytest.mark.parametrize("state", ["unavailable", "estimated", "within_budget", ""])
+def test_cost_advisory_inspection_skips_non_actionable_states(state: str) -> None:
+    advisory = {"state": state, "message": "no action"}
+
+    assert not cost_advisory_requires_inspection(advisory)
 
 
 def test_record_usage_writes_measured_records_and_builds_project_summary(

@@ -303,6 +303,28 @@ class TestInstall:
         assert not any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
+    def test_custom_global_install_uses_explicit_skills_dir_despite_env_override(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        outside_root = tmp_path.parent / "codex-skills-leak"
+        leak_skills_dir = outside_root / ".agents" / "skills"
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(leak_skills_dir))
+
+        target = tmp_path / "custom-global" / adapter.config_dir_name
+        target.mkdir(parents=True)
+        safe_skills_dir = target.parent / ".agents" / "skills"
+
+        result = adapter.install(gpd_root, target, is_global=True, skills_dir=safe_skills_dir)
+
+        assert result["skills_dir"] == str(safe_skills_dir)
+        assert safe_skills_dir.is_relative_to(tmp_path)
+        assert any(d.name.startswith("gpd-") for d in safe_skills_dir.iterdir() if d.is_dir())
+        assert not leak_skills_dir.exists()
+
     def test_install_creates_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()

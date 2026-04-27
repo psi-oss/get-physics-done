@@ -56,7 +56,7 @@ def _runtime_env_prefixes() -> tuple[str, ...]:
 
 
 def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME", "CODEX_SKILLS_DIR"}
+    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
     for descriptor in _RUNTIME_DESCRIPTORS:
         global_config = descriptor.global_config
         for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
@@ -347,6 +347,65 @@ def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target
     assert f"--target-dir {shlex.quote(str(config_dir))}" not in captured.err
 
 
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        descriptor
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+    ],
+    ids=lambda descriptor: descriptor.runtime_name,
+)
+def test_runtime_cli_treats_canonical_global_target_as_global_repair_target_when_env_overrides_elsewhere(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    if os.name == "nt":
+        monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    canonical_global_dir = resolve_global_config_dir(descriptor, home=home, environ={})
+    _mark_incomplete_install(canonical_global_dir, runtime=descriptor.runtime_name, install_scope="global")
+
+    override_dir = tmp_path / "override-global" / descriptor.config_dir_name
+    override_dir.mkdir(parents=True)
+    global_config = descriptor.global_config
+    env_var = global_config.env_var or global_config.env_dir_var or global_config.env_file_var
+    assert env_var is not None
+    env_value = str(override_dir / "config.json") if env_var == global_config.env_file_var else str(override_dir)
+    monkeypatch.setenv(env_var, env_value)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for canonical-global manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(canonical_global_dir),
+            "--install-scope",
+            "global",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert f"GPD runtime install incomplete for {descriptor.display_name}" in captured.err
+    assert "--global" in captured.err
+    assert f"--target-dir {shlex.quote(str(canonical_global_dir))}" not in captured.err
+
+
 @pytest.mark.parametrize("runtime_value", ["", 123, "not-a-runtime"])
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_fails_when_manifest_runtime_is_missing_or_unrecognized(
@@ -475,21 +534,6 @@ def test_runtime_cli_preserves_custom_global_target_in_missing_runtime_repair_gu
     assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
-def test_codex_custom_global_install_seeding_stays_within_temp_root(monkeypatch, tmp_path: Path) -> None:
-    outside_root = tmp_path.parent / "codex-skills-leak"
-    leak_skills_dir = outside_root / ".agents" / "skills"
-    monkeypatch.setenv("CODEX_SKILLS_DIR", str(leak_skills_dir))
-
-    adapter = get_adapter("codex")
-    config_dir = tmp_path / "custom-global" / adapter.config_dir_name
-    _mark_complete_install(config_dir, runtime=adapter.runtime_name, install_scope="global")
-
-    safe_skills_dir = config_dir.parent / ".agents" / "skills"
-    assert safe_skills_dir.is_relative_to(tmp_path)
-    assert safe_skills_dir.exists()
-    assert not leak_skills_dir.exists()
-
-
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_preserves_custom_global_target_in_malformed_runtime_repair_guidance(
     monkeypatch,
@@ -534,7 +578,7 @@ def test_runtime_cli_manifest_scoped_local_candidate_matching_does_not_consult_h
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    adapter = get_adapter("codex")
+    adapter = get_adapter(_RUNTIME_NAMES[0])
     local_config_dir = tmp_path / adapter.config_dir_name
     global_config_dir = tmp_path / "custom-global" / adapter.config_dir_name
     local_config_dir.mkdir(parents=True, exist_ok=True)

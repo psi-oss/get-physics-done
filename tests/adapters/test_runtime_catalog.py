@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from dataclasses import fields, replace
+from dataclasses import asdict, fields, replace
 from pathlib import Path
 
 import pytest
@@ -151,6 +151,7 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
         field.name for field in fields(runtime_catalog.GlobalConfigPolicy)
     }
     assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
+    assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
 
 
@@ -580,7 +581,9 @@ def test_runtime_catalog_accepts_future_config_surface_labels(
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["capabilities"]["permission_surface_kind"] = "future.json:permissions.mode"
     payload[0]["capabilities"]["statusline_config_surface"] = "future.json:statusLine"
+    payload[0]["capabilities"]["notify_surface"] = "explicit"
     payload[0]["capabilities"]["notify_config_surface"] = "future.json:notify"
+    payload[0]["hook_payload"]["notify_event_types"] = ["future-event"]
 
     descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
@@ -785,6 +788,73 @@ def test_runtime_catalog_rejects_capability_attribution_drift_from_hook_payload(
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["capabilities"][capability_key] = capability_value
     payload[0]["hook_payload"].update(hook_payload_updates)
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("runtime_name", "capability_updates", "hook_payload_updates", "match"),
+    [
+        (
+            "codex",
+            {},
+            {"notify_event_types": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.notify_surface requires "
+                r"runtime catalog entry \d+\.hook_payload\.notify_event_types"
+            ),
+        ),
+        (
+            "codex",
+            {},
+            {"input_tokens_keys": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.supports_usage_tokens requires "
+                r"runtime catalog entry \d+\.hook_payload\.input_tokens_keys"
+            ),
+        ),
+        (
+            "codex",
+            {},
+            {"cost_usd_keys": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.supports_cost_usd requires "
+                r"runtime catalog entry \d+\.hook_payload\.cost_usd_keys"
+            ),
+        ),
+        (
+            "claude-code",
+            {},
+            {"context_remaining_keys": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.supports_context_meter requires "
+                r"runtime catalog entry \d+\.hook_payload\.context_remaining_keys"
+            ),
+        ),
+        (
+            "codex",
+            {"notify_surface": "none", "notify_config_surface": "none"},
+            {},
+            (
+                r"runtime catalog entry \d+\.capabilities\.telemetry_source requires "
+                r"runtime catalog entry \d+\.capabilities\.notify_surface=explicit"
+            ),
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_capability_flags_without_required_hook_payload_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_name: str,
+    capability_updates: dict[str, object],
+    hook_payload_updates: dict[str, list[str]],
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    entry = _catalog_entry_by_runtime_name(payload, runtime_name)
+    entry["capabilities"].update(capability_updates)
+    entry["hook_payload"].update(hook_payload_updates)
 
     with pytest.raises(ValueError, match=match):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)

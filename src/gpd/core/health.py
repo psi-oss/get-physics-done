@@ -390,14 +390,23 @@ def _render_contract_cli_command(
     return " ".join(shlex.quote(part) for part in rendered)
 
 
-def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | None, str | None]:
+def _resolve_health_project_root(cwd: Path) -> Path:
+    """Return the root health checks should use for project-scoped state files."""
+    return resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+
+
+def _peek_normalized_state_for_health(
+    cwd: Path,
+    *,
+    project_root: Path | None = None,
+) -> tuple[dict[str, object] | None, str | None]:
     """Load normalized state for inspection without mutating on-disk files.
 
     Health checks need visibility into structurally parseable blocked
     ``project_contract`` payloads so approval blockers are reported as failures
     instead of being hidden by draft-scoping normalization.
     """
-    project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+    project_root = project_root or _resolve_health_project_root(cwd)
     state_obj, _integrity_issues, state_source = peek_state_json(
         project_root,
         recover_intent=False,
@@ -414,16 +423,17 @@ def check_state_validity(cwd: Path) -> HealthCheck:
 
     Delegates core validation to :func:`state_validate` and wraps the result.
     """
-    result = state_validate(cwd, recover_intent=False)
+    project_root = _resolve_health_project_root(cwd)
+    result = state_validate(project_root, recover_intent=False)
     issues = list(result.issues)
     warnings = list(result.warnings)
 
-    state_obj, state_source = _peek_normalized_state_for_health(cwd)
+    state_obj, state_source = _peek_normalized_state_for_health(project_root, project_root=project_root)
     if isinstance(state_obj, dict) and state_obj.get("project_contract") is not None:
         approval_validation = validate_project_contract(
             state_obj["project_contract"],
             mode="approved",
-            project_root=cwd,
+            project_root=project_root,
         )
         if not approval_validation.valid:
             for error in approval_validation.errors:
@@ -441,7 +451,7 @@ def check_state_validity(cwd: Path) -> HealthCheck:
             if not re.match(r"^\d{2,}(\.\d+)*$", phase):
                 warnings.append(f'phase ID format: "{phase}" -- expected zero-padded')
 
-    layout = ProjectLayout(cwd)
+    layout = ProjectLayout(project_root)
     details: dict[str, object] = {
         "has_json": layout.state_json.exists(),
         "has_md": layout.state_md.exists(),
@@ -831,7 +841,12 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
 
     try:
         result = subprocess.run(
-            ["git", "tag", "-l", "gpd-checkpoint-*"],
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)%00%(creatordate:unix)",
+                "refs/tags/gpd-checkpoint-*",
+            ],
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -843,30 +858,29 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
             warnings.append(message)
             return HealthCheck(status=CheckStatus.WARN, label="Checkpoint Tags", details=details, warnings=warnings)
 
-        tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        details["tag_count"] = len(tags)
-
         now = int(time.time())
+        tags: list[str] = []
         stale_tags: list[str] = []
-        for tag in tags:
-            tag_result = subprocess.run(
-                ["git", "log", "-1", "--format=%ct", tag],
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if tag_result.returncode != 0:
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            tag, separator, created_at_text = line.partition("\x00")
+            tag = tag.strip()
+            if not tag:
+                continue
+            tags.append(tag)
+            if not separator:
                 warnings.append(f"Unable to inspect checkpoint tag {tag}")
                 continue
             try:
-                created_at = int(tag_result.stdout.strip())
+                created_at = int(created_at_text.strip())
             except ValueError:
                 warnings.append(f"Invalid timestamp for checkpoint tag {tag}")
                 continue
             if now - created_at >= STALE_CHECKPOINT_TAG_MAX_AGE_SECONDS:
                 stale_tags.append(tag)
 
+        details["tag_count"] = len(tags)
         details["stale_tags"] = stale_tags
         if stale_tags:
             warnings.append(f"{len(stale_tags)} checkpoint tag(s) older than {STALE_CHECKPOINT_TAG_MAX_AGE_DAYS} days")

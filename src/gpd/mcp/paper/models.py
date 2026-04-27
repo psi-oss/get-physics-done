@@ -96,6 +96,13 @@ def _normalize_publication_path_label(value: str) -> str:
     return "" if compact == "." else compact
 
 
+def _normalize_required_manuscript_path(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("manuscript_path must be non-empty")
+    return normalized
+
+
 def _display_publication_path(project_root: Path, path: Path | None) -> str:
     if path is None:
         return ""
@@ -670,10 +677,7 @@ class ClaimIndex(BaseModel):
     @field_validator("manuscript_path")
     @classmethod
     def _nonempty_manuscript_path(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("manuscript_path must be non-empty")
-        return normalized
+        return _normalize_required_manuscript_path(value)
 
 
 class ReviewFinding(BaseModel):
@@ -715,10 +719,7 @@ class StageReviewReport(BaseModel):
     @field_validator("manuscript_path")
     @classmethod
     def _nonempty_manuscript_path(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("manuscript_path must be non-empty")
-        return normalized
+        return _normalize_required_manuscript_path(value)
 
     @model_validator(mode="after")
     def _stage_id_matches_stage_kind(self) -> StageReviewReport:
@@ -766,10 +767,7 @@ class ReviewLedger(BaseModel):
     @field_validator("manuscript_path")
     @classmethod
     def _nonempty_manuscript_path(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("manuscript_path must be non-empty")
-        return normalized
+        return _normalize_required_manuscript_path(value)
 
 
 class JournalSpec(BaseModel):

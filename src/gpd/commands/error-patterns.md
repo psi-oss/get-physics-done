@@ -16,16 +16,7 @@ Display accumulated physics error patterns from `GPD/ERROR-PATTERNS.md`. Optiona
 
 Error patterns are recorded by the debugger after confirming root causes. They capture project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
 
-Categories:
-
-- `sign` -- Sign errors (metric, integration by parts, Wick rotation)
-- `factor` -- Missing factors (2, pi, symmetry factors, normalization)
-- `convention` -- Convention mismatches between modules or phases
-- `numerical` -- Numerical issues (convergence, precision, stability)
-- `approximation` -- Approximation validity breakdowns
-- `boundary` -- Boundary condition errors
-- `gauge` -- Gauge/frame artifacts
-- `combinatorial` -- Symmetry factors, diagram counting
+The same-named workflow owns category validation and uses the live pattern-library vocabulary.
   </objective>
 
 <execution_context>
@@ -92,7 +83,7 @@ Display the full contents formatted as:
 
 ---
 
-{total} patterns recorded. Filter by category: `gpd:error-patterns sign`
+{total} patterns recorded. Filter by category: `gpd:error-patterns sign-error`
 ```
 
 </step>

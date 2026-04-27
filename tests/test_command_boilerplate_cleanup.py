@@ -120,6 +120,18 @@ def test_error_propagation_command_wrapper_delegates_mechanics_to_workflow() -> 
     assert "Error Budget Table" not in text
 
 
+def test_error_patterns_command_wrapper_delegates_category_vocabulary_to_workflow() -> None:
+    text = (COMMANDS_DIR / "error-patterns.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/error-patterns.md" in text
+    assert "same-named workflow owns category validation" in text
+    assert "Categories:" not in text
+    for stale_category in ("`sign`", "`factor`", "`convention`", "`numerical`", "`approximation`"):
+        assert stale_category not in text
+    for removed_category in ("`boundary`", "`gauge`", "`combinatorial`"):
+        assert removed_category not in text
+
+
 def test_debug_command_wrapper_delegates_mechanics_to_workflow() -> None:
     text = (COMMANDS_DIR / "debug.md").read_text(encoding="utf-8")
 

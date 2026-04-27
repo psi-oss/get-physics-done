@@ -36,7 +36,6 @@ from gpd.adapters.install_utils import (
     get_global_dir,
     hook_python_interpreter,
     install_gpd_content,
-    managed_hook_paths,
     parse_jsonc,
     prune_empty_ancestors,
     remove_empty_json_object_file,
@@ -611,7 +610,6 @@ def write_manifest(
     gpd_dir = config_dir / "get-physics-done"
     command_dir = config_dir / "command"
     agents_dir = config_dir / "agents"
-    hooks_dir = config_dir / "hooks"
 
     manifest: dict = {
         "version": version,
@@ -667,11 +665,6 @@ def write_manifest(
             if f.name.startswith("gpd-") and f.name.endswith(".md"):
                 manifest["files"]["agents/" + f.name] = file_hash(f)
 
-    # hooks/ files
-    if hooks_dir.exists():
-        for rel, h in generate_manifest(hooks_dir).items():
-            manifest["files"]["hooks/" + rel] = h
-
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
@@ -704,8 +697,14 @@ def uninstall_opencode(
     Removes GPD-specific files/directories, preserves user content.
     Returns a dict with counts of removed items.
     """
-    counts: dict[str, int] = {"commands": 0, "agents": 0, "hooks": 0, "dirs": 0, "permissions": 0}
-    managed_hooks = managed_hook_paths(target_dir)
+    counts: dict[str, int] = {
+        "commands": 0,
+        "agents": 0,
+        "hooks": 0,
+        "dirs": 0,
+        "permissions": 0,
+        "mcpServers": 0,
+    }
     runtime_permission_state: dict[str, object] | None = None
     tracked_command_files = _load_manifest_opencode_command_files(target_dir)
 
@@ -751,15 +750,6 @@ def uninstall_opencode(
                 f.unlink()
                 counts["agents"] += 1
 
-    # 4. Remove GPD hooks
-    hooks_dir = target_dir / "hooks"
-    if hooks_dir.exists():
-        for rel_path in sorted(managed_hooks):
-            hook_path = target_dir / rel_path
-            if hook_path.is_file():
-                hook_path.unlink()
-                counts["hooks"] += 1
-
     # 4b. Remove GPD update cache files.
     cache_dir = target_dir / CACHE_DIR_NAME
     for cache_path in (
@@ -782,6 +772,7 @@ def uninstall_opencode(
             for k in gpd_keys:
                 del oc_mcp["mcp"][k]
             if gpd_keys:
+                counts["mcpServers"] += len(gpd_keys)
                 if not oc_mcp["mcp"]:
                     del oc_mcp["mcp"]
                 oc_config_path_mcp.write_text(json.dumps(oc_mcp, indent=2) + "\n", encoding="utf-8")
@@ -1256,13 +1247,15 @@ class OpenCodeAdapter(RuntimeAdapter):
                 removed.append(f"{result['agents']} GPD agents")
             if result["hooks"]:
                 removed.append(f"{result['hooks']} GPD hooks")
+            if result["mcpServers"]:
+                removed.append(f"{result['mcpServers']} GPD MCP servers")
             if result["permissions"]:
                 removed.append("opencode.json permissions")
 
             span.set_attribute("gpd.removed_count", len(removed))
             logger.info("Uninstalled GPD from %s: removed %d items", self.runtime_name, len(removed))
 
-            return {"runtime": self.runtime_name, "target": str(target_dir), "removed": removed}
+            return {"runtime": self.runtime_name, "target": str(target_dir), "removed": removed, **result}
 
 
 __all__ = [

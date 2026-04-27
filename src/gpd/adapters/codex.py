@@ -2311,6 +2311,7 @@ def _install_gpd_notify_config(
     cleaned_lines: list[str] = []
     insert_at: int | None = None
     existing_notify: list[str] | None = None
+    original_notify_backup: str | None = None
     pending_managed_block = False
 
     past_first_section = False
@@ -2323,6 +2324,8 @@ def _install_gpd_notify_config(
         ):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
+            if stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
+                original_notify_backup = stripped[len(_GPD_NOTIFY_BACKUP_PREFIX) :].strip()
             pending_managed_block = True
             continue
         # Only match top-level notify (before any section header)
@@ -2340,11 +2343,20 @@ def _install_gpd_notify_config(
         pending_managed_block = False
         cleaned_lines.append(line)
 
+    if original_notify_backup is not None:
+        try:
+            parsed_backup = json.loads(original_notify_backup)
+        except json.JSONDecodeError:
+            parsed_backup = None
+        if isinstance(parsed_backup, list) and all(isinstance(item, str) for item in parsed_backup):
+            existing_notify = list(parsed_backup)
+
     notify_block: list[str]
     if existing_notify is not None:
+        backup_line = original_notify_backup if original_notify_backup is not None else json.dumps(existing_notify)
         notify_block = [
             _GPD_NOTIFY_COMMENT,
-            _GPD_NOTIFY_BACKUP_PREFIX + json.dumps(existing_notify),
+            _GPD_NOTIFY_BACKUP_PREFIX + backup_line,
             _build_notify_wrapper_line(existing_notify, desired_path),
         ]
     else:

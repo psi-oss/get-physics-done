@@ -2673,7 +2673,10 @@ def collect_plan_contract_integrity_errors(
     deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
     acceptance_test_ids = {test.id for test in contract.acceptance_tests}
     reference_ids = {reference.id for reference in contract.references}
+    forbidden_proxy_ids = {forbidden_proxy.id for forbidden_proxy in contract.forbidden_proxies}
+    link_ids = {link.id for link in contract.links}
     known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
+    link_endpoint_ids = known_ids | observable_ids | forbidden_proxy_ids | link_ids
 
     if contract.references and not _has_concrete_must_surface_reference(
         contract,
@@ -2737,9 +2740,9 @@ def collect_plan_contract_integrity_errors(
             )
 
     for link in contract.links:
-        if link.source not in known_ids:
+        if link.source not in link_endpoint_ids:
             issues.append(f"link {link.id} references unknown source {link.source}")
-        if link.target not in known_ids:
+        if link.target not in link_endpoint_ids:
             issues.append(f"link {link.id} references unknown target {link.target}")
         for verification_id in link.verified_by:
             if verification_id not in acceptance_test_ids:

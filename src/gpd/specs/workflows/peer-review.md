@@ -30,7 +30,7 @@ Set `REVIEW_TARGET="$ARGUMENTS"` unless interactive intake overrides it.
 Bootstrap peer-review context from the dedicated peer-review init surface, not `phase-op`, so manuscript routing, publication blockers, and prior review-round state stay tied to the resolved peer-review target contract.
 
 ```bash
-BOOTSTRAP=$(gpd --raw init peer-review)
+BOOTSTRAP=$(gpd --raw init peer-review --stage bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd peer-review bootstrap failed: $BOOTSTRAP"
   # STOP — display the error to the user and do not proceed.
@@ -70,7 +70,7 @@ If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one 
 After the user has chosen a mode or supplied an explicit path, rerun the subject-aware peer-review init surface for the resolved target. Treat this second payload as authoritative for manuscript routing and review-round state; do not keep using current-project manuscript status from the bootstrap call after an explicit artifact target has been chosen.
 
 ```bash
-INIT=$(gpd --raw init peer-review "$REVIEW_TARGET")
+INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd peer-review target init failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -159,6 +159,17 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 <step name="preflight">
 **Run the executable review preflight checks before spawning the review panel:**
 
+Load the staged preflight payload before using manuscript-root gates, reference-artifact summaries, or strict publication schemas:
+
+```bash
+PREFLIGHT_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage preflight)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review preflight init failed: $PREFLIGHT_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$PREFLIGHT_INIT"
+```
+
 Apply the shared manuscript-root bootstrap contract exactly:
 
 @{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
@@ -178,6 +189,17 @@ Passing preflight still does not establish scientific support. Complete manifest
 
 <step name="artifact_discovery">
 **Load the supporting artifact set for the review:**
+
+Load the staged artifact-discovery payload before resolving review-round state or reading supporting artifacts:
+
+```bash
+ARTIFACT_DISCOVERY_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage artifact_discovery)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review artifact-discovery init failed: $ARTIFACT_DISCOVERY_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$ARTIFACT_DISCOVERY_INIT"
+```
 
 Load the following files:
 
@@ -309,6 +331,17 @@ Use the same `-R2` / `-R3` suffix convention for downstream response artifacts:
 
 <step name="announce_panel">
 **Before spawning any reviewer, give the user a concise stage map:**
+
+Load the staged panel payload before launching Stage 1 through Stage 5 and the conditional proof audit:
+
+```bash
+PANEL_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage panel_stages)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review panel init failed: $PANEL_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$PANEL_INIT"
+```
 
 Use one short sentence that names each stage's job, for example:
 
@@ -673,6 +706,17 @@ After the Stage 5 typed return is captured and `${REVIEW_ROOT}/STAGE-interesting
 <step name="final_adjudication">
 **Stage 6 — Final adjudication by `gpd-referee`.**
 
+Load the staged final-adjudication payload before spawning `gpd-referee`:
+
+```bash
+FINAL_ADJUDICATION_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage final_adjudication)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review final-adjudication init failed: $FINAL_ADJUDICATION_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$FINAL_ADJUDICATION_INIT"
+```
+
 Resolve referee model:
 
 ```bash
@@ -804,6 +848,17 @@ If you want the polished PDF artifact as well, Authorize the agent to install Te
 
 <step name="summarize_report">
 **Read the latest referee report and summarize the decision:**
+
+Load the staged finalize payload before summarizing the report and routing the next action:
+
+```bash
+FINALIZE_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage finalize)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review finalize init failed: $FINALIZE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$FINALIZE_INIT"
+```
 
 1. Identify the most recent referee report among:
    - `GPD/REFEREE-REPORT.md`

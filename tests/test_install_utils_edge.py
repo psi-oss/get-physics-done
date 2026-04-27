@@ -1359,7 +1359,7 @@ class TestInstallBackupSafety:
         assert backup_path.read_text(encoding="utf-8") == "print('user edit')\n"
         assert not hook_path.exists()
 
-    def test_opencode_manifest_tracks_hooks(self, tmp_path: Path) -> None:
+    def test_opencode_manifest_does_not_claim_uninstalled_hook_files(self, tmp_path: Path) -> None:
         from gpd.adapters.opencode import write_manifest as write_opencode_manifest
 
         config_dir = tmp_path / ".opencode"
@@ -1370,7 +1370,8 @@ class TestInstallBackupSafety:
 
         manifest = write_opencode_manifest(config_dir, "1.0.0")
 
-        assert "hooks/notify.py" in manifest["files"]
+        assert "get-physics-done/VERSION" in manifest["files"]
+        assert "hooks/notify.py" not in manifest["files"]
 
     def test_pre_install_cleanup_replaces_existing_patches_with_fallback_snapshot_when_manifest_is_malformed(
         self, tmp_path: Path

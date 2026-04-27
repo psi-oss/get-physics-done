@@ -413,6 +413,8 @@ def test_health_prompt_documents_the_real_raw_health_report_shape() -> None:
     health_command = (COMMANDS_DIR / "health.md").read_text(encoding="utf-8")
 
     assert_health_command_public_contract(health_command)
+    assert "{fixable_count}" not in health_command
+    assert "Run `gpd:health --fix`" in health_command
 
 
 def test_progress_prompt_requires_project_not_roadmap() -> None:
@@ -433,6 +435,13 @@ def test_progress_prompt_and_help_clarify_runtime_vs_local_cli_boundary() -> Non
     assert "takes `json|bar|table` and does not accept these flags" in normalized_command
     assert "The local CLI `gpd progress` is a separate read-only renderer" in normalized_progress_section
     assert "Local CLI: `gpd progress json|bar|table`" in normalized_progress_section
+
+
+def test_progress_health_advice_uses_runtime_command_wording() -> None:
+    workflow = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
+
+    assert "Run `gpd:health --fix`" in workflow
+    assert "Run `gpd health --fix`" not in workflow
 
 
 def test_plan_phase_prompt_is_a_thin_dispatch_shell() -> None:

@@ -2154,6 +2154,7 @@ def _is_hook_command_for_script(
         managed_paths.append(str(target_dir / "hooks" / hook_filename).replace("\\", "/"))
     if config_dir_name:
         managed_paths.append(f"{config_dir_name}/hooks/{hook_filename}")
+        managed_paths.append(f"./{config_dir_name}/hooks/{hook_filename}")
 
     try:
         command_tokens = shlex.split(normalized_command)
@@ -2178,12 +2179,18 @@ def _is_hook_command_for_script(
     return False
 
 
-def _is_managed_statusline_command(command: object, *, target_dir: Path) -> bool:
+def _is_managed_statusline_command(
+    command: object,
+    *,
+    target_dir: Path,
+    config_dir_name: str | None = None,
+) -> bool:
     """Return True when *command* points at the GPD-managed statusline hook."""
     return _is_hook_command_for_script(
         command,
         HOOK_SCRIPTS["statusline"],
         target_dir=target_dir,
+        config_dir_name=config_dir_name,
     )
 
 
@@ -2291,7 +2298,11 @@ def finish_install(
 
         if (
             isinstance(existing_cmd, str)
-            and not _is_managed_statusline_command(existing_cmd, target_dir=config_dir)
+            and not _is_managed_statusline_command(
+                existing_cmd,
+                target_dir=config_dir,
+                config_dir_name=config_dir.name,
+            )
             and not force_statusline
         ):
             _install_logger.warning("Skipping statusline (already configured by another tool)")

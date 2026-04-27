@@ -252,8 +252,11 @@ def _uses_effective_explicit_target(
 
     adapter = get_adapter(runtime)
     if install_scope == "global":
-        canonical_global_dir = adapter.resolve_global_config_dir(home=Path.home())
-        return not _paths_equal(config_dir, canonical_global_dir)
+        global_config_candidates = resolve_global_config_dir_candidates(
+            adapter.runtime_descriptor,
+            home=Path.home(),
+        )
+        return not any(_paths_equal(config_dir, candidate) for candidate in global_config_candidates)
 
     default_local_config_dir = adapter.resolve_local_config_dir(cli_cwd).resolve(strict=False)
     return not _paths_equal(config_dir, default_local_config_dir)

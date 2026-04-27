@@ -131,6 +131,31 @@ def test_help_workflow_export_logs_surfaces_passthrough_filters() -> None:
     assert "Usage: `gpd:export-logs --command gpd:execute-phase --phase 3 --category workflow`" in help_workflow
 
 
+def test_help_workflow_error_patterns_uses_pattern_library_categories() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+    error_patterns_section = _section(
+        help_workflow,
+        "**`gpd:error-patterns [category]`**",
+        "**`gpd:record-backtrack [description]`**",
+    )
+    expected_categories = {
+        "sign-error",
+        "factor-error",
+        "convention-pitfall",
+        "convergence-issue",
+        "approximation-failure",
+        "numerical-instability",
+        "conceptual-error",
+        "dimensional-error",
+    }
+
+    for category in expected_categories:
+        assert category in error_patterns_section
+    assert "Usage: `gpd:error-patterns sign-error`" in error_patterns_section
+    assert "Usage: `gpd:error-patterns sign`" not in error_patterns_section
+    assert "boundary, gauge, combinatorial" not in error_patterns_section
+
+
 def test_help_command_uses_one_shared_extract_warning() -> None:
     help_command = _read("src/gpd/commands/help.md")
 

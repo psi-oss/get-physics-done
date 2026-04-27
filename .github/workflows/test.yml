@@ -53,7 +53,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --frozen
 
       - name: Run ruff check
         run: uv run ruff check .
@@ -160,7 +160,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --frozen
 
       - name: Resolve pytest shard targets
         env:

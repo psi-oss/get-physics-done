@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
+from collections.abc import Callable
+
 from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
     render_model_visible_note,
@@ -88,10 +91,17 @@ def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 
 
+def _load_canonical_agent_names() -> Callable[[], tuple[str, ...]]:
+    registry = importlib.import_module("gpd.registry")
+    return registry.canonical_agent_names
+
+
 def _command_agent_labels() -> tuple[str, ...]:
     try:
-        from gpd.registry import canonical_agent_names
-    except Exception:
+        canonical_agent_names = _load_canonical_agent_names()
+    except ModuleNotFoundError as exc:
+        if exc.name != "gpd.registry":
+            raise
         return ()
     return canonical_agent_names()
 
