@@ -6,6 +6,7 @@
   <a href="https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml"><img alt="CI" src="https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml/badge.svg"></a>
   <a href="https://github.com/psi-oss/get-physics-done/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-d4d4d8?style=flat&labelColor=3f3f46"></a>
   <a href="https://www.python.org/downloads/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-ffd43b?style=flat&labelColor=3776ab&logo=python&logoColor=white"></a>
+  <a href="https://pypi.org/project/get-physics-done/"><img alt="PyPI" src="https://img.shields.io/pypi/v/get-physics-done?style=flat&logo=pypi&logoColor=white&labelColor=3775a9&color=ffd43b"></a>
   <a href="https://www.npmjs.com/package/get-physics-done"><img alt="npm" src="https://img.shields.io/npm/v/get-physics-done?style=flat&logo=npm&logoColor=white&labelColor=1f1f1f&color=cb3837"></a>
 </p>
 

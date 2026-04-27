@@ -269,6 +269,19 @@ def test_public_release_surfaces_share_agentic_system_positioning() -> None:
     assert expected in pyproject["project"]["description"].lower()
     assert "Open-source agentic AI system for physics research" in installer
 
+
+def test_readme_exposes_pypi_and_npm_release_badges() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "https://pypi.org/project/get-physics-done/" in readme
+    assert "https://img.shields.io/pypi/v/get-physics-done" in readme
+    assert "labelColor=3775a9&color=ffd43b" in readme
+    assert "https://www.npmjs.com/package/get-physics-done" in readme
+    assert "https://img.shields.io/npm/v/get-physics-done" in readme
+    assert "labelColor=1f1f1f&color=cb3837" in readme
+
+
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
