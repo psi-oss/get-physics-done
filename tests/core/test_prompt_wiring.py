@@ -51,7 +51,6 @@ AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 FIXTURES_STAGE0 = REPO_ROOT / "tests" / "fixtures" / "stage0"
 FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
-WORKFLOW_EXEMPT_COMMANDS = frozenset({"health", "suggest-next"})
 PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
@@ -446,7 +445,7 @@ def test_referee_workflow_mentions_optional_pdf_compile_and_missing_tex_prompt()
     assert "compile the latest referee-report `.tex` file to a matching `.pdf`" in referee
     assert "Do NOT install TeX yourself" in referee
     assert (
-        "Continue now with `GPD/REFEREE-REPORT{round_suffix}.md` + `GPD/REFEREE-REPORT{round_suffix}.tex` only"
+        "Continue now with `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` + `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` only"
         in peer_review
     )
     assert "Authorize the agent to install TeX now" in peer_review
@@ -565,9 +564,10 @@ def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
     workflow_stems = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
     command_stems = {path.stem for path in COMMANDS_DIR.glob("*.md")}
 
-    assert command_stems - workflow_stems == WORKFLOW_EXEMPT_COMMANDS
+    exempt_commands = registry.LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS
+    assert command_stems - workflow_stems == exempt_commands
 
-    for command_stem in sorted(WORKFLOW_EXEMPT_COMMANDS):
+    for command_stem in sorted(exempt_commands):
         command_text = (COMMANDS_DIR / f"{command_stem}.md").read_text(encoding="utf-8")
         if command_stem == "health":
             assert "gpd --raw health" in command_text
@@ -656,11 +656,11 @@ def test_review_commands_expose_typed_contracts() -> None:
 
     assert peer_review.review_contract is not None
     assert peer_review.review_contract.review_mode == "publication"
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in peer_review.review_contract.required_outputs
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in peer_review.review_contract.required_outputs
-    assert "GPD/review/CLAIMS{round_suffix}.json" in peer_review.review_contract.required_outputs
-    assert "GPD/review/STAGE-interestingness{round_suffix}.json" in peer_review.review_contract.required_outputs
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in peer_review.review_contract.required_outputs
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in peer_review.review_contract.required_outputs
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in peer_review.review_contract.required_outputs
+    assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in peer_review.review_contract.required_outputs
+    assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in peer_review.review_contract.required_outputs
+    assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in peer_review.review_contract.required_outputs
     assert peer_review.review_contract.required_evidence == ["existing manuscript or explicit external artifact target"]
     assert peer_review.review_contract.blocking_conditions == [
         "missing manuscript or explicit external artifact target",
@@ -674,14 +674,14 @@ def test_review_commands_expose_typed_contracts() -> None:
         "manuscript_proof_review",
     ]
     assert peer_review.review_contract.stage_artifacts == [
-        "GPD/review/CLAIMS{round_suffix}.json",
-        "GPD/review/STAGE-reader{round_suffix}.json",
-        "GPD/review/STAGE-literature{round_suffix}.json",
-        "GPD/review/STAGE-math{round_suffix}.json",
-        "GPD/review/STAGE-physics{round_suffix}.json",
-        "GPD/review/STAGE-interestingness{round_suffix}.json",
-        "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-        "GPD/review/REFEREE-DECISION{round_suffix}.json",
+        "${REVIEW_ROOT}/CLAIMS{round_suffix}.json",
+        "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json",
+        "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json",
+        "${REVIEW_ROOT}/STAGE-math{round_suffix}.json",
+        "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json",
+        "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json",
+        "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json",
+        "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json",
     ]
     assert [
         {
@@ -740,12 +740,12 @@ def test_review_commands_expose_typed_contracts() -> None:
         },
         {
             "when": "theorem-bearing claims are present",
-            "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+            "required_outputs": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
             "required_evidence": [],
             "blocking_conditions": [],
             "preflight_checks": [],
             "blocking_preflight_checks": [],
-            "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+            "stage_artifacts": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
         }
     ]
 
@@ -863,8 +863,8 @@ def test_conditional_review_contract_requirements_do_not_hide_runtime_blockers()
         ),
         registry.ReviewContractConditionalRequirement(
             when="theorem-bearing claims are present",
-            required_outputs=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-            stage_artifacts=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+            required_outputs=["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
+            stage_artifacts=["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
         )
     ]
     assert arxiv_submission.conditional_requirements == [
@@ -1079,8 +1079,10 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "Use the literal `paste` sentinel" in workflow_text
     assert "REVIEW-LEDGER*.json" in workflow_text
     assert "REFEREE-DECISION*.json" in workflow_text
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in writer_text
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in writer_text
+    assert "review_ledger_path" in writer_text
+    assert "referee_decision_path" in writer_text
+    assert "author_response_path" in writer_text
+    assert "referee_response_path" in writer_text
 
 
 def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_response_artifacts() -> None:
@@ -1098,7 +1100,7 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
     assert "ls GPD/review/REVIEW-LEDGER*.json 2>/dev/null" not in respond
     assert "ls GPD/review/REFEREE-DECISION*.json 2>/dev/null" not in respond
 
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in peer_review
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in peer_review
     assert "GPD/AUTHOR-RESPONSE{ROUND_SUFFIX}.md" in peer_review
     assert "${REVIEW_ROOT}/REFEREE_RESPONSE{ROUND_SUFFIX}.md" in peer_review
     assert 'ROUND_SUFFIX="-R${ROUND}"' in peer_review
@@ -1127,16 +1129,17 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
 
 def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_response_outputs() -> None:
     peer_review = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
     respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
     write_paper_expanded = expand_at_includes(write_paper, REPO_ROOT / "src" / "gpd", "/runtime/")
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
 
-    assert "GPD/review/CLAIMS{round_suffix}.json" in peer_review
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in peer_review
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in peer_review
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in peer_review
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in panel
+    assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in peer_review
+    assert "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in peer_review
+    assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in peer_review
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in workflow
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in panel
     assert "Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:" in panel
     assert "ClaimIndex` and every nested `ClaimRecord` use a closed schema; do not invent extra keys" in panel
     assert "`manuscript_path` must be non-empty" in panel
@@ -1157,7 +1160,7 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper
     assert "REVIEW-LEDGER{round_suffix}.json" in write_paper_expanded
     assert "REFEREE-DECISION{round_suffix}.json" in write_paper_expanded
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper_expanded
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in write_paper_expanded
     assert "templates/paper/author-response.md" in write_paper
     assert "needs-calculation" in write_paper
 
@@ -1196,7 +1199,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "when: project-backed manuscript review" in peer_review
     assert "existing manuscript or explicit external artifact target" in peer_review
     assert "when: theorem-bearing claims are present" in peer_review
-    assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in peer_review
+    assert "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md" in peer_review
     assert "gpd-check-proof" in peer_review
     assert "conditional_requirements:" in arxiv
     assert "when: theorem-bearing manuscripts are present" in arxiv
@@ -2007,7 +2010,8 @@ def test_audit_milestone_uses_canonical_phase_helpers_instead_of_raw_glob_discov
     audit = (WORKFLOWS_DIR / "audit-milestone.md").read_text(encoding="utf-8")
 
     assert "gpd phase list" in audit
-    assert "gpd show-phase <phase-number>" in audit
+    assert "gpd:show-phase <phase-number>" in audit
+    assert "gpd show-phase <phase-number>" not in audit
     assert "`find_files` `GPD/phases/*/*-VERIFICATION.md` by hand" in audit
     assert "cat GPD/phases/01-*/*-VERIFICATION.md" not in audit
     assert "cat GPD/phases/02-*/*-VERIFICATION.md" not in audit
@@ -2149,7 +2153,8 @@ def test_audit_milestone_command_does_not_preload_raw_verification_globs() -> No
 
     assert "find_files: GPD/phases/*/*SUMMARY.md" in audit_command
     assert "gpd phase list" in audit_command
-    assert "gpd show-phase <phase-number>" in audit_command
+    assert "gpd:show-phase <phase-number>" in audit_command
+    assert "gpd show-phase <phase-number>" not in audit_command
     assert "find_files: GPD/phases/*/*-VERIFICATION.md" not in audit_command
 
 
@@ -2825,7 +2830,7 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "REPRODUCIBILITY-MANIFEST.json" not in peer_review
     assert "templates/paper/review-ledger-schema.md" in panel
     assert "templates/paper/referee-decision-schema.md" in panel
-    assert "--ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in panel
+    assert "--ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in panel
     assert "templates/paper/paper-quality-input-schema.md" in scoring
     assert '"journal": "prl"' in paper_config_schema
     assert '"authors"' in paper_config_schema
@@ -2863,8 +2868,8 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "same optional `-R<round>` suffix" in referee_decision_schema
     assert "manuscript_path` must be non-empty" in referee_decision_schema
     assert "must align with the matching `CLAIMS{round_suffix}.json` claim index" in referee_decision_schema
-    assert "GPD/review/STAGE-reader{round_suffix}.json" in panel
-    assert "GPD/review/CLAIMS{round_suffix}.json" in panel
+    assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in panel
+    assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in panel
     assert "random_seeds[].computation" in reproducibility_template
     assert "resource_requirements[].step" in reproducibility_template
     assert "Strict validation fails on warnings, not only on hard errors." in reproducibility_template
@@ -3095,10 +3100,10 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "templates/paper/review-ledger-schema.md" in peer_review_final.loaded_authorities
     assert "templates/paper/referee-decision-schema.md" in peer_review_final.loaded_authorities
     assert peer_review_finalize.loaded_authorities == ("workflows/peer-review.md",)
-    assert "GPD/review/CLAIMS{round_suffix}.json" in review_reader
-    assert "GPD/review/STAGE-reader{round_suffix}.json" in review_reader
+    assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in review_reader
+    assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in review_reader
     assert "shared source of truth for the full `ClaimIndex` and `StageReviewReport` contracts" in review_reader
-    assert "Stage 1 must also emit `GPD/review/CLAIMS{round_suffix}.json`." in review_reader
+    assert "Stage 1 must also emit `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`." in review_reader
     assert (
         "Capture theorem kind, explicit hypotheses, and free target parameters for theorem-like claims."
         in review_reader
@@ -3110,10 +3115,10 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     )
     assert "Required schema for" not in review_reader
     assert "closed schema; do not invent extra keys" not in review_reader
-    assert "GPD/review/STAGE-literature{round_suffix}.json" in review_literature
-    assert "GPD/review/STAGE-math{round_suffix}.json" in review_math
-    assert "GPD/review/STAGE-physics{round_suffix}.json" in review_physics
-    assert "GPD/review/STAGE-interestingness{round_suffix}.json" in review_significance
+    assert "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json" in review_literature
+    assert "${REVIEW_ROOT}/STAGE-math{round_suffix}.json" in review_math
+    assert "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json" in review_physics
+    assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in review_significance
     assert "shared source of truth for the full `StageReviewReport` contract" in review_literature
     assert "shared source of truth for the full `StageReviewReport` contract" in review_math
     assert "shared source of truth for the full `StageReviewReport` contract" in review_physics
@@ -3242,11 +3247,11 @@ def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:
     _assert_contains_fragments(
         panel,
         "Stage 6 may write only the adjudication artifacts listed under Output.",
-        "Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and "
-        "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence.",
+        "Treat `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, every `${REVIEW_ROOT}/STAGE-*.json`, and "
+        "`${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence.",
         "If any upstream artifact is missing, malformed, stale, or mutually inconsistent, Stage 6 must fail "
         "closed and route the inconsistency back to the earliest failing upstream stage",
-        "`GPD/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar.",
+        "`${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar.",
         "Do not repair upstream stage artifacts during final adjudication.",
     )
 

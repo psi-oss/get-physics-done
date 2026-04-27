@@ -42,6 +42,7 @@ from gpd.hooks.runtime_detect import (
     detect_active_runtime,
     detect_active_runtime_with_gpd_install,
     detect_install_scope,
+    detect_local_runtime_with_gpd_install,
     detect_runtime_for_gpd_use,
     detect_runtime_install_target,
     get_cache_dirs,
@@ -367,6 +368,71 @@ class TestResolveEffectiveRuntime:
         assert result.source == SOURCE_LOCAL
         assert result.has_gpd_install is True
         assert result.install_scope == SCOPE_LOCAL
+
+    def test_ancestor_local_install_outranks_global_install(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        nested = workspace / "notes" / "drafts"
+        nested.mkdir(parents=True)
+        home = tmp_path / "home"
+        ancestor_local_dir = workspace / ".codex"
+        global_dir = home / ".claude"
+        _mark_gpd_install(ancestor_local_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+        _mark_gpd_install(global_dir, runtime=RUNTIME_CLAUDE, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            result = resolve_effective_runtime(cwd=nested, home=home)
+
+        assert result.runtime == RUNTIME_CODEX
+        assert result.source == SOURCE_LOCAL
+        assert result.install_scope == SCOPE_LOCAL
+        assert detect_local_runtime_with_gpd_install(cwd=nested, home=home) == RUNTIME_CODEX
+        assert detect_runtime_install_target(RUNTIME_CODEX, cwd=nested, home=home).config_dir == ancestor_local_dir
+
+    def test_home_global_install_is_not_misclassified_as_ancestor_local(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        workspace = home / "src" / "project"
+        workspace.mkdir(parents=True)
+        global_runtime_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        _mark_gpd_install(global_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            target = detect_runtime_install_target(RUNTIME_CODEX, cwd=workspace, home=home)
+            update_candidates = get_update_cache_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+            todo_candidates = get_todo_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+
+        assert detect_local_runtime_with_gpd_install(cwd=workspace, home=home) == RUNTIME_UNKNOWN
+        assert target is not None
+        assert target.config_dir == global_runtime_dir
+        assert target.install_scope == SCOPE_GLOBAL
+        assert update_candidates[0].path == global_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
+        assert update_candidates[0].scope == SCOPE_GLOBAL
+        assert todo_candidates[0].path == global_runtime_dir / TODOS_DIR_NAME
+        assert todo_candidates[0].scope == SCOPE_GLOBAL
+
+    def test_home_directory_global_install_does_not_satisfy_local_only_detection(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        home.mkdir(parents=True)
+        global_runtime_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        _mark_gpd_install(global_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            assert detect_local_runtime_with_gpd_install(cwd=home, home=home) == RUNTIME_UNKNOWN
+            assert runtime_has_gpd_install(
+                RUNTIME_CODEX,
+                cwd=home,
+                home=home,
+                include_local=True,
+                include_global=False,
+            ) is False
+
+            target = detect_runtime_install_target(RUNTIME_CODEX, cwd=home, home=home)
+
+        assert target is not None
+        assert target.config_dir == global_runtime_dir
+        assert target.install_scope == SCOPE_GLOBAL
 
     def test_reports_global_source_without_install(self, tmp_path: Path) -> None:
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -1073,6 +1139,43 @@ class TestHelperDirs:
             canonical_global_dir / GPD_INSTALL_DIR_NAME,
             local_runtime_dir / GPD_INSTALL_DIR_NAME,
             foreign_global_dir / GPD_INSTALL_DIR_NAME,
+        ]
+
+    def test_lookup_candidates_prefer_installed_ancestor_local_before_global(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        nested = workspace / "analysis" / "drafts"
+        nested.mkdir(parents=True)
+        home = tmp_path / "home"
+        cwd_runtime_dir = nested / _RUNTIME_BY_NAME[RUNTIME_CODEX].config_dir_name
+        ancestor_runtime_dir = workspace / _RUNTIME_BY_NAME[RUNTIME_CODEX].config_dir_name
+        global_runtime_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        _mark_gpd_install(ancestor_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+        _mark_gpd_install(global_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        with patch.dict(os.environ, _clean_runtime_env(), clear=True):
+            update_candidates = get_update_cache_candidates(cwd=nested, home=home, preferred_runtime=RUNTIME_CODEX)
+            todo_candidates = get_todo_candidates(cwd=nested, home=home, preferred_runtime=RUNTIME_CODEX)
+            install_dirs = get_gpd_install_dirs(prefer_active=True, cwd=nested, home=home)
+
+        assert [candidate.path for candidate in update_candidates[:3]] == [
+            ancestor_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+            cwd_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+            global_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+        ]
+        assert [candidate.scope for candidate in update_candidates[:3]] == [
+            SCOPE_LOCAL,
+            SCOPE_LOCAL,
+            SCOPE_GLOBAL,
+        ]
+        assert [candidate.path for candidate in todo_candidates[:3]] == [
+            ancestor_runtime_dir / TODOS_DIR_NAME,
+            cwd_runtime_dir / TODOS_DIR_NAME,
+            global_runtime_dir / TODOS_DIR_NAME,
+        ]
+        assert install_dirs[:3] == [
+            ancestor_runtime_dir / GPD_INSTALL_DIR_NAME,
+            cwd_runtime_dir / GPD_INSTALL_DIR_NAME,
+            global_runtime_dir / GPD_INSTALL_DIR_NAME,
         ]
 
 

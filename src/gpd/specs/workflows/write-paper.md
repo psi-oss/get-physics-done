@@ -1093,7 +1093,7 @@ Then follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the res
 
 **After final adjudication:**
 
-Read `GPD/review/REFEREE-DECISION{round_suffix}.json` and `GPD/review/REVIEW-LEDGER{round_suffix}.json` first when they exist, then read `GPD/REFEREE-REPORT{round_suffix}.md` and assess the findings:
+Read `${selected_review_root}/REFEREE-DECISION{round_suffix}.json` and `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json` first when they exist, then read `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md` and assess the findings:
 
 - **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to `final_review`. Note minor issues for the user.
 - **If recommendation is `major_revision` or `reject`:** Present the major issues to the user before proceeding. For each major issue, show the location, description, and suggested fix. Ask the user whether to:
@@ -1183,15 +1183,19 @@ When revising a paper in response to referee reports:
      subagent_type="gpd-paper-writer",
      model="{writer_model}",
      readonly=false,
-     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md, the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md, and the shared publication response-writer handoff at {GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md. Produce both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
-       "Referee report: GPD/REFEREE-REPORT{round_suffix}.md\n" +
-       "Review ledger (if present): GPD/review/REVIEW-LEDGER{round_suffix}.json\n" +
-       "Decision artifact (if present): GPD/review/REFEREE-DECISION{round_suffix}.json\n" +
+     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md, the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md, and the shared publication response-writer handoff at {GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md. Produce both response artifacts at the concrete paths below.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
+       "selected_publication_root: ${selected_publication_root}\n" +
+       "selected_review_root: ${selected_review_root}\n" +
+       "author_response_path: ${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md\n" +
+       "referee_response_path: ${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md\n" +
+       "Referee report: ${selected_publication_root}/REFEREE-REPORT{round_suffix}.md\n" +
+       "Review ledger (if present): ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json\n" +
+       "Decision artifact (if present): ${selected_review_root}/REFEREE-DECISION{round_suffix}.json\n" +
        "Manuscript tree: all .tex files under ${PAPER_DIR} recursively, rooted at the manifest-resolved manuscript directory, after the section revision agents have landed their edits\n" +
        "Round: {N}\n\n" +
        "For each REF-xxx issue, classify as fixed/rebutted/acknowledged/needs-calculation only after the corresponding manuscript edits exist on disk. Use fixed only for issues whose section changes are already present; otherwise use acknowledged or needs-calculation.\n" +
        "If an issue needs new work, keep `New calculations required` and `Source phase for new work` explicit in the author-response tracker.\n" +
-       "Write to GPD/AUTHOR-RESPONSE{round_suffix}.md and GPD/review/REFEREE_RESPONSE{round_suffix}.md",
+       "Write to ${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md and ${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md",
      description="Author response: round {N}"
    )
    ```
@@ -1200,8 +1204,8 @@ When revising a paper in response to referee reports:
 
    @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
-   **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
-   Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md`, `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.
+   **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
+   Treat `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md`, `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.
 
    See the canonical `templates/paper/author-response.md` and `templates/paper/referee-response.md` contracts plus the shared publication response-writer handoff for the full response-tracker format.
 

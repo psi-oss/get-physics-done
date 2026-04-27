@@ -112,7 +112,7 @@ def recoverable_project_context(project_root: Path) -> tuple[bool, bool, bool]:
     """
 
     layout = ProjectLayout(project_root)
-    state_files_exist = any(path.exists() for path in (layout.state_json, layout.state_json_backup, layout.state_md))
+    state_files_exist = any(path.exists() for path in (layout.state_json, layout.state_md))
     state_exists = False
     if state_files_exist:
         from gpd.core.state import peek_state_json
@@ -393,7 +393,7 @@ def resolve_project_reentry(
     auto_selected = False
     requires_user_selection = False
 
-    if _current_workspace_is_verified(current_candidate):
+    if current_candidate is not None:
         selected_project_root = current_candidate.project_root
         selected_source = current_candidate.source
         mode = "current-workspace"

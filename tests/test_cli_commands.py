@@ -211,12 +211,12 @@ PROJECT_BACKED_PEER_REVIEW_CONDITIONAL = {
 }
 THEOREM_BEARING_PEER_REVIEW_CONDITIONAL = {
     "when": "theorem-bearing claims are present",
-    "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+    "required_outputs": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
     "required_evidence": [],
     "blocking_conditions": [],
     "preflight_checks": [],
     "blocking_preflight_checks": [],
-    "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+    "stage_artifacts": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
 }
 
 
@@ -2377,11 +2377,11 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:peer-review"
         assert payload["context_mode"] == "project-aware"
         assert payload["review_contract"]["review_mode"] == "publication"
-        assert "GPD/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
-        assert "GPD/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
-        assert "GPD/review/CLAIMS{round_suffix}.json" in payload["review_contract"]["required_outputs"]
-        assert "GPD/review/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
-        assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
+        assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
+        assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/CONSISTENCY-REPORT.md" not in payload["review_contract"]["required_outputs"]
         assert payload["review_contract"]["preflight_checks"] == PEER_REVIEW_COMMON_PREFLIGHT_CHECKS
         assert payload["review_contract"]["required_evidence"] == [
@@ -2394,14 +2394,14 @@ class TestReviewValidationCommands:
             "collapsed novelty or venue fit",
         ]
         assert payload["review_contract"]["stage_artifacts"] == [
-            "GPD/review/CLAIMS{round_suffix}.json",
-            "GPD/review/STAGE-reader{round_suffix}.json",
-            "GPD/review/STAGE-literature{round_suffix}.json",
-            "GPD/review/STAGE-math{round_suffix}.json",
-            "GPD/review/STAGE-physics{round_suffix}.json",
-            "GPD/review/STAGE-interestingness{round_suffix}.json",
-            "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-            "GPD/review/REFEREE-DECISION{round_suffix}.json",
+            "${REVIEW_ROOT}/CLAIMS{round_suffix}.json",
+            "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json",
+            "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json",
+            "${REVIEW_ROOT}/STAGE-math{round_suffix}.json",
+            "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json",
+            "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json",
+            "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json",
+            "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json",
         ]
         assert payload["review_contract"]["conditional_requirements"] == [
             PROJECT_BACKED_PEER_REVIEW_CONDITIONAL,
@@ -6202,6 +6202,13 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["publication_subject_slug"] == "curvature-flow"
+        assert payload["publication_lane_kind"] == "managed_publication_manuscript"
+        assert payload["managed_publication_root"] == "GPD/publication/curvature-flow"
+        assert payload["selected_publication_root"] == "GPD/publication/curvature-flow"
+        assert payload["selected_review_root"] == "GPD/publication/curvature-flow/review"
+        assert payload["manuscript_root"] == "GPD/publication/curvature-flow/manuscript"
+        assert payload["manuscript_entrypoint"] == "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
         assert checks["review_ledger"]["passed"] is False

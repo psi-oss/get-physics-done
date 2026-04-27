@@ -68,6 +68,7 @@ __all__ = [
     # Errors
     "PhaseError",
     "PhaseNotFoundError",
+    "PhaseAmbiguityError",
     "PhaseValidationError",
     "PhaseIncompleteError",
     "RoadmapNotFoundError",
@@ -133,6 +134,18 @@ class PhaseNotFoundError(PhaseError):
 
 class PhaseValidationError(PhaseError):
     """Raised when a phase number or input fails validation."""
+
+
+class PhaseAmbiguityError(PhaseValidationError):
+    """Raised when a phase identifier maps to multiple phase directories."""
+
+    def __init__(self, phase: str, matches: list[str]) -> None:
+        self.phase = phase
+        self.matches = matches
+        super().__init__(
+            f"Phase {phase} is ambiguous; matching directories: {', '.join(matches)}. "
+            "Use the exact phase directory name to disambiguate."
+        )
 
 
 class PhaseIncompleteError(PhaseError):
@@ -562,6 +575,8 @@ class PhaseFilesResult(BaseModel):
     files: list[str] = Field(default_factory=list)
     count: int = 0
     phase_dir: str | None = None
+    phase_directory: str | None = None
+    files_by_phase: dict[str, list[str]] = Field(default_factory=dict)
     error: str | None = None
 
 
@@ -743,7 +758,45 @@ class PhaseWaveValidationResult(BaseModel):
 
 def _sorted_phases(dirs: list[str]) -> list[str]:
     """Sort phase directory names by numeric segments."""
-    return sorted(dirs, key=_phase_sort_key)
+    return sorted(dirs, key=lambda name: (_phase_sort_key(name), name))
+
+
+def _phase_dir_number(dir_name: str) -> str | None:
+    """Return the normalized phase number encoded by a phase directory name."""
+    match = re.match(r"^(\d+(?:\.\d+)*)(?:-|$)", dir_name)
+    if match is None:
+        return None
+    return phase_normalize(match.group(1))
+
+
+def _phase_dir_immediate_descendant_of(dir_name: str, normalized_phase: str) -> bool:
+    """Return whether *dir_name* is an immediate decimal descendant of a phase."""
+    prefix = normalized_phase + "."
+    if not dir_name.startswith(prefix):
+        return False
+    rest = dir_name[len(prefix) :]
+    return re.match(r"^\d+(?:-|$)", rest) is not None and re.match(r"^\d+\.", rest) is None
+
+
+def _matching_phase_dir(phase: str, dirs: list[str]) -> str | None:
+    """Resolve a phase query to exactly one directory or raise on ambiguity."""
+    normalized = phase_normalize(phase)
+    if normalized in dirs:
+        return normalized
+
+    exact_number_matches = [d for d in dirs if _phase_dir_number(d) == normalized]
+    if len(exact_number_matches) > 1:
+        raise PhaseAmbiguityError(phase, exact_number_matches)
+    if len(exact_number_matches) == 1:
+        return exact_number_matches[0]
+
+    descendant_matches = [d for d in dirs if _phase_dir_immediate_descendant_of(d, normalized)]
+    if len(descendant_matches) > 1:
+        raise PhaseAmbiguityError(phase, descendant_matches)
+    if len(descendant_matches) == 1:
+        return descendant_matches[0]
+
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -867,22 +920,7 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
 
     with gpd_span("phases.find", phase=phase):
         dirs = _list_phase_dirs(cwd)
-
-        # Find matching directory
-        match_dir: str | None = None
-        for d in dirs:
-            if d == normalized:
-                match_dir = d
-                break
-            if d.startswith(normalized + "-"):
-                match_dir = d
-                break
-            # Decimal sub-phase match: "03.1" matches "03.1-name" but not "03.10-name"
-            if d.startswith(normalized + "."):
-                rest = d[len(normalized) + 1 :]
-                if re.match(r"^\d+(?:-|$)", rest) and not re.match(r"^\d+\.", rest):
-                    match_dir = d
-                    break
+        match_dir = _matching_phase_dir(phase, dirs)
 
         if match_dir is None:
             return None
@@ -971,13 +1009,17 @@ def list_phase_files(cwd: Path, file_type: str, phase: str | None = None) -> Pha
 
         # Filter to specific phase if requested
         if phase:
-            info = find_phase(cwd, phase)
+            try:
+                info = find_phase(cwd, phase)
+            except PhaseAmbiguityError as exc:
+                return PhaseFilesResult(error=str(exc))
             if not info:
                 return PhaseFilesResult(error="Phase not found")
             match_dir = Path(info.directory).name
             dirs = [match_dir]
 
         files: list[str] = []
+        files_by_phase: dict[str, list[str]] = {}
         for d in dirs:
             dir_path = phases_dir / d
             dir_files = sorted(f.name for f in dir_path.iterdir() if f.is_file())
@@ -989,13 +1031,22 @@ def list_phase_files(cwd: Path, file_type: str, phase: str | None = None) -> Pha
             else:
                 filtered = dir_files
 
-            files.extend(sorted(filtered))
+            files_by_phase[d] = sorted(filtered)
+            files.extend(files_by_phase[d])
 
         phase_dir_name = None
+        phase_directory = None
         if phase and dirs:
             phase_dir_name = re.sub(r"^\d+(?:\.\d+)*-?", "", dirs[0])
+            phase_directory = dirs[0]
 
-        return PhaseFilesResult(files=files, count=len(files), phase_dir=phase_dir_name)
+        return PhaseFilesResult(
+            files=files,
+            count=len(files),
+            phase_dir=phase_dir_name,
+            phase_directory=phase_directory,
+            files_by_phase=files_by_phase,
+        )
 
 
 # ─── Roadmap Get Phase ─────────────────────────────────────────────────────────
@@ -1185,7 +1236,14 @@ def validate_waves(plans: list[PlanEntry]) -> WaveValidation:
 def validate_phase_waves(cwd: Path, phase: str) -> PhaseWaveValidationResult:
     """Validate wave dependencies for a specific phase."""
     normalized = phase_normalize(phase)
-    phase_info = find_phase(cwd, phase)
+    try:
+        phase_info = find_phase(cwd, phase)
+    except PhaseAmbiguityError as exc:
+        return PhaseWaveValidationResult(
+            phase=normalized,
+            error=str(exc),
+            validation=WaveValidation(valid=False, errors=[str(exc)]),
+        )
 
     if not phase_info:
         return PhaseWaveValidationResult(
@@ -1226,7 +1284,13 @@ def validate_phase_waves(cwd: Path, phase: str) -> PhaseWaveValidationResult:
 def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
     """Build an index of plans in a phase with wave grouping and validation."""
     normalized = phase_normalize(phase)
-    phase_info = find_phase(cwd, phase)
+    try:
+        phase_info = find_phase(cwd, phase)
+    except PhaseAmbiguityError as exc:
+        return PhasePlanIndex(
+            phase=normalized,
+            validation=WaveValidation(valid=False, errors=[str(exc)]),
+        )
 
     if not phase_info:
         return PhasePlanIndex(phase=normalized)
@@ -1361,10 +1425,11 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             has_context = False
             has_research = False
 
-            dir_match_name = next(
-                (d for d in phase_dir_names if d.startswith(normalized + "-") or d == normalized),
-                None,
-            )
+            try:
+                dir_match_name = _matching_phase_dir(phase_num, _sorted_phases(phase_dir_names))
+            except PhaseAmbiguityError:
+                dir_match_name = None
+                disk_status = "ambiguous"
 
             if dir_match_name:
                 phase_files = [f.name for f in (phases_dir / dir_match_name).iterdir() if f.is_file()]

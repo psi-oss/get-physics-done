@@ -40,8 +40,8 @@ Version: $ARGUMENTS (optional — defaults to current milestone)
 find_files: GPD/phases/*/*SUMMARY.md
 
 Use canonical phase helpers for verification artifacts:
-- `gpd phase list`
-- `gpd show-phase <phase-number>`
+- Local CLI: `gpd phase list`
+- Runtime command: `gpd:show-phase <phase-number>`
 - Do not preload raw `*-VERIFICATION.md` globs here.
 </context>
 

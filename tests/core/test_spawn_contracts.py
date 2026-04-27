@@ -562,8 +562,8 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in referee.text
     assert "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in referee.text
     assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in referee.text
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee.text
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in referee.text
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in referee.text
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in referee.text
 
 
 def test_referee_response_template_uses_round_suffixed_decision_artifacts() -> None:

@@ -109,6 +109,40 @@ def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> Non
     )
 
 
+def _write_bibliography_audit(manuscript_root: Path) -> None:
+    _write(
+        manuscript_root / "BIBLIOGRAPHY-AUDIT.json",
+        json.dumps(
+            {
+                "generated_at": "2026-04-02T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [
+                    {
+                        "key": "benchmark2024",
+                        "source_type": "paper",
+                        "reference_id": "ref-benchmark",
+                        "title": "Benchmark Paper",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                        "verification_sources": ["manual"],
+                        "canonical_identifiers": ["doi:10.1000/example"],
+                        "missing_core_fields": [],
+                        "enriched_fields": [],
+                        "warnings": [],
+                        "errors": [],
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+
+
 def test_publication_round_helpers_index_round_suffixed_artifacts(tmp_path: Path) -> None:
     review_dir = tmp_path / "GPD" / "review"
     _write(review_dir / "REVIEW-LEDGER.json", "{}\n")
@@ -174,6 +208,45 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert context["latest_referee_report_md"] == "GPD/REFEREE-REPORT-R2.md"
     assert context["latest_author_response"] == "GPD/AUTHOR-RESPONSE-R2.md"
     assert context["publication_subject"]["manuscript_entrypoint"] == "paper/main.tex"
+
+
+def test_publication_runtime_reference_status_uses_canonical_subject_fields_for_invalid_explicit_target(
+    tmp_path: Path,
+) -> None:
+    manuscript_root = tmp_path / "submission"
+    manuscript_root.mkdir()
+    _write_bibliography_audit(manuscript_root)
+
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, subject="submission/missing.tex")
+    context = publication_runtime_snapshot_context(tmp_path, subject="submission/missing.tex")
+
+    status = snapshot.manuscript_reference_status
+    assert status.manuscript_root == "submission"
+    assert status.bibliography_audit_path == "submission/BIBLIOGRAPHY-AUDIT.json"
+    assert status.subject_resolution_status == "invalid"
+    assert status.subject_resolution_detail == "missing explicit manuscript target ./submission/missing.tex"
+    assert [record.reference_id for record in status.reference_status] == ["ref-benchmark"]
+    assert context["manuscript_reference_subject_status"] == "invalid"
+    assert context["manuscript_reference_subject_detail"] == "missing explicit manuscript target ./submission/missing.tex"
+
+
+def test_publication_runtime_invalid_explicit_target_does_not_fall_back_to_current_project_manuscript(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    _write_bibliography_audit(tmp_path / "paper")
+    submission = tmp_path / "submission"
+    submission.mkdir()
+    _write_bibliography_audit(submission)
+
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, subject="submission/missing.tex")
+
+    status = snapshot.manuscript_reference_status
+    assert status.manuscript_root == "submission"
+    assert status.bibliography_audit_path == "submission/BIBLIOGRAPHY-AUDIT.json"
+    assert status.subject_resolution_status == "invalid"
+    assert [record.manuscript_root for record in status.reference_status] == ["submission"]
 
 
 def test_publication_runtime_snapshot_accepts_legacy_review_dir_report_and_author_response_during_migration(

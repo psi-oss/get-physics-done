@@ -39,8 +39,8 @@ Goal:
 - Flag narrative jumps, overclaims, and any places where the conclusions outrun the evidence.
 
 Output:
-- `GPD/review/CLAIMS{round_suffix}.json`
-- `GPD/review/STAGE-reader{round_suffix}.json`
+- `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-reader{round_suffix}.json`
 
 ### Stage 2. Literature Context
 
@@ -51,7 +51,7 @@ Goal:
 - Identify missing foundational work, unacknowledged overlap, and inflated novelty claims.
 
 Output:
-- `GPD/review/STAGE-literature{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`
 
 ### Stage 3. Mathematical Soundness
 
@@ -62,7 +62,7 @@ Goal:
 - If the validator requires theorem-bearing Stage 1 claims to be reviewed, do not sample only a subset: every theorem-bearing Stage 1 claim must be reviewed and proof-audited.
 
 Output:
-- `GPD/review/STAGE-math{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-math{round_suffix}.json`
 
 ### Auxiliary Proof Critique Gate
 
@@ -74,7 +74,7 @@ Goal:
 - Try to break the proof by forcing narrower-case, dropped-parameter, or hidden-assumption failures into the open before final adjudication.
 
 Output:
-- `GPD/review/PROOF-REDTEAM{round_suffix}.md`
+- `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`
 
 ### Stage 4. Physical Soundness
 
@@ -84,7 +84,7 @@ Goal:
 - Check regime of validity, physical assumptions, interpretation, connection between math and physics, and whether the claimed physical conclusions are actually supported.
 
 Output:
-- `GPD/review/STAGE-physics{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json`
 
 ### Stage 5. Significance And Venue Fit
 
@@ -95,7 +95,7 @@ Goal:
 - Be willing to conclude that the paper is mathematically respectable but scientifically weak.
 
 Output:
-- `GPD/review/STAGE-interestingness{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json`
 
 ### Stage 6. Final Adjudication
 
@@ -106,15 +106,15 @@ Goal:
 - Spot-check the manuscript where the stage artifacts disagree or feel under-evidenced.
 - Issue the final recommendation.
 - Stage 6 may write only the adjudication artifacts listed under Output.
-- Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and `GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence. Do not repair, rewrite, replace, or backfill them inside Stage 6.
+- Treat `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, every `${REVIEW_ROOT}/STAGE-*.json`, and `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence. Do not repair, rewrite, replace, or backfill them inside Stage 6.
 - If any upstream artifact is missing, malformed, stale, or mutually inconsistent, Stage 6 must fail closed and route the inconsistency back to the earliest failing upstream stage instead of patching those artifacts during adjudication.
 
 Output:
-- `GPD/review/REVIEW-LEDGER{round_suffix}.json`
-- `GPD/review/REFEREE-DECISION{round_suffix}.json`
-- `GPD/REFEREE-REPORT{round_suffix}.md`
-- `GPD/REFEREE-REPORT{round_suffix}.tex`
-- `GPD/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar. It does not authorize Stage 6 to mutate upstream stage artifacts.
+- `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`
+- `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`
+- `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`
+- `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`
+- `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable, but only as a diagnostic sidecar. It does not authorize Stage 6 to mutate upstream stage artifacts.
 
 ## Fresh-Context Rule
 
@@ -297,11 +297,11 @@ Minimal final artifact shapes:
   "final_recommendation": "major_revision",
   "final_confidence": "medium",
   "stage_artifacts": [
-    "GPD/review/STAGE-reader{round_suffix}.json",
-    "GPD/review/STAGE-literature{round_suffix}.json",
-    "GPD/review/STAGE-math{round_suffix}.json",
-    "GPD/review/STAGE-physics{round_suffix}.json",
-    "GPD/review/STAGE-interestingness{round_suffix}.json"
+    "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json",
+    "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json",
+    "${REVIEW_ROOT}/STAGE-math{round_suffix}.json",
+    "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json",
+    "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json"
   ],
   "blocking_issue_ids": ["REF-001"]
 }
@@ -310,8 +310,8 @@ Minimal final artifact shapes:
 Validate both files before trusting the final recommendation:
 
 ```bash
-gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
-gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json
+gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json
 ```
 
 ## Recommendation Guardrails For The Final Referee

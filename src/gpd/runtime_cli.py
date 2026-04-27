@@ -721,7 +721,7 @@ def main(argv: list[str] | None = None) -> int:
         runtime=runtime,
         config_dir=config_dir,
         install_scope=manifest_install_scope if isinstance(manifest_install_scope, str) else options.install_scope,
-        explicit_target=manifest_explicit_target if manifest_explicit_target is not None else False,
+        explicit_target=bool(options.explicit_target or manifest_explicit_target),
         cli_cwd=cli_cwd,
     )
     failure = _classify_bridge_failure(

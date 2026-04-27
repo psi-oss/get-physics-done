@@ -810,6 +810,7 @@ WRITE_PAPER_INIT_FIELDS = frozenset(
         "publication_lane_owner",
         "publication_artifact_base",
         "selected_publication_root",
+        "selected_review_root",
         "publication_intake_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",

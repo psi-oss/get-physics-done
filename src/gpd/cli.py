@@ -595,6 +595,13 @@ class ReviewPreflightResult:
     local_cli_equivalence_guaranteed: bool = False
     dispatch_note: str = ""
     resolved_subject: ResolvedCommandSubject | None = None
+    publication_subject_slug: str | None = None
+    publication_lane_kind: str | None = None
+    managed_publication_root: str | None = None
+    selected_publication_root: str | None = None
+    selected_review_root: str | None = None
+    manuscript_root: str | None = None
+    manuscript_entrypoint: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -8282,6 +8289,63 @@ def _command_context_publication_roots(
     return publication_root, f"{publication_root}/review"
 
 
+def _project_relative_path(project_root: Path, target: Path | None) -> str | None:
+    """Return *target* relative to *project_root* when possible."""
+    if target is None:
+        return None
+    try:
+        return target.resolve(strict=False).relative_to(project_root.resolve(strict=False)).as_posix()
+    except ValueError:
+        return target.resolve(strict=False).as_posix()
+
+
+def _review_preflight_publication_routing(
+    *,
+    project_root: Path,
+    command: object,
+    resolved_subject: ResolvedCommandSubject | None,
+    manuscript: Path | None,
+    context_preflight: CommandContextPreflightResult,
+) -> dict[str, str | None]:
+    """Return publication routing fields emitted by raw review-preflight."""
+    selected_publication_root = context_preflight.selected_publication_root
+    selected_review_root = context_preflight.selected_review_root
+    manuscript_root = _supported_manuscript_root_for_target(project_root, manuscript) if manuscript is not None else None
+    if manuscript is not None and manuscript_root is None:
+        manuscript_root = manuscript.parent
+
+    publication_subject_slug = None
+    publication_lane_kind = None
+    managed_publication_root = None
+    if manuscript is not None and _command_review_mode(command) == "publication":
+        managed_slug = _managed_publication_slug_for_target(project_root, manuscript)
+        publication_subject_slug = managed_slug or _publication_subject_slug_for_manuscript_entrypoint(
+            project_root,
+            manuscript,
+        )
+        managed_publication_root = f"{PLANNING_DIR_NAME}/{PUBLICATION_DIR_NAME}/{publication_subject_slug}"
+        if managed_slug is not None:
+            publication_lane_kind = "managed_publication_manuscript"
+        elif (
+            resolved_subject is not None
+            and resolved_subject.ownership_mode == "external_artifact"
+            and resolved_subject.explicit_input
+        ):
+            publication_lane_kind = "external_artifact"
+        else:
+            publication_lane_kind = "canonical_project_manuscript"
+
+    return {
+        "publication_subject_slug": publication_subject_slug,
+        "publication_lane_kind": publication_lane_kind,
+        "managed_publication_root": managed_publication_root,
+        "selected_publication_root": selected_publication_root,
+        "selected_review_root": selected_review_root,
+        "manuscript_root": _project_relative_path(project_root, manuscript_root),
+        "manuscript_entrypoint": _project_relative_path(project_root, manuscript),
+    }
+
+
 def _resolved_subject_uses_managed_publication_root(resolved_subject: ResolvedCommandSubject | None) -> bool:
     return (
         resolved_subject is not None
@@ -10716,6 +10780,13 @@ def _build_review_preflight(
         active_conditional_requirements,
         "blocking_conditions",
     )
+    publication_routing = _review_preflight_publication_routing(
+        project_root=project_cwd,
+        command=command,
+        resolved_subject=resolved_subject,
+        manuscript=manuscript,
+        context_preflight=context_preflight,
+    )
     passed = all(check.passed or not check.blocking for check in checks)
     return ReviewPreflightResult(
         command=public_command_name,
@@ -10737,6 +10808,13 @@ def _build_review_preflight(
         local_cli_equivalence_guaranteed=context_preflight.local_cli_equivalence_guaranteed,
         dispatch_note=context_preflight.dispatch_note,
         resolved_subject=resolved_subject,
+        publication_subject_slug=publication_routing["publication_subject_slug"],
+        publication_lane_kind=publication_routing["publication_lane_kind"],
+        managed_publication_root=publication_routing["managed_publication_root"],
+        selected_publication_root=publication_routing["selected_publication_root"],
+        selected_review_root=publication_routing["selected_review_root"],
+        manuscript_root=publication_routing["manuscript_root"],
+        manuscript_entrypoint=publication_routing["manuscript_entrypoint"],
     )
 
 

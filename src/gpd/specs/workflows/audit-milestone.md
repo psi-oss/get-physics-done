@@ -84,10 +84,9 @@ Use the canonical phase helpers instead of raw phase-path globbing:
 
 ```bash
 gpd phase list
-gpd show-phase <phase-number>
 ```
 
-For each phase in the milestone, use `gpd show-phase <phase-number>` to surface the canonical `*-VERIFICATION.md` artifact and its verification status, then read the artifact itself only when you need blocker-level detail. Do not `find_files` `GPD/phases/*/*-VERIFICATION.md` by hand.
+For each phase in the milestone, use the runtime-installed command surface `gpd:show-phase <phase-number>` to surface the canonical `*-VERIFICATION.md` artifact and its verification status, then read the artifact itself only when you need blocker-level detail. Do not `find_files` `GPD/phases/*/*-VERIFICATION.md` by hand.
 
 From each `*-VERIFICATION.md`, extract:
 

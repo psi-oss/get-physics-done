@@ -149,7 +149,7 @@ def test_resolve_project_reentry_surfaces_partial_recoverable_workspace(tmp_path
     assert resolution.candidates[0].state_exists is True
 
 
-def test_resolve_project_reentry_prefers_unique_strong_recent_project_over_partial_recoverable_current_workspace(
+def test_resolve_project_reentry_keeps_partial_recoverable_current_workspace_over_recent_project(
     tmp_path: Path,
 ) -> None:
     workspace = _make_gpd_workspace(tmp_path / "workspace", roadmap=True, state=True)
@@ -162,18 +162,18 @@ def test_resolve_project_reentry_prefers_unique_strong_recent_project_over_parti
         ],
     )
 
-    assert resolution.mode == "auto-recent-project"
-    assert resolution.source == "recent_project"
-    assert resolution.auto_selected is True
+    assert resolution.mode == "current-workspace"
+    assert resolution.source == "current_workspace"
+    assert resolution.auto_selected is False
     assert resolution.requires_user_selection is False
-    assert resolution.project_root == recent.resolve(strict=False).as_posix()
+    assert resolution.project_root == workspace.resolve(strict=False).as_posix()
     assert resolution.selected_candidate is not None
-    assert resolution.selected_candidate.source == "recent_project"
-    assert resolution.selected_candidate.auto_selectable is True
-    assert resolution.candidates[0].source == "recent_project"
-    assert resolution.candidates[0].project_root == recent.resolve(strict=False).as_posix()
-    assert resolution.candidates[1].source == "current_workspace"
-    assert resolution.candidates[1].project_root == workspace.resolve(strict=False).as_posix()
+    assert resolution.selected_candidate.source == "current_workspace"
+    assert resolution.selected_candidate.auto_selectable is False
+    assert resolution.candidates[0].source == "current_workspace"
+    assert resolution.candidates[0].project_root == workspace.resolve(strict=False).as_posix()
+    assert resolution.candidates[1].source == "recent_project"
+    assert resolution.candidates[1].project_root == recent.resolve(strict=False).as_posix()
 
 
 def test_resolve_project_reentry_does_not_prefer_unrecoverable_state_file_over_recent_project(tmp_path: Path) -> None:
@@ -220,7 +220,7 @@ def test_resolve_project_reentry_rejects_string_booleans_on_recent_project_rows(
     assert resolution.candidates[0].resume_file_available is None
 
 
-def test_resolve_project_reentry_treats_backup_only_state_as_recoverable_current_workspace(tmp_path: Path) -> None:
+def test_resolve_project_reentry_ignores_backup_only_state_as_current_workspace(tmp_path: Path) -> None:
     from gpd.core.state import default_state_dict
 
     workspace = _make_gpd_workspace(tmp_path / "workspace")
@@ -230,11 +230,11 @@ def test_resolve_project_reentry_treats_backup_only_state_as_recoverable_current
 
     resolution = resolve_project_reentry(workspace, recent_rows=[])
 
-    assert resolution.mode == "current-workspace"
-    assert resolution.source == "current_workspace"
-    assert resolution.has_current_workspace_candidate is True
-    assert resolution.has_recoverable_current_workspace is True
-    assert resolution.candidates[0].state_exists is True
+    assert resolution.mode == "no-recovery"
+    assert resolution.source is None
+    assert resolution.has_current_workspace_candidate is False
+    assert resolution.has_recoverable_current_workspace is False
+    assert resolution.candidates == []
 
 
 def test_resolve_project_reentry_default_scan_prefers_unique_recent_over_backup_only_workspace(
@@ -257,14 +257,12 @@ def test_resolve_project_reentry_default_scan_prefers_unique_recent_over_backup_
     assert resolution.mode == "auto-recent-project"
     assert resolution.source == "recent_project"
     assert resolution.auto_selected is True
-    assert resolution.has_current_workspace_candidate is True
-    assert resolution.has_recoverable_current_workspace is True
+    assert resolution.has_current_workspace_candidate is False
+    assert resolution.has_recoverable_current_workspace is False
     assert resolution.project_root == recent.resolve(strict=False).as_posix()
     assert resolution.candidates[0].source == "recent_project"
     assert resolution.candidates[0].auto_selectable is True
-    assert resolution.candidates[1].source == "current_workspace"
-    assert resolution.candidates[1].state_exists is True
-    assert resolution.candidates[1].project_exists is False
+    assert len(resolution.candidates) == 1
 
 
 def test_resolve_project_reentry_skips_recent_project_scan_for_recoverable_current_workspace(

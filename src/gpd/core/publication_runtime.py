@@ -43,13 +43,8 @@ from gpd.core.publication_rounds import (
     publication_response_round_path_maps,
     publication_review_round_path_maps,
 )
-from gpd.core.reference_ingestion import (
-    ManuscriptReferenceStatusIngestion,
-    ManuscriptReferenceStatusRecord,
-    ingest_manuscript_reference_status,
-)
+from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
 from gpd.core.state import load_state_json
-from gpd.mcp.paper.bibliography import BibliographyAudit
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
 __all__ = [
@@ -460,64 +455,33 @@ def _resolve_target_manuscript_reference_status(
     artifacts: ManuscriptArtifacts,
     *,
     allow_project_fallback: bool,
+    manuscript_resolution: ManuscriptResolution | None = None,
 ) -> ManuscriptReferenceStatusIngestion:
     if artifacts.manuscript_root is None:
         if allow_project_fallback:
             return ingest_manuscript_reference_status(project_root)
         return ManuscriptReferenceStatusIngestion()
 
-    audit_path = artifacts.bibliography_audit or (artifacts.manuscript_root / "BIBLIOGRAPHY-AUDIT.json")
-    manuscript_root_label = _relative_path(project_root, artifacts.manuscript_root) or ""
-    bibliography_audit_label = _relative_path(project_root, audit_path) or ""
-
-    if not audit_path.exists():
-        return ManuscriptReferenceStatusIngestion(
-            manuscript_root=manuscript_root_label,
-            bibliography_audit_path=bibliography_audit_label,
-        )
-
-    try:
-        raw_audit = json.loads(audit_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return ManuscriptReferenceStatusIngestion(
-            manuscript_root=manuscript_root_label,
-            bibliography_audit_path=bibliography_audit_label,
-            reference_status_warnings=[f"could not read bibliography audit {bibliography_audit_label}: {exc}"],
-        )
-
-    try:
-        audit = BibliographyAudit.model_validate(raw_audit)
-    except Exception as exc:  # noqa: BLE001
-        return ManuscriptReferenceStatusIngestion(
-            manuscript_root=manuscript_root_label,
-            bibliography_audit_path=bibliography_audit_label,
-            reference_status_warnings=[f"invalid bibliography audit {bibliography_audit_label}: {exc}"],
-        )
-
-    reference_status: list[ManuscriptReferenceStatusRecord] = []
-    for entry in audit.entries:
-        reference_id = str(entry.reference_id or "").strip()
-        bibtex_key = str(entry.key or "").strip()
-        if not reference_id or not bibtex_key:
-            continue
-        reference_status.append(
-            ManuscriptReferenceStatusRecord(
-                reference_id=reference_id,
-                bibtex_key=bibtex_key,
-                title=str(entry.title or "").strip(),
-                resolution_status=str(entry.resolution_status or "").strip(),
-                verification_status=str(entry.verification_status or "").strip(),
-                source_artifacts=[bibliography_audit_label],
-                manuscript_root=manuscript_root_label,
-                bibliography_audit_path=bibliography_audit_label,
-            )
-        )
-
-    return ManuscriptReferenceStatusIngestion(
-        manuscript_root=manuscript_root_label,
-        bibliography_audit_path=bibliography_audit_label,
-        reference_status=reference_status,
+    subject_status = manuscript_resolution.status if manuscript_resolution is not None else "resolved"
+    subject_detail = (
+        manuscript_resolution.detail
+        if manuscript_resolution is not None
+        else "publication runtime resolved manuscript artifacts"
     )
+    subject = PublicationSubjectResolution(
+        project_root=project_root,
+        status=subject_status,
+        source="explicit_target",
+        detail=subject_detail,
+        target_path=artifacts.manuscript_entrypoint,
+        manuscript_root=artifacts.manuscript_root,
+        manuscript_entrypoint=artifacts.manuscript_entrypoint,
+        artifact_base=artifacts.manuscript_root,
+        artifact_manifest=artifacts.artifact_manifest,
+        bibliography_audit=artifacts.bibliography_audit,
+        reproducibility_manifest=artifacts.reproducibility_manifest,
+    )
+    return ingest_manuscript_reference_status(project_root, publication_subject=subject)
 
 
 def _target_not_reviewed_status(detail: str) -> ProofReviewStatus:
@@ -945,6 +909,20 @@ def resolve_publication_runtime_snapshot(
         manuscript_resolution = _resolve_target_manuscript_resolution(target, current_resolution, manuscript_artifacts)
         if _project_backed_target_mode(target):
             resolved_subject = resolve_current_publication_subject(project_root, allow_markdown=True)
+        elif manuscript_artifacts.manuscript_entrypoint is None:
+            resolved_subject = PublicationSubjectResolution(
+                project_root=project_root,
+                status=manuscript_resolution.status,
+                source="explicit_target",
+                detail=manuscript_resolution.detail,
+                target_path=target.target_path or target.subject_path,
+                manuscript_root=manuscript_artifacts.manuscript_root,
+                manuscript_entrypoint=None,
+                artifact_base=manuscript_artifacts.manuscript_root,
+                artifact_manifest=manuscript_artifacts.artifact_manifest,
+                bibliography_audit=manuscript_artifacts.bibliography_audit,
+                reproducibility_manifest=manuscript_artifacts.reproducibility_manifest,
+            )
         else:
             resolved_subject = _coerce_publication_subject(
                 project_root,
@@ -958,6 +936,7 @@ def resolve_publication_runtime_snapshot(
             project_root,
             manuscript_artifacts,
             allow_project_fallback=allow_project_fallback,
+            manuscript_resolution=manuscript_resolution,
         )
     )
     if manuscript_artifacts.manuscript_entrypoint is not None:

@@ -46,7 +46,7 @@ def test_review_reader_prompt_keeps_shared_contract_visible() -> None:
         review_reader,
         "full `ClaimIndex` and `StageReviewReport` contracts",
     )
-    assert "Stage 1 must also emit `GPD/review/CLAIMS{round_suffix}.json`." in review_reader
+    assert "Stage 1 must also emit `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`." in review_reader
     assert "Capture theorem kind, explicit hypotheses, and free target parameters for theorem-like claims." in review_reader
     assert "Keep `proof_audits` empty in this stage." in review_reader
     assert "Focus `findings` on overclaiming, missing promised deliverables, and claim-structure blockers." in review_reader

@@ -728,6 +728,45 @@ def test_runtime_cli_infers_target_dir_for_missing_explicit_target_repair_guidan
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_bridge_explicit_target_flag_overrides_missing_manifest_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    seed_complete_runtime_install(config_dir, runtime=adapter.runtime_name, explicit_target=False)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("runtime", None)
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    exit_code = main(
+        [
+            "--runtime",
+            adapter.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "--explicit-target",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / adapter.config_dir_name

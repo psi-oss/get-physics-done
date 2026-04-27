@@ -1223,6 +1223,55 @@ assert.throws(
   /runtime catalog entry 0\.selection_aliases\[1\] must be a non-empty string/
 );
 
+const badRuntimeNameCatalog = JSON.parse(JSON.stringify(catalog));
+badRuntimeNameCatalog[0].runtime_name = "Bad Runtime";
+assert.throws(
+  () => validateRuntimeCatalog(badRuntimeNameCatalog),
+  /runtime catalog entry 0\.runtime_name must be a lowercase runtime id/
+);
+
+const badConfigDirNameCatalog = JSON.parse(JSON.stringify(catalog));
+badConfigDirNameCatalog[0].config_dir_name = "../.codex";
+assert.throws(
+  () => validateRuntimeCatalog(badConfigDirNameCatalog),
+  /runtime catalog entry 0\.config_dir_name must be a safe relative path segment without traversal/
+);
+
+const badInstallFlagCatalog = JSON.parse(JSON.stringify(catalog));
+badInstallFlagCatalog[0].install_flag = "--bad flag";
+assert.throws(
+  () => validateRuntimeCatalog(badInstallFlagCatalog),
+  /runtime catalog entry 0\.install_flag must be a --kebab-case flag/
+);
+
+const badActivationEnvCatalog = JSON.parse(JSON.stringify(catalog));
+badActivationEnvCatalog[0].activation_env_vars = ["BAD=1"];
+assert.throws(
+  () => validateRuntimeCatalog(badActivationEnvCatalog),
+  /runtime catalog entry 0\.activation_env_vars\[0\] must be an environment variable name/
+);
+
+const badGlobalEnvCatalog = JSON.parse(JSON.stringify(catalog));
+badGlobalEnvCatalog[0].global_config.env_var = "BAD=1";
+assert.throws(
+  () => validateRuntimeCatalog(badGlobalEnvCatalog),
+  /runtime catalog entry 0\.global_config\.env_var must be an environment variable name/
+);
+
+const badHomeSubpathCatalog = JSON.parse(JSON.stringify(catalog));
+badHomeSubpathCatalog[0].global_config.home_subpath = "../.codex";
+assert.throws(
+  () => validateRuntimeCatalog(badHomeSubpathCatalog),
+  /runtime catalog entry 0\.global_config\.home_subpath must be a safe relative path without traversal/
+);
+
+const badManifestPrefixCatalog = JSON.parse(JSON.stringify(catalog));
+badManifestPrefixCatalog[0].manifest_file_prefixes = ["../skills/"];
+assert.throws(
+  () => validateRuntimeCatalog(badManifestPrefixCatalog),
+  /runtime catalog entry 0\.manifest_file_prefixes\[0\] must be a safe relative path without traversal/
+);
+
 const badFlagCatalog = JSON.parse(JSON.stringify(catalog));
 badFlagCatalog[0].native_include_support = "true";
 assert.throws(
@@ -1355,6 +1404,7 @@ assert.throws(
 const futureCapabilityEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
 futureCapabilityEnumSchema.capability_enums.telemetry_source.push("webhook");
 futureCapabilityEnumSchema.capability_defaults.telemetry_source = "webhook";
+futureCapabilityEnumSchema.capability_defaults.telemetry_completeness = "best-effort";
 assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(futureCapabilityEnumSchema));
 
 const futureLaunchWrapperSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
@@ -1385,7 +1435,9 @@ assert.throws(
 const futureConfigSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
 futureConfigSurfaceCatalog[0].capabilities.permission_surface_kind = "future.json:permissions.mode";
 futureConfigSurfaceCatalog[0].capabilities.statusline_config_surface = "future.json:statusLine";
+futureConfigSurfaceCatalog[0].capabilities.notify_surface = "explicit";
 futureConfigSurfaceCatalog[0].capabilities.notify_config_surface = "future.json:notify";
+futureConfigSurfaceCatalog[0].hook_payload.notify_event_types = ["future-event"];
 const validatedConfigSurfaceCatalog = validateRuntimeCatalog(futureConfigSurfaceCatalog);
 assert.equal(
   validatedConfigSurfaceCatalog[0].capabilities.permission_surface_kind,
@@ -1440,6 +1492,56 @@ badNotifyConfigCatalog[0].capabilities.notify_config_surface = "notify-toggle";
 assert.throws(
   () => validateRuntimeCatalog(badNotifyConfigCatalog),
   /runtime catalog entry 0\.capabilities\.notify_config_surface must be "none" or a config surface label like file:key/
+);
+
+const missingStatuslineConfigCatalog = JSON.parse(JSON.stringify(catalog));
+const statuslineRuntime = missingStatuslineConfigCatalog.find(
+  (runtime) => runtime.capabilities.statusline_surface === "explicit"
+);
+statuslineRuntime.capabilities.statusline_config_surface = "none";
+assert.throws(
+  () => validateRuntimeCatalog(missingStatuslineConfigCatalog),
+  /runtime catalog entry \d+\.capabilities\.statusline_config_surface must not be "none" when statusline_surface=explicit/
+);
+
+const unexpectedStatuslineConfigCatalog = JSON.parse(JSON.stringify(catalog));
+const noStatuslineRuntime = unexpectedStatuslineConfigCatalog.find(
+  (runtime) => runtime.capabilities.statusline_surface !== "explicit"
+);
+noStatuslineRuntime.capabilities.statusline_config_surface = "settings.json:statusLine";
+assert.throws(
+  () => validateRuntimeCatalog(unexpectedStatuslineConfigCatalog),
+  /runtime catalog entry \d+\.capabilities\.statusline_config_surface must be "none" when statusline_surface=none/
+);
+
+const missingNotifyConfigCatalog = JSON.parse(JSON.stringify(catalog));
+const notifyRuntime = missingNotifyConfigCatalog.find(
+  (runtime) => runtime.capabilities.notify_surface === "explicit"
+);
+notifyRuntime.capabilities.notify_config_surface = "none";
+assert.throws(
+  () => validateRuntimeCatalog(missingNotifyConfigCatalog),
+  /runtime catalog entry \d+\.capabilities\.notify_config_surface must not be "none" when notify_surface=explicit/
+);
+
+const telemetryNoneWithSourceCatalog = JSON.parse(JSON.stringify(catalog));
+const telemetryRuntime = telemetryNoneWithSourceCatalog.find(
+  (runtime) => runtime.capabilities.telemetry_source && runtime.capabilities.telemetry_source !== "none"
+);
+telemetryRuntime.capabilities.telemetry_completeness = "none";
+assert.throws(
+  () => validateRuntimeCatalog(telemetryNoneWithSourceCatalog),
+  /runtime catalog entry \d+\.capabilities\.telemetry_source must be "none" when telemetry_completeness=none/
+);
+
+const telemetryCompleteWithoutSourceCatalog = JSON.parse(JSON.stringify(catalog));
+const noTelemetryRuntime = telemetryCompleteWithoutSourceCatalog.find(
+  (runtime) => !runtime.capabilities.telemetry_source || runtime.capabilities.telemetry_source === "none"
+);
+noTelemetryRuntime.capabilities.telemetry_completeness = "best-effort";
+assert.throws(
+  () => validateRuntimeCatalog(telemetryCompleteWithoutSourceCatalog),
+  /runtime catalog entry \d+\.capabilities\.telemetry_source must not be "none" when telemetry_completeness is not none/
 );
 
 const badConfigFilePermissionContractCatalog = JSON.parse(JSON.stringify(catalog));
@@ -1692,7 +1794,17 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert managed_pip_installs[0]["argv"][-1] == PYPI_SPEC
 
     managed_runtime_installs = [
-        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local"]
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--skip-readiness-check",
+        ]
     ]
     assert len(managed_runtime_installs) == 1
     managed_runtime_doctor = [
@@ -1709,7 +1821,15 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     install_index = next(
         index
         for index, entry in enumerate(entries)
-        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local"]
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--skip-readiness-check",
+        ]
     )
     assert doctor_index < install_index
 
@@ -2079,7 +2199,16 @@ def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> Non
         entry
         for entry in entries
         if entry["managed"]
-        and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local", "--target-dir", str(target_dir)]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--target-dir",
+            str(target_dir),
+            "--skip-readiness-check",
+        ]
     ]
     assert len(managed_runtime_installs) == 1
     managed_runtime_doctor = [
@@ -2118,7 +2247,16 @@ def test_bootstrap_preserves_global_scope_for_canonical_global_target_dir(tmp_pa
         entry
         for entry in entries
         if entry["managed"]
-        and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--global", "--target-dir", str(target_dir)]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+            "--skip-readiness-check",
+        ]
     ]
 
     assert len(managed_runtime_installs) == 1
@@ -2176,7 +2314,16 @@ def test_bootstrap_preserves_global_scope_for_home_target_when_runtime_env_point
         entry
         for entry in entries
         if entry["managed"]
-        and entry["argv"] == ["-m", "gpd.cli", "install", descriptor.runtime_name, "--global", "--target-dir", str(target_dir)]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            descriptor.runtime_name,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+            "--skip-readiness-check",
+        ]
     ]
     assert len(managed_runtime_installs) == 1
     managed_runtime_doctor = [
@@ -2375,7 +2522,10 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
 
     entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
     managed_runtime_installs = [
-        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "--all", "--global"]
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == ["-m", "gpd.cli", "install", "--all", "--global", "--skip-readiness-check"]
     ]
 
     assert len(managed_runtime_installs) == 1

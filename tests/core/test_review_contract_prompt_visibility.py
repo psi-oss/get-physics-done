@@ -1283,8 +1283,8 @@ def test_peer_review_contract_surfaces_typed_conditional_proof_requirements() ->
         ),
         registry.ReviewContractConditionalRequirement(
             when="theorem-bearing claims are present",
-            required_outputs=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-            stage_artifacts=["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+            required_outputs=["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
+            stage_artifacts=["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
         )
     ]
     source = _read_command("peer-review")
@@ -1682,8 +1682,8 @@ def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in review_ledger_schema
     assert "`manuscript_path` must be non-empty" in review_ledger_schema
     assert "REFEREE-DECISION{round_suffix}.json" in review_ledger_schema
-    assert "GPD/review/CLAIMS{round_suffix}.json" in panel
-    assert "GPD/review/STAGE-reader{round_suffix}.json" in panel
+    assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in panel
+    assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in panel
     assert "proof_audits" in panel
     assert "theorem_assumptions" in panel
     assert "theorem_parameters" in panel

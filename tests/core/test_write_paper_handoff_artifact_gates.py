@@ -30,9 +30,9 @@ def test_write_paper_response_artifact_completion_requires_typed_status_files_wr
     source = WORKFLOW.read_text(encoding="utf-8")
 
     assert "Check the agent's typed `gpd_return.status` first." in source
-    assert "If it returned `status: completed`, verify that `gpd_return.files_written` names both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`" in source
+    assert "If it returned `status: completed`, verify that `gpd_return.files_written` names both `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`" in source
     assert "If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion." in source
-    assert "Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md`, `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate." in source
+    assert "Treat `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md`, `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate." in source
 
 
 def test_write_paper_bootstrap_contract_is_explicit_about_project_and_bounded_external_lanes() -> None:

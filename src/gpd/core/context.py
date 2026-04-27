@@ -236,6 +236,7 @@ _RESUME_BASE_INIT_FIELDS = frozenset(
         "workspace_roadmap_exists",
         "workspace_project_exists",
         "workspace_planning_exists",
+        "state_json_backup_exists",
         "state_exists",
         "roadmap_exists",
         "project_exists",
@@ -412,6 +413,7 @@ _WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS = frozenset(
         "publication_lane_owner",
         "publication_artifact_base",
         "selected_publication_root",
+        "selected_review_root",
         "publication_intake_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
@@ -805,6 +807,9 @@ def _path_exists(cwd: Path, target: str) -> bool:
 
 def _state_exists(cwd: Path) -> bool:
     """Return whether the project has recoverable state from JSON or STATE.md."""
+    layout = ProjectLayout(cwd)
+    if not (layout.state_json.exists() or layout.state_md.exists()):
+        return False
     state, _state_issues, _state_source = _peek_state_json(
         cwd,
         recover_intent=False,
@@ -3769,6 +3774,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         "workspace_planning_exists": workspace_planning_exists,
         # Selected project availability.
         "state_exists": _state_exists(effective_cwd),
+        "state_json_backup_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
         "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),

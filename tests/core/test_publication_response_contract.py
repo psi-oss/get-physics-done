@@ -112,10 +112,11 @@ def test_referee_revision_mode_requires_a_paired_response_package() -> None:
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
 
     assert "paired response package" in referee
-    assert "GPD/AUTHOR-RESPONSE.md" in referee
-    assert "GPD/AUTHOR-RESPONSE-R{N}.md" in referee
-    assert "GPD/review/REFEREE_RESPONSE.md" in referee
-    assert "GPD/review/REFEREE_RESPONSE-R{N}.md" in referee
+    assert "${selected_publication_root}/AUTHOR-RESPONSE.md" in referee
+    assert "${selected_publication_root}/AUTHOR-RESPONSE-R{N}.md" in referee
+    assert "${selected_review_root}/REFEREE_RESPONSE.md" in referee
+    assert "${selected_review_root}/REFEREE_RESPONSE-R{N}.md" in referee
+    assert "Do not infer revision state by scanning global `GPD/` filenames." in referee
     assert "suffixes disagree" in referee
     assert "incomplete response package" in referee
 
@@ -202,7 +203,7 @@ def test_referee_stage_six_files_written_must_be_fresh_current_run_outputs() -> 
     assert "For all statuses, `files_written` must list only files actually written in this run from the Stage 6 allowlist." in referee
     assert (
         "For `blocked` returns caused by upstream staged-review artifact failures, keep `files_written` empty "
-        "unless you wrote only `GPD/CONSISTENCY-REPORT.md`."
+        "unless you wrote only `${selected_publication_root}/CONSISTENCY-REPORT.md`."
     ) in referee
 
 
@@ -210,14 +211,14 @@ def test_referee_stage_six_write_allowlist_stops_before_upstream_repairs() -> No
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
 
     assert "Stage 6 writable allowlist" in referee
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in referee
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in referee
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in referee
-    assert "GPD/CONSISTENCY-REPORT.md" in referee
-    assert "never rewrite `GPD/review/CLAIMS{round_suffix}.json`" in referee
-    assert "any `GPD/review/STAGE-*.json`" in referee
-    assert "`GPD/review/PROOF-REDTEAM{round_suffix}.md`" in referee
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in referee
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex" in referee
+    assert "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in referee
+    assert "${selected_review_root}/REFEREE-DECISION{round_suffix}.json" in referee
+    assert "${selected_publication_root}/CONSISTENCY-REPORT.md" in referee
+    assert "never rewrite `${selected_review_root}/CLAIMS{round_suffix}.json`" in referee
+    assert "any `${selected_review_root}/STAGE-*.json`" in referee
+    assert "`${selected_review_root}/PROOF-REDTEAM{round_suffix}.md`" in referee
     assert (
         "If an upstream staged-review artifact is missing, malformed, stale, suffix-inconsistent, "
         "manuscript-inconsistent, or mutually inconsistent, return `gpd_return.status: blocked`"

@@ -170,6 +170,7 @@ class ArtifactReference:
     required_actions: list[str] = field(default_factory=list)
     source_artifacts: list[str] = field(default_factory=list)
     source_kind: str = "artifact"
+    must_surface_explicit: bool = False
 
     def to_context_dict(self) -> dict[str, object]:
         return {
@@ -892,7 +893,15 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
         _append_unique(target.source_artifacts, value)
     for value in reference.aliases:
         _append_unique(target.aliases, value)
-    target.must_surface = target.must_surface or reference.must_surface
+    if target.must_surface_explicit and not reference.must_surface_explicit:
+        pass
+    elif reference.must_surface_explicit and not target.must_surface_explicit:
+        target.must_surface = reference.must_surface
+        target.must_surface_explicit = True
+    elif target.must_surface_explicit and reference.must_surface_explicit:
+        target.must_surface = target.must_surface or reference.must_surface
+    else:
+        target.must_surface = target.must_surface or reference.must_surface
 
 
 def _reference_from_active_anchor(
@@ -941,6 +950,7 @@ def _reference_from_active_anchor(
         applies_to=_normalize_multi_value(applies_to),
         carry_forward_to=_normalize_multi_value(downstream),
         must_surface=must_surface,
+        must_surface_explicit=explicit_must_surface is not None,
         required_actions=normalized_actions,
         source_artifacts=[source_path],
         source_kind="artifact",
@@ -1085,6 +1095,7 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                     kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),
+                    must_surface_hint=entry.get("must_surface"),
                     actions=entry.get("required_action") or entry.get("required_actions"),
                     downstream=entry.get("downstream_use") or entry.get("carry_forward_to"),
                     source_path=source_path,

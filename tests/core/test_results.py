@@ -58,6 +58,13 @@ def test_result_add_duplicate_raises():
         result_add(state, result_id="R-01")
 
 
+def test_result_add_rejects_legacy_virtual_id_collision():
+    state: dict = {"intermediate_results": ["markdown bullet"]}
+
+    with pytest.raises(DuplicateResultError):
+        result_add(state, result_id="legacy-string-1")
+
+
 def test_result_add_empty_id_raises():
     state: dict = {}
     with pytest.raises(ResultError):
@@ -92,7 +99,7 @@ def test_result_list_all():
     assert len(results) == 2
 
 
-def test_result_list_ignores_string_entries():
+def test_result_list_exposes_string_entries_as_read_only_legacy_results():
     state: dict = {
         "intermediate_results": [
             "markdown bullet",
@@ -100,8 +107,12 @@ def test_result_list_ignores_string_entries():
         ]
     }
     results = result_list(state)
-    assert len(results) == 1
-    assert results[0].id == "R-01"
+    assert len(results) == 2
+    assert results[0].id == "legacy-string-1"
+    assert results[0].description == "markdown bullet"
+    assert results[0].legacy is True
+    assert results[0].legacy_source_index == 0
+    assert results[1].id == "R-01"
 
 
 def test_result_list_filter_phase():
@@ -163,7 +174,7 @@ def test_result_search_missing_registry_returns_empty_list():
     assert result.total == 0
 
 
-def test_result_search_ignores_string_entries():
+def test_result_search_exposes_string_entries_as_read_only_legacy_matches():
     state: dict = {
         "intermediate_results": [
             "legacy markdown bullet",
@@ -173,8 +184,10 @@ def test_result_search_ignores_string_entries():
 
     results = result_search(state, text="legacy markdown bullet")
 
-    assert results.matches == []
-    assert results.total == 0
+    assert [result.id for result in results.matches] == ["legacy-string-1"]
+    assert results.matches[0].legacy is True
+    assert results.matches[0].legacy_source_index == 0
+    assert results.total == 1
 
 
 def test_result_search_matches_text_and_equation_fields():
@@ -655,6 +668,13 @@ def test_result_deps_ignores_string_entries():
     deps = result_deps(state, "R-02")
     assert len(deps.direct_deps) == 1
     assert deps.direct_deps[0].id == "R-01"
+
+
+def test_result_deps_diagnoses_legacy_string_virtual_id():
+    state: dict = {"intermediate_results": ["markdown bullet"]}
+
+    with pytest.raises(ResultError, match="legacy string intermediate_results\\[0\\]"):
+        result_deps(state, "legacy-string-1")
 
 
 def test_result_deps_handles_raw_string_depends_on_field():

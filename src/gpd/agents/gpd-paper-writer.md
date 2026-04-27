@@ -608,20 +608,22 @@ The phase transition occurs at $g_c = \text{[PENDING]}$, which we determine by..
 
 ## Author Response Protocol
 
-When a `REFEREE-REPORT.md` or `REFEREE-REPORT-R{N}.md` exists in `GPD/`, use the canonical contract at `{GPD_INSTALL_DIR}/templates/paper/author-response.md` together with `{GPD_INSTALL_DIR}/templates/paper/referee-response.md` and the shared publication response-writer handoff at `{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md`. Treat the referee report as the source of truth for `REF-*` IDs; use `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` only as secondary calibration for blocking status and recommendation floor.
+When the orchestrator spawns you for response writing, use the concrete report, ledger, decision, and output paths it provides as authoritative. Expected handoff names include `referee_report_path`, `review_ledger_path`, `referee_decision_path`, `author_response_path`, `referee_response_path`, `selected_publication_root`, `selected_review_root`, and `round_suffix`. If the orchestrator provides roots rather than full paths, derive the pair as `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`. Default project-backed roots may resolve to the historical `GPD` / `GPD/review` layout, but those global paths are examples, not authority.
+
+Use the canonical contract at `{GPD_INSTALL_DIR}/templates/paper/author-response.md` together with `{GPD_INSTALL_DIR}/templates/paper/referee-response.md` and the shared publication response-writer handoff at `{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md`. Treat `referee_report_path` as the source of truth for `REF-*` IDs; use `review_ledger_path` and `referee_decision_path` only as secondary calibration for blocking status and recommendation floor when the orchestrator supplies them.
 
 ### Triggering
 
-Use this protocol when the orchestrator spawns you for `GPD/AUTHOR-RESPONSE*.md` work. If the workflow also requests the paired referee-facing artifact, write `GPD/review/REFEREE_RESPONSE{round_suffix}.md` for the same active round.
+Use this protocol when the orchestrator spawns you for an `author_response_path`. If the workflow also requests the paired referee-facing artifact, write `referee_response_path` for the same active round. Do not relocate either artifact beside the manuscript or into a global fallback path unless the orchestrator selected that path.
 
 ### Response Rules
 
-- `GPD/AUTHOR-RESPONSE{round_suffix}.md` is the canonical internal tracker.
-- `GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the synchronized journal-facing sibling, not a wording-only cover letter. Keep the same `REF-*` IDs, classifications, status labels, blocking-item coverage, and new-calculation tracking aligned across both files.
+- `author_response_path` is the canonical internal tracker.
+- `referee_response_path` is the synchronized journal-facing sibling, not a wording-only cover letter. Keep the same `REF-*` IDs, classifications, status labels, blocking-item coverage, and new-calculation tracking aligned across both files.
 - Classify each `REF-*` item as `fixed`, `rebutted`, `acknowledged`, or `needs-calculation`.
 - Mark `fixed` only after the manuscript change is already on disk.
 - Keep `needs-calculation` explicit when new work is still required.
-- If the workflow also requests a short editor letter beyond `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, that extra letter may compress tone and wording, but `REFEREE_RESPONSE{round_suffix}.md` must still preserve the full paired-artifact contract.
+- If the workflow also requests a short editor letter beyond `referee_response_path`, that extra letter may compress tone and wording, but `referee_response_path` must still preserve the full paired-artifact contract.
 - Do not treat the response pass as completed unless the fresh typed `gpd_return.files_written` names every response artifact requested for the active round and those files exist on disk. Preexisting files do not satisfy this gate.
 - If the response cannot be completed in one run, return `gpd_return.status: checkpoint` and stop; the orchestrator owns the continuation handoff.
 - Do not claim completion while blocking issues remain unresolved.

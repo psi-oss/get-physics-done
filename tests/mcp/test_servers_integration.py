@@ -597,12 +597,12 @@ class TestSkillsServerIntegration:
             },
             {
                 "when": "theorem-bearing claims are present",
-                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "required_outputs": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
                 "required_evidence": [],
                 "blocking_conditions": [],
                 "preflight_checks": [],
                 "blocking_preflight_checks": [],
-                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "stage_artifacts": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
             }
         ]
         assert result["context_mode"] == "project-aware"

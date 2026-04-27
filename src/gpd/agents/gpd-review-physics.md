@@ -33,7 +33,7 @@ This stage is where mathematically respectable but physically weak papers should
    - reasonable physical inference
    - speculative but honest interpretation
    - unsupported physical claim
-5. Write `GPD/review/STAGE-physics{round_suffix}.json` as a compact `StageReviewReport`.
+5. Write `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json` as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>

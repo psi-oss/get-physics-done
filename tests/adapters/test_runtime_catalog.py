@@ -492,6 +492,64 @@ def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeyp
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda entry: entry.update(runtime_name="Bad Runtime"),
+            r"runtime catalog entry 0\.runtime_name must be a lowercase runtime id",
+        ),
+        (
+            lambda entry: entry.update(config_dir_name="../.codex"),
+            r"runtime catalog entry 0\.config_dir_name must be a safe relative path segment without traversal",
+        ),
+        (
+            lambda entry: entry.update(install_flag="--bad flag"),
+            r"runtime catalog entry 0\.install_flag must be a --kebab-case flag",
+        ),
+        (
+            lambda entry: entry.update(adapter_module="gpd.adapters;rm"),
+            r"runtime catalog entry 0\.adapter_module must be a Python module path",
+        ),
+        (
+            lambda entry: entry.update(adapter_class="Bad-Class"),
+            r"runtime catalog entry 0\.adapter_class must be a Python class name",
+        ),
+        (
+            lambda entry: entry.update(activation_env_vars=["BAD=1"]),
+            r"runtime catalog entry 0\.activation_env_vars\[0\] must be an environment variable name",
+        ),
+        (
+            lambda entry: entry.update(selection_flags=["--bad flag"]),
+            r"runtime catalog entry 0\.selection_flags\[0\] must be a --kebab-case flag",
+        ),
+        (
+            lambda entry: entry["global_config"].update(env_var="BAD=1"),
+            r"runtime catalog entry 0\.global_config\.env_var must be an environment variable name",
+        ),
+        (
+            lambda entry: entry["global_config"].update(home_subpath="../.codex"),
+            r"runtime catalog entry 0\.global_config\.home_subpath must be a safe relative path without traversal",
+        ),
+        (
+            lambda entry: entry.update(manifest_file_prefixes=["../skills/"]),
+            r"runtime catalog entry 0\.manifest_file_prefixes\[0\] must be a safe relative path without traversal",
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_unsafe_path_id_and_env_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutator,
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    mutator(payload[0])
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_rejects_non_boolean_native_include_support(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -628,6 +686,56 @@ def test_runtime_catalog_rejects_prompt_free_support_without_mode_value(
             r"a non-empty string when supports_prompt_free_mode=true"
         ),
     ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("runtime_name", "capability_updates", "match"),
+    [
+        (
+            "claude-code",
+            {"statusline_config_surface": "none"},
+            r'runtime catalog entry \d+\.capabilities\.statusline_config_surface must not be "none" when statusline_surface=explicit',
+        ),
+        (
+            "opencode",
+            {"statusline_config_surface": "settings.json:statusLine"},
+            r'runtime catalog entry \d+\.capabilities\.statusline_config_surface must be "none" when statusline_surface=none',
+        ),
+        (
+            "codex",
+            {"notify_config_surface": "none"},
+            r'runtime catalog entry \d+\.capabilities\.notify_config_surface must not be "none" when notify_surface=explicit',
+        ),
+        (
+            "opencode",
+            {"notify_config_surface": "config.toml:notify"},
+            r'runtime catalog entry \d+\.capabilities\.notify_config_surface must be "none" when notify_surface=none',
+        ),
+        (
+            "codex",
+            {"telemetry_completeness": "none"},
+            r'runtime catalog entry \d+\.capabilities\.telemetry_source must be "none" when telemetry_completeness=none',
+        ),
+        (
+            "opencode",
+            {"telemetry_completeness": "best-effort"},
+            r'runtime catalog entry \d+\.capabilities\.telemetry_source must not be "none" when telemetry_completeness is not none',
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_incoherent_statusline_notify_and_telemetry_contracts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_name: str,
+    capability_updates: dict[str, object],
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    entry = _catalog_entry_by_runtime_name(payload, runtime_name)
+    entry["capabilities"].update(capability_updates)
+
+    with pytest.raises(ValueError, match=match):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 

@@ -20,7 +20,6 @@ from gpd.core.constants import (
     OPTIONAL_PLANNING_FILES,
     REQUIRED_PLANNING_DIRS,
     REQUIRED_PLANNING_FILES,
-    STATE_JSON_BACKUP_FILENAME,
     ProjectLayout,
 )
 
@@ -149,9 +148,6 @@ def _walk_project_root(
             )
             if _has_directory_content(path)
         )
-        if (layout.gpd / STATE_JSON_BACKUP_FILENAME).exists():
-            marker_count += 1
-
         if marker_count > 0:
             return path, steps, True
 

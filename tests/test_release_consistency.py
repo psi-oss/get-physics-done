@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tarfile
 import tomllib
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -131,6 +132,23 @@ def _packaged_file_paths(pack: dict[str, object]) -> set[str]:
         assert isinstance(path, str)
         paths.add(path)
     return paths
+
+
+def _source_wheel_package_data_paths(src_gpd: Path) -> set[str]:
+    package_root = src_gpd.parent
+    required_roots = ("commands", "agents", "specs")
+    package_data = {
+        path.relative_to(package_root).as_posix()
+        for root_name in required_roots
+        for path in (src_gpd / root_name).rglob("*")
+        if path.is_file()
+    }
+    package_data.update(
+        path.relative_to(package_root).as_posix()
+        for path in src_gpd.rglob("*")
+        if path.is_file() and path.suffix in {".json", ".tex"}
+    )
+    return package_data
 
 
 def _uv_build_blocked_by_environment(stderr: str) -> bool:
@@ -992,6 +1010,98 @@ def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None
         "/build/",
         "/GPD-FIX-REPORT",
         "/dist/",
+        "/tmp/",
+    )
+    assert not [
+        name
+        for name in sorted(names)
+        if any(fragment in name for fragment in forbidden_fragments)
+    ]
+
+
+def test_python_wheel_contains_public_metadata_console_scripts_and_package_data(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    uv = shutil.which("uv")
+    assert uv is not None, "uv is required for wheel validation"
+    build_root = tmp_path / "checkout"
+    output_dir = tmp_path / "wheel-output"
+    output_dir.mkdir()
+    _copy_checkout_for_release_test(repo_root, build_root)
+
+    uv_cache = tmp_path / "uv-cache"
+    env = os.environ.copy()
+    env.update(
+        {
+            "UV_CACHE_DIR": str(uv_cache),
+            "UV_NO_CONFIG": "1",
+            "UV_PYTHON_DOWNLOADS": "never",
+        }
+    )
+
+    result = subprocess.run(
+        [uv, "build", "--wheel", "--out-dir", str(output_dir)],
+        cwd=build_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0 and _uv_build_blocked_by_environment(result.stderr):
+        pytest.skip(f"uv build is blocked by the local uv/runtime environment: {result.stderr.strip()}")
+    assert result.returncode == 0, result.stderr or result.stdout
+
+    wheels = sorted(output_dir.glob("get_physics_done-*.whl"))
+    assert len(wheels) == 1
+    version = _python_release_version(build_root)
+    dist_info = f"get_physics_done-{version}.dist-info"
+    pyproject = tomllib.loads((build_root / "pyproject.toml").read_text(encoding="utf-8"))
+    project = pyproject["project"]
+
+    with zipfile.ZipFile(wheels[0]) as wheel:
+        names = set(wheel.namelist())
+        metadata = wheel.read(f"{dist_info}/METADATA").decode("utf-8")
+        entry_points = wheel.read(f"{dist_info}/entry_points.txt").decode("utf-8")
+
+    assert f"Name: {project['name']}" in metadata
+    assert f"Version: {version}" in metadata
+    assert f"Summary: {project['description']}" in metadata
+    assert f"Requires-Python: {project['requires-python']}" in metadata
+    assert f"Author: {project['authors'][0]['name']}" in metadata
+    assert f"Maintainer: {project['maintainers'][0]['name']}" in metadata
+    for label, url in project["urls"].items():
+        assert f"Project-URL: {label}, {url}" in metadata
+    assert _wheel_dependency_names(metadata) == _expected_wheel_dependency_names()
+
+    expected_entry_points = {f"{name} = {target}" for name, target in project["scripts"].items()}
+    actual_entry_points = {line for line in entry_points.splitlines() if " = " in line}
+    assert actual_entry_points == expected_entry_points
+
+    expected_package_data = _source_wheel_package_data_paths(build_root / "src" / "gpd")
+    missing_package_data = sorted(expected_package_data - names)
+    assert not missing_package_data, "wheel is missing required package data:\n" + "\n".join(
+        f"- {path}" for path in missing_package_data
+    )
+    assert {
+        "gpd/commands/help.md",
+        "gpd/agents/gpd-executor.md",
+        "gpd/specs/workflows/new-project.md",
+        "gpd/specs/workflows/new-project-stage-manifest.json",
+        "gpd/core/public_surface_contract.json",
+        "gpd/core/public_surface_contract_schema.json",
+        "gpd/adapters/runtime_catalog.json",
+        "gpd/specs/templates/paper/referee-report.tex",
+        "gpd/specs/templates/slides/main.tex",
+        "gpd/mcp/paper/templates/jhep/jhep_template.tex",
+    } <= names
+
+    forbidden_fragments = (
+        "__pycache__/",
+        ".pyc",
+        ".pyo",
+        "/build/",
+        "/dist/",
+        "/GPD-FIX-REPORT",
         "/tmp/",
     )
     assert not [

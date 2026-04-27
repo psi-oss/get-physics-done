@@ -145,6 +145,7 @@ def test_contract_tools_reject_empty_scope_in_scope() -> None:
     }
     expected = {
         "error": "Invalid contract payload: scope.in_scope must include at least one non-empty string",
+        "contract_error_details": ["scope.in_scope must include at least one non-empty string"],
         "schema_version": 1,
     }
 
@@ -1074,8 +1075,14 @@ def test_contract_tools_reject_invalid_schema_versions(schema_version: object, e
 
     suggest_result = suggest_contract_checks(contract)
 
-    assert run_result == {"error": expected_error, "schema_version": 1}
-    assert suggest_result == {"error": expected_error, "schema_version": 1}
+    expected_detail = expected_error.removeprefix("Invalid contract payload: ")
+    expected = {
+        "error": expected_error,
+        "contract_error_details": [expected_detail],
+        "schema_version": 1,
+    }
+    assert run_result == expected
+    assert suggest_result == expected
 
 
 def test_contract_tools_reject_missing_schema_version() -> None:
@@ -1096,7 +1103,11 @@ def test_contract_tools_reject_missing_schema_version() -> None:
 
     suggest_result = suggest_contract_checks(contract)
 
-    expected = {"error": "Invalid contract payload: schema_version is required", "schema_version": 1}
+    expected = {
+        "error": "Invalid contract payload: schema_version is required",
+        "contract_error_details": ["schema_version is required"],
+        "schema_version": 1,
+    }
     assert run_result == expected
     assert suggest_result == expected
 
@@ -1121,6 +1132,7 @@ def test_contract_tools_reject_coercive_contract_scalars() -> None:
 
     expected = {
         "error": "Invalid contract payload: references.0.must_surface must be a boolean",
+        "contract_error_details": ["references.0.must_surface must be a boolean"],
         "schema_version": 1,
     }
     assert run_result == expected
@@ -1179,6 +1191,9 @@ def test_contract_tools_salvage_lossy_singleton_section(
     for result in (run_result, suggest_result):
         assert result["schema_version"] == 1
         assert result["error"] == expected_error
+        assert result["contract_error_details"] == [
+            str(expected_error).removeprefix("Invalid contract payload: ")
+        ]
 
 
 def test_contract_tools_reject_missing_context_intake() -> None:
@@ -1236,6 +1251,7 @@ def test_contract_tools_reject_blank_observable_regime_and_units(field_name: str
 
     expected = {
         "error": f"Invalid contract payload: observables.0.{field_name} must be a non-empty string",
+        "contract_error_details": [f"observables.0.{field_name} must be a non-empty string"],
         "schema_version": 1,
     }
 
@@ -2240,7 +2256,11 @@ def test_run_contract_check_reports_salvage_relevant_proof_contract_details() ->
         }
     )
 
-    assert result == {"error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str", "schema_version": 1}
+    assert result == {
+        "error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str",
+        "contract_error_details": ["context_intake.must_read_refs must be a list, not str"],
+        "schema_version": 1,
+    }
 
 
 def test_run_contract_check_allows_case_only_salvage_for_proof_checks() -> None:
@@ -2373,6 +2393,7 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
     assert messages
     assert runtime_result == {
         "error": "Invalid contract payload: context_intake.must_read_refs.1 is a duplicate",
+        "contract_error_details": ["context_intake.must_read_refs.1 is a duplicate"],
         "schema_version": 1,
     }
 
@@ -2654,6 +2675,7 @@ def test_contract_tools_reject_unknown_nested_contract_fields() -> None:
 
     expected = {
         "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
+        "contract_error_details": ["references.0.notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
 
@@ -2675,6 +2697,7 @@ def test_suggest_contract_checks_rejects_unknown_nested_contract_field_salvage_m
     assert salvage_result.recoverable_errors == ["references.0.notes: Extra inputs are not permitted"]
     assert result == {
         "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
+        "contract_error_details": ["references.0.notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
 
@@ -2721,6 +2744,7 @@ def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
 
     expected_error = {
         "error": "Invalid contract payload: legacy_notes: Extra inputs are not permitted",
+        "contract_error_details": ["legacy_notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
     assert run_result == expected_error
@@ -2897,7 +2921,11 @@ def test_contract_tools_reject_blank_or_malformed_contract_list_members_at_mcp_b
     contract = _load_project_contract_fixture()
     mutator(contract)
 
-    expected = {"error": f"Invalid contract payload: {expected_error}", "schema_version": 1}
+    expected = {
+        "error": f"Invalid contract payload: {expected_error}",
+        "contract_error_details": [expected_error],
+        "schema_version": 1,
+    }
 
     assert (
         _call_verification_tool(
@@ -3189,6 +3217,7 @@ def test_contract_tools_reject_blocking_salvage_schema_drift() -> None:
 
     expected = {
         "error": "Invalid contract payload: acceptance_tests must be a list, not str",
+        "contract_error_details": ["acceptance_tests must be a list, not str"],
         "schema_version": 1,
     }
     assert run_result == expected
@@ -3211,6 +3240,7 @@ def test_contract_tools_reject_cross_link_invalid_contracts() -> None:
 
     expected = {
         "error": "Invalid contract payload: claim claim-benchmark references unknown reference missing-ref",
+        "contract_error_details": ["claim claim-benchmark references unknown reference missing-ref"],
         "schema_version": 1,
     }
     assert run_contract_check(request) == expected
@@ -3410,6 +3440,7 @@ def test_run_contract_check_surfaces_unknown_nested_contract_field_salvage_metad
 
     assert result == {
         "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
+        "contract_error_details": ["claims.0.notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
 

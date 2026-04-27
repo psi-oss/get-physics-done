@@ -64,14 +64,15 @@ def test_respond_to_referees_balanced_mode_does_not_force_parse_confirmation() -
 def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_context() -> None:
     workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "Parse bootstrap JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`" in workflow
+    assert "Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields`" in workflow
+    assert "peer-review-stage-manifest.json" in workflow
     assert "RESEARCH_MODE=$(echo \"$BOOTSTRAP\" | gpd json get .research_mode --default balanced)" in workflow
     assert "<autonomy_mode>{AUTONOMY}</autonomy_mode>" in workflow
     assert "<research_mode>{RESEARCH_MODE}</research_mode>" in workflow
     assert "Treat the referee report files as required final-stage artifacts." in workflow
-    assert "confirm `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete." in workflow
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in workflow
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in workflow
+    assert "confirm `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete." in workflow
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in workflow
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in workflow
 
 def test_paper_writer_prompt_supports_bounded_external_authoring_without_workspace_mining() -> None:
     agent = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
@@ -145,7 +146,7 @@ def test_peer_review_stage_six_limits_writes_to_stage6_owned_artifacts() -> None
     assert "Your writable scope is limited to Stage 6-owned adjudication artifacts for this round:" in workflow
     assert "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in workflow
-    assert "GPD/CONSISTENCY-REPORT.md" in workflow
+    assert "${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md" in workflow
     assert "Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`." in workflow
     assert "Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff" in workflow
     assert "Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist:" in workflow

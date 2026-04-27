@@ -22,6 +22,13 @@ def test_parse_table_rows_handles_escaped_pipes() -> None:
     assert rows == [["1", "Foo | Bar", "Baz"]]
 
 
+def test_servers_package_exports_arxiv_bridge_metadata() -> None:
+    import gpd.mcp.servers as servers
+
+    assert "arxiv_bridge" in servers.__all__
+    assert servers.arxiv_bridge.__name__ == "gpd.mcp.servers.arxiv_bridge"
+
+
 def test_parse_table_rows_skips_separator_rows() -> None:
     from gpd.mcp.servers.errors_mcp import _parse_table_rows
 

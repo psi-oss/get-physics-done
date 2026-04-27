@@ -440,6 +440,24 @@ def test_score_paper_quality_applies_journal_adjustments():
     assert report_with_extra.minimum_submission_score == 85.0
 
 
+def test_builder_journals_have_scorer_rules_or_explicit_fallbacks() -> None:
+    from gpd.core.paper_quality import BUILDER_SCORER_FALLBACKS, JOURNAL_RULES, SCORING_ONLY_JOURNALS
+    from gpd.mcp.paper.models import SUPPORTED_PAPER_JOURNALS
+
+    supported_scorer_or_fallback = set(JOURNAL_RULES) | set(BUILDER_SCORER_FALLBACKS)
+    assert set(SUPPORTED_PAPER_JOURNALS) <= supported_scorer_or_fallback
+    assert set(BUILDER_SCORER_FALLBACKS) <= set(SUPPORTED_PAPER_JOURNALS)
+    assert SCORING_ONLY_JOURNALS.isdisjoint(SUPPORTED_PAPER_JOURNALS)
+
+
+@pytest.mark.parametrize("journal", ["mnras", "jfm"])
+def test_score_paper_quality_uses_explicit_generic_fallback_for_builder_journals(journal: str) -> None:
+    report = score_paper_quality(PaperQualityInput(title="Fallback Paper", journal=journal))
+
+    assert report.journal == journal
+    assert report.minimum_submission_score == 80.0
+
+
 def test_severity_in_module_all():
     """Severity should be importable via __all__ (used in PaperQualityIssue)."""
     from gpd.core import paper_quality

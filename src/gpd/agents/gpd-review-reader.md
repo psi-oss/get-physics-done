@@ -30,8 +30,8 @@ You are not the final referee. Do not issue the panel's final recommendation for
 3. Extract the supporting subclaims, promised deliverables, and main evidence chain.
 4. Flag any place where the title, abstract, introduction, or conclusion appears stronger than the actual evidence.
 5. For any theorem-, proposition-, claim-, lemma-, or corollary-like statement, extract its theorem kind, every explicit hypothesis, and every free target parameter or regime variable into structured claim fields.
-6. Write `GPD/review/CLAIMS{round_suffix}.json` as a compact `ClaimIndex`.
-7. Write `GPD/review/STAGE-reader{round_suffix}.json` as a compact `StageReviewReport`.
+6. Write `${REVIEW_ROOT}/CLAIMS{round_suffix}.json` as a compact `ClaimIndex`.
+7. Write `${REVIEW_ROOT}/STAGE-reader{round_suffix}.json` as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>
@@ -39,7 +39,7 @@ Use `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the share
 
 Reader-specific deltas:
 
-- Stage 1 must also emit `GPD/review/CLAIMS{round_suffix}.json`.
+- Stage 1 must also emit `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`.
 - Capture theorem kind, explicit hypotheses, and free target parameters for theorem-like claims.
 - Keep `proof_audits` empty in this stage.
 - Focus `findings` on overclaiming, missing promised deliverables, and claim-structure blockers.

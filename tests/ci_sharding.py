@@ -12,7 +12,7 @@ CI_CATEGORY_SHARD_COUNTS = {
     "root": 9,
     "adapters": 2,
     "hooks": 2,
-    "mcp": 1,
+    "mcp": 2,
     "core": 5,
 }
 CI_FAST_SUITE_BUDGET_SECONDS = 180
@@ -31,6 +31,7 @@ CI_HOT_TEST_FILE_SPLITS = {
     "test_install_utils_edge.py": 2,
     "test_install_edge_cases.py": 2,
     "test_update_workflow.py": 4,
+    "test_release_consistency.py": 3,
     "adapters/test_codex.py": 2,
     "adapters/test_gemini.py": 2,
     "adapters/test_opencode.py": 2,
@@ -40,6 +41,12 @@ CI_HOT_TEST_FILE_SPLITS = {
     "hooks/test_statusline.py": 2,
     "hooks/test_todo_resolution.py": 2,
     "hooks/test_update_resolution.py": 2,
+    "mcp/test_servers.py": 6,
+    "mcp/test_verification_contract_server_regressions.py": 6,
+    "mcp/test_tool_contract_visibility.py": 3,
+    "mcp/test_servers_integration.py": 3,
+    "mcp/test_skills_server_tool_lists.py": 2,
+    "mcp/test_server_regressions.py": 2,
     "core/test_cli.py": 3,
     "core/test_contract_validation.py": 3,
     "core/test_frontmatter.py": 3,
@@ -55,6 +62,7 @@ CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
     "test_cli_commands.py": 1.5,
     "test_install_utils_edge.py": 1.5,
     "test_update_workflow.py": 2.0,
+    "test_release_consistency.py": 2.0,
     "core/test_cli.py": 1.5,
     "core/test_contract_validation.py": 1.4,
     "hooks/test_notify.py": 2.0,
@@ -63,6 +71,12 @@ CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
     "hooks/test_statusline.py": 1.5,
     "hooks/test_todo_resolution.py": 2.0,
     "hooks/test_update_resolution.py": 2.0,
+    "mcp/test_servers.py": 4.0,
+    "mcp/test_verification_contract_server_regressions.py": 4.0,
+    "mcp/test_tool_contract_visibility.py": 2.0,
+    "mcp/test_servers_integration.py": 2.0,
+    "mcp/test_skills_server_tool_lists.py": 1.5,
+    "mcp/test_server_regressions.py": 1.5,
 }
 
 
@@ -246,12 +260,14 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert (
         "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, "
-        "`hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`"
+        "`hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, "
+        "and `core 1/5` through `core 5/5`"
     ) in tests_readme
     assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
     assert (
         "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, "
-        "`tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`"
+        "`tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and "
+        "`tests/mcp/test_verification_contract_server_regressions.py`"
     ) in tests_readme
     assert "greedily rebalances those work units inside each category" in tests_readme
 

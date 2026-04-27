@@ -7,6 +7,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from gpd.registry import LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS
 from scripts.repo_graph_contract import (
     EXCLUDED_GRAPH_DIRS,
     GENERATED_ON_END,
@@ -32,7 +33,6 @@ from scripts.repo_graph_contract import (
 from scripts.sync_repo_graph_contract import check_generated_artifacts
 
 _WORKFLOW_ONLY_STEMS = {"execute-plan", "transition", "verify-phase"}
-_COMMAND_ONLY_STEMS = {"health", "suggest-next"}
 
 
 def _tracked_prompt_stems() -> tuple[set[str], set[str]]:
@@ -93,7 +93,7 @@ def test_workflow_only_and_command_only_prompt_inventory_is_explicit() -> None:
     command_stems, workflow_stems = _tracked_prompt_stems()
 
     assert workflow_stems - command_stems == _WORKFLOW_ONLY_STEMS
-    assert command_stems - workflow_stems == _COMMAND_ONLY_STEMS
+    assert command_stems - workflow_stems == LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS
 
 
 def test_graph_same_stem_inventory_ignores_untracked_matching_files(tmp_path: Path) -> None:

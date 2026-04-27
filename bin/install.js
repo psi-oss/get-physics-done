@@ -195,6 +195,11 @@ const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
 );
 const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliNamedCommandKeys];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
+const RUNTIME_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+const RUNTIME_FLAG_RE = /^--[a-z0-9][a-z0-9-]*$/;
+const RUNTIME_ENV_VAR_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const PYTHON_MODULE_RE = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+const PYTHON_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function formatQuotedDisjunction(values) {
   const normalized = [...values].sort();
@@ -262,6 +267,59 @@ function requireStrictString(value, label) {
     throw new Error(`${label} must be a non-empty string`);
   }
   return value;
+}
+
+function requireStrictPatternString(value, label, pattern, description) {
+  const normalized = requireStrictString(value, label);
+  if (!pattern.test(normalized)) {
+    throw new Error(`${label} must be ${description}`);
+  }
+  return normalized;
+}
+
+function requireRuntimeEnvVarName(value, label) {
+  return requireStrictPatternString(value, label, RUNTIME_ENV_VAR_RE, "an environment variable name");
+}
+
+function requireRelativeCatalogPath(value, label, { allowSlash = true } = {}) {
+  const rawValue = requireStrictString(value, label);
+  const normalized = rawValue.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter((part) => part.length > 0);
+  if (
+    normalized.startsWith("/") ||
+    normalized.startsWith("~") ||
+    /^[A-Za-z]:/.test(normalized) ||
+    parts.includes("..") ||
+    parts.includes(".") ||
+    (!allowSlash && parts.length !== 1)
+  ) {
+    throw new Error(`${label} must be a safe ${allowSlash ? "relative path" : "relative path segment"} without traversal`);
+  }
+  return rawValue;
+}
+
+function requireRuntimeEnvVarNameList(value, label, options = {}) {
+  const items = requireStrictStringList(value, label, options);
+  for (const [index, item] of items.entries()) {
+    requireRuntimeEnvVarName(item, `${label}[${index}]`);
+  }
+  return items;
+}
+
+function requireRuntimeFlagList(value, label, options = {}) {
+  const items = requireStrictStringList(value, label, options);
+  for (const [index, item] of items.entries()) {
+    requireStrictPatternString(item, `${label}[${index}]`, RUNTIME_FLAG_RE, "a --kebab-case flag");
+  }
+  return items;
+}
+
+function requireRelativeCatalogPathList(value, label, options = {}) {
+  const items = requireStrictStringList(value, label, options);
+  for (const [index, item] of items.entries()) {
+    requireRelativeCatalogPath(item, `${label}[${index}]`, { allowSlash: true });
+  }
+  return items;
 }
 
 function requireStrictEnumString(value, label, allowedValues) {
@@ -424,17 +482,17 @@ function validateRuntimeCatalogGlobalConfig(globalConfig, label) {
   if (strategy === "env_or_home") {
     return {
       strategy,
-      env_var: requireStrictString(payload.env_var, `${label}.env_var`),
-      home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
+      env_var: requireRuntimeEnvVarName(payload.env_var, `${label}.env_var`),
+      home_subpath: requireRelativeCatalogPath(payload.home_subpath, `${label}.home_subpath`),
     };
   }
 
   return {
     strategy,
-    env_dir_var: requireStrictString(payload.env_dir_var, `${label}.env_dir_var`),
-    env_file_var: requireStrictString(payload.env_file_var, `${label}.env_file_var`),
-    xdg_subdir: requireStrictString(payload.xdg_subdir, `${label}.xdg_subdir`),
-    home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
+    env_dir_var: requireRuntimeEnvVarName(payload.env_dir_var, `${label}.env_dir_var`),
+    env_file_var: requireRuntimeEnvVarName(payload.env_file_var, `${label}.env_file_var`),
+    xdg_subdir: requireRelativeCatalogPath(payload.xdg_subdir, `${label}.xdg_subdir`),
+    home_subpath: requireRelativeCatalogPath(payload.home_subpath, `${label}.home_subpath`),
   };
 }
 
@@ -605,6 +663,33 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
   if (validated.supports_structured_child_results && validated.continuation_surface !== "explicit") {
     throw new Error(`${label}.continuation_surface must be explicit when supports_structured_child_results=true`);
   }
+  if (validated.statusline_surface === "explicit") {
+    if (validated.statusline_config_surface === "none") {
+      throw new Error(`${label}.statusline_config_surface must not be "none" when statusline_surface=explicit`);
+    }
+  } else if (validated.statusline_config_surface !== "none") {
+    throw new Error(`${label}.statusline_config_surface must be "none" when statusline_surface=none`);
+  }
+  if (validated.notify_surface === "explicit") {
+    if (validated.notify_config_surface === "none") {
+      throw new Error(`${label}.notify_config_surface must not be "none" when notify_surface=explicit`);
+    }
+  } else if (validated.notify_config_surface !== "none") {
+    throw new Error(`${label}.notify_config_surface must be "none" when notify_surface=none`);
+  }
+  if (validated.telemetry_completeness === "none") {
+    if (validated.telemetry_source !== "none") {
+      throw new Error(`${label}.telemetry_source must be "none" when telemetry_completeness=none`);
+    }
+    if (validated.supports_usage_tokens) {
+      throw new Error(`${label}.supports_usage_tokens must be false when telemetry_completeness=none`);
+    }
+    if (validated.supports_cost_usd) {
+      throw new Error(`${label}.supports_cost_usd must be false when telemetry_completeness=none`);
+    }
+  } else if (validated.telemetry_source === "none") {
+    throw new Error(`${label}.telemetry_source must not be "none" when telemetry_completeness is not none`);
+  }
   return validated;
 }
 
@@ -756,7 +841,7 @@ function validateRuntimeCatalogManagedInstallSurface(managedInstallSurface, labe
       if (
         normalized.startsWith("/") ||
         normalized.startsWith("~") ||
-        /^[A-Za-z]:(?:\/|$)/.test(normalized) ||
+        /^[A-Za-z]:/.test(normalized) ||
         normalized.split("/").includes("..")
       ) {
         throw new Error(`${label}.${fieldName}.${index} must be a relative managed install glob without traversal`);
@@ -877,24 +962,46 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
   validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label);
 
   return {
-    runtime_name: requireStrictString(payload.runtime_name, `${label}.runtime_name`),
+    runtime_name: requireStrictPatternString(
+      payload.runtime_name,
+      `${label}.runtime_name`,
+      RUNTIME_ID_RE,
+      "a lowercase runtime id"
+    ),
     display_name: requireStrictString(payload.display_name, `${label}.display_name`),
     priority: requireStrictInteger(payload.priority, `${label}.priority`),
-    config_dir_name: requireStrictString(payload.config_dir_name, `${label}.config_dir_name`),
-    install_flag: requireStrictString(payload.install_flag, `${label}.install_flag`),
+    config_dir_name: requireRelativeCatalogPath(payload.config_dir_name, `${label}.config_dir_name`, {
+      allowSlash: false,
+    }),
+    install_flag: requireStrictPatternString(
+      payload.install_flag,
+      `${label}.install_flag`,
+      RUNTIME_FLAG_RE,
+      "a --kebab-case flag"
+    ),
     launch_command: requireStrictString(payload.launch_command, `${label}.launch_command`),
-    adapter_module: requireStrictString(payload.adapter_module, `${label}.adapter_module`),
-    adapter_class: requireStrictString(payload.adapter_class, `${label}.adapter_class`),
+    adapter_module: requireStrictPatternString(
+      payload.adapter_module,
+      `${label}.adapter_module`,
+      PYTHON_MODULE_RE,
+      "a Python module path"
+    ),
+    adapter_class: requireStrictPatternString(
+      payload.adapter_class,
+      `${label}.adapter_class`,
+      PYTHON_IDENTIFIER_RE,
+      "a Python class name"
+    ),
     command_prefix: parseCommandPrefix(payload.command_prefix, `${label}.command_prefix`),
-    activation_env_vars: requireStrictStringList(payload.activation_env_vars, `${label}.activation_env_vars`),
-    selection_flags: requireStrictStringList(payload.selection_flags, `${label}.selection_flags`),
+    activation_env_vars: requireRuntimeEnvVarNameList(payload.activation_env_vars, `${label}.activation_env_vars`),
+    selection_flags: requireRuntimeFlagList(payload.selection_flags, `${label}.selection_flags`),
     selection_aliases: requireStrictStringList(payload.selection_aliases, `${label}.selection_aliases`),
     global_config: globalConfig,
     capabilities,
     hook_payload: hookPayload,
     managed_install_surface: managedInstallSurface,
     manifest_file_prefixes: Object.prototype.hasOwnProperty.call(payload, "manifest_file_prefixes")
-      ? requireStrictStringList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
+      ? requireRelativeCatalogPathList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
           allowEmpty: true,
         })
       : [],
@@ -2754,7 +2861,7 @@ async function selectInstallScope(args, runtimes, targetDir, action = "install")
 }
 
 function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, options = {}) {
-  const { forceStatusline = false } = options;
+  const { forceStatusline = false, skipReadinessCheck = false } = options;
   const cliArgs = ["-m", "gpd.cli", command];
   if (runtimes.length === ALL_RUNTIMES.length) {
     cliArgs.push("--all");
@@ -2767,6 +2874,9 @@ function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, opt
   }
   if (forceStatusline && command === "install") {
     cliArgs.push("--force-statusline");
+  }
+  if (skipReadinessCheck && command === "install") {
+    cliArgs.push("--skip-readiness-check");
   }
   return cliArgs;
 }
@@ -2843,7 +2953,10 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
-  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, { forceStatusline });
+  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, {
+    forceStatusline,
+    skipReadinessCheck: !isUninstall,
+  });
 
   if (isUninstall) {
     log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);

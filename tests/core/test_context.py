@@ -1278,7 +1278,7 @@ class TestInitExecutePhase:
         assert status["manifest_bootstrapped"] is False
         assert not (tmp_path / "paper" / "PROOF-REVIEW-MANIFEST.json").exists()
 
-    def test_state_exists_uses_recoverable_backup_without_persisting_repair(
+    def test_state_exists_ignores_backup_only_state_without_persisting_repair(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1290,7 +1290,7 @@ class TestInitExecutePhase:
             encoding="utf-8",
         )
 
-        assert _state_exists(tmp_path) is True
+        assert _state_exists(tmp_path) is False
         assert not (tmp_path / "GPD" / "state.json").exists()
 
     def test_surfaces_active_reference_context(self, tmp_path: Path) -> None:

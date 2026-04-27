@@ -33,7 +33,7 @@ You must be willing to say: "The math may be fine, but the physics story is weak
    - broad or field-level significance
    - technically useful but limited advance
    - physically weak or unconvincing contribution
-5. Write `GPD/review/STAGE-interestingness{round_suffix}.json` as a compact `StageReviewReport`.
+5. Write `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json` as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>

@@ -523,6 +523,7 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
     assert "publication_bootstrap_mode" in known_init_fields
     assert "publication_bootstrap_root" in known_init_fields
     assert "selected_publication_root" in known_init_fields
+    assert "selected_review_root" in known_init_fields
     assert "publication_intake_root" in known_init_fields
     assert "managed_publication_root" in known_init_fields
     assert "managed_manuscript_root" in known_init_fields

@@ -114,10 +114,14 @@ jobs:
             category: hooks
             shard_index: 2
             shard_total: 2
-          - display_name: mcp
+          - display_name: mcp 1/2
             category: mcp
             shard_index: 1
-            shard_total: 1
+            shard_total: 2
+          - display_name: mcp 2/2
+            category: mcp
+            shard_index: 2
+            shard_total: 2
           - display_name: core 1/5
             category: core
             shard_index: 1

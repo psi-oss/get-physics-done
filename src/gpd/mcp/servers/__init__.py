@@ -270,6 +270,7 @@ __all__ = [
     "ABSOLUTE_PROJECT_DIR_SCHEMA",
     "MCP_SCHEMA_VERSION",
     "StableMCPEnvelope",
+    "arxiv_bridge",
     "conventions_server",
     "configure_mcp_logging",
     "errors_mcp",
@@ -290,6 +291,7 @@ __all__ = [
 ]
 
 _SERVER_MODULE_NAMES = {
+    "arxiv_bridge",
     "conventions_server",
     "errors_mcp",
     "patterns_server",

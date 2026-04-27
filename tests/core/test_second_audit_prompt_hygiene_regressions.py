@@ -82,6 +82,62 @@ def test_quick_command_and_workflow_keep_the_project_gate_and_drop_the_custom_st
     assert "They only need `GPD/` to exist for directory structure." not in quick_workflow
 
 
+def test_peer_review_init_fields_are_manifest_owned_and_stage5_bullets_are_space_indented() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "peer-review-stage-manifest.json" in peer_review
+    assert "Parse bootstrap JSON for: `project_exists`" not in peer_review
+    assert "Parse target-aware init JSON for: `project_exists`" not in peer_review
+
+    stage_5 = peer_review[
+        peer_review.index("**Stage 5")
+        : peer_review.index("You must explicitly decide whether the paper is:")
+    ]
+    assert "\t-" not in stage_5
+
+
+def test_paper_writer_response_paths_are_orchestrator_supplied_not_global_authority() -> None:
+    paper_writer = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
+    author_response = paper_writer[
+        paper_writer.index("<author_response>") : paper_writer.index("</author_response>")
+    ]
+
+    for token in (
+        "referee_report_path",
+        "review_ledger_path",
+        "referee_decision_path",
+        "author_response_path",
+        "referee_response_path",
+        "selected_publication_root",
+        "selected_review_root",
+    ):
+        assert token in author_response
+
+    assert "`GPD/AUTHOR-RESPONSE{round_suffix}.md` is the canonical internal tracker" not in author_response
+    assert "`GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the synchronized journal-facing sibling" not in author_response
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" not in author_response
+    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" not in author_response
+
+
+def test_research_project_templates_point_existing_artifact_analysis_to_map_research() -> None:
+    for path in sorted((TEMPLATES_DIR / "research-project").glob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        assert "templates/analysis/" not in content, path.name
+        assert "use `map-research`" in content, path.name
+        assert "`GPD/research-map/`" in content, path.name
+        assert "`references/templates/research-mapper/`" in content, path.name
+
+
+def test_knowledge_schema_uses_existing_knowledge_review_workflow_id() -> None:
+    knowledge_schema = (TEMPLATES_DIR / "knowledge-schema.md").read_text(encoding="utf-8")
+
+    assert "reviewer_kind: workflow" in knowledge_schema
+    assert "reviewer_id: gpd-review-knowledge" in knowledge_schema
+    assert "gpd-knowledge-reviewer" not in knowledge_schema
+
+
 def test_branch_hypothesis_and_transition_workflows_keep_state_updates_structured() -> None:
     branch_hypothesis = (WORKFLOWS_DIR / "branch-hypothesis.md").read_text(encoding="utf-8")
     transition_workflow = (WORKFLOWS_DIR / "transition.md").read_text(encoding="utf-8")

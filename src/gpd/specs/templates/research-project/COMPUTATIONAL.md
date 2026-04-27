@@ -3,7 +3,8 @@ template_version: 1
 ---
 
 > **Context:** This template is for the `new-project` literature survey — researching a topic BEFORE
-> starting a new project. For analyzing existing project artifacts, see `templates/analysis/`.
+> starting a new project. For analyzing existing project artifacts, use `map-research`, which writes
+> split outputs under `GPD/research-map/` from `references/templates/research-mapper/`.
 
 # Computational Approaches Research Template
 

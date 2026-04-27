@@ -167,6 +167,23 @@ def test_hook_hotspot_metadata_tracks_measured_slow_hook_files() -> None:
     assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_hook_files)
 
 
+def test_mcp_hotspot_metadata_tracks_measured_slow_mcp_files() -> None:
+    measured_slow_mcp_files = {
+        "mcp/test_server_regressions.py",
+        "mcp/test_servers.py",
+        "mcp/test_servers_integration.py",
+        "mcp/test_skills_server_tool_lists.py",
+        "mcp/test_tool_contract_visibility.py",
+        "mcp/test_verification_contract_server_regressions.py",
+    }
+
+    assert CI_CATEGORY_SHARD_COUNTS["mcp"] == 2
+    assert measured_slow_mcp_files <= set(CI_HOT_TEST_FILE_SPLITS)
+    assert measured_slow_mcp_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+    assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in measured_slow_mcp_files)
+    assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_mcp_files)
+
+
 def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
     inventory: dict[str, tuple[str, ...]],
 ) -> None:

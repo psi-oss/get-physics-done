@@ -3377,8 +3377,6 @@ def _contract_payload_error(errors: list[str]) -> dict[str, object]:
     if not details:
         return _error_result("Invalid contract payload")
     message = f"Invalid contract payload: {_summarize_contract_salvage_errors(details)}"
-    if len(details) == 1:
-        return _error_result(message)
     return stable_mcp_response({"contract_error_details": details}, error=message)
 
 

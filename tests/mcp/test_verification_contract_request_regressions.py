@@ -433,7 +433,11 @@ def test_run_contract_check_request_wrapper_surfaces_proof_contract_salvage_deta
         "observed": {"covered_parameter_symbols": ["r_0", "n"]},
     }
 
-    expected = {"error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str", "schema_version": 1}
+    expected = {
+        "error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str",
+        "contract_error_details": ["context_intake.must_read_refs must be a list, not str"],
+        "schema_version": 1,
+    }
 
     assert run_contract_check(request) == expected
     assert _call_verification_tool("run_contract_check", {"request": request}) == expected

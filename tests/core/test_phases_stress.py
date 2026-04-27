@@ -520,10 +520,10 @@ class TestPhaseCompleteIncomplete:
 
 
 class TestFindPhaseAmbiguous:
-    """find_phase returns the first matching directory in sorted order."""
+    """find_phase resolves base and decimal phase directory matches deterministically."""
 
-    def test_find_phase_returns_first_match(self, tmp_path: Path) -> None:
-        """When multiple directories could match, first sorted match wins."""
+    def test_find_phase_prefers_base_phase_over_decimal_descendant(self, tmp_path: Path) -> None:
+        """A base phase query should prefer the base directory over a decimal descendant."""
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-alpha")
         _create_phase_dir(tmp_path, "01.1-beta")

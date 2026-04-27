@@ -66,6 +66,7 @@ Reference notes:
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 Before writing `REVIEW-LEDGER{round_suffix}.json` or `REFEREE-DECISION{round_suffix}.json`, re-open `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`, `{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md`, and `{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md`. Treat those files as the artifact and schema sources of truth; do not infer the JSON shape from memory or from earlier round artifacts.
+When the invoking workflow supplies `selected_publication_root` and `selected_review_root`, derive Stage 6 output paths from those roots. Default project-backed roots may resolve to `GPD` and `GPD/review`, but those defaults are examples, not authority for managed or explicit external subjects.
 When the review depends on revision-round response artifacts, re-open the round and response refs on demand before adjudicating. Do not infer the active round or response completeness from a single response file.
 
 <panel_adjudication>
@@ -89,9 +90,9 @@ Read the stage artifacts first. Then spot-check the manuscript where:
 
 Treat stage artifacts as evidence summaries, not gospel. The final recommendation is your responsibility.
 
-During the staged peer-review workflow, Stage 6 is read-only with respect to upstream staged-review inputs. The only Stage 6-owned artifacts you may write are `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when explicitly needed as a diagnostic sidecar.
+During the staged peer-review workflow, Stage 6 is read-only with respect to upstream staged-review inputs. The only Stage 6-owned artifacts you may write are `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md`, `${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex`, `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`, `${selected_review_root}/REFEREE-DECISION{round_suffix}.json`, and `${selected_publication_root}/CONSISTENCY-REPORT.md` when explicitly needed as a diagnostic sidecar.
 
-Never create, rewrite, patch, rename, or "fix up" `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md` inside Stage 6. If any required upstream artifact is absent, unreadable, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent with the active round, return `gpd_return.status: blocked`, identify the earliest failing upstream artifact/stage, and stop. Do not fall back to standalone review or invent missing stage conclusions from the manuscript alone.
+Never create, rewrite, patch, rename, or "fix up" `${selected_review_root}/CLAIMS{round_suffix}.json`, any `${selected_review_root}/STAGE-*.json`, or `${selected_review_root}/PROOF-REDTEAM{round_suffix}.md` inside Stage 6. If any required upstream artifact is absent, unreadable, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent with the active round, return `gpd_return.status: blocked`, identify the earliest failing upstream artifact/stage, and stop. Do not fall back to standalone review or invent missing stage conclusions from the manuscript alone.
 
 If `CLAIMS{round_suffix}.json` contains theorem-bearing claims, the matching `STAGE-math{round_suffix}.json` must contain corresponding `proof_audits[]` coverage before you issue a positive recommendation. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: only `claim_kind: theorem | lemma | corollary | proposition` is theorem-bearing by kind alone, while non-theorem-style kinds such as `claim`, `result`, or `other` become theorem-bearing only when non-empty theorem metadata or theorem-like statement text makes the proof obligation explicit. Missing proof audits are a stage-integrity failure, not a soft gap.
 
@@ -221,25 +222,9 @@ Use domain-specific expectations from the playbook when the paper requires speci
 <step name="detect_review_mode">
 **First:** Determine if this is an initial review or a revision review.
 
-```bash
-if [[ -f GPD/REFEREE-REPORT-R2.md || -f GPD/AUTHOR-RESPONSE-R2.md || -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
-  if [[ -f GPD/REFEREE-REPORT-R2.md && -f GPD/AUTHOR-RESPONSE-R2.md && -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
-    prior_round_suffix="-R2"  # Complete round-2 package; enter revision review and produce round 3.
-  else
-    # Incomplete round-2 package. Stop fail-closed with checkpoint status.
-  fi
-elif [[ -f GPD/REFEREE-REPORT.md || -f GPD/AUTHOR-RESPONSE.md || -f GPD/review/REFEREE_RESPONSE.md ]]; then
-  if [[ -f GPD/REFEREE-REPORT.md && -f GPD/AUTHOR-RESPONSE.md && -f GPD/review/REFEREE_RESPONSE.md ]]; then
-    prior_round_suffix=""  # Complete round-1 package; enter revision review and produce round 2.
-  else
-    # Incomplete round-1 package. Stop fail-closed with checkpoint status.
-  fi
-else
-  # No prior complete response package. Proceed with initial review.
-fi
-```
+Use the subject-aware review/response state supplied by the invoking workflow as the source of truth. That payload binds `selected_publication_root`, `selected_review_root`, the active candidate round, and the concrete previous-report / author-response / referee-response paths. Do not infer revision state by scanning global `GPD/` filenames.
 
-**If the latest candidate round has a complete paired response package:** a previous `REFEREE-REPORT{suffix}.md`, matching `AUTHOR-RESPONSE{suffix}.md`, and matching `GPD/review/REFEREE_RESPONSE{suffix}.md` must all exist for the same suffix. Enter Revision Review Mode (see `<revision_review_mode>` section). Skip the standard evaluation flow below and use the revision-specific protocol instead.
+**If the latest candidate round has a complete paired response package:** a previous `REFEREE-REPORT{suffix}.md`, matching `AUTHOR-RESPONSE{suffix}.md`, and matching `REFEREE_RESPONSE{suffix}.md` under the selected roots must all exist for the same suffix. Enter Revision Review Mode (see `<revision_review_mode>` section). Skip the standard evaluation flow below and use the revision-specific protocol instead.
 
 **If the latest candidate round is partial or suffix-inconsistent:** stop fail-closed with `gpd_return.status: checkpoint` and report the incomplete response package. Do not infer revision state from a single response artifact, and do not fall back to an older complete round when a newer candidate round is partial.
 
@@ -366,21 +351,21 @@ Organize findings:
 
 ## Referee Report Structure
 
-Create `GPD/REFEREE-REPORT{round_suffix}.md` as the canonical machine-readable artifact.
-Also create `GPD/REFEREE-REPORT{round_suffix}.tex` as the default polished presentation artifact using `{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
-When operating as the final panel adjudicator, also write `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json`.
+Create `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md` as the canonical machine-readable artifact.
+Also create `${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex` as the default polished presentation artifact using `{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
+When operating as the final panel adjudicator, also write `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json` and `${selected_review_root}/REFEREE-DECISION{round_suffix}.json`.
 Use `{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md` and `{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md` as the schema sources of truth for those JSON artifacts. Do not invent fields, collapse arrays into prose, or leave issue IDs inconsistent across the markdown report, ledger, and decision JSON.
 If the invoking workflow supplies a round-specific suffix, preserve that suffix consistently across the ledger, decision JSON, and referee report artifacts.
 
 Stage 6 writable allowlist (write only the subset applicable to the current run):
 
-- `GPD/REFEREE-REPORT{round_suffix}.md`
-- `GPD/REFEREE-REPORT{round_suffix}.tex`
-- `GPD/review/REVIEW-LEDGER{round_suffix}.json`
-- `GPD/review/REFEREE-DECISION{round_suffix}.json`
-- `GPD/CONSISTENCY-REPORT.md` only as a diagnostic sidecar when needed
+- `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md`
+- `${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex`
+- `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`
+- `${selected_review_root}/REFEREE-DECISION{round_suffix}.json`
+- `${selected_publication_root}/CONSISTENCY-REPORT.md` only as a diagnostic sidecar when needed
 
-Anything outside this allowlist is out of scope for Stage 6. In particular, never rewrite `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`; if those inputs are inconsistent, return `blocked` instead of repairing them.
+Anything outside this allowlist is out of scope for Stage 6. In particular, never rewrite `${selected_review_root}/CLAIMS{round_suffix}.json`, any `${selected_review_root}/STAGE-*.json`, or `${selected_review_root}/PROOF-REDTEAM{round_suffix}.md`; if those inputs are inconsistent, return `blocked` instead of repairing them.
 
 Keep the two files semantically aligned:
 
@@ -594,9 +579,9 @@ _Disclaimer: This is an AI-generated mock referee report. It supplements but doe
 
 ## CONSISTENCY-REPORT.md Template
 
-Write `GPD/CONSISTENCY-REPORT.md` with the following structure:
+Write `${selected_publication_root}/CONSISTENCY-REPORT.md` with the following structure:
 
-Use `GPD/CONSISTENCY-REPORT.md` only as a diagnostic sidecar for contradictions or convention mismatches discovered during adjudication. It never authorizes repairing, rewriting, or replacing `CLAIMS{round_suffix}.json`, `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`.
+Use `${selected_publication_root}/CONSISTENCY-REPORT.md` only as a diagnostic sidecar for contradictions or convention mismatches discovered during adjudication. It never authorizes repairing, rewriting, or replacing `CLAIMS{round_suffix}.json`, `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`.
 
 ### Cross-Phase Convention Consistency
 - For each convention (metric, Fourier, units, gauge): verify all phases use the same choice
@@ -762,37 +747,17 @@ Real peer review involves revision and re-review. When author responses to a pre
 
 Revision Review Mode activates when:
 
-1. A previous `REFEREE-REPORT.md` (or `REFEREE-REPORT-R{N}.md`) exists in `GPD/`
+1. A previous `REFEREE-REPORT.md` (or `REFEREE-REPORT-R{N}.md`) exists under `${selected_publication_root}`
 2. A matching paired response package exists for the same round:
-   - `GPD/AUTHOR-RESPONSE.md` or `GPD/AUTHOR-RESPONSE-R{N}.md`
-   - `GPD/review/REFEREE_RESPONSE.md` or `GPD/review/REFEREE_RESPONSE-R{N}.md`
+   - `${selected_publication_root}/AUTHOR-RESPONSE.md` or `${selected_publication_root}/AUTHOR-RESPONSE-R{N}.md`
+   - `${selected_review_root}/REFEREE_RESPONSE.md` or `${selected_review_root}/REFEREE_RESPONSE-R{N}.md`
 
-Detection:
-
-```bash
-if [[ -f GPD/REFEREE-REPORT-R2.md || -f GPD/AUTHOR-RESPONSE-R2.md || -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
-  latest_candidate_round="R2"
-  if [[ -f GPD/REFEREE-REPORT-R2.md && -f GPD/AUTHOR-RESPONSE-R2.md && -f GPD/review/REFEREE_RESPONSE-R2.md ]]; then
-    # Complete round-2 package: rereview and produce REFEREE-REPORT-R3.md.
-  else
-    # Incomplete round-2 package: stop fail-closed with checkpoint status.
-  fi
-elif [[ -f GPD/REFEREE-REPORT.md || -f GPD/AUTHOR-RESPONSE.md || -f GPD/review/REFEREE_RESPONSE.md ]]; then
-  latest_candidate_round="R1"
-  if [[ -f GPD/REFEREE-REPORT.md && -f GPD/AUTHOR-RESPONSE.md && -f GPD/review/REFEREE_RESPONSE.md ]]; then
-    # Complete round-1 package: rereview and produce REFEREE-REPORT-R2.md.
-  else
-    # Incomplete round-1 package: stop fail-closed with checkpoint status.
-  fi
-fi
-```
-
-Use the highest candidate round with any referee or response artifact present. Only advance when that round has the full paired response package; a partial newer round blocks progress even if an older round is complete.
+Use the highest candidate round reported by the orchestrator with any referee or response artifact present. Only advance when that round has the full paired response package; a partial newer round blocks progress even if an older round is complete.
 
 If the report and both response artifacts exist with the same suffix for the active candidate round, determine the current round number:
 
-- `REFEREE-REPORT.md` + `AUTHOR-RESPONSE.md` + `GPD/review/REFEREE_RESPONSE.md` -> produce `REFEREE-REPORT-R2.md` (round 2)
-- `REFEREE-REPORT-R2.md` + `AUTHOR-RESPONSE-R2.md` + `GPD/review/REFEREE_RESPONSE-R2.md` -> produce `REFEREE-REPORT-R3.md` (round 3)
+- `REFEREE-REPORT.md` + `AUTHOR-RESPONSE.md` + `REFEREE_RESPONSE.md` -> produce `REFEREE-REPORT-R2.md` (round 2)
+- `REFEREE-REPORT-R2.md` + `AUTHOR-RESPONSE-R2.md` + `REFEREE_RESPONSE-R2.md` -> produce `REFEREE-REPORT-R3.md` (round 3)
 - **Maximum 3 review rounds.** After round 3, issue final recommendation regardless.
 - If one response artifact is missing, the suffixes disagree, or the latest candidate round is only partially populated, stop fail-closed and report the incomplete response package instead of continuing as initial review or rereview.
 
@@ -800,7 +765,7 @@ If the report and both response artifacts exist with the same suffix for the act
 
 **Step 1: Load previous report and paired response artifacts.**
 
-Read the most recent REFEREE-REPORT together with the corresponding `AUTHOR-RESPONSE` and `GPD/review/REFEREE_RESPONSE` for the same round. Extract:
+Read the most recent REFEREE-REPORT together with the corresponding `AUTHOR-RESPONSE` and `REFEREE_RESPONSE` for the same round. Extract:
 
 - All major and minor issues from the previous report (with IDs like REF-001, REF-002)
 - The author's point-by-point response to each issue
@@ -855,8 +820,8 @@ The round 3 report must explicitly state: "This is the final review round. My re
 
 ### Revision Report Format
 
-Create `GPD/REFEREE-REPORT-R{N}.md` as the canonical revision-round artifact.
-Also create `GPD/REFEREE-REPORT-R{N}.tex` using the same LaTeX template adapted for revision-round headings and resolution-tracker sections.
+Create `${selected_publication_root}/REFEREE-REPORT-R{N}.md` as the canonical revision-round artifact.
+Also create `${selected_publication_root}/REFEREE-REPORT-R{N}.tex` using the same LaTeX template adapted for revision-round headings and resolution-tracker sections.
 
 Keep the Markdown and LaTeX revision reports aligned on recommendation, round number, issue IDs, and remaining actionable items.
 
@@ -997,14 +962,14 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 ## Stage 6 Artifact Boundary
 
 - Your writable scope is limited to Stage 6-owned adjudication artifacts for the active round:
-  - `GPD/REFEREE-REPORT{round_suffix}.md`
-  - `GPD/REFEREE-REPORT{round_suffix}.tex`
-  - `GPD/review/REVIEW-LEDGER{round_suffix}.json`
-  - `GPD/review/REFEREE-DECISION{round_suffix}.json`
-  - `GPD/CONSISTENCY-REPORT.md` when applicable
-- Never modify upstream staged-review inputs such as `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`.
+  - `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md`
+  - `${selected_publication_root}/REFEREE-REPORT{round_suffix}.tex`
+  - `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json`
+  - `${selected_review_root}/REFEREE-DECISION{round_suffix}.json`
+  - `${selected_publication_root}/CONSISTENCY-REPORT.md` when applicable
+- Never modify upstream staged-review inputs such as `${selected_review_root}/CLAIMS{round_suffix}.json`, any `${selected_review_root}/STAGE-*.json`, or `${selected_review_root}/PROOF-REDTEAM{round_suffix}.md`.
 - If an upstream staged-review artifact is missing, malformed, stale, suffix-inconsistent, manuscript-inconsistent, or mutually inconsistent, return `gpd_return.status: blocked` and hand the failure back to the orchestrator. Do not repair, retag, or rewrite those upstream artifacts yourself.
-- If you write `GPD/CONSISTENCY-REPORT.md`, use it only to diagnose the inconsistency. It is a sidecar diagnostic, not permission to repair earlier stages.
+- If you write `${selected_publication_root}/CONSISTENCY-REPORT.md`, use it only to diagnose the inconsistency. It is a sidecar diagnostic, not permission to repair earlier stages.
 
 ## REVIEW COMPLETE
 
@@ -1013,7 +978,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 
 **Recommendation:** {accept | minor_revision | major_revision | reject}
 **Confidence:** {high | medium | low}
-**Report:** GPD/REFEREE-REPORT{round_suffix}.md
+**Report:** ${selected_publication_root}/REFEREE-REPORT{round_suffix}.md
 
 **Summary:**
 {2-3 sentence summary of assessment}
@@ -1035,7 +1000,7 @@ The markdown headings `## REVIEW COMPLETE`, `## REVIEW INCOMPLETE`, and `## CHEC
 
 **Reason:** {insufficient research outputs | missing files | domain mismatch}
 **Dimensions Evaluated:** {N}/10
-**Report:** GPD/REFEREE-REPORT{round_suffix}.md (partial)
+**Report:** ${selected_publication_root}/REFEREE-REPORT{round_suffix}.md (partial)
 
 **What Was Reviewed:**
 {List of what could be evaluated}
@@ -1062,7 +1027,7 @@ gpd_return:
 
 For all statuses, `files_written` must list only files actually written in this run from the Stage 6 allowlist. Do not include files you only read or validated, or unchanged preexisting artifacts.
 
-For `blocked` returns caused by upstream staged-review artifact failures, keep `files_written` empty unless you wrote only `GPD/CONSISTENCY-REPORT.md`. Never list `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md` in `files_written`.
+For `blocked` returns caused by upstream staged-review artifact failures, keep `files_written` empty unless you wrote only `${selected_publication_root}/CONSISTENCY-REPORT.md`. Never list `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md` in `files_written`.
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 

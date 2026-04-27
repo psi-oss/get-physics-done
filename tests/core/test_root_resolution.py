@@ -251,6 +251,22 @@ def test_resolve_project_root_require_layout_rejects_unverified_fallback(tmp_pat
     assert resolve_project_root(workspace) == workspace.resolve(strict=False)
 
 
+def test_resolve_project_root_require_layout_rejects_backup_only_state(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    gpd_dir = workspace / "GPD"
+    gpd_dir.mkdir(parents=True)
+    (gpd_dir / "state.json.bak").write_text("{}", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.verified is False
+    assert resolve_project_root(workspace, require_layout=True) is None
+
+
 def test_resolve_project_roots_workspace_locked_does_not_walk_to_ancestor_project(tmp_path: Path) -> None:
     project = tmp_path / "project"
     workspace = project / "src" / "notes"

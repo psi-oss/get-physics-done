@@ -3425,6 +3425,7 @@ class TestVerificationServer:
         )
 
         assert result == {
+            "contract_error_details": ["claims.0.notes: Extra inputs are not permitted"],
             "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
             "schema_version": 1,
         }
@@ -3498,6 +3499,7 @@ class TestVerificationServer:
         result = suggest_contract_checks(contract)
 
         assert result == {
+            "contract_error_details": ["references.0.notes: Extra inputs are not permitted"],
             "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
             "schema_version": 1,
         }

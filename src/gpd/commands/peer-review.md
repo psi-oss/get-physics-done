@@ -38,16 +38,16 @@ review-contract:
   review_mode: publication
   schema_version: 1
   required_outputs:
-    - "GPD/review/CLAIMS{round_suffix}.json"
-    - "GPD/review/STAGE-reader{round_suffix}.json"
-    - "GPD/review/STAGE-literature{round_suffix}.json"
-    - "GPD/review/STAGE-math{round_suffix}.json"
-    - "GPD/review/STAGE-physics{round_suffix}.json"
-    - "GPD/review/STAGE-interestingness{round_suffix}.json"
-    - "GPD/review/REVIEW-LEDGER{round_suffix}.json"
-    - "GPD/review/REFEREE-DECISION{round_suffix}.json"
-    - "GPD/REFEREE-REPORT{round_suffix}.md"
-    - "GPD/REFEREE-REPORT{round_suffix}.tex"
+    - "${REVIEW_ROOT}/CLAIMS{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-math{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json"
+    - "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json"
+    - "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json"
+    - "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md"
+    - "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex"
   required_evidence:
     - "existing manuscript or explicit external artifact target"
   blocking_conditions:
@@ -60,14 +60,14 @@ review-contract:
     - "manuscript"
     - "manuscript_proof_review"
   stage_artifacts:
-    - "GPD/review/CLAIMS{round_suffix}.json"
-    - "GPD/review/STAGE-reader{round_suffix}.json"
-    - "GPD/review/STAGE-literature{round_suffix}.json"
-    - "GPD/review/STAGE-math{round_suffix}.json"
-    - "GPD/review/STAGE-physics{round_suffix}.json"
-    - "GPD/review/STAGE-interestingness{round_suffix}.json"
-    - "GPD/review/REVIEW-LEDGER{round_suffix}.json"
-    - "GPD/review/REFEREE-DECISION{round_suffix}.json"
+    - "${REVIEW_ROOT}/CLAIMS{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-literature{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-math{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-physics{round_suffix}.json"
+    - "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json"
+    - "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json"
+    - "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json"
   conditional_requirements:
     - when: project-backed manuscript review
       required_evidence:
@@ -106,9 +106,9 @@ review-contract:
         - "reproducibility_ready"
     - when: theorem-bearing claims are present
       required_outputs:
-        - "GPD/review/PROOF-REDTEAM{round_suffix}.md"
+        - "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"
       stage_artifacts:
-        - "GPD/review/PROOF-REDTEAM{round_suffix}.md"
+        - "${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"
   scope_variants:
     - scope: explicit_artifact
       activation: explicit external artifact subject was supplied
@@ -173,12 +173,12 @@ Follow the included workflow file exactly.
 <success_criteria>
 - [ ] Manuscript target located or explicitly resolved from arguments
 - [ ] Review preflight passed or blocking issues were surfaced clearly
-- [ ] Claim index and specialist stage artifacts written under `GPD/review/`
-- [ ] Theorem-bearing manuscripts also produce `GPD/review/PROOF-REDTEAM{round_suffix}.md` from `gpd-check-proof`
-- [ ] `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` created
+- [ ] Claim index and specialist stage artifacts written under `${REVIEW_ROOT}`
+- [ ] Theorem-bearing manuscripts also produce `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` from `gpd-check-proof`
+- [ ] `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` and `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json` created
 - [ ] Final adjudicating gpd-referee spawned with the stage artifacts and manuscript
-- [ ] `GPD/REFEREE-REPORT{round_suffix}.md` created with matching `.tex` companion
-- [ ] `GPD/CONSISTENCY-REPORT.md` created when supported by the referee workflow
+- [ ] `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` created with matching `.tex` companion
+- [ ] `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` created when supported by the referee workflow
 - [ ] Recommendation, issue counts, and actionable next steps presented
 - [ ] Revision rounds respected if prior author responses already exist
 </success_criteria>

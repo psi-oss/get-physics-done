@@ -505,7 +505,8 @@
         "GPD/publication/{subject_slug}/review/REFEREE-DECISION{round_suffix}.json",
         "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md",
         "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.tex",
-        "GPD/CONSISTENCY-REPORT.md"
+        "GPD/CONSISTENCY-REPORT.md",
+        "GPD/publication/{subject_slug}/CONSISTENCY-REPORT.md"
       ],
       "produced_state": [
         "final recommendation state",

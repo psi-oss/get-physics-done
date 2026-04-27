@@ -143,6 +143,11 @@ def _runtime_catalog_schema_path() -> Path:
 
 
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
+_RUNTIME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_RUNTIME_FLAG_RE = re.compile(r"^--[a-z0-9][a-z0-9-]*$")
+_RUNTIME_ENV_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_PYTHON_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_PYTHON_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _RUNTIME_CAPABILITY_BOOL_FIELDS = frozenset(
     {
         "supports_runtime_permission_sync",
@@ -197,6 +202,70 @@ def _require_string(value: object, *, label: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise ValueError(f"{label} must be a non-empty string")
     return value
+
+
+def _require_pattern(value: object, *, label: str, pattern: re.Pattern[str], description: str) -> str:
+    normalized = _require_string(value, label=label)
+    if pattern.fullmatch(normalized) is None:
+        raise ValueError(f"{label} must be {description}")
+    return normalized
+
+
+def _require_env_var_name(value: object, *, label: str) -> str:
+    return _require_pattern(value, label=label, pattern=_RUNTIME_ENV_VAR_RE, description="an environment variable name")
+
+
+def _require_relative_catalog_path(value: object, *, label: str, allow_slash: bool) -> str:
+    normalized = _require_string(value, label=label).replace("\\", "/")
+    pure = PurePosixPath(normalized)
+    if (
+        normalized.startswith("/")
+        or normalized.startswith("~")
+        or PureWindowsPath(normalized).drive
+        or PureWindowsPath(normalized).is_absolute()
+        or ".." in pure.parts
+        or "." in pure.parts
+        or (not allow_slash and len(pure.parts) != 1)
+    ):
+        path_kind = "relative path" if allow_slash else "relative path segment"
+        raise ValueError(f"{label} must be a safe {path_kind} without traversal")
+    return _require_string(value, label=label)
+
+
+def _require_relative_catalog_path_tuple(
+    value: object,
+    *,
+    label: str,
+    allow_empty: bool,
+) -> tuple[str, ...]:
+    items = _require_string_tuple(value, label=label, allow_empty=allow_empty)
+    for index, item in enumerate(items):
+        _require_relative_catalog_path(item, label=f"{label}[{index}]", allow_slash=True)
+    return items
+
+
+def _require_env_var_name_tuple(
+    value: object,
+    *,
+    label: str,
+    allow_empty: bool,
+) -> tuple[str, ...]:
+    items = _require_string_tuple(value, label=label, allow_empty=allow_empty)
+    for index, item in enumerate(items):
+        _require_env_var_name(item, label=f"{label}[{index}]")
+    return items
+
+
+def _require_flag_tuple(
+    value: object,
+    *,
+    label: str,
+    allow_empty: bool,
+) -> tuple[str, ...]:
+    items = _require_string_tuple(value, label=label, allow_empty=allow_empty)
+    for index, item in enumerate(items):
+        _require_pattern(item, label=f"{label}[{index}]", pattern=_RUNTIME_FLAG_RE, description="a --kebab-case flag")
+    return items
 
 
 def _format_quoted_disjunction(values: Iterable[str]) -> str:
@@ -682,16 +751,28 @@ def _parse_global_config(entry: dict[str, object], *, label: str) -> GlobalConfi
     if strategy == "env_or_home":
         return GlobalConfigPolicy(
             strategy=strategy,
-            env_var=_require_string(payload.get("env_var"), label=f"{label}.env_var"),
-            home_subpath=_require_string(payload.get("home_subpath"), label=f"{label}.home_subpath"),
+            env_var=_require_env_var_name(payload.get("env_var"), label=f"{label}.env_var"),
+            home_subpath=_require_relative_catalog_path(
+                payload.get("home_subpath"),
+                label=f"{label}.home_subpath",
+                allow_slash=True,
+            ),
         )
 
     return GlobalConfigPolicy(
         strategy=strategy,
-        env_dir_var=_require_string(payload.get("env_dir_var"), label=f"{label}.env_dir_var"),
-        env_file_var=_require_string(payload.get("env_file_var"), label=f"{label}.env_file_var"),
-        xdg_subdir=_require_string(payload.get("xdg_subdir"), label=f"{label}.xdg_subdir"),
-        home_subpath=_require_string(payload.get("home_subpath"), label=f"{label}.home_subpath"),
+        env_dir_var=_require_env_var_name(payload.get("env_dir_var"), label=f"{label}.env_dir_var"),
+        env_file_var=_require_env_var_name(payload.get("env_file_var"), label=f"{label}.env_file_var"),
+        xdg_subdir=_require_relative_catalog_path(
+            payload.get("xdg_subdir"),
+            label=f"{label}.xdg_subdir",
+            allow_slash=True,
+        ),
+        home_subpath=_require_relative_catalog_path(
+            payload.get("home_subpath"),
+            label=f"{label}.home_subpath",
+            allow_slash=True,
+        ),
     )
 
 
@@ -915,21 +996,45 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
         _require_keys(payload, label=label, required_keys=_RUNTIME_ENTRY_REQUIRED_KEYS)
         command_prefix = _parse_command_prefix(payload["command_prefix"], label=f"{label}.command_prefix")
         descriptor = RuntimeDescriptor(
-            runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
+            runtime_name=_require_pattern(
+                payload["runtime_name"],
+                label=f"{label}.runtime_name",
+                pattern=_RUNTIME_ID_RE,
+                description="a lowercase runtime id",
+            ),
             display_name=_require_string(payload["display_name"], label=f"{label}.display_name"),
             priority=_require_int(payload["priority"], label=f"{label}.priority"),
-            config_dir_name=_require_string(payload["config_dir_name"], label=f"{label}.config_dir_name"),
-            install_flag=_require_string(payload["install_flag"], label=f"{label}.install_flag"),
+            config_dir_name=_require_relative_catalog_path(
+                payload["config_dir_name"],
+                label=f"{label}.config_dir_name",
+                allow_slash=False,
+            ),
+            install_flag=_require_pattern(
+                payload["install_flag"],
+                label=f"{label}.install_flag",
+                pattern=_RUNTIME_FLAG_RE,
+                description="a --kebab-case flag",
+            ),
             launch_command=_require_string(payload["launch_command"], label=f"{label}.launch_command"),
-            adapter_module=_require_string(payload["adapter_module"], label=f"{label}.adapter_module"),
-            adapter_class=_require_string(payload["adapter_class"], label=f"{label}.adapter_class"),
+            adapter_module=_require_pattern(
+                payload["adapter_module"],
+                label=f"{label}.adapter_module",
+                pattern=_PYTHON_MODULE_RE,
+                description="a Python module path",
+            ),
+            adapter_class=_require_pattern(
+                payload["adapter_class"],
+                label=f"{label}.adapter_class",
+                pattern=_PYTHON_IDENTIFIER_RE,
+                description="a Python class name",
+            ),
             command_prefix=command_prefix,
-            activation_env_vars=_require_string_tuple(
+            activation_env_vars=_require_env_var_name_tuple(
                 payload["activation_env_vars"],
                 label=f"{label}.activation_env_vars",
                 allow_empty=False,
             ),
-            selection_flags=_require_string_tuple(
+            selection_flags=_require_flag_tuple(
                 payload["selection_flags"],
                 label=f"{label}.selection_flags",
                 allow_empty=False,
@@ -950,7 +1055,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 payload["managed_install_surface"] if "managed_install_surface" in payload else {},
                 label=f"{label}.managed_install_surface",
             ),
-            manifest_file_prefixes=_require_string_tuple(
+            manifest_file_prefixes=_require_relative_catalog_path_tuple(
                 payload["manifest_file_prefixes"]
                 if "manifest_file_prefixes" in payload
                 else [],

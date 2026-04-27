@@ -78,6 +78,16 @@ def _is_hygiene_artifact(rel_path: Path) -> bool:
     return False
 
 
+def _is_gpd_runtime_artifact(rel_path: Path) -> bool:
+    parts = rel_path.parts
+
+    return (
+        parts[:1] == ("GPD",)
+        or bool(parts and parts[0] in _RUNTIME_CONFIG_DIRS)
+        or rel_path.name in _LOCAL_RUNTIME_FILES
+    )
+
+
 def _parse_test_file(rel_path: Path) -> ast.Module:
     return ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path.as_posix())
 
@@ -118,6 +128,15 @@ def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> Non
 
     assert not offenders, (
         "Tracked ignored/runtime-owned artifacts found in git index:\n"
+        + "\n".join(f"- {path}" for path in offenders)
+    )
+
+
+def test_tracked_paths_do_not_include_gpd_runtime_artifacts() -> None:
+    offenders = [path.as_posix() for path in _tracked_paths() if _is_gpd_runtime_artifact(path)]
+
+    assert not offenders, (
+        "Tracked GPD runtime artifacts found in git index:\n"
         + "\n".join(f"- {path}" for path in offenders)
     )
 
