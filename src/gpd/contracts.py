@@ -2202,7 +2202,16 @@ _CONTRACT_ID_GROUPS: tuple[tuple[str, str], ...] = (
     ("forbidden proxy", "forbidden_proxies"),
     ("link", "links"),
 )
-_AMBIGUOUS_TARGET_ID_KINDS: tuple[str, ...] = ("claim", "deliverable", "acceptance test", "reference")
+_LINK_ENDPOINT_ID_KINDS: tuple[str, ...] = (
+    "observable",
+    "claim",
+    "deliverable",
+    "acceptance test",
+    "reference",
+    "forbidden proxy",
+    "link",
+)
+_AMBIGUOUS_TARGET_ID_KINDS: tuple[str, ...] = _LINK_ENDPOINT_ID_KINDS
 
 
 def _contract_ids_by_kind(contract: ResearchContract) -> dict[str, set[str]]:

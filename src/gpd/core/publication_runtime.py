@@ -506,6 +506,7 @@ def _review_artifact_state(
     referee_decision: Path | None,
     manuscript_entrypoint: Path | None,
     project_root: Path,
+    round_number: int,
 ) -> tuple[str, str, tuple[str, ...]]:
     missing: list[str] = []
     if review_ledger is None:
@@ -523,6 +524,13 @@ def _review_artifact_state(
         decision = read_referee_decision(referee_decision)
     except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
         return "invalid", f"referee decision could not be loaded: {exc}", ()
+
+    if ledger.round != round_number:
+        return (
+            "invalid",
+            f"review ledger round {ledger.round} does not match review artifact round {round_number}",
+            (),
+        )
 
     if manuscript_entrypoint is not None:
         ledger_matches = manuscript_matches_review_artifact_path(
@@ -771,6 +779,7 @@ def resolve_latest_publication_review_artifacts(
             referee_decision=referee_decision,
             manuscript_entrypoint=resolved_manuscript,
             project_root=project_root,
+            round_number=round_number,
         )
         if state == "mismatched":
             continue

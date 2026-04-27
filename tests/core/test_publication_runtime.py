@@ -210,6 +210,35 @@ def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_expl
     assert context["publication_subject"]["manuscript_entrypoint"] == "paper/main.tex"
 
 
+def test_publication_runtime_marks_review_round_invalid_when_ledger_content_round_disagrees(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(round=1, manuscript_path="paper/main.tex", issues=[]),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.minor_revision,
+            final_confidence=ReviewConfidence.medium,
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 2
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "review ledger round 1 does not match review artifact round 2" in snapshot.latest_review_artifacts.detail
+
+
 def test_publication_runtime_reference_status_uses_canonical_subject_fields_for_invalid_explicit_target(
     tmp_path: Path,
 ) -> None:

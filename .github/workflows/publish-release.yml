@@ -108,12 +108,17 @@ jobs:
               fh.write(f"metadata_changed={metadata_changed}\n")
           PY
 
-      - name: Check tag does not already exist
+      - name: Check existing release tag safety
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_SHA="$(git rev-parse HEAD)"
           if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
-            echo "::error::Tag v${VERSION} already exists."
-            exit 1
+            TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"
+            if [ "$TAG_SHA" != "$RELEASE_SHA" ]; then
+              echo "::error::Tag v${VERSION} already exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}."
+              exit 1
+            fi
+            echo "::notice::Tag v${VERSION} already points at release commit ${RELEASE_SHA}; continuing publish recovery."
           fi
 
       - name: Run release validation suite
@@ -242,15 +247,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Creating the release with `gh release create` also creates the
-          # matching lightweight tag, but only after PyPI and npm succeeded.
+          # Creating the release also creates the matching lightweight tag when
+          # needed. Reruns after a late publish failure may find the tag or
+          # release already present; those are safe only when the tag points at
+          # the reviewed release commit.
           VERSION="${{ needs.build-release.outputs.version }}"
           RELEASE_SHA="${{ needs.build-release.outputs.release_sha }}"
           python scripts/release_workflow.py release-notes --repo . --version "$VERSION" > /tmp/release-notes.txt
-          gh release create "v${VERSION}" \
-            --target "$RELEASE_SHA" \
-            --title "v${VERSION}" \
-            --notes-file /tmp/release-notes.txt
+
+          git fetch --tags origin
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"
+            if [ "$TAG_SHA" != "$RELEASE_SHA" ]; then
+              echo "::error::Tag v${VERSION} exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}."
+              exit 1
+            fi
+            RELEASE_URL="$(gh release view "v${VERSION}" --json url --jq '.url // ""' 2>/dev/null || true)"
+            if [ -n "$RELEASE_URL" ]; then
+              echo "::notice::GitHub release v${VERSION} already exists at the reviewed release commit; continuing publish recovery."
+              echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            gh release create "v${VERSION}" \
+              --verify-tag \
+              --title "v${VERSION}" \
+              --notes-file /tmp/release-notes.txt
+          else
+            gh release create "v${VERSION}" \
+              --target "$RELEASE_SHA" \
+              --title "v${VERSION}" \
+              --notes-file /tmp/release-notes.txt
+          fi
           RELEASE_URL=$(gh release view "v${VERSION}" --json url --jq '.url')
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
 

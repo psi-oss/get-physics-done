@@ -481,6 +481,34 @@ def test_runtime_catalog_rejects_schema_drift_against_fixed_schema(
         _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+def test_runtime_catalog_rejects_unknown_capability_enum_schema_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["capability_enums"]["legacy_surface"] = ["legacy"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog schema\.capability_enums contains unknown key\(s\): legacy_surface",
+    ):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_missing_required_capability_enum_schema_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    del schema["capability_enums"]["permissions_surface"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog schema\.capability_enums is missing required key\(s\): permissions_surface",
+    ):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["selection_aliases"] = [payload[0]["selection_aliases"][0], " "]

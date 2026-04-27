@@ -39,6 +39,10 @@ def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_cons
     assert "`approach_policy` does not count as grounding on its own; use `context_intake`, preserved scoping inputs, or `references[]` for actual anchors." in plan_schema
     assert "Proof-bearing claims must use an explicit non-`other` `claim_kind`" in plan_schema
     assert (
+        "`source` and `target` may only reference declared observable, claim, deliverable, acceptance-test, "
+        "reference, forbidden-proxy, or link IDs."
+    ) in plan_schema
+    assert (
         "`references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs."
         in plan_schema
     )

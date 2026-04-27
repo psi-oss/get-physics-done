@@ -34,7 +34,7 @@ Portable contents include:
 
 Portable references should stay anchored at the repository root. `state_record_session()` normalizes project-local absolute `resume_file` paths back to relative form before persisting them; external absolute paths are advisory continuity metadata only. When `state.json.continuation.bounded_segment` exists, it is authoritative. The derived execution head, `GPD/observability/current-execution.json`, and `DERIVATION-STATE.md` remain supporting context, not competing stores.
 
-Resume and progress surfaces treat state as present only when it can actually be recovered from `state.json`, `state.json.bak`, or `STATE.md`. A lone unreadable file path does not count as portable recoverable state.
+Resume and progress surfaces treat state as present only when it can actually be recovered from `state.json` or `STATE.md`; `state.json.bak` supports crash recovery for JSON state but does not make a backup-only workspace recoverable. A lone unreadable file path does not count as portable recoverable state.
 
 ## What Is Machine-Local
 

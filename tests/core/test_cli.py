@@ -1978,6 +1978,18 @@ def test_workspace_locked_cwd_does_not_migrate_nested_notes_under_ancestor_proje
     assert not (nested_cwd / "GPD").exists()
 
 
+def test_config_project_scoped_cwd_does_not_cross_nested_vcs_boundary(tmp_path: Path) -> None:
+    ancestor_project = tmp_path / "ancestor-project"
+    nested_checkout = ancestor_project / "GitHub" / "tooling"
+    nested_cwd = nested_checkout / "src"
+    nested_cwd.mkdir(parents=True)
+    (nested_checkout / ".git").mkdir()
+    (ancestor_project / "GPD").mkdir(parents=True)
+    (ancestor_project / "GPD" / "PROJECT.md").write_text("# Ancestor project\n", encoding="utf-8")
+
+    assert cli_module._config_project_scoped_cwd(nested_cwd) == nested_cwd.resolve()
+
+
 def test_resume_plain_output_surfaces_session_handoff_status(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
@@ -4901,6 +4913,21 @@ def test_doctor(mock_doctor):
     }
 
 
+@patch("gpd.core.health.run_doctor")
+def test_doctor_human_output_preserves_literal_bracketed_values(mock_doctor) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "warning": "Install with: pip install 'get-physics-done[paper]'",
+        "details": {"package_extra": "get-physics-done[paper]"},
+    }
+    mock_doctor.return_value = mock_result
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "get-physics-done[paper]" in result.output
+
+
 def test_doctor_live_executable_probes_pass_through(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from gpd.specs import SPECS_DIR
 
@@ -7219,6 +7246,79 @@ def test_review_preflight_respond_to_referees_accepts_explicit_manuscript_and_re
     assert "reports/ref1.md present" in checks["referee_report_source"]["detail"]
     assert "reports/ref2.md present" in checks["referee_report_source"]["detail"]
     assert payload["passed"] is True
+
+
+def test_review_preflight_arxiv_submission_rejects_review_ledger_round_mismatch(tmp_path: Path) -> None:
+    _bootstrap_publication_project(tmp_path)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    manuscript = paper_dir / "main.tex"
+    manuscript.write_text("\\documentclass{article}\\begin{document}Paper\\end{document}\n", encoding="utf-8")
+    (paper_dir / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Round Mismatch",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    (review_dir / "REVIEW-LEDGER-R2.json").write_text(
+        json.dumps({"version": 1, "round": 1, "manuscript_path": "paper/main.tex", "issues": []}),
+        encoding="utf-8",
+    )
+    (review_dir / "REFEREE-DECISION-R2.json").write_text(
+        json.dumps(
+            {
+                "manuscript_path": "paper/main.tex",
+                "final_recommendation": "minor_revision",
+                "final_confidence": "medium",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(tmp_path),
+            "validate",
+            "review-preflight",
+            "arxiv-submission",
+            "paper/main.tex",
+            "--strict",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    checks = {check["name"]: check for check in payload["checks"]}
+    assert checks["review_ledger"]["passed"] is True
+    assert checks["review_ledger_valid"]["passed"] is False
+    assert "review ledger round 1 does not match required review round 2" in checks["review_ledger_valid"]["detail"]
+    assert checks["referee_decision_valid"]["passed"] is False
+    assert (
+        "referee decision cannot be validated against a review ledger whose embedded round does not match required review round 2"
+        in checks["referee_decision_valid"]["detail"]
+    )
 
 
 def test_validate_review_preflight_accepts_inline_peer_review_subject(tmp_path: Path) -> None:

@@ -95,6 +95,8 @@ _GPD_BARE_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b")
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
 _OPENCODE_YOLO_PERMISSION = "allow"
 _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_files"
+_MANIFEST_OPENCODE_MANAGED_CONFIG_KEY = "opencode_managed_config"
+_MANIFEST_OPENCODE_PERMISSION_RESTORE_KEY = "permission_restore"
 
 # ---------------------------------------------------------------------------
 # XDG config directory resolution
@@ -516,6 +518,31 @@ def _normalize_opencode_permission_value(permission_value: object) -> tuple[dict
     return {}, permission_value is not None
 
 
+def _opencode_permission_shape_restore_state(permission_value: object) -> dict[str, object] | None:
+    if (
+        isinstance(permission_value, str)
+        and permission_value in _OPENCODE_PERMISSION_DECISIONS
+        and permission_value != _OPENCODE_YOLO_PERMISSION
+    ):
+        return {"kind": "scalar", "value": permission_value}
+    return None
+
+
+def _restore_opencode_permission_shape_if_safe(
+    config: dict[str, object],
+    restore_state: dict[str, object] | None,
+) -> bool:
+    if not isinstance(restore_state, dict) or restore_state.get("kind") != "scalar":
+        return False
+    restore_value = restore_state.get("value")
+    if restore_value not in _OPENCODE_PERMISSION_DECISIONS or restore_value == _OPENCODE_YOLO_PERMISSION:
+        return False
+    if config.get("permission") != {"*": restore_value}:
+        return False
+    config["permission"] = restore_value
+    return True
+
+
 def _opencode_permission_rule_is_allow(rule: object) -> bool:
     """Return whether a permission rule resolves entirely to allow."""
     if isinstance(rule, str):
@@ -534,11 +561,12 @@ def _opencode_permission_is_yolo(permission_value: object) -> bool:
     return False
 
 
-def configure_opencode_permissions(config_dir: Path) -> bool:
+def _configure_opencode_permissions_with_restore(config_dir: Path) -> tuple[bool, dict[str, object] | None]:
     """Configure OpenCode permissions to allow reading GPD reference docs.
 
     Modifies opencode.json to allow permission.read and permission.external_directory
-    access for the managed GPD path. Returns True if config was modified.
+    access for the managed GPD path. Returns whether config was modified plus
+    metadata needed to restore user-visible scalar permission shape on uninstall.
     """
     config_state, config_parse_error = _read_opencode_config_state(config_dir)
     if config_parse_error is not None:
@@ -546,8 +574,9 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
     config = config_state or {}
     permission_value = config.get("permission")
     if _opencode_permission_is_yolo(permission_value):
-        return False
+        return False, None
 
+    permission_restore_state = _opencode_permission_shape_restore_state(permission_value)
     permission_config, coerced = _normalize_opencode_permission_value(permission_value)
     if permission_value is None:
         coerced = False
@@ -583,6 +612,12 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
         config["permission"] = permission_config
         _write_opencode_config(config_dir, config)
 
+    return modified, permission_restore_state
+
+
+def configure_opencode_permissions(config_dir: Path) -> bool:
+    """Configure OpenCode permissions to allow reading GPD reference docs."""
+    modified, _ = _configure_opencode_permissions_with_restore(config_dir)
     return modified
 
 
@@ -599,6 +634,7 @@ def write_manifest(
     install_scope: str | None = None,
     explicit_target: bool | None = None,
     managed_command_file_names: tuple[str, ...] | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Write OpenCode's manifest through the shared flat-command writer."""
     if managed_command_file_names is None:
@@ -614,9 +650,9 @@ def write_manifest(
             if command_dir.exists()
             else ()
         )
-    metadata: dict[str, object] = {}
+    manifest_metadata: dict[str, object] = dict(metadata or {})
     if managed_command_file_names:
-        metadata[_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY] = sorted(
+        manifest_metadata[_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY] = sorted(
             {
                 name
                 for name in managed_command_file_names
@@ -631,7 +667,7 @@ def write_manifest(
         include_nested_commands=False,
         include_hooks=False,
         agent_suffixes=(".md",),
-        metadata=metadata or None,
+        metadata=manifest_metadata or None,
         install_scope=install_scope,
         explicit_target=explicit_target,
     )
@@ -663,6 +699,7 @@ def uninstall_opencode(
         "mcpServers": 0,
     }
     runtime_permission_state: dict[str, object] | None = None
+    permission_restore_state: dict[str, object] | None = None
     tracked_command_files = _load_manifest_opencode_command_files(target_dir)
 
     # 1. Remove command/gpd-*.md files
@@ -694,6 +731,11 @@ def uninstall_opencode(
             state = manifest_payload.get("gpd_runtime_permissions")
             if isinstance(state, dict):
                 runtime_permission_state = state
+            managed_config = manifest_payload.get(_MANIFEST_OPENCODE_MANAGED_CONFIG_KEY)
+            if isinstance(managed_config, dict):
+                restore_state = managed_config.get(_MANIFEST_OPENCODE_PERMISSION_RESTORE_KEY)
+                if isinstance(restore_state, dict):
+                    permission_restore_state = restore_state
         manifest_file.unlink()
     patches_path = target_dir / PATCHES_DIR_NAME
     if patches_path.exists():
@@ -773,6 +815,8 @@ def uninstall_opencode(
                         del oc_config["permission"][perm_type]
             if not oc_config["permission"]:
                 del oc_config["permission"]
+            elif _restore_opencode_permission_shape_if_safe(oc_config, permission_restore_state):
+                modified = True
 
         if modified:
             oc_config_path.write_text(json.dumps(oc_config, indent=2) + "\n", encoding="utf-8")
@@ -1016,10 +1060,11 @@ class OpenCodeAdapter(RuntimeAdapter):
         self._hooks_count = 0
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
+        self._opencode_permission_restore_state = None
         _, config_parse_error = _read_opencode_config_state(target_dir)
         if config_parse_error is not None:
             raise RuntimeError("OpenCode opencode.json is malformed; refusing to overwrite it during install.")
-        configure_opencode_permissions(target_dir)
+        _, self._opencode_permission_restore_state = _configure_opencode_permissions_with_restore(target_dir)
 
         # Wire MCP servers into opencode.json.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
@@ -1167,6 +1212,12 @@ class OpenCodeAdapter(RuntimeAdapter):
         return result
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
+        metadata: dict[str, object] = {}
+        permission_restore_state = getattr(self, "_opencode_permission_restore_state", None)
+        if isinstance(permission_restore_state, dict):
+            metadata[_MANIFEST_OPENCODE_MANAGED_CONFIG_KEY] = {
+                _MANIFEST_OPENCODE_PERMISSION_RESTORE_KEY: permission_restore_state,
+            }
         write_manifest(
             target_dir,
             version,
@@ -1174,6 +1225,7 @@ class OpenCodeAdapter(RuntimeAdapter):
             install_scope=self._current_install_scope_flag(),
             explicit_target=getattr(self, "_install_explicit_target", False),
             managed_command_file_names=getattr(self, "_generated_command_files", ()),
+            metadata=metadata or None,
         )
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:

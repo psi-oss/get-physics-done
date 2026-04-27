@@ -272,7 +272,7 @@ Rules:
 
 - `relation` is optional and defaults to `other`; set it when the dependency type is already known.
 - `relation: supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`
-- `source` and `target` may only reference declared claim, deliverable, acceptance-test, or reference IDs.
+- `source` and `target` may only reference declared observable, claim, deliverable, acceptance-test, reference, forbidden-proxy, or link IDs.
 - `verified_by[]` may only reference declared `acceptance_tests[].id`.
 
 ### `uncertainty_markers`
@@ -308,7 +308,7 @@ Rules:
 - When a plan depends on traceable handoffs or decisive comparisons, surface `links[]` explicitly instead of burying the dependency in prose.
 - All ID cross-links must resolve to declared IDs. Unresolved IDs are validation errors, not TODO placeholders.
 - IDs must be unique across each section.
-- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+- Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous.
 - Canonical IDs and other required strings are trimmed before validation; blank-after-trim values are invalid.
 - A cross-reference must fail loudly if it points to an undeclared ID.
 - A non-object `contract:` value is invalid. Treat it as a schema error, not as “missing”.

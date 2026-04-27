@@ -67,6 +67,13 @@ def test_model_facing_prompts_do_not_ship_unresolved_placeholders() -> None:
             )
 
 
+def test_model_facing_prompts_do_not_use_informal_gap_markers() -> None:
+    for directory in MODEL_FACING_DIRS:
+        for path in sorted(directory.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            assert "???" not in text, f"{path.relative_to(REPO_ROOT)} still contains an informal ??? marker"
+
+
 def test_model_facing_prompts_do_not_use_legacy_backcompat_wording() -> None:
     for directory in MODEL_FACING_DIRS:
         for path in sorted(directory.glob("*.md")):

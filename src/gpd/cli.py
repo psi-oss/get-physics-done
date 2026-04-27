@@ -259,12 +259,12 @@ def _pretty_print(d: dict) -> None:
         if k == "failure_reasons" and isinstance(v, dict):
             # Render each failure reason as its own row for readability
             for fk, fv in v.items():
-                table.add_row(f"  reason: {fk}", str(fv))
+                table.add_row(Text(f"  reason: {fk}"), Text(str(fv)))
         elif isinstance(v, (dict, list)):
             val = json.dumps(v, default=str)
-            table.add_row(str(k), val)
+            table.add_row(Text(str(k)), Text(val))
         else:
-            table.add_row(str(k), str(v))
+            table.add_row(Text(str(k)), Text(str(v)))
     console.print(table)
 
 
@@ -348,11 +348,15 @@ def _config_project_scoped_cwd(cwd: Path | None = None) -> Path:
     for candidate in (workspace_cwd, *workspace_cwd.parents):
         planning_dir = candidate / PLANNING_DIR_NAME
         if not planning_dir.is_dir():
+            if (candidate / ".git").exists() or (candidate / ".hg").exists():
+                break
             continue
         if any((planning_dir / name).exists() for name in REQUIRED_PLANNING_FILES) or any(
             (planning_dir / name).is_dir() for name in REQUIRED_PLANNING_DIRS
         ):
             return candidate
+        if (candidate / ".git").exists() or (candidate / ".hg").exists():
+            break
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
 
@@ -10397,6 +10401,8 @@ def _build_review_preflight(
                     else:
                         ledger_path = required_review_round.review_ledger
                         decision_path = required_review_round.referee_decision
+                        review_ledger_manuscript_valid = False
+                        review_ledger_round_valid = False
                         round_label = (
                             f"round {required_review_round.round_number}"
                             if required_review_round.round_number > 1
@@ -10458,19 +10464,31 @@ def _build_review_preflight(
                                         ),
                                     )
                             else:
-                                review_ledger_valid = manuscript_matches_review_artifact_path(
+                                review_ledger_manuscript_valid = manuscript_matches_review_artifact_path(
                                     review_ledger.manuscript_path,
                                     manuscript,
                                     cwd=project_cwd,
                                 )
+                                review_ledger_round_valid = (
+                                    review_ledger.round == required_review_round.round_number
+                                )
                                 if "review_ledger_valid" in review_checks_requested:
+                                    review_ledger_reasons: list[str] = []
+                                    if not review_ledger_manuscript_valid:
+                                        review_ledger_reasons.append(
+                                            "review ledger manuscript_path does not match the active submission manuscript"
+                                        )
+                                    if not review_ledger_round_valid:
+                                        review_ledger_reasons.append(
+                                            f"review ledger round {review_ledger.round} does not match required review {round_label}"
+                                        )
                                     add_check(
                                         "review_ledger_valid",
-                                        review_ledger_valid,
+                                        not review_ledger_reasons,
                                         (
                                             "review ledger manuscript_path matches the active submission manuscript"
-                                            if review_ledger_valid
-                                            else "review ledger manuscript_path does not match the active submission manuscript"
+                                            if not review_ledger_reasons
+                                            else "; ".join(review_ledger_reasons)
                                         ),
                                         blocking=True,
                                     )
@@ -10513,6 +10531,14 @@ def _build_review_preflight(
                                 if review_ledger is None:
                                     decision_reasons.append(
                                         "referee decision cannot be validated without the matching review ledger"
+                                    )
+                                elif not review_ledger_manuscript_valid:
+                                    decision_reasons.append(
+                                        "referee decision cannot be validated against a review ledger whose manuscript_path does not match the active submission manuscript"
+                                    )
+                                elif not review_ledger_round_valid:
+                                    decision_reasons.append(
+                                        f"referee decision cannot be validated against a review ledger whose embedded round does not match required review {round_label}"
                                     )
                                 else:
                                     report = evaluate_referee_decision(

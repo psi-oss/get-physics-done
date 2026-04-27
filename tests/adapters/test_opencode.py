@@ -1015,6 +1015,55 @@ class TestRuntimePermissions:
 
 
 class TestUninstall:
+    def test_uninstall_restores_scalar_permission_shape_after_install(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        config_path = target / "opencode.json"
+        config_path.write_text(json.dumps({"permission": "ask"}) + "\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        installed = json.loads(config_path.read_text(encoding="utf-8"))
+        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert installed["permission"]["*"] == "ask"
+        assert manifest["opencode_managed_config"]["permission_restore"] == {
+            "kind": "scalar",
+            "value": "ask",
+        }
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(config_path.read_text(encoding="utf-8"))
+        assert cleaned["permission"] == "ask"
+
+    def test_uninstall_keeps_permission_object_when_user_added_rules_after_scalar_install(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        config_path = target / "opencode.json"
+        config_path.write_text(json.dumps({"permission": "ask"}) + "\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target, is_global=False)
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["permission"]["read"]["/tmp/custom/*"] = "allow"
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(config_path.read_text(encoding="utf-8"))
+        assert cleaned["permission"]["*"] == "ask"
+        assert cleaned["permission"]["read"] == {"/tmp/custom/*": "allow"}
+        assert "external_directory" not in cleaned["permission"]
+
     def test_uninstall_removes_only_exact_managed_permission_keys(
         self,
         gpd_root: Path,

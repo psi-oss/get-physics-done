@@ -167,6 +167,18 @@ _RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS = (
     "notify_config_surface",
 )
 _RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS = frozenset({"prompt_free_mode_value"})
+_RUNTIME_CAPABILITY_ENUM_REQUIRED_FIELDS = frozenset(
+    {
+        "permissions_surface",
+        "statusline_surface",
+        "notify_surface",
+        "telemetry_source",
+        "telemetry_completeness",
+        "child_artifact_persistence_reliability",
+        "continuation_surface",
+        "checkpoint_stop_semantics",
+    }
+)
 _USAGE_TOKEN_HOOK_PAYLOAD_FIELDS = ("usage_keys", "input_tokens_keys", "output_tokens_keys")
 
 
@@ -599,6 +611,20 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         )
 
     capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
+    unknown_capability_enum_keys = sorted(key for key in capability_enums_raw if key not in capability_keys)
+    missing_required_capability_enum_keys = sorted(
+        key for key in _RUNTIME_CAPABILITY_ENUM_REQUIRED_FIELDS if key not in capability_enums_raw
+    )
+    if unknown_capability_enum_keys:
+        raise ValueError(
+            "runtime catalog schema.capability_enums contains unknown key(s): "
+            + ", ".join(unknown_capability_enum_keys)
+        )
+    if missing_required_capability_enum_keys:
+        raise ValueError(
+            "runtime catalog schema.capability_enums is missing required key(s): "
+            + ", ".join(missing_required_capability_enum_keys)
+        )
     capability_enums: dict[str, frozenset[str]] = {}
     for field_name, values in capability_enums_raw.items():
         if not isinstance(field_name, str) or not field_name or field_name.strip() != field_name:

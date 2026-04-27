@@ -215,7 +215,7 @@ Success Criteria:
 1. Effective Lagrangian written to specified order <- EFT-01 check
 2. Matching conditions computed <- EFT-02 check
 3. Known decoupling limit recovered <- EFT-03 check
-4. Regime of validity bounded explicitly <- ??? GAP
+4. Regime of validity bounded explicitly <- GAP: no objective covers this yet
 5. All couplings have correct mass dimensions <- dimensional analysis (universal)
 
 Objectives: EFT-01, EFT-02, EFT-03

@@ -177,6 +177,8 @@ Project contracts must include at least one observable, claim, or deliverable.
 
 Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.
 
+Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous.
+
 `scope.in_scope` must name at least one project boundary or objective.
 
 `context_intake` must not be empty. At least one of `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, or `crucial_inputs` must carry a non-empty item, and the grounding fields must be concrete enough to re-find later.

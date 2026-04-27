@@ -151,6 +151,15 @@ def test_y_n_prompts_unified_and_carve_outs_preserved() -> None:
         )
 
 
+def test_merge_phase_confirmation_carve_out_has_explicit_nonapproval_semantics() -> None:
+    workflow = (WORKFLOWS_DIR / "merge-phases.md").read_text(encoding="utf-8")
+
+    assert "Proceed? (y/n)" in workflow
+    assert "Wait for user confirmation." not in workflow
+    assert "Continue only if the user answers `y`" in workflow
+    assert "abort without mutations on `n` or any ambiguous response" in workflow
+
+
 def test_workflow_y_n_e_prompts_define_edit_branch_semantics() -> None:
     paths = [
         WORKFLOWS_DIR / "complete-milestone.md",

@@ -3449,6 +3449,47 @@ class TestInitResume:
         assert "active_execution_segment" not in ctx
         assert "resume_surface" not in ctx
 
+    def test_live_execution_workspace_prevents_recent_project_hijack(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        recent_project = tmp_path / "recent-project"
+        data_root = tmp_path / "data"
+        _setup_project(workspace)
+        _write_current_execution(
+            workspace,
+            {
+                "session_id": "sess-local",
+                "phase": "03",
+                "plan": "02",
+                "segment_id": "seg-local",
+                "segment_status": "active",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        _setup_project(recent_project)
+        (recent_project / "GPD" / "PROJECT.md").write_text("# Recent project\n", encoding="utf-8")
+        (recent_project / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        resume_path = recent_project / "GPD" / "phases" / "01-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        record_recent_project(
+            recent_project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "resume_file": "GPD/phases/01-analysis/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        ctx = init_resume(workspace, data_root=data_root)
+
+        assert ctx["project_root"] == workspace.resolve().as_posix()
+        assert ctx["project_reentry_mode"] == "current-workspace"
+        assert ctx["project_reentry_selected_candidate"]["reason"] == "workspace carries live execution state"
+        assert ctx["derived_execution_head"]["segment_id"] == "seg-local"
+        assert ctx["active_resume_kind"] is None
+        assert ctx["resume_candidates"] == []
+
     def test_handoff_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         from gpd.core.state import default_state_dict

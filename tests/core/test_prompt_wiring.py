@@ -3798,7 +3798,8 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "scope.unresolved_questions" in phase_prompt
     assert "Every claim must declare a stable `id`." in phase_prompt
     assert (
-        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`"
+        "Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, "
+        "`references[]`, `forbidden_proxies[]`, or `links[]`"
         in phase_prompt
     )
     assert "contract-results-schema.md" in summary_template
@@ -3813,8 +3814,8 @@ def test_sync_state_and_write_paper_command_prompts_expand_required_schema_bodie
     assert "Authoritative vs Derived" in sync_state
     assert "`project_contract`" in sync_state
     assert (
-        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
-        "target resolution becomes ambiguous." in sync_state
+        "Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, "
+        "`references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous." in sync_state
     )
     assert "`convention_lock`" in sync_state
     assert "Reproducibility Manifest Template" in write_paper
@@ -3909,8 +3910,8 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     )
     assert "All ID cross-links must resolve to declared IDs." in plan_schema
     assert (
-        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
-        "target resolution becomes ambiguous." in plan_schema
+        "Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, "
+        "`references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous." in plan_schema
     )
     assert "`deliverables[]` must not be empty." in plan_schema
     assert "`acceptance_tests[]` must not be empty." in plan_schema
@@ -3958,8 +3959,8 @@ def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normali
         in state_schema
     )
     assert (
-        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
-        "target resolution becomes ambiguous." in state_schema
+        "Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, "
+        "`references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous." in state_schema
     )
     assert (
         "`scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors`"

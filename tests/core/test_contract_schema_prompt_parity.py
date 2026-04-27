@@ -221,6 +221,10 @@ def test_project_contract_schema_examples_surface_validator_accepted_proof_objec
         assert '"automation": "human"' in schema_text
         assert "Project Contract ID Linkage Rules" in schema_text
         assert "`context_intake.must_read_refs[]` must contain `references[].id` values only." in schema_text
+        assert (
+            "`links[].source` and `links[].target` may point only to observable, claim, deliverable, "
+            "acceptance-test, reference, forbidden-proxy, or link IDs."
+        ) in schema_text
         assert "`links[].verified_by[]` must contain `acceptance_tests[].id` values only." in schema_text
 
 

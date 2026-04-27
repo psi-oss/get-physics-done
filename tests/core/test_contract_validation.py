@@ -2411,12 +2411,29 @@ def test_validate_project_contract_accepts_link_endpoints_for_all_contract_node_
             "relation": "benchmarks",
             "verified_by": ["test-benchmark"],
         },
+        {
+            "id": "link-link-to-deliverable",
+            "source": "link-observable-to-proxy",
+            "target": "deliv-figure",
+            "relation": "depends_on",
+            "verified_by": ["test-benchmark"],
+        },
     ]
 
     result = validate_project_contract(contract)
 
     assert result.valid is True
     assert not any(error.startswith("link ") for error in result.errors)
+
+
+def test_validate_project_contract_rejects_ambiguous_link_endpoint_ids_across_node_types() -> None:
+    contract = _load_contract_fixture()
+    contract["forbidden_proxies"][0]["id"] = "claim-benchmark"
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "contract id claim-benchmark is reused across claim, forbidden proxy; target resolution is ambiguous" in result.errors
 
 
 def test_validate_project_contract_reports_nested_object_schema_errors() -> None:

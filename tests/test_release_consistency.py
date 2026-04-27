@@ -559,6 +559,10 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "git merge-base --is-ancestor HEAD" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
+    assert "Check existing release tag safety" in workflow
+    assert 'TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"' in workflow
+    assert "Tag v${VERSION} already points at release commit ${RELEASE_SHA}; continuing publish recovery." in workflow
+    assert "Tag v${VERSION} already exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}." in workflow
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
     assert "id-token: write" in workflow
@@ -583,6 +587,10 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "get-physics-done@${VERSION} is already published on npm; skipping npm publish." in workflow
     assert "npm publish failed, but get-physics-done@${VERSION} is now published; continuing." in workflow
     assert "gh release create" in workflow
+    assert "git fetch --tags origin" in workflow
+    assert "--verify-tag" in workflow
+    assert "GitHub release v${VERSION} already exists at the reviewed release commit; continuing publish recovery." in workflow
+    assert "Tag v${VERSION} exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}." in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
     assert "Run stamped release validation" in workflow
