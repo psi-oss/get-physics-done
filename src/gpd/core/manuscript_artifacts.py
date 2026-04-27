@@ -676,10 +676,16 @@ def _publication_output_paths(
     *,
     source: PublicationSubjectSource,
     publication_subject_slug: str | None,
+    publication_lane_kind: PublicationLaneKind | None,
     publication_lane_owner: PublicationLaneOwner | None,
 ) -> tuple[Path | None, Path | None]:
     layout = ProjectLayout(project_root)
-    if source == "current_project" or publication_lane_owner == "project_managed":
+    if publication_lane_kind == "managed_publication_manuscript" and publication_subject_slug is not None:
+        return (
+            layout.publication_subject_dir(publication_subject_slug),
+            layout.publication_review_dir(publication_subject_slug),
+        )
+    if source == "current_project" or publication_lane_kind == "canonical_project_manuscript":
         return layout.gpd, layout.review_dir
     if publication_lane_owner == "external_artifact" and publication_subject_slug is not None:
         return (
@@ -696,6 +702,7 @@ def publication_root_for_subject(publication_subject: PublicationSubjectResoluti
         publication_subject.project_root,
         source=publication_subject.source,
         publication_subject_slug=publication_subject.publication_subject_slug,
+        publication_lane_kind=publication_subject.publication_lane_kind,
         publication_lane_owner=publication_subject.publication_lane_owner,
     )
     return publication_root
@@ -708,6 +715,7 @@ def review_dir_for_subject(publication_subject: PublicationSubjectResolution) ->
         publication_subject.project_root,
         source=publication_subject.source,
         publication_subject_slug=publication_subject.publication_subject_slug,
+        publication_lane_kind=publication_subject.publication_lane_kind,
         publication_lane_owner=publication_subject.publication_lane_owner,
     )
     return review_dir

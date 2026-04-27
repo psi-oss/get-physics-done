@@ -1050,16 +1050,9 @@ See <checkpoint_behavior> section for full format.
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
   # Headings above are presentation only; route on gpd_return.status.
-  files_written:
-    - GPD/REFEREE-REPORT{round_suffix}.md
-    - GPD/REFEREE-REPORT{round_suffix}.tex
-    - GPD/review/REFEREE-DECISION{round_suffix}.json
-    - GPD/review/REVIEW-LEDGER{round_suffix}.json
-    - GPD/CONSISTENCY-REPORT.md  # only when applicable
-  issues: [list of blocking or unresolved review issues, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # files_written must stay within the Stage 6 allowlist for artifacts actually written in this run.
   recommendation: "{accept | minor_revision | major_revision | reject}"
   confidence: "{high | medium | low}"
   major_issues: N
@@ -1122,13 +1115,7 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 <context_pressure>
 Loaded from agent-infrastructure.md reference. See `<references>` section.
 Agent-specific: "current unit of work" = current evaluation dimension. Start with the 5 most critical dimensions (correctness, completeness, technical soundness, novelty, significance), then expand if budget allows.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard threshold — referee reads multiple phase artifacts for assessment |
-| YELLOW | 40-50% | Prioritize remaining dimensions, skip optional elaboration | Narrower YELLOW band (10% vs 15%) because referee must evaluate all 8+ dimensions before stopping |
-| ORANGE | 50-65% | Complete current dimension only, prepare checkpoint | Must reserve ~15% for writing REFEREE-REPORT{round_suffix}.md with structured assessments across all dimensions |
-| RED | > 65% | STOP immediately, write partial report with dimensions evaluated so far, return with checkpoint status | Same as most single-pass agents — referee does not backtrack or iterate |
+Use `references/orchestration/context-pressure-thresholds.md` for referee thresholds.
 </context_pressure>
 
 <success_criteria>

@@ -1022,6 +1022,14 @@ def _paths_equal(left: Path, right: Path) -> bool:
         return left.expanduser() == right.expanduser()
 
 
+def _normalize_global_config_dir(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def _home_global_config_dir(home: Path | None, home_subpath: str) -> Path:
+    return _normalize_global_config_dir((home or Path.home()) / home_subpath)
+
+
 def resolve_global_config_dir(
     descriptor: RuntimeDescriptor,
     *,
@@ -1034,22 +1042,22 @@ def resolve_global_config_dir(
         if policy.env_var:
             override = env.get(policy.env_var)
             if override:
-                return Path(override).expanduser()
-        return (home or Path.home()) / policy.home_subpath
+                return _normalize_global_config_dir(Path(override))
+        return _home_global_config_dir(home, policy.home_subpath)
 
     if policy.strategy == "xdg_app":
         if policy.env_dir_var:
             override = env.get(policy.env_dir_var)
             if override:
-                return Path(override).expanduser()
+                return _normalize_global_config_dir(Path(override))
         if policy.env_file_var:
             config_path = env.get(policy.env_file_var)
             if config_path:
-                return Path(config_path).expanduser().parent
+                return _normalize_global_config_dir(Path(config_path).expanduser().parent)
         xdg_home = env.get("XDG_CONFIG_HOME")
         if xdg_home and policy.xdg_subdir:
-            return Path(xdg_home).expanduser() / policy.xdg_subdir
-        return (home or Path.home()) / policy.home_subpath
+            return _normalize_global_config_dir(Path(xdg_home) / policy.xdg_subdir)
+        return _home_global_config_dir(home, policy.home_subpath)
 
     raise ValueError(f"Unsupported global config strategy: {policy.strategy}")
 

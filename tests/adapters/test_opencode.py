@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-import gpd.adapters.opencode as opencode_module
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command, hook_python_interpreter
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
@@ -37,30 +36,6 @@ def expected_opencode_bridge(target: Path, *, is_global: bool = False, explicit_
         is_global=is_global,
         explicit_target=explicit_target,
     )
-
-
-def test_legacy_copy_with_path_replacement_delegates_to_shared_pipeline(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    calls: list[tuple[Path, Path, str, str, str | None]] = []
-
-    def _fake_shared_copy(
-        src_dir: Path,
-        dest_dir: Path,
-        path_prefix: str,
-        runtime: str,
-        install_scope: str | None = None,
-    ) -> None:
-        calls.append((src_dir, dest_dir, path_prefix, runtime, install_scope))
-
-    monkeypatch.setattr(opencode_module, "_shared_copy_with_path_replacement", _fake_shared_copy)
-
-    src_dir = tmp_path / "src"
-    dest_dir = tmp_path / "dest"
-    opencode_module.copy_with_path_replacement(src_dir, dest_dir, "/prefix/", "local")
-
-    assert calls == [(src_dir, dest_dir, "/prefix/", "opencode", "local")]
 
 
 class TestProperties:
@@ -159,10 +134,29 @@ class TestConvertFrontmatter:
         assert "https://example.test/gpd:help" in result
         assert "mygpd:command" in result
 
-    def test_claude_path_conversion(self) -> None:
+    def test_claude_path_conversion(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("OPENCODE_CONFIG_DIR", raising=False)
+        monkeypatch.delenv("OPENCODE_CONFIG", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
         result = convert_claude_to_opencode_frontmatter(content)
-        assert "~/.config/opencode/agents/gpd-verifier.md" in result
+        assert f"{Path.home().resolve(strict=False).as_posix()}/.config/opencode/agents/gpd-verifier.md" in result
+
+    def test_claude_path_conversion_uses_catalog_global_config_fallback(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        config_dir = tmp_path / "configured-opencode"
+        monkeypatch.setenv("OPENCODE_CONFIG_DIR", str(config_dir))
+        monkeypatch.delenv("OPENCODE_CONFIG", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+
+        content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
+        result = convert_claude_to_opencode_frontmatter(content)
+
+        assert f"{config_dir.resolve(strict=False).as_posix()}/agents/gpd-verifier.md" in result
 
     def test_claude_path_conversion_uses_resolved_path_prefix(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
@@ -269,6 +263,22 @@ class TestCopyFlattenedCommands:
 
         assert not (dest / "gpd-old-command.md").exists()
         assert (dest / "gpd-user-keep.md").exists()
+
+    def test_write_manifest_scans_flat_commands_by_default(self, tmp_path: Path) -> None:
+        from gpd.adapters.opencode import write_manifest
+
+        target = tmp_path / ".opencode"
+        command_dir = target / "command"
+        command_dir.mkdir(parents=True)
+        (command_dir / "gpd-help.md").write_text("help", encoding="utf-8")
+        (command_dir / "user.md").write_text("keep", encoding="utf-8")
+
+        manifest = write_manifest(target, "1.2.3")
+
+        assert manifest["runtime"] == "opencode"
+        assert "command/gpd-help.md" in manifest["files"]
+        assert "command/user.md" not in manifest["files"]
+        assert manifest["opencode_generated_command_files"] == ["gpd-help.md"]
 
     def test_nonexistent_src_returns_zero(self, tmp_path: Path) -> None:
         dest = tmp_path / "command"
@@ -746,6 +756,23 @@ class TestInstall:
 
         assert (target / "gpd-file-manifest.json").exists()
 
+    def test_install_manifest_tracks_flat_commands_through_shared_writer(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
+        tracked_commands = manifest["opencode_generated_command_files"]
+
+        assert "gpd-help.md" in tracked_commands
+        assert all(f"command/{name}" in manifest["files"] for name in tracked_commands)
+        assert not any(path.startswith("commands/gpd/") for path in manifest["files"])
+
     def test_install_returns_counts(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()
@@ -847,7 +874,7 @@ class TestInstall:
         config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
         wolfram = config["mcp"]["gpd-wolfram"]
         assert wolfram["type"] == "local"
-        assert wolfram["command"] == ["gpd-mcp-wolfram"]
+        assert wolfram["command"] == [hook_python_interpreter(), "-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert wolfram["enabled"] is True
         assert wolfram["environment"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"}
         assert "super-secret-token" not in json.dumps(wolfram)
@@ -895,7 +922,7 @@ class TestInstall:
         config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
         wolfram = config["mcp"]["gpd-wolfram"]
         assert wolfram["type"] == "local"
-        assert wolfram["command"] == ["gpd-mcp-wolfram"]
+        assert wolfram["command"] == [hook_python_interpreter(), "-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert wolfram["enabled"] is False
         assert wolfram["timeout"] == 12000
         assert wolfram["environment"]["GPD_WOLFRAM_MCP_ENDPOINT"] == "https://custom.invalid/api/mcp"

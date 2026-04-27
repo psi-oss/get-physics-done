@@ -21,6 +21,7 @@ from gpd.mcp import managed_integrations as _managed_integrations
 from gpd.version import __version__ as GPD_VERSION
 
 WOLFRAM_MANAGED_INTEGRATION = _managed_integrations.WOLFRAM_MANAGED_INTEGRATION
+WOLFRAM_BRIDGE_MODULE = _managed_integrations.WOLFRAM_BRIDGE_MODULE
 WOLFRAM_MCP_API_KEY_ENV_VAR = _managed_integrations.WOLFRAM_MCP_API_KEY_ENV_VAR
 WOLFRAM_MCP_DEFAULT_ENDPOINT = _managed_integrations.WOLFRAM_MCP_DEFAULT_ENDPOINT
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = _managed_integrations.WOLFRAM_MCP_ENDPOINT_ENV_VAR
@@ -172,9 +173,16 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
     async def _get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
         return await bridge.get_prompt(name, arguments)
 
-    @server.list_resource_templates()
-    async def _list_resource_templates() -> list[types.ResourceTemplate]:
-        return (await bridge.list_resource_templates()).resourceTemplates
+    async def _list_resource_templates(request: types.ListResourceTemplatesRequest) -> types.ListResourceTemplatesResult:
+        cursor = getattr(request.params, "cursor", None)
+        return await bridge.list_resource_templates(cursor)
+
+    async def _handle_list_resource_templates(
+        request: types.ListResourceTemplatesRequest,
+    ) -> types.ServerResult:
+        return types.ServerResult(await _list_resource_templates(request))
+
+    server.request_handlers[types.ListResourceTemplatesRequest] = _handle_list_resource_templates
 
     return server, bridge
 
@@ -205,6 +213,7 @@ def main() -> None:
 __all__ = [
     "DEFAULT_WOLFRAM_MCP_ENDPOINT",
     "GPD_WOLFRAM_MCP_API_KEY_ENV",
+    "WOLFRAM_BRIDGE_MODULE",
     "WolframBridge",
     "WolframBridgeConfig",
     "build_auth_headers",
@@ -214,3 +223,7 @@ __all__ = [
     "resolve_api_key",
     "resolve_endpoint",
 ]
+
+
+if __name__ == "__main__":
+    main()

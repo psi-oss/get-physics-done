@@ -114,10 +114,8 @@ The headings in this section are presentation only. Route on `gpd_return.status`
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [references/references.bib, GPD/references-status.json]
-  issues: [list of citation problems, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # files_written names references/references.bib and GPD/references-status.json when written.
   entries_added: N
 ```
 

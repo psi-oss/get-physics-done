@@ -2115,6 +2115,19 @@ class TestInitNewProject:
         assert ctx["planning_exists"] is False
         assert "staged_loading" not in ctx
 
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        nested = tmp_path / "notes" / "scratch"
+        nested.mkdir(parents=True)
+
+        ctx = init_new_project(nested)
+
+        assert ctx["project_exists"] is True
+        assert ctx["planning_exists"] is True
+        assert ctx["has_research_map"] is False
+
     def test_detects_research_files(self, tmp_path: Path) -> None:
         (tmp_path / "calc.py").write_text("import numpy", encoding="utf-8")
         ctx = init_new_project(tmp_path)

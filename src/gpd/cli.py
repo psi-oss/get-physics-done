@@ -6351,6 +6351,7 @@ def _resolve_review_preflight_manuscript_target(
         if requested_target.is_file():
             target_suffix = requested_target.suffix.lower()
             if target_suffix in normalized_allowed_suffixes:
+                owning_manuscript_root = _supported_manuscript_root_for_target(project_root, requested_target)
                 if target_suffix in {".tex", ".md"}:
                     manuscript_root, root_resolution = _supported_root_resolution_for_target(
                         project_root,
@@ -6386,7 +6387,7 @@ def _resolve_review_preflight_manuscript_target(
                 return ResolvedManuscriptTarget(
                     status="resolved",
                     manuscript=requested_target,
-                    manuscript_root=requested_target.parent,
+                    manuscript_root=owning_manuscript_root or requested_target.parent,
                     requested_target=requested_target,
                     detail=f"{_format_display_path(requested_target)} present",
                 )
@@ -6568,6 +6569,9 @@ _REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<r
 _REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
 _AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 _REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
+_MANAGED_BRIDGE_MODULE_FALLBACKS = {
+    "gpd-mcp-wolfram": "gpd.mcp.integrations.wolfram_bridge",
+}
 
 
 def _managed_publication_root_for_target(project_root: Path, target: Path) -> Path | None:
@@ -6609,9 +6613,7 @@ def _publication_lineage_search_roots(
 
     managed_publication_root = _managed_publication_root_for_target(project_root, manuscript)
     if managed_publication_root is not None:
-        publication_roots.append(managed_publication_root)
-        review_roots.append(managed_publication_root / "review")
-        return tuple(dict.fromkeys(publication_roots)), tuple(dict.fromkeys(review_roots))
+        return (managed_publication_root,), (managed_publication_root / "review",)
 
     if _supported_manuscript_root_for_target(project_root, manuscript) is None:
         from gpd.core.constants import ProjectLayout
@@ -7193,6 +7195,11 @@ def _resolve_default_paper_config_path(*, project_root: Path | None = None) -> P
     if len(existing) == 1:
         return existing[0]
     if not existing:
+        resolution = resolve_current_manuscript_resolution(cwd, allow_markdown=True)
+        if resolution.status == "resolved" and resolution.manuscript_root is not None:
+            resolved_config = resolution.manuscript_root / "PAPER-CONFIG.json"
+            if resolved_config.exists():
+                return resolved_config
         searched = ", ".join(f"{root}/PAPER-CONFIG.json" for root in ("paper", "manuscript", "draft"))
         raise GPDError(f"No paper config found. Searched: {searched}")
 
@@ -12740,25 +12747,6 @@ def mcp_serve(
     from gpd.mcp.builtin_servers import _BUILTIN_SERVERS
     from gpd.mcp.managed_integrations import list_managed_integrations
 
-    def _console_script_module(command_name: str) -> str | None:
-        from importlib.metadata import entry_points
-
-        try:
-            scripts = entry_points(group="console_scripts")
-        except TypeError:  # pragma: no cover - compatibility for older importlib.metadata APIs
-            scripts = entry_points().get("console_scripts", [])
-        for entry_point in scripts:
-            if getattr(entry_point, "name", None) != command_name:
-                continue
-            module = getattr(entry_point, "module", None)
-            if isinstance(module, str) and module:
-                return module
-            value = getattr(entry_point, "value", "")
-            if isinstance(value, str) and ":" in value:
-                module = value.partition(":")[0]
-                return module or None
-        return None
-
     requested_server = server.strip()
     managed_aliases = {
         alias: integration
@@ -12769,12 +12757,17 @@ def mcp_serve(
     prefixed_server = requested_server if requested_server.startswith("gpd-") else f"gpd-{requested_server}"
     managed_integration = managed_aliases.get(requested_server) or managed_aliases.get(prefixed_server)
     if managed_integration is not None:
-        module_path = _console_script_module(managed_integration.bridge_command)
+        module_path = getattr(managed_integration, "bridge_module", None)
+        if not isinstance(module_path, str) or not module_path.strip():
+            module_path = getattr(managed_integration, "bridge_module_path", None)
+        if not isinstance(module_path, str) or not module_path.strip():
+            module_path = _MANAGED_BRIDGE_MODULE_FALLBACKS.get(managed_integration.bridge_command)
         if module_path is None:
             raise typer.BadParameter(
-                f"Managed server {managed_integration.managed_server_key} has no console-script entry point "
+                f"Managed server {managed_integration.managed_server_key} has no descriptor module path "
                 f"for {managed_integration.bridge_command}"
             )
+        module_path = module_path.strip()
         sys.argv = [sys.argv[0]]
         mod = importlib.import_module(module_path)
         mod.main()

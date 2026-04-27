@@ -712,14 +712,10 @@ def main(argv: list[str] | None = None) -> int:
         cli_cwd=cli_cwd,
     )
     manifest_status, _manifest_payload, manifest_runtime = load_install_manifest_runtime_status(config_dir)
-    manifest_scope_status, manifest_scope_payload, manifest_install_scope = load_install_manifest_scope_status(config_dir)
+    manifest_scope_status, _manifest_scope_payload, manifest_install_scope = load_install_manifest_scope_status(config_dir)
     _manifest_explicit_target_status, _manifest_explicit_target_payload, manifest_explicit_target = (
         load_install_manifest_explicit_target_status(config_dir)
     )
-    if manifest_scope_status == "ok":
-        manifest_install_scope = manifest_scope_payload.get("install_scope")
-        if not isinstance(manifest_install_scope, str):
-            manifest_install_scope = None
     has_managed_install_markers = config_dir_has_managed_install_markers(config_dir)
     repair_explicit_target = _uses_effective_explicit_target(
         runtime=runtime,

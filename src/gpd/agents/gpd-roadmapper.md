@@ -901,10 +901,8 @@ Common research roadblocks:
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [ROADMAP.md, STATE.md]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # files_written must name ROADMAP.md and any state/requirements files actually written.
   phases_created: {count}
 ```
 
@@ -929,18 +927,7 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ## Context Pressure Management
 
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard for planning agents — reads SUMMARY.md and produces structured roadmap |
-| YELLOW | 40-60% | Prioritize remaining phases, use concise descriptions | Wider YELLOW band because roadmap generation is highly structured with predictable output size |
-| ORANGE | 60-75% | Complete current phase design only, prepare checkpoint | Higher than most agents — roadmap output is structured YAML/markdown, compact per phase |
-| RED | > 75% | STOP immediately, write checkpoint with roadmap progress so far, return with CHECKPOINT status | Highest RED tier — roadmap files are small relative to research artifacts |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each phase designed ~3-5%. For 8+ phase roadmaps, use concise phase descriptions.
-
-If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for roadmapper thresholds. For long roadmaps, use concise phase descriptions, complete the current phase design before checkpointing, and include `context_pressure: high` only when the shared policy calls for it.
 
 </context_pressure>
 

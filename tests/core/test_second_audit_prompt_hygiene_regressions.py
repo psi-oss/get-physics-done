@@ -259,7 +259,7 @@ def test_debugger_session_paths_keep_the_active_and_resolved_lifecycles_separate
 
     assert "Debug session artifact: `GPD/debug/{slug}.md`" in debug_command
     assert "the child reads `GPD/debug/{slug}.md` before continuing" in debug_command
-    assert "files_written: [GPD/debug/{slug}.md, ...]" in debug_agent
+    assert "files_written:\n    - GPD/debug/{slug}.md" in debug_agent
     assert "session_file: GPD/debug/{slug}.md" in debug_agent
     assert "**Troubleshooting Session:** GPD/debug/resolved/{slug}.md" in debug_agent
     assert "session_status: diagnosed" in debug_workflow

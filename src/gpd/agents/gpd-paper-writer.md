@@ -840,18 +840,7 @@ Write LaTeX source directly to the specified file path. Include:
 
 ## Context Pressure Management
 
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard for output agents — paper-writer reads phase results and produces LaTeX sections |
-| YELLOW | 40-55% | Prioritize remaining sections, skip optional elaboration | Paper sections are output-heavy; each section draft costs ~3-5% of context |
-| ORANGE | 55-65% | Complete current section only, prepare checkpoint summary | Lower ORANGE than most agents — must reserve ~15% for final section formatting and cross-references |
-| RED | > 65% | STOP immediately, write checkpoint with sections completed so far, return with `gpd_return.status: checkpoint` | LaTeX output is verbose; running out of context mid-section produces unusable partial output |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each section drafted ~5-10%. Focus on assigned sections only; a full paper exceeds any single context window.
-
-If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for paper-writer thresholds. Focus on assigned sections only; a full paper exceeds any single context window. Complete the current section before checkpointing and include `context_pressure: high` only when the shared policy calls for it.
 
 </context_pressure>
 
@@ -1020,10 +1009,8 @@ Report section outputs against the resolved manuscript root rather than a hardco
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [{resolved_manuscript_root}/{section_file}.tex]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # files_written uses the actual resolved manuscript-root path.
   section_name: "{section drafted}"
   equations_added: N
   figures_added: N

@@ -1052,11 +1052,9 @@ This agent writes only `GPD/literature/SUMMARY.md`; `files_written` must list on
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
   # Mapping: SYNTHESIS COMPLETE → completed, SYNTHESIS BLOCKED → blocked
-  files_written: [GPD/literature/SUMMARY.md]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # files_written must include GPD/literature/SUMMARY.md when a draft or final summary was written.
 ```
 
 </structured_returns>
@@ -1065,7 +1063,7 @@ gpd_return:
 
 ## Context Pressure Management
 
-Monitor context consumption throughout execution. Keep synthesis concise, and if you approach checkpoint territory, stop after writing the draft `SUMMARY.md` and return `checkpoint` rather than continuing. Target under 3000 words for `SUMMARY.md`.
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for synthesizer thresholds. Keep synthesis concise; if pressure rises, stop after writing the draft `SUMMARY.md` and return `checkpoint` rather than continuing. Target under 3000 words for `SUMMARY.md`.
 
 </context_pressure>
 

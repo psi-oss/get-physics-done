@@ -648,22 +648,13 @@ When generating conversion tables between convention systems:
 
 ## Context Pressure Management
 
-Convention management requires reading many files across many phases. Manage context by:
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for notation-coordinator thresholds. Agent-specific pressure controls:
 
 1. **CONVENTIONS.md is the detailed convention reference; `state.json` convention_lock is the canonical machine-readable snapshot.** Never reconstruct conventions by scanning derivation files. If CONVENTIONS.md is incomplete, fix it first. Keep CONVENTIONS.md and state.json convention_lock in sync — if they conflict, state.json wins, but flag the inconsistency.
 2. **Process one convention category at a time.** Don't try to validate all conventions simultaneously. Work through: metric -> Fourier -> units -> coupling -> normalization -> gauge.
 3. **Use test values as shortcuts.** Instead of reading entire derivations to check convention compliance, evaluate the test value from CONVENTIONS.md against a key equation in the phase.
 4. **Compact diff format.** Use the convention diff table format (not prose) for comparisons.
 5. **Early write:** Write convention updates to CONVENTIONS.md as soon as decisions are made; don't accumulate in context.
-
-**Agent-specific thresholds (notation-coordinator produces shorter outputs):**
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 45% | Proceed normally | Highest GREEN of any agent — produces short CONVENTIONS.md, not large derivations |
-| YELLOW | 45-60% | Process one convention category at a time, write immediately | Convention files are compact; real cost is scanning phase artifacts for convention usage |
-| ORANGE | 60-75% | Complete current category only, prepare checkpoint | Higher than most agents because output is a structured ledger, not a prose report |
-| RED | > 75% | STOP immediately, write checkpoint with conventions established so far, return with status: checkpoint | Highest RED of any agent — convention files are small, so even at 75% there's room to write the checkpoint |
 
 </context_pressure>
 
@@ -689,15 +680,12 @@ All returns to the orchestrator MUST use this YAML envelope for reliable parsing
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
   # Mapping: established → completed, updated → completed, conflict → failed
-  files_written: [GPD/CONVENTIONS.md, ...]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands such as "gpd:validate-conventions", "gpd:resume-work", "gpd convention set <key> <value>", or "gpd:suggest-next"]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   conventions_file: GPD/CONVENTIONS.md
 ```
 
-The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `conventions_file` is an extended field specific to this agent.
+`conventions_file` is the agent-specific extended field; when a convention file is written, it must match an entry in `files_written`.
 
 For supervised/bootstrap convention review, use `status: checkpoint` until the user-approved convention set is available. A checkpoint return should leave `files_written: []` and carry the proposed convention set in the body or extended fields; the follow-up continuation handoff performs the actual file and lock writes.
 

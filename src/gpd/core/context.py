@@ -3369,7 +3369,9 @@ def init_plan_phase(
 
 def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new project creation."""
-    config = load_config(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    project_cwd = resolve_project_root(requested_cwd, require_layout=True) or requested_cwd
+    config = load_config(project_cwd)
 
     # Detect existing research files (walk up to depth 3, max 5 files)
     has_research_files = False
@@ -3386,7 +3388,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
         for entry in entries:
             if found_count >= 5:
                 return
-            if _should_skip_research_scan_entry(cwd, entry):
+            if _should_skip_research_scan_entry(requested_cwd, entry):
                 continue
             if entry.is_dir():
                 _walk(entry, depth + 1)
@@ -3394,39 +3396,39 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
                 found_count += 1
                 has_research_files = True
 
-    _walk(cwd, 0)
+    _walk(requested_cwd, 0)
 
     has_project_manifest = (
-        _path_exists(cwd, "requirements.txt")
-        or _path_exists(cwd, "pyproject.toml")
-        or _path_exists(cwd, "Makefile")
-        or resolve_current_manuscript_entrypoint(cwd) is not None
+        _path_exists(requested_cwd, "requirements.txt")
+        or _path_exists(requested_cwd, "pyproject.toml")
+        or _path_exists(requested_cwd, "Makefile")
+        or resolve_current_manuscript_entrypoint(requested_cwd) is not None
     )
 
     result = {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
-        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
-        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
+        "researcher_model": _resolve_model(project_cwd, "gpd-project-researcher", config),
+        "synthesizer_model": _resolve_model(project_cwd, "gpd-research-synthesizer", config),
+        "roadmapper_model": _resolve_model(project_cwd, "gpd-roadmapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
         # Existing state
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "has_research_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "project_exists": _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "has_research_map": _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        "planning_exists": _path_exists(project_cwd, PLANNING_DIR_NAME),
         # Existing project detection
         "has_research_files": has_research_files,
         "has_project_manifest": has_project_manifest,
         "needs_research_map": (has_research_files or has_project_manifest)
-        and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        and not _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Git state
-        "has_git": _path_exists(cwd, ".git"),
+        "has_git": _path_exists(project_cwd, ".git"),
         # Bootstrap only needs the scoping contract gate, not the full reference ledger.
-        **_build_new_project_contract_runtime_context(cwd),
+        **_build_new_project_contract_runtime_context(project_cwd),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(project_cwd),
     }
 
     if stage is None:

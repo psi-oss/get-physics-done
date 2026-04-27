@@ -45,7 +45,7 @@ Above T_c (log-spaced in T - T_c):
   T = [2.272, 2.280, 2.295, 2.320, 2.360, 2.420, 2.530]
 ```
 
-This gives 14 temperatures with resolution concentrated where the physics changes fastest.
+This gives 15 critical-region temperatures with resolution concentrated where the physics changes fastest.
 
 ### Step 4: Convergence Study Design
 

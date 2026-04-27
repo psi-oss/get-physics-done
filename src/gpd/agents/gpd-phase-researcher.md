@@ -527,11 +527,9 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
   # Headings above are presentation only; route on gpd_return.status.
-  files_written: [$PHASE_DIR/$PADDED_PHASE-RESEARCH.md]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # files_written must include $PHASE_DIR/$PADDED_PHASE-RESEARCH.md when a research artifact was written.
   confidence: HIGH | MEDIUM | LOW
 ```
 
@@ -553,7 +551,7 @@ When web_search or web_fetch fails (network error, rate limit, paywall, garbled 
 
 ## Context Pressure Management
 
-Monitor context and synthesize before the prompt becomes crowded. If scope pressure rises, checkpoint rather than continuing to accumulate searches.
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for phase-researcher thresholds. Synthesize before search results crowd out analysis; if scope pressure rises, checkpoint rather than continuing to accumulate searches.
 
 </context_pressure>
 

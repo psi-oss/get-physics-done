@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
 
 from gpd.adapters import get_adapter
@@ -25,8 +26,8 @@ def runtime_env_prefixes() -> tuple[str, ...]:
     return tuple(sorted(prefixes, key=len, reverse=True))
 
 
-def runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
+def runtime_env_vars_to_clear(*, extra_env_vars: Iterable[str] = ()) -> set[str]:
+    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME", *extra_env_vars}
     for descriptor in _RUNTIME_DESCRIPTORS:
         global_config = descriptor.global_config
         for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
@@ -35,9 +36,22 @@ def runtime_env_vars_to_clear() -> set[str]:
     return env_vars
 
 
-def clean_runtime_env() -> dict[str, str]:
-    env_vars_to_clear = runtime_env_vars_to_clear()
-    return {key: value for key, value in os.environ.items() if key not in env_vars_to_clear}
+def clear_runtime_env(monkeypatch, *, extra_env_vars: Iterable[str] = ()) -> None:
+    env_prefixes = runtime_env_prefixes()
+    env_vars_to_clear = runtime_env_vars_to_clear(extra_env_vars=extra_env_vars)
+    for key in list(os.environ):
+        if key.startswith(env_prefixes) or key in env_vars_to_clear:
+            monkeypatch.delenv(key, raising=False)
+
+
+def clean_runtime_env(*, extra_env_vars: Iterable[str] = ()) -> dict[str, str]:
+    env_prefixes = runtime_env_prefixes()
+    env_vars_to_clear = runtime_env_vars_to_clear(extra_env_vars=extra_env_vars)
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(env_prefixes) and key not in env_vars_to_clear
+    }
 
 
 def _infer_runtime_from_config_dir(config_dir: Path) -> str | None:

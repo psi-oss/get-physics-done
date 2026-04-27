@@ -6286,6 +6286,48 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert kwargs["enrich_bibliography"] is True
 
 
+def test_paper_build_bare_discovers_unique_managed_publication_config(tmp_path: Path) -> None:
+    manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow" / "manuscript"
+    manuscript_dir.mkdir(parents=True)
+    config_path = manuscript_dir / "PAPER-CONFIG.json"
+    manuscript_path = manuscript_dir / "managed_manuscript.tex"
+    manuscript_path.write_text("\\documentclass{article}\\begin{document}Managed\\end{document}\n", encoding="utf-8")
+    config_path.write_text(
+        json.dumps(
+            {
+                "title": "Managed Manuscript",
+                "output_filename": "managed_manuscript",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.tex_path = manuscript_path
+    result_payload.manifest_path = manuscript_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = manuscript_dir / "BIBLIOGRAPHY-AUDIT.json"
+    result_payload.bibliography_audit = None
+    result_payload.reference_bibtex_keys = {}
+    result_payload.pdf_path = manuscript_dir / "managed_manuscript.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./GPD/publication/curvature-flow/manuscript/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./GPD/publication/curvature-flow/manuscript"
+    assert payload["tex_path"] == "./GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+    args = mock_build.await_args.args
+    assert args[1] == manuscript_dir.resolve(strict=False)
+
+
 def test_paper_build_emits_manifest_and_audit_sidecars_by_default(tmp_path: Path) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()

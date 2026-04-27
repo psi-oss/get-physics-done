@@ -31,13 +31,25 @@ logger = configure_mcp_logging("gpd-errors")
 
 REFERENCES_DIR = SPECS_DIR / "references"
 
-# The 4 error catalog part files (ordered by error ID range)
-ERROR_CATALOG_FILES = [
-    "verification/errors/llm-errors-core.md",  # #1-25
-    "verification/errors/llm-errors-field-theory.md",  # #26-51
-    "verification/errors/llm-errors-extended.md",  # #52-81, #102-104
-    "verification/errors/llm-errors-deep.md",  # #82-101
-]
+ERROR_CATALOG_FILE_RANGES: tuple[tuple[str, tuple[tuple[int, int], ...]], ...] = (
+    ("verification/errors/llm-errors-core.md", ((1, 25),)),
+    ("verification/errors/llm-errors-field-theory.md", ((26, 51),)),
+    ("verification/errors/llm-errors-extended.md", ((52, 81), (102, 104))),
+    ("verification/errors/llm-errors-deep.md", ((82, 101),)),
+)
+
+# The 4 error catalog part files, ordered by their authoritative ID ranges.
+ERROR_CATALOG_FILES = [filename for filename, _ranges in ERROR_CATALOG_FILE_RANGES]
+
+ERROR_DOMAIN_RANGES: dict[str, tuple[int, int]] = {
+    "core": (1, 25),
+    "field_theory": (26, 51),
+    "extended": (52, 71),
+    "deep_domain": (72, 81),
+    "cross_domain": (82, 101),
+    "newly_identified": (102, 104),
+}
+KNOWN_ERROR_DOMAINS: tuple[str, ...] = tuple(ERROR_DOMAIN_RANGES)
 
 TRACEABILITY_FILE = "verification/errors/llm-errors-traceability.md"
 
@@ -86,19 +98,23 @@ def _strip_bold(text: str) -> str:
 
 def _infer_domain_from_id(error_id: int) -> str:
     """Infer a domain category from error class ID range."""
-    if 1 <= error_id <= 25:
-        return "core"
-    if 26 <= error_id <= 51:
-        return "field_theory"
-    if 52 <= error_id <= 71:
-        return "extended"
-    if 72 <= error_id <= 81:
-        return "deep_domain"
-    if 82 <= error_id <= 101:
-        return "cross_domain"
-    if 102 <= error_id <= 104:
-        return "newly_identified"
+    for domain, (start, end) in ERROR_DOMAIN_RANGES.items():
+        if start <= error_id <= end:
+            return domain
     return "unknown"
+
+
+def _normalize_error_domain(domain: object) -> str | None:
+    """Normalize and validate a list_error_classes domain filter."""
+    if domain is None:
+        return None
+    if not isinstance(domain, str) or not domain.strip():
+        raise ValueError("domain must be a non-empty string")
+    normalized = domain.strip()
+    if normalized not in ERROR_DOMAIN_RANGES:
+        allowed = ", ".join(KNOWN_ERROR_DOMAINS)
+        raise ValueError(f"unknown domain '{normalized}'; expected one of: {allowed}")
+    return normalized
 
 
 def _load_authoritative_markdown_body(path: Path, *, label: str) -> str:
@@ -335,6 +351,19 @@ ComputationDescriptionInput = Annotated[
     ),
 ]
 
+_ERROR_DOMAIN_SCHEMA = {
+    "type": "string",
+    "enum": list(KNOWN_ERROR_DOMAINS),
+    "minLength": 1,
+    "pattern": r"\S",
+    "description": "Known error-catalog domain filter.",
+}
+
+ErrorDomainFilterInput = Annotated[
+    str | None,
+    WithJsonSchema({"anyOf": [_ERROR_DOMAIN_SCHEMA, {"type": "null"}]}),
+]
+
 
 @mcp.tool()
 def get_error_class(error_id: int) -> dict[str, object]:
@@ -471,7 +500,7 @@ def get_traceability(error_id: int) -> dict[str, object]:
 
 
 @mcp.tool()
-def list_error_classes(domain: str | None = None) -> dict[str, object]:
+def list_error_classes(domain: ErrorDomainFilterInput = None) -> dict[str, object]:
     """List all physics error classes, optionally filtered by domain.
 
     Args:
@@ -482,8 +511,9 @@ def list_error_classes(domain: str | None = None) -> dict[str, object]:
     """
     with gpd_span("mcp.errors.list", domain=domain or "all"):
         try:
+            normalized_domain = _normalize_error_domain(domain)
             store = _get_store()
-            errors = store.list_all(domain)
+            errors = store.list_all(normalized_domain)
             return stable_mcp_response(
                 {
                     "count": len(errors),

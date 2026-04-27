@@ -1523,7 +1523,7 @@ def test_project_and_context_templates_surface_contract_and_skeptical_review() -
     project_text = (TEMPLATES_DIR / "project.md").read_text(encoding="utf-8")
     context_text = (TEMPLATES_DIR / "context.md").read_text(encoding="utf-8")
     requirements_text = (TEMPLATES_DIR / "requirements.md").read_text(encoding="utf-8")
-    state_schema_text = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+    state_schema_text = _expand_prompt_surface(TEMPLATES_DIR / "state-json-schema.md")
 
     assert "## Scoping Contract Summary" in project_text
     assert "### Contract Coverage" in project_text
@@ -1766,8 +1766,8 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "Contract coverage" in roadmapper_agent
     assert "Machine-Readable Return Envelope" in roadmapper_agent
     assert "gpd_return:" in roadmapper_agent
-    assert "status: completed | checkpoint | blocked | failed" in roadmapper_agent
-    assert "files_written: [ROADMAP.md, STATE.md]" in roadmapper_agent
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in roadmapper_agent
+    assert "# files_written must name ROADMAP.md and any state/requirements files actually written." in roadmapper_agent
     assert "phases_created: {count}" in roadmapper_agent
     assert "gpd_return.files_written" in new_project_roadmapper
     assert "GPD/REQUIREMENTS.md" in new_project_roadmapper
@@ -2188,7 +2188,7 @@ def test_phase_researcher_prompt_keeps_the_one_shot_handoff_and_return_contract_
     assert "## RESEARCH COMPLETE" in phase_researcher
     assert "## RESEARCH BLOCKED" in phase_researcher
     assert "gpd_return:" in phase_researcher
-    assert "status: completed | checkpoint | blocked | failed" in phase_researcher
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in phase_researcher
     assert "This is a one-shot handoff" in research_workflow
     assert "return a checkpoint rather than wait in place" in research_workflow
     assert "expected_artifacts" in research_workflow
@@ -2539,7 +2539,8 @@ def test_execute_phase_and_execute_plan_surface_required_reference_and_state_own
     assert (
         "substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`"
     ) in execute_plan
-    assert "Shared-state updates land after each completed plan" in execute_command
+    assert "state updates, and resumption" in execute_command
+    assert "The orchestrator applies them through `gpd apply-return-updates` after each agent completes." in execute_workflow
     assert "STATE.md is updated after each wave completes" not in execute_command
     assert "By the time the wave-complete report is emitted" in execute_workflow
     assert "continuation_update" in execute_plan

@@ -554,8 +554,8 @@ class TestInstall:
 
         parsed = json.loads(mcp_config.read_text(encoding="utf-8"))
         server = parsed["mcpServers"][WOLFRAM_MANAGED_SERVER_KEY]
-        assert server["command"] == "gpd-mcp-wolfram"
-        assert server["args"] == []
+        assert server["command"] == hook_python_interpreter()
+        assert server["args"] == ["-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert server["cwd"] == "/tmp/custom-wolfram"
         assert server["type"] == "stdio"
         assert server["env"] == {

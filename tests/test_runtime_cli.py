@@ -22,6 +22,7 @@ from gpd.adapters.runtime_catalog import (
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.hooks.install_metadata import GPD_INSTALL_DIR_NAME
 from gpd.runtime_cli import _parse_args, _resolve_cli_cwd_from_argv, main
+from tests.hooks.helpers import clear_runtime_env
 from tests.runtime_install_helpers import seed_complete_runtime_install
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
@@ -46,35 +47,10 @@ for descriptor in _RUNTIME_DESCRIPTORS:
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
 
 
-def _runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        for env_var in descriptor.activation_env_vars:
-            prefixes.add(env_var)
-            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
-    return tuple(sorted(prefixes, key=len, reverse=True))
-
-
-def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        global_config = descriptor.global_config
-        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
-            if env_var:
-                env_vars.add(env_var)
-    return env_vars
-
-
-_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
-_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
-
-
 @pytest.fixture(autouse=True)
 def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep runtime-CLI tests isolated from ambient runtime env drift."""
-    for key in list(os.environ):
-        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
+    clear_runtime_env(monkeypatch)
 
 
 def _mark_complete_install(
@@ -1742,6 +1718,44 @@ def test_runtime_cli_uses_manifest_owner_scope_for_mismatch_repair_guidance(
     assert f"{BOOTSTRAP_COMMAND} {get_adapter(foreign_runtime).install_flag}" in captured.err
     assert "--global" in captured.err
     assert "--local" not in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_scope_mismatch_uses_normalized_manifest_scope(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    config_dir = tmp_path / f"custom-{descriptor.runtime_name}-dir"
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name, install_scope="local")
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["install_scope"] = " local "
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "global",
+            "--explicit-target",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge scope mismatch" in captured.err
+    assert "Resolved install manifest pins `local`, but this bridge was launched as `global`." in captured.err
+    assert "--local" in captured.err
+    assert "--global" not in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

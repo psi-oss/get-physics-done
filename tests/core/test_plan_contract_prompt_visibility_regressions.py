@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
@@ -9,6 +11,10 @@ TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 
 def _read_template(name: str) -> str:
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
+
+
+def _expanded_template(name: str) -> str:
+    return expand_at_includes(_read_template(name), REPO_ROOT / "src/gpd/specs", "/runtime/")
 
 
 def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_constraints() -> None:
@@ -167,7 +173,7 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
 def test_contract_schema_docs_make_lowercase_closed_vocab_rule_model_visible() -> None:
     plan_schema = _read_template("plan-contract-schema.md")
     project_schema = _read_template("project-contract-schema.md")
-    state_schema = _read_template("state-json-schema.md")
+    state_schema = _expanded_template("state-json-schema.md")
 
     expected = "Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation."
 

@@ -109,7 +109,7 @@ def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(m
         environ={},
     )
 
-    assert resolved == Path("/tmp/home/.codex")
+    assert resolved == Path("/tmp/home/.codex").resolve(strict=False)
 
 
 def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monkeypatch) -> None:
@@ -123,7 +123,73 @@ def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monke
         environ={},
     )
 
-    assert resolved == Path("/tmp/home/.config/opencode")
+    assert resolved == Path("/tmp/home/.config/opencode").resolve(strict=False)
+
+
+def test_resolve_global_config_dir_env_or_home_normalizes_env_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("codex"),
+        home=tmp_path / "ignored-home",
+        environ={"CODEX_CONFIG_DIR": "~/codex-config/../codex-final"},
+    )
+
+    assert resolved == (home / "codex-final").resolve(strict=False)
+    assert resolved.is_absolute()
+
+
+def test_resolve_global_config_dir_xdg_dir_normalizes_relative_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=tmp_path / "home",
+        environ={"OPENCODE_CONFIG_DIR": "relative/opencode/../custom-opencode"},
+    )
+
+    assert resolved == (tmp_path / "relative/custom-opencode").resolve(strict=False)
+    assert resolved.is_absolute()
+
+
+def test_resolve_global_config_dir_xdg_file_uses_normalized_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=tmp_path / "ignored-home",
+        environ={"OPENCODE_CONFIG": "~/opencode/config/opencode.json"},
+    )
+
+    assert resolved == (home / "opencode/config").resolve(strict=False)
+    assert resolved.is_absolute()
+
+
+def test_resolve_global_config_dir_xdg_home_normalizes_relative_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=tmp_path / "home",
+        environ={"XDG_CONFIG_HOME": "xdg-config"},
+    )
+
+    assert resolved == (tmp_path / "xdg-config/opencode").resolve(strict=False)
+    assert resolved.is_absolute()
 
 
 def test_runtime_catalog_explicit_priority_order() -> None:

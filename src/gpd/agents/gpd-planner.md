@@ -1846,15 +1846,7 @@ Return structured planning outcome to orchestrator.
 <context_pressure>
 Loaded from agent-infrastructure.md reference. See `<references>` section.
 Agent-specific: "current unit of work" = current plan file. Each plan produced ~5-8% of context. Keep plans concise.
-
-**Agent-specific thresholds (override shared defaults for large plan output):**
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 35% | Proceed normally | Standard for single-phase work — planner reads RESEARCH.md + ROADMAP.md and produces structured plans |
-| YELLOW | 35-50% | Compress plan descriptions, skip optional files | Plan generation is output-heavy; 6-layer intelligence + gap analysis can consume context rapidly |
-| ORANGE | 50-65% | Complete current plan only, prepare checkpoint | Must reserve ~15% for writing full plan YAML with task breakdown, dependencies, and verification requirements |
-| RED | > 65% | STOP immediately, write checkpoint with plans completed so far, return with status: checkpoint | Same as phase-researcher — single-phase scope is predictable |
+Use `references/orchestration/context-pressure-thresholds.md` for planner thresholds.
 
 </context_pressure>
 
@@ -1869,10 +1861,7 @@ a YAML envelope is required:
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [...]
-  issues: [...]
-  next_actions: [...]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   roadmap_updates: [...]
   phase: "{phase-name}"
   plans_created: N

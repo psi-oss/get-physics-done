@@ -497,7 +497,11 @@ def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence()
 
 
 def test_state_json_schema_stays_aligned_with_stdin_contract_persistence_flow() -> None:
-    schema = (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
+    schema = expand_at_includes(
+        (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd/specs",
+        "/runtime/",
+    )
 
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in schema
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in schema

@@ -102,7 +102,10 @@ def test_checkpoint_ux_prompt_references_are_install_relative() -> None:
 
     for path in paths:
         text = path.read_text(encoding="utf-8")
-        assert "@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md" in text, path
+        if path.name == "gpd-executor.md":
+            assert "{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md" in text, path
+        else:
+            assert "@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md" in text, path
         assert "specs/references/orchestration/checkpoint-ux-convention.md" not in text, path
 
 

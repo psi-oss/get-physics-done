@@ -9,6 +9,7 @@ import gpd.mcp.managed_integrations as managed_integrations
 from gpd.mcp.managed_integrations import (
     MANAGED_INTEGRATIONS,
     WOLFRAM_BRIDGE_COMMAND,
+    WOLFRAM_BRIDGE_MODULE,
     WOLFRAM_INTEGRATION_ID,
     WOLFRAM_MANAGED_SERVER_KEY,
     WOLFRAM_MCP_API_KEY_ENV_VAR,
@@ -31,8 +32,8 @@ class _FakeManagedIntegration:
         self.calls.append(("is_configured", env, cwd))
         return self._configured
 
-    def projected_server_entry(self, env=None, cwd=None) -> dict[str, object]:  # type: ignore[no-untyped-def]
-        self.calls.append(("projected_server_entry", env, cwd))
+    def projected_server_entry(self, env=None, cwd=None, *, python_path=None) -> dict[str, object]:  # type: ignore[no-untyped-def]
+        self.calls.append(("projected_server_entry", env, cwd, python_path))
         return self._server_entry
 
 
@@ -50,6 +51,7 @@ def test_wolfram_descriptor_exposes_shared_contract() -> None:
     assert descriptor.integration_id == WOLFRAM_INTEGRATION_ID
     assert descriptor.managed_server_key == WOLFRAM_MANAGED_SERVER_KEY
     assert descriptor.bridge_command == WOLFRAM_BRIDGE_COMMAND
+    assert descriptor.bridge_module == WOLFRAM_BRIDGE_MODULE
     assert descriptor.api_key_env_var == WOLFRAM_MCP_API_KEY_ENV_VAR
     assert descriptor.endpoint_env_var == WOLFRAM_MCP_ENDPOINT_ENV_VAR
     assert descriptor.default_endpoint == WOLFRAM_MCP_DEFAULT_ENDPOINT
@@ -71,11 +73,21 @@ def test_wolfram_descriptor_uses_env_vars_for_configuration(monkeypatch) -> None
     assert descriptor.projected_environment({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"}) == {
         WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"
     }
-    assert descriptor.projected_server_entry({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"}) == {
-        "command": WOLFRAM_BRIDGE_COMMAND,
-        "args": [],
+    assert descriptor.projected_server_entry(
+        {
+            WOLFRAM_MCP_API_KEY_ENV_VAR: "secret",
+            WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid",
+        },
+        python_path="/usr/bin/python3",
+    ) == {
+        "command": "/usr/bin/python3",
+        "args": ["-m", WOLFRAM_BRIDGE_MODULE],
         "env": {WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"},
     }
+    assert WOLFRAM_MCP_API_KEY_ENV_VAR not in descriptor.projected_server_entry(
+        {WOLFRAM_MCP_API_KEY_ENV_VAR: "secret"},
+        python_path="/usr/bin/python3",
+    ).get("env", {})
 
 
 def test_managed_optional_mcp_helpers_project_from_registry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -107,11 +119,34 @@ def test_managed_optional_mcp_helpers_project_from_registry(monkeypatch: pytest.
     assert managed_integrations.managed_optional_mcp_server_keys() == frozenset({"gpd-alpha", "gpd-beta"})
     assert alpha.calls == [
         ("is_configured", env, tmp_path),
-        ("projected_server_entry", env, tmp_path),
+        ("projected_server_entry", env, tmp_path, None),
     ]
     assert beta.calls == [
         ("is_configured", env, tmp_path),
     ]
+
+
+def test_projected_managed_optional_wolfram_server_uses_module_launch_without_secret() -> None:
+    env = {
+        WOLFRAM_MCP_API_KEY_ENV_VAR: "super-secret-token",
+        WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/api/mcp",
+    }
+
+    servers = managed_integrations.projected_managed_optional_mcp_servers(
+        env,
+        python_path="/runtime/python",
+    )
+
+    assert servers == {
+        WOLFRAM_MANAGED_SERVER_KEY: {
+            "command": "/runtime/python",
+            "args": ["-m", WOLFRAM_BRIDGE_MODULE],
+            "env": {WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/api/mcp"},
+        }
+    }
+    serialized = json.dumps(servers)
+    assert "super-secret-token" not in serialized
+    assert WOLFRAM_MCP_API_KEY_ENV_VAR not in serialized
 
 
 def test_wolfram_descriptor_respects_project_local_disable_and_endpoint_override(tmp_path) -> None:

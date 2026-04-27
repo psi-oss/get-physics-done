@@ -142,14 +142,16 @@ All returns to the orchestrator MUST use this YAML envelope:
 
 ```yaml
 gpd_return:
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   status: completed | checkpoint | blocked | failed
-  files_written: [GPD/debug/{slug}.md, ...]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  files_written:
+    - GPD/debug/{slug}.md
+  issues: []
+  next_actions: []
   session_file: GPD/debug/{slug}.md
 ```
 
-The base fields required by agent-infrastructure are `status`, `files_written`, `issues`, and `next_actions`. `session_file` is debugger-specific visibility for the handoff. Use only the canonical status names.
+`session_file` is debugger-specific visibility for the handoff. Use only the canonical status names.
 
 ## ROOT CAUSE FOUND
 

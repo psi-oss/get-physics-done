@@ -28,10 +28,8 @@ def test_plan_checker_prompt_uses_typed_status_and_concise_presentation_language
     assert "Shared protocols live at `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`" in source
     assert "Headings above are presentation only. Route on `gpd_return.status`, the approved/blocked plan lists, and `issues`." in source
     assert "Headings above are presentation only; route on gpd_return.status." not in source
-    assert "status: completed | checkpoint | blocked | failed" in envelope
-    assert "files_written: []" in envelope
-    assert "issues: [issue objects from Issue Format above]" in envelope
-    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
+    assert "# This read-only agent always uses files_written: []." in envelope
     assert "approved_plans: [list of plan IDs that passed]" in envelope
     assert "blocked_plans: [list of plan IDs needing revision or escalation]" in envelope
 
@@ -46,10 +44,8 @@ def test_bibliographer_prompt_uses_typed_checkpoint_language_and_shorter_heading
         in source
     )
     assert "The markdown headings in this section, including `## BIBLIOGRAPHY UPDATED`, `## CITATION ISSUES FOUND`, and `## CHECKPOINT REACHED`, are presentation only." not in source
-    assert "status: completed | checkpoint | blocked | failed" in envelope
-    assert "files_written: [references/references.bib, GPD/references-status.json]" in envelope
-    assert "issues: [list of citation problems, if any]" in envelope
-    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
+    assert "# files_written names references/references.bib and GPD/references-status.json when written." in envelope
     assert "entries_added: N" in envelope
     assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in source
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" not in source

@@ -25,14 +25,9 @@ from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     UPDATE_CACHE_FILENAME,
-    _default_install_target,
-    _normalize_install_scope_flag,
-    _paths_equal,
     compile_markdown_for_runtime,
     compute_path_prefix,
     convert_tool_references_in_body,
-    file_hash,
-    generate_manifest,
     get_global_dir,
     hook_python_interpreter,
     install_gpd_content,
@@ -45,7 +40,7 @@ from gpd.adapters.install_utils import (
     split_markdown_frontmatter,
 )
 from gpd.adapters.install_utils import (
-    copy_with_path_replacement as _shared_copy_with_path_replacement,
+    write_manifest as _shared_write_manifest,
 )
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
@@ -138,9 +133,11 @@ def _project_managed_mcp_servers(
     env: Mapping[str, str] | None = None,
     *,
     cwd: Path | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Project shared optional integrations into OpenCode's neutral MCP shape."""
-    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
+    python_path = python_path or hook_python_interpreter()
+    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd, python_path=python_path)
 
 
 def _managed_mcp_server_keys() -> frozenset[str]:
@@ -169,7 +166,7 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     """
     resolved_config_dir = path_prefix[:-1] if path_prefix and path_prefix.endswith("/") else path_prefix
     if not resolved_config_dir:
-        resolved_config_dir = "~/.config/opencode"
+        resolved_config_dir = get_opencode_global_dir().as_posix()
 
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
@@ -599,85 +596,42 @@ def write_manifest(
     install_scope: str | None = None,
     explicit_target: bool | None = None,
     managed_command_file_names: tuple[str, ...] | None = None,
-) -> dict:
-    """Write file manifest after installation for future modification detection.
-
-    OpenCode-specific: scans ``command/gpd-*.md`` (flat) instead of
-    ``commands/gpd/`` (nested).
-    """
-    from datetime import UTC, datetime
-
-    gpd_dir = config_dir / "get-physics-done"
-    command_dir = config_dir / "command"
-    agents_dir = config_dir / "agents"
-
-    manifest: dict = {
-        "version": version,
-        "timestamp": datetime.now(UTC).isoformat(),
-        "files": {},
-    }
-    if isinstance(runtime, str) and runtime.strip():
-        manifest["runtime"] = runtime.strip()
-    normalized_scope = _normalize_install_scope_flag(install_scope)
-    if normalized_scope == "--local":
-        manifest["install_scope"] = "local"
-    elif normalized_scope == "--global":
-        manifest["install_scope"] = "global"
-    manifest["install_target_dir"] = str(config_dir)
-    if explicit_target is not None:
-        manifest["explicit_target"] = bool(explicit_target)
-    elif isinstance(runtime, str) and runtime.strip() and normalized_scope in {"--local", "--global"}:
-        default_target = _default_install_target(runtime.strip(), normalized_scope)
-        if default_target is not None:
-            manifest["explicit_target"] = not _paths_equal(config_dir, default_target)
+) -> dict[str, object]:
+    """Write OpenCode's manifest through the shared flat-command writer."""
+    if managed_command_file_names is None:
+        command_dir = config_dir / "command"
+        managed_command_file_names = (
+            tuple(
+                sorted(
+                    entry.name
+                    for entry in command_dir.iterdir()
+                    if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md"
+                )
+            )
+            if command_dir.exists()
+            else ()
+        )
+    metadata: dict[str, object] = {}
     if managed_command_file_names:
-        manifest[_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY] = sorted(
+        metadata[_MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY] = sorted(
             {
                 name
                 for name in managed_command_file_names
                 if isinstance(name, str) and name.startswith("gpd-") and name.endswith(".md")
             }
         )
-
-    # get-physics-done/ files
-    gpd_hashes = generate_manifest(gpd_dir)
-    for rel, h in gpd_hashes.items():
-        manifest["files"]["get-physics-done/" + rel] = h
-
-    # command/gpd-*.md files (OpenCode flat structure)
-    command_names = managed_command_file_names
-    if command_names is None:
-        command_names = tuple(
-            sorted(
-                f.name
-                for f in command_dir.iterdir()
-                if f.name.startswith("gpd-") and f.name.endswith(".md")
-            )
-        ) if command_dir.exists() else ()
-    for name in command_names:
-        command_path = command_dir / name
-        if command_path.is_file():
-            manifest["files"]["command/" + name] = file_hash(command_path)
-
-    # agents/gpd-*.md files
-    if agents_dir.exists():
-        for f in sorted(agents_dir.iterdir()):
-            if f.name.startswith("gpd-") and f.name.endswith(".md"):
-                manifest["files"]["agents/" + f.name] = file_hash(f)
-
-    manifest_path = config_dir / MANIFEST_NAME
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    return manifest
-
-
-def copy_with_path_replacement(
-    src_dir: Path,
-    dest_dir: Path,
-    path_prefix: str,
-    install_scope: str | None = None,
-) -> None:
-    """Compatibility wrapper around the shared safe-copy install pipeline."""
-    _shared_copy_with_path_replacement(src_dir, dest_dir, path_prefix, "opencode", install_scope)
+    return _shared_write_manifest(
+        config_dir,
+        version,
+        runtime=runtime or "opencode",
+        flat_command_file_names=managed_command_file_names,
+        include_nested_commands=False,
+        include_hooks=False,
+        agent_suffixes=(".md",),
+        metadata=metadata or None,
+        install_scope=install_scope,
+        explicit_target=explicit_target,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1065,9 +1019,10 @@ class OpenCodeAdapter(RuntimeAdapter):
         # Wire MCP servers into opencode.json.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        python_path = hook_python_interpreter()
+        mcp_servers = build_mcp_servers_dict(python_path=python_path)
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
-        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd)
+        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd, python_path=python_path)
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         mcp_count = 0
@@ -1266,7 +1221,6 @@ __all__ = [
     "configure_opencode_permissions",
     "copy_flattened_commands",
     "copy_agents_as_agent_files",
-    "copy_with_path_replacement",
     "write_manifest",
     "uninstall_opencode",
 ]

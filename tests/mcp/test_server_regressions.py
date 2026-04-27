@@ -79,6 +79,30 @@ def test_errors_mcp_returns_error_dict_on_store_os_error() -> None:
     assert "cannot read catalog" in result["error"]
 
 
+def test_list_error_classes_rejects_blank_and_unknown_domains_without_loading_store() -> None:
+    from gpd.mcp.servers.errors_mcp import list_error_classes
+
+    with patch("gpd.mcp.servers.errors_mcp._get_store") as mock_store:
+        blank = list_error_classes("   ")
+        unknown = list_error_classes("not-a-domain")
+
+    assert "domain must be a non-empty string" in blank["error"]
+    assert "unknown domain 'not-a-domain'" in unknown["error"]
+    mock_store.assert_not_called()
+
+
+def test_error_domain_metadata_drives_boundary_inference() -> None:
+    from gpd.mcp.servers.errors_mcp import ERROR_DOMAIN_RANGES, KNOWN_ERROR_DOMAINS, _infer_domain_from_id
+
+    assert tuple(ERROR_DOMAIN_RANGES) == KNOWN_ERROR_DOMAINS
+    for domain, (start, end) in ERROR_DOMAIN_RANGES.items():
+        assert _infer_domain_from_id(start) == domain
+        assert _infer_domain_from_id(end) == domain
+
+    assert _infer_domain_from_id(0) == "unknown"
+    assert _infer_domain_from_id(105) == "unknown"
+
+
 def test_error_store_rejects_missing_authoritative_catalog(tmp_path: Path) -> None:
     from gpd.mcp.servers.errors_mcp import ErrorStore
 
@@ -536,6 +560,36 @@ def test_pattern_lookup_tolerates_missing_default_library(tmp_path: Path) -> Non
         patterns_server._DEFAULT_PATTERNS_ROOT = original_root
 
     assert isinstance(result, dict)
+
+
+def test_patterns_server_resolves_env_patterns_root_per_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import gpd.mcp.servers.patterns_server as patterns_server
+    from gpd.core.constants import ENV_PATTERNS_ROOT
+
+    monkeypatch.setattr(patterns_server, "_DEFAULT_PATTERNS_ROOT", None)
+    roots: list[Path | None] = []
+    mock_result = MagicMock()
+    mock_result.count = 0
+    mock_result.patterns = []
+    mock_result.library_exists = False
+
+    def fake_pattern_list(*, domain=None, category=None, root=None):  # type: ignore[no-untyped-def]
+        roots.append(root)
+        return mock_result
+
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+
+    with patch("gpd.mcp.servers.patterns_server.pattern_list", side_effect=fake_pattern_list):
+        monkeypatch.setenv(ENV_PATTERNS_ROOT, str(first_root))
+        patterns_server.lookup_pattern(domain="qft")
+        monkeypatch.setenv(ENV_PATTERNS_ROOT, str(second_root))
+        patterns_server.lookup_pattern(domain="qft")
+
+    assert roots == [first_root, second_root]
 
 
 def test_absolute_project_dir_schema_matches_current_host_path_semantics() -> None:

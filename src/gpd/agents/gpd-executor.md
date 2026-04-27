@@ -136,7 +136,7 @@ The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much hu
 - Convention changes: always checkpoint:decision
 - Approximation validity concerns: always checkpoint:decision
 - Scope: strictly follow the plan — any deviation triggers checkpoint
-- Every emitted `checkpoint:human-verify` carries a one-line summary and a `[Y/n/e]` resume-signal; decision checkpoints keep labeled options. See `@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
+- Every emitted `checkpoint:human-verify` carries a one-line summary and a `[Y/n/e]` resume-signal; decision checkpoints keep labeled options. See `{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md`.
 
 **balanced:**
 - Execute auto tasks without pausing
@@ -811,7 +811,7 @@ When a computation crashes, a library is unavailable, or code produces NaN/Inf, 
 Before any `checkpoint:human-verify`, ensure all outputs are generated and accessible. If plan lacks compilation/execution before checkpoint, ADD IT (deviation Rule 4).
 
 For full validation-first patterns, simulation lifecycle, notebook handling:
-**See @{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md**
+**See `{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`**
 
 **Quick reference:** Researchers NEVER run compilation commands or scripts. Researchers ONLY inspect results (figures, equations, tables), evaluate physical reasonableness, check limiting cases, and provide physics judgment. The executor does all automation.
 
@@ -946,7 +946,7 @@ Key requirements (always in memory — sufficient if the file_read above fails):
 - For contract-backed plans, load the schema above before writing frontmatter, then re-open it immediately before finalizing YAML and follow it literally. Do not rely on memory, prior plans, or a paraphrase from `templates/summary.md`.
 - Contract-backed examples in `executor-completion.md` and `executor-worked-example.md` keep `uncertainty_markers` explicit and non-empty; do not copy an older empty-list pattern.
 - One-liner must be substantive and physics-specific (not "calculation completed")
-- Use template: @{GPD_INSTALL_DIR}/templates/summary.md
+- Use template: `{GPD_INSTALL_DIR}/templates/summary.md`
 - Include conventions table, key results with confidence tags, deviation documentation
 - For multi-step derivation plans: also produce CALCULATION_LOG.md using template at `{GPD_INSTALL_DIR}/templates/calculation-log.md`. Record every derivation step, intermediate check, and error caught.
 
@@ -1075,10 +1075,8 @@ Append the structured YAML return envelope defined in `executor-completion.md`:
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [list of file paths created or modified]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands such as "gpd:execute-phase {phase}", "gpd:verify-work {phase}", "gpd:resume-work", or "gpd:suggest-next"]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # Executor completion details follow executor-completion.md.
   phase: "{phase}"
   plan: "{plan}"
   tasks_completed: N

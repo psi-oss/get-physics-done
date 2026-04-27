@@ -560,38 +560,9 @@ This is targeted recovery that uses the minimum resources needed, rather than a 
 
 ### Context Budget Allocation by Phase Type
 
-Different phase types have different context consumption patterns. The orchestrator uses these profiles to set expectations and detect anomalies.
+Use `references/orchestration/context-budget.md` as the canonical numeric source for phase-class budgets, adaptation thresholds, and the plan-count heuristic.
 
-| Phase Class | Orchestrator Budget | Executor Budget | Verifier Budget | Notes |
-|---|---|---|---|---|
-| **Derivation** | 15% | 60-70% | 30-40% | Executor dominates (long derivations). Verifier needs full results. |
-| **Numerical** | 15% | 50-60% | 25-35% | Moderate executor (code + output). Verifier checks convergence. |
-| **Literature** | 20% | N/A | N/A | Researcher + synthesizer consume most context. No executor. |
-| **Paper-writing** | 25% | N/A | N/A | Paper-writer sections are context-heavy. Orchestrator manages more. |
-| **Formalism** | 15% | 50-60% | 20-30% | Notation-heavy. Convention setup may need coordinator. |
-| **Analysis** | 15% | 40-50% | 30-40% | Balanced. Verifier does more comparative work. |
-| **Validation** | 15% | 30-40% | 50-60% | Verifier dominates (validation IS the phase). |
-| **Mixed/Unknown** | 20% | 50% | 30% | Default allocation. |
-
-**Budget anomaly detection:**
-
-If the orchestrator detects it is consuming more than its allocated budget (e.g., >25% for a derivation phase), it should:
-1. Stop reading full SUMMARY files -- use `gpd --raw summary-extract <path> --field one_liner` instead.
-2. Stop re-reading STATE.md between waves (use cached version).
-3. Delegate any remaining analysis to a subagent.
-
-**Plan count heuristic:**
-
-For context budget planning, the orchestrator estimates total phase cost:
-
-```
-estimated_tokens = plan_count * tasks_per_plan * 6000
-```
-
-where 6000 tokens/task is the blended average from references/orchestration/context-budget.md worked examples. If `estimated_tokens` exceeds 80% of the model's context window, the orchestrator should:
-1. Verify plans are properly segmented (no plan > 50% budget).
-2. Confirm wave groupings allow independent parallel execution.
-3. Warn if any single plan has > 8 tasks.
+Budget anomaly response remains operational here: stop reading full `SUMMARY.md` files, use `gpd --raw summary-extract <path> --field one_liner`, avoid repeated `STATE.md` reads between waves, and delegate remaining analysis to a fresh subagent when the orchestrator is carrying too much context.
 
 ### Agent Spawn Checklist
 

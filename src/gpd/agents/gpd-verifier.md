@@ -392,10 +392,7 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [list only files that actually landed on disk; use [] when no file was written]
-  issues: [list of gaps or issues found, if any]
-  next_actions: [concrete commands such as "gpd:plan-phase {phase} --gaps", "gpd:verify-work {phase}", "gpd:show-phase {phase}", or "gpd:suggest-next"]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   verification_status: passed | gaps_found | expert_needed | human_needed
   score: "{N}/{M}"
   confidence: HIGH | MEDIUM | LOW | UNRELIABLE

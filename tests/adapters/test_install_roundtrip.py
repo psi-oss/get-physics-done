@@ -327,8 +327,9 @@ def _assert_installed_contract_visibility(
     execute_phase = _canonicalize_runtime_markdown(execute_phase, runtime=runtime)
     verify_work = _canonicalize_runtime_markdown(verify_work, runtime=runtime)
 
-    assert "Execute all phase plans with wave-based parallelization" in execute_phase
-    assert "Context budget: ~15% orchestrator, fresh context per subagent." in execute_phase
+    assert "Execute phase plans through the workflow-owned wave executor" in execute_phase
+    assert "references/orchestration/context-budget.md" in execute_phase
+    assert "<inline_guidance>" not in execute_phase
 
     assert "templates/contract-results-schema.md" in verifier
     assert "plan_contract_ref" in verifier

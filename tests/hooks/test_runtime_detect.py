@@ -50,7 +50,10 @@ from gpd.hooks.runtime_detect import (
     update_command_for_runtime,
 )
 from tests.hooks.helpers import clean_runtime_env as _clean_runtime_env
+from tests.hooks.helpers import clear_runtime_env as _clear_runtime_env
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
+from tests.hooks.helpers import runtime_env_prefixes as _runtime_env_prefixes
+from tests.hooks.helpers import runtime_env_vars_to_clear as _runtime_env_vars_to_clear
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _RUNTIME_BY_NAME = {descriptor.runtime_name: descriptor for descriptor in _RUNTIME_DESCRIPTORS}
@@ -59,6 +62,86 @@ RUNTIME_CLAUDE = _RUNTIME_BY_NAME["claude-code"].runtime_name
 RUNTIME_CODEX = _RUNTIME_BY_NAME["codex"].runtime_name
 RUNTIME_GEMINI = _RUNTIME_BY_NAME["gemini"].runtime_name
 RUNTIME_OPENCODE = _RUNTIME_BY_NAME["opencode"].runtime_name
+
+
+def _catalog_activation_env_vars() -> set[str]:
+    return {env_var for descriptor in _RUNTIME_DESCRIPTORS for env_var in descriptor.activation_env_vars}
+
+
+def _catalog_global_config_env_vars() -> set[str]:
+    env_vars: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        global_config = descriptor.global_config
+        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
+            if env_var:
+                env_vars.add(env_var)
+    return env_vars
+
+
+def test_runtime_env_prefixes_cover_catalog_activation_env_vars() -> None:
+    prefixes = set(_runtime_env_prefixes())
+    expected_prefixes: set[str] = set()
+    for env_var in _catalog_activation_env_vars():
+        expected_prefixes.add(env_var)
+        expected_prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
+
+    assert expected_prefixes <= prefixes
+
+
+def test_runtime_env_vars_to_clear_covers_catalog_global_config_env_vars() -> None:
+    env_vars = _runtime_env_vars_to_clear()
+
+    assert {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"} <= env_vars
+    assert _catalog_global_config_env_vars() <= env_vars
+
+
+def test_runtime_env_vars_to_clear_extends_base_for_home_scoped_fixtures() -> None:
+    base_env_vars = _runtime_env_vars_to_clear()
+    home_scoped_env_vars = _runtime_env_vars_to_clear(extra_env_vars=("HOME", "GPD_HOME"))
+
+    assert base_env_vars <= home_scoped_env_vars
+    assert {"HOME", "GPD_HOME"} <= home_scoped_env_vars
+
+
+def test_clear_runtime_env_removes_catalog_keys_and_requested_extras(monkeypatch) -> None:
+    activation_env_var = sorted(_catalog_activation_env_vars())[0]
+    activation_prefix = activation_env_var.rsplit("_", 1)[0] if "_" in activation_env_var else activation_env_var
+    future_catalog_env_var = f"{activation_prefix}_FUTURE_SIGNAL"
+    global_config_env_var = sorted(_catalog_global_config_env_vars())[0]
+    env_vars_to_remove = {
+        activation_env_var,
+        future_catalog_env_var,
+        global_config_env_var,
+        "GPD_ACTIVE_RUNTIME",
+        "XDG_CONFIG_HOME",
+        "HOME",
+        "GPD_HOME",
+    }
+    for env_var in env_vars_to_remove:
+        monkeypatch.setenv(env_var, f"value-for-{env_var.lower()}")
+    monkeypatch.setenv("UNRELATED_TEST_ENV", "keep")
+
+    _clear_runtime_env(monkeypatch, extra_env_vars=("HOME", "GPD_HOME"))
+
+    for env_var in env_vars_to_remove:
+        assert env_var not in os.environ
+    assert os.environ["UNRELATED_TEST_ENV"] == "keep"
+
+
+def test_clean_runtime_env_returns_snapshot_without_catalog_keys_or_requested_extras(monkeypatch) -> None:
+    activation_env_var = sorted(_catalog_activation_env_vars())[0]
+    global_config_env_var = sorted(_catalog_global_config_env_vars())[0]
+    for env_var in (activation_env_var, global_config_env_var, "HOME", "GPD_HOME"):
+        monkeypatch.setenv(env_var, f"value-for-{env_var.lower()}")
+    monkeypatch.setenv("UNRELATED_TEST_ENV", "keep")
+
+    clean_env = _clean_runtime_env(extra_env_vars=("HOME", "GPD_HOME"))
+
+    assert activation_env_var not in clean_env
+    assert global_config_env_var not in clean_env
+    assert "HOME" not in clean_env
+    assert "GPD_HOME" not in clean_env
+    assert clean_env["UNRELATED_TEST_ENV"] == "keep"
 
 
 def _mark_gpd_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = SCOPE_LOCAL) -> None:

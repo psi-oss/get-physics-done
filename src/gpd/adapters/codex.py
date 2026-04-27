@@ -801,7 +801,8 @@ class CodexAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
-        managed_optional_mcp_servers = _build_managed_optional_mcp_servers(cwd=project_cwd)
+        python_path = hook_python_interpreter()
+        managed_optional_mcp_servers = _build_managed_optional_mcp_servers(cwd=project_cwd, python_path=python_path)
         _configure_config_toml(
             target_dir,
             is_global,
@@ -830,7 +831,7 @@ class CodexAdapter(RuntimeAdapter):
         # Wire MCP servers into config.toml.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        mcp_servers = build_mcp_servers_dict(python_path=python_path)
         mcp_servers.update(managed_optional_mcp_servers)
         mcp_count = 0
         if mcp_servers:
@@ -1844,9 +1845,11 @@ def _build_managed_optional_mcp_servers(
     *,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Return optional managed MCP servers that are currently configured."""
-    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
+    python_path = python_path or hook_python_interpreter()
+    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd, python_path=python_path)
 
 
 def _managed_optional_mcp_server_keys() -> frozenset[str]:

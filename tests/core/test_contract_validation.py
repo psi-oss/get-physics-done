@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import (
     PROOF_AUDIT_REVIEWER,
     ComparisonVerdict,
@@ -3615,7 +3616,12 @@ def test_research_contract_accepts_structured_theorem_claim_fields() -> None:
 
 @pytest.mark.parametrize("schema_name", ("project-contract-schema.md", "state-json-schema.md"))
 def test_project_contract_schema_examples_are_validator_compatible(schema_name: str) -> None:
-    schema_text = (TEMPLATES_DIR / schema_name).read_text(encoding="utf-8")
+    raw_schema_text = (TEMPLATES_DIR / schema_name).read_text(encoding="utf-8")
+    schema_text = (
+        expand_at_includes(raw_schema_text, TEMPLATES_DIR.parent, "/runtime/")
+        if schema_name == "state-json-schema.md"
+        else raw_schema_text
+    )
     match = re.search(r"##+ `project_contract`\n\n```json\n(.*?)\n```", schema_text, re.DOTALL)
 
     assert match is not None

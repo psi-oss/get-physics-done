@@ -9,48 +9,20 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 
 <step name="detect_workspace_state">
-Figure out what kind of folder this is before offering any commands.
+Figure out what kind of folder this is before offering any commands. Use the raw CLI classifier, which delegates to GPD's core project/root detection, instead of hand-rolled current-directory marker checks.
 
 ```bash
-HAS_GPD_PROJECT=false
-if [ -f GPD/PROJECT.md ] || [ -f GPD/STATE.md ] || [ -f GPD/ROADMAP.md ]; then
-  HAS_GPD_PROJECT=true
-fi
-
-HAS_RESEARCH_MAP=false
-if [ -d GPD/research-map ]; then
-  HAS_RESEARCH_MAP=true
-fi
-
-RESEARCH_FILES=$(rg --files \
-  -g '!GPD/**' \
-  -g '!.git/**' \
-  -g '!.venv/**' \
-  -g '!node_modules/**' \
-  -g '!dist/**' \
-  -g '!build/**' \
-  -g '*.tex' \
-  -g '*.bib' \
-  -g '*.pdf' \
-  -g '*.ipynb' \
-  -g '*.py' \
-  -g '*.jl' \
-  -g '*.m' \
-  -g '*.wl' \
-  -g '*.nb' \
-  -g '*.csv' \
-  -g '*.tsv' \
-  . 2>/dev/null | head -n 12)
-
-RESEARCH_FILE_COUNT=$(printf "%s\n" "$RESEARCH_FILES" | sed '/^$/d' | wc -l | tr -d ' ')
+START_CONTEXT=$(gpd --raw init new-project --stage scope_intake)
 ```
 
-Use these meanings:
+Parse the JSON result and use these fields:
 
-- `HAS_GPD_PROJECT=true` means this folder already has a `GPD project` (a folder where GPD already saved its own project files, notes, and state), such as `GPD/PROJECT.md`.
-- `HAS_RESEARCH_MAP=true` means this folder already has a `research map` (GPD's summary of an existing research folder before full project setup).
-- `RESEARCH_FILE_COUNT > 0` means this looks like an existing research folder. Example files might be `.tex`, `.py`, `.ipynb`, `.pdf`, or `.csv`.
+- `project_exists=true` means this folder already has a `GPD project` (a folder where GPD already saved its own project files, notes, and state), such as `GPD/PROJECT.md`.
+- `has_research_map=true` means this folder already has a `research map` (GPD's summary of an existing research folder before full project setup).
+- `has_research_files=true`, `has_project_manifest=true`, or `needs_research_map=true` means this looks like an existing research folder. Example files might be `.tex`, `.py`, `.ipynb`, `.pdf`, or `.csv`.
 - Otherwise, treat this as a fresh folder with no obvious GPD state yet.
+
+For sample files only, after classification, you may use a read-only file search and show up to 5 non-GPD research-looking files. Do not use that file search to override the core classifier.
 
 If `$ARGUMENTS` is non-empty, briefly repeat it back as the researcher’s goal, but keep the folder-state routing rules above.
 </step>
@@ -69,7 +41,7 @@ Use one of these plain-English summaries:
 - Fresh folder:
   `This folder does not look like an existing GPD project or research folder yet, so you can start from scratch here. In GPD terms, \`new-project\` creates the project scaffolding GPD will use later.`
 
-If `RESEARCH_FILES` is non-empty, show up to 5 sample files so the researcher can see what GPD noticed.
+If sample research files are available, show up to 5 so the researcher can see what GPD noticed.
 
 If advanced terms appear in the summary, explain them once in parentheses and then keep using the official term consistently.
 </step>

@@ -51,7 +51,7 @@ def test_debugger_vertical_artifact_paths_keep_active_and_resolved_session_state
     assert "verifies the debug session artifact before treating a root cause as confirmed" in command
     assert "GPD/debug/{slug}.md" in workflow
     assert "session_status: diagnosed" in workflow
-    assert "files_written: [GPD/debug/{slug}.md, ...]" in agent
+    assert "files_written:\n    - GPD/debug/{slug}.md" in agent
     assert "session_file: GPD/debug/{slug}.md" in agent
     assert "**Troubleshooting Session:** GPD/debug/resolved/{slug}.md" in agent
     assert "A checkpoint is a one-shot handoff for the current run." in agent

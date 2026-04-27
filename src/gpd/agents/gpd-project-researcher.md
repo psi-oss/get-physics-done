@@ -687,10 +687,7 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [GPD/literature/SUMMARY.md, GPD/literature/METHODS.md, ...]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   confidence: HIGH | MEDIUM | LOW
 ```
 
@@ -714,18 +711,7 @@ When web_search or web_fetch fails (network error, rate limit, paywall, garbled 
 
 ## Context Pressure Management
 
-Monitor your context consumption throughout execution. web_search results are context-heavy.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 35% | Proceed normally | Same as phase-researcher — web_search-heavy agents need similar headroom |
-| YELLOW | 35-50% | Prioritize remaining research areas, skip optional depth | Must write 5 output files (not 1 like phase-researcher), so start triaging earlier |
-| ORANGE | 50-65% | Synthesize findings now, prepare checkpoint summary | Writing 5 files (SUMMARY + PRIOR-WORK + METHODS + COMPUTATIONAL + PITFALLS) costs ~10-15% |
-| RED | > 65% | STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status | Same as phase-researcher — single-session scope is predictable |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each web_search result ~2-4%. Limit to 10-15 searches before synthesizing.
-
-If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for project-researcher thresholds. web_search results are context-heavy; limit breadth before synthesizing, prioritize the most decision-relevant research areas, and write the five research files as soon as each section is stable.
 
 </context_pressure>
 

@@ -894,12 +894,19 @@ def test_non_verification_tools_publish_closed_input_schemas(mcp_module: str, ex
 def test_required_mcp_string_inputs_publish_non_blank_constraints() -> None:
     from gpd.mcp.servers.conventions_server import SUBFIELD_DEFAULTS
     from gpd.mcp.servers.conventions_server import mcp as conventions_mcp
+    from gpd.mcp.servers.errors_mcp import KNOWN_ERROR_DOMAINS
     from gpd.mcp.servers.errors_mcp import mcp as errors_mcp
 
     error_schema = _tool_input_schema(errors_mcp, "check_error_classes")
     computation_desc = error_schema["properties"]["computation_desc"]
     assert computation_desc["minLength"] == 1
     assert computation_desc["pattern"] == r"\S"
+
+    list_schema = _tool_input_schema(errors_mcp, "list_error_classes")
+    domain = list_schema["properties"]["domain"]["anyOf"][0]
+    assert domain["minLength"] == 1
+    assert domain["pattern"] == r"\S"
+    assert domain["enum"] == list(KNOWN_ERROR_DOMAINS)
 
     conventions_schema = _tool_input_schema(conventions_mcp, "subfield_defaults")
     domain = conventions_schema["properties"]["domain"]

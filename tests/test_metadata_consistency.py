@@ -20,7 +20,7 @@ from gpd.core.config import MODEL_PROFILES
 from gpd.core.constants import MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
-from gpd.registry import VALID_CONTEXT_MODES
+from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
 
 
 def _repo_root() -> Path:
@@ -475,12 +475,16 @@ def test_execute_phase_docs_use_review_cadence_not_removed_verify_between_waves_
     execute_command = _read("src/gpd/commands/execute-phase.md")
     execute_workflow = _read("src/gpd/specs/workflows/execute-phase.md")
 
-    assert "execution.review_cadence" in execute_command
-    assert "dense" in execute_command
-    assert "adaptive" in execute_command
-    assert "sparse" in execute_command
+    assert "@{GPD_INSTALL_DIR}/workflows/execute-phase.md" in execute_command
+    assert "execution.review_cadence" not in execute_command
+    assert "dense" not in execute_command
+    assert "adaptive" not in execute_command
+    assert "sparse" not in execute_command
     assert "workflow.verify_between_waves" not in execute_command
     assert "review_cadence" in execute_workflow
+    assert "dense" in execute_workflow
+    assert "adaptive" in execute_workflow
+    assert "sparse" in execute_workflow
     assert "verify_between_waves" not in execute_workflow
 
 
@@ -491,6 +495,17 @@ def test_health_check_count_matches_skill_documentation() -> None:
     command = _read("src/gpd/commands/health.md")
     assert "All {total} health checks passed." in command
     assert "All checks reported with status" in command
+
+
+def test_health_command_defaults_read_only_and_confirms_fix_before_mutation() -> None:
+    command = _read("src/gpd/commands/health.md")
+    metadata, _body = _parse_frontmatter(command)
+    allowed_tools = metadata["allowed-tools"]
+
+    assert "file_write" not in allowed_tools
+    assert "ask_user" in allowed_tools
+    assert "Default mode is read-only." in command
+    assert "Do not run `gpd --raw health --fix` unless the researcher confirms." in command
 
 
 def test_every_command_declares_valid_context_mode() -> None:

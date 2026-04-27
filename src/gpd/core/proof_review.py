@@ -13,7 +13,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
 from gpd.core.artifact_text import ArtifactTextError, load_artifact_text_surface
-from gpd.core.constants import PLANNING_DIR_NAME, PROJECT_FILENAME, PUBLICATION_DIR_NAME, ProjectLayout
+from gpd.core.constants import PLANNING_DIR_NAME, PUBLICATION_DIR_NAME, ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
@@ -195,10 +195,6 @@ def _is_project_managed_publication_lane(relative: Path | None) -> bool:
     )
 
 
-def _project_backed_publication_workspace(project_root: Path) -> bool:
-    return (project_root / PLANNING_DIR_NAME / PROJECT_FILENAME).is_file()
-
-
 def publication_lineage_mode(project_root: Path, manuscript_entrypoint: Path) -> str:
     """Return whether review/response lineage stays global or becomes subject-owned."""
 
@@ -209,7 +205,7 @@ def publication_lineage_mode(project_root: Path, manuscript_entrypoint: Path) ->
     if relative is not None and relative.parts and relative.parts[0] in {"paper", "manuscript", "draft"}:
         return "global_gpd"
     if _is_project_managed_publication_lane(relative):
-        return "global_gpd" if _project_backed_publication_workspace(project_root) else "subject_owned"
+        return "subject_owned"
     return "subject_owned"
 
 

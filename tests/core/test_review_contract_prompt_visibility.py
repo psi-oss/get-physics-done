@@ -1528,6 +1528,8 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     summary_template = (TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
     contract_results = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
     state_schema = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+    project_contract_schema = (TEMPLATES_DIR / "project-contract-schema.md").read_text(encoding="utf-8")
+    grounding_linkage = (TEMPLATES_DIR / "project-contract-grounding-linkage.md").read_text(encoding="utf-8")
 
     assert "single detailed rule source" in summary_template
     assert "contract_results" in summary_template
@@ -1539,19 +1541,20 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     assert "duplicate-after-trim entries are invalid" in contract_results
     assert "weakest_anchors: [anchor-1]" in contract_results
     assert "disconfirming_observations: [observation-1]" in contract_results
-    assert "uncertainty_markers.weakest_anchors" in state_schema
-    assert "uncertainty_markers.disconfirming_observations" in state_schema
+    assert "@{GPD_INSTALL_DIR}/templates/project-contract-schema.md" in state_schema
+    assert "uncertainty_markers.weakest_anchors" in project_contract_schema
+    assert "uncertainty_markers.disconfirming_observations" in project_contract_schema
     assert (
         "`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root."
-        in state_schema
+        in grounding_linkage
     )
     assert (
         "If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root."
-        in state_schema
+        in grounding_linkage
     )
-    assert '"must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"]' in state_schema
-    assert "`GPD/phases/.../*-SUMMARY.md`" not in state_schema
-    assert "`GPD/phases/.../SUMMARY.md`" not in state_schema
+    assert '"must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"]' in project_contract_schema
+    assert "`GPD/phases/.../*-SUMMARY.md`" not in project_contract_schema
+    assert "`GPD/phases/.../SUMMARY.md`" not in project_contract_schema
 
 
 def test_prompt_visible_contracts_surface_literal_boolean_requirements() -> None:

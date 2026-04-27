@@ -14,6 +14,7 @@ Approved-mode grounding is field-specific:
 - `user_asserted_anchors[]` and `known_good_baselines[]` must name a concrete, re-findable handle such as a citation, DOI, arXiv ID, durable URL, or project-local artifact path. Multi-word prose alone does not count.
 - If a `references[].locator` uses a project-local artifact path instead of an external paper locator, it only counts as approved grounding when the referenced file already exists inside the current project root. If no project root is available, it does not count as approved grounding.
 - `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
+- Placeholder or `TBD` text does not count as concrete grounding.
 
 #### Project Contract ID Linkage Rules
 

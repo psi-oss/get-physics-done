@@ -632,7 +632,7 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 4. **Spawn executor agents:**
 
    Pass paths only -- executors read files themselves with fresh context.
-   This keeps orchestrator context lean (~10-15%).
+   This keeps orchestrator context lean; use `references/orchestration/context-budget.md` for numeric budget targets.
 
    Canonical runtime delegation convention for every `task()` block in this workflow:
 
@@ -1214,7 +1214,7 @@ Plans with `interactive: true` require user interaction.
 <step name="context_budget_check">
 **Before aggregating results, estimate context consumption:**
 
-Count the SUMMARY files that will be read and estimate their impact on orchestrator context:
+Count the SUMMARY files that will be read and estimate their impact on orchestrator context using the summary-aggregation heuristic in `references/orchestration/context-budget.md`.
 
 ```bash
 SUMMARY_COUNT=$(ls "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l)
@@ -1928,7 +1928,7 @@ All {N} phases executed.
 </process>
 
 <context_efficiency>
-Orchestrator: ~10-15% context. Subagents: fresh contexts. No polling (Task blocks). No context bleed.
+Orchestrator stays lean per `references/orchestration/context-budget.md`; subagents get fresh contexts. No polling (Task blocks). No context bleed.
 </context_efficiency>
 
 <failure_handling>

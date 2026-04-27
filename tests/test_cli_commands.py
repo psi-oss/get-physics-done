@@ -1168,6 +1168,41 @@ def _write_publication_review_outcome(
     )
 
 
+def _move_publication_review_outcome_to_subject_review(
+    project_root: Path,
+    *,
+    subject_slug: str,
+    round_number: int = 1,
+) -> None:
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    global_review_dir = project_root / "GPD" / "review"
+    subject_review_dir = project_root / "GPD" / "publication" / subject_slug / "review"
+    subject_review_dir.mkdir(parents=True, exist_ok=True)
+    stage_names = [
+        f"STAGE-reader{round_suffix}.json",
+        f"STAGE-literature{round_suffix}.json",
+        f"STAGE-math{round_suffix}.json",
+        f"STAGE-physics{round_suffix}.json",
+        f"STAGE-interestingness{round_suffix}.json",
+    ]
+    for name in (
+        *stage_names,
+        f"CLAIMS{round_suffix}.json",
+        f"REVIEW-LEDGER{round_suffix}.json",
+        f"REFEREE-DECISION{round_suffix}.json",
+    ):
+        source = global_review_dir / name
+        target = subject_review_dir / name
+        target.write_bytes(source.read_bytes())
+        source.unlink()
+    decision_path = subject_review_dir / f"REFEREE-DECISION{round_suffix}.json"
+    decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    decision_payload["stage_artifacts"] = [
+        f"GPD/publication/{subject_slug}/review/{name}" for name in stage_names
+    ]
+    decision_path.write_text(json.dumps(decision_payload), encoding="utf-8")
+
+
 def _update_claim_index_claim(
     project_root: Path,
     *,
@@ -5255,6 +5290,50 @@ class TestReviewValidationCommands:
         assert checks["manuscript"]["passed"] is True
         assert "resolved to ./paper/curvature_flow_bounds.tex" in checks["manuscript"]["detail"]
 
+    def test_review_preflight_explicit_nested_manuscript_keeps_owning_supported_root(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        nested_dir = paper_dir / "sections"
+        nested_dir.mkdir()
+        manuscript = canonical_manuscript_path(gpd_project)
+        nested_manuscript = nested_dir / manuscript.name
+        nested_manuscript.write_text(manuscript.read_text(encoding="utf-8"), encoding="utf-8")
+        manuscript.unlink()
+        (paper_dir / "PAPER-CONFIG.json").unlink()
+        manifest = json.loads((paper_dir / "ARTIFACT-MANIFEST.json").read_text(encoding="utf-8"))
+        for artifact in manifest["artifacts"]:
+            if artifact["artifact_id"] == "manuscript":
+                artifact["path"] = f"sections/{manuscript.name}"
+                artifact["sha256"] = compute_sha256(nested_manuscript)
+            if artifact["artifact_id"] == "compiled-manuscript":
+                artifact["sources"] = [{"path": f"sections/{manuscript.name}", "role": "compiled_from"}]
+        (paper_dir / "ARTIFACT-MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "review-preflight",
+                "peer-review",
+                f"paper/sections/{manuscript.name}",
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        resolved_subject = payload["resolved_subject"]
+        assert checks["manuscript"]["passed"] is True
+        assert checks["artifact_manifest"]["passed"] is True
+        assert resolved_subject["status"] == "resolved"
+        assert resolved_subject["target_path"].endswith(f"paper/sections/{manuscript.name}")
+        assert resolved_subject["target_root"].endswith("paper")
+
     def test_review_preflight_peer_review_directory_rejects_missing_main_entrypoint(
         self,
         gpd_project: Path,
@@ -6008,6 +6087,53 @@ class TestReviewValidationCommands:
         assert checks["review_ledger"]["passed"] is False
         assert checks["referee_decision"]["passed"] is False
         assert cli_module._format_display_path(manuscript) in checks["manuscript"]["detail"]
+
+    def test_review_preflight_arxiv_submission_prefers_managed_subject_review_over_stale_global_rounds(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+        managed_manuscript_path = "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            round_number=1,
+            manuscript_path=managed_manuscript_path,
+        )
+        _move_publication_review_outcome_to_subject_review(
+            gpd_project,
+            subject_slug="curvature-flow",
+            round_number=1,
+        )
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="major_revision",
+            round_number=2,
+            manuscript_path=_CANONICAL_MANUSCRIPT_REL,
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "review-preflight",
+                "arxiv-submission",
+                managed_manuscript_path,
+                "--strict",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
+        assert checks["review_ledger"]["passed"] is True
+        assert "round 1" in checks["review_ledger"]["detail"]
+        assert "REVIEW-LEDGER-R2.json" not in checks["review_ledger"]["detail"]
+        assert checks["publication_review_outcome"]["passed"] is True
 
     def test_command_context_arxiv_submission_rejects_explicit_target_outside_supported_roots(
         self,
@@ -8128,22 +8254,13 @@ class TestReviewValidationCommands:
         server_name: str,
     ) -> None:
         import importlib.metadata as importlib_metadata
-        from importlib.metadata import EntryPoint
-
-        from gpd.mcp.managed_integrations import WOLFRAM_BRIDGE_COMMAND
-
-        entry_point = EntryPoint(
-            name=WOLFRAM_BRIDGE_COMMAND,
-            value="gpd.mcp.integrations.wolfram_bridge:main",
-            group="console_scripts",
-        )
-
-        def _fake_entry_points(*, group: str | None = None):
-            return [entry_point] if group == "console_scripts" else []
 
         called: list[str] = []
         fake_module = SimpleNamespace(main=lambda: called.append("main"))
         original_import_module = importlib.import_module
+
+        def _unexpected_entry_points(*_args, **_kwargs):
+            raise AssertionError("managed mcp-serve dispatch must not inspect console-script metadata")
 
         def _fake_import_module(module_name: str, package: str | None = None):
             if module_name == "gpd.mcp.integrations.wolfram_bridge":
@@ -8151,7 +8268,7 @@ class TestReviewValidationCommands:
                 return fake_module
             return original_import_module(module_name, package)
 
-        monkeypatch.setattr(importlib_metadata, "entry_points", _fake_entry_points)
+        monkeypatch.setattr(importlib_metadata, "entry_points", _unexpected_entry_points)
         monkeypatch.setattr(importlib, "import_module", _fake_import_module)
 
         result = runner.invoke(app, ["mcp-serve", server_name], catch_exceptions=False)
@@ -8165,7 +8282,7 @@ class TestReviewValidationCommands:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         from gpd.mcp.managed_integrations import (
-            WOLFRAM_BRIDGE_COMMAND,
+            WOLFRAM_BRIDGE_MODULE,
             WOLFRAM_MANAGED_INTEGRATION,
             WOLFRAM_MANAGED_SERVER_KEY,
             WOLFRAM_MCP_API_KEY_ENV_VAR,
@@ -8196,8 +8313,8 @@ class TestReviewValidationCommands:
             "env": {"LOG_LEVEL": "WARNING"},
         }
         assert payload[WOLFRAM_MANAGED_SERVER_KEY] == {
-            "command": WOLFRAM_BRIDGE_COMMAND,
-            "args": [],
+            "command": sys.executable,
+            "args": ["-m", WOLFRAM_BRIDGE_MODULE],
             "env": {WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/mcp"},
         }
 

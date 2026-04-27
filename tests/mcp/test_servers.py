@@ -1129,6 +1129,27 @@ class TestProtocolsServer:
 # ---------------------------------------------------------------------------
 
 
+def test_real_bibliographer_skill_surfaces_direct_and_transitive_references():
+    from gpd import registry as content_registry
+    from gpd.mcp.servers.skills_server import get_skill
+
+    content_registry.invalidate_cache()
+    result = get_skill("gpd-bibliographer")
+    content_registry.invalidate_cache()
+
+    direct_paths = {entry["path"] for entry in result["referenced_files"]}
+    transitive_paths = {entry["path"] for entry in result["transitive_referenced_files"]}
+
+    assert "error" not in result
+    assert result["reference_count"] == len(direct_paths)
+    assert result["transitive_reference_count"] == len(transitive_paths)
+    assert all(entry["depth"] >= 1 for entry in result["transitive_referenced_files"])
+    assert any(path.endswith("shared-protocols.md") for path in direct_paths)
+    assert any(path.endswith("bibliography-advanced-search.md") for path in direct_paths)
+    assert any(path.endswith("verification-core.md") for path in transitive_paths)
+    assert any(path.endswith("llm-physics-errors.md") for path in transitive_paths)
+
+
 class TestSkillsServer:
     """Tests for gpd.mcp.servers.skills_server tool functions."""
 
@@ -1547,24 +1568,6 @@ class TestSkillsServer:
         assert result["reference_count"] >= 1
         assert any(entry["kind"] == "workflow" for entry in result["referenced_files"])
         assert all(not entry["path"].startswith("/") for entry in result["referenced_files"])
-
-    def test_get_skill_surfaces_direct_and_transitive_references_when_exposed(self):
-        from gpd.mcp.servers.skills_server import get_skill
-
-        result = get_skill("gpd-bibliographer")
-
-        if "transitive_referenced_files" not in result:
-            pytest.skip("Phase 15 product lane has not exposed transitive skill metadata yet")
-
-        direct_paths = {entry["path"] for entry in result["referenced_files"]}
-        transitive_paths = {entry["path"] for entry in result["transitive_referenced_files"]}
-
-        assert "error" not in result
-        assert result["reference_count"] == len(direct_paths)
-        assert result["transitive_reference_count"] == len(transitive_paths)
-        assert direct_paths.isdisjoint(transitive_paths)
-        assert any(path.endswith("shared-protocols.md") for path in direct_paths)
-        assert any(path.endswith("bibliography-advanced-search.md") for path in transitive_paths)
 
     def test_get_skill_consistency_checker_surfaces_agent_metadata(self):
         from gpd import registry as content_registry

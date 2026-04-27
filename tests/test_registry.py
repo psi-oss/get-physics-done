@@ -1867,7 +1867,7 @@ class TestRegistryPromptIncludeInlining:
         assert agent.path.endswith("gpd-project-researcher.md")
         assert "Checkpoint after the initial survey with scope confirmation." in agent.content
         assert "gpd_return:" in agent.content
-        assert "status: completed | checkpoint | blocked | failed" in agent.content
+        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.content
         assert "Do NOT run `gpd commit`, `git commit`, or stage files." in agent.content
         assert "wait for confirmation" not in agent.content
         assert "pause here for approval" not in agent.content
@@ -2762,7 +2762,7 @@ class TestPublicAPI:
         assert "## RESEARCH COMPLETE" in agent.system_prompt
         assert "## RESEARCH BLOCKED" in agent.system_prompt
         assert "gpd_return:" in agent.system_prompt
-        assert "status: completed | checkpoint | blocked | failed" in agent.system_prompt
+        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.system_prompt
         assert "RESEARCH.md" in agent.system_prompt
 
     def test_registry_cache_invalidation_clears_new_project_stage_manifest(self) -> None:

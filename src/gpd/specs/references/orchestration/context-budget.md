@@ -31,6 +31,34 @@ Different workflows consume context at different rates. Use these targets to pla
 **Rule of thumb:** If a plan will touch >5 files or produce >3 derivation steps, budget ~50% and segment if needed.
 </budget_allocation>
 
+<phase_class_budget_targets>
+
+## Phase-Class Budget Targets
+
+Use this table as the canonical numeric guidance for orchestrator planning. Other orchestration docs should refer here instead of restating these percentages.
+
+| Phase Class | Orchestrator Target | Primary Agent Targets | Notes |
+|---|---|---|---|
+| literature | 15-20% | researcher 40-60%, bibliographer ~30% | Heavy source intake; segment after roughly 10 papers or one coherent claim cluster |
+| formulation | 15-20% | researcher ~25%, planner ~15%, executor 30-60% | Usually fits in one pass unless multiple formalisms compete |
+| derivation | ~15% | planner ~10%, executor 50-70%, verifier 20-40% | Executor dominates; split if a derivation has more than about 5 intermediate results |
+| numerical | 10-15% | planner ~10%, executor 40-60%, debugger ~20%, verifier 15-35% | Budget debugger headroom for convergence or environment iteration |
+| validation | 10-15% | verifier 50-60%, consistency-checker ~25% | Verification is the main work; keep contract-critical checks in the first pass |
+| writing | 10-25% | paper-writer 50-70%, bibliographer/referee ~15% each | Section drafts are context-heavy; process one section or review dimension at a time |
+| mixed/unknown | 15-20% | executor ~50%, verifier ~30% | Default allocation until the phase class is clear |
+
+**Adaptation rules:**
+
+- Derivation exceeds ~50% executor budget: split the plan into sub-plans or checkpoint after a self-contained intermediate result.
+- Literature exceeds ~60% researcher budget: write a structured summary and continue in a fresh researcher invocation.
+- Verification exceeds ~50% verifier budget: keep contract-critical, anchor, and decisive-comparison checks in the current pass; queue optional depth for follow-up.
+- Numerical debugging exceeds ~20% debugger budget: write a debugging report with hypotheses and reinvoke the debugger with that artifact.
+
+**Plan count heuristic:** Estimate phase cost as `plan_count * tasks_per_plan * 6000` tokens. If that estimate exceeds ~80% of the model context window, verify segmentation, confirm wave parallelism, and warn on any single plan with more than 8 substantive tasks.
+
+**Summary aggregation heuristic:** For wave aggregation, estimate a full `SUMMARY.md` read as about 3000 tokens. Treat `CONTEXT_BUDGET` as the usable-token budget when the workflow provides it; otherwise assume the runtime-specific usable window described above. If reading summaries would exceed the orchestrator target for the phase class, switch to `gpd --raw summary-extract <path> --field one_liner` before loading full files.
+</phase_class_budget_targets>
+
 <context_consumption>
 
 ## What Consumes Context

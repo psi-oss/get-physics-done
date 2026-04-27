@@ -5,7 +5,7 @@ argument-hint: "[--fix]"
 context_mode: projectless
 allowed-tools:
   - file_read
-  - file_write
+  - ask_user
   - shell
   - find_files
   - search_files
@@ -13,11 +13,11 @@ allowed-tools:
 
 
 <objective>
-Run comprehensive project health checks and optionally auto-fix detected issues.
+Run comprehensive project health checks. Default to read-only inspection.
 
 Checks include: environment, project structure, knowledge inventory, storage-path policy, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return envelope, config.json validity, checkpoint tags, and git status.
 
-Use `--fix` to automatically repair detected issues.
+Use `--fix` only after explicit confirmation from the researcher, because it can modify project files.
 </objective>
 
 <process>
@@ -26,12 +26,17 @@ Use `--fix` to automatically repair detected issues.
 
 Check `$ARGUMENTS` for `--fix` flag.
 
+Default mode is read-only. If `--fix` is absent, do not mutate files and run only `gpd --raw health`.
+
+If `--fix` is present, stop before running the command and ask for explicit confirmation that auto-repair may modify project files. Do not run `gpd --raw health --fix` unless the researcher confirms.
+
 ## Step 2: Run health check
 
 Let the raw CLI inspect project files conditionally from the current workspace.
 
 ```bash
 if echo "$ARGUMENTS" | grep -q "\-\-fix"; then
+  # Only after explicit confirmation in Step 1.
   HEALTH=$(gpd --raw health --fix)
 else
   HEALTH=$(gpd --raw health)
@@ -71,7 +76,7 @@ Parse JSON output containing:
 If there are failures and `--fix` was not used:
 
 ```
-Run `gpd:health --fix` to auto-repair supported issues. Report any applied fixes from `fixes_applied`.
+Run `gpd:health --fix` only when you want auto-repair, then confirm the mutation prompt. Report any applied fixes from `fixes_applied`.
 ```
 
 If all checks pass:
@@ -87,6 +92,6 @@ All {total} health checks passed.
 - [ ] Health command executed successfully
 - [ ] All checks reported with status
 - [ ] Summary presented (pass/warn/fail counts)
-- [ ] Auto-fix applied if --fix flag present
+- [ ] Auto-fix applied only if --fix flag present and the researcher explicitly confirmed mutation
 - [ ] Clear guidance on how to fix remaining issues
       </success_criteria>

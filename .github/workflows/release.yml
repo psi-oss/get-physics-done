@@ -105,7 +105,8 @@ jobs:
       - name: Run release validation suite
         run: |
           uv run pytest tests/test_release_consistency.py -v
-          uv build
+          rm -rf dist
+          uv build --out-dir dist
           uv run --with twine python -m twine check dist/*
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json
 

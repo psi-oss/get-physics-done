@@ -237,9 +237,7 @@ def _write_managed_manuscript_review_anchor(project_root: Path, *, project_backe
 
     if project_backed:
         (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
-        review_dir = project_root / "GPD" / "review"
-    else:
-        review_dir = project_root / "GPD" / "publication" / "ising-bootstrap" / "review"
+    review_dir = project_root / "GPD" / "publication" / "ising-bootstrap" / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     (review_dir / "CLAIMS.json").write_text(
         json.dumps(

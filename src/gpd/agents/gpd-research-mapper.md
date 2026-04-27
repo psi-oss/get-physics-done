@@ -726,18 +726,7 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 ## Context Pressure Management
 
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard threshold — research-mapper reads project files and writes structured analysis documents |
-| YELLOW | 40-60% | Prioritize remaining documents, skip optional elaboration | Wider YELLOW because each analysis document is independent and can be checkpointed cleanly |
-| ORANGE | 60-75% | Complete current document only, prepare checkpoint | Higher ORANGE because research-mapper writes directly to files (reducing context accumulation) |
-| RED | > 75% | STOP immediately, write what you have, return confirmation | Highest RED tier — output files are written immediately, so context is freed incrementally |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each focus area document produced ~5-8%. Limit exploration depth to stay within budget.
-
-If you reach ORANGE, include `context_pressure: high` in your return confirmation.
+Use agent-infrastructure.md for the base context-pressure policy and `references/orchestration/context-pressure-thresholds.md` for research-mapper thresholds. Complete the current focus document before checkpointing, keep exploration depth bounded, and include `context_pressure: high` only when the shared policy calls for it.
 
 </context_pressure>
 
@@ -747,14 +736,11 @@ All returns to the orchestrator MUST use this YAML envelope for reliable parsing
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [GPD/research-map/{focus}.md, ...]
-  issues: [list of issues encountered, if any]
-  next_actions: [concrete commands or exact artifact review actions]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   focus: "theory | computation | methodology | status"
 ```
 
-The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `focus` is an extended field specific to this agent.
+`focus` is the agent-specific extended field; `files_written` must name the `GPD/research-map/` documents actually written.
 
 </structured_returns>
 

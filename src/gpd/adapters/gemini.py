@@ -47,6 +47,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
+from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -279,9 +280,11 @@ def _project_managed_mcp_servers(
     env: Mapping[str, str] | None = None,
     *,
     cwd: Path | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Project shared optional integrations into Gemini's ``mcpServers`` shape."""
-    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
+    python_path = python_path or hook_python_interpreter()
+    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd, python_path=python_path)
 
 
 def _managed_mcp_server_keys() -> frozenset[str]:
@@ -399,19 +402,6 @@ def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
 
 def _rewrite_gemini_capture_and_check_blocks(content: str) -> str:
     """Rewrite Gemini-hostile shell capture examples into direct command guidance."""
-    content = content.replace(
-        """```bash
-CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
-if [ $? -ne 0 ]; then
-  echo "WARNING: Convention verification failed — unit mismatches between theory and experiment are the #1 source of false discrepancies"
-  echo "$CONV_CHECK"
-fi
-```""",
-        """```bash
-# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
-gpd --raw convention check 2>/dev/null
-```""",
-    )
     content = content.replace(
         """```bash
 CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
@@ -727,7 +717,8 @@ def _managed_gemini_yolo_wrapper_path(target_dir: Path) -> Path:
 
 def _render_gemini_yolo_wrapper() -> str:
     """Render a small launcher that starts Gemini in yolo approval mode."""
-    return "#!/bin/sh\nexec gemini --approval-mode=yolo \"$@\"\n"
+    launcher = shlex.quote(get_runtime_descriptor("gemini").launch_command)
+    return f"#!/bin/sh\nexec {launcher} --approval-mode=yolo \"$@\"\n"
 
 
 def _render_gemini_policy_toml(bridge_command: str) -> str:
@@ -1206,9 +1197,10 @@ class GeminiAdapter(RuntimeAdapter):
         # Wire MCP servers into settings so they start automatically.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        python_path = hook_python_interpreter()
+        mcp_servers = build_mcp_servers_dict(python_path=python_path)
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
-        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd)
+        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd, python_path=python_path)
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:

@@ -888,7 +888,7 @@ def get_global_dir(runtime: str, explicit_dir: str | None = None) -> str:
     Then runtime-specific env vars, then defaults.
     """
     if explicit_dir:
-        return expand_tilde(explicit_dir) or explicit_dir
+        return str(Path(explicit_dir).expanduser().resolve(strict=False))
     descriptor = get_runtime_descriptor(runtime)
     return str(resolve_global_config_dir(descriptor))
 
@@ -1635,6 +1635,10 @@ def write_manifest(
     runtime: str | None = None,
     skills_dir: str | Path | None = None,
     managed_skill_dir_names: tuple[str, ...] | None = None,
+    flat_command_file_names: tuple[str, ...] | None = None,
+    include_nested_commands: bool = True,
+    include_hooks: bool = True,
+    agent_suffixes: tuple[str, ...] = (".md", ".toml"),
     metadata: dict[str, object] | None = None,
     install_scope: str | None = None,
     explicit_target: bool | None = None,
@@ -1646,16 +1650,18 @@ def write_manifest(
     config_dir = Path(config_dir)
     gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
     commands_dir = config_dir / "commands" / "gpd"
+    flat_commands_dir = config_dir / "command"
     agents_dir = config_dir / "agents"
     hooks_dir = config_dir / "hooks"
+    normalized_runtime = runtime.strip() if isinstance(runtime, str) and runtime.strip() else None
 
     manifest: dict[str, object] = {
         "version": version,
         "timestamp": _iso_now(),
         "files": {},
     }
-    if isinstance(runtime, str) and runtime.strip():
-        manifest["runtime"] = runtime.strip()
+    if normalized_runtime:
+        manifest["runtime"] = normalized_runtime
     normalized_scope = _normalize_install_scope_flag(install_scope)
     if normalized_scope == "--local":
         manifest["install_scope"] = "local"
@@ -1664,8 +1670,8 @@ def write_manifest(
     manifest["install_target_dir"] = str(config_dir)
     if explicit_target is not None:
         manifest["explicit_target"] = bool(explicit_target)
-    elif isinstance(runtime, str) and runtime.strip() and normalized_scope in {"--local", "--global"}:
-        default_target = _default_install_target(runtime.strip(), normalized_scope)
+    elif normalized_runtime and normalized_scope in {"--local", "--global"}:
+        default_target = _default_install_target(normalized_runtime, normalized_scope)
         if default_target is not None:
             manifest["explicit_target"] = not _paths_equal(config_dir, default_target)
     files: dict[str, str] = {}
@@ -1675,18 +1681,44 @@ def write_manifest(
         files[f"{GPD_INSTALL_DIR_NAME}/" + rel] = h
 
     # commands/gpd/
-    if commands_dir.exists():
+    if include_nested_commands and commands_dir.exists():
         for rel, h in generate_manifest(commands_dir).items():
             files["commands/gpd/" + rel] = h
+
+    descriptor_prefixes: tuple[str, ...] = ()
+    if normalized_runtime is not None:
+        try:
+            descriptor_prefixes = get_runtime_descriptor(normalized_runtime).manifest_file_prefixes
+        except KeyError:
+            descriptor_prefixes = ()
+    if flat_command_file_names is not None or "command/" in descriptor_prefixes:
+        if flat_command_file_names is None:
+            flat_command_file_names = (
+                tuple(
+                    sorted(
+                        entry.name
+                        for entry in flat_commands_dir.iterdir()
+                        if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md"
+                    )
+                )
+                if flat_commands_dir.exists()
+                else ()
+            )
+        for name in flat_command_file_names:
+            if not isinstance(name, str) or not name.startswith("gpd-") or not name.endswith(".md"):
+                continue
+            command_path = flat_commands_dir / name
+            if command_path.is_file():
+                files["command/" + name] = file_hash(command_path)
 
     # agents/gpd-*.(md|toml)
     if agents_dir.exists():
         for f in sorted(agents_dir.iterdir()):
-            if f.name.startswith("gpd-") and f.suffix in {".md", ".toml"}:
+            if f.name.startswith("gpd-") and f.suffix in set(agent_suffixes):
                 files["agents/" + f.name] = file_hash(f)
 
     # hooks/
-    if hooks_dir.exists():
+    if include_hooks and hooks_dir.exists():
         for rel_path in bundled_hook_relpaths():
             hook_name = PurePosixPath(rel_path).name
             installed_hook = hooks_dir / hook_name

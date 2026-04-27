@@ -186,3 +186,67 @@ def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
     assert "The shared note owns empty-model omission" in execute_phase
     assert "preserve empty-model omission, `readonly=false`, artifact-gated completion" not in execute_phase
     assert execute_phase.count("Apply the canonical runtime delegation convention above.") >= 3
+
+
+def test_experiment_designer_uses_external_ising_example_as_single_source() -> None:
+    designer = (AGENTS_DIR / "gpd-experiment-designer.md").read_text(encoding="utf-8")
+    example = (
+        REPO_ROOT / "src/gpd/specs/references/examples/ising-experiment-design-example.md"
+    ).read_text(encoding="utf-8")
+
+    assert "## Worked Example: 2D Ising Model Phase Diagram via Monte Carlo" not in designer
+    assert designer.count("@{GPD_INSTALL_DIR}/references/examples/ising-experiment-design-example.md") == 1
+    assert "This gives 15 critical-region temperatures" in example
+    assert "This gives 14 temperatures" not in example
+
+
+def test_numeric_context_budget_guidance_is_single_sourced() -> None:
+    context_budget = (REFERENCES_DIR / "orchestration" / "context-budget.md").read_text(encoding="utf-8")
+    infra = (REFERENCES_DIR / "orchestration" / "agent-infrastructure.md").read_text(encoding="utf-8")
+    meta = (REFERENCES_DIR / "orchestration" / "meta-orchestration.md").read_text(encoding="utf-8")
+    execute_phase = _read("execute-phase.md")
+
+    assert "## Phase-Class Budget Targets" in context_budget
+    assert "Summary aggregation heuristic" in context_budget
+    assert "estimated_tokens = plan_count * tasks_per_plan * 6000" not in infra
+    assert "| Phase Type | Orchestrator Budget | Agent Budget (each) | Total per Phase | Notes |" not in meta
+    assert "This document owns strategic routing; it does not restate the budget table." in meta
+    assert "references/orchestration/context-budget.md` as the canonical numeric source" in infra
+    assert "references/orchestration/context-budget.md" in execute_phase
+
+
+def test_executor_uses_plain_paths_for_inline_references_and_at_includes_only_for_real_includes() -> None:
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+
+    inline_at_lines = [
+        line for line in executor.splitlines() if "@{GPD_INSTALL_DIR}" in line and not line.strip().startswith("@{GPD_INSTALL_DIR}/")
+    ]
+    assert inline_at_lines == []
+    assert "`{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`" in executor
+    assert "`{GPD_INSTALL_DIR}/templates/summary.md`" in executor
+
+
+def test_agent_specific_return_examples_defer_base_envelope_fields_to_infrastructure() -> None:
+    trimmed_agents = (
+        "gpd-experiment-designer.md",
+        "gpd-notation-coordinator.md",
+        "gpd-project-researcher.md",
+        "gpd-phase-researcher.md",
+        "gpd-plan-checker.md",
+        "gpd-research-mapper.md",
+        "gpd-research-synthesizer.md",
+        "gpd-roadmapper.md",
+        "gpd-paper-writer.md",
+        "gpd-verifier.md",
+        "gpd-executor.md",
+        "gpd-referee.md",
+        "gpd-bibliographer.md",
+        "gpd-debugger.md",
+        "gpd-literature-reviewer.md",
+        "gpd-planner.md",
+    )
+
+    for agent_name in trimmed_agents:
+        text = (AGENTS_DIR / agent_name).read_text(encoding="utf-8")
+        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text, agent_name
+        assert "The four base fields (`status`, `files_written`, `issues`, `next_actions`)" not in text, agent_name

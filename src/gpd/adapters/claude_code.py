@@ -731,8 +731,9 @@ def _build_managed_mcp_servers(
     """Return shared MCP servers plus configured optional integrations."""
     from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
-    servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
-    servers.update(_build_managed_optional_mcp_servers(cwd=cwd, env=env))
+    python_path = hook_python_interpreter()
+    servers = build_mcp_servers_dict(python_path=python_path)
+    servers.update(_build_managed_optional_mcp_servers(cwd=cwd, env=env, python_path=python_path))
     return servers
 
 
@@ -740,9 +741,11 @@ def _build_managed_optional_mcp_servers(
     *,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Return optional managed MCP servers that are currently configured."""
-    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
+    python_path = python_path or hook_python_interpreter()
+    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd, python_path=python_path)
 
 
 def _managed_mcp_server_keys() -> frozenset[str]:

@@ -224,6 +224,20 @@ def test_project_contract_schema_examples_surface_validator_accepted_proof_objec
         assert "`links[].verified_by[]` must contain `acceptance_tests[].id` values only." in schema_text
 
 
+def test_state_json_schema_references_project_contract_schema_as_single_raw_source() -> None:
+    raw_state_schema = _read(TEMPLATES_DIR / "state-json-schema.md")
+    expanded_state_schema = _expanded(TEMPLATES_DIR / "state-json-schema.md")
+
+    assert raw_state_schema.count("@{GPD_INSTALL_DIR}/templates/project-contract-schema.md") == 1
+    assert "# Project Contract Schema" not in raw_state_schema
+    assert '"claim-main"' not in raw_state_schema
+    assert "This state schema intentionally includes that template instead of restating" in raw_state_schema
+
+    assert "# Project Contract Schema" in expanded_state_schema
+    assert '"claim-main"' in expanded_state_schema
+    assert "Project Contract ID Linkage Rules" in expanded_state_schema
+
+
 def test_project_and_state_contract_schemas_surface_full_closed_research_vocabularies() -> None:
     expected_lines = (
         _choice_line("observables[].kind", CONTRACT_OBSERVABLE_KIND_VALUES),
