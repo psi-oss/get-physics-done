@@ -7,7 +7,7 @@ How the global pattern library works -- a persistent knowledge base of physics e
 
 A sign error caused by metric signature confusion in one QFT project is the same sign error in every QFT project. A convergence failure from naive lattice discretization in one condensed matter calculation will recur in the next. The cross-project pattern library captures these lessons so they are available before the error is made, not after.
 
-The library lives outside any single project at the resolved global pattern-library root: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/GPD/learned-patterns`.
+The library lives outside any single project at the resolved global pattern-library root: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/.gpd/learned-patterns`.
 </core_principle>
 
 <location>
@@ -15,7 +15,7 @@ The library lives outside any single project at the resolved global pattern-libr
 ## Storage Location
 
 ```text
-~/GPD/learned-patterns/
+${GPD_DATA_DIR:-~/.gpd}/learned-patterns/
   patterns-by-domain/
     qft/
     condensed-matter/
@@ -250,7 +250,7 @@ The global pattern library and project-local `GPD/INSIGHTS.md` serve complementa
 | Aspect     | INSIGHTS.md                           | Global Pattern Library                            |
 | ---------- | ------------------------------------- | ------------------------------------------------- |
 | Scope      | Single project                        | All projects                                      |
-| Location   | `GPD/INSIGHTS.md`               | `~/GPD/learned-patterns/` |
+| Location   | `GPD/INSIGHTS.md`               | `GPD_PATTERNS_ROOT` or `${GPD_DATA_DIR:-~/.gpd}/learned-patterns/` |
 | Content    | Project-specific findings and lessons | Generalized error patterns and prevention methods |
 | Lifetime   | Lives with the project                | Persists indefinitely                             |
 | Written by | Debugger, executor                    | Debugger, verifier                                |
@@ -268,7 +268,7 @@ When the pattern library does not yet exist (first GPD session on a machine):
 
 1. Agents that attempt to read `index.json` and find it missing should create the directory structure:
    ```
-   mkdir -p ~/GPD/learned-patterns/patterns-by-domain/{qft,condensed-matter,stat-mech,gr,amo,nuclear,classical,fluid,plasma,astro,mathematical,soft-matter,quantum-info}
+   mkdir -p "${GPD_DATA_DIR:-$HOME/.gpd}/learned-patterns/patterns-by-domain/"{qft,condensed-matter,stat-mech,gr,amo,nuclear,classical,fluid,plasma,astro,mathematical,soft-matter,quantum-info}
    ```
 2. Create an empty `index.json`:
    ```json

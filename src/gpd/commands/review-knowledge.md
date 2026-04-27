@@ -72,9 +72,6 @@ Keep the wrapper thin and let the workflow own target resolution, review artifac
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/review-knowledge.md
-@{GPD_INSTALL_DIR}/templates/knowledge-schema.md
-@{GPD_INSTALL_DIR}/templates/knowledge.md
-@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
 </execution_context>
 
 <context>

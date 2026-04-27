@@ -44,6 +44,7 @@ def test_resolve_project_roots_uses_verified_explicit_project_dir_walkup(tmp_pat
     nested_hint = project / "src" / "notes"
     other_workspace = tmp_path / "workspace"
     (project / "GPD").mkdir(parents=True)
+    (project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     nested_hint.mkdir(parents=True)
     other_workspace.mkdir()
 
@@ -90,6 +91,22 @@ def test_resolve_project_roots_falls_back_to_explicit_project_dir_when_nothing_i
     assert resolution is not None
     assert resolution.project_root == project_hint.resolve(strict=False)
     assert resolution.policy == RootResolutionPolicy.PROJECT_SCOPED
+    assert resolution.basis == RootResolutionBasis.PROJECT_DIR
+    assert resolution.confidence == RootResolutionConfidence.MEDIUM
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+
+
+def test_resolve_project_roots_prefers_explicit_fallback_over_empty_workspace_gpd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    project_hint = tmp_path / "maybe-project"
+    (workspace / "GPD").mkdir(parents=True)
+    project_hint.mkdir()
+
+    resolution = resolve_project_roots(workspace, project_dir=project_hint)
+
+    assert resolution is not None
+    assert resolution.project_root == project_hint.resolve(strict=False)
     assert resolution.basis == RootResolutionBasis.PROJECT_DIR
     assert resolution.confidence == RootResolutionConfidence.MEDIUM
     assert resolution.has_project_layout is False
@@ -152,7 +169,7 @@ def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_empty_gpd_s
     assert resolution.walk_up_steps == 2
 
 
-def test_resolve_project_roots_falls_back_to_nearest_bare_gpd_when_no_stronger_ancestor_exists(
+def test_resolve_project_roots_does_not_verify_empty_gpd_when_no_stronger_ancestor_exists(
     tmp_path: Path,
 ) -> None:
     workspace = tmp_path / "workspace"
@@ -164,9 +181,25 @@ def test_resolve_project_roots_falls_back_to_nearest_bare_gpd_when_no_stronger_a
     assert resolution.project_root == workspace.resolve(strict=False)
     assert resolution.policy == RootResolutionPolicy.PROJECT_SCOPED
     assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+    assert resolve_project_root(workspace, require_layout=True) is None
+
+
+def test_resolve_project_root_require_layout_accepts_marker_backed_gpd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    gpd_dir = workspace / "GPD"
+    gpd_dir.mkdir(parents=True)
+    (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
     assert resolution.confidence == RootResolutionConfidence.HIGH
     assert resolution.has_project_layout is True
-    assert resolution.walk_up_steps == 0
+    assert resolve_project_root(workspace, require_layout=True) == workspace.resolve(strict=False)
 
 
 def test_resolve_project_root_require_layout_rejects_unverified_fallback(tmp_path: Path) -> None:

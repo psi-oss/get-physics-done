@@ -1,6 +1,32 @@
 from __future__ import annotations
 
+import shlex
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.cli import app
 from gpd.core.public_surface_contract import load_public_surface_contract
+
+
+def _example_runtime_name() -> str:
+    return iter_runtime_descriptors()[0].runtime_name
+
+
+def _bridge_command_help_args(command: str, *, tmp_path: Path) -> list[str]:
+    args = shlex.split(command)
+    assert args and args[0] == "gpd"
+    tail = args[1:]
+    if tail == ["--help"]:
+        return tail
+
+    placeholder_values = {
+        "<runtime>": _example_runtime_name(),
+        "<mode>": "review",
+        "<PLAN.md>": str(tmp_path / "PLAN.md"),
+    }
+    return [placeholder_values.get(arg, arg) for arg in tail] + ["--help"]
 
 
 def test_public_surface_contract_smoke_surfaces_current_resume_authority_phrase() -> None:
@@ -25,3 +51,18 @@ def test_public_surface_contract_smoke_keeps_bridge_commands_and_named_commands_
         contract.local_cli_bridge.validate_command_context_command
         == "gpd validate command-context gpd:<name>"
     )
+
+
+def test_public_surface_contract_bridge_commands_parse_live_cli_help(tmp_path: Path) -> None:
+    contract = load_public_surface_contract()
+    (tmp_path / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
+    runner = CliRunner()
+    failures: list[str] = []
+
+    for command in contract.local_cli_bridge.commands:
+        args = _bridge_command_help_args(command, tmp_path=tmp_path)
+        result = runner.invoke(app, ["--cwd", str(tmp_path), *args])
+        if result.exit_code != 0 or "Usage: gpd" not in result.output:
+            failures.append(f"{command!r} via {args!r}: exit={result.exit_code}\n{result.output}")
+
+    assert failures == []

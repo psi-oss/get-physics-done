@@ -121,8 +121,8 @@ def _project_layout_update_cache_candidate(workspace_path: Path | None):
 
     if workspace_path is None:
         return None
-    project_root = resolve_project_root(workspace_path, require_layout=True)
-    if project_root is None:
+    project_root = resolve_project_root(workspace_path)
+    if project_root is None or not (project_root / "GPD").is_dir():
         return None
     return UpdateCacheCandidate(project_root / "GPD" / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
 

@@ -286,33 +286,42 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
 def _state_command_cwd(cwd: Path | None = None) -> Path:
     """Resolve the effective cwd for state and project-contract commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    resolved = _project_anchor_cwd(workspace_cwd)
     if resolved is not None:
         _migrate_planning_files(resolved)
         return resolved
     _migrate_planning_files(workspace_cwd)
-    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    resolved = _project_anchor_cwd(workspace_cwd)
     if resolved is not None:
         return resolved
     return workspace_cwd
 
 
+def _project_anchor_cwd(cwd: Path | None = None) -> Path | None:
+    """Return the nearest visible ``GPD/`` anchor without requiring a complete layout."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    resolved = resolve_project_root(workspace_cwd)
+    if resolved is None or not (resolved / PLANNING_DIR_NAME).is_dir():
+        return None
+    return resolved
+
+
 def _read_only_project_scoped_cwd(cwd: Path | None = None) -> Path:
     """Resolve a project root for read-only commands without migration writes."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    resolved = _project_anchor_cwd(workspace_cwd)
     return resolved if resolved is not None else workspace_cwd
 
 
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
-    """Resolve the nearest verified project root for project-scoped preflights."""
+    """Resolve the nearest project-owned ``GPD/`` anchor for project-scoped preflights."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    resolved = _project_anchor_cwd(workspace_cwd)
     if resolved is not None:
         _migrate_planning_files(resolved)
         return resolved
     _migrate_planning_files(workspace_cwd)
-    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    resolved = _project_anchor_cwd(workspace_cwd)
     return resolved if resolved is not None else workspace_cwd
 
 
@@ -1433,9 +1442,9 @@ app.add_typer(contract_app, name="contract")
 
 
 def _require_project_root(cwd: Path, *, command_label: str) -> Path:
-    """Require a verified GPD project root; ``command_label`` is the noun used in the error."""
+    """Require a visible GPD project root; ``command_label`` is the noun used in the error."""
     workspace_cwd = cwd.expanduser().resolve(strict=False)
-    project_root = resolve_project_root(workspace_cwd, require_layout=True)
+    project_root = _project_anchor_cwd(workspace_cwd)
     if project_root is None:
         _error(
             f"{command_label} require a real GPD project root. "
@@ -4055,7 +4064,8 @@ def health(
     """Run the project health diagnostic."""
     from gpd.core.health import run_health
 
-    report = run_health(_project_scoped_cwd(), fix=fix)
+    cwd = _project_scoped_cwd() if fix else _read_only_project_scoped_cwd()
+    report = run_health(cwd, fix=fix)
     _output(report)
     if report.overall == "fail":
         raise typer.Exit(code=1)
@@ -10645,7 +10655,7 @@ def validate_consistency() -> None:
     """Validate cross-phase consistency."""
     from gpd.core.health import run_health
 
-    report = run_health(_project_scoped_cwd())
+    report = run_health(_read_only_project_scoped_cwd())
     _output(report)
     if report.overall == "fail":
         raise typer.Exit(code=1)
@@ -12761,13 +12771,56 @@ def mcp_serve(
     import importlib
 
     from gpd.mcp.builtin_servers import _BUILTIN_SERVERS
+    from gpd.mcp.managed_integrations import list_managed_integrations
+
+    def _console_script_module(command_name: str) -> str | None:
+        from importlib.metadata import entry_points
+
+        try:
+            scripts = entry_points(group="console_scripts")
+        except TypeError:  # pragma: no cover - compatibility for older importlib.metadata APIs
+            scripts = entry_points().get("console_scripts", [])
+        for entry_point in scripts:
+            if getattr(entry_point, "name", None) != command_name:
+                continue
+            module = getattr(entry_point, "module", None)
+            if isinstance(module, str) and module:
+                return module
+            value = getattr(entry_point, "value", "")
+            if isinstance(value, str) and ":" in value:
+                module = value.partition(":")[0]
+                return module or None
+        return None
+
+    requested_server = server.strip()
+    managed_aliases = {
+        alias: integration
+        for integration in list_managed_integrations().values()
+        for alias in (integration.integration_id, integration.managed_server_key)
+        if alias
+    }
+    prefixed_server = requested_server if requested_server.startswith("gpd-") else f"gpd-{requested_server}"
+    managed_integration = managed_aliases.get(requested_server) or managed_aliases.get(prefixed_server)
+    if managed_integration is not None:
+        module_path = _console_script_module(managed_integration.bridge_command)
+        if module_path is None:
+            raise typer.BadParameter(
+                f"Managed server {managed_integration.managed_server_key} has no console-script entry point "
+                f"for {managed_integration.bridge_command}"
+            )
+        sys.argv = [sys.argv[0]]
+        mod = importlib.import_module(module_path)
+        mod.main()
+        return
 
     # Accept both "conventions" and "gpd-conventions"
-    if not server.startswith("gpd-"):
-        server = f"gpd-{server}"
+    server = prefixed_server
 
     if server not in _BUILTIN_SERVERS:
-        available = ", ".join(sorted(_BUILTIN_SERVERS.keys()))
+        managed_server_keys = {integration.managed_server_key for integration in managed_aliases.values()}
+        available = ", ".join(
+            sorted(set(_BUILTIN_SERVERS.keys()) | managed_server_keys)
+        )
         raise typer.BadParameter(f"Unknown server: {server}. Available: {available}")
 
     entry = _BUILTIN_SERVERS[server]
@@ -12790,42 +12843,26 @@ def list_servers(
     binary_path: str = typer.Option(None, "--binary", help="Override binary path in command arrays."),
 ) -> None:
     """Emit runtime-compatible MCP server config JSON from the builtin registry."""
-    import importlib
     import json as json_mod
 
-    from gpd.mcp.builtin_servers import _BUILTIN_SERVERS
+    from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
+    from gpd.mcp.managed_integrations import projected_managed_optional_mcp_servers
+
+    servers: dict[str, dict[str, object]] = build_mcp_servers_dict(python_path=sys.executable)
+    managed_servers = projected_managed_optional_mcp_servers(cwd=_read_only_project_scoped_cwd())
+    if managed_servers:
+        servers = merge_managed_mcp_servers(servers, managed_servers)
 
     sidecar = binary_path or (sys.executable if getattr(sys, "frozen", False) else None)
-    servers: dict[str, object] = {}
-
-    for name, entry in _BUILTIN_SERVERS.items():
-        # Skip optional servers whose deps are missing
-        module_check = entry.get("module_check")
-        if module_check:
-            try:
-                importlib.import_module(module_check)
-            except ImportError:
-                continue
-
-        short_name = name.removeprefix("gpd-")
-
-        if sidecar:
-            # Binary mode: use the sidecar binary
-            cmd = [sidecar, "mcp-serve", short_name]
-        else:
-            # Python mode: use python -m
-            cmd = [sys.executable, "-m", entry["args"][1]]
-
-        server_entry: dict[str, object] = {
-            "type": "local",
-            "command": cmd,
-            "enabled": True,
+    if sidecar:
+        servers = {
+            name: {
+                "command": sidecar,
+                "args": ["mcp-serve", name.removeprefix("gpd-")],
+                **({"env": entry["env"]} if isinstance(entry.get("env"), dict) and entry["env"] else {}),
+            }
+            for name, entry in servers.items()
         }
-        env = entry.get("env")
-        if env:
-            server_entry["environment"] = env
-
-        servers[name] = server_entry
 
     if json_output:
         typer.echo(json_mod.dumps(servers, indent=2))

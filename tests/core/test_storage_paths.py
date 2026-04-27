@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
@@ -110,10 +111,10 @@ def test_classify_absolute_user_output_path(tmp_path: Path) -> None:
 
 def test_assess_output_path_matches_explicit_gpd_managed_policy(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
-    policy = ManagedOutputPolicy.gpd_subtree("paper")
+    policy = ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow")
 
     assessment = layout.assess_output_path(
-        "GPD/paper/main.tex",
+        "GPD/publication/curvature-flow/manuscript/main.tex",
         managed_output_policies=(policy,),
     )
 
@@ -293,14 +294,17 @@ def test_validate_final_output_rejects_internal_project_scratch_temp_and_externa
 
 def test_validate_final_output_accepts_policy_owned_gpd_managed_paths(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
-    policy = ManagedOutputPolicy.gpd_subtree("paper")
+    policy = ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow")
 
     assert layout.validate_final_output(
-        "GPD/paper/main.tex",
+        "GPD/publication/curvature-flow/manuscript/main.tex",
         managed_output_policies=(policy,),
-    ) == (layout.internal_root / "paper" / "main.tex")
-    assert layout.validate_managed_output("GPD/paper/main.tex", policy=policy) == (
-        layout.internal_root / "paper" / "main.tex"
+    ) == (layout.internal_root / "publication" / "curvature-flow" / "manuscript" / "main.tex")
+    assert layout.validate_managed_output(
+        "GPD/publication/curvature-flow/manuscript/main.tex",
+        policy=policy,
+    ) == (
+        layout.internal_root / "publication" / "curvature-flow" / "manuscript" / "main.tex"
     )
 
 
@@ -329,10 +333,10 @@ def test_validate_commit_target_allows_internal_docs_but_rejects_internal_artifa
 
 def test_validate_commit_target_allows_policy_owned_gpd_managed_artifacts(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
-    target = layout.internal_root / "paper" / "main.tex"
+    target = layout.internal_root / "publication" / "curvature-flow" / "manuscript" / "main.tex"
     target.parent.mkdir(parents=True)
     target.write_text("\\documentclass{article}\n", encoding="utf-8")
-    policy = ManagedOutputPolicy.gpd_subtree("paper")
+    policy = ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow")
 
     assert (
         layout.validate_commit_target(
@@ -417,18 +421,29 @@ def test_audit_storage_warnings_flags_hidden_results_and_scratch_outputs(tmp_pat
 
 def test_audit_storage_warnings_respects_explicit_managed_output_policy(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
-    paper_output = layout.internal_root / "paper" / "main.tex"
+    paper_output = layout.internal_root / "publication" / "curvature-flow" / "manuscript" / "main.tex"
     paper_output.parent.mkdir(parents=True, exist_ok=True)
     paper_output.write_text("\\documentclass{article}\n", encoding="utf-8")
     scratch_output = layout.scratch_dir / "final.csv"
     scratch_output.parent.mkdir(parents=True, exist_ok=True)
     scratch_output.write_text("x,y\n", encoding="utf-8")
-    policy = ManagedOutputPolicy.gpd_subtree("paper")
+    policy = ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow")
 
     warnings = layout.audit_storage_warnings(managed_output_policies=(policy,))
 
-    assert not any("GPD/paper/main.tex" in warning for warning in warnings)
+    assert not any("GPD/publication/curvature-flow/manuscript/main.tex" in warning for warning in warnings)
     assert any("GPD/tmp/final.csv" in warning for warning in warnings)
+
+
+def test_command_policies_do_not_use_legacy_gpd_paper_managed_root() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    offenders: list[str] = []
+    for path in sorted((repo_root / "src" / "gpd" / "commands").glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        if re.search(r"^\s*default_output_subtree:\s+GPD/paper(?:\b|/)", text, flags=re.MULTILINE):
+            offenders.append(path.relative_to(repo_root).as_posix())
+
+    assert offenders == []
 
 
 def test_resolve_anchors_relative_paths_at_project_root(tmp_path: Path) -> None:

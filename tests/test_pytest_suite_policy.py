@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yaml
 
+import tests.ci_sharding as ci_sharding
 import tests.conftest as tests_conftest
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
@@ -16,6 +18,7 @@ from tests.ci_sharding import (
     build_ci_work_units,
     category_for_test_relpath,
     collected_test_counts_by_file,
+    collected_test_inventory,
     expand_ci_targets_to_nodeids,
     plan_category_ci_shards,
     synthetic_test_inventory,
@@ -114,6 +117,46 @@ def test_default_collection_matches_all_checked_in_test_files() -> None:
     assert tuple(sorted(collected_counts)) == all_relpaths
     assert all(count > 0 for count in collected_counts.values())
     assert not unsharded_categories, f"checked-in test categories missing CI shards: {sorted(unsharded_categories)}"
+
+
+def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["env"] = kwargs["env"]
+        captured["cwd"] = kwargs["cwd"]
+        return SimpleNamespace(stdout="tests/test_sample.py::test_ok\n")
+
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-k no_tests --cache-clear")
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+    ci_sharding._collected_test_inventory_items.cache_clear()
+    try:
+        inventory = collected_test_inventory(repo_root=tmp_path)
+    finally:
+        ci_sharding._collected_test_inventory_items.cache_clear()
+
+    assert inventory == {"test_sample.py": ("tests/test_sample.py::test_ok",)}
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert "PYTEST_ADDOPTS" not in env
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert captured["args"] == [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "tests/",
+        "--collect-only",
+        "-q",
+        "-n",
+        "0",
+    ]
+    assert captured["cwd"] == tmp_path.resolve()
 
 
 def test_ci_and_test_readme_document_default_full_suite_and_category_named_runtime_informed_shards() -> None:

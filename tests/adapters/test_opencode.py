@@ -417,6 +417,34 @@ class TestUninstallOwnership:
         assert (dest / "gpd-user-keep.md").exists()
         assert not (target / MANIFEST_NAME).exists()
 
+    def test_adapter_uninstall_removes_flat_gpd_commands_when_owned_manifest_loses_command_tracking(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        command_dir = target / "command"
+        target.mkdir()
+
+        adapter.install(gpd_root, target)
+        (command_dir / "gpd-obsolete.md").write_text("stale", encoding="utf-8")
+        (command_dir / "custom-command.md").write_text("keep", encoding="utf-8")
+
+        manifest_path = target / MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["opencode_generated_command_files"] = {"not": "a list"}
+        manifest["files"] = ["not", "a", "mapping"]
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        assert command_dir.exists()
+        assert not list(command_dir.glob("gpd-*.md"))
+        assert (command_dir / "custom-command.md").exists()
+        assert not manifest_path.exists()
+
+
 class TestInstall:
     def test_help_command_does_not_describe_opencode_commands_as_slash_commands(
         self,

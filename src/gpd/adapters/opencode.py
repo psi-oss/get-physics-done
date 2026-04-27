@@ -445,28 +445,25 @@ def _load_manifest_opencode_generated_command_files(target_dir: Path) -> tuple[s
 
 
 def _load_manifest_opencode_command_files(target_dir: Path) -> tuple[str, ...]:
-    """Return tracked OpenCode command filenames, falling back to manifest files entries."""
-    generated_command_files = _load_manifest_opencode_generated_command_files(target_dir)
-    if generated_command_files:
-        return generated_command_files
+    """Return tracked OpenCode command filenames from all manifest-backed surfaces."""
+    tracked = list(_load_manifest_opencode_generated_command_files(target_dir))
 
     manifest_path = target_dir / MANIFEST_NAME
     if not manifest_path.exists():
-        return ()
+        return tuple(dict.fromkeys(tracked))
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return ()
+        return tuple(dict.fromkeys(tracked))
 
     if not isinstance(manifest, dict):
-        return ()
+        return tuple(dict.fromkeys(tracked))
 
     manifest_files = manifest.get("files")
     if not isinstance(manifest_files, dict):
-        return ()
+        return tuple(dict.fromkeys(tracked))
 
-    tracked: list[str] = []
     for rel_path in manifest_files:
         if not isinstance(rel_path, str) or not rel_path.startswith("command/"):
             continue
@@ -474,6 +471,20 @@ def _load_manifest_opencode_command_files(target_dir: Path) -> tuple[str, ...]:
         if name.startswith("gpd-") and name.endswith(".md"):
             tracked.append(name)
     return tuple(dict.fromkeys(tracked))
+
+
+def _remove_all_opencode_flat_gpd_commands(command_dir: Path) -> int:
+    """Remove every file in OpenCode's reserved flat GPD command namespace."""
+    removed = 0
+    try:
+        entries = list(command_dir.iterdir())
+    except OSError:
+        return 0
+    for entry in entries:
+        if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+            entry.unlink()
+            removed += 1
+    return removed
 
 
 def _clone_json_value(value: object) -> object:
@@ -681,7 +692,13 @@ def copy_with_path_replacement(
 # ---------------------------------------------------------------------------
 
 
-def uninstall_opencode(target_dir: Path, *, config_dir: Path, allow_empty_config_removal: bool) -> dict[str, int]:
+def uninstall_opencode(
+    target_dir: Path,
+    *,
+    config_dir: Path,
+    allow_empty_config_removal: bool,
+    remove_untracked_managed_commands: bool = False,
+) -> dict[str, int]:
     """Uninstall GPD from an OpenCode config directory.
 
     Removes GPD-specific files/directories, preserves user content.
@@ -694,12 +711,15 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path, allow_empty_config
 
     # 1. Remove command/gpd-*.md files
     command_dir = target_dir / "command"
-    if command_dir.exists() and tracked_command_files:
-        for name in tracked_command_files:
-            command_path = command_dir / name
-            if command_path.is_file():
-                command_path.unlink()
-                counts["commands"] += 1
+    if command_dir.exists():
+        if remove_untracked_managed_commands and not tracked_command_files:
+            counts["commands"] += _remove_all_opencode_flat_gpd_commands(command_dir)
+        elif tracked_command_files:
+            for name in tracked_command_files:
+                command_path = command_dir / name
+                if command_path.is_file():
+                    command_path.unlink()
+                    counts["commands"] += 1
 
     # 2. Remove get-physics-done directory
     gpd_dir = target_dir / "get-physics-done"
@@ -1217,10 +1237,15 @@ class OpenCodeAdapter(RuntimeAdapter):
 
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
             self._validate_target_runtime(target_dir, action="uninstall from")
+            has_authoritative_manifest = self._has_authoritative_install_manifest(target_dir)
+            remove_untracked_managed_commands = (
+                has_authoritative_manifest and not _load_manifest_opencode_command_files(target_dir)
+            )
             result = uninstall_opencode(
                 target_dir,
                 config_dir=target_dir,
-                allow_empty_config_removal=self._has_authoritative_install_manifest(target_dir),
+                allow_empty_config_removal=has_authoritative_manifest,
+                remove_untracked_managed_commands=remove_untracked_managed_commands,
             )
             removed: list[str] = []
             if result["commands"]:

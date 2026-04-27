@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -232,11 +233,16 @@ def _normalized_repo_root(repo_root: Path | None) -> Path:
 
 @cache
 def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    env = os.environ.copy()
+    env.pop("PYTEST_ADDOPTS", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     proc = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
+            "-p",
+            "no:cacheprovider",
             "tests/",
             "--collect-only",
             "-q",
@@ -244,6 +250,7 @@ def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[s
             "0",
         ],
         cwd=repo_root,
+        env=env,
         check=True,
         text=True,
         capture_output=True,

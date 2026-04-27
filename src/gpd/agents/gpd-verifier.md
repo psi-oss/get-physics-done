@@ -34,14 +34,14 @@ You are spawned by:
 
 ## Canonical LLM Error References
 
-Use the canonical split catalog instead of inlining or paraphrasing the error table:
+Use the canonical split catalog instead of inlining or paraphrasing the error table. These are path references, not eager includes:
 
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- index and entry point
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-traceability.md` -- compact detection matrix
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md`
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-field-theory.md`
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-extended.md`
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-deep.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- index and entry point
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-traceability.md` -- compact detection matrix
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-field-theory.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-extended.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-deep.md`
 
 Load only the split file(s) needed for the current physics context. Use the traceability matrix to choose the smallest effective checks; multiple error classes can co-occur in one derivation.
 

@@ -100,6 +100,22 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert "`gpd:arxiv-submission` packages only a GPD-owned manuscript root" in help_workflow
 
 
+def test_public_write_paper_help_surfaces_match_supported_command_metadata() -> None:
+    readme = _read("README.md")
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+    write_paper_workflow = _read("src/gpd/specs/workflows/write-paper.md")
+    public_surfaces = (readme, help_workflow)
+
+    for content in public_surfaces:
+        assert "gpd:write-paper [title or topic]" not in content
+        assert "--from-phases" not in content
+        assert 'gpd:write-paper "' not in content
+        assert "gpd:write-paper --intake intake/paper-authoring-input.json" in content
+
+    assert "Usage: `gpd:write-paper`" in help_workflow
+    assert "--from-phases" not in write_paper_workflow
+
+
 def test_help_command_uses_one_shared_extract_warning() -> None:
     help_command = _read("src/gpd/commands/help.md")
 
@@ -134,7 +150,16 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
     assert "Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open" in help_workflow
     assert "If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`" in help_workflow
     assert "Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier" in help_workflow
-    assert "Use canonical `GPD/knowledge/{knowledge_id}.md` targets; backfill of provisional docs is out of scope." in help_workflow
+    assert (
+        "Use canonical `GPD/knowledge/{knowledge_id}.md` targets for existing knowledge docs; "
+        "new draft targets are created under the current workspace `GPD/knowledge/` tree."
+    ) in help_workflow
+    assert (
+        help_workflow.count(
+            "- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target in the current workspace or stops on ambiguity"
+        )
+        == 1
+    )
     assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
     assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
     assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow

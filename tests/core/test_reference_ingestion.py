@@ -980,7 +980,7 @@ def test_ingest_reference_artifacts_emits_warning_for_invalid_knowledge_doc(tmp_
     assert "K-broken.md" in result.knowledge_doc_warnings[0]
 
 
-def test_ingest_reference_artifacts_reads_only_selected_legacy_research_review_sidecars(
+def test_ingest_reference_artifacts_ignores_selected_legacy_research_review_sidecars(
     tmp_path: Path,
 ) -> None:
     _bootstrap_project(tmp_path)
@@ -1028,7 +1028,6 @@ def test_ingest_reference_artifacts_reads_only_selected_legacy_research_review_s
         research_map_reference_files=[],
     )
 
-    assert result.citation_source_files == ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
-    assert [source.reference_id for source in result.citation_sources] == ["ref-legacy"]
-    assert [ref.id for ref in result.references] == ["ref-legacy"]
-    assert result.references[0].source_artifacts == ["GPD/research/LEGACY-REVIEW.md"]
+    assert result.citation_source_files == []
+    assert result.citation_sources == []
+    assert result.references == []

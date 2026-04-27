@@ -31,6 +31,9 @@ from scripts.repo_graph_contract import (
     sync_readme_text,
 )
 
+_WORKFLOW_ONLY_STEMS = {"execute-plan", "transition", "verify-phase"}
+_COMMAND_ONLY_STEMS = {"health", "suggest-next"}
+
 
 @contextmanager
 def _transient_root_artifacts():
@@ -59,6 +62,28 @@ def _transient_root_artifacts():
                 shutil.rmtree(sentinel_dir, ignore_errors=True)
             if not root_existed and root_path.exists() and not any(root_path.iterdir()):
                 root_path.rmdir()
+
+
+def _tracked_prompt_stems() -> tuple[set[str], set[str]]:
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
+    )
+    tracked_paths = [Path(path) for path in tracked.stdout.decode("utf-8").split("\0") if path]
+    command_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
+    }
+    workflow_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "specs", "workflows") and path.suffix == ".md"
+    }
+    return command_stems, workflow_stems
 
 
 def test_graph_scope_counts_match_live_prompt_inventory() -> None:
@@ -103,6 +128,13 @@ def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
     actual_stems = sorted(command_stems & workflow_stems)
 
     assert graph_stems == actual_stems
+
+
+def test_workflow_only_and_command_only_prompt_inventory_is_explicit() -> None:
+    command_stems, workflow_stems = _tracked_prompt_stems()
+
+    assert workflow_stems - command_stems == _WORKFLOW_ONLY_STEMS
+    assert command_stems - workflow_stems == _COMMAND_ONLY_STEMS
 
 
 def test_graph_same_stem_inventory_ignores_untracked_matching_files(tmp_path: Path) -> None:

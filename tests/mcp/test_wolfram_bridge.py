@@ -257,6 +257,39 @@ def test_build_server_registers_expected_server_name() -> None:
     assert server.name == "gpd-wolfram"
 
 
+@pytest.mark.asyncio
+async def test_build_server_resource_handlers_match_lowlevel_server_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    from mcp import types
+
+    from gpd.mcp.integrations.wolfram_bridge import WolframBridgeConfig, build_server
+
+    server, bridge = build_server(WolframBridgeConfig(api_key="bridge-token", endpoint="https://example.invalid/mcp"))
+    template = types.ResourceTemplate(name="wolf-template", uriTemplate="wolfram://{name}")
+
+    async def fake_read_resource(uri: str):
+        return types.ReadResourceResult(
+            contents=[types.TextResourceContents(uri=uri, text="content", mimeType="text/plain")]
+        )
+
+    async def fake_list_resource_templates(cursor: str | None = None):
+        assert cursor is None
+        return types.ListResourceTemplatesResult(resourceTemplates=[template], nextCursor="cursor-ignored")
+
+    monkeypatch.setattr(bridge, "read_resource", fake_read_resource)
+    monkeypatch.setattr(bridge, "list_resource_templates", fake_list_resource_templates)
+
+    read_response = await server.request_handlers[types.ReadResourceRequest](
+        types.ReadResourceRequest(params=types.ReadResourceRequestParams(uri="https://example.invalid/resource"))
+    )
+    templates_response = await server.request_handlers[types.ListResourceTemplatesRequest](
+        types.ListResourceTemplatesRequest()
+    )
+
+    assert read_response.root.contents[0].text == "content"
+    assert read_response.root.contents[0].mimeType == "text/plain"
+    assert templates_response.root.resourceTemplates == [template]
+
+
 def test_pyproject_exposes_the_wolfram_console_script() -> None:
     from pathlib import Path
 

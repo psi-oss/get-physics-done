@@ -162,13 +162,26 @@ def test_autonomous_surfaces_use_installed_command_wording_not_raw_skill_calls()
         assert f"runtime-installed `{command_name}` command" in workflow
 
 
-def test_legacy_publication_contract_stubs_are_not_keyword_loadable_redirect_prompts() -> None:
-    for filename, canonical in (
-        ("review-round-artifact-contract.md", "publication-review-round-artifacts.md"),
-        ("response-artifact-contract.md", "publication-response-artifacts.md"),
-    ):
-        text = (PUBLICATION_REFERENCES_DIR / filename).read_text(encoding="utf-8")
-        assert "load_when:" not in text
-        assert "Compatibility entry point" not in text
-        assert "authoritative source now lives" not in text
-        assert canonical in text
+def test_review_knowledge_command_includes_large_schema_surfaces_once() -> None:
+    text = (COMMANDS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
+
+    assert text.count("@{GPD_INSTALL_DIR}/templates/knowledge-schema.md") == 1
+    assert text.count("@{GPD_INSTALL_DIR}/templates/knowledge.md") == 1
+    assert text.count("@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md") == 1
+
+
+def test_legacy_publication_contract_stubs_are_removed_in_favor_of_canonical_files() -> None:
+    canonical_files = (
+        "publication-review-round-artifacts.md",
+        "publication-response-artifacts.md",
+    )
+    removed_files = (
+        "review-round-artifact-contract.md",
+        "response-artifact-contract.md",
+    )
+
+    for filename in canonical_files:
+        assert (PUBLICATION_REFERENCES_DIR / filename).is_file()
+
+    for filename in removed_files:
+        assert not (PUBLICATION_REFERENCES_DIR / filename).exists()

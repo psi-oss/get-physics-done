@@ -75,6 +75,17 @@ def validated_public_command_prefix(descriptor: RuntimeDescriptor) -> str:
     return prefix
 
 
+def _registered_command_slugs() -> set[str]:
+    """Return live registry command slugs for public command-surface rewrites."""
+
+    try:
+        from gpd import registry as content_registry
+
+        return set(content_registry.list_commands(name_format="slug"))
+    except Exception:
+        return set()
+
+
 def command_slug_from_label(label: str) -> str:
     """Return the shared command slug from a runtime-native or canonical label."""
 
@@ -108,7 +119,7 @@ def runtime_command_surface_pattern() -> re.Pattern[str]:
 
     escaped_prefixes = "|".join(re.escape(prefix) for prefix in runtime_command_prefixes())
     return re.compile(
-        rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?![A-Za-z0-9_-]|\.md\b)"
+        rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?![A-Za-z0-9_-]|\.[A-Za-z0-9]+\b)"
     )
 
 
@@ -128,9 +139,12 @@ def rewrite_runtime_command_surfaces(content: str, *, canonical: str = "skill") 
         raise ValueError(f"Unsupported canonical surface {canonical!r}")
 
     replacement_prefix = CANONICAL_COMMAND_PREFIX if canonical == "command" else CANONICAL_SKILL_PREFIX
+    command_slugs = _registered_command_slugs()
 
     def _replace(match: re.Match[str]) -> str:
         if runtime_command_surface_is_path_like_context(content, match):
+            return match.group(0)
+        if match.group("slug") not in command_slugs:
             return match.group(0)
         return f"{replacement_prefix}{match.group('slug')}"
 

@@ -40,7 +40,7 @@ def test_write_paper_bootstrap_contract_is_explicit_about_project_and_bounded_ex
 
     assert "Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from init / strict preflight" in source
     assert "The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`" in source
-    assert "If `publication_bootstrap_mode` is `fresh_external_authoring_bootstrap`" in source
+    assert "For `external_authoring_intake`, use the strict command preflight's managed subject handoff" in source
     assert "`GPD/publication/{subject_slug}/intake/` is intake/provenance state only; it must not participate in manuscript-root discovery" in source
     assert "a resolved `${PAPER_DIR}` under `GPD/publication/{subject_slug}/manuscript` may be either the managed project lane or the bounded external-authoring lane" in source
     assert "do not mine generic folders or widen into arbitrary external-manuscript discovery; the only non-project lane is explicit `--intake`" in source

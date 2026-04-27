@@ -489,7 +489,8 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
-    assert 'node-version: "24"' in workflow
+    assert workflow.count('node-version: "20"') == 2
+    assert 'node-version: "24"' not in workflow
     assert "actions/upload-artifact@v7" in workflow
     assert "actions/download-artifact@v8" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" in workflow
@@ -501,6 +502,11 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "gh release create" in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
+    assert "Run stamped release validation" in workflow
+    assert workflow.index("Stamp actual publish date in release checkout") < workflow.index("Run stamped release validation")
+    assert workflow.index("Run stamped release validation") < workflow.index("Publish to npm")
+    assert "uv run pytest tests/test_release_consistency.py -v" in workflow
+    assert 'npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json' in workflow
     assert "scripts/release_workflow.py release-notes" in workflow
     assert "gh pr create" in workflow
 
@@ -759,14 +765,47 @@ def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None
         }
     )
 
-    result = subprocess.run(
-        [uv, "build", "--sdist", "--out-dir", str(tmp_path)],
-        cwd=repo_root,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
+    seeded_artifacts = (
+        (repo_root / "__pycache__" / "gpd-sdist-hygiene-leak.pyc", b"pyc"),
+        (repo_root / "src" / "gpd" / "__pycache__" / "gpd-sdist-hygiene-leak.pyc", b"pyc"),
+        (repo_root / "tests" / "gpd-sdist-hygiene-leak.pyo", b"pyo"),
+        (repo_root / ".npm-cache" / "gpd-sdist-hygiene-leak.txt", b"cache"),
+        (repo_root / "build" / "gpd-sdist-hygiene-leak.txt", b"build"),
+        (repo_root / "get_physics_done.egg-info" / "PKG-INFO", b"Name: leak\n"),
     )
+    seeded_roots = tuple(
+        dict.fromkeys(
+            (
+                repo_root / "__pycache__",
+                repo_root / "src" / "gpd" / "__pycache__",
+                repo_root / ".npm-cache",
+                repo_root / "build",
+                repo_root / "get_physics_done.egg-info",
+            )
+        )
+    )
+    preexisting_roots = {path: path.exists() for path in seeded_roots}
+    created_files: list[Path] = []
+    for path, payload in seeded_artifacts:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        created_files.append(path)
+    try:
+        result = subprocess.run(
+            [uv, "build", "--sdist", "--out-dir", str(tmp_path)],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    finally:
+        for path in created_files:
+            path.unlink(missing_ok=True)
+        for path in sorted(seeded_roots, key=lambda item: len(item.parts), reverse=True):
+            if not preexisting_roots[path] and path.exists():
+                shutil.rmtree(path)
+
     if result.returncode != 0 and _uv_build_blocked_by_environment(result.stderr):
         pytest.skip(f"uv build is blocked by the local uv/runtime environment: {result.stderr.strip()}")
     assert result.returncode == 0, result.stderr or result.stdout
@@ -786,11 +825,17 @@ def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None
 
     forbidden_fragments = (
         ".DS_Store",
+        "__pycache__/",
         ".mypy_cache/",
+        ".npm-cache/",
         ".pytest_cache/",
         ".ruff_cache/",
         ".uv-cache/",
         ".venv/",
+        ".egg-info/",
+        ".pyc",
+        ".pyo",
+        "/build/",
         "/GPD-FIX-REPORT",
         "/dist/",
         "/tmp/",

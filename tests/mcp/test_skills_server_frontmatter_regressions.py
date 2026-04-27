@@ -66,3 +66,69 @@ def test_get_skill_surfaces_malformed_reference_frontmatter(tmp_path: Path) -> N
     assert "frontmatter_error" in contract_documents["peer-review-panel.md"]
     assert contract_documents["peer-review-panel.md"]["frontmatter_error"]
 
+
+def test_get_skill_loading_hint_does_not_eager_load_transitive_schema_documents(tmp_path: Path) -> None:
+    from gpd.mcp.servers import skills_server
+
+    workflow_path = tmp_path / "wrapper.md"
+    workflow_path.write_text(
+        "See @{GPD_INSTALL_DIR}/templates/nested-schema.md for the schema.\n",
+        encoding="utf-8",
+    )
+    schema_path = tmp_path / "nested-schema.md"
+    schema_path.write_text(
+        "---\n"
+        "type: schema\n"
+        "---\n"
+        "# Nested Schema\n"
+        "Transitive body.\n",
+        encoding="utf-8",
+    )
+
+    command = CommandDef(
+        name="gpd:debug",
+        description="Debug.",
+        argument_hint="",
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path=str(tmp_path / "gpd-debug.md"),
+        source="commands",
+    )
+    skill = SkillDef(
+        name="gpd-debug",
+        description="Debug.",
+        content="Read @{GPD_INSTALL_DIR}/workflows/wrapper.md first.\n",
+        category="debugging",
+        path=str(tmp_path / "gpd-debug.md"),
+        source_kind="command",
+        registry_name="debug",
+    )
+
+    portable_paths = {
+        "@{GPD_INSTALL_DIR}/workflows/wrapper.md": workflow_path,
+        "@{GPD_INSTALL_DIR}/templates/nested-schema.md": schema_path,
+    }
+    original_portable_reference_path = skills_server._portable_reference_path
+
+    def _patched_portable_reference_path(raw_path: str, *, base_path: Path | None = None):
+        if raw_path in portable_paths:
+            return raw_path, portable_paths[raw_path]
+        return original_portable_reference_path(raw_path, base_path=base_path)
+
+    skills_server._reference_document_metadata.cache_clear()
+    try:
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+            patch("gpd.mcp.servers.skills_server._portable_reference_path", side_effect=_patched_portable_reference_path),
+        ):
+            result = skills_server.get_skill("gpd-debug")
+    finally:
+        skills_server._reference_document_metadata.cache_clear()
+
+    assert result["schema_documents"] == []
+    assert any(path.endswith("nested-schema.md") for path in result["transitive_schema_references"])
+    assert any(entry["name"] == "nested-schema.md" for entry in result["transitive_schema_documents"])
+    assert "transitive_schema_documents" not in result["loading_hint"]
+    assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]

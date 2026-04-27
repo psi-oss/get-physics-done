@@ -183,6 +183,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install development dependencies
+        run: |
+          uv sync --dev --frozen
+
       - name: Stamp actual publish date in release checkout
         run: |
           python scripts/release_workflow.py stamp-publish-date --repo . --release-date "${{ needs.build-release.outputs.release_date }}" > /tmp/publish-date.json
@@ -190,8 +197,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "20"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Run stamped release validation
+        run: |
+          uv run pytest tests/test_release_consistency.py -v
+          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json
 
       - name: Publish to npm
         run: npm publish

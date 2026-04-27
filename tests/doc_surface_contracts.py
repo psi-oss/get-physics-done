@@ -1399,7 +1399,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
             "This is not a full publication-root migration.",
             "This is not a full publication-root migration",
             "not a full publication-root migration",
-            "Publication-root handling is partial by design",
+            "Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.",
         ),
         label="manuscript-root migration boundary",
     )

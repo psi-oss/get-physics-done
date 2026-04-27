@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import os
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ import mcp.types as types
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.server.lowlevel import NotificationOptions, Server
+from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
@@ -116,6 +118,21 @@ class WolframBridge:
         return await self.session.list_resource_templates(cursor)
 
 
+def _as_lowlevel_resource_content(content: object) -> ReadResourceContents:
+    """Convert remote MCP resource content into the low-level server helper shape."""
+    mime_type = getattr(content, "mimeType", None)
+    meta = getattr(content, "meta", None)
+    if isinstance(content, types.TextResourceContents):
+        return ReadResourceContents(content=content.text, mime_type=mime_type, meta=meta)
+    if isinstance(content, types.BlobResourceContents):
+        return ReadResourceContents(content=base64.b64decode(content.blob), mime_type=mime_type, meta=meta)
+    if hasattr(content, "text"):
+        return ReadResourceContents(content=str(content.text), mime_type=mime_type, meta=meta)
+    if hasattr(content, "blob"):
+        return ReadResourceContents(content=base64.b64decode(str(content.blob)), mime_type=mime_type, meta=meta)
+    raise RuntimeError(f"Unsupported Wolfram resource content type: {type(content).__name__}")
+
+
 def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
     """Build the local stdio MCP server that proxies the remote Wolfram service."""
     bridge = WolframBridge(config)
@@ -143,7 +160,8 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
 
     @server.read_resource()
     async def _read_resource(uri: str):
-        return (await bridge.read_resource(uri)).contents
+        result = await bridge.read_resource(uri)
+        return [_as_lowlevel_resource_content(content) for content in result.contents]
 
     @server.list_prompts()
     async def _list_prompts(request: types.ListPromptsRequest) -> types.ListPromptsResult:
@@ -155,11 +173,8 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
         return await bridge.get_prompt(name, arguments)
 
     @server.list_resource_templates()
-    async def _list_resource_templates(
-        request: types.ListResourceTemplatesRequest,
-    ) -> types.ListResourceTemplatesResult:
-        cursor = getattr(request.params, "cursor", None)
-        return await bridge.list_resource_templates(cursor)
+    async def _list_resource_templates() -> list[types.ResourceTemplate]:
+        return (await bridge.list_resource_templates()).resourceTemplates
 
     return server, bridge
 

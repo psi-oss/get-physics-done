@@ -76,13 +76,17 @@ class TestUninstallBase:
         agents.mkdir(parents=True)
         (agents / "gpd-verifier.md").write_text("v", encoding="utf-8")
         (agents / "gpd-executor.md").write_text("e", encoding="utf-8")
+        (agents / "gpd-planner.toml").write_text("prompt = 'plan'\n", encoding="utf-8")
         (agents / "custom-agent.md").write_text("c", encoding="utf-8")
+        (agents / "custom-agent.toml").write_text("prompt = 'keep'\n", encoding="utf-8")
 
         adapter.uninstall(target)
 
         assert not (agents / "gpd-verifier.md").exists()
         assert not (agents / "gpd-executor.md").exists()
+        assert not (agents / "gpd-planner.toml").exists()
         assert (agents / "custom-agent.md").exists()
+        assert (agents / "custom-agent.toml").exists()
 
     def test_preserves_unmanaged_hooks_without_manifest(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")

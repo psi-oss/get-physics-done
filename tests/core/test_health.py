@@ -714,6 +714,43 @@ class TestCheckProjectStructure:
         result = check_project_structure(tmp_path)
         assert result.status == CheckStatus.OK
 
+    def test_warns_for_legacy_gpd_project_markers_without_failing_canonical_structure(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        legacy = cwd / ".gpd"
+        legacy.mkdir()
+        (legacy / "state.json").write_text("{}\n", encoding="utf-8")
+        (legacy / "PROJECT.md").write_text("# Legacy Project\n", encoding="utf-8")
+
+        result = check_project_structure(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.issues == []
+        assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
+        assert any("Canonical project state lives in GPD/" in warning for warning in result.warnings)
+
+    def test_legacy_gpd_project_markers_do_not_satisfy_canonical_project_structure(self, tmp_path: Path) -> None:
+        legacy = tmp_path / ".gpd"
+        legacy.mkdir()
+        (legacy / "state.json").write_text("{}\n", encoding="utf-8")
+        (legacy / "PROJECT.md").write_text("# Legacy Project\n", encoding="utf-8")
+
+        result = check_project_structure(tmp_path)
+
+        assert result.status == CheckStatus.FAIL
+        assert "Required file missing: GPD/state.json" in result.issues
+        assert result.details["state.json"] == "missing"
+        assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
+
+    def test_benign_legacy_gpd_virtualenv_is_quiet(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        (cwd / ".gpd" / "venv" / "bin").mkdir(parents=True)
+
+        result = check_project_structure(cwd)
+
+        assert result.status == CheckStatus.OK
+        assert result.warnings == []
+        assert "legacy_gpd_project_markers" not in result.details
+
 
 class TestCheckKnowledgeInventory:
     def test_missing_knowledge_dir_is_ok(self, tmp_path: Path) -> None:
@@ -904,7 +941,7 @@ class TestCheckStoragePaths:
 
     def test_policy_owned_gpd_managed_output_is_not_reported_as_storage_warning(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        paper_output = cwd / "GPD" / "paper" / "main.tex"
+        paper_output = cwd / "GPD" / "publication" / "curvature-flow" / "manuscript" / "main.tex"
         paper_output.parent.mkdir(parents=True)
         paper_output.write_text("\\documentclass{article}\n", encoding="utf-8")
         scratch_file = cwd / "GPD" / "tmp" / "final.csv"
@@ -913,12 +950,12 @@ class TestCheckStoragePaths:
 
         result = check_storage_paths(
             cwd,
-            managed_output_policies=(ManagedOutputPolicy.gpd_subtree("paper"),),
+            managed_output_policies=(ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow"),),
         )
 
         assert result.status == CheckStatus.WARN
         assert result.details["managed_output_policy_count"] == 1
-        assert not any("GPD/paper/main.tex" in warning for warning in result.warnings)
+        assert not any("GPD/publication/curvature-flow/manuscript/main.tex" in warning for warning in result.warnings)
         assert any("GPD/tmp/final.csv" in warning for warning in result.warnings)
 
     def test_repo_gitignore_does_not_hide_checkpoint_outputs_under_gpd(self, tmp_path: Path) -> None:

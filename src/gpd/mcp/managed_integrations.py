@@ -27,8 +27,10 @@ INTEGRATIONS_CONFIG_FILENAME = "integrations.json"
 
 def _project_integrations_config_path(cwd: Path) -> Path:
     workspace_cwd = cwd.expanduser().resolve(strict=False)
-    project_root = resolve_project_root(workspace_cwd, require_layout=True)
-    return ProjectLayout(project_root or workspace_cwd).gpd / INTEGRATIONS_CONFIG_FILENAME
+    project_root = resolve_project_root(workspace_cwd)
+    if project_root is None or not ProjectLayout(project_root).gpd.is_dir():
+        project_root = workspace_cwd
+    return ProjectLayout(project_root).gpd / INTEGRATIONS_CONFIG_FILENAME
 
 
 def _strict_unknown_keys_error(*, section: str, unknown_keys: list[str], supported_keys: list[str]) -> RuntimeError:

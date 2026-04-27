@@ -6,8 +6,8 @@ The resolver keeps two concepts separate:
 - the resolved GPD project root used for project-scoped lookups
 
 Resolution prefers an explicit ``project_dir`` only when it can be verified by
-walking ancestors for a ``GPD/`` directory. If that verification fails, a
-verified workspace walk-up still wins over the explicit fallback.
+walking ancestors for a marker-backed ``GPD/`` directory. If that verification
+fails, a verified workspace walk-up still wins over the explicit fallback.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ class ProjectRootResolution:
 
     @property
     def verified(self) -> bool:
-        """Return whether the result was verified by locating a ``GPD/`` directory."""
+        """Return whether the result was verified by locating a marker-backed ``GPD/`` directory."""
         return self.has_project_layout
 
 
@@ -101,15 +101,14 @@ def _walk_project_root(
     candidate: Path | None,
     *,
     allow_ancestor_walk: bool = True,
-) -> tuple[Path | None, int]:
-    """Walk *candidate* and its ancestors until the best ``GPD/`` layout is found."""
+) -> tuple[Path | None, int, bool]:
+    """Walk *candidate* and its ancestors until the best ``GPD/`` anchor is found."""
 
     if candidate is None:
-        return None, 0
+        return None, 0, False
 
     best_verified: tuple[int, int, Path] | None = None
     best_bare: tuple[int, Path] | None = None
-
     search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
     for steps, path in enumerate(search_roots):
         layout = ProjectLayout(path)
@@ -134,10 +133,10 @@ def _walk_project_root(
             best_bare = (steps, path)
 
     if best_verified is not None:
-        return best_verified[2], best_verified[1]
+        return best_verified[2], best_verified[1], True
     if best_bare is not None:
-        return best_bare[1], best_bare[0]
-    return None, 0
+        return best_bare[1], best_bare[0], False
+    return None, 0, False
 
 
 def resolve_project_roots(
@@ -167,8 +166,8 @@ def resolve_project_roots(
     workspace_root = normalize_workspace_hint(workspace)
     project_hint = normalize_workspace_hint(project_dir)
 
-    explicit_root, explicit_steps = _walk_project_root(project_hint)
-    if explicit_root is not None:
+    explicit_root, explicit_steps, explicit_verified = _walk_project_root(project_hint)
+    if explicit_root is not None and explicit_verified:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
@@ -180,20 +179,32 @@ def resolve_project_roots(
             walk_up_steps=explicit_steps,
         )
 
-    workspace_project_root, workspace_steps = _walk_project_root(
+    workspace_project_root, workspace_steps, workspace_verified = _walk_project_root(
         workspace_root,
         allow_ancestor_walk=policy != RootResolutionPolicy.WORKSPACE_LOCKED,
     )
-    if workspace_project_root is not None:
+    if workspace_project_root is not None and workspace_verified:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
             project_root=workspace_project_root,
             policy=policy,
             basis=RootResolutionBasis.WORKSPACE,
-            confidence=RootResolutionConfidence.HIGH,
-            has_project_layout=True,
+            confidence=RootResolutionConfidence.HIGH if workspace_verified else RootResolutionConfidence.LOW,
+            has_project_layout=workspace_verified,
             walk_up_steps=workspace_steps,
+        )
+
+    if explicit_root is not None:
+        return ProjectRootResolution(
+            workspace_root=workspace_root,
+            project_hint=project_hint,
+            project_root=explicit_root,
+            policy=policy,
+            basis=RootResolutionBasis.PROJECT_DIR,
+            confidence=RootResolutionConfidence.MEDIUM,
+            has_project_layout=False,
+            walk_up_steps=explicit_steps,
         )
 
     if project_hint is not None:
@@ -206,6 +217,18 @@ def resolve_project_roots(
             confidence=RootResolutionConfidence.MEDIUM,
             has_project_layout=False,
             walk_up_steps=0,
+        )
+
+    if workspace_project_root is not None:
+        return ProjectRootResolution(
+            workspace_root=workspace_root,
+            project_hint=project_hint,
+            project_root=workspace_project_root,
+            policy=policy,
+            basis=RootResolutionBasis.WORKSPACE,
+            confidence=RootResolutionConfidence.LOW,
+            has_project_layout=False,
+            walk_up_steps=workspace_steps,
         )
 
     if workspace_root is not None:

@@ -37,6 +37,7 @@ from gpd.core.constants import (
     REQUIRED_PLANNING_FILES,
     REQUIRED_SPECS_SUBDIRS,
     ROADMAP_FILENAME,
+    STATE_JSON_BACKUP_FILENAME,
     STATE_LINES_TARGET,
     UNCOMMITTED_FILES_THRESHOLD,
     ProjectLayout,
@@ -176,6 +177,24 @@ def check_environment() -> HealthCheck:
 
 
 _ROOT_MIGRATABLE_FILES = frozenset({ROADMAP_FILENAME, PROJECT_FILENAME})
+_LEGACY_GPD_DIR_NAME = ".gpd"
+
+
+def _legacy_gpd_project_markers(cwd: Path) -> list[str]:
+    """Return project-state markers found in repo-local legacy ``.gpd/``."""
+
+    legacy_dir = cwd / _LEGACY_GPD_DIR_NAME
+    if not legacy_dir.is_dir():
+        return []
+
+    markers: list[str] = []
+    for name in (*REQUIRED_PLANNING_FILES, STATE_JSON_BACKUP_FILENAME):
+        if (legacy_dir / name).exists():
+            markers.append(f"{_LEGACY_GPD_DIR_NAME}/{name}")
+    for name in REQUIRED_PLANNING_DIRS:
+        if (legacy_dir / name).is_dir():
+            markers.append(f"{_LEGACY_GPD_DIR_NAME}/{name}/")
+    return markers
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
@@ -184,6 +203,15 @@ def check_project_structure(cwd: Path) -> HealthCheck:
     issues: list[str] = []
     warnings: list[str] = []
     details: dict[str, object] = {}
+
+    legacy_markers = _legacy_gpd_project_markers(cwd)
+    if legacy_markers:
+        details["legacy_gpd_project_markers"] = legacy_markers
+        warnings.append(
+            f"Legacy {_LEGACY_GPD_DIR_NAME}/ contains project markers "
+            f"({', '.join(legacy_markers)}). Canonical project state lives in {PLANNING_DIR_NAME}/; "
+            "move or remove the legacy files."
+        )
 
     for name in REQUIRED_PLANNING_FILES:
         full = layout.gpd / name

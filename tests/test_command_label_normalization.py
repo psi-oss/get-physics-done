@@ -195,6 +195,22 @@ def test_runtime_command_surface_rewrite_skips_urls_and_paths_but_keeps_examples
     assert "foo$gpd-help/bar" in rewritten
 
 
+def test_runtime_command_surface_rewrite_uses_registry_command_slugs_for_public_labels() -> None:
+    content = (
+        "Run $gpd-help and /gpd:execute-phase as commands.\n"
+        "Keep checkpoint gpd-phase-03, agent gpd-planner, file gpd-file-manifest.json, "
+        "and generated gpd-help.json unchanged.\n"
+    )
+
+    rewritten = rewrite_runtime_command_surfaces(content, canonical="command")
+
+    assert "Run gpd:help and gpd:execute-phase as commands." in rewritten
+    assert "checkpoint gpd-phase-03" in rewritten
+    assert "agent gpd-planner" in rewritten
+    assert "file gpd-file-manifest.json" in rewritten
+    assert "generated gpd-help.json" in rewritten
+
+
 def test_foreign_bare_slash_command_is_not_canonicalized_into_gpd() -> None:
     assert command_slug_from_label("/help") == "/help"
     assert canonical_command_label("/help") == "gpd:/help"

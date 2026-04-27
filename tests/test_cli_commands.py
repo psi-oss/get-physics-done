@@ -2006,6 +2006,78 @@ class TestReadOnlyCommandRouting:
             assert payload["passed"] is True
             assert seen["quick"] is False
 
+    @pytest.mark.parametrize(
+        "command_args",
+        [
+            ["--raw", "health"],
+            ["--raw", "validate", "consistency"],
+        ],
+    )
+    def test_health_read_only_paths_do_not_migrate_root_planning_files(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_args: list[str],
+    ) -> None:
+        for filename in ("PROJECT.md", "ROADMAP.md"):
+            (gpd_project / "GPD" / filename).unlink()
+            (gpd_project / filename).write_text(f"# Root {filename}\n", encoding="utf-8")
+
+        seen: dict[str, object] = {}
+
+        def _fake_run_health(cwd: Path, fix: bool = False):
+            seen["cwd"] = cwd
+            seen["fix"] = fix
+            return SimpleNamespace(
+                overall="ok",
+                model_dump=lambda mode="json", by_alias=True: {
+                    "cwd": str(cwd),
+                    "fix": fix,
+                    "overall": "ok",
+                },
+            )
+
+        monkeypatch.setattr("gpd.core.health.run_health", _fake_run_health)
+
+        result = runner.invoke(app, ["--cwd", str(gpd_project), *command_args], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert seen == {"cwd": gpd_project.resolve(), "fix": False}
+        assert not (gpd_project / "GPD" / "PROJECT.md").exists()
+        assert not (gpd_project / "GPD" / "ROADMAP.md").exists()
+
+    def test_health_fix_retains_mutating_project_scope(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        for filename in ("PROJECT.md", "ROADMAP.md"):
+            (gpd_project / "GPD" / filename).unlink()
+            (gpd_project / filename).write_text(f"# Root {filename}\n", encoding="utf-8")
+
+        seen: dict[str, object] = {}
+
+        def _fake_run_health(cwd: Path, fix: bool = False):
+            seen["cwd"] = cwd
+            seen["fix"] = fix
+            return SimpleNamespace(
+                overall="ok",
+                model_dump=lambda mode="json", by_alias=True: {
+                    "cwd": str(cwd),
+                    "fix": fix,
+                    "overall": "ok",
+                },
+            )
+
+        monkeypatch.setattr("gpd.core.health.run_health", _fake_run_health)
+
+        result = runner.invoke(app, ["--cwd", str(gpd_project), "--raw", "health", "--fix"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert seen == {"cwd": gpd_project.resolve(), "fix": True}
+        assert (gpd_project / "GPD" / "PROJECT.md").read_text(encoding="utf-8") == "# Root PROJECT.md\n"
+        assert (gpd_project / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == "# Root ROADMAP.md\n"
+
 
 class TestReadOnlyStateBackedLists:
     @pytest.mark.parametrize(
@@ -8048,6 +8120,118 @@ class TestReviewValidationCommands:
     @pytest.mark.parametrize(("command_args"), [("integrations", "status", "wolfram")])
     def test_integrations_surface_smoke(self, command_args: tuple[str, ...]) -> None:
         _invoke(*command_args)
+
+    @pytest.mark.parametrize("server_name", ["wolfram", "gpd-wolfram"])
+    def test_mcp_serve_dispatches_managed_integration_aliases_from_registry(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        server_name: str,
+    ) -> None:
+        import importlib.metadata as importlib_metadata
+        from importlib.metadata import EntryPoint
+
+        from gpd.mcp.managed_integrations import WOLFRAM_BRIDGE_COMMAND
+
+        entry_point = EntryPoint(
+            name=WOLFRAM_BRIDGE_COMMAND,
+            value="gpd.mcp.integrations.wolfram_bridge:main",
+            group="console_scripts",
+        )
+
+        def _fake_entry_points(*, group: str | None = None):
+            return [entry_point] if group == "console_scripts" else []
+
+        called: list[str] = []
+        fake_module = SimpleNamespace(main=lambda: called.append("main"))
+        original_import_module = importlib.import_module
+
+        def _fake_import_module(module_name: str, package: str | None = None):
+            if module_name == "gpd.mcp.integrations.wolfram_bridge":
+                called.append(module_name)
+                return fake_module
+            return original_import_module(module_name, package)
+
+        monkeypatch.setattr(importlib_metadata, "entry_points", _fake_entry_points)
+        monkeypatch.setattr(importlib, "import_module", _fake_import_module)
+
+        result = runner.invoke(app, ["mcp-serve", server_name], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert called == ["gpd.mcp.integrations.wolfram_bridge", "main"]
+
+    def test_list_servers_json_uses_resolved_install_config_and_managed_integrations(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.mcp.managed_integrations import (
+            WOLFRAM_BRIDGE_COMMAND,
+            WOLFRAM_MANAGED_INTEGRATION,
+            WOLFRAM_MANAGED_SERVER_KEY,
+            WOLFRAM_MCP_API_KEY_ENV_VAR,
+            WOLFRAM_MCP_ENDPOINT_ENV_VAR,
+        )
+
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "test-secret")
+        (gpd_project / "GPD" / "integrations.json").write_text(
+            json.dumps({WOLFRAM_MANAGED_INTEGRATION.integration_id: {"endpoint": "https://example.invalid/mcp"}}),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "list-servers", "--json"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        serialized = json.dumps(payload)
+        assert "${" not in serialized
+        assert "test-secret" not in serialized
+        assert payload["gpd-conventions"] == {
+            "command": sys.executable,
+            "args": ["-m", "gpd.mcp.servers.conventions_server"],
+            "env": {"LOG_LEVEL": "WARNING"},
+        }
+        assert payload[WOLFRAM_MANAGED_SERVER_KEY] == {
+            "command": WOLFRAM_BRIDGE_COMMAND,
+            "args": [],
+            "env": {WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/mcp"},
+        }
+
+    def test_list_servers_binary_rewrites_managed_integrations_to_sidecar_dispatch(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.mcp.managed_integrations import (
+            WOLFRAM_MANAGED_INTEGRATION,
+            WOLFRAM_MANAGED_SERVER_KEY,
+            WOLFRAM_MCP_API_KEY_ENV_VAR,
+            WOLFRAM_MCP_ENDPOINT_ENV_VAR,
+        )
+
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "test-secret")
+        (gpd_project / "GPD" / "integrations.json").write_text(
+            json.dumps({WOLFRAM_MANAGED_INTEGRATION.integration_id: {"endpoint": "https://example.invalid/mcp"}}),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "list-servers", "--json", "--binary", "/opt/gpd"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload[WOLFRAM_MANAGED_SERVER_KEY] == {
+            "command": "/opt/gpd",
+            "args": ["mcp-serve", "wolfram"],
+            "env": {WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/mcp"},
+        }
 
     def test_validate_summary_contract_command_rejects_unknown_contract_ids(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"

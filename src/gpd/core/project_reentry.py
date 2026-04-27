@@ -369,7 +369,7 @@ def resolve_project_reentry(
         seen_roots.add(current_candidate.project_root)
 
     if recent_rows is None:
-        recent_project_rows = [] if current_candidate is not None else list_recent_projects(data_root)
+        recent_project_rows = [] if _current_workspace_is_verified(current_candidate) else list_recent_projects(data_root)
     else:
         recent_project_rows = list(recent_rows)
     for row in recent_project_rows:

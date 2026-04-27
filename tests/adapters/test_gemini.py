@@ -757,6 +757,7 @@ class TestInstall:
         bridge = expected_gemini_bridge(target)
         assert bridge in parsed_policy["rule"][0]["commandPrefix"]
         assert '"git init"' in policy
+        assert "GPD/research" not in policy
 
     def test_install_surfaces_shell_prefix_allowlist_in_model_facing_content(
         self,
@@ -777,6 +778,7 @@ class TestInstall:
         assert f"`{expected_bridge}`" in command
         assert "`git init`" in command
         assert "`mkdir -p GPD`" in command
+        assert "`mkdir -p GPD/research`" not in command
         assert "`printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"`" in command
 
     def test_install_preserves_existing_policy_paths_and_mcp_trust_choice(

@@ -524,12 +524,27 @@ def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp
 def test_notification_state_path_uses_project_layout_observability_root(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     (workspace / "GPD").mkdir(parents=True)
+    (workspace / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     nested = workspace / "src" / "notes"
     nested.mkdir(parents=True)
 
     from gpd.hooks.notify import _notification_state_path
 
     assert _notification_state_path(str(nested)) == ProjectLayout(workspace).last_observability_notification
+
+
+def test_notification_state_path_ignores_empty_ancestor_gpd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+    nested = workspace / "src" / "notes"
+    nested.mkdir(parents=True)
+    home = tmp_path / "home"
+    expected = home / HOME_DATA_DIR_NAME / OBSERVABILITY_DIR_NAME / OBSERVABILITY_LAST_NOTIFY_FILENAME
+
+    from gpd.hooks.notify import _notification_state_path
+
+    with patch("gpd.hooks.notify.Path.home", return_value=home):
+        assert _notification_state_path(str(nested)) == expected
 
 
 def test_notification_state_path_uses_home_data_root_outside_project_layout(tmp_path: Path) -> None:

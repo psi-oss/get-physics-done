@@ -44,7 +44,7 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 **Load project context and resolve models:**
 
 ```bash
-INIT=$(gpd --raw init phase-op --include config)
+INIT=$(gpd --raw init write-paper)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -115,8 +115,9 @@ Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from in
 
 - If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only. The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`; treat that as project-owned manuscript state rather than `external_artifact` mode.
 - If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the top-level `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
-- If `publication_bootstrap_mode` is `fresh_external_authoring_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root`, persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/`, and bootstrap the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
 - If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
+
+For `external_authoring_intake`, use the strict command preflight's managed subject handoff: persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/` and bind `PAPER_DIR` to the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
 
 Keep the resolved manuscript-root binding visible when writing shell snippets so the shell-oriented workflow contract stays consistent:
 
@@ -277,6 +278,8 @@ cat GPD/phases/*/*SUMMARY.md
 cat GPD/state.json
 ```
 
+Read summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`) before raw phase files.
+
 **If NO digest found:**
 
 Display a clear warning explaining why and offering alternatives:
@@ -292,18 +295,6 @@ a curated narrative arc, convention timeline, and figure registry.
 Options:
   1. Continue anyway — build paper from raw phase data (proceed below)
   2. Run gpd:complete-milestone first — generates the digest, then return here
-  3. Use --from-phases to explicitly select which phases to include:
-     gpd:write-paper --from-phases 1,2,3,5
-```
-
-**If `--from-phases` flag is present:** Read summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`) and research artifacts only from the specified phase directories. Skip milestone digest lookup entirely. This is useful for writing papers that cover a subset of phases or when milestones haven't been completed yet.
-
-```bash
-# Example: --from-phases 1,3,5
-for PHASE_NUM in $(echo "$FROM_PHASES" | tr ',' ' '); do
-  PHASE_DIR=$(ls -d GPD/phases/*/ | grep "^GPD/phases/0*${PHASE_NUM}-")
-  cat "$PHASE_DIR"/*SUMMARY.md 2>/dev/null
-done
 ```
 
 Proceed to establish_scope and catalog_artifacts, which will gather research context from the init payload first, then summary artifacts, and only the remaining raw phase files directly.
@@ -377,15 +368,11 @@ If this run is `external_authoring_intake`, run this bounded manifest audit firs
 5. Proof-style claims still require passed proof-review support when the intake says a theorem-style claim is being made.
 6. Do **not** enumerate `GPD/phases/*`, `GPD/milestones/*`, or loose workspace files to repair missing evidence.
 
-For the project-backed lane, run checks across all contributing phases (from digest, `--from-phases`, or all completed phases):
+For the project-backed lane, run checks across contributing phases from the research digest or all completed phases:
 
 ```bash
 # Identify contributing phases
-if [ -n "$FROM_PHASES" ]; then
-  PHASE_DIRS=$(for n in $(echo "$FROM_PHASES" | tr ',' ' '); do ls -d GPD/phases/0*${n}-* 2>/dev/null; done)
-else
-  PHASE_DIRS=$(ls -d GPD/phases/*/ 2>/dev/null)
-fi
+PHASE_DIRS=$(ls -d GPD/phases/*/ 2>/dev/null)
 ```
 
 ### Check 1: summary-artifact completeness
@@ -398,6 +385,12 @@ For each phase directory:
 2. If the phase is contract-backed and supports a paper claim, check for `plan_contract_ref` and `contract_results`
 3. If a contract-backed target depends on a decisive comparison, check for the corresponding `comparison_verdicts` entry and an evidence path the manuscript can surface
 4. Confirm the summary or verification artifacts identify where the substantive evidence lives
+
+```bash
+for PHASE_DIR in $PHASE_DIRS; do
+  cat "$PHASE_DIR"/*SUMMARY.md 2>/dev/null
+done
+```
 
 **Missing summary artifact** → CRITICAL gap (phase results not summarized).
 **Contract-backed phase missing `contract_results` for a paper-relevant target** → CRITICAL gap.
@@ -544,7 +537,7 @@ Paper-readiness audit found {N} critical gap(s):
 Options:
   1. Fix gaps first — return to research phases to address critical issues
   2. Proceed anyway — acknowledge gaps as known limitations in the paper
-  3. Exclude problematic phases — re-scope paper with --from-phases to skip incomplete phases
+  3. Narrow the project-backed paper scope in the research artifacts first, then rerun `gpd:write-paper`
 ```
 
 Wait for user decision before proceeding. Do NOT silently continue past critical gaps.

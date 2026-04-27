@@ -585,14 +585,14 @@ def _ingest_citation_source_sidecar(cwd: Path, path: Path, result: ArtifactRefer
 def _citation_source_sidecar_paths_for_review_file(rel_path: str) -> tuple[Path, ...]:
     """Return citation sidecars that belong to one selected review file.
 
-    Contract: selected markdown reviews under ``GPD/literature/`` and legacy
-    selected markdown reviews under ``GPD/research/`` may own a matching
-    ``*-CITATION-SOURCES.json`` sidecar. Bare sidecars are not discovered here;
-    the review file path must be selected by the caller.
+    Contract: selected markdown reviews under ``GPD/literature/`` may own a
+    matching ``*-CITATION-SOURCES.json`` sidecar. Bare sidecars and legacy
+    ``GPD/research/`` review sidecars are not discovered here; the canonical
+    literature review file path must be selected by the caller.
     """
     review_path = Path(rel_path)
     parts = review_path.parts
-    if len(parts) < 3 or parts[0] != "GPD" or parts[1] not in {"literature", "research"}:
+    if len(parts) < 3 or parts[0] != "GPD" or parts[1] != "literature":
         return ()
     if review_path.suffix.lower() != ".md":
         return ()
@@ -600,6 +600,12 @@ def _citation_source_sidecar_paths_for_review_file(rel_path: str) -> tuple[Path,
     if review_path.stem.endswith("-REVIEW"):
         sidecars.append(review_path.with_name(f"{review_path.stem.removesuffix('-REVIEW')}-CITATION-SOURCES.json"))
     return tuple(sidecars)
+
+
+def _is_canonical_literature_review_file(rel_path: str) -> bool:
+    review_path = Path(rel_path)
+    parts = review_path.parts
+    return len(parts) >= 3 and parts[0] == "GPD" and parts[1] == "literature" and review_path.suffix.lower() == ".md"
 
 
 def _ingest_citation_source_sidecars(
@@ -1163,6 +1169,8 @@ def ingest_reference_artifacts(
     result = ArtifactReferenceIngestion()
 
     for rel_path in literature_review_files:
+        if not _is_canonical_literature_review_file(rel_path):
+            continue
         path = cwd / rel_path
         try:
             content = path.read_text(encoding="utf-8")

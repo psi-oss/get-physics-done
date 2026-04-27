@@ -3514,6 +3514,8 @@ def test_skill_surface_exposes_contract_references_for_paper_and_review_workflow
     assert "Peer Review Phase Reliability" in respond_contract_documents["peer-review-reliability.md"]["body"]
     assert "Treat `content` as the wrapper/context surface." in write_paper["loading_hint"]
     assert "Load `schema_documents` and `contract_documents` too when present" in write_paper["loading_hint"]
+    assert "transitive_schema_documents" not in write_paper["loading_hint"]
+    assert "transitive_contract_documents" not in write_paper["loading_hint"]
 
 
 def test_peer_review_workflow_and_generated_skill_surface_keep_lifecycle_cleanup_contract() -> None:

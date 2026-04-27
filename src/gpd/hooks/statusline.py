@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import gpd.hooks.install_context as hook_layout
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
-from gpd.core.root_resolution import normalize_workspace_hint
+from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.state import peek_state_json
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
@@ -238,23 +238,14 @@ def _statusline_project_root(workspace_dir: str) -> Path | None:
     normalized = normalize_workspace_hint(workspace_dir)
     if normalized is None:
         return None
-
-    bare_gpd_root: Path | None = None
-    for steps, candidate in enumerate((normalized, *normalized.parents)):
-        layout = ProjectLayout(candidate)
-        if not layout.gpd.is_dir():
-            continue
-        if (
-            layout.state_json.exists()
-            or layout.state_md.exists()
-            or layout.project_md.exists()
-            or layout.roadmap.exists()
-            or layout.phases_dir.is_dir()
-        ):
-            return candidate
-        if steps == 0 and bare_gpd_root is None:
-            bare_gpd_root = candidate
-    return bare_gpd_root
+    resolution = resolve_project_roots(normalized)
+    if resolution is None:
+        return None
+    if resolution.has_project_layout:
+        return resolution.project_root
+    if resolution.project_root == normalized and ProjectLayout(resolution.project_root).gpd.is_dir():
+        return resolution.project_root
+    return None
 
 
 def _read_position(workspace_dir: str) -> str:

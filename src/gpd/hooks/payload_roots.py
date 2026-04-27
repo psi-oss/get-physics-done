@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.core.root_resolution import RootResolutionBasis, resolve_project_root, resolve_project_roots
+from gpd.core.root_resolution import ProjectRootResolution, resolve_project_roots
 
 
 @dataclass(frozen=True)
@@ -155,11 +155,19 @@ def _project_dir_is_trusted(workspace_dir: str, project_dir: str) -> bool:
     if not _workspace_is_within_project_dir(workspace_dir, project_dir):
         return False
     resolution = resolve_project_roots(workspace_dir, project_dir=project_dir)
+    normalized_project = Path(project_dir).expanduser().resolve(strict=False)
     return bool(
         resolution is not None
-        and resolution.basis == RootResolutionBasis.PROJECT_DIR
-        and resolution.has_project_layout
+        and resolution.project_root == normalized_project
+        and (resolution.has_project_layout or (normalized_project / "GPD").is_dir())
     )
+
+
+def _is_hook_project_anchor(resolution: ProjectRootResolution) -> bool:
+    """Return whether a hook should treat the resolution as project-local state."""
+    if resolution.has_project_layout:
+        return True
+    return resolution.walk_up_steps == 0 and (resolution.project_root / "GPD").is_dir()
 
 
 def _authoritative_project_root(
@@ -175,7 +183,7 @@ def _authoritative_project_root(
         return normalized_candidate
 
     workspace_resolution = resolve_project_roots(normalized_workspace)
-    if workspace_resolution is not None and workspace_resolution.has_project_layout:
+    if workspace_resolution is not None and _is_hook_project_anchor(workspace_resolution):
         project_root = workspace_resolution.project_root
         if project_root is not None:
             return str(project_root)
@@ -376,8 +384,11 @@ def project_root_from_payload(
             project_dir_present=shared_project_dir_present,
             project_dir_trusted=shared_project_dir_trusted,
         )
-    resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
-    candidate_project_root = str(resolved_root) if resolved_root is not None else workspace_dir
+    resolution = resolve_project_roots(workspace_dir, project_dir=project_dir)
+    if not project_dir_present and resolution is not None and not _is_hook_project_anchor(resolution):
+        candidate_project_root = workspace_dir
+    else:
+        candidate_project_root = str(resolution.project_root) if resolution is not None else workspace_dir
     return _authoritative_project_root(
         workspace_dir=workspace_dir,
         candidate_project_root=candidate_project_root,

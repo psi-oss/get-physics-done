@@ -199,8 +199,8 @@ Typical new-project workflow:
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall `~/GPD/venv` from the PyPI pinned release first, with tagged GitHub release sources as fallback. |
-| `--upgrade` | Upgrade `~/GPD/venv` from the latest unreleased GitHub `main` source. |
+| `--reinstall` | Reinstall `${GPD_HOME:-~/.gpd}/venv` from the PyPI pinned release first, with tagged GitHub release sources as fallback. |
+| `--upgrade` | Upgrade `${GPD_HOME:-~/.gpd}/venv` from the latest unreleased GitHub `main` source. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
@@ -299,7 +299,7 @@ gpd:verify-work 1
 Once the relevant phases are complete and verified, continue toward write-up with:
 
 ```text
-gpd:write-paper "3D Ising bootstrap bounds"
+gpd:write-paper
 gpd:peer-review
 gpd:respond-to-referees
 gpd:arxiv-submission
@@ -328,7 +328,7 @@ Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase
 
 Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
 
-Publication boundary: `gpd:write-paper` supports the current-project manuscript roots, the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit manuscript/artifact path or paper directory target, and serves as the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. Publication-root handling is partial by design.
+Publication boundary: `gpd:write-paper` supports the current-project manuscript roots, the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit manuscript/artifact path or paper directory target, and serves as the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` only packages a GPD-owned manuscript root. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
 
 Leave / return path: `gpd:pause-work` before leaving mid-phase, `gpd:resume-work` when you return in-runtime, `gpd:suggest-next` when you only need the next action, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue inside that workspace with the runtime `resume-work` command.
 
@@ -350,6 +350,8 @@ The relaxed technical-analysis lane lives here too: `gpd:derive-equation`, `gpd:
 For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
 
 `gpd:write-paper` is project-aware for one bounded external-authoring lane only: supply one explicit intake manifest, keep all GPD-authored durable outputs under `GPD/publication/{subject_slug}/...`, treat `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root, and reserve `GPD/publication/{subject_slug}/intake/` for intake/provenance state only. It does not mine arbitrary folders or infer publication-grade claim/evidence bindings from loose notes.
+
+External-authoring example: `gpd:write-paper --intake intake/paper-authoring-input.json`
 
 The later publication commands stay stricter: `gpd:respond-to-referees` works from the active project's resolved manuscript root plus a referee report source, or from explicit external-manuscript continuation once GPD has anchored that subject under `GPD/publication/{subject_slug}`. `gpd:arxiv-submission` can take an optional GPD-owned manuscript-root target but still requires project state, `gpd paper-build`, and the latest staged review clearance for that manuscript; it is not a generic external-directory packager.
 
@@ -546,7 +548,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 Run the matching uninstall command from [Start Here](#start-here) for interactive uninstall. The equivalent subcommand form also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
 
-Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under `~/GPD`; remove `~/GPD/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
+Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under the resolved GPD home/data roots; remove `${GPD_HOME:-~/.gpd}` and, if configured separately, `GPD_DATA_DIR` for a full wipe after uninstalling from all runtimes.
 
 ## Inspiration
 

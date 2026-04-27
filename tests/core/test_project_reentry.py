@@ -237,6 +237,36 @@ def test_resolve_project_reentry_treats_backup_only_state_as_recoverable_current
     assert resolution.candidates[0].state_exists is True
 
 
+def test_resolve_project_reentry_default_scan_prefers_unique_recent_over_backup_only_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    backup_state = default_state_dict()
+    backup_state["position"]["current_phase"] = "07"
+    (workspace / "GPD" / "state.json.bak").write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
+    recent = _make_gpd_workspace(tmp_path / "recent-project", project=True)
+
+    def _recent_projects(_data_root=None):
+        return [_recent_row(recent, last_session_at="2026-03-28T12:00:00+00:00")]
+
+    monkeypatch.setattr("gpd.core.project_reentry.list_recent_projects", _recent_projects)
+
+    resolution = resolve_project_reentry(workspace)
+
+    assert resolution.mode == "auto-recent-project"
+    assert resolution.source == "recent_project"
+    assert resolution.auto_selected is True
+    assert resolution.has_current_workspace_candidate is True
+    assert resolution.has_recoverable_current_workspace is True
+    assert resolution.project_root == recent.resolve(strict=False).as_posix()
+    assert resolution.candidates[0].source == "recent_project"
+    assert resolution.candidates[0].auto_selectable is True
+    assert resolution.candidates[1].source == "current_workspace"
+    assert resolution.candidates[1].state_exists is True
+    assert resolution.candidates[1].project_exists is False
+
+
 def test_resolve_project_reentry_skips_recent_project_scan_for_recoverable_current_workspace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

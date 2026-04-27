@@ -95,13 +95,21 @@ include = [
 exclude = [
     "/.DS_Store",
     "/.mypy_cache",
+    "/.npm-cache",
     "/.pytest_cache",
     "/.ruff_cache",
     "/.uv-cache",
     "/.venv",
+    "/__pycache__",
+    "/build",
     "/GPD*",
     "/dist",
     "/tmp",
+    "/*.egg-info",
+    "**/__pycache__",
+    "**/*.egg-info",
+    "**/*.pyc",
+    "**/*.pyo",
 ]
 
 [tool.pytest.ini_options]

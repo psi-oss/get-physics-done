@@ -165,8 +165,8 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
     if reference_documents:
         dependency_hint = (
             "Treat `content` as the wrapper/context surface. Load `schema_documents` and "
-            "`contract_documents` too when present; they carry the markdown bodies that back the "
-            "model-visible schema and contract rules."
+            "`contract_documents` too when present. They carry the markdown bodies that back the "
+            "direct model-visible schema and contract rules."
         )
     elif referenced_files:
         dependency_hint = (
@@ -691,7 +691,10 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
             loading_hint = _skill_loading_hint(
                 source_kind=skill.source_kind,
                 referenced_files=bool(referenced_files),
-                reference_documents=bool(schema_documents or contract_documents),
+                reference_documents=bool(
+                    schema_documents
+                    or contract_documents
+                ),
             )
             payload = {
                 "name": skill.name,

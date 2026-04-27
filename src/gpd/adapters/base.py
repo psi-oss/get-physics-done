@@ -744,12 +744,12 @@ class RuntimeAdapter(abc.ABC):
                 shutil.rmtree(gpd_dir)
                 removed.append(f"{GPD_INSTALL_DIR_NAME}/")
 
-            # Remove gpd-*.md agent files
+            # Remove managed gpd-* agent files shared by markdown and TOML runtimes.
             agents_dir = target_dir / AGENTS_DIR_NAME
             if agents_dir.is_dir():
                 agent_count = 0
                 for f in agents_dir.iterdir():
-                    if f.name.startswith("gpd-") and f.suffix == ".md":
+                    if f.name.startswith("gpd-") and f.suffix in {".md", ".toml"}:
                         f.unlink()
                         agent_count += 1
                 if agent_count:

@@ -322,7 +322,7 @@ def test_project_root_from_payload_falls_back_to_workspace_when_resolution_fails
     workspace = tmp_path / "workspace"
     workspace.mkdir()
 
-    with patch("gpd.hooks.payload_roots.resolve_project_root", return_value=None):
+    with patch("gpd.hooks.payload_roots.resolve_project_roots", return_value=None):
         result = project_root_from_payload(
             {"project_dir": str(tmp_path / "missing")},
             str(workspace),
@@ -384,6 +384,7 @@ def test_resolve_payload_roots_marks_untrusted_project_dir_when_workspace_walkup
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
     (project / "GPD").mkdir()
+    (project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(tmp_path / "stale-project-dir")}},
@@ -434,10 +435,12 @@ def test_resolve_payload_roots_rejects_unrelated_verified_project_dir_hint(tmp_p
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)
     (project / "GPD").mkdir()
+    (project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
 
     unrelated = tmp_path / "other-project"
     unrelated.mkdir()
     (unrelated / "GPD").mkdir()
+    (unrelated / "GPD" / "PROJECT.md").write_text("# Other\n", encoding="utf-8")
 
     roots = resolve_payload_roots(
         {"workspace": {"cwd": str(workspace), "project_dir": str(unrelated)}},
@@ -447,6 +450,23 @@ def test_resolve_payload_roots_rejects_unrelated_verified_project_dir_hint(tmp_p
     assert roots.workspace_dir == str(workspace.resolve(strict=False))
     assert roots.project_root == str(project.resolve(strict=False))
     assert roots.project_dir_present is True
+    assert roots.project_dir_trusted is False
+
+
+def test_resolve_payload_roots_does_not_capture_empty_ancestor_gpd_without_project_dir(tmp_path) -> None:
+    project = tmp_path / "project"
+    workspace = project / "src" / "notes"
+    workspace.mkdir(parents=True)
+    (project / "GPD").mkdir()
+
+    roots = resolve_payload_roots(
+        {"workspace": {"cwd": str(workspace)}},
+        policy_getter=lambda _cwd: _policy(workspace_keys=("cwd",), project_dir_keys=("project_dir",)),
+    )
+
+    assert roots.workspace_dir == str(workspace.resolve(strict=False))
+    assert roots.project_root == str(workspace.resolve(strict=False))
+    assert roots.project_dir_present is False
     assert roots.project_dir_trusted is False
 
 
