@@ -109,6 +109,12 @@ def _expected_permissions_capability_fallback_payload(*, contract_source: str, c
         "supports_usage_tokens": False,
         "supports_cost_usd": False,
         "supports_context_meter": False,
+        "child_artifact_persistence_reliability": "unknown",
+        "supports_structured_child_results": False,
+        "continuation_surface": "unknown",
+        "checkpoint_stop_semantics": "unknown",
+        "supports_runtime_session_payload_attribution": False,
+        "supports_agent_payload_attribution": False,
     }
     if contract_error is not None:
         payload["contract_error"] = contract_error

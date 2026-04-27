@@ -283,6 +283,10 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
 def _state_command_cwd(cwd: Path | None = None) -> Path:
     """Resolve the effective cwd for state and project-contract commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    if resolved is not None:
+        _migrate_planning_files(resolved)
+        return resolved
     _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     if resolved is not None:
@@ -300,14 +304,35 @@ def _read_only_project_scoped_cwd(cwd: Path | None = None) -> Path:
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
     """Resolve the nearest verified project root for project-scoped preflights."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    if resolved is not None:
+        _migrate_planning_files(resolved)
+        return resolved
     _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
 
 
+def _resolve_return_file_path(file_path: str, *, launch_cwd: Path, project_root: Path) -> Path:
+    """Resolve a child-return file path using CLI launch cwd before project root."""
+    raw_path = Path(file_path).expanduser()
+    if raw_path.is_absolute():
+        return raw_path.resolve(strict=False)
+
+    launch_candidate = (launch_cwd / raw_path).resolve(strict=False)
+    project_candidate = (project_root / raw_path).resolve(strict=False)
+    for candidate in (launch_candidate, project_candidate):
+        if candidate.exists():
+            return candidate
+    return launch_candidate
+
+
 def _workspace_locked_cwd(cwd: Path | None = None) -> Path:
     """Resolve the effective cwd without walking up to an ancestor project root."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    ancestor_root = resolve_project_root(workspace_cwd, require_layout=True)
+    if ancestor_root is not None and ancestor_root != workspace_cwd:
+        return workspace_cwd
     _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(
         workspace_cwd,
@@ -1549,10 +1574,11 @@ def phase_list(
     """List phases and their files."""
     from gpd.core.phases import list_phase_files, list_phases
 
+    cwd = _read_only_project_scoped_cwd()
     if file_type or phase:
-        _output(list_phase_files(_get_cwd(), file_type=file_type or "plan", phase=phase))
+        _output(list_phase_files(cwd, file_type=file_type or "plan", phase=phase))
     else:
-        _output(list_phases(_get_cwd()))
+        _output(list_phases(cwd))
 
 
 @phase_app.command("add")
@@ -1562,7 +1588,7 @@ def phase_add(
     """Add a new phase to the end of the roadmap."""
     from gpd.core.phases import phase_add
 
-    _output(phase_add(_get_cwd(), " ".join(description)))
+    _output(phase_add(_project_scoped_cwd(), " ".join(description)))
 
 
 @phase_app.command("insert")
@@ -1573,7 +1599,7 @@ def phase_insert(
     """Insert a new phase after an existing one."""
     from gpd.core.phases import phase_insert
 
-    _output(phase_insert(_get_cwd(), after_phase, " ".join(description)))
+    _output(phase_insert(_project_scoped_cwd(), after_phase, " ".join(description)))
 
 
 @phase_app.command("remove")
@@ -1584,7 +1610,7 @@ def phase_remove(
     """Remove a phase from the roadmap."""
     from gpd.core.phases import phase_remove
 
-    _output(phase_remove(_get_cwd(), phase_num, force=force))
+    _output(phase_remove(_project_scoped_cwd(), phase_num, force=force))
 
 
 @phase_app.command("complete")
@@ -1594,7 +1620,7 @@ def phase_complete(
     """Mark a phase as complete."""
     from gpd.core.phases import phase_complete
 
-    _output(phase_complete(_get_cwd(), phase_num))
+    _output(phase_complete(_project_scoped_cwd(), phase_num))
 
 
 @phase_app.command("index")
@@ -1604,7 +1630,7 @@ def phase_plan_index(
     """Show plan index for a phase (plans, waves, dependencies)."""
     from gpd.core.phases import phase_plan_index
 
-    _output(phase_plan_index(_get_cwd(), phase_num))
+    _output(phase_plan_index(_read_only_project_scoped_cwd(), phase_num))
 
 
 @phase_app.command("find")
@@ -1614,7 +1640,7 @@ def phase_find(
     """Find a phase directory and its metadata."""
     from gpd.core.phases import find_phase
 
-    result = find_phase(_get_cwd(), phase_num)
+    result = find_phase(_read_only_project_scoped_cwd(), phase_num)
     if result is None:
         _error(f"Phase {phase_num} not found")
     _output(result)
@@ -1627,7 +1653,7 @@ def phase_next_decimal(
     """Get the next available decimal phase number (e.g. 42 → 42.1)."""
     from gpd.core.phases import next_decimal_phase
 
-    _output(next_decimal_phase(_get_cwd(), base_phase))
+    _output(next_decimal_phase(_read_only_project_scoped_cwd(), base_phase))
 
 
 @phase_app.command("normalize")
@@ -1647,7 +1673,7 @@ def phase_validate_waves(
     """Validate wave dependencies within a phase."""
     from gpd.core.phases import validate_phase_waves
 
-    result = validate_phase_waves(_get_cwd(), phase_num)
+    result = validate_phase_waves(_read_only_project_scoped_cwd(), phase_num)
     _output(result)
     validation = getattr(result, "validation", None)
     if getattr(validation, "valid", True) is False:
@@ -5929,48 +5955,7 @@ def _annotate_permissions_payload(payload: dict[str, object]) -> dict[str, objec
     """Attach structured capability and evidence metadata to a permissions payload."""
     from gpd.core.health import annotate_permissions_payload
 
-    annotated = annotate_permissions_payload(payload, requested_runtime=None)
-    capability_payload = annotated.get("capabilities")
-    if not isinstance(capability_payload, dict):
-        capability_payload = {}
-        annotated["capabilities"] = capability_payload
-
-    capability_payload.update(
-        {
-            "child_artifact_persistence_reliability": "unknown",
-            "supports_structured_child_results": False,
-            "continuation_surface": "unknown",
-            "checkpoint_stop_semantics": "unknown",
-            "supports_runtime_session_payload_attribution": False,
-            "supports_agent_payload_attribution": False,
-        }
-    )
-
-    runtime_name = annotated.get("runtime")
-    if not isinstance(runtime_name, str) or not runtime_name.strip():
-        return annotated
-
-    try:
-        from gpd.adapters.runtime_catalog import get_runtime_capabilities
-    except Exception:
-        return annotated
-
-    try:
-        capabilities = get_runtime_capabilities(runtime_name)
-    except KeyError:
-        return annotated
-
-    capability_payload.update(
-        {
-            "child_artifact_persistence_reliability": capabilities.child_artifact_persistence_reliability,
-            "supports_structured_child_results": capabilities.supports_structured_child_results,
-            "continuation_surface": capabilities.continuation_surface,
-            "checkpoint_stop_semantics": capabilities.checkpoint_stop_semantics,
-            "supports_runtime_session_payload_attribution": capabilities.supports_runtime_session_payload_attribution,
-            "supports_agent_payload_attribution": capabilities.supports_agent_payload_attribution,
-        }
-    )
-    return annotated
+    return annotate_permissions_payload(payload, requested_runtime=None)
 
 
 def _runtime_permissions_payload(
@@ -9096,16 +9081,6 @@ def _publication_subject_preflight_policy(
     )
 
 
-def _peer_review_standalone_artifact_mode(
-    project_root: Path,
-    subject: str | None,
-    *,
-    workspace_cwd: Path | None = None,
-) -> bool:
-    """Return whether peer-review should treat the current request as external-artifact mode."""
-    return _peer_review_mode_resolution(project_root, subject, workspace_cwd=workspace_cwd).standalone_artifact_mode
-
-
 def _peer_review_artifact_text_surface_ready(
     manuscript: Path,
     *,
@@ -11222,7 +11197,7 @@ def sync_phase_checkpoints() -> None:
     """Generate checkpoint notes under GPD/ from phase summaries."""
     from gpd.core.checkpoints import sync_phase_checkpoints
 
-    _output(sync_phase_checkpoints(_get_cwd()))
+    _output(sync_phase_checkpoints(_project_scoped_cwd()))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -11272,7 +11247,9 @@ def validate_return(
     """Validate a gpd_return YAML block in a file."""
     from gpd.core.commands import cmd_validate_return
 
-    resolved = _get_cwd() / file_path
+    launch_cwd = _get_cwd()
+    project_root = _read_only_project_scoped_cwd(launch_cwd)
+    resolved = _resolve_return_file_path(file_path, launch_cwd=launch_cwd, project_root=project_root)
     result = cmd_validate_return(resolved)
     _output(result)
     if not result.passed:
@@ -11286,8 +11263,10 @@ def apply_return_updates(
     """Validate one gpd_return envelope and apply its durable child-return updates."""
     from gpd.core.commands import cmd_apply_return_updates
 
-    resolved = _get_cwd() / file_path
-    result = cmd_apply_return_updates(_get_cwd(), resolved)
+    launch_cwd = _get_cwd()
+    project_root = _project_scoped_cwd(launch_cwd)
+    resolved = _resolve_return_file_path(file_path, launch_cwd=launch_cwd, project_root=project_root)
+    result = cmd_apply_return_updates(project_root, resolved)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)

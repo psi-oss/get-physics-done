@@ -87,6 +87,19 @@ def test_route_and_backtrack_public_command_metadata_is_dispatchable() -> None:
     assert "ask_user" in backtrack.allowed_tools
 
 
+def test_write_paper_public_metadata_only_advertises_intake_manifest() -> None:
+    """write-paper should not advertise unsupported title/topic or from-phases inputs."""
+    registry_module.invalidate_cache()
+
+    command = registry_module.get_command("write-paper")
+    subject_policy = command.command_policy.subject_policy
+
+    assert command.argument_hint == "[--intake path/to/write-paper-authoring-input.json]"
+    assert subject_policy.explicit_input_kinds == ["authoring_intake_manifest"]
+    assert "paper_title_or_topic" not in command.content
+    assert "from_phases_flag" not in command.content
+
+
 def _command_with_analysis_output_policy(command_name: str):
     command = registry_module.get_command(command_name)
     command_policy = command.command_policy or registry_module.CommandPolicy()
@@ -2918,8 +2931,9 @@ class TestReviewValidationCommands:
         )
 
         assert result.exit_code == 0, result.output
-        assert "Optional phase number, manuscript target" in result.output
-        assert "referee report source" in result.output
+        output = _normalize_cli_output(result.output)
+        assert "Optional phase number, manuscript target" in output
+        assert "referee report source" in output
 
     def test_init_peer_review_help_surfaces_target_argument_and_stage_option(self) -> None:
         result = runner.invoke(
@@ -6024,6 +6038,29 @@ class TestReviewValidationCommands:
             "external authoring outside a project requires `--intake path/to/write-paper-authoring-input.json`"
         )
 
+    def test_command_context_write_paper_does_not_migrate_nested_project_notes_under_ancestor(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        nested = gpd_project / "notes" / "nested"
+        nested.mkdir(parents=True)
+        (nested / "PROJECT.md").write_text("# Nested note\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "validate", "command-context", "write-paper"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:write-paper"
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+        assert payload["resolved_subject"]["status"] == "missing"
+        assert not (nested / "GPD").exists()
+
     def test_command_context_write_paper_accepts_valid_external_authoring_intake(
         self,
         tmp_path: Path,
@@ -7208,10 +7245,11 @@ class TestReviewValidationCommands:
         result = runner.invoke(app, ["validate", "referee-decision", "--help"], catch_exceptions=False)
 
         assert result.exit_code == 0, result.output
-        assert "Require staged peer-review artifact coverage" in result.output
-        assert "recommendation-floor consistency" in result.output
-        assert "policy-driving inputs" in result.output
-        assert "all journals" in result.output
+        output = _normalize_cli_output(result.output)
+        assert "Require staged peer-review artifact coverage" in output
+        assert "recommendation-floor consistency" in output
+        assert "policy-driving inputs" in output
+        assert "all journals" in output
 
     def test_validate_referee_decision_strict_requires_matching_ledger(self, gpd_project: Path) -> None:
         _write_review_stage_artifacts(gpd_project)

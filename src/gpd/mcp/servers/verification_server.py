@@ -639,19 +639,6 @@ def _contract_enum_string_list_schema(values: Iterable[str], *, min_items: int |
     return schema
 
 
-def _contract_enum_string_or_string_list_schema(
-    values: Iterable[str],
-    *,
-    min_items: int | None = None,
-) -> dict[str, object]:
-    return {
-        "anyOf": [
-            _contract_enum_string_schema(values),
-            _contract_enum_string_list_schema(values, min_items=min_items),
-        ]
-    }
-
-
 def _binding_input_schema_for_targets(targets: Iterable[str]) -> dict[str, object]:
     properties: dict[str, object] = {}
     for target in targets:

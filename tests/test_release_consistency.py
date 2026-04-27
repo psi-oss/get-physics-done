@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -36,6 +37,11 @@ _BOOTSTRAP_JSON_ASSETS = (
     "src/gpd/core/public_surface_contract.json",
     "src/gpd/core/public_surface_contract_schema.json",
 )
+_EXPECTED_OPTIONAL_DEPENDENCIES = {"arxiv": ["arxiv-mcp-server>=0.4.11", "pypdf>=5.0"]}
+_OPTIONAL_UNDECLARED_PUBLICATION_IMPORTS = {
+    "src/gpd/mcp/paper/bibliography.py": {"arxiv"},
+    "src/gpd/mcp/paper/figures.py": {"cairosvg"},
+}
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -138,6 +144,18 @@ def _uv_build_blocked_by_environment(stderr: str) -> bool:
 def _copy_release_surfaces(repo_root: Path, out_dir: Path) -> None:
     for relative_path in ("CHANGELOG.md", "CITATION.cff", "README.md", "package.json", "pyproject.toml"):
         shutil.copy2(repo_root / relative_path, out_dir / relative_path)
+
+
+def _direct_imported_modules(repo_root: Path, relative_path: str) -> set[str]:
+    tree = ast.parse((repo_root / relative_path).read_text(encoding="utf-8"), filename=relative_path)
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name.split(".", 1)[0] for alias in node.names)
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module.split(".", 1)[0])
+    return modules
 
 
 def _expected_runtime_dependency_names() -> set[str]:
@@ -338,7 +356,8 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "function repositoryGitUrl(" in content
     assert "function repositorySshGitUrl(" not in content
     assert "requestedVersion" in content
-    assert "GitHub sources" in content
+    assert "the PyPI pinned release or tagged GitHub release sources" in content
+    assert "the latest unreleased GitHub ${GITHUB_MAIN_BRANCH} source" in content
 
 
 def test_export_workflow_uses_release_attribution_footer() -> None:
@@ -503,10 +522,22 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     optional = project.get("optional-dependencies", {})
 
     assert _normalized_dependency_names(dependencies) == _expected_runtime_dependency_names()
-    assert optional == {"arxiv": ["arxiv-mcp-server>=0.4.11", "pypdf>=5.0"]}
+    assert optional == _EXPECTED_OPTIONAL_DEPENDENCIES
 
 
+def test_optional_publication_imports_stay_explicitly_undeclared_integrations() -> None:
+    repo_root = _repo_root()
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dependencies: list[str] = project["dependencies"]
+    optional = project.get("optional-dependencies", {})
+    declared_requirement_names = _normalized_dependency_names(
+        dependencies + [requirement for requirements in optional.values() for requirement in requirements]
+    )
 
+    for relative_path, expected_imports in _OPTIONAL_UNDECLARED_PUBLICATION_IMPORTS.items():
+        direct_imports = _direct_imported_modules(repo_root, relative_path)
+        assert direct_imports & expected_imports == expected_imports
+        assert not expected_imports & declared_requirement_names
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:

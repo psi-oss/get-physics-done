@@ -21,7 +21,7 @@ Get Physics Done is an open-source agentic AI system for physics research from [
 
 https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
-[Start Here](#start-here) · [Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-in-runtime-commands) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
+[Start Here](#start-here) · [Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-gpd-paths) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
 
 ## Start Here
 
@@ -199,13 +199,13 @@ Typical new-project workflow:
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
-| `--upgrade` | Upgrade `~/GPD/venv` from the latest GitHub `main` source. |
+| `--reinstall` | Reinstall `~/GPD/venv` from the PyPI pinned release first, with tagged GitHub release sources as fallback. |
+| `--upgrade` | Upgrade `~/GPD/venv` from the latest unreleased GitHub `main` source. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Ordinary installs stay pinned to the matching tagged release. Use `--upgrade` only when you intentionally want the latest unreleased `main` source.
+Ordinary installs and `--reinstall` use the PyPI pinned release first, then matching tagged GitHub release sources if PyPI is unavailable. Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` source.
 
 Install the unreleased GitHub `main` snapshot explicitly:
 
@@ -328,7 +328,7 @@ Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase
 
 Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
 
-Publication boundary: `gpd:write-paper` supports the current-project manuscript roots, the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target, and serves as the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. Publication-root handling is partial by design.
+Publication boundary: `gpd:write-paper` supports the current-project manuscript roots, the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit manuscript/artifact path or paper directory target, and serves as the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. Publication-root handling is partial by design.
 
 Leave / return path: `gpd:pause-work` before leaving mid-phase, `gpd:resume-work` when you return in-runtime, `gpd:suggest-next` when you only need the next action, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue inside that workspace with the runtime `resume-work` command.
 
@@ -444,6 +444,11 @@ Per-project tier settings live in `GPD/config.json` under `model_overrides`:
       "tier-1": "<runtime-native-model-id>",
       "tier-2": "<runtime-native-model-id>",
       "tier-3": "<runtime-native-model-id>"
+    },
+    "opencode": {
+      "tier-1": "<runtime-native-model-id>",
+      "tier-2": "<runtime-native-model-id>",
+      "tier-3": "<runtime-native-model-id>"
     }
   }
 }
@@ -529,7 +534,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 - Node.js with `npm`/`npx` (see the `Need Node.js?` note above if Node.js is missing)
 - Python 3.11+ with the standard `venv` module (see the OS guides above for beginner setup steps on macOS, Linux, and Windows)
-- Network access to npm and GitHub for the bootstrap installer
+- Network access to npm and PyPI for ordinary bootstrap installs; GitHub is needed for tagged-source fallback and `--upgrade`
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 

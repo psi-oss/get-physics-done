@@ -1,6 +1,6 @@
 # Agent Delegation Reference
 
-This is the canonical delegation contract for spawned GPD agents. Reuse these rules anywhere a workflow, runtime note, or continuation template needs to describe a handoff.
+This is the canonical delegation contract for spawned GPD agents. Reuse these rules anywhere a workflow, runtime note, infrastructure reference, or continuation template needs to describe a handoff. Other prompt surfaces should link here instead of restating these rules.
 
 ## Delegation Invariants
 

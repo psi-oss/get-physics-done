@@ -285,3 +285,15 @@ def test_graph_test_file_references_exist() -> None:
     )
 
     assert missing == []
+
+
+def test_graph_docs_file_references_exist() -> None:
+    missing = sorted(
+        {
+            ref
+            for ref in re.findall(r"docs/[A-Za-z0-9_./-]+\.md", read_graph_text())
+            if not (REPO_ROOT / ref).is_file()
+        }
+    )
+
+    assert missing == []

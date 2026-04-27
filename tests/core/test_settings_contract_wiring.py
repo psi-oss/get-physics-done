@@ -106,7 +106,7 @@ def test_set_tier_models_workflow_keeps_runtime_examples_generic() -> None:
     assert "Gemini CLI" not in set_tier_models
     assert "OpenCode" not in set_tier_models
     assert "gpt-5.4" not in set_tier_models
-    assert "runtime-native examples are intentionally not hard-coded here" in set_tier_models
+    assert "runtime-native examples are intentionally not hard-coded here" in set_tier_models.lower()
 
 
 def test_settings_workflow_keeps_convention_ownership_outside_settings_and_routes_changes_to_validate_conventions() -> None:

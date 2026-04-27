@@ -1301,7 +1301,8 @@ function releaseInstallCandidates(version) {
     );
   }
 
-  // Release installs stay pinned to the matching tagged GitHub source.
+  // Release fallback candidates stay pinned to the selected version tag.
+  // PyPI is tried before these candidates.
   if (repoGitUrl) {
     candidates.push(
       {
@@ -2222,8 +2223,8 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/GPD/venv`);
-  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest GitHub main source`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall ~/GPD/venv from the PyPI pinned release, with tagged GitHub fallback`);
+  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest unreleased GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));
@@ -2244,10 +2245,10 @@ function printHelp() {
   console.log(` ${dim}# Install for ${runtimeDisplayName(localHelpRuntime)} locally${reset}`);
   console.log(` ${installCommand} ${helpExampleFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Reinstall the matching managed GitHub source${reset}`);
+  console.log(` ${dim}# Reinstall the PyPI pinned release${reset}`);
   console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Upgrade to the latest unreleased GitHub main source${reset}`);
   console.log(` ${installCommand} --upgrade ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
@@ -2279,7 +2280,8 @@ function printHelp() {
   );
   console.log(` ${SHARED_PUBLIC_SURFACE_TEXT.settingsCommandSentence}`);
   console.log(
-    " Recommended unattended default: Balanced autonomy (`balanced`). "
+    " Supervised autonomy (`supervised`) is the default. "
+    + "Opt into Balanced autonomy (`balanced`) later through `settings` once you trust GPD's boundary. "
     + SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence
   );
   console.log(
@@ -2602,7 +2604,10 @@ async function main() {
     purpose: isUninstall ? "uninstall" : "install",
   });
   if (!packageInstall.ok) {
-    error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
+    const failureSource = upgradeManagedPackage
+      ? `the latest unreleased GitHub ${GITHUB_MAIN_BRANCH} source`
+      : "the PyPI pinned release or tagged GitHub release sources";
+    error(`Failed to install GPD v${packageInstall.requestedVersion} from ${failureSource}.`);
     process.exit(1);
   }
 

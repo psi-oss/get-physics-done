@@ -37,13 +37,9 @@ allowed-tools:
 ---
 
 <objective>
-Create or update a draft knowledge document in the current workspace from an explicit topic, source file, arXiv ID, or canonical current-workspace knowledge document path, while keeping the wrapper thin and the workflow authoritative.
+Route a knowledge-digest request into the workflow-owned authoring/update implementation.
 
-External source material may live anywhere. The canonical knowledge target itself must stay under the invoking workspace's `GPD/knowledge/` tree.
-
-**Orchestrator role:** Validate command context, gather the local current-workspace context needed to resolve a canonical target, classify the input, and then delegate the actual create/update decision-making to the workflow-owned `digest-knowledge` instructions.
-
-**Why subagent:** The workflow will need fresh context for source intake, deterministic current-workspace target resolution, and draft synthesis without contaminating the wrapper with policy details.
+This wrapper owns command-context validation, current-workspace target boundaries, and out-of-lifecycle routing only. The same-named workflow owns classification, deterministic target resolution, source intake, draft synthesis, schema validation, and create/update decisions.
 </objective>
 
 <execution_context>
@@ -53,26 +49,15 @@ External source material may live anywhere. The canonical knowledge target itsel
 <context>
 Input: $ARGUMENTS
 
-Treat `GPD/knowledge/` in the current workspace as the only canonical durable target tree for this command. An explicit `K-*.md` path outside that tree is not a canonical knowledge target here.
+External source material may live anywhere. The canonical knowledge target itself must stay under the current workspace's `GPD/knowledge/` tree.
 
-Check for existing knowledge docs:
+Treat explicit source-file intake as including `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied directly. For `.pdf`, `.docx`, and `.xlsx`, keep any text extraction inside the workflow via `gpd validate artifact-text <path> --output <txt-path>`.
 
-```bash
-ls GPD/knowledge/*.md 2>/dev/null | head -10
-```
-
-Check for related source inputs when you already know the target family:
-
-```bash
-ls GPD/literature/*.md 2>/dev/null | head -10
-ls GPD/research-map/*.md 2>/dev/null | head -10
-```
-
+Do not treat lookalike `K-*.md` files outside the current workspace `GPD/knowledge/` tree as canonical knowledge targets. If the requested action is review, approval, promotion to `stable`, supersession, or mutation of an existing stable target, route to `gpd:review-knowledge`.
 </context>
 
 <process>
-
-## 0. Initialize Context
+## 1. Validate Context
 
 ```bash
 CONTEXT=$(gpd --raw validate command-context digest-knowledge "$ARGUMENTS")
@@ -80,74 +65,19 @@ if [ $? -ne 0 ]; then
   echo "$CONTEXT"
   exit 1
 fi
-
-INIT=$(gpd --raw init progress --include state,roadmap,config)
 ```
 
-Extract `commit_docs`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `active_reference_context`, and any existing `reference_artifact_files` from init JSON. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.
+## 2. Delegate To Workflow
 
-## 1. Classify The Request
-
-Interpret `$ARGUMENTS` as one of:
-
-1. explicit current-workspace knowledge document path
-2. explicit source file path
-3. arXiv identifier
-4. free-form topic or question
-
-Treat explicit source-file intake as including `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx` when those paths are supplied directly. If the source is non-plain-text (`.pdf`, `.docx`, `.xlsx`), keep any text extraction inside the workflow via `gpd validate artifact-text <path> --output <txt-path>` rather than inventing ad hoc conversion here.
-
-If the request is materially ambiguous, stop and ask one focused clarification question instead of guessing.
-Do not treat lookalike `K-*.md` files outside the current workspace `GPD/knowledge/` tree as canonical knowledge targets; they are source files only if the user clearly asked to digest that external file as source material.
-If the user is asking to promote a doc to `stable`, approve it, or mutate an existing stable target, route them to `gpd:review-knowledge` instead of pretending `digest-knowledge` can own that lifecycle step.
-
-## 2. Resolve The Target
-
-Prefer deterministic resolution over implicit repair:
-
-1. reuse an explicit current-workspace `GPD/knowledge/K-*.md` path if provided
-2. update an existing knowledge doc only when the target is exact, unambiguous, and already draft
-3. otherwise create a new draft target from a normalized `knowledge_id`
-
-If more than one existing knowledge doc is plausible, stop and ask for clarification.
-If the resolved target exists and is `stable` or `superseded`, do not repurpose it here; route the user to `gpd:review-knowledge` for promotion, revision, or replacement guidance.
-Never redirect the durable target to an external source directory or to a different recent project. The standalone/current-workspace target stays under `./GPD/knowledge/`.
-
-## 3. Delegate The Workflow
-
-Construct a concise handoff for the workflow-owned command logic:
-
-```markdown
-<objective>
-Digest knowledge from {input_kind}: {input_summary}
-
-**Scope:**
-
-- Canonical target: {target_path_or_none}
-- Resolution mode: create | update | clarify
-- Contract-critical anchors: {active_reference_context}
-
-Keep the knowledge-specific resolution, synthesis, and draft-writing rules in the workflow-owned `digest-knowledge` instructions. This wrapper should only classify, resolve, and route.
-
-If the requested action belongs to review, approval, or stable-state mutation, explicitly point to `gpd:review-knowledge` rather than overloading this wrapper.
-</objective>
-```
-
-If the workflow requires a spawned writer, delegate that work there and keep the wrapper focused on orchestration only.
-
-## 4. Return Results
-
-Report the resolved target, whether the action was create or update, and any clarification questions that blocked progress.
-
+Execute the digest-knowledge workflow from @{GPD_INSTALL_DIR}/workflows/digest-knowledge.md end-to-end.
+Preserve its current-workspace bootstrap, canonical `GPD/knowledge/` output root, draft-only lifecycle boundary, and review-knowledge routing.
 </process>
 
 <success_criteria>
 
 - [ ] Command context validated
-- [ ] Input classified explicitly
-- [ ] Canonical target resolved or ambiguity surfaced
-- [ ] Workflow-owned behavior delegated cleanly
-- [ ] Draft-only boundary preserved
-- [ ] Result reported without overclaiming review or automatic promotion
-
+- [ ] Digest-knowledge workflow executed as the authority for mechanics
+- [ ] Canonical target kept under current-workspace `GPD/knowledge/`
+- [ ] External sources used only as sources, not durable target roots
+- [ ] Review, approval, promotion, and stable-target mutation routed to `gpd:review-knowledge`
 </success_criteria>

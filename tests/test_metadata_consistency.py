@@ -392,6 +392,26 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     assert descriptor["capabilities"][-1] == "download_source"
 
 
+def test_paper_journal_vocabulary_docs_match_builder_contract() -> None:
+    from gpd.mcp.paper.models import SUPPORTED_PAPER_JOURNALS
+
+    expected = set(SUPPORTED_PAPER_JOURNALS)
+
+    paper_config_schema = _read("src/gpd/specs/templates/paper/paper-config-schema.md")
+    supported_journals_match = re.search(
+        r"## Supported `journal` Values(?P<section>.*?)(?=^## Validation Rules)",
+        paper_config_schema,
+        re.M | re.S,
+    )
+    assert supported_journals_match is not None
+    assert set(re.findall(r"^- `([^`]+)`$", supported_journals_match.group("section"), re.M)) == expected
+
+    authoring_input_schema = _read("src/gpd/specs/templates/paper/write-paper-authoring-input-schema.md")
+    target_journal_match = re.search(r"^- `target_journal`: one of (?P<values>.+)$", authoring_input_schema, re.M)
+    assert target_journal_match is not None
+    assert set(re.findall(r"`([^`]+)`", target_journal_match.group("values"))) == expected
+
+
 def test_agent_count_matches_prompts_and_user_docs() -> None:
     agents_count = len(list((_repo_root() / "src" / "gpd" / "agents").glob("*.md")))
     assert agents_count == len(MODEL_PROFILES)

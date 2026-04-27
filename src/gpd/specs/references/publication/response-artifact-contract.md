@@ -1,18 +1,11 @@
 ---
-load_when:
-  - "author response"
-  - "referee response"
-  - "response artifact contract"
-  - "response letter"
-type: response-artifact-contract
-tier: 2
-context_cost: low
+type: legacy-publication-reference
+context_cost: none
 ---
 
 # Response Artifact Contract
 
-Compatibility entry point for the canonical publication response-artifact contract.
+Legacy filename retained for path stability only.
 
-The authoritative source now lives here:
-
+Canonical contract:
 @{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md

@@ -179,7 +179,7 @@ Ask user via ask_user:
 On **"Use gpd:write-paper":**
 
 ```
-Skill(skill="gpd:write-paper")
+Invoke the runtime-installed `gpd:write-paper` command.
 ```
 
 After write-paper completes, proceed to iterate step (skip normal discuss/plan/execute/verify).
@@ -323,7 +323,7 @@ Check `has_context`. If false → go to handle_blocker: "Smart discuss for phase
 **3c. Plan**
 
 ```
-Skill(skill="gpd:plan-phase", args="${PHASE_NUM}")
+Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM}`.
 ```
 
 Verify plan produced output — re-run `init phase-op` and check `has_plans`. If false → go to handle_blocker: "Plan phase ${PHASE_NUM} did not produce any plans."
@@ -331,7 +331,7 @@ Verify plan produced output — re-run `init phase-op` and check `has_plans`. If
 **3d. Execute**
 
 ```
-Skill(skill="gpd:execute-phase", args="${PHASE_NUM}")
+Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM}`.
 ```
 
 **3e. Post-Execution Verification Routing**
@@ -354,7 +354,7 @@ PHASE_DIR=$(echo "$PHASE_STATE" | gpd json get .phase_dir --default "")
 Run verification explicitly:
 
 ```
-Skill(skill="gpd:verify-work", args="${PHASE_NUM}")
+Invoke the runtime-installed `gpd:verify-work` command with `${PHASE_NUM}`.
 ```
 
 Re-read verification status:
@@ -406,19 +406,19 @@ Ask user via ask_user:
 On **"Run gap closure"**: Execute gap closure cycle (limit: 1 attempt):
 
 ```
-Skill(skill="gpd:plan-phase", args="${PHASE_NUM} --gaps")
+Invoke the runtime-installed `gpd:plan-phase` command with `${PHASE_NUM} --gaps`.
 ```
 
 Verify gap plans were created — re-run `init phase-op ${PHASE_NUM}` and check `has_plans`. If no new gap plans → go to handle_blocker: "Gap closure planning for phase ${PHASE_NUM} did not produce plans."
 
 Re-execute with `--gaps-only` to run ONLY the gap-closure plans (not re-run original plans):
 ```
-Skill(skill="gpd:execute-phase", args="${PHASE_NUM} --gaps-only")
+Invoke the runtime-installed `gpd:execute-phase` command with `${PHASE_NUM} --gaps-only`.
 ```
 
 Force fresh verification after gap closure — do NOT read stale VERIFICATION.md:
 ```
-Skill(skill="gpd:verify-work", args="${PHASE_NUM}")
+Invoke the runtime-installed `gpd:verify-work` command with `${PHASE_NUM}`.
 ```
 
 Re-read verification status from the FRESH artifact:
@@ -791,7 +791,7 @@ ls GPD/CONVENTIONS.md 2>/dev/null
 **If CONVENTIONS.md exists:** Run the command-backed convention validation on the just-completed phase. This is the authoritative check — no ad-hoc scanning.
 
 ```
-Skill(skill="gpd:validate-conventions", args="${PHASE_NUM}")
+Invoke the runtime-installed `gpd:validate-conventions` command with `${PHASE_NUM}`.
 ```
 
 Read the validation result. The command writes a validation artifact or reports to stdout.
@@ -866,7 +866,7 @@ Display lifecycle transition banner:
 **5a. Audit**
 
 ```
-Skill(skill="gpd:audit-milestone")
+Invoke the runtime-installed `gpd:audit-milestone` command.
 ```
 
 After audit completes, detect the result:
@@ -902,7 +902,7 @@ Ask user via ask_user:
 
 On **"Plan gap closure phases":**
 ```
-Skill(skill="gpd:plan-milestone-gaps")
+Invoke the runtime-installed `gpd:plan-milestone-gaps` command.
 ```
 
 After gap phases are planned, display: "Gap closure phases added to roadmap. Returning to autonomous execution." and loop back to discover_phases to pick up the new phases.
@@ -924,7 +924,7 @@ On **"Stop"**: Go to handle_blocker with "User stopped — audit issues to addre
 **5b. Complete Milestone**
 
 ```
-Skill(skill="gpd:complete-milestone", args="${milestone_version}")
+Invoke the runtime-installed `gpd:complete-milestone` command with `${milestone_version}`.
 ```
 
 After complete-milestone returns, verify it produced output:
@@ -1012,11 +1012,11 @@ When any phase operation fails or a blocker is detected, present 3 options via a
 - [ ] Final completion or stop summary displayed
 - [ ] After all phases complete, lifecycle step is invoked (not manual suggestion)
 - [ ] Lifecycle transition banner displayed before audit
-- [ ] Audit invoked via Skill(skill="gpd:audit-milestone")
+- [ ] Audit invoked via the runtime-installed `gpd:audit-milestone` command
 - [ ] Audit result routing: passed → auto-continue, gaps_found → user decides
 - [ ] Audit gap closure offered via gpd:plan-milestone-gaps (loops back to phase execution)
 - [ ] Audit technical failure (no file/no status) routes to handle_blocker
-- [ ] Complete-milestone invoked via Skill() with ${milestone_version} arg
+- [ ] Complete-milestone invoked via the runtime-installed command with `${milestone_version}` arg
 - [ ] Final completion banner displayed after lifecycle
 - [ ] Progress bar uses phase number / total milestone phases (not position among incomplete)
 - [ ] Smart discuss documents relationship to discuss-phase

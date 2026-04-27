@@ -9,7 +9,7 @@ Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` d
 ## Repository Interdependency Graph
 
 <!-- repo-graph-generated-on:start -->
-Generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
+Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
 <!-- repo-graph-generated-on:end -->
 
 ## Status
@@ -160,9 +160,9 @@ flowchart TD
 - `bin/install.js -> GitHub main-branch source family {https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> tagged release install candidate chain {tag archive, https tag checkout}`
+- `bin/install.js -> release install candidate chain {PyPI package, tag archive, https tag checkout}`
   `ordering-contract`
-  Normal install and `--reinstall` stay pinned to the matching tagged release and fail closed if it cannot be installed.
+  Normal install and `--reinstall` use the pinned PyPI release first, then matching tagged GitHub release sources as fallback, and fail closed if neither can be installed.
 
 - `bin/install.js -> main-branch upgrade candidate chain {main archive, https main checkout}`
   `ordering-contract`
@@ -1511,9 +1511,6 @@ They explicitly preserve:
   `generated-output`
 
 - `tests/test_release_consistency.py -> dist/*.whl::!gpd/mcp/viewer/cli.py`
-  `negative-packaging-contract`
-
-- `tests/test_release_consistency.py -> docs/USER-GUIDE.md`
   `negative-packaging-contract`
 
 - `tests/test_release_consistency.py -> MANUAL-TEST-PLAN.md`

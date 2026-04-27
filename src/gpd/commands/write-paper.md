@@ -1,7 +1,7 @@
 ---
 name: gpd:write-paper
 description: Structure and write a physics paper from project research results or a bounded external-authoring intake
-argument-hint: "[paper title or topic] [--from-phases 1,2,3 | --intake path/to/paper-authoring-input.json]"
+argument-hint: "[--intake path/to/write-paper-authoring-input.json]"
 context_mode: project-aware
 command-policy:
   schema_version: 1
@@ -9,11 +9,9 @@ command-policy:
     subject_kind: publication
     resolution_mode: project_manuscript_or_bootstrap
     explicit_input_kinds:
-      - paper_title_or_topic
-      - from_phases_flag
-      - intake_manifest
-    allow_external_subjects: true
-    allow_interactive_without_subject: true
+      - authoring_intake_manifest
+    allow_external_subjects: false
+    allow_interactive_without_subject: false
     supported_roots:
       - paper
       - manuscript
@@ -122,7 +120,7 @@ Keep the wrapper thin and let the workflow own the full pipeline.
 </execution_context>
 
 <context>
-Paper topic or intake: $ARGUMENTS
+Project manuscript context or intake: $ARGUMENTS
 
 This wrapper supports two truthful lanes only:
 - project-backed authoring from the current GPD project and its resolved manuscript subject

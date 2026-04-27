@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,7 @@ from pydantic import ValidationError
 
 from gpd.mcp.paper.models import (
     REQUIRED_GPD_ACKNOWLEDGMENT,
+    ArtifactManifest,
     Author,
     FigureRef,
     JournalSpec,
@@ -245,6 +248,22 @@ class TestModels:
     ) -> None:
         with pytest.raises(ValidationError, match=expected_fragment):
             model_cls.model_validate(payload)
+
+    def test_artifact_manifest_schema_figure_example_uses_raw_builder_label(self) -> None:
+        schema_path = Path(__file__).resolve().parents[1] / "src/gpd/specs/templates/paper/artifact-manifest-schema.md"
+        schema_text = schema_path.read_text(encoding="utf-8")
+        match = re.search(r"```json\n(?P<payload>.*?)\n```", schema_text, re.DOTALL)
+        assert match is not None
+
+        payload = json.loads(match.group("payload"))
+        manifest = ArtifactManifest.model_validate(payload)
+        figure = next(artifact for artifact in manifest.artifacts if artifact.category == "figure")
+        label = figure.metadata["label"]
+
+        assert label == "benchmark"
+        assert isinstance(label, str)
+        assert not label.startswith("fig:")
+        assert figure.artifact_id == f"figure-{label}"
 
     def test_journal_spec_fields(self):
         spec = JournalSpec(

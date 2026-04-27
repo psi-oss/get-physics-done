@@ -9,6 +9,7 @@ from gpd.core.manuscript_artifacts import (
     ManuscriptRootResolution,
     PublicationSubjectResolution,
     locate_publication_artifact,
+    publication_root_for_subject,
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_entrypoint,
     resolve_current_manuscript_resolution,
@@ -18,8 +19,8 @@ from gpd.core.manuscript_artifacts import (
     resolve_manuscript_entrypoint_from_root,
     resolve_publication_bootstrap_resolution,
     resolve_publication_subject_artifact,
+    review_dir_for_subject,
 )
-from gpd.core.publication_review_paths import publication_root_for_subject, review_dir_for_subject
 
 
 def _write(path: Path, content: str = "") -> None:

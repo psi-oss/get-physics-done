@@ -4869,10 +4869,10 @@ def test_undo_backtrack_hook_collects_complete_backtrack_row_fields() -> None:
     assert "Dedupe by exact normalized matching of finalized" in record_dedupe_step
     assert "`phase` + `trigger` + `why_wrong`" in record_dedupe_step
     assert (
-        "args={reverted_commit: TARGET_HASH, trigger: TARGET_MSG, "
-        "phase: INFERRED_PHASE_OR_NULL}"
+        "structured arguments `{reverted_commit: TARGET_HASH, trigger: TARGET_MSG, "
+        "phase: INFERRED_PHASE_OR_NULL}`"
     ) in undo_backtrack_step
-    assert "using structured arguments, not a shell-shaped string" in undo_backtrack_step
+    assert "not a shell-shaped string" in undo_backtrack_step
     assert "do not interpolate it into shell-shaped args" in undo_backtrack_step
     assert (
         "remaining required row fields (`stage`, `produced`, `why_wrong`, "

@@ -110,17 +110,17 @@ Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
 <status_values>
 
 - `Not started` - Haven't begun
-- `Ready to plan` - Context gathered, ready for planning
 - `Planning` - Creating execution plans
 - `Researching` - Literature review or domain research in progress
 - `Ready to execute` - Plans exist, ready for execution
 - `Executing` - Actively running plans
 - `Paused` - Temporarily halted (with reason)
-- `Phase complete` - All plans executed
 - `Phase complete — ready for verification` - Awaiting verification checks
 - `Verifying` - Running verification checks
+- `Verified` - Verification passed
 - `Complete` - Done and verified (add completion date)
 - `Blocked` - Waiting on prerequisite result or external input
+- `Ready to plan` - Context gathered, ready for planning
 - `Milestone complete` - All phases in milestone finished
   </status_values>
 

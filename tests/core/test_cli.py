@@ -1904,6 +1904,34 @@ def test_read_only_state_progress_and_suggest_resolve_ancestor_without_migration
     assert not (nested_cwd / "GPD").exists()
 
 
+def test_project_scoped_cwd_resolves_ancestor_before_migrating_nested_notes(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "notes" / "nested"
+    nested_cwd.mkdir(parents=True)
+    (project_root / "GPD").mkdir()
+    (project_root / "GPD" / "PROJECT.md").write_text("# Root project\n", encoding="utf-8")
+    (project_root / "GPD" / "ROADMAP.md").write_text("# Root roadmap\n", encoding="utf-8")
+    (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (nested_cwd / "PROJECT.md").write_text("# Nested note\n", encoding="utf-8")
+
+    assert cli_module._project_scoped_cwd(nested_cwd) == project_root.resolve()
+    assert not (nested_cwd / "GPD").exists()
+
+
+def test_workspace_locked_cwd_does_not_migrate_nested_notes_under_ancestor_project(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "notes" / "nested"
+    nested_cwd.mkdir(parents=True)
+    (project_root / "GPD").mkdir()
+    (project_root / "GPD" / "PROJECT.md").write_text("# Root project\n", encoding="utf-8")
+    (project_root / "GPD" / "ROADMAP.md").write_text("# Root roadmap\n", encoding="utf-8")
+    (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (nested_cwd / "PROJECT.md").write_text("# Nested note\n", encoding="utf-8")
+
+    assert cli_module._workspace_locked_cwd(nested_cwd) == nested_cwd.resolve()
+    assert not (nested_cwd / "GPD").exists()
+
+
 def test_resume_plain_output_surfaces_session_handoff_status(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
@@ -2906,17 +2934,19 @@ def test_resolve_model_help_lists_supported_runtime_ids():
 def test_state_help():
     result = runner.invoke(app, ["state", "--help"])
     assert result.exit_code == 0
-    assert "load" in result.output
-    assert "get" in result.output
-    assert "update" in result.output
+    output = _normalize_cli_output(result.output)
+    assert "load" in output
+    assert "get" in output
+    assert "update" in output
 
 
 def test_phase_help():
     result = runner.invoke(app, ["phase", "--help"])
     assert result.exit_code == 0
-    assert "list" in result.output
-    assert "add" in result.output
-    assert "complete" in result.output
+    output = _normalize_cli_output(result.output)
+    assert "list" in output
+    assert "add" in output
+    assert "complete" in output
 
 
 def test_session_command_is_not_exposed():
@@ -3221,6 +3251,20 @@ def test_state_validate_fail(mock_validate):
 # ─── phase subcommands ──────────────────────────────────────────────────────
 
 
+def _nested_project_root(tmp_path: Path) -> tuple[Path, Path]:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "workspace" / "nested"
+    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    return project_root, nested_cwd
+
+
+def _cli_model_result(payload: dict[str, object] | None = None) -> MagicMock:
+    result = MagicMock()
+    result.model_dump.return_value = payload or {"ok": True}
+    return result
+
+
 @patch("gpd.core.phases.list_phases")
 def test_phase_list(mock_list):
     mock_result = MagicMock()
@@ -3241,6 +3285,77 @@ def test_phase_list_with_filters_uses_file_listing(mock_list_files):
 
     assert result.exit_code == 0
     mock_list_files.assert_called_once_with(ANY, file_type="plans", phase="01")
+
+
+@pytest.mark.parametrize(
+    ("command_args", "patch_target", "expected_args", "expected_kwargs", "return_value"),
+    [
+        (["phase", "list"], "gpd.core.phases.list_phases", (), {}, _cli_model_result({"phases": []})),
+        (
+            ["phase", "list", "--type", "plans", "--phase", "01"],
+            "gpd.core.phases.list_phase_files",
+            (),
+            {"file_type": "plans", "phase": "01"},
+            _cli_model_result({"files": []}),
+        ),
+        (["phase", "index", "42"], "gpd.core.phases.phase_plan_index", ("42",), {}, _cli_model_result()),
+        (["phase", "find", "42"], "gpd.core.phases.find_phase", ("42",), {}, _cli_model_result()),
+        (["phase", "next-decimal", "42"], "gpd.core.phases.next_decimal_phase", ("42",), {}, "42.1"),
+        (
+            ["phase", "validate-waves", "42"],
+            "gpd.core.phases.validate_phase_waves",
+            ("42",),
+            {},
+            _cli_model_result({"validation": {"valid": True}}),
+        ),
+    ],
+)
+def test_phase_read_only_commands_use_ancestor_project_root_from_nested_cwd(
+    tmp_path: Path,
+    command_args: list[str],
+    patch_target: str,
+    expected_args: tuple[str, ...],
+    expected_kwargs: dict[str, object],
+    return_value: object,
+) -> None:
+    project_root, nested_cwd = _nested_project_root(tmp_path)
+    if patch_target.endswith("validate_phase_waves"):
+        return_value.validation.valid = True  # type: ignore[attr-defined]
+
+    with patch(patch_target, return_value=return_value) as mock_command:
+        result = runner.invoke(app, ["--cwd", str(nested_cwd), *command_args])
+
+    assert result.exit_code == 0, result.output
+    mock_command.assert_called_once()
+    assert mock_command.call_args.args == (project_root.resolve(), *expected_args)
+    assert mock_command.call_args.kwargs == expected_kwargs
+
+
+@pytest.mark.parametrize(
+    ("command_args", "patch_target", "expected_args", "expected_kwargs"),
+    [
+        (["phase", "add", "Compute", "cross", "section"], "gpd.core.phases.phase_add", ("Compute cross section",), {}),
+        (["phase", "insert", "42", "Check", "limits"], "gpd.core.phases.phase_insert", ("42", "Check limits"), {}),
+        (["phase", "remove", "42", "--force"], "gpd.core.phases.phase_remove", ("42",), {"force": True}),
+        (["phase", "complete", "42"], "gpd.core.phases.phase_complete", ("42",), {}),
+    ],
+)
+def test_phase_mutating_commands_use_ancestor_project_root_from_nested_cwd(
+    tmp_path: Path,
+    command_args: list[str],
+    patch_target: str,
+    expected_args: tuple[str, ...],
+    expected_kwargs: dict[str, object],
+) -> None:
+    project_root, nested_cwd = _nested_project_root(tmp_path)
+
+    with patch(patch_target, return_value=_cli_model_result()) as mock_command:
+        result = runner.invoke(app, ["--cwd", str(nested_cwd), *command_args])
+
+    assert result.exit_code == 0, result.output
+    mock_command.assert_called_once()
+    assert mock_command.call_args.args == (project_root.resolve(), *expected_args)
+    assert mock_command.call_args.kwargs == expected_kwargs
 
 
 @patch("gpd.core.phases.phase_add")
@@ -7841,6 +7956,69 @@ def test_sync_phase_checkpoints_subcommand(mock_sync):
     result = runner.invoke(app, ["sync-phase-checkpoints"])
     assert result.exit_code == 0
     mock_sync.assert_called_once()
+
+
+@patch("gpd.core.checkpoints.sync_phase_checkpoints")
+def test_sync_phase_checkpoints_uses_ancestor_project_root_from_nested_cwd(mock_sync, tmp_path: Path) -> None:
+    project_root, nested_cwd = _nested_project_root(tmp_path)
+    mock_sync.return_value = _cli_model_result({"generated": False})
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "sync-phase-checkpoints"])
+
+    assert result.exit_code == 0, result.output
+    mock_sync.assert_called_once_with(project_root.resolve())
+
+
+@patch("gpd.core.commands.cmd_validate_return")
+def test_validate_return_prefers_launch_cwd_relative_file_from_nested_cwd(mock_validate, tmp_path: Path) -> None:
+    project_root, nested_cwd = _nested_project_root(tmp_path)
+    launch_return = nested_cwd / "RETURN.md"
+    project_return = project_root / "RETURN.md"
+    launch_return.write_text("launch cwd return\n", encoding="utf-8")
+    project_return.write_text("project return\n", encoding="utf-8")
+    mock_result = _cli_model_result({"passed": True})
+    mock_result.passed = True
+    mock_validate.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "validate-return", "RETURN.md"])
+
+    assert result.exit_code == 0, result.output
+    mock_validate.assert_called_once_with(launch_return.resolve())
+
+
+@patch("gpd.core.commands.cmd_validate_return")
+def test_validate_return_falls_back_to_project_relative_file_from_nested_cwd(mock_validate, tmp_path: Path) -> None:
+    project_root, nested_cwd = _nested_project_root(tmp_path)
+    project_return = project_root / "GPD" / "phases" / "01" / "RETURN.md"
+    project_return.parent.mkdir(parents=True, exist_ok=True)
+    project_return.write_text("project return\n", encoding="utf-8")
+    mock_result = _cli_model_result({"passed": True})
+    mock_result.passed = True
+    mock_validate.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "validate-return", "GPD/phases/01/RETURN.md"])
+
+    assert result.exit_code == 0, result.output
+    mock_validate.assert_called_once_with(project_return.resolve())
+
+
+@patch("gpd.core.commands.cmd_apply_return_updates")
+def test_apply_return_updates_uses_project_root_and_project_relative_file_from_nested_cwd(
+    mock_apply,
+    tmp_path: Path,
+) -> None:
+    project_root, nested_cwd = _nested_project_root(tmp_path)
+    project_return = project_root / "GPD" / "phases" / "01" / "RETURN.md"
+    project_return.parent.mkdir(parents=True, exist_ok=True)
+    project_return.write_text("project return\n", encoding="utf-8")
+    mock_result = _cli_model_result({"passed": True, "status": "applied"})
+    mock_result.passed = True
+    mock_apply.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "apply-return-updates", "GPD/phases/01/RETURN.md"])
+
+    assert result.exit_code == 0, result.output
+    mock_apply.assert_called_once_with(project_root.resolve(), project_return.resolve())
 
 
 @patch("gpd.core.commands.cmd_regression_check")

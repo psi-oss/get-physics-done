@@ -26,6 +26,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _SHARED_INSTALL = get_shared_install_metadata()
+_RUNTIME_COMMAND_SURFACE_LEFT_BOUNDARY = r"(^|[^A-Za-z0-9_.@/}\-])"
+
+
+def _runtime_command_surface_prefix_literal_pattern(prefix: str) -> str:
+    return _RUNTIME_COMMAND_SURFACE_LEFT_BOUNDARY + re.escape(prefix)
 
 
 def _runtime_env_prefix_patterns() -> list[str]:
@@ -59,12 +64,13 @@ def _runtime_literal_patterns() -> list[str]:
         ):
             if value:
                 patterns.add(re.escape(value))
+        for prefix in (descriptor.command_prefix, descriptor.public_command_surface_prefix):
+            if prefix:
+                patterns.add(_runtime_command_surface_prefix_literal_pattern(prefix))
         for value in descriptor.selection_flags:
             patterns.add(re.escape(value))
         for value in descriptor.selection_aliases:
             patterns.add(re.escape(value))
-            if descriptor.command_prefix == "$gpd-":
-                patterns.add(re.escape(descriptor.command_prefix))
     return sorted(patterns)
 
 
@@ -340,6 +346,19 @@ def _runtime_fixture_values() -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
+def _runtime_command_surface_prefix_values() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                prefix
+                for descriptor in _RUNTIME_DESCRIPTORS
+                for prefix in (descriptor.command_prefix, descriptor.public_command_surface_prefix)
+                if prefix
+            }
+        )
+    )
+
+
 def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2) -> list[str]:
     fixture_values = _runtime_fixture_values()
     block_pattern = re.compile(r"(?s)(\[[^\[\]]*\]|\{[^\{\}]*\}|\([^\(\)]*\))")
@@ -386,6 +405,22 @@ def test_runtime_pattern_includes_capability_surface_literals() -> None:
 
     for literal in capability_literals:
         assert re.search(_RUNTIME_PATTERN, literal) is not None
+
+
+def test_runtime_pattern_includes_descriptor_command_surface_prefix_literals() -> None:
+    prefixes = _runtime_command_surface_prefix_values()
+
+    assert prefixes
+    for prefix in prefixes:
+        assert re.search(_RUNTIME_PATTERN, prefix) is not None
+
+
+def test_runtime_pattern_includes_bare_slash_command_surface_prefix_literals() -> None:
+    slash_prefixes = tuple(prefix for prefix in _runtime_command_surface_prefix_values() if prefix.startswith("/"))
+
+    assert slash_prefixes
+    for prefix in slash_prefixes:
+        assert re.search(_RUNTIME_PATTERN, prefix) is not None
 
 
 def test_loaded_runtime_descriptors_keep_public_command_surfaces_descriptor_owned() -> None:

@@ -1345,27 +1345,32 @@ def _permissions_capability_fallback_payload(
     contract_source: str,
     contract_error: str | None = None,
 ) -> dict[str, object]:
+    from gpd.adapters.runtime_catalog import RuntimeCapabilityPolicy
+
     payload: dict[str, object] = {
         "contract_source": contract_source,
+        **_runtime_capability_policy_payload(RuntimeCapabilityPolicy()),
         "permissions_surface": "adapter-defined",
         "permission_surface_kind": "unknown",
-        "prompt_free_mode_value": None,
-        "supports_runtime_permission_sync": False,
-        "supports_prompt_free_mode": False,
-        "prompt_free_requires_relaunch": False,
         "statusline_surface": "unknown",
         "statusline_config_surface": "unknown",
         "notify_surface": "unknown",
         "notify_config_surface": "unknown",
         "telemetry_source": "unknown",
         "telemetry_completeness": "unknown",
-        "supports_usage_tokens": False,
-        "supports_cost_usd": False,
-        "supports_context_meter": False,
+        "child_artifact_persistence_reliability": "unknown",
+        "continuation_surface": "unknown",
+        "checkpoint_stop_semantics": "unknown",
     }
     if contract_error is not None:
         payload["contract_error"] = contract_error
     return payload
+
+
+def _runtime_capability_policy_payload(capabilities: object) -> dict[str, object]:
+    """Serialize the complete runtime capability contract into public payload fields."""
+
+    return {field.name: getattr(capabilities, field.name) for field in dataclasses.fields(capabilities)}
 
 
 def _permissions_capability_payload(runtime_name: object) -> dict[str, object]:
@@ -1385,21 +1390,7 @@ def _permissions_capability_payload(runtime_name: object) -> dict[str, object]:
         else:
             return {
                 "contract_source": "runtime-catalog",
-                "permissions_surface": capabilities.permissions_surface,
-                "permission_surface_kind": capabilities.permission_surface_kind,
-                "prompt_free_mode_value": capabilities.prompt_free_mode_value,
-                "supports_runtime_permission_sync": capabilities.supports_runtime_permission_sync,
-                "supports_prompt_free_mode": capabilities.supports_prompt_free_mode,
-                "prompt_free_requires_relaunch": capabilities.prompt_free_requires_relaunch,
-                "statusline_surface": capabilities.statusline_surface,
-                "statusline_config_surface": capabilities.statusline_config_surface,
-                "notify_surface": capabilities.notify_surface,
-                "notify_config_surface": capabilities.notify_config_surface,
-                "telemetry_source": capabilities.telemetry_source,
-                "telemetry_completeness": capabilities.telemetry_completeness,
-                "supports_usage_tokens": capabilities.supports_usage_tokens,
-                "supports_cost_usd": capabilities.supports_cost_usd,
-                "supports_context_meter": capabilities.supports_context_meter,
+                **_runtime_capability_policy_payload(capabilities),
             }
     return _permissions_capability_fallback_payload(contract_source="generic-fallback")
 

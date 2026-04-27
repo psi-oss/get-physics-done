@@ -84,14 +84,6 @@ def load_contract() -> dict[str, object]:
 _GRAPH_EDGE_RE = re.compile(r"^- `([^`\n]+?) -> ([^`\n]+?)`$", re.MULTILINE)
 
 
-def iter_graph_edges(graph_text: str | None = None) -> tuple[str, ...]:
-    text = graph_text if graph_text is not None else read_graph_text()
-    return tuple(
-        f"{match.group(1)} -> {match.group(2)}"
-        for match in _GRAPH_EDGE_RE.finditer(text)
-    )
-
-
 def iter_graph_edge_specs(graph_text: str | None = None) -> tuple[tuple[str, str], ...]:
     text = graph_text if graph_text is not None else read_graph_text()
     return tuple((match.group(1), match.group(2)) for match in _GRAPH_EDGE_RE.finditer(text))
@@ -258,7 +250,7 @@ def render_generated_on_block(_contract: dict[str, object]) -> str:
     return "\n".join(
         (
             GENERATED_ON_START,
-            "Generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.",
+            "Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.",
             GENERATED_ON_END,
         )
     )

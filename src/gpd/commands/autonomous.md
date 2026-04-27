@@ -19,7 +19,7 @@ allowed-tools:
 <objective>
 Execute all remaining milestone phases autonomously. For each phase: discuss → plan → execute → verify. Pauses only for user decisions (gray area acceptance, blockers, verification routing).
 
-Uses ROADMAP.md phase discovery and Skill() flat invocations for each phase command. After all phases complete: milestone audit → complete.
+Uses ROADMAP.md phase discovery and the runtime-installed GPD command surface for each phase command. After all phases complete: milestone audit → complete.
 
 **Creates/Updates:**
 - `GPD/STATE.md` — updated after each phase

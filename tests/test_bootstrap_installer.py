@@ -174,6 +174,11 @@ def _assert_install_summary_semantic_contract(
     assert_install_summary_runtime_follow_up_contract(output, runtime_help_fragments=runtime_help_fragments)
 
 
+def _assert_in_order(content: str, fragments: tuple[str, ...]) -> None:
+    positions = [content.index(fragment) for fragment in fragments]
+    assert positions == sorted(positions)
+
+
 def test_version_consistency():
     """Release metadata and the bootstrap's Python pin must match."""
     assert PACKAGE_VERSION == PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
@@ -1470,6 +1475,18 @@ def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
         assert (
             f"# Install for {descriptor.display_name} {descriptor.installer_help_example_scope}" in result.stdout
         )
+    _assert_in_order(
+        result.stdout,
+        (
+            "PyPI pinned release",
+            "tagged GitHub fallback",
+            "latest unreleased GitHub main source",
+        ),
+    )
+    assert "Supervised autonomy (`supervised`) is the default" in result.stdout
+    assert "Opt into Balanced autonomy (`balanced`)" in result.stdout
+    assert "Recommended unattended default: Balanced" not in result.stdout
+    assert "matching tagged GitHub source" not in result.stdout
     assert "startsWith(\"$\")" not in result.stdout
 
 
@@ -2102,7 +2119,7 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
     assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
     assert managed_runtime_installs == []
     assert "git checkout could not resolve branch main" in result.stderr
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from the latest unreleased GitHub main source." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -2234,7 +2251,7 @@ def test_bootstrap_release_install_fails_closed_without_falling_back_to_main_sou
     ]
 
     assert managed_pip_targets == [PYPI_SPEC]
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from the PyPI pinned release or tagged GitHub release sources." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -2301,7 +2318,7 @@ def test_bootstrap_fails_closed_when_all_release_sources_fail(tmp_path: Path) ->
         TAG_HTTPS_GIT_SPEC,
     ]
     assert "current main branch source archive" not in result.stdout
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from the PyPI pinned release or tagged GitHub release sources." in result.stderr
     assert "Could not find a version that satisfies the requirement" not in result.stderr
 
 

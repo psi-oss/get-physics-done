@@ -321,7 +321,7 @@ Keep these exact grounding reminders visible in the raw schema surface as well:
 ```
 Not started, Planning, Researching, Ready to execute, Executing,
 Paused, Phase complete — ready for verification,
-Verifying, Complete, Blocked, Ready to plan, Milestone complete
+Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
 ```
 
 **Phase ID format:** Top-level segment is zero-padded, sub-phases keep natural numeric width: `"03"`, `"03.1"`, `"03.1.2"`. See `phase_normalize()`.
@@ -539,7 +539,7 @@ Run via `gpd state validate`. Current checks:
 4. **Convention lock completeness** — reports unset conventions (warning, not error)
 5. **No NaN values** — numeric fields (total_phases, total_plans_in_phase, progress_percent) must not be NaN
 6. **Schema completeness** — all fields from `default_state_dict()` must be present at top level
-7. **Status vocabulary** — status must be from VALID_STATUSES list (12 values)
+7. **Status vocabulary** — status must be from VALID_STATUSES list (13 values)
 8. **Phase ID format** — current_phase must match `\d{2}(\.\d+)*` pattern
 9. **Phase range** — current_phase must not exceed total_phases when both are set
 10. **Result ID uniqueness** — all `intermediate_results[].id` values must be unique
