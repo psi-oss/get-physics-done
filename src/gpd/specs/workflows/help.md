@@ -1246,7 +1246,7 @@ When `planning.commit_docs: false`:
 When `planning.commit_docs: true`:
 
 - Keep `GPD/` tracked
-- Add `GPD/state.json.bak` to `.gitignore` so the crash-recovery backup does not linger as an untracked file in normal repos
+- Add `GPD/state.json.bak` and `GPD/state.json.lock` to `.gitignore` so local recovery/coordination files do not linger as untracked noise
 
 Example config:
 

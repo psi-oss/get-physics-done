@@ -50,6 +50,7 @@ After that, load late-stage authorities only when the workflow reaches the match
 - Read {GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md only when authoring or repairing the scoping contract.
 - Read {GPD_INSTALL_DIR}/templates/project.md only when writing `GPD/PROJECT.md`.
 - Read {GPD_INSTALL_DIR}/templates/requirements.md only when writing `GPD/REQUIREMENTS.md`.
+- Read {GPD_INSTALL_DIR}/templates/state.md only when writing `GPD/STATE.md`.
 - Read {GPD_INSTALL_DIR}/references/ui/ui-brand.md only when rendering branded completion or status blocks.
 
 Execute the workflow end-to-end. Preserve all workflow gates (validation, approvals, routing).

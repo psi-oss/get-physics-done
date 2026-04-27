@@ -167,32 +167,22 @@ def test_config_dir_has_managed_install_markers_ignores_user_agents_and_hooks(tm
     assert config_dir_has_managed_install_markers(config_dir) is False
 
 
-def test_expected_runtime_marker_scan_uses_runtime_specific_policy(tmp_path: Path) -> None:
-    descriptors = iter_runtime_descriptors()
-    flat_descriptor = next(
-        descriptor
-        for descriptor in descriptors
-        if get_managed_install_surface_policy(descriptor.runtime_name).flat_command_globs
-    )
-    runtime_without_flat_commands = next(
-        descriptor
-        for descriptor in descriptors
-        if not get_managed_install_surface_policy(descriptor.runtime_name).flat_command_globs
-    )
-    flat_policy = get_managed_install_surface_policy(flat_descriptor.runtime_name)
-    config_dir = tmp_path / "runtime-config"
-    _materialize_test_path_for_glob(config_dir, flat_policy.flat_command_globs[0])
+def test_assess_install_target_fails_closed_for_opencode_flat_command_in_claude_target(tmp_path: Path) -> None:
+    opencode_policy = get_managed_install_surface_policy("opencode")
+    config_dir = tmp_path / ".claude"
+    _materialize_test_path_for_glob(config_dir, opencode_policy.flat_command_globs[0])
 
-    merged_assessment = assess_install_target(config_dir)
-    expected_runtime_assessment = assess_install_target(
-        config_dir,
-        expected_runtime=runtime_without_flat_commands.runtime_name,
-    )
+    runtime_specific_marker_scan = config_dir_has_managed_install_markers(config_dir, runtime="claude-code")
+    merged_marker_scan = config_dir_has_managed_install_markers(config_dir)
+    assessment = assess_install_target(config_dir, expected_runtime="claude-code")
 
-    assert merged_assessment.state == "untrusted_manifest"
-    assert merged_assessment.has_managed_markers is True
-    assert expected_runtime_assessment.state == "clean"
-    assert expected_runtime_assessment.has_managed_markers is False
+    assert runtime_specific_marker_scan is False
+    assert merged_marker_scan is True
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "missing"
+    assert assessment.manifest_runtime is None
+    assert assessment.expected_runtime == "claude-code"
+    assert assessment.has_managed_markers is True
 
 
 def test_expected_runtime_marker_scan_preserves_foreign_manifest_safety(tmp_path: Path) -> None:
@@ -272,6 +262,31 @@ def test_assess_install_target_classifies_owned_complete_and_incomplete_install(
     assert complete.has_managed_markers is True
     assert incomplete.state == "owned_incomplete"
     assert incomplete.missing_install_artifacts == ("agents/gpd-help/SKILL.md",)
+
+
+def test_assess_install_target_rejects_manifest_when_adapter_validation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        encoding="utf-8",
+    )
+
+    def _raise_unknown_adapter(runtime: str) -> None:
+        raise KeyError(runtime)
+
+    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", _raise_unknown_adapter)
+
+    assessment = assess_install_target(config_dir, expected_runtime="codex")
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "ok"
+    assert assessment.manifest_runtime == "codex"
+    assert assessment.has_managed_markers is True
+    assert assessment.readiness_state == "blocked"
 
 
 @pytest.mark.parametrize(
@@ -539,6 +554,17 @@ def test_runtime_detect_install_helper_signature_drops_unused_cwd_and_home() -> 
 
     assert "cwd" not in params
     assert "home" not in params
+
+
+def test_update_resolution_uses_public_runtime_install_boundary() -> None:
+    import gpd.hooks.runtime_detect as runtime_detect
+    import gpd.hooks.update_resolution as update_resolution
+
+    source = inspect.getsource(update_resolution)
+
+    assert "_runtime_dir_has_gpd_install" not in source
+    assert "runtime_has_gpd_install" in source
+    assert "runtime_has_gpd_install" in runtime_detect.__all__
 
 
 def test_runtime_cli_uses_shared_manifest_runtime_helper() -> None:

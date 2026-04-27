@@ -34,8 +34,12 @@ CI_HOT_TEST_FILE_SPLITS = {
     "adapters/test_codex.py": 2,
     "adapters/test_gemini.py": 2,
     "adapters/test_opencode.py": 2,
+    "hooks/test_notify.py": 2,
     "hooks/test_runtime_detect.py": 2,
+    "hooks/test_runtime_lookup.py": 2,
     "hooks/test_statusline.py": 2,
+    "hooks/test_todo_resolution.py": 2,
+    "hooks/test_update_resolution.py": 2,
     "core/test_cli.py": 3,
     "core/test_contract_validation.py": 3,
     "core/test_frontmatter.py": 3,
@@ -53,8 +57,12 @@ CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
     "test_update_workflow.py": 2.0,
     "core/test_cli.py": 1.5,
     "core/test_contract_validation.py": 1.4,
+    "hooks/test_notify.py": 2.0,
     "hooks/test_runtime_detect.py": 1.5,
+    "hooks/test_runtime_lookup.py": 2.0,
     "hooks/test_statusline.py": 1.5,
+    "hooks/test_todo_resolution.py": 2.0,
+    "hooks/test_update_resolution.py": 2.0,
 }
 
 
@@ -199,12 +207,22 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert pytest_steps[-1]["timeout-minutes"] == CI_PYTEST_SHARD_TIMEOUT_MINUTES
     assert pytest_steps[-1]["env"]["GPD_FAST_SUITE_BUDGET_SECONDS"] == str(CI_FAST_SUITE_BUDGET_SECONDS)
+    assert "Fast suite advisory target" not in pytest_shard_command
     assert (
-        f"Fast suite advisory target: ${{GPD_FAST_SUITE_BUDGET_SECONDS}}s full-suite wall clock; "
-        f"shard timeout: {CI_PYTEST_SHARD_TIMEOUT_MINUTES} minutes"
+        f"Fast suite budget: ${{GPD_FAST_SUITE_BUDGET_SECONDS}}s enforced per pytest shard; "
+        f"job timeout: {CI_PYTEST_SHARD_TIMEOUT_MINUTES} minutes"
     ) in pytest_shard_command
+    assert (
+        'timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" '
+        'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"'
+    ) in pytest_shard_command
+    assert 'if [ "$pytest_status" -eq 124 ]; then' in pytest_shard_command
+    assert (
+        'echo "::error::pytest shard exceeded enforced '
+        '${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"'
+    ) in pytest_shard_command
+    assert 'exit "$pytest_status"' in pytest_shard_command
     assert '--durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert pytest_steps[-1]["name"] == "Run pytest shard"
     assert pytest_steps[-1]["run"] == pytest_shard_command
     checkout_step = next(step for step in pytest_steps if step.get("name") == "Check out repository")
@@ -222,7 +240,9 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "Both inherit `-n auto --dist=worksteal` from `pyproject.toml`" in tests_readme
     assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
     assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
-    assert "The 180 second fast-suite budget is an advisory full-suite wall-clock target" in tests_readme
+    assert "The 180 second fast-suite budget is enforced per CI pytest shard" in tests_readme
+    assert "10 minute job timeout remains the outer failure boundary" in tests_readme
+    assert "advisory full-suite wall-clock target" not in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert (
         "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, "

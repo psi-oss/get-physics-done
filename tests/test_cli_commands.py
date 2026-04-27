@@ -1803,6 +1803,7 @@ review_summary:
             "references/ui/ui-brand.md",
             "templates/project.md",
             "templates/requirements.md",
+            "templates/state.md",
         ]
         assert payload["staged_loading"]["writes_allowed"] == [
             "GPD/PROJECT.md",

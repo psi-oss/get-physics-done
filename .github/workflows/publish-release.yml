@@ -249,13 +249,37 @@ jobs:
           - This PR keeps \`main\` aligned with the published metadata without requiring the publish workflow to push directly to protected \`main\`.
           EOF
 
+          configure_git_author() {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          }
+
+          prepare_followup_branch() {
+            python scripts/release_workflow.py stamp-publish-date --repo . --release-date "$RELEASE_DATE" > /tmp/publish-date-followup.json
+            git switch -C "$FOLLOWUP_BRANCH"
+            configure_git_author
+            git add CITATION.cff README.md
+            if git diff --cached --quiet; then
+              echo "::error::Publish-date metadata was expected to change, but no follow-up diff was produced."
+              exit 1
+            fi
+            git commit -m "docs: stamp v${VERSION} publish date"
+          }
+
           if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH" >/dev/null 2>&1; then
             PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
             if [ -n "$PR_URL" ]; then
               echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found; recreating the PR."
+            EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk '{print $1}')"
+            if [ -z "$EXISTING_BRANCH_SHA" ]; then
+              echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} was reported as existing, but its remote SHA could not be resolved."
+              exit 1
+            fi
+            echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found; restamping and updating the branch before recreating the PR."
+            prepare_followup_branch
+            git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}" origin "HEAD:${FOLLOWUP_BRANCH}"
             gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --title "docs: stamp v${VERSION} publish date" --body-file /tmp/publish-date-pr-body.md
             PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
             if [ -z "$PR_URL" ]; then
@@ -266,11 +290,7 @@ jobs:
             exit 0
           fi
 
-          git switch -c "$FOLLOWUP_BRANCH"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CITATION.cff README.md
-          git commit -m "docs: stamp v${VERSION} publish date"
+          prepare_followup_branch
           git push --set-upstream origin "$FOLLOWUP_BRANCH"
 
           gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --title "docs: stamp v${VERSION} publish date" --body-file /tmp/publish-date-pr-body.md

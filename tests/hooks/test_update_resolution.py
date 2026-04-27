@@ -356,7 +356,7 @@ def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path
             None,
             _repair_command("codex", install_scope="local", target_dir=local_runtime_dir, explicit_target=False),
             workspace,
-            (("gpd.hooks.runtime_detect._runtime_dir_has_gpd_install", True),),
+            (("gpd.hooks.runtime_detect.runtime_has_gpd_install", True),),
         ),
         (
             SimpleNamespace(
@@ -400,7 +400,7 @@ def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path
             elif expected is None and candidate.path == stale_self_install.cache_file:
                 command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))
             elif candidate.path.parent.name == "cache" and candidate.path.parent.parent.name == ".codex" and candidate.path.parent.parent.parent == workspace:
-                with patch("gpd.hooks.runtime_detect._runtime_dir_has_gpd_install", return_value=True):
+                with patch("gpd.hooks.runtime_detect.runtime_has_gpd_install", return_value=True):
                     command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))
             else:
                 command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))

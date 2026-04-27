@@ -299,6 +299,7 @@ class TestSharedCommandReferences:
     ) -> None:
         content = (
             "Run `gpd:resume-work`, then /gpd:help.\n"
+            "Leave `gpd:not-a-command` and /gpd:not-a-command untouched.\n"
             "Keep https://docs.example/gpd:help, /tmp/gpd:help, ./gpd:help, and C:\\tmp\\gpd:help untouched.\n"
         )
 
@@ -306,6 +307,9 @@ class TestSharedCommandReferences:
 
         assert "`$gpd-resume-work`" in result
         assert "$gpd-help" in result
+        assert "`gpd:not-a-command`" in result
+        assert "/gpd:not-a-command" in result
+        assert "$gpd-not-a-command" not in result
         assert "https://docs.example/gpd:help" in result
         assert "/tmp/gpd:help" in result
         assert "./gpd:help" in result
@@ -530,9 +534,11 @@ class TestInstall:
         assert "validates the install contract" in skill
         assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" not in skill
         assert expected_bridge + " config ensure-section" in skill
+        assert expected_bridge + ' config set model_profile "$ARGUMENTS.profile"' in skill
         assert f'INIT=$({expected_bridge} --raw init progress --include state,config --no-project-reentry)' in skill
         assert 'echo "ERROR: gpd initialization failed: $INIT"' in skill
         assert expected_bridge + " config ensure-section" in workflow
+        assert expected_bridge + ' config set model_profile "$ARGUMENTS.profile"' in workflow
         assert f'if ! {expected_bridge} verify plan "$plan"; then' in execute_phase
         assert f'INIT=$({expected_bridge} --raw init plan-phase "${{PHASE}}")' in agent
         assert "```bash\ngpd config ensure-section\n" not in workflow

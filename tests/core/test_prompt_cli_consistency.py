@@ -580,10 +580,13 @@ def test_new_project_and_help_surface_runtime_default_and_state_backup_gitignore
     assert "without commentary about the missing override" in new_project
     assert 'normal "use the runtime default model" path' in new_project
     assert "GPD/state.json.bak" in new_project
+    assert "GPD/state.json.lock" in new_project
     assert "GPD/state.json.bak" in help_workflow
+    assert "GPD/state.json.lock" in help_workflow
     assert "GPD/state.json.bak" in planning_config
-    assert "crash-recovery backup" in help_workflow
-    assert "crash-recovery backup" in planning_config
+    assert "GPD/state.json.lock" in planning_config
+    assert "local recovery/coordination files" in help_workflow
+    assert "local recovery/coordination files" in planning_config
 
 
 def test_regression_check_prompt_examples_include_optional_phase_before_quick_flag() -> None:

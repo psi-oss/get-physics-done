@@ -15,7 +15,7 @@ _RUNTIME_CONFIG_DIRS = {
     ".agents",
     *(descriptor.config_dir_name for descriptor in iter_runtime_descriptors()),
 }
-_GENERATED_GPD_FILES = {"STATE.md", "state.json", "state.json.bak"}
+_GENERATED_GPD_FILES = {"STATE.md", "state.json", "state.json.bak", "state.json.lock"}
 _LOCAL_RUNTIME_FILES = {".env", ".mcp.json"}
 
 

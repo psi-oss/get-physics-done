@@ -174,6 +174,27 @@ def _runtime_dir_has_gpd_install(
     return False
 
 
+def runtime_has_gpd_install(
+    runtime: str,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    include_local: bool = True,
+    include_global: bool = True,
+) -> bool:
+    """Return whether a supported runtime has a concrete GPD install."""
+    normalized_runtime = normalize_runtime_name(runtime) or runtime
+    if normalized_runtime not in supported_runtime_names():
+        return False
+    return _runtime_dir_has_gpd_install(
+        normalized_runtime,
+        cwd=cwd,
+        home=home,
+        include_local=include_local,
+        include_global=include_global,
+    )
+
+
 def _detect_runtime_install_target(
     runtime: str,
     *,
@@ -622,7 +643,7 @@ def should_consider_update_cache_candidate(
     # A caller may supply an active runtime hint that does not match the
     # actual filesystem. Only use that hint to suppress other runtime caches
     # when the hinted runtime still has a concrete install.
-    if not _runtime_dir_has_gpd_install(normalized_active_runtime, cwd=cwd, home=home):
+    if not runtime_has_gpd_install(normalized_active_runtime, cwd=cwd, home=home):
         return True
 
     return False
@@ -663,7 +684,7 @@ def should_consider_todo_candidate(
     if normalized_active_runtime in (None, "", RUNTIME_UNKNOWN):
         return True
 
-    if not _runtime_dir_has_gpd_install(normalized_active_runtime, cwd=cwd, home=home):
+    if not runtime_has_gpd_install(normalized_active_runtime, cwd=cwd, home=home):
         return True
 
     return False
@@ -746,6 +767,7 @@ __all__ = [
     "get_todo_dirs",
     "get_update_cache_files",
     "normalize_runtime_name",
+    "runtime_has_gpd_install",
     "should_consider_todo_candidate",
     "should_consider_update_cache_candidate",
     "resolve_effective_runtime",

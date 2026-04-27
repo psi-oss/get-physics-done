@@ -13,11 +13,22 @@ from pathlib import Path
 import pytest
 
 from gpd import registry as content_registry
-from gpd._python_compat import MIN_SUPPORTED_PYTHON, MIN_SUPPORTED_PYTHON_LABEL
+from gpd._python_compat import (
+    MIN_SUPPORTED_PYTHON,
+    MIN_SUPPORTED_PYTHON_LABEL,
+    PREFERRED_VERSIONED_PYTHON_MINORS,
+    RECOMMENDED_PYTHON_VERSION,
+)
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
-from gpd.core.constants import MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR
+from gpd.core.constants import (
+    MIN_PYTHON_MAJOR,
+    MIN_PYTHON_MINOR,
+)
+from gpd.core.constants import (
+    RECOMMENDED_PYTHON_VERSION as CORE_RECOMMENDED_PYTHON_VERSION,
+)
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
@@ -202,11 +213,15 @@ def test_python_floor_is_consistent_across_install_surfaces() -> None:
 
     readme = _read("README.md")
     installer = _read("bin/install.js")
+    installer_preferred_minors = _installer_preferred_python_minors(installer)
 
     assert f"Python {MIN_SUPPORTED_PYTHON_LABEL}+" in readme
+    assert CORE_RECOMMENDED_PYTHON_VERSION == RECOMMENDED_PYTHON_VERSION
     assert _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MAJOR") == MIN_SUPPORTED_PYTHON[0]
     assert _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MINOR") == MIN_SUPPORTED_PYTHON[1]
-    assert MIN_SUPPORTED_PYTHON[1] in _installer_preferred_python_minors(installer)
+    assert installer_preferred_minors == PREFERRED_VERSIONED_PYTHON_MINORS
+    assert installer_preferred_minors[0] == RECOMMENDED_PYTHON_VERSION[1]
+    assert MIN_SUPPORTED_PYTHON[1] in installer_preferred_minors
     assert "Python 3.11+ is required" not in installer
     assert "Python ${MIN_SUPPORTED_PYTHON_LABEL} is required" in installer
     assert "preferredPythonCommands" in installer

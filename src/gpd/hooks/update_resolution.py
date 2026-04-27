@@ -211,9 +211,9 @@ def update_command_for_candidate(
     from gpd.hooks.install_metadata import installed_update_command, load_install_manifest_state
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
-        _runtime_dir_has_gpd_install,
         detect_active_runtime_with_gpd_install,
         detect_install_scope,
+        runtime_has_gpd_install,
         update_command_for_runtime,
     )
 
@@ -235,7 +235,11 @@ def update_command_for_candidate(
     scope_lookup_cwd = workspace_path if cwd is not None else None
     runtime = getattr(candidate, "runtime", None) or RUNTIME_UNKNOWN
     scope = getattr(candidate, "scope", None)
-    if runtime != RUNTIME_UNKNOWN and not _runtime_dir_has_gpd_install(runtime, cwd=workspace_path, home=lookup.resolved_home):
+    if runtime != RUNTIME_UNKNOWN and not runtime_has_gpd_install(
+        runtime,
+        cwd=workspace_path,
+        home=lookup.resolved_home,
+    ):
         runtime = RUNTIME_UNKNOWN
         scope = None
     if runtime == RUNTIME_UNKNOWN:

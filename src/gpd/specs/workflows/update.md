@@ -80,8 +80,7 @@ If that fails, show:
 
 Couldn't check for updates (offline or release metadata unavailable).
 
-To update manually, run:
-`<UPDATE_COMMAND>`
+To update manually, run the command from line 3 of the install detection output.
 ```
 
 Then exit.
@@ -137,10 +136,7 @@ Display the confirmation prompt in this shape:
 ### What's New
 [short preview of recent release notes, or a brief fallback note]
 
->> **Note:** This reinstalls the current runtime's managed GPD files:
-- GPD command files for this runtime will be replaced
-- `{GPD_INSTALL_ROOT_DIR_NAME}/` will be replaced
-- `gpd-*` agent files will be replaced
+>> **Note:** This replaces the runtime's managed GPD commands, agents, and `{GPD_INSTALL_ROOT_DIR_NAME}/`.
 
 Custom files outside the managed GPD install are preserved.
 If you've modified managed GPD files directly, they will be backed up to `{GPD_PATCHES_DIR_NAME}/` and can be reapplied with `gpd:reapply-patches` after the update.
@@ -162,12 +158,13 @@ If the user cancels, exit.
 Run the update with the public bootstrap command from step 1:
 
 ```bash
-<UPDATE_COMMAND>
+: "${UPDATE_COMMAND:?ERROR: UPDATE_COMMAND is empty; use line 3 from detect_current_install.}"
+sh -c "$UPDATE_COMMAND"
 ```
 
 Capture output. If the update command fails, show the error and exit.
 
-Then clear all update-cache candidates. Prefer the hook/statusline helper; keep the literal fallback for broken import states during reinstall:
+Clear update-cache candidates with the hook helper when importable and literal paths as fallback:
 
 ```bash
 GPD_CONFIG_DIR="${GPD_CONFIG_DIR:-{GPD_CONFIG_DIR}}"

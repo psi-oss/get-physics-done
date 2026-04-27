@@ -47,6 +47,7 @@ from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
+from gpd.core.utils import file_lock
 from gpd.core.workflow_staging import load_workflow_stage_manifest
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -57,6 +58,21 @@ _XDG_RUNTIME_DESCRIPTOR = next(
 )
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def test_file_lock_leaves_durable_sidecar_after_release(tmp_path: Path) -> None:
+    target = tmp_path / "state.json"
+    target.write_text("{}", encoding="utf-8")
+    lock_path = target.with_suffix(".json.lock")
+
+    with file_lock(target):
+        assert lock_path.exists()
+
+    assert lock_path.exists()
+    with file_lock(target):
+        target.write_text('{"reacquired": true}', encoding="utf-8")
+
+    assert json.loads(target.read_text(encoding="utf-8")) == {"reacquired": True}
 
 
 def _setup_project(tmp_path: Path) -> Path:
@@ -1492,6 +1508,26 @@ class TestInitPlanPhase:
         assert ctx["padded_phase"] == "02"
         assert "staged_loading" not in ctx
 
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "02-analysis")
+        (tmp_path / "GPD" / "STATE.md").write_text("# State\nRoot state.\n", encoding="utf-8")
+        (tmp_path / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (phase_dir / "RESEARCH.md").write_text("nested research", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_plan_phase(nested, "2", includes={"state", "roadmap", "research"})
+
+        assert ctx["phase_found"] is True
+        assert ctx["phase_number"] == "02"
+        assert ctx["planning_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["state_content"] == "# State\nRoot state.\n"
+        assert ctx["roadmap_content"] == "# Roadmap\n"
+        assert ctx["research_content"] == "nested research"
+        assert not (nested / "GPD").exists()
+
     def test_stage_phase_bootstrap_returns_only_bootstrap_payload(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -2329,6 +2365,7 @@ class TestInitNewProject:
             "references/ui/ui-brand.md",
             "templates/project.md",
             "templates/requirements.md",
+            "templates/state.md",
         ]
         assert ctx["staged_loading"]["writes_allowed"] == [
             "GPD/PROJECT.md",
@@ -2492,6 +2529,27 @@ class TestInitNewProject:
         assert "templates/state-json-schema.md" in ctx["staged_loading"]["must_not_eager_load"]
         assert "state_md_content" not in ctx
         assert "state_json_content" not in ctx
+
+    def test_sync_state_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict, generate_state_markdown
+
+        _setup_project(tmp_path)
+        layout = ProjectLayout(tmp_path)
+        state = default_state_dict()
+        state["position"]["current_phase"] = "07"
+        layout.state_json.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        layout.state_md.write_text(generate_state_markdown(state), encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_sync_state(nested)
+
+        assert ctx["state_md_exists"] is True
+        assert ctx["state_json_exists"] is True
+        assert ctx["state_json_backup_exists"] is False
+        assert '"current_phase": "07"' in ctx["state_json_content"]
+        assert "**Current Phase:** 07" in ctx["state_md_content"]
+        assert not (nested / "GPD").exists()
 
     def test_sync_state_stage_conflict_analysis_filters_payload(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest

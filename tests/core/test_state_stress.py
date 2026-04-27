@@ -128,11 +128,16 @@ class TestConcurrentAccess:
             except Exception as exc:
                 errors.append(f"Thread {thread_id}: {exc}")
 
-        threads = [threading.Thread(target=_writer, args=(i,)) for i in range(5)]
+        threads = [
+            threading.Thread(target=_writer, args=(i,), name=f"state-writer-{i}", daemon=True) for i in range(5)
+        ]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join(timeout=10)
+
+        live_threads = [thread.name for thread in threads if thread.is_alive()]
+        assert not live_threads, f"Concurrent state writer threads did not stop: {live_threads}; errors: {errors}"
 
         non_timeout_errors = [error for error in errors if "Timeout acquiring lock" not in error]
         assert not non_timeout_errors, f"Concurrent writes produced unexpected errors: {non_timeout_errors}"
@@ -177,8 +182,8 @@ class TestConcurrentAccess:
 
         monkeypatch.setattr(state_module, "save_state_json_locked", slow_save_locked)
 
-        first = threading.Thread(target=_writer, args=("01",))
-        second = threading.Thread(target=_writer, args=("02",))
+        first = threading.Thread(target=_writer, args=("01",), name="state-slow-writer", daemon=True)
+        second = threading.Thread(target=_writer, args=("02",), name="state-waiting-writer", daemon=True)
         first.start()
         assert first_writer_entered.wait(timeout=2), "first writer never acquired the state lock"
         second.start()
@@ -189,4 +194,6 @@ class TestConcurrentAccess:
         first.join(timeout=10)
         second.join(timeout=10)
 
+        live_threads = [thread.name for thread in (first, second) if thread.is_alive()]
+        assert not live_threads, f"Contended state writer threads did not stop: {live_threads}; errors: {errors}"
         assert not errors, f"Contended writes should queue instead of timing out: {errors}"

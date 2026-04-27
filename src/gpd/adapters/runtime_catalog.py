@@ -6,7 +6,7 @@ import json
 import os
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import lru_cache
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -1077,36 +1077,12 @@ def get_hook_payload_policy(runtime: str | None = None) -> HookPayloadPolicy:
     if runtime is not None:
         return get_runtime_descriptor(runtime).hook_payload
 
-    descriptors = iter_runtime_descriptors()
+    descriptors = tuple(iter_runtime_descriptors())
     return HookPayloadPolicy(
-        notify_event_types=_merge_unique(descriptor.hook_payload.notify_event_types for descriptor in descriptors),
-        workspace_keys=_merge_unique(descriptor.hook_payload.workspace_keys for descriptor in descriptors),
-        project_dir_keys=_merge_unique(descriptor.hook_payload.project_dir_keys for descriptor in descriptors),
-        target_path_keys=_merge_unique(descriptor.hook_payload.target_path_keys for descriptor in descriptors),
-        target_root_keys=_merge_unique(descriptor.hook_payload.target_root_keys for descriptor in descriptors),
-        runtime_session_id_keys=_merge_unique(
-            descriptor.hook_payload.runtime_session_id_keys for descriptor in descriptors
-        ),
-        model_keys=_merge_unique(descriptor.hook_payload.model_keys for descriptor in descriptors),
-        provider_keys=_merge_unique(descriptor.hook_payload.provider_keys for descriptor in descriptors),
-        usage_keys=_merge_unique(descriptor.hook_payload.usage_keys for descriptor in descriptors),
-        input_tokens_keys=_merge_unique(descriptor.hook_payload.input_tokens_keys for descriptor in descriptors),
-        output_tokens_keys=_merge_unique(descriptor.hook_payload.output_tokens_keys for descriptor in descriptors),
-        total_tokens_keys=_merge_unique(descriptor.hook_payload.total_tokens_keys for descriptor in descriptors),
-        cached_input_tokens_keys=_merge_unique(
-            descriptor.hook_payload.cached_input_tokens_keys for descriptor in descriptors
-        ),
-        cache_write_input_tokens_keys=_merge_unique(
-            descriptor.hook_payload.cache_write_input_tokens_keys for descriptor in descriptors
-        ),
-        cost_usd_keys=_merge_unique(descriptor.hook_payload.cost_usd_keys for descriptor in descriptors),
-        agent_id_keys=_merge_unique(descriptor.hook_payload.agent_id_keys for descriptor in descriptors),
-        agent_name_keys=_merge_unique(descriptor.hook_payload.agent_name_keys for descriptor in descriptors),
-        agent_scope_keys=_merge_unique(descriptor.hook_payload.agent_scope_keys for descriptor in descriptors),
-        context_window_size_keys=_merge_unique(
-            descriptor.hook_payload.context_window_size_keys for descriptor in descriptors
-        ),
-        context_remaining_keys=_merge_unique(descriptor.hook_payload.context_remaining_keys for descriptor in descriptors),
+        **{
+            field.name: _merge_unique(getattr(descriptor.hook_payload, field.name) for descriptor in descriptors)
+            for field in fields(HookPayloadPolicy)
+        }
     )
 
 

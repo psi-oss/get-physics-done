@@ -278,8 +278,7 @@ def assess_install_target(
     resolved = config_dir.expanduser().resolve(strict=False)
     manifest_state, _payload, manifest_runtime = load_install_manifest_runtime_status(resolved)
     manifest_scope_state, _scope_payload, _manifest_scope = load_install_manifest_scope_status(resolved)
-    marker_runtime = expected_runtime if expected_runtime in list_runtime_names() else None
-    has_managed_markers = config_dir_has_managed_install_markers(resolved, runtime=marker_runtime)
+    has_managed_markers = config_dir_has_managed_install_markers(resolved)
     missing_install_artifacts: tuple[str, ...] = ()
 
     if manifest_state == "ok" and manifest_runtime is not None:

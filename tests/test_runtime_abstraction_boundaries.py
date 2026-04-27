@@ -21,7 +21,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from gpd.adapters import iter_adapters
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    get_hook_payload_policy,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+)
 from gpd.command_labels import runtime_public_command_prefixes
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -338,11 +342,6 @@ def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -
     return matches
 
 
-def _runtime_literal_sequence_pattern(values: tuple[str, ...]) -> re.Pattern[str]:
-    quoted_values = [rf'["\']{re.escape(value)}["\']' for value in values]
-    return re.compile(r"[\[(]\s*" + r"\s*,\s*".join(quoted_values) + r"\s*[\])]", re.DOTALL)
-
-
 def _runtime_fixture_values() -> tuple[str, ...]:
     values: set[str] = set()
     for descriptor in _RUNTIME_DESCRIPTORS:
@@ -450,6 +449,19 @@ def _runtime_hook_payload_key_tuples() -> dict[tuple[str, ...], set[str]]:
             if values:
                 key_tuples.setdefault(tuple(values), set()).add(field.name)
     return key_tuples
+
+
+def test_merged_hook_payload_policy_is_descriptor_wise_union_for_every_field() -> None:
+    merged_policy = get_hook_payload_policy()
+
+    for field in fields(merged_policy):
+        expected_values: list[str] = []
+        for descriptor in _RUNTIME_DESCRIPTORS:
+            for value in getattr(descriptor.hook_payload, field.name):
+                if value not in expected_values:
+                    expected_values.append(value)
+
+        assert getattr(merged_policy, field.name) == tuple(expected_values)
 
 
 def test_shared_hook_policy_consumers_do_not_duplicate_catalog_hook_payload_key_tuples() -> None:

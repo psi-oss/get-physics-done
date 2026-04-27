@@ -57,7 +57,7 @@ from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
-from gpd.registry import AgentDef, load_agents_from_dir
+from gpd.registry import AgentDef, list_commands, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
 
@@ -437,8 +437,16 @@ def _convert_codex_tool_name(tool_name: str) -> str | None:
 
 def _rewrite_codex_command_references(content: str) -> str:
     """Rewrite runnable GPD command references without touching URLs or paths."""
-    converted = _CODEX_SLASH_COMMAND_REFERENCE_RE.sub(r"$gpd-\1", content)
-    return _CODEX_BARE_COMMAND_REFERENCE_RE.sub(r"$gpd-\1", converted)
+    command_slugs = set(list_commands(name_format="slug"))
+
+    def _replace(match: re.Match[str]) -> str:
+        slug = match.group(1)
+        if slug not in command_slugs:
+            return match.group(0)
+        return f"$gpd-{slug}"
+
+    converted = _CODEX_SLASH_COMMAND_REFERENCE_RE.sub(_replace, content)
+    return _CODEX_BARE_COMMAND_REFERENCE_RE.sub(_replace, converted)
 
 
 def _convert_to_codex_skill(content: str, skill_name: str) -> str:

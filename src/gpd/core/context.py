@@ -3289,14 +3289,15 @@ def init_plan_phase(
             "gpd init plan-phase does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
-    phase_info = _try_find_phase(cwd, phase)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
+    phase_info = _try_find_phase(effective_cwd, phase)
 
     result: dict[str, object] = {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-phase-researcher", config),
-        "planner_model": _resolve_model(cwd, "gpd-planner", config),
-        "checker_model": _resolve_model(cwd, "gpd-plan-checker", config),
+        "researcher_model": _resolve_model(effective_cwd, "gpd-phase-researcher", config),
+        "planner_model": _resolve_model(effective_cwd, "gpd-planner", config),
+        "checker_model": _resolve_model(effective_cwd, "gpd-plan-checker", config),
         # Workflow flags
         "research_enabled": config["research"],
         "plan_checker_enabled": config["plan_checker"],
@@ -3316,17 +3317,17 @@ def init_plan_phase(
         "has_plans": len(phase_info.get("plans", [])) > 0 if phase_info else False,
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # Environment
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
     if stage is None:
-        result.update(_build_reference_runtime_context(cwd))
-        result.update(_build_state_memory_runtime_context(cwd))
+        result.update(_build_reference_runtime_context(effective_cwd))
+        result.update(_build_state_memory_runtime_context(effective_cwd))
         result.update(
             _build_plan_phase_file_context(
-                cwd,
+                effective_cwd,
                 phase_info,
                 include_state="state" in includes,
                 include_roadmap="roadmap" in includes,
@@ -3339,7 +3340,7 @@ def init_plan_phase(
             )
         )
         if "state" in includes:
-            result.update(_build_structured_state_runtime_context(cwd))
+            result.update(_build_structured_state_runtime_context(effective_cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3362,20 +3363,20 @@ def init_plan_phase(
     needs_contract_gate_context = bool(required_fields & _PLAN_PHASE_CONTRACT_GATE_FIELDS)
 
     if needs_full_reference_context:
-        staged_source.update(_build_reference_runtime_context(cwd))
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
     elif needs_contract_gate_context:
-        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _PLAN_PHASE_STATE_MEMORY_FIELDS:
-        staged_source.update(_build_state_memory_runtime_context(cwd))
+        staged_source.update(_build_state_memory_runtime_context(effective_cwd))
 
     if required_fields & _PLAN_PHASE_STRUCTURED_STATE_FIELDS:
-        staged_source.update(_build_structured_state_runtime_context(cwd))
+        staged_source.update(_build_structured_state_runtime_context(effective_cwd))
 
     if required_fields & _PLAN_PHASE_FILE_CONTENT_FIELDS:
         staged_source.update(
             _build_plan_phase_file_context(
-                cwd,
+                effective_cwd,
                 phase_info,
                 include_state="state_content" in required_fields,
                 include_roadmap="roadmap_content" in required_fields,
@@ -3870,25 +3871,26 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
 def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for state reconciliation."""
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
     normalized_prefer = prefer_mode.strip() if isinstance(prefer_mode, str) and prefer_mode.strip() else None
     if normalized_prefer not in {None, "md", "json"}:
         raise ValueError("sync-state prefer mode must be one of: md, json")
 
     base_result = {
         "prefer_mode": normalized_prefer,
-        "state_md_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
-        "state_json_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/state.json"),
-        "state_json_backup_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
-        "platform": _detect_platform(cwd),
+        "state_md_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_json_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/state.json"),
+        "state_json_backup_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
+        "platform": _detect_platform(effective_cwd),
     }
 
     if stage is None:
         result = dict(base_result)
-        result.update(_build_structured_state_runtime_context(cwd))
-        result.update(_build_new_project_contract_runtime_context(cwd))
+        result.update(_build_structured_state_runtime_context(effective_cwd))
+        result.update(_build_new_project_contract_runtime_context(effective_cwd))
         result.update(
             _build_sync_state_file_context(
-                cwd,
+                effective_cwd,
                 include_state_md=True,
                 include_state_json=True,
                 include_state_json_backup=True,
@@ -3913,15 +3915,15 @@ def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | N
     staged_source = dict(base_result)
 
     if required_fields & _SYNC_STATE_STRUCTURED_STATE_FIELDS:
-        staged_source.update(_build_structured_state_runtime_context(cwd))
+        staged_source.update(_build_structured_state_runtime_context(effective_cwd))
 
     if required_fields & _SYNC_STATE_CONTRACT_GATE_FIELDS:
-        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _SYNC_STATE_FILE_CONTENT_FIELDS:
         staged_source.update(
             _build_sync_state_file_context(
-                cwd,
+                effective_cwd,
                 include_state_md="state_md_content" in required_fields,
                 include_state_json="state_json_content" in required_fields,
                 include_state_json_backup="state_json_backup_content" in required_fields,

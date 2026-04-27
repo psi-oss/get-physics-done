@@ -6,6 +6,13 @@ import sys
 
 MIN_SUPPORTED_PYTHON = (3, 11)
 MIN_SUPPORTED_PYTHON_LABEL = ".".join(str(part) for part in MIN_SUPPORTED_PYTHON)
+PREFERRED_PYTHON_VERSIONS = ((3, 13), (3, 12), MIN_SUPPORTED_PYTHON)
+PREFERRED_VERSIONED_PYTHON_MINORS = tuple(
+    version[1]
+    for version in PREFERRED_PYTHON_VERSIONS
+    if version[0] == MIN_SUPPORTED_PYTHON[0]
+)
+RECOMMENDED_PYTHON_VERSION = PREFERRED_PYTHON_VERSIONS[0]
 
 
 def unsupported_python_message(*, version_info: tuple[int, ...] | None = None) -> str:

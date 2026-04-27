@@ -151,6 +151,22 @@ def _assert_live_hotspot_split_files_produce_multiple_work_units(
         assert sum(len(unit.targets) for unit in matching) == len(inventory[rel_path])
 
 
+def test_hook_hotspot_metadata_tracks_measured_slow_hook_files() -> None:
+    measured_slow_hook_files = {
+        "hooks/test_notify.py",
+        "hooks/test_runtime_detect.py",
+        "hooks/test_runtime_lookup.py",
+        "hooks/test_statusline.py",
+        "hooks/test_todo_resolution.py",
+        "hooks/test_update_resolution.py",
+    }
+
+    assert measured_slow_hook_files <= set(CI_HOT_TEST_FILE_SPLITS)
+    assert measured_slow_hook_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+    assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in measured_slow_hook_files)
+    assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_hook_files)
+
+
 def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
     inventory: dict[str, tuple[str, ...]],
 ) -> None:

@@ -191,8 +191,15 @@ jobs:
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
-          echo "Fast suite advisory target: ${GPD_FAST_SUITE_BUDGET_SECONDS}s full-suite wall clock; shard timeout: 10 minutes"
-          uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
+          echo "Fast suite budget: ${GPD_FAST_SUITE_BUDGET_SECONDS}s enforced per pytest shard; job timeout: 10 minutes"
+          set +e
+          timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
+          pytest_status=$?
+          set -e
+          if [ "$pytest_status" -eq 124 ]; then
+            echo "::error::pytest shard exceeded enforced ${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"
+          fi
+          exit "$pytest_status"
 
   # Staging rebuild trigger moved to staging-rebuild.yml so it doesn't
   # show as a skipped check on PRs.

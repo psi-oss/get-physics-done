@@ -72,6 +72,15 @@ def test_command_wrappers_do_not_repeat_self_workflow_reference_after_include() 
         assert len(workflow_reference.findall(content)) <= 1, path.relative_to(REPO_ROOT)
 
 
+def test_set_profile_updates_only_model_profile_through_config_cli() -> None:
+    set_profile = _read("set-profile.md")
+
+    assert 'gpd config set model_profile "$ARGUMENTS.profile"' in set_profile
+    assert "preserving all other `GPD/config.json` keys" in set_profile
+    assert '"model_profile": "$ARGUMENTS.profile"' not in set_profile
+    assert "Write updated config back to `GPD/config.json`" not in set_profile
+
+
 def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -> None:
     plan_phase_raw = _read("plan-phase.md")
     quick_raw = _read("quick.md")
@@ -160,6 +169,64 @@ def test_new_project_workflow_keeps_contract_preservation_rules_single_sourced()
         "keep `schema_version` at `1`, and keep `references[].must_surface` as a boolean, not a synonym"
         not in new_project
     )
+
+
+def test_new_project_workflow_references_late_artifact_templates_without_inlining_skeletons() -> None:
+    new_project = _read("new-project.md")
+    project_template = (TEMPLATES_DIR / "project.md").read_text(encoding="utf-8")
+    state_template = (TEMPLATES_DIR / "state.md").read_text(encoding="utf-8")
+
+    assert "{GPD_INSTALL_DIR}/templates/project.md" in new_project
+    assert "{GPD_INSTALL_DIR}/templates/state.md" in new_project
+    assert "@{GPD_INSTALL_DIR}/templates/project.md" not in new_project
+    assert "@{GPD_INSTALL_DIR}/templates/state.md" not in new_project
+
+    assert "# {project_title}" in project_template
+    assert "## Scoping Contract Summary" in project_template
+    assert "## Current Position" in state_template
+    assert "**Current Phase Name:** [Phase name]" in state_template
+
+    assert new_project.count("## Scoping Contract Summary") <= 1
+    for removed_project_skeleton_marker in (
+        "# [Extracted Research Title]",
+        "[Extracted research question]",
+        "- **User-stated observables:** [Specific quantity, curve, figure, or smoking-gun signal]",
+        "| Parameter | Symbol | Regime | Notes |",
+        "_Last updated: [today's date] after initialization (minimal)_",
+    ):
+        assert removed_project_skeleton_marker not in new_project
+
+    for removed_state_skeleton_marker in (
+        "# Research State",
+        "See: GPD/PROJECT.md (updated [today's date])",
+        "**Current Phase:** 1",
+        "**Current Phase Name:** [Phase 1 name]",
+        "**Stopped at:** Project initialized (minimal)",
+    ):
+        assert removed_state_skeleton_marker not in new_project
+
+
+def test_notation_coordinator_references_subfield_defaults_without_inlining_table() -> None:
+    notation_coordinator = (AGENTS_DIR / "gpd-notation-coordinator.md").read_text(encoding="utf-8")
+    subfield_defaults = (
+        REFERENCES_DIR / "conventions" / "subfield-convention-defaults.md"
+    ).read_text(encoding="utf-8")
+    canonical_reference = "{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md"
+
+    assert canonical_reference in notation_coordinator
+    assert f"@{canonical_reference}" not in notation_coordinator
+    assert "Load the canonical subfield defaults reference and look up the matching subfield." in notation_coordinator
+    assert "Pre-populate `CONVENTIONS.md` with the default choices." in notation_coordinator
+
+    assert "## Convention Defaults by Subfield" in subfield_defaults
+    assert "## Convention Defaults by Subfield" not in notation_coordinator
+    for canonical_row in (
+        "| Units | Natural: ℏ = c = 1 | Universal in particle physics |",
+        "| Metric signature | (+,−,−,−) (West Coast) | Peskin & Schroeder, Weinberg |",
+        "| Brillouin zone | First BZ; high-symmetry points (Γ, X, M, K) | Setyawan & Curtarolo notation |",
+    ):
+        assert canonical_row in subfield_defaults
+        assert canonical_row not in notation_coordinator
 
 
 def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:

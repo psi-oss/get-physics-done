@@ -195,141 +195,13 @@ Do not write `/tmp` intermediates for the approved contract. Prefer piping the e
 
 #### M2. Create PROJECT.md
 
-Populate `GPD/PROJECT.md` using the template from `templates/project.md`.
+Load `{GPD_INSTALL_DIR}/templates/project.md` at this stage and populate `GPD/PROJECT.md` from the approved scoping contract plus the M1 context. Do not inline or recreate the template body in this workflow.
 
-Fill in what was extracted. For sections without enough information, use sensible placeholder text that signals incompleteness:
+Populate only fields supported by extracted input. When information is missing, say that explicitly (`None confirmed yet`, `To be determined during Phase 1`, or `anchor not yet selected`) instead of inventing anchors, references, or phase structure. Preserve user-named observables, deliverables, prior outputs, stop/rethink conditions, and required references in wording the user would recognize.
 
-```markdown
-# [Extracted Research Title]
-
-## What This Is
-
-[Extracted research description — keep it concise, 2-3 sentences from the input]
-
-## Core Research Question
-
-[Extracted research question]
-
-## Scoping Contract Summary
-
-### Contract Coverage
-
-- [Claim / deliverable]: [What counts as success]
-- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
-- [False progress to reject]: [Proxy that must not count]
-
-### User Guidance To Preserve
-
-- **User-stated observables:** [Specific quantity, curve, figure, or smoking-gun signal]
-- **User-stated deliverables:** [Specific table, plot, derivation, dataset, note, or code output]
-- **Must-have references / prior outputs:** [Paper, notebook, run, figure, or benchmark that must remain visible]
-- **Stop / rethink conditions:** [When to pause, ask again, or re-scope before continuing]
-
-### Scope Boundaries
-
-**In scope**
-
-- [Approved in-scope item]
-
-**Out of scope**
-
-- [Approved out-of-scope item]
-
-### Active Anchor Registry
-
-- [Anchor ID or short label]: [Paper, dataset, spec, benchmark, or prior artifact]
-  - Why it matters: [What it constrains]
-  - Carry forward: [planning | execution | verification | writing]
-  - Required action: [read | use | compare | cite | avoid]
-
-### Carry-Forward Inputs
-
-- [Prior output, notebook, figure, baseline, or "None confirmed yet"]
-
-### Skeptical Review
-
-- **Weakest anchor:** [Least-certain assumption, reference, or prior result]
-- **Disconfirming observation:** [What would make the framing look wrong]
-- **False progress to reject:** [What might look promising but should not count as success]
-
-### Open Contract Questions
-
-- [Unresolved question or context gap]
-
-## Research Context
-
-### Physical System
-
-[Inferred from input]
-
-### Theoretical Framework
-
-[Inferred from input, or "To be determined during Phase 1"]
-
-### Key Parameters and Scales
-
-| Parameter | Symbol | Regime | Notes |
-| --------- | ------ | ------ | ----- |
-| [param 1] | [sym]  | [range] | [notes] |
-
-### Known Results
-
-- [Known prior result, benchmark, or "To be filled after survey"]
-
-### What Is New
-
-[What this project is trying to establish]
-
-### Computational Environment
-
-[Extracted from input, or "To be determined"]
-
-## Notation and Conventions
-
-See `GPD/CONVENTIONS.md`. Add `GPD/NOTATION_GLOSSARY.md` later only if the project needs a dedicated symbol glossary.
-
-## Unit System
-
-[Inferred from input, or "To be determined from conventions setup"]
+Keep requirements in `GPD/REQUIREMENTS.md`; `PROJECT.md` only mirrors the contract-critical anchors and readable project context. Keep notation and conventions as a pointer to `GPD/CONVENTIONS.md`, adding `GPD/NOTATION_GLOSSARY.md` later only if the project needs a dedicated symbol glossary.
 
 If the project may rely on Wolfram capability, distinguish a local Mathematica / Wolfram Language install from the shared optional Wolfram integration config. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version`, `pdftotext -v`, or `wolframscript -version`, but that stays separate from the shared path enabled with `gpd integrations enable wolfram`, and it is still separate from `gpd validate plan-preflight <PLAN.md>` and from local install checks.
-
-## Requirements
-
-### Validated
-
-(None yet — derive and validate to confirm)
-
-### Active
-
-- [ ] [One requirement per extracted phase goal]
-
-### Out of Scope
-
-(To be refined as project progresses)
-
-## Key References
-
-[Approved must-read references, benchmarks, or "None confirmed yet"]
-
-## Target Publication
-
-(To be determined)
-
-## Constraints
-
-(None specified)
-
-## Key Decisions
-
-| Decision                                    | Rationale              | Outcome   |
-| ------------------------------------------- | ---------------------- | --------- |
-| Minimal initialization — defer deep scoping | Fast staged initialization | — Pending |
-
----
-
-_Last updated: [today's date] after initialization (minimal)_
-```
 
 #### M3. Create REQUIREMENTS.md
 
@@ -419,75 +291,9 @@ Plans:
 
 #### M5. Create STATE.md and config.json
 
-**STATE.md** — Initialize using the standard template:
+**STATE.md** — Load `{GPD_INSTALL_DIR}/templates/state.md` only when writing `GPD/STATE.md`; do not inline the template body in this workflow.
 
-```markdown
-# Research State
-
-## Project Reference
-
-See: GPD/PROJECT.md (updated [today's date])
-
-**Core research question:** [From PROJECT.md]
-**Current focus:** Phase 1 — [Phase 1 name]
-
-## Current Position
-
-**Current Phase:** 1
-**Current Phase Name:** [Phase 1 name]
-**Total Phases:** [N]
-**Current Plan:** 0
-**Total Plans in Phase:** 0
-**Status:** Ready to plan
-**Last Activity:** [today's date]
-**Last Activity Description:** Project initialized (minimal)
-
-**Progress:** [░░░░░░░░░░] 0%
-
-## Active Calculations
-
-None yet.
-
-## Intermediate Results
-
-None yet.
-
-## Open Questions
-
-[Populate from approved scoping-contract unresolved questions. If none, say "None yet."]
-
-## Performance Metrics
-
-| Label | Duration | Tasks | Files |
-| ----- | -------- | ----- | ----- |
-| -     | -        | -     | -     |
-
-## Accumulated Context
-
-### Decisions
-
-- [Phase 1]: Minimal mode — scoping contract approved before phase planning
-
-### Active Approximations
-
-None yet.
-
-### Pending Todos
-
-None yet.
-
-### Blockers/Concerns
-
-None yet.
-
-## Session Continuity
-
-**Last session:** [current ISO timestamp]
-**Stopped at:** Project initialized (minimal)
-**Resume file:** —
-**Hostname:** [current hostname]
-**Platform:** [current platform]
-```
+Initialize it with the project reference, core research question, Phase 1 ready-to-plan position, empty active calculations and intermediate results, approved-contract unresolved questions, and no pending todos or blockers unless the user supplied them. Record the last activity as `Project initialized (minimal)` and keep the session-continuity fields consistent with the JSON continuation fields below.
 
 Initialize the canonical continuity fields under `GPD/state.json.continuation` so `gpd:resume-work` sees the same durable state when JSON is healthy:
 
@@ -801,30 +607,11 @@ Keep the same blocking fields, preservation rules, schema discipline, approval o
 
 If `GPD/config.json` does not exist yet, run Step 5 now before generating or committing `PROJECT.md`. This keeps the opening focused on the physics question while still letting `planning.commit_docs` and other durable workflow settings apply before the first project-artifact commit. After Step 5 completes, return here and continue.
 
-Then synthesize all context into `GPD/PROJECT.md` using the template from `templates/project.md`.
+Then synthesize all context into `GPD/PROJECT.md` using `{GPD_INSTALL_DIR}/templates/project.md`. Load the template at this stage; do not inline or recreate template-owned skeletons in this workflow.
 
 **For fresh research projects:**
 
-Initialize research questions as hypotheses:
-
-```markdown
-## Research Questions
-
-### Answered
-
-(None yet — investigate to answer)
-
-### Active
-
-- [ ] [Research question 1]
-- [ ] [Research question 2]
-- [ ] [Research question 3]
-
-### Out of Scope
-
-- [Question 1] — [why: e.g., requires experiment, different subfield]
-- [Question 2] — [why]
-```
+Initialize research questions as hypotheses: answered questions should say none yet, active questions should come from the approved scope, and out-of-scope questions should include the reason they were excluded.
 
 **For continuation projects (existing work map exists):**
 
@@ -834,128 +621,21 @@ Infer answered questions from existing work:
 2. Identify what has already been established
 3. These become the initial Answered set
 
-```markdown
-## Research Questions
-
-### Answered
-
-- [checkmark] [Existing result 1] — established
-- [checkmark] [Existing result 2] — established
-- [checkmark] [Existing result 3] — established
-
-### Active
-
-- [ ] [New question 1]
-- [ ] [New question 2]
-
-### Out of Scope
-
-- [Question 1] — [why]
-```
-
 **Scoping Contract Summary:**
 
-Ensure PROJECT.md visibly summarizes the approved contract, including:
-
-```markdown
-## Scoping Contract Summary
-
-### Contract Coverage
-
-- [Claim / deliverable]: [What counts as success]
-- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
-- [False progress to reject]: [Proxy that must not count]
-
-### Scope Boundaries
-
-**In scope**
-
-- [Approved in-scope item]
-
-**Out of scope**
-
-- [Approved out-of-scope item]
-
-### Active Anchor Registry
-
-- [Anchor ID or short label]: [Paper, dataset, spec, benchmark, or prior artifact]
-  - Why it matters: [What it constrains]
-  - Carry forward: [planning | execution | verification | writing]
-  - Required action: [read | use | compare | cite | avoid]
-
-### Carry-Forward Inputs
-
-- [Prior output, notebook, figure, baseline, or "None confirmed yet"]
-
-### Skeptical Review
-
-- **Weakest anchor:** [Least-certain assumption, reference, or prior result]
-- **Unvalidated assumptions:** [What is currently assumed rather than checked]
-- **Competing explanation:** [Alternative story that could also fit]
-- **Disconfirming observation:** [What would make the framing look wrong]
-- **False progress to reject:** [What might look promising but should not count as success]
-
-### Open Contract Questions
-
-- [Unresolved question or context gap]
-```
+Ensure `PROJECT.md` visibly summarizes the approved contract using the canonical template section. Include contract coverage, user guidance to preserve, scope boundaries, active anchors, carry-forward inputs, skeptical-review items, and open contract questions. Do not create a second project-contract schema or omit user-stated stop/rethink guidance.
 
 **Key Decisions:**
 
-Initialize with any decisions made during questioning:
-
-```markdown
-## Key Decisions
-
-| Decision                  | Rationale | Outcome   |
-| ------------------------- | --------- | --------- |
-| [Choice from questioning] | [Why]     | — Pending |
-```
+Initialize with decisions made during questioning, using the template's key-decision table and preserving the rationale for each choice.
 
 **Research Context:**
 
-```markdown
-## Research Context
-
-### Physical System
-
-[Description of the system under study]
-
-### Theoretical Framework
-
-[QFT / condensed matter / GR / statistical mechanics / etc.]
-
-### Key Parameters and Scales
-
-| Parameter | Symbol | Regime  | Notes   |
-| --------- | ------ | ------- | ------- |
-| [param 1] | [sym]  | [range] | [notes] |
-
-### Known Results
-
-- [Prior work 1] — [reference]
-- [Prior work 2] — [reference]
-
-### What Is New
-
-[What this project contributes beyond existing work]
-
-### Target Venue
-
-[Journal or conference, with rationale]
-
-### Computational Environment
-
-[Available resources: local workstation, cluster, cloud, specific codes]
-```
+Capture the physical system, theoretical framework, key parameters and scales, known results, novelty, target venue when known, and computational environment. If a field is unknown, mark it as unresolved rather than inventing a plausible value.
 
 **Last updated footer:**
 
-```markdown
----
-
-_Last updated: [date] after initialization_
-```
+Record the date and initialization trigger in the template footer.
 
 Do not compress. Capture everything gathered.
 
@@ -1178,7 +858,7 @@ Create `GPD/config.json` with all settings:
 
 **If planning.commit_docs = Yes:**
 
-- Keep `GPD/` tracked, but add `GPD/state.json.bak` to `.gitignore` (create/update if needed). This file is a local crash-recovery backup, not a durable project artifact, and it should not remain as untracked noise after normal runs.
+- Keep `GPD/` tracked, but add `GPD/state.json.bak` and `GPD/state.json.lock` to `.gitignore` (create/update if needed). The backup is local crash recovery and the lockfile is local write coordination; neither is a durable project artifact.
 
 **Sync runtime permissions after writing config.json:**
 

@@ -1042,7 +1042,17 @@ def _apply_fixes(
     state_check = next((c for c in checks if c.label == "State Validity"), None)
     if state_check and state_check.status != CheckStatus.OK:
         restored_state, _restored_issues, state_source = peek_state_json(cwd)
-        if restored_state is not None and state_source in {"state.json.bak", "STATE.md"}:
+        if restored_state is not None and state_source == "state.json" and not layout.state_md.exists():
+            try:
+                save_state_json(cwd, restored_state)
+                fixes.append("Regenerated STATE.md from state.json")
+                state_check.details["state_source"] = state_source
+                refreshed_labels.update(
+                    {"Project Structure", "State Validity", "State Compaction", "Convention Lock"}
+                )
+            except OSError as e:
+                fixes.append(f"Failed to restore STATE.md: {e}")
+        elif restored_state is not None and state_source in {"state.json.bak", "STATE.md"}:
             try:
                 save_state_json(cwd, restored_state)
                 if state_source == "state.json.bak":

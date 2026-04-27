@@ -1537,6 +1537,28 @@ class TestRunHealth:
         assert state_check.details["state_source"] == "state.json"
         assert report.fixes_applied == ["Regenerated state.json from STATE.md"]
 
+    def test_fix_mode_regenerates_missing_state_md_from_state_json(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        layout = ProjectLayout(cwd)
+
+        state = default_state_dict()
+        state["position"]["status"] = "Executing"
+        state["position"]["current_phase"] = "12"
+        save_state_json(cwd, state)
+        layout.state_md.unlink()
+
+        report = run_health(cwd, fix=True)
+        state_check = next(check for check in report.checks if check.label == "State Validity")
+        structure_check = next(check for check in report.checks if check.label == "Project Structure")
+
+        assert layout.state_md.exists()
+        assert "**Current Phase:** 12" in layout.state_md.read_text(encoding="utf-8")
+        assert state_check.details["has_json"] is True
+        assert state_check.details["has_md"] is True
+        assert state_check.details["state_source"] == "state.json"
+        assert structure_check.details["STATE.md"] == "present"
+        assert report.fixes_applied == ["Regenerated STATE.md from state.json"]
+
     def test_fix_mode_from_nested_workspace_repairs_project_root_without_creating_nested_gpd(
         self, tmp_path: Path
     ) -> None:

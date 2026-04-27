@@ -1593,11 +1593,16 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
         patch("gpd.hooks.notify._execution_notification_message", side_effect=_message),
         patch("sys.stderr", stderr),
     ):
-        threads = [threading.Thread(target=_emit), threading.Thread(target=_emit)]
+        threads = [
+            threading.Thread(target=_emit, name="notify-dedupe-1", daemon=True),
+            threading.Thread(target=_emit, name="notify-dedupe-2", daemon=True),
+        ]
         for thread in threads:
             thread.start()
         for thread in threads:
-            thread.join()
+            thread.join(timeout=5)
+        live_threads = [thread.name for thread in threads if thread.is_alive()]
+        assert not live_threads, f"Notification threads did not stop: {live_threads}; errors: {errors}"
 
     assert errors == []
     assert stderr.getvalue().count("Resume candidate from live overlay for 04-02") == 1

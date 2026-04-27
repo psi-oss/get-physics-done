@@ -464,6 +464,10 @@ def file_lock(path: Path, timeout: float = 5.0) -> Iterator[None]:
     Usage:
         with file_lock(some_path):
             # exclusive access to some_path
+
+    The sidecar lockfile is intentionally durable.  Unlinking it on release can
+    let a racing process recreate and lock a different inode while another
+    waiter still holds an open descriptor to the original lockfile.
     """
     lock_path = path.with_suffix(path.suffix + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -487,7 +491,3 @@ def file_lock(path: Path, timeout: float = 5.0) -> Iterator[None]:
             except OSError:
                 pass
             lock_fd.close()
-            try:
-                lock_path.unlink(missing_ok=True)
-            except OSError:
-                pass

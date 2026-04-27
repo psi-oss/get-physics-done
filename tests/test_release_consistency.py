@@ -599,23 +599,32 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
 def test_publish_release_followup_recreates_or_fails_when_branch_exists_without_open_pr() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+    force_with_lease_push = (
+        'git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}" '
+        'origin "HEAD:${FOLLOWUP_BRANCH}"'
+    )
     branch_exists_block = workflow[
         workflow.index('if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH"')
-        : workflow.index('git switch -c "$FOLLOWUP_BRANCH"')
+        : workflow.index('prepare_followup_branch\n          git push --set-upstream origin "$FOLLOWUP_BRANCH"')
     ]
 
     assert 'if [ -n "$PR_URL" ]; then' in branch_exists_block
     assert "--jq '.[0].url // \"\"'" in branch_exists_block
+    assert 'EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk' in branch_exists_block
     assert 'echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found' in branch_exists_block
+    assert "restamping and updating the branch before recreating the PR" in branch_exists_block
+    assert "prepare_followup_branch" in branch_exists_block
+    assert force_with_lease_push in branch_exists_block
     assert 'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"' in branch_exists_block
     assert 'if [ -z "$PR_URL" ]; then' in branch_exists_block
     assert 'echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} exists, but no open PR URL could be found' in branch_exists_block
     assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < branch_exists_block.index(
-        'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"'
+        "prepare_followup_branch"
     )
-    assert branch_exists_block.index(
+    assert branch_exists_block.index("prepare_followup_branch") < branch_exists_block.index(force_with_lease_push)
+    assert branch_exists_block.index(force_with_lease_push) < branch_exists_block.index(
         'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"'
-    ) < branch_exists_block.index('if [ -z "$PR_URL" ]; then')
+    ) < branch_exists_block.index("if [ -z \"$PR_URL\" ]; then")
 
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:
@@ -760,7 +769,7 @@ def test_gitignore_does_not_exclude_gpd_directory() -> None:
     """
     repo_root = _repo_root()
     content = (repo_root / ".gitignore").read_text(encoding="utf-8")
-    for pattern in ("GPD/", "GPD/*", "GPD/STATE.md", "GPD/state.json", "GPD/state.json.bak"):
+    for pattern in ("GPD/", "GPD/*", "GPD/STATE.md", "GPD/state.json", "GPD/state.json.bak", "GPD/state.json.lock"):
         assert pattern not in content, f".gitignore must not contain {pattern!r}"
 
 

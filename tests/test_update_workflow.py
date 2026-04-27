@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -70,6 +71,19 @@ def test_update_workflow_clears_runtime_resolution_cache_candidates() -> None:
     assert 'for root in (current_config, current_global_config, Path.home() / "{GPD_HOME_DATA_DIR_NAME}")' in content
     assert 'root / "{GPD_CACHE_DIR_NAME}" / "{GPD_UPDATE_CACHE_FILENAME}"' in content
     assert '.with_name(f"{cache_file.name}.inflight")' in content
+
+
+def test_update_workflow_executes_assigned_update_command_without_literal_placeholder() -> None:
+    content = (GPD_ROOT / "specs" / "workflows" / "update.md").read_text(encoding="utf-8")
+    shell_blocks = re.findall(r"```bash\n([\s\S]*?)\n```", content)
+    run_update_block = next(block for block in shell_blocks if 'sh -c "$UPDATE_COMMAND"' in block)
+
+    assert shell_blocks
+    assert all("<UPDATE_COMMAND>" not in block for block in shell_blocks)
+    assert "${UPDATE_COMMAND:?ERROR:" in run_update_block
+    assert 'sh -c "$UPDATE_COMMAND"' in run_update_block
+    assert '"$UPDATE_COMMAND"' in run_update_block
+    assert "eval " not in run_update_block
 
 
 def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:

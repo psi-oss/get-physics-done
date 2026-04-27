@@ -114,6 +114,7 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
         "references/ui/ui-brand.md",
         "templates/project.md",
         "templates/requirements.md",
+        "templates/state.md",
     )
     assert first.stages[2].must_not_eager_load == ()
     assert first.stages[2].writes_allowed == (

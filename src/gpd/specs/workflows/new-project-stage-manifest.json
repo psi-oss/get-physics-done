@@ -99,7 +99,8 @@
         "references/research/questioning.md",
         "references/ui/ui-brand.md",
         "templates/project.md",
-        "templates/requirements.md"
+        "templates/requirements.md",
+        "templates/state.md"
       ],
       "allowed_tools": [
         "file_read",
@@ -145,7 +146,8 @@
       "loaded_authorities": [
         "references/ui/ui-brand.md",
         "templates/project.md",
-        "templates/requirements.md"
+        "templates/requirements.md",
+        "templates/state.md"
       ],
       "conditional_authorities": [],
       "must_not_eager_load": [],
