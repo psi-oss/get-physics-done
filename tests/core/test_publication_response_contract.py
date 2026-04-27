@@ -30,9 +30,11 @@ def test_publication_response_writer_handoff_defines_one_shot_child_returns() ->
     )
     assert "status: checkpoint" in source
     assert "gpd_return.files_written" in source
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in source
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in source
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in source
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in source
+    assert "default project subjects resolve those to `GPD/AUTHOR-RESPONSE{round_suffix}.md`" in source
     assert "Do not treat prose-only status messages or stale preexisting files as proof of completion." in source
+    assert "stale same-round files without a binding do not complete the handoff" in source
     assert "publication-artifact-gates.md" not in source
 
 
@@ -76,19 +78,34 @@ def test_publication_response_artifacts_define_paired_completion_gate() -> None:
         "A reported `status: completed` is provisional until the response pair exists on disk and those same fresh paths appear in typed `gpd_return.files_written`."
         in source
     )
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in source
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in source
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in source
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in source
     assert "Treat the two files as one success gate" in source
     assert "do not mark the round complete when only one of them is current" in source
     assert "Successful response-round completion requires both" in source
     assert "status: checkpoint" in source
     assert "gpd_return.files_written" in source
     assert "Do not accept stale preexisting files" in source
-    assert "Project-backed response rounds use the exact global paths above." in source
-    assert "same paired response artifacts may instead bind under the subject-owned publication root" in source
+    assert "Project-backed response rounds resolve `selected_publication_root=GPD`" in source
+    assert "same paired response artifacts bind under the subject-owned" in source
+    assert "response_to: REFEREE-REPORT{round_suffix}.md" in source
+    assert "manuscript_path: path/to/active-manuscript.tex" in source
+    assert "missing or mismatched response frontmatter as incomplete" in source
     assert "does not imply a full relocation" in source
     assert "response-artifact-contract.md" not in source
     assert "publication-artifact-gates.md" not in source
+
+
+def test_response_templates_include_explicit_subject_binding_frontmatter() -> None:
+    templates_dir = REPO_ROOT / "src/gpd/specs/templates/paper"
+
+    for template_name in ("author-response.md", "referee-response.md"):
+        source = (templates_dir / template_name).read_text(encoding="utf-8")
+        assert "response_to: REFEREE-REPORT{round_suffix}.md" in source
+        assert "round: {N}" in source
+        assert "manuscript_path: {path/to/active-manuscript.tex}" in source
+        assert "review_ledger: ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in source
+        assert "referee_decision: ${selected_review_root}/REFEREE-DECISION{round_suffix}.json" in source
 
 
 def test_referee_revision_mode_requires_a_paired_response_package() -> None:
@@ -127,7 +144,7 @@ def test_paper_writer_and_referee_load_the_canonical_publication_response_contra
     assert "publication-response-writer-handoff.md" in write_paper
     assert "publication-bootstrap-preflight.md" in respond
     assert "publication-response-writer-handoff.md" in respond
-    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in respond
+    assert "selected_publication_root` / `selected_review_root" in respond
     assert "publication-response-artifacts.md" not in write_paper
     assert "publication-response-artifacts.md" not in respond
     assert "fresh child `gpd_return.files_written`" in respond

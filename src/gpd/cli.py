@@ -333,6 +333,30 @@ def _read_only_project_scoped_cwd(cwd: Path | None = None) -> Path:
     return resolved if resolved is not None else workspace_cwd
 
 
+def _read_only_marker_backed_project_scoped_cwd(cwd: Path | None = None) -> Path:
+    """Resolve only marker-backed project roots for read-only validation probes."""
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    return resolved if resolved is not None else workspace_cwd
+
+
+def _config_project_scoped_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the nearest canonical project root for config files without migration writes."""
+    from gpd.core.constants import REQUIRED_PLANNING_DIRS, REQUIRED_PLANNING_FILES
+
+    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
+    for candidate in (workspace_cwd, *workspace_cwd.parents):
+        planning_dir = candidate / PLANNING_DIR_NAME
+        if not planning_dir.is_dir():
+            continue
+        if any((planning_dir / name).exists() for name in REQUIRED_PLANNING_FILES) or any(
+            (planning_dir / name).is_dir() for name in REQUIRED_PLANNING_DIRS
+        ):
+            return candidate
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    return resolved if resolved is not None else workspace_cwd
+
+
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
     """Resolve the nearest project-owned ``GPD/`` anchor for project-scoped preflights."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
@@ -601,6 +625,8 @@ class CommandContextPreflightResult:
     local_cli_equivalence_guaranteed: bool = False
     dispatch_note: str = ""
     resolved_subject: ResolvedCommandSubject | None = None
+    selected_publication_root: str | None = None
+    selected_review_root: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1347,9 +1373,9 @@ def state_active_hypothesis() -> None:
 @state_app.command("validate")
 def state_validate() -> None:
     """Validate state consistency and schema compliance."""
-    from gpd.core.state import state_validate
+    from gpd.core.state import state_validate as core_state_validate
 
-    result = state_validate(_state_command_cwd())
+    result = core_state_validate(_read_only_marker_backed_project_scoped_cwd(), recover_intent=False, acquire_lock=False)
     _output(result)
     if hasattr(result, "valid") and not result.valid:
         raise typer.Exit(code=1)
@@ -3552,7 +3578,7 @@ def _load_state_dict(cwd: Path | None = None) -> dict:
 
     from gpd.core.state import peek_state_json
 
-    project_cwd = _project_scoped_cwd(cwd)
+    project_cwd = _read_only_project_scoped_cwd(cwd)
     data, _issues, _state_source = peek_state_json(
         project_cwd,
         recover_intent=False,
@@ -5399,6 +5425,8 @@ def presets_apply(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show a diff-oriented preview without writing it"),
 ) -> None:
     """Apply a workflow preset to GPD/config.json."""
+    from contextlib import nullcontext
+
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write, file_lock
 
@@ -5407,8 +5435,9 @@ def presets_apply(
         supported = ", ".join(preset.id for preset in list_workflow_presets())
         _error(f"Unknown workflow preset {preset_name!r}. Supported: {supported}")
 
-    config_path = ProjectLayout(_get_cwd()).config_json
-    with file_lock(config_path):
+    project_cwd = _config_project_scoped_cwd()
+    config_path = ProjectLayout(project_cwd).config_json
+    with nullcontext() if dry_run else file_lock(config_path):
         try:
             raw_text = config_path.read_text(encoding="utf-8")
         except FileNotFoundError:
@@ -6145,7 +6174,7 @@ def config_get(
     try:
         from gpd.core.config import effective_config_value, load_config
 
-        config = load_config(_get_cwd())
+        config = load_config(_config_project_scoped_cwd())
         found, value = effective_config_value(config, key)
     except ConfigError as exc:
         _error(str(exc))
@@ -6165,7 +6194,8 @@ def config_set(
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write, file_lock
 
-    config_path = ProjectLayout(_get_cwd()).config_json
+    project_cwd = _config_project_scoped_cwd()
+    config_path = ProjectLayout(project_cwd).config_json
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with file_lock(config_path):
         try:
@@ -6188,12 +6218,12 @@ def config_set(
             _error(str(exc))
         atomic_write(config_path, json.dumps(updated_config, indent=2) + "\n")
 
-    config = load_config(_get_cwd())
+    config = load_config(project_cwd)
     _found, effective_value = effective_config_value(config, key)
     result: dict[str, object] = {"key": key, "canonical_key": canonical_key, "value": effective_value, "updated": True}
     if canonical_key == "autonomy":
         result["guided_path"] = (
-            f"Use `{_active_runtime_settings_command(cwd=_get_cwd())}` inside the runtime for guided autonomy changes."
+            f"Use `{_active_runtime_settings_command(cwd=project_cwd)}` inside the runtime for guided autonomy changes."
         )
         result["runtime_permissions"] = _runtime_permissions_payload(
             runtime=None,
@@ -6212,7 +6242,7 @@ def config_ensure_section() -> None:
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write
 
-    config_path = ProjectLayout(_get_cwd()).config_json
+    config_path = ProjectLayout(_config_project_scoped_cwd()).config_json
     if config_path.exists():
         _output({"created": False, "path": str(config_path)})
         return
@@ -8199,6 +8229,52 @@ def _publication_subject_slug_for_manuscript_entrypoint(
     return f"{slug}-{digest}"
 
 
+def _managed_publication_slug_for_target(project_root: Path, target: Path | None) -> str | None:
+    """Return the existing managed publication slug for a target under GPD/publication."""
+    if target is None:
+        return None
+    try:
+        relative = target.resolve(strict=False).relative_to(project_root.resolve(strict=False))
+    except ValueError:
+        return None
+    parts = relative.parts
+    if len(parts) >= 4 and parts[0] == PLANNING_DIR_NAME and parts[1] == PUBLICATION_DIR_NAME and parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME:
+        return parts[2]
+    return None
+
+
+def _command_context_publication_roots(
+    project_root: Path,
+    command: object,
+    resolved_subject: ResolvedCommandSubject | None,
+) -> tuple[str | None, str | None]:
+    """Return selected response roots exposed by command-context preflight."""
+    if _command_review_mode(command) != "publication":
+        return None, None
+    if resolved_subject is None or resolved_subject.subject_kind != "manuscript":
+        return PLANNING_DIR_NAME, f"{PLANNING_DIR_NAME}/review"
+
+    managed_slug = _managed_publication_slug_for_target(project_root, resolved_subject.target_path)
+    if managed_slug is not None:
+        publication_root = f"{PLANNING_DIR_NAME}/{PUBLICATION_DIR_NAME}/{managed_slug}"
+    elif resolved_subject.ownership_mode == "external_artifact" and resolved_subject.target_path is not None:
+        publication_root = (
+            f"{PLANNING_DIR_NAME}/{PUBLICATION_DIR_NAME}/"
+            f"{_publication_subject_slug_for_manuscript_entrypoint(project_root, resolved_subject.target_path)}"
+        )
+    else:
+        publication_root = PLANNING_DIR_NAME
+    return publication_root, f"{publication_root}/review"
+
+
+def _resolved_subject_uses_managed_publication_root(resolved_subject: ResolvedCommandSubject | None) -> bool:
+    return (
+        resolved_subject is not None
+        and resolved_subject.subject_kind == "manuscript"
+        and _managed_publication_slug_for_target(resolved_subject.context_root, resolved_subject.target_path) is not None
+    )
+
+
 def _command_managed_output_bindings(
     *,
     project_root: Path,
@@ -8914,6 +8990,8 @@ def _resolved_subject_scope_selectors(resolved_subject: ResolvedCommandSubject |
         selectors.add("ancestor_project")
     if resolved_subject.ownership_mode in {"project_backed", "project_reentry_selected"}:
         selectors.add("project_backed")
+    if _resolved_subject_uses_managed_publication_root(resolved_subject):
+        selectors.add("managed_publication_subject")
     if resolved_subject.ownership_mode == "external_artifact":
         selectors.update(
             {
@@ -9264,6 +9342,16 @@ def _build_command_context_preflight(
                 public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
                 dispatch_note=dispatch_note,
                 resolved_subject=resolved_subject,
+                selected_publication_root=_command_context_publication_roots(
+                    selected_root,
+                    command,
+                    resolved_subject,
+                )[0],
+                selected_review_root=_command_context_publication_roots(
+                    selected_root,
+                    command,
+                    resolved_subject,
+                )[1],
             )
         add_check(
             "project_exists",
@@ -9355,6 +9443,16 @@ def _build_command_context_preflight(
             public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
             dispatch_note=dispatch_note,
             resolved_subject=resolved_subject,
+            selected_publication_root=_command_context_publication_roots(
+                context_cwd,
+                command,
+                resolved_subject,
+            )[0],
+            selected_review_root=_command_context_publication_roots(
+                context_cwd,
+                command,
+                resolved_subject,
+            )[1],
         )
 
     explicit_inputs = _command_explicit_input_labels_from_policy(command)
@@ -9490,6 +9588,16 @@ def _build_command_context_preflight(
         public_runtime_command_prefix=_active_runtime_command_prefix(cwd=cwd) or "",
         dispatch_note=dispatch_note,
         resolved_subject=resolved_subject,
+        selected_publication_root=_command_context_publication_roots(
+            managed_output_context_root,
+            command,
+            resolved_subject,
+        )[0],
+        selected_review_root=_command_context_publication_roots(
+            managed_output_context_root,
+            command,
+            resolved_subject,
+        )[1],
     )
 
 

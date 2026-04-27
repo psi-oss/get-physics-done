@@ -199,12 +199,13 @@ def _legacy_gpd_project_markers(cwd: Path) -> list[str]:
 
 def check_project_structure(cwd: Path) -> HealthCheck:
     """Check that required GPD/ files and directories exist."""
-    layout = ProjectLayout(cwd)
+    project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+    layout = ProjectLayout(project_root)
     issues: list[str] = []
     warnings: list[str] = []
     details: dict[str, object] = {}
 
-    legacy_markers = _legacy_gpd_project_markers(cwd)
+    legacy_markers = _legacy_gpd_project_markers(project_root)
     if legacy_markers:
         details["legacy_gpd_project_markers"] = legacy_markers
         warnings.append(
@@ -424,7 +425,7 @@ def check_state_validity(cwd: Path) -> HealthCheck:
     Delegates core validation to :func:`state_validate` and wraps the result.
     """
     project_root = _resolve_health_project_root(cwd)
-    result = state_validate(project_root, recover_intent=False)
+    result = state_validate(project_root, recover_intent=False, acquire_lock=False)
     issues = list(result.issues)
     warnings = list(result.warnings)
 
@@ -2094,7 +2095,7 @@ def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool
             "Publication / manuscript and full research presets are degraded without pypdf: "
             "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, and `peer-review` still accepts "
             "TeX/Markdown/TXT/CSV/TSV plus built-in DOCX/XLSX intake, but PDF-backed `peer-review` intake requires "
-            "pypdf (`pip install 'get-physics-done[arxiv]'`) or a nearby `.txt` companion file."
+            "pypdf (`pip install 'get-physics-done[paper]'`) or a nearby `.txt` companion file."
         )
 
     status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN

@@ -658,6 +658,52 @@ def test_workflow_preset_apply_writes_merged_config(tmp_path: Path) -> None:
     assert "workflow" not in written
 
 
+def test_workflow_preset_apply_uses_ancestor_config_from_nested_workspace(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "notes" / "nested"
+    nested_cwd.mkdir(parents=True)
+    config_path = project_root / "GPD" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "autonomy": "supervised",
+                "research_mode": "adaptive",
+                "model_profile": "review",
+                "parallelization": False,
+                "workflow": {"research": False, "plan_checker": False, "verifier": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["--cwd", str(nested_cwd), "--raw", "presets", "apply", "publication-manuscript"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["config_path"] == str(config_path)
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    assert written["research_mode"] == "exploit"
+    assert written["model_profile"] == "paper-writing"
+    assert written["research"] is True
+    assert not (nested_cwd / "GPD").exists()
+
+
+def test_workflow_preset_apply_dry_run_projectless_does_not_create_gpd_dir(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--cwd", str(tmp_path), "--raw", "presets", "apply", "publication-manuscript", "--dry-run"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / "GPD").exists()
+
+
 def _sample_cost_summary(workspace: Path) -> CostSummary:
     workspace_text = str(workspace)
     project = CostProjectSummary(
@@ -3236,6 +3282,7 @@ def test_state_validate_pass(mock_validate):
     mock_validate.return_value = mock_result
     result = runner.invoke(app, ["state", "validate"])
     assert result.exit_code == 0
+    mock_validate.assert_called_once_with(ANY, recover_intent=False, acquire_lock=False)
 
 
 @patch("gpd.core.state.state_validate")
@@ -3246,6 +3293,82 @@ def test_state_validate_fail(mock_validate):
     mock_validate.return_value = mock_result
     result = runner.invoke(app, ["state", "validate"])
     assert result.exit_code == 1
+    mock_validate.assert_called_once_with(ANY, recover_intent=False, acquire_lock=False)
+
+
+@patch("gpd.core.state.state_validate")
+def test_state_validate_uses_read_only_ancestor_root_without_migration(
+    mock_validate: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "notes" / "scratch"
+    (project_root / "GPD").mkdir(parents=True)
+    nested_cwd.mkdir(parents=True)
+    (project_root / "GPD" / "STATE.md").write_text("# State\n", encoding="utf-8")
+    for filename in ("PROJECT.md", "ROADMAP.md"):
+        (project_root / filename).write_text(f"# Root {filename}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cli_module,
+        "_migrate_planning_files",
+        lambda _cwd: (_ for _ in ()).throw(AssertionError("state validate must not migrate planning files")),
+    )
+    mock_result = MagicMock()
+    mock_result.valid = True
+    mock_result.model_dump.return_value = {"valid": True, "issues": []}
+    mock_validate.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "--raw", "state", "validate"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    mock_validate.assert_called_once_with(project_root.resolve(), recover_intent=False, acquire_lock=False)
+    assert not (project_root / "GPD" / "PROJECT.md").exists()
+    assert not (project_root / "GPD" / "ROADMAP.md").exists()
+
+
+def test_read_only_marker_backed_project_scoped_cwd_ignores_bare_ancestor_gpd_dir(tmp_path: Path) -> None:
+    ancestor = tmp_path / "ancestor"
+    nested_cwd = ancestor / "child" / "work"
+    (ancestor / "GPD").mkdir(parents=True)
+    nested_cwd.mkdir(parents=True)
+
+    assert cli_module._read_only_marker_backed_project_scoped_cwd(nested_cwd) == nested_cwd.resolve()
+
+
+def test_state_validate_projectless_read_only_does_not_create_gpd_dir(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "state", "validate"], catch_exceptions=False)
+
+    assert result.exit_code == 1, result.output
+    assert not (tmp_path / "GPD").exists()
+
+
+def test_state_validate_does_not_recover_pending_state_intent(tmp_path: Path) -> None:
+    stale_state = default_state_dict()
+    stale_state["position"]["current_phase"] = "01"
+    save_state_json(tmp_path, stale_state)
+    save_state_markdown(tmp_path, generate_state_markdown(stale_state))
+
+    layout = ProjectLayout(tmp_path)
+    (layout.phases_dir / "01-test").mkdir(parents=True)
+    recovered_state = default_state_dict()
+    recovered_state["position"]["current_phase"] = "05"
+    json_tmp = layout.gpd / ".state-json-tmp"
+    md_tmp = layout.gpd / ".state-md-tmp"
+    json_tmp.write_text(json.dumps(recovered_state, indent=2) + "\n", encoding="utf-8")
+    md_tmp.write_text(generate_state_markdown(recovered_state), encoding="utf-8")
+    layout.state_intent.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
+
+    before_state = layout.state_json.read_text(encoding="utf-8")
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "state", "validate"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    assert layout.state_intent.exists()
+    assert json_tmp.exists()
+    assert md_tmp.exists()
+    assert layout.state_json.read_text(encoding="utf-8") == before_state
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["position"]["current_phase"] == "01"
 
 
 # ─── phase subcommands ──────────────────────────────────────────────────────

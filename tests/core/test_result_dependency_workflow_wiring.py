@@ -18,13 +18,15 @@ AGENT_INFRASTRUCTURE = REPO_ROOT / "src/gpd/specs/references/orchestration/agent
 
 def test_compare_experiment_workflow_distinguishes_flat_search_from_reverse_trace() -> None:
     text = COMPARE_EXPERIMENT.read_text(encoding="utf-8")
+    policy = (REPO_ROOT / "src/gpd/specs/references/results/result-lookup-policy.md").read_text(encoding="utf-8")
 
-    assert 'gpd result search --depends-on "{upstream_result_id}"' in text
-    assert 'gpd result downstream "{upstream_result_id}"' in text
-    assert "flat list of all downstream dependents" in text
-    assert "reverse dependency tree separated into direct and transitive dependents" in text
-    assert 'gpd result show "{result_id}"' in text
-    assert 'gpd result deps "{result_id}"' in text
+    assert "references/results/result-lookup-policy.md" in text
+    assert 'gpd result search --depends-on "{upstream_result_id}"' in policy
+    assert 'gpd result downstream "{result_id}"' in policy
+    assert "flat, filterable list of downstream results" in policy
+    assert "distinguish direct dependents from transitive dependents" in policy
+    assert 'gpd result show "{result_id}"' in policy
+    assert 'gpd result deps "{result_id}"' in policy
 
 
 def test_error_propagation_workflow_prefers_result_deps_before_manual_tree_rebuild() -> None:
@@ -39,13 +41,13 @@ def test_error_propagation_workflow_prefers_result_deps_before_manual_tree_rebui
 def test_explain_surfaces_result_deps_for_upstream_context() -> None:
     workflow_text = EXPLAIN_WORKFLOW.read_text(encoding="utf-8")
     command_text = EXPLAIN_COMMAND.read_text(encoding="utf-8")
+    policy_text = (REPO_ROOT / "src/gpd/specs/references/results/result-lookup-policy.md").read_text(encoding="utf-8")
 
-    assert 'gpd result show "{result_id}"' in workflow_text
-    assert 'gpd result deps "{result_id}"' in workflow_text
-    assert 'gpd result downstream "{result_id}"' in workflow_text
-    assert 'gpd result show "{result_id}"' in command_text
-    assert 'gpd result deps "{result_id}"' in command_text
-    assert 'gpd result downstream "{result_id}"' in command_text
+    assert "references/results/result-lookup-policy.md" in workflow_text
+    assert "references/results/result-lookup-policy.md" in command_text
+    assert 'gpd result show "{result_id}"' in policy_text
+    assert 'gpd result deps "{result_id}"' in policy_text
+    assert 'gpd result downstream "{result_id}"' in policy_text
 
 
 def test_lookup_first_validation_workflows_surface_result_show_after_search() -> None:
@@ -54,8 +56,7 @@ def test_lookup_first_validation_workflows_surface_result_show_after_search() ->
 
     assert "gpd result search" in numerical_text
     assert 'gpd result show "{result_id}"' in numerical_text
-    assert "gpd result search" in limiting_text
-    assert 'gpd result show "{result_id}"' in limiting_text
+    assert "references/results/result-lookup-policy.md" in limiting_text
 
 
 def test_numerical_convergence_command_doc_uses_centralized_command_context_gate() -> None:

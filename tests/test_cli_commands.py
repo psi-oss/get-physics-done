@@ -2178,7 +2178,10 @@ class TestReadOnlyStateBackedLists:
         project_root = gpd_project.resolve()
         seen: dict[str, object] = {}
 
-        monkeypatch.setattr("gpd.cli._project_scoped_cwd", lambda cwd=None: project_root)
+        monkeypatch.setattr(
+            "gpd.cli._project_scoped_cwd",
+            lambda cwd=None: (_ for _ in ()).throw(AssertionError("_load_state_dict must stay read-only")),
+        )
 
         def _fake_peek_state_json(
             cwd: Path,
@@ -2964,6 +2967,59 @@ class TestReviewValidationCommands:
         assert payload["guided_path"] == (
             f"Use `{dollar_command_prefix}settings` inside the runtime for guided autonomy changes."
         )
+
+    def test_config_commands_use_ancestor_config_from_nested_workspace(self, tmp_path: Path) -> None:
+        project_root = tmp_path / "project"
+        nested_cwd = project_root / "scratch" / "notes"
+        nested_cwd.mkdir(parents=True)
+        config_path = project_root / "GPD" / "config.json"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_text(
+            json.dumps({"autonomy": "supervised", "parallelization": False, "research_mode": "adaptive"}),
+            encoding="utf-8",
+        )
+        (project_root / "GPD" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+        nested_config_path = nested_cwd / "GPD" / "config.json"
+        nested_config_path.parent.mkdir(parents=True)
+        nested_config_path.write_text(
+            json.dumps({"parallelization": True, "research_mode": "balanced"}),
+            encoding="utf-8",
+        )
+
+        get_result = runner.invoke(
+            app,
+            ["--cwd", str(nested_cwd), "--raw", "config", "get", "parallelization"],
+            catch_exceptions=False,
+        )
+        set_result = runner.invoke(
+            app,
+            ["--cwd", str(nested_cwd), "--raw", "config", "set", "research_mode", '"exploit"'],
+            catch_exceptions=False,
+        )
+        ensure_result = runner.invoke(
+            app,
+            ["--cwd", str(nested_cwd), "--raw", "config", "ensure-section"],
+            catch_exceptions=False,
+        )
+
+        assert get_result.exit_code == 0, get_result.output
+        get_payload = json.loads(get_result.output)
+        assert get_payload == {"key": "parallelization", "value": False, "found": True}
+
+        assert set_result.exit_code == 0, set_result.output
+        set_payload = json.loads(set_result.output)
+        assert set_payload["canonical_key"] == "research_mode"
+        assert set_payload["value"] == "exploit"
+
+        assert ensure_result.exit_code == 0, ensure_result.output
+        ensure_payload = json.loads(ensure_result.output)
+        assert ensure_payload == {"created": False, "path": str(config_path)}
+
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+        assert written["parallelization"] is False
+        assert written["research_mode"] == "exploit"
+        nested_written = json.loads(nested_config_path.read_text(encoding="utf-8"))
+        assert nested_written == {"parallelization": True, "research_mode": "balanced"}
 
     def test_command_context_slides_passes_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -6244,6 +6300,73 @@ class TestReviewValidationCommands:
         assert resolved_subject["target_path"].endswith("GPD/publication/curvature-flow/manuscript/managed_manuscript.tex")
         assert resolved_subject["detail"] == f"{cli_module._format_display_path(manuscript)} present"
 
+    def test_command_context_respond_to_referees_exposes_managed_response_roots(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+        report = gpd_project / "reviews" / "referee-1.md"
+        report.parent.mkdir()
+        report.write_text("# Referee 1\n\nPlease clarify the proof.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "validate",
+                "command-context",
+                "respond-to-referees",
+                "--",
+                "--manuscript",
+                manuscript.relative_to(gpd_project).as_posix(),
+                "--report",
+                report.relative_to(gpd_project).as_posix(),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["selected_publication_root"] == "GPD/publication/curvature-flow"
+        assert payload["selected_review_root"] == "GPD/publication/curvature-flow/review"
+
+    def test_review_preflight_respond_to_referees_uses_managed_response_outputs(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        manuscript = _write_managed_publication_manuscript(gpd_project)
+        report = gpd_project / "reviews" / "referee-1.md"
+        report.parent.mkdir()
+        report.write_text("# Referee 1\n\nPlease clarify the proof.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "validate",
+                "review-preflight",
+                "respond-to-referees",
+                "--strict",
+                "--",
+                "--manuscript",
+                manuscript.relative_to(gpd_project).as_posix(),
+                "--report",
+                report.relative_to(gpd_project).as_posix(),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["required_outputs"] == [
+            "GPD/publication/{subject_slug}/review/REFEREE_RESPONSE{round_suffix}.md",
+            "GPD/publication/{subject_slug}/AUTHOR-RESPONSE{round_suffix}.md",
+        ]
+
     def test_command_context_peer_review_resolves_relative_manuscript_from_nested_workspace(
         self,
         gpd_project: Path,
@@ -7046,7 +7169,8 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert "pypdf" in payload["error"]
-        assert "companion" in payload["error"] or "get-physics-done[arxiv]" in payload["error"]
+        assert "companion" in payload["error"] or "get-physics-done[paper]" in payload["error"]
+        assert "get-physics-done[arxiv]" not in payload["error"]
 
     def test_review_preflight_arxiv_submission_strict_does_not_fall_back_to_internal_gpd_paper_artifacts(
         self,

@@ -174,6 +174,46 @@ class TestRegistry:
         with pytest.raises(RuntimeError, match="Duplicate runtime name in runtime catalog"):
             adapters_module._ensure_loaded()
 
+    def test_loader_rejects_adapter_runtime_identity_mismatch_without_caching(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        descriptor = RuntimeDescriptor(
+            runtime_name="catalog-runtime",
+            display_name="Catalog Runtime",
+            priority=10,
+            config_dir_name=".catalog",
+            install_flag="--catalog",
+            launch_command="catalog",
+            adapter_module="gpd.adapters.mismatched_runtime",
+            adapter_class="MismatchedAdapter",
+            command_prefix="/gpd:",
+            activation_env_vars=(),
+            selection_flags=("--catalog",),
+            selection_aliases=("catalog-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".catalog"),
+            hook_payload=HookPayloadPolicy(),
+        )
+
+        class MismatchedAdapter(RuntimeAdapter):
+            @property
+            def runtime_name(self) -> str:
+                return "adapter-runtime"
+
+        def fake_import_module(name: str) -> object:
+            assert name == "gpd.adapters.mismatched_runtime"
+            return SimpleNamespace(MismatchedAdapter=MismatchedAdapter)
+
+        monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (descriptor,))
+        monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+        monkeypatch.setattr(adapters_module, "_LOADED", False)
+
+        with pytest.raises(RuntimeError, match="runtime identity 'adapter-runtime'"):
+            adapters_module._ensure_loaded()
+
+        assert adapters_module._REGISTRY == {}
+        assert adapters_module._LOADED is False
+
 
 class TestToolNames:
     """Tests for tool_names canonical/translate functions."""

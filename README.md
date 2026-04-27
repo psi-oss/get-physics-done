@@ -103,7 +103,7 @@ We welcome contributions and feedback via GitHub issues or pull requests; if GPD
 
 If you already know your runtime and are comfortable in a terminal, use this as the fast path. If not, go back to [Start Here](#start-here) and use the [Beginner Onboarding Hub](./docs/README.md) instead.
 
-Use this post-install order:
+Canonical post-install order, shown as command names without runtime prefixes:
 
 `help -> start -> tour -> new-project / map-research -> resume-work`
 
@@ -125,7 +125,8 @@ If the install worked, both of these should be true:
 
 Then choose the path that matches your starting point:
 
-Use the runtime syntax above for the command names below.
+The table below uses canonical command names without runtime prefixes. Apply the
+prefix for your runtime from [Supported Runtimes](#supported-runtimes).
 
 | Starting point | Use this |
 |----------------|----------|

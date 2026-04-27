@@ -12,6 +12,7 @@ TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
+RESULT_LOOKUP_WORKFLOWS = ("explain.md", "compare-experiment.md", "limiting-cases.md")
 
 
 def _read(name: str) -> str:
@@ -169,6 +170,36 @@ def test_context_pressure_default_threshold_table_is_single_sourced() -> None:
     assert "This file only lists per-agent overrides and calibration notes." in thresholds
 
 
+def test_result_lookup_policy_is_single_sourced_for_high_level_workflows() -> None:
+    policy = (REFERENCES_DIR / "results" / "result-lookup-policy.md").read_text(encoding="utf-8")
+
+    assert policy.count("# Result Lookup Policy") == 1
+    assert policy.count("gpd result search") == 2
+    assert policy.count("gpd result show") == 1
+    assert policy.count("gpd result deps") == 1
+    assert policy.count("gpd result downstream") == 1
+    assert "Keep `gpd query search` for SUMMARY/frontmatter lookup" in policy
+
+    for workflow_name in RESULT_LOOKUP_WORKFLOWS:
+        raw = _read(workflow_name)
+        expanded = _expand(workflow_name)
+
+        assert raw.count("references/results/result-lookup-policy.md") == 1, workflow_name
+        assert expanded.count("references/results/result-lookup-policy.md") == 1, workflow_name
+        assert "# Result Lookup Policy" not in expanded, workflow_name
+
+        for command in (
+            "gpd result search",
+            "gpd result show",
+            "gpd result deps",
+            "gpd result downstream",
+        ):
+            assert command not in raw, workflow_name
+            assert command not in expanded, workflow_name
+        assert "direct stored-result view before" not in raw, workflow_name
+        assert "reverse dependency tree separated into direct and transitive" not in raw, workflow_name
+
+
 def test_state_portability_uses_canonical_continuation_prose() -> None:
     state_portability = (REPO_ROOT / "src/gpd/specs/references/orchestration/state-portability.md").read_text(
         encoding="utf-8"
@@ -250,3 +281,19 @@ def test_agent_specific_return_examples_defer_base_envelope_fields_to_infrastruc
         text = (AGENTS_DIR / agent_name).read_text(encoding="utf-8")
         assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text, agent_name
         assert "The four base fields (`status`, `files_written`, `issues`, `next_actions`)" not in text, agent_name
+
+
+def test_bibliographer_delegates_return_boilerplate_to_agent_infrastructure() -> None:
+    text = (AGENTS_DIR / "gpd-bibliographer.md").read_text(encoding="utf-8")
+
+    assert "Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields" in text
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text
+
+    for removed_phrase in (
+        "Checkpoint ownership is orchestrator-side",
+        "Runtime delegation rule:",
+        "The headings in this section are presentation only.",
+        "Use `gpd_return.status: checkpoint` as the control surface.",
+        "Return `gpd_return.status: completed`, `checkpoint`, `blocked`, or `failed`.",
+    ):
+        assert removed_phrase not in text

@@ -1311,9 +1311,21 @@ def test_respond_to_referees_review_contract_uses_round_suffixed_output_paths() 
     ]
     assert contract.scope_variants == [
         registry.ReviewContractScopeVariant(
+            scope="managed_publication_subject",
+            activation="manuscript subject under `GPD/publication/{subject_slug}/manuscript`",
+            required_outputs_override=[
+                "GPD/publication/{subject_slug}/review/REFEREE_RESPONSE{round_suffix}.md",
+                "GPD/publication/{subject_slug}/AUTHOR-RESPONSE{round_suffix}.md",
+            ],
+        ),
+        registry.ReviewContractScopeVariant(
             scope="explicit_external_manuscript",
             activation="explicit `--manuscript` subject outside the current project's canonical manuscript roots",
             relaxed_preflight_checks=["project_state", "conventions"],
+            required_outputs_override=[
+                "GPD/publication/{subject_slug}/review/REFEREE_RESPONSE{round_suffix}.md",
+                "GPD/publication/{subject_slug}/AUTHOR-RESPONSE{round_suffix}.md",
+            ],
             required_evidence_override=["explicit manuscript subject", "one or more referee report sources"],
             blocking_conditions_override=[
                 "missing manuscript subject",
@@ -1327,6 +1339,7 @@ def test_respond_to_referees_review_contract_uses_round_suffixed_output_paths() 
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in respond_command
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in respond_command
     assert "scope_variants:" in respond_command
+    assert "scope: managed_publication_subject" in respond_command
     assert "scope: explicit_external_manuscript" in respond_command
     assert "templates/paper/author-response.md" in respond_workflow
     assert "needs-calculation" in respond_workflow

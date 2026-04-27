@@ -69,7 +69,7 @@ After installing either tool, close PowerShell, open a new one, and rerun the ve
 ## Windows-specific runtime notes
 
 - Claude Code on Windows requires Git for Windows or WSL. If you plan to use Claude Code, install Git for Windows first.
-- Codex support on Windows is still experimental. For the smoothest Codex experience on Windows, use WSL.
+- Codex CLI is available on macOS, Windows, and Linux. On Windows, use native PowerShell with the Windows sandbox by default; use WSL2 when your workflow needs Linux-native tools or already lives in WSL2.
 - OpenCode's official docs also recommend WSL for the best Windows experience.
 
 ## Make sure your runtime works
@@ -136,3 +136,4 @@ Use `gpd resume` in your normal terminal first. Use `gpd resume --recent` when y
 - Node.js: [Download Node.js](https://nodejs.org/en/download)
 - Python: [Python downloads](https://www.python.org/downloads/)
 - Git for Windows: [Download Git for Windows](https://git-scm.com/downloads/win)
+- OpenAI: [Codex Windows setup](https://developers.openai.com/codex/windows)

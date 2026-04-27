@@ -345,6 +345,46 @@ def test_readme_exposes_pypi_and_npm_release_badges() -> None:
     assert "labelColor=1f1f1f&color=cb3837" in readme
 
 
+def test_readme_labels_prefixless_runtime_examples_as_canonical_command_names() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "Canonical post-install order, shown as command names without runtime prefixes:" in readme
+    assert "The table below uses canonical command names without runtime prefixes." in readme
+    assert "Apply the\nprefix for your runtime from [Supported Runtimes](#supported-runtimes)." in readme
+
+
+def test_public_codex_windows_docs_track_current_official_guidance() -> None:
+    repo_root = _repo_root()
+    codex = (repo_root / "docs" / "codex.md").read_text(encoding="utf-8")
+    windows = (repo_root / "docs" / "windows.md").read_text(encoding="utf-8")
+    combined = f"{codex}\n{windows}"
+
+    assert "Windows support is\nexperimental" not in codex
+    assert "Codex support on Windows is still experimental" not in windows
+    assert "macOS, Windows, and Linux" in codex
+    assert "macOS, Windows, and Linux" in windows
+    assert "PowerShell" in codex
+    assert "PowerShell" in windows
+    assert "Windows sandbox" in codex
+    assert "Windows sandbox" in windows
+    assert "WSL2" in codex
+    assert "WSL2" in windows
+    assert combined.count("https://developers.openai.com/codex/windows") == 2
+
+
+def test_pull_request_template_points_to_current_ci_and_pre_commit_validation() -> None:
+    repo_root = _repo_root()
+    template = (repo_root / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+
+    assert "uv run pytest -v" not in template
+    assert "ruff check src/ tests/" not in template
+    assert "uv run pytest -q <targets>" in template
+    assert "GitHub Actions PR checks" in template
+    assert "uv run ruff check ." in template
+    assert "pre-commit run --all-files" in template
+
+
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
@@ -571,6 +611,28 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     )
     fi_index = next(index for index in range(else_index + 1, len(summary_lines)) if summary_lines[index] == "fi")
     assert condition_index < dispatched_index < else_index < skipped_index < fi_index
+
+
+def test_publish_release_followup_recreates_or_fails_when_branch_exists_without_open_pr() -> None:
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+    branch_exists_block = workflow[
+        workflow.index('if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH"')
+        : workflow.index('git switch -c "$FOLLOWUP_BRANCH"')
+    ]
+
+    assert 'if [ -n "$PR_URL" ]; then' in branch_exists_block
+    assert "--jq '.[0].url // \"\"'" in branch_exists_block
+    assert 'echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found' in branch_exists_block
+    assert 'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"' in branch_exists_block
+    assert 'if [ -z "$PR_URL" ]; then' in branch_exists_block
+    assert 'echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} exists, but no open PR URL could be found' in branch_exists_block
+    assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < branch_exists_block.index(
+        'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"'
+    )
+    assert branch_exists_block.index(
+        'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"'
+    ) < branch_exists_block.index('if [ -z "$PR_URL" ]; then')
 
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:

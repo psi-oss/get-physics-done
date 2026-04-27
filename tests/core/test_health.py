@@ -85,6 +85,24 @@ def _latex_toolchain_check(**overrides: object) -> HealthCheck:
     )
 
 
+def test_workflow_preset_doctor_warning_recommends_paper_extra_for_pdf_review_only() -> None:
+    check = _doctor_check_workflow_presets(
+        latex_check=_latex_toolchain_check(pdf_review_ready=False),
+        base_ready=True,
+    )
+
+    warning = next(warning for warning in check.warnings if "without pypdf" in warning)
+    assert "get-physics-done[paper]" in warning
+    assert "get-physics-done[arxiv]" not in warning
+
+
+def test_check_state_validity_projectless_read_only_does_not_create_gpd_dir(tmp_path: Path) -> None:
+    check = check_state_validity(tmp_path)
+
+    assert check.status == CheckStatus.FAIL
+    assert not (tmp_path / "GPD").exists()
+
+
 def _draft_invalid_project_contract() -> dict[str, object]:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["references"] = ["missing-ref"]
@@ -727,6 +745,21 @@ class TestCheckProjectStructure:
         assert result.issues == []
         assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
         assert any("Canonical project state lives in GPD/" in warning for warning in result.warnings)
+
+    def test_nested_workspace_warns_for_root_legacy_gpd_project_markers(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        nested = cwd / "scratch" / "notes"
+        nested.mkdir(parents=True)
+        legacy = cwd / ".gpd"
+        legacy.mkdir()
+        (legacy / "state.json").write_text("{}\n", encoding="utf-8")
+        (legacy / "PROJECT.md").write_text("# Legacy Project\n", encoding="utf-8")
+
+        result = check_project_structure(nested)
+
+        assert result.status == CheckStatus.WARN
+        assert result.issues == []
+        assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
 
     def test_legacy_gpd_project_markers_do_not_satisfy_canonical_project_structure(self, tmp_path: Path) -> None:
         legacy = tmp_path / ".gpd"

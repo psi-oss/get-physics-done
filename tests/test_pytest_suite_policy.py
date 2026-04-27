@@ -12,6 +12,8 @@ import tests.conftest as tests_conftest
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_HOT_TEST_FILE_SPLITS,
+    CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS,
+    actual_ci_shard_matrix,
     all_test_relpaths,
     assert_ci_workflow_pytest_shard_policy,
     assert_tests_readme_documents_ci_shard_policy,
@@ -19,6 +21,7 @@ from tests.ci_sharding import (
     category_for_test_relpath,
     collected_test_inventory,
     expand_ci_targets_to_nodeids,
+    expected_ci_shard_matrix,
     plan_category_ci_shards,
     synthetic_test_inventory,
 )
@@ -117,7 +120,33 @@ def test_default_collection_matches_all_checked_in_test_files() -> None:
     assert tuple(sorted(collected_counts)) == all_relpaths
     assert all(count > 0 for count in collected_counts.values())
     assert not unsharded_categories, f"checked-in test categories missing CI shards: {sorted(unsharded_categories)}"
+    _assert_hotspot_metadata_references_live_relpaths(all_relpaths)
+    _assert_live_hotspot_split_files_produce_multiple_work_units(inventory)
     _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(inventory)
+    _assert_expected_ci_matrix_rows_resolve_live_non_empty_targets(inventory)
+
+
+def _assert_hotspot_metadata_references_live_relpaths(all_relpaths: tuple[str, ...]) -> None:
+    live_relpaths = set(all_relpaths)
+    split_relpaths = set(CI_HOT_TEST_FILE_SPLITS)
+    weighted_relpaths = set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+
+    assert not split_relpaths - live_relpaths
+    assert not weighted_relpaths - live_relpaths
+
+
+def _assert_live_hotspot_split_files_produce_multiple_work_units(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    work_units = build_ci_work_units(inventory)
+
+    for rel_path, split_count in CI_HOT_TEST_FILE_SPLITS.items():
+        matching = [unit for unit in work_units if unit.label.startswith(f"{rel_path} [")]
+
+        assert len(matching) == split_count
+        assert len(matching) > 1
+        assert all("::" in target for unit in matching for target in unit.targets)
+        assert sum(len(unit.targets) for unit in matching) == len(inventory[rel_path])
 
 
 def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
@@ -149,6 +178,34 @@ def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
 
     assert sorted(flattened) == sorted(all_nodeids)
     assert len(flattened) == len(set(flattened))
+
+
+def _target_relpath(target: str) -> str:
+    path = target.split("::", 1)[0]
+    return path[len("tests/") :] if path.startswith("tests/") else path
+
+
+def _assert_expected_ci_matrix_rows_resolve_live_non_empty_targets(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    workflow_matrix = actual_ci_shard_matrix(_workflow_data())
+    assert workflow_matrix == expected_ci_shard_matrix()
+
+    work_units = build_ci_work_units(inventory)
+    for display_name, category, shard_index, shard_total in workflow_matrix:
+        planned_shards = plan_category_ci_shards(category=category, inventory=inventory, work_units=work_units)
+        shard_targets = planned_shards[shard_index - 1]
+        target_relpaths = {_target_relpath(target) for target in shard_targets}
+        missing_target_relpaths = target_relpaths - set(inventory)
+
+        assert shard_total == CI_CATEGORY_SHARD_COUNTS[category]
+        assert shard_targets, f"{display_name} resolved no pytest targets"
+        assert not missing_target_relpaths, f"{display_name} resolved missing files: {sorted(missing_target_relpaths)}"
+        expanded_nodeids = expand_ci_targets_to_nodeids(shard_targets, inventory=inventory)
+        assert expanded_nodeids, f"{display_name} resolved no collected tests"
+        assert {
+            category_for_test_relpath(relpath) for relpath in target_relpaths
+        } == {category}, f"{display_name} resolved targets outside category {category!r}"
 
 
 def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(

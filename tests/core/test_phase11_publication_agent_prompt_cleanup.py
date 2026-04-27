@@ -60,17 +60,10 @@ def test_bibliographer_prompt_uses_typed_status_and_deferred_base_fields() -> No
     source = _read(BIBLIOGRAPHER)
     envelope = _gpd_return_block(BIBLIOGRAPHER)
 
-    assert "This is a one-shot checkpoint handoff: do not wait for user input inside the current run." in source
-    assert "Use `gpd_return.status: checkpoint` as the control surface." in source
-    assert "The `## CHECKPOINT REACHED` heading below is presentation only." in source
-    assert (
-        "Return `gpd_return.status: completed`; use a `## BIBLIOGRAPHY UPDATED` or `## CITATION ISSUES FOUND` heading only as a human-readable presentation choice."
-        in source
-    )
-    assert (
-        "Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`"
-        in source
-    )
+    assert "Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields, and one-shot handoff semantics." in source
+    assert "Route on `gpd_return.status`, not presentation headings." in source
+    assert "Use `completed` when the bibliography task finished" in source
+    assert "Use `gpd_return.status: checkpoint` as the control surface." not in source
     assert "Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND" not in source
     assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
     assert "# files_written names references/references.bib and GPD/references-status.json when written." in envelope

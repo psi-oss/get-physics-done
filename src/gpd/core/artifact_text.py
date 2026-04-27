@@ -291,7 +291,7 @@ def _extract_pdf_text(path: Path) -> str:
     except ImportError as exc:
         raise ArtifactTextError(
             "PDF text extraction requires pypdf. "
-            "Install it with: pip install 'get-physics-done[arxiv]'"
+            "Install it with: pip install 'get-physics-done[paper]'"
         ) from exc
     try:
         reader = pypdf.PdfReader(str(path))
@@ -331,7 +331,7 @@ def probe_artifact_text_surface(path: Path) -> ArtifactTextProbe:
             ready=False,
             detail=(
                 "PDF text extraction requires pypdf. "
-                "Install it with: pip install 'get-physics-done[arxiv]'"
+                "Install it with: pip install 'get-physics-done[paper]'"
             ),
         )
     if suffix in OOXML_DOCUMENT_SUFFIXES:

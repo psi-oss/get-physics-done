@@ -41,6 +41,18 @@ def _load_adapter_class(descriptor: RuntimeDescriptor) -> type[RuntimeAdapter]:
             f"Adapter class {descriptor.adapter_class!r} in module {descriptor.adapter_module!r} "
             f"for runtime {descriptor.runtime_name!r} is not a RuntimeAdapter subclass"
         )
+    try:
+        adapter_runtime_name = adapter_class().runtime_name
+    except Exception as exc:
+        raise RuntimeError(
+            f"Adapter class {descriptor.adapter_class!r} in module {descriptor.adapter_module!r} "
+            f"for runtime {descriptor.runtime_name!r} could not report its runtime identity"
+        ) from exc
+    if adapter_runtime_name != descriptor.runtime_name:
+        raise RuntimeError(
+            f"Runtime catalog entry {descriptor.runtime_name!r} points to adapter class "
+            f"{descriptor.adapter_class!r} with runtime identity {adapter_runtime_name!r}"
+        )
     return adapter_class
 
 

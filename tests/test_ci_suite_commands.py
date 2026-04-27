@@ -19,6 +19,21 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert_ci_workflow_pytest_shard_policy(workflow, pyproject_text=pyproject)
 
 
+def test_ci_workflow_uses_current_action_versions() -> None:
+    workflow = _workflow_data()
+    action_uses = [
+        step["uses"]
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if "uses" in step
+    ]
+
+    assert "actions/checkout@v6" in action_uses
+    assert "actions/setup-node@v6" in action_uses
+    assert "actions/checkout@v5" not in action_uses
+    assert "actions/setup-node@v5" not in action_uses
+
+
 def test_ci_workflow_installs_dev_dependencies_from_frozen_lockfile() -> None:
     workflow = _workflow_data()
     jobs = workflow["jobs"]

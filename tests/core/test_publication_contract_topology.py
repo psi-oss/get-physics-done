@@ -30,8 +30,9 @@ def test_publication_contract_files_use_canonical_names_without_compatibility_sh
         in response_contract
     )
     assert "gpd_return.files_written" in response_contract
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in response_contract
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in response_contract
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in response_contract
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in response_contract
+    assert "Default current-project response files without frontmatter remain valid" in response_contract
     assert "response-artifact-contract.md" not in response_contract
 
     assert "Canonical workflow-facing bootstrap and preflight reference for publication tasks." in bootstrap_preflight

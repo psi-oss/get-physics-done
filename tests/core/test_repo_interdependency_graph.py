@@ -119,6 +119,16 @@ def test_graph_same_stem_inventory_ignores_untracked_matching_files(tmp_path: Pa
     assert "scratch" not in block
 
 
+def test_graph_captures_current_ci_action_and_shard_edges() -> None:
+    graph = read_graph_text()
+
+    assert graph_has_edge(".github/workflows/test.yml", "tests/ci_sharding.py", graph)
+    assert graph_has_edge(".github/workflows/test.yml", "actions/checkout@v6", graph)
+    assert graph_has_edge(".github/workflows/test.yml", "actions/setup-node@v6", graph)
+    assert not graph_has_edge(".github/workflows/test.yml", "actions/checkout@v5", graph)
+    assert not graph_has_edge(".github/workflows/test.yml", "actions/setup-node@v5", graph)
+
+
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
     graph = read_graph_text()
     assert graph_has_edge("src/gpd/hooks/statusline.py", "src/gpd/hooks/runtime_detect.py", graph)

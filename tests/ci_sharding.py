@@ -206,6 +206,8 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert pytest_steps[-1]["name"] == "Run pytest shard"
     assert pytest_steps[-1]["run"] == pytest_shard_command
+    checkout_step = next(step for step in pytest_steps if step.get("name") == "Check out repository")
+    assert checkout_step["uses"] == "actions/checkout@v6"
     node_step = next(step for step in pytest_steps if step.get("name") == "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"

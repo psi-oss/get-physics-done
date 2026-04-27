@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.constants import ProjectLayout
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import (
     ManuscriptArtifacts,
     ManuscriptResolution,
@@ -634,6 +635,120 @@ def _review_round_matches_manuscript(
     return False
 
 
+def _metadata_round_value(metadata: dict[str, object]) -> int | None:
+    for field_name in ("round", "response_round", "review_round"):
+        value = metadata.get(field_name)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+    return None
+
+
+def _metadata_text(metadata: dict[str, object], *field_names: str) -> str:
+    for field_name in field_names:
+        value = metadata.get(field_name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _path_metadata_matches_project_path(value: str, expected_path: Path | None, *, project_root: Path) -> bool:
+    if expected_path is None:
+        return True
+    return manuscript_matches_review_artifact_path(value, expected_path, cwd=project_root)
+
+
+def _response_artifact_metadata_errors(
+    path: Path,
+    *,
+    project_root: Path,
+    manuscript_entrypoint: Path | None,
+    round_number: int,
+    round_suffix: str,
+    review_artifacts: PublicationReviewArtifacts | None,
+    binding_required: bool,
+) -> tuple[str, ...]:
+    try:
+        metadata, _body = extract_frontmatter(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, FrontmatterParseError) as exc:
+        return (f"{path.name} metadata could not be loaded: {exc}",)
+
+    if not metadata:
+        return (f"{path.name} has no response frontmatter binding",) if binding_required else ()
+
+    errors: list[str] = []
+    metadata_round = _metadata_round_value(metadata)
+    if metadata_round is None:
+        if binding_required:
+            errors.append(f"{path.name} response frontmatter is missing `round`")
+    elif metadata_round != round_number:
+        errors.append(f"{path.name} round {metadata_round} does not match active review round {round_number}")
+
+    manuscript_path = _metadata_text(metadata, "manuscript_path", "manuscript")
+    if manuscript_entrypoint is not None:
+        if not manuscript_path:
+            if binding_required:
+                errors.append(f"{path.name} response frontmatter is missing `manuscript_path`")
+        elif not manuscript_matches_review_artifact_path(manuscript_path, manuscript_entrypoint, cwd=project_root):
+            errors.append(f"{path.name} manuscript_path does not match the active manuscript")
+
+    response_to = _metadata_text(metadata, "response_to", "referee_report")
+    if response_to and Path(response_to).name != f"REFEREE-REPORT{round_suffix}.md":
+        errors.append(f"{path.name} response_to does not match round suffix {round_suffix or '(round 1)'}")
+
+    review_ledger = _metadata_text(metadata, "review_ledger")
+    if review_ledger and review_artifacts is not None and not _path_metadata_matches_project_path(
+        review_ledger,
+        review_artifacts.review_ledger,
+        project_root=project_root,
+    ):
+        errors.append(f"{path.name} review_ledger does not match the active review artifact")
+
+    referee_decision = _metadata_text(metadata, "referee_decision")
+    if referee_decision and review_artifacts is not None and not _path_metadata_matches_project_path(
+        referee_decision,
+        review_artifacts.referee_decision,
+        project_root=project_root,
+    ):
+        errors.append(f"{path.name} referee_decision does not match the active review artifact")
+
+    return tuple(errors)
+
+
+def _response_artifact_binding_state(
+    *,
+    project_root: Path,
+    author_response: Path,
+    referee_response: Path,
+    manuscript_entrypoint: Path | None,
+    round_number: int,
+    round_suffix: str,
+    review_artifacts: PublicationReviewArtifacts | None,
+    binding_required: bool,
+) -> tuple[str, str]:
+    errors: list[str] = []
+    for path in (author_response, referee_response):
+        errors.extend(
+            _response_artifact_metadata_errors(
+                path,
+                project_root=project_root,
+                manuscript_entrypoint=manuscript_entrypoint,
+                round_number=round_number,
+                round_suffix=round_suffix,
+                review_artifacts=review_artifacts,
+                binding_required=binding_required,
+            )
+        )
+    if not errors:
+        return "complete", "latest paired response artifacts are complete"
+    if all("no response frontmatter binding" in error or "missing `" in error for error in errors):
+        return "unbound", "; ".join(errors[:3])
+    return "mismatched", "; ".join(errors[:3])
+
+
 def resolve_latest_publication_review_artifacts(
     project_root: Path,
     manuscript_entrypoint: Path | None = None,
@@ -725,6 +840,7 @@ def resolve_latest_publication_response_artifacts(
         manuscript_entrypoint=manuscript_entrypoint,
         publication_subject=publication_subject,
     )
+    resolved_manuscript = subject.manuscript_entrypoint if subject.resolved else manuscript_entrypoint
     if subject.resolved and subject.manuscript_entrypoint is not None:
         _publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     elif manuscript_entrypoint is not None:
@@ -737,7 +853,7 @@ def resolve_latest_publication_response_artifacts(
 
     author_by_round, referee_by_round = publication_response_round_path_maps(
         project_root,
-        manuscript=subject.manuscript_entrypoint if subject.resolved else manuscript_entrypoint,
+        manuscript=resolved_manuscript,
         include_review_roots_for_author_response=True,
     )
     round_number = review_artifacts.round_number if review_artifacts is not None else latest_publication_round_number(
@@ -765,13 +881,24 @@ def resolve_latest_publication_response_artifacts(
             missing_artifacts=tuple(missing),
         )
 
+    binding_required = subject.source == "explicit_target" and resolved_manuscript is not None
+    state, detail = _response_artifact_binding_state(
+        project_root=project_root,
+        author_response=author_response,
+        referee_response=referee_response,
+        manuscript_entrypoint=resolved_manuscript,
+        round_number=round_number,
+        round_suffix=round_suffix,
+        review_artifacts=review_artifacts,
+        binding_required=binding_required,
+    )
     return PublicationResponseArtifacts(
         round_number=round_number,
         round_suffix=round_suffix,
         author_response=author_response,
         referee_response=referee_response,
-        state="complete",
-        detail="latest paired response artifacts are complete",
+        state=state,
+        detail=detail,
     )
 
 

@@ -1130,11 +1130,11 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
     assert "resolved section file within the manuscript tree rooted at `${PAPER_DIR}`" in respond
     assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in respond
     assert "optional manuscript-local response-letter companion" in respond
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in respond
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in respond
+    assert "${RESPONSE_REFEREE_PATH}" in respond
+    assert "${RESPONSE_AUTHOR_PATH}" in respond
     assert "templates/paper/author-response.md" in respond
     assert "needs-calculation" in respond
-    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in respond
+    assert "selected_publication_root` / `selected_review_root" in respond
     assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in respond
 
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper
@@ -1962,9 +1962,7 @@ def test_revision_and_audit_workflows_verify_artifacts_before_trusting_success_t
     assert "Use `**Evidence:**` blocks for rebuttals" in respond
     assert "verify the promised artifacts before trusting the handoff text" in respond
     assert "If the agent claimed success but the files did not change, treat that section as failed" in respond
-    assert (
-        "Re-open `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`" in respond
-    )
+    assert "Re-open `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}`" in respond
 
     assert "Verify the promised referee artifacts before trusting the handoff text" in audit
     assert "Confirm `GPD/v{milestone_version}-MILESTONE-REFEREE-REPORT.md` exists" in audit

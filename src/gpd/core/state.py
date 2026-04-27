@@ -5065,6 +5065,7 @@ def state_validate(
     integrity_mode: str = "standard",
     *,
     recover_intent: bool = True,
+    acquire_lock: bool = True,
 ) -> StateValidateResult:
     """Validate state consistency between state.json and STATE.md."""
     from gpd.core.contract_validation import validate_project_contract
@@ -5077,6 +5078,7 @@ def state_validate(
         cwd,
         integrity_mode=integrity_mode,
         recover_intent=recover_intent,
+        acquire_lock=acquire_lock,
     )
     if normalization_issues:
         parse_issues = [issue for issue in normalization_issues if issue.startswith("state.json parse error:")]

@@ -262,6 +262,8 @@ def test_workflow_preset_readiness_degrades_peer_review_pdf_intake_when_pypdf_is
     assert publication["degraded_workflows"] == ["peer-review"]
     assert publication["blocked_workflows"] == []
     assert any("pypdf is missing" in warning for warning in publication["warnings"])
+    assert any("get-physics-done[paper]" in warning for warning in publication["warnings"])
+    assert not any("get-physics-done[arxiv]" in warning for warning in publication["warnings"])
 
 
 def test_workflow_preset_readiness_ignores_malformed_pdftotext_and_contradictory_state_overrides() -> None:

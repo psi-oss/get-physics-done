@@ -205,7 +205,11 @@ flowchart TD
 
 - `.github/workflows/test.yml -> tests/**`
   `authority`
-  Runs fast and full pytest coverage explicitly in CI.
+  Runs the full checked-in pytest suite as category-named runtime-informed shards.
+
+- `.github/workflows/test.yml -> tests/ci_sharding.py`
+  `authority`
+  Resolves live non-empty pytest shard targets from the current test inventory and owns the category shard counts plus hotspot split and weight metadata.
 
 - `.github/workflows/test.yml -> pyproject.toml`
   `authority`
@@ -215,10 +219,13 @@ flowchart TD
   `authority`
   Locked dependency resolution surface for CI.
 
-- `.github/workflows/test.yml -> actions/checkout@v5`
+- `.github/workflows/test.yml -> actions/checkout@v6`
   `external-service`
 
 - `.github/workflows/test.yml -> actions/setup-python@v6`
+  `external-service`
+
+- `.github/workflows/test.yml -> actions/setup-node@v6`
   `external-service`
 
 - `.github/workflows/test.yml -> astral-sh/setup-uv@v7`

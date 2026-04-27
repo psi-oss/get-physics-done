@@ -54,10 +54,11 @@ def test_respond_to_referees_balanced_mode_does_not_force_parse_confirmation() -
     assert "Present the parsed structure for user confirmation:" not in workflow
     assert "<autonomy_mode>{AUTONOMY}</autonomy_mode>" in workflow
     assert "<research_mode>{RESEARCH_MODE}</research_mode>" in workflow
-    assert "Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` as the response success gate." in workflow
+    assert "Treat `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}` as the response success gate." in workflow
+    assert "Use `selected_publication_root` and `selected_review_root` from the target-aware preflight as the response roots." in workflow
     assert "fresh `gpd_return.files_written`" in workflow
     assert "Confirm the refreshed JSON artifact exists before treating the round as complete." in workflow
-    assert "If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under `GPD/`" in workflow
+    assert "If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under the selected GPD roots" in workflow
 
 
 def test_peer_review_stage_six_requires_report_artifacts_and_threads_mode_context() -> None:

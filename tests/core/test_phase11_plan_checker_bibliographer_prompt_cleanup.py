@@ -38,11 +38,9 @@ def test_bibliographer_prompt_uses_typed_checkpoint_language_and_shorter_heading
     source = _read(BIBLIOGRAPHER)
     envelope = _gpd_return_block(source)
 
-    assert "Use `gpd_return.status: checkpoint` as the control surface. The `## CHECKPOINT REACHED` heading below is presentation only." in source
-    assert (
-        "The headings in this section are presentation only. Route on `gpd_return.status`. Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`; use `status: checkpoint` only when researcher input is required to continue."
-        in source
-    )
+    assert "Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields, and one-shot handoff semantics." in source
+    assert "Route on `gpd_return.status`, not presentation headings." in source
+    assert "Use `gpd_return.status: checkpoint` as the control surface." not in source
     assert "The markdown headings in this section, including `## BIBLIOGRAPHY UPDATED`, `## CITATION ISSUES FOUND`, and `## CHECKPOINT REACHED`, are presentation only." not in source
     assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
     assert "# files_written names references/references.bib and GPD/references-status.json when written." in envelope

@@ -26,8 +26,8 @@ def test_bibliographer_balanced_mode_adds_verified_citations_without_approval_lo
     assert "Present a batch for approval" not in source
     assert "Add verified citations automatically; pause only for uncertain matches, borderline relevance, or citation-scope changes." in source
     assert "| Citation addition |" in source
-    assert "Checkpoint ownership is orchestrator-side" in source
-    assert "fresh continuation handoff" in source
+    assert "Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields, and one-shot handoff semantics." in source
+    assert "Checkpoint ownership is orchestrator-side" not in source
 
 
 def test_referee_checkpoint_ownership_and_mode_routing_are_explicit() -> None:
