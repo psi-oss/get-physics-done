@@ -188,11 +188,14 @@ jobs:
           PY
 
       - name: Run pytest shard
+        timeout-minutes: 10
         env:
+          GPD_FAST_SUITE_BUDGET_SECONDS: "180"
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
-          uv run pytest -q "${PYTEST_TARGETS[@]}"
+          echo "Fast suite budget target: ${GPD_FAST_SUITE_BUDGET_SECONDS}s full-suite wall clock; shard timeout: 10 minutes"
+          uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
 
   # Staging rebuild trigger moved to staging-rebuild.yml so it doesn't
   # show as a skipped check on PRs.

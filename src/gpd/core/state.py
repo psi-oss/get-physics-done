@@ -3997,6 +3997,7 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
     """Get full STATE.md content or a specific field/section."""
     md_path = _state_md_path(cwd)
     with _state_lock(cwd):
+        _recover_intent_locked(cwd)
         content = _load_or_rebuild_state_markdown_locked(cwd)
         if content is None:
             raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")

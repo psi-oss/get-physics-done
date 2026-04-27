@@ -320,6 +320,15 @@ def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> st
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
 
 
+def _render_gemini_command_prompt(content: str, *, bridge_command: str) -> str:
+    """Render one canonical command markdown source into Gemini prompt text."""
+    content = strip_sub_tags(content)
+    content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+    content = _rewrite_gemini_shell_workflow_guidance(content)
+    content = _rewrite_gpd_cli_invocations(content, bridge_command)
+    return _inject_gemini_command_runtime_note(content, bridge_command)
+
+
 def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
     """Fail closed when the prior Gemini manifest tracks managed config with the wrong shape."""
     manifest_path = target_dir / MANIFEST_NAME
@@ -979,11 +988,7 @@ def _copy_commands_recursive(
                 explicit_target=explicit_target,
             )
             content = process_attribution(content, attribution)
-            content = strip_sub_tags(content)
-            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-            content = _rewrite_gemini_shell_workflow_guidance(content)
-            content = _rewrite_gpd_cli_invocations(content, bridge_command)
-            content = _inject_gemini_command_runtime_note(content, bridge_command)
+            content = _render_gemini_command_prompt(content, bridge_command=bridge_command)
             toml_content = _convert_to_gemini_toml(content)
             toml_path = dest_dir / entry.with_suffix(".toml").name
             toml_path.write_text(toml_content, encoding="utf-8")
@@ -1015,6 +1020,7 @@ class GeminiAdapter(RuntimeAdapter):
         surface_kind: str,
         path_prefix: str,
         command_name: str | None = None,
+        bridge_command: str | None = None,
     ) -> str:
         del path_prefix, command_name
         if surface_kind != "command":
@@ -1022,8 +1028,12 @@ class GeminiAdapter(RuntimeAdapter):
                 content,
                 surface_kind=surface_kind,
                 path_prefix="",
+                bridge_command=bridge_command,
             )
-        prompt = tomllib.loads(_convert_to_gemini_toml(content)).get("prompt")
+        if bridge_command is None:
+            raise ValueError("bridge_command is required for projected Gemini command surfaces")
+        rendered = _render_gemini_command_prompt(content, bridge_command=bridge_command)
+        prompt = tomllib.loads(_convert_to_gemini_toml(rendered)).get("prompt")
         if not isinstance(prompt, str):
             raise ValueError("gemini projected command surface must expose a prompt string")
         return prompt
@@ -1156,6 +1166,8 @@ class GeminiAdapter(RuntimeAdapter):
         self._managed_enable_agents = not enable_agents_was_present
 
         # Build hook commands (Python hooks, same as Claude Code)
+        should_install_statusline = self._installed_hook_script_available(HOOK_SCRIPTS["statusline"])
+        should_install_update_hook = self._installed_hook_script_available(HOOK_SCRIPTS["check_update"])
         statusline_cmd = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["statusline"],
@@ -1170,12 +1182,15 @@ class GeminiAdapter(RuntimeAdapter):
             config_dir_name=self.config_dir_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
-        ensure_update_hook(
-            settings,
-            update_check_cmd,
-            target_dir=target_dir,
-            config_dir_name=self.config_dir_name,
-        )
+        if should_install_update_hook:
+            ensure_update_hook(
+                settings,
+                update_check_cmd,
+                target_dir=target_dir,
+                config_dir_name=self.config_dir_name,
+            )
+        else:
+            logger.warning("Skipping update check hook because hooks/check_update.py is not GPD-managed")
 
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
@@ -1216,6 +1231,7 @@ class GeminiAdapter(RuntimeAdapter):
             "settingsPath": str(settings_path),
             "settings": settings,
             "statuslineCommand": statusline_cmd,
+            "shouldInstallStatusline": should_install_statusline,
             "mcpServers": len(mcp_servers),
         }
 
@@ -1343,6 +1359,7 @@ class GeminiAdapter(RuntimeAdapter):
         settings_path = install_result.get("settingsPath")
         settings = install_result.get("settings")
         statusline_command = install_result.get("statuslineCommand")
+        should_install_statusline = install_result.get("shouldInstallStatusline", True)
         if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
             target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
             _validate_existing_gemini_managed_state(target_dir)
@@ -1353,7 +1370,7 @@ class GeminiAdapter(RuntimeAdapter):
                 settings_path,
                 settings,
                 statusline_command,
-                True,
+                bool(should_install_statusline),
                 force_statusline=force_statusline,
             )
             install_result["settingsWritten"] = True

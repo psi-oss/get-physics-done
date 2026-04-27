@@ -134,7 +134,7 @@ AGENT_REFERENCE_TOKENS = {
     ],
     "gpd-debugger.md": [
         "Spawned by the debug orchestrator workflow.",
-        "Agent surface: public writable production agent specialized for discrepancy investigation and bounded repair work.",
+        "Public production boundary: public writable production agent specialized for discrepancy investigation and bounded repair work.",
         "On demand only: shared protocols, verification core, physics subfields, agent infrastructure, and cross-project patterns.",
         "Keep work in `gpd-debugger` while the task is root-cause isolation, validation, or a bounded repair tied to that investigation.",
         "Do not update `session_status` to \"diagnosed\" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts.",
@@ -473,11 +473,11 @@ def test_return_only_planner_and_executor_do_not_commit_shared_state_files_by_de
     assert executor_commit_blocks
     assert all("GPD/STATE.md" not in block and "GPD/ROADMAP.md" not in block for block in planner_commit_blocks)
     assert all("GPD/STATE.md" not in block for block in executor_commit_blocks)
-    assert "return shared-state and roadmap updates to the orchestrator" in planner
-    assert "do not write or commit `GPD/ROADMAP.md`" in planner
+    assert "Authority: use the frontmatter-derived Agent Requirements block" in planner
+    assert "shared_state_authority: return_only" in planner
     assert "roadmap_updates" in planner
-    assert "Default spawned mode has `shared_state_policy: return_only`" in planner
-    assert "The default spawned-agent commit above excludes `GPD/STATE.md`." in executor
+    assert "Authority: use the frontmatter-derived Agent Requirements block" in executor
+    assert "shared_state_authority: return_only" in executor
 
 
 def test_read_only_plan_checker_and_research_mapper_tool_policy_are_contract_aligned() -> None:
@@ -485,8 +485,8 @@ def test_read_only_plan_checker_and_research_mapper_tool_policy_are_contract_ali
     mapper = (AGENTS_DIR / "gpd-research-mapper.md").read_text(encoding="utf-8")
 
     assert "Return changed paths in `gpd_return.files_written`" not in checker
-    assert "return `gpd_return.files_written: []`" in checker
-    assert "This is a read-only agent" in checker
+    assert "# This read-only agent always uses files_written: []." in checker
+    assert "artifact_write_authority: read_only" in checker
     assert "All tools declared in frontmatter are available to this agent." in mapper
     assert "Reserve `web_search` and `web_fetch` for the `status` focus" in mapper
     assert "`status`: the same tools plus `web_search` and `web_fetch`" not in mapper
@@ -584,7 +584,8 @@ def test_consistency_checker_prompt_keeps_the_canonical_contract_and_stays_least
     assert "files_written: [GPD/phases/{scope}/CONSISTENCY-CHECK.md]" in source
     assert "GPD/CONSISTENCY-CHECK.md" in source
     assert "@{GPD_INSTALL_DIR}" not in source
-    assert "Do not act as the default writable implementation agent" in source
+    assert "Authority: use the frontmatter-derived Agent Requirements block" in source
+    assert "shared_state_authority: return_only" in source
     assert "Do not claim ownership of code fixes, commits, convention-authoring, or pattern-library updates." in source
     assert "Create it from the template" not in source
     assert "gpd pattern add" not in source
@@ -4203,7 +4204,7 @@ def test_state_portability_reference_keeps_resume_public_vocabulary_note_compact
     _assert_resume_canonical_note(state_portability)
     assert "public top-level resume vocabulary" not in state_portability
     assert "gpd observe execution" in help_workflow
-    assert "suggested read-only checks rather than runtime hotkeys" in help_workflow
+    assert "next read-only checks from your normal terminal" in help_workflow
 
 
 def test_pause_resume_and_derivation_templates_preserve_result_id_continuity() -> None:
@@ -4565,24 +4566,22 @@ def test_help_command_keeps_static_quick_start_while_workflow_owns_full_referenc
     assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
 
 
-def test_help_workflow_state_aware_variant_surfaces_paused_resume_branch() -> None:
+def test_help_workflow_uses_reachable_quick_start_for_resume_branch() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(help_workflow, "## Quick Start", "## Command Index")
+    returning_work = _extract_between(quick_start, "**Returning work**", "**Post-startup settings**")
 
     assert_runtime_reset_rediscovery_contract(
         help_workflow,
         extra_reset_fragments=("then run gpd resume in your normal terminal",),
         extra_reset_not_recovery_fragments=("then run gpd resume in your normal terminal",),
     )
-    assert "## Contextual Help (State-Aware Variant)" in help_workflow
-    assert "Returning to work:" in help_workflow
-    assert "gpd:resume-work" in help_workflow
-    assert (
-        "gpd:resume-work       # Continue in-runtime from the reopened project's canonical state after reopening that workspace"
-        in help_workflow
-    )
-    assert help_workflow.index("gpd resume --recent") < help_workflow.index("gpd:resume-work")
-    assert "gpd:progress" in help_workflow
-    assert "gpd:suggest-next" in help_workflow
+    assert "## Contextual Help (State-Aware Variant)" not in help_workflow
+    assert "Returning work" in quick_start
+    assert "gpd:resume-work" in quick_start
+    assert returning_work.index("gpd resume --recent") < returning_work.index("gpd:resume-work")
+    assert "gpd:progress" in returning_work
+    assert "gpd:suggest-next" in returning_work
     assert "gpd:tangent" in help_workflow
 
 
@@ -4737,7 +4736,8 @@ def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> N
         "- `gpd:peer-review [paper directory | manuscript path | explicit artifact path]` - Run the staged review "
         "workflow" in help_workflow
     )
-    assert "- Explicit artifact intake accepts `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`;" in help_workflow
+    assert "command-policy supported suffixes for publication-artifact paths" in help_workflow
+    assert "`.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`" not in peer_review_help_block
     assert "gpd validate artifact-text <path> --output <txt-path>" in peer_review_help_block
     assert "Usage: `gpd:peer-review draft.docx`" in peer_review_help_block
     assert "Usage: `gpd:peer-review data/observables.csv`" in peer_review_help_block

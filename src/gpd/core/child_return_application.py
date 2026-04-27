@@ -24,7 +24,7 @@ from gpd.core.continuation import (
     normalize_continuation_bounded_segment_with_issues,
     normalize_continuation_reference,
 )
-from gpd.core.errors import StateError
+from gpd.core.recent_projects import recent_projects_index_path
 from gpd.core.return_contract import GpdReturnContinuationUpdate, GpdReturnEnvelope
 from gpd.core.state import (
     StateUpdateResult,
@@ -38,6 +38,7 @@ from gpd.core.state import (
     state_set_continuation_bounded_segment,
     state_update_progress,
 )
+from gpd.core.utils import atomic_write, file_lock
 
 __all__ = [
     "ApplyChildReturnResult",
@@ -133,6 +134,7 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
         )
 
     state_snapshot = _capture_state_mutation_snapshot(cwd)
+    recent_projects_snapshot = _capture_recent_projects_mutation_snapshot()
     current_operation = "apply_child_return_updates"
 
     try:
@@ -261,11 +263,12 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                         warnings=warnings,
                         applied=applied_continuation_operations,
                     )
-    except StateError as exc:
+    except Exception as exc:
         errors.append(f"{current_operation}: {exc}")
 
     if errors:
         rollback_errors = _restore_state_mutation_snapshot(state_snapshot)
+        rollback_errors.extend(_restore_recent_projects_mutation_snapshot(recent_projects_snapshot))
         if rollback_errors:
             errors.extend(rollback_errors)
         elif applied_state_operations or applied_continuation_operations or applied_decisions or applied_blockers:
@@ -412,6 +415,10 @@ def _capture_state_mutation_snapshot(cwd: Path) -> tuple[_FileSnapshot, ...]:
     )
 
 
+def _capture_recent_projects_mutation_snapshot() -> _FileSnapshot:
+    return _capture_file_snapshot(recent_projects_index_path())
+
+
 def _capture_file_snapshot(path: Path) -> _FileSnapshot:
     try:
         return _FileSnapshot(path=path, existed=True, content=path.read_bytes())
@@ -420,17 +427,39 @@ def _capture_file_snapshot(path: Path) -> _FileSnapshot:
 
 
 def _restore_state_mutation_snapshot(snapshots: tuple[_FileSnapshot, ...]) -> list[str]:
+    if not snapshots:
+        return []
+    try:
+        with file_lock(snapshots[0].path):
+            return _restore_file_snapshots(snapshots)
+    except OSError as exc:
+        return [f"rollback failed for {snapshots[0].path}: {exc}"]
+    except TimeoutError as exc:
+        return [f"rollback failed for {snapshots[0].path}: {exc}"]
+
+
+def _restore_file_snapshots(snapshots: tuple[_FileSnapshot, ...]) -> list[str]:
     errors: list[str] = []
     for snapshot in snapshots:
         try:
             if snapshot.existed:
                 snapshot.path.parent.mkdir(parents=True, exist_ok=True)
-                snapshot.path.write_bytes(snapshot.content or b"")
+                atomic_write(snapshot.path, (snapshot.content or b"").decode("utf-8"))
             else:
                 snapshot.path.unlink(missing_ok=True)
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             errors.append(f"rollback failed for {snapshot.path}: {exc}")
     return errors
+
+
+def _restore_recent_projects_mutation_snapshot(snapshot: _FileSnapshot) -> list[str]:
+    try:
+        with file_lock(snapshot.path):
+            return _restore_file_snapshots((snapshot,))
+    except OSError as exc:
+        return [f"rollback failed for {snapshot.path}: {exc}"]
+    except TimeoutError as exc:
+        return [f"rollback failed for {snapshot.path}: {exc}"]
 
 
 def _record_bool_result(

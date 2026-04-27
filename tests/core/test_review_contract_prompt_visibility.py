@@ -600,6 +600,90 @@ def test_review_contract_normalizers_reject_duplicate_list_entries(
         normalizer(payload)
 
 
+@pytest.mark.parametrize(
+    ("normalizer", "payload", "error_fragment"),
+    [
+        (
+            normalize_review_contract_payload,
+            {
+                "schema_version": 1,
+                "review_mode": "publication",
+                "required_outputs": ["GPD/review/STAGE-reader{round_suffix}.json"],
+                "stage_artifacts": [
+                    "GPD/review/STAGE-reader{round_suffix}.json",
+                    "GPD/review/STAGE-legacy{round_suffix}.json",
+                ],
+            },
+            "stage_artifacts must be covered by required_outputs: "
+            "GPD/review/STAGE-legacy{round_suffix}.json",
+        ),
+        (
+            normalize_review_contract_frontmatter_payload,
+            {
+                "review-contract": {
+                    "schema_version": 1,
+                    "review_mode": "publication",
+                    "conditional_requirements": [
+                        {
+                            "when": "theorem-bearing claims are present",
+                            "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                            "stage_artifacts": [
+                                "GPD/review/PROOF-REDTEAM{round_suffix}.md",
+                                "GPD/review/PROOF-LEGACY{round_suffix}.md",
+                            ],
+                        }
+                    ],
+                }
+            },
+            "conditional_requirements[0].stage_artifacts must be covered by "
+            "conditional_requirements[0].required_outputs: GPD/review/PROOF-LEGACY{round_suffix}.md",
+        ),
+        (
+            normalize_review_contract_payload,
+            {
+                "schema_version": 1,
+                "review_mode": "publication",
+                "required_outputs": ["GPD/review/STAGE-reader{round_suffix}.json"],
+                "stage_artifacts": ["GPD/review/STAGE-reader{round_suffix}.json"],
+                "scope_variants": [
+                    {
+                        "scope": "explicit_artifact",
+                        "activation": "explicit artifact supplied",
+                        "required_outputs_override": ["GPD/review/ARTIFACT-REPORT.md"],
+                    }
+                ],
+            },
+            "scope_variants[0].required_outputs_override must cover stage_artifacts: "
+            "GPD/review/STAGE-reader{round_suffix}.json",
+        ),
+    ],
+)
+def test_review_contract_normalizers_reject_stage_artifact_output_drift(
+    normalizer,
+    payload: dict[str, object],
+    error_fragment: str,
+) -> None:
+    with pytest.raises(ValueError, match=re.escape(error_fragment)):
+        normalizer(payload)
+
+
+def test_review_contract_prompt_and_registry_reject_stage_artifact_output_drift_consistently() -> None:
+    payload = {
+        "schema_version": 1,
+        "review_mode": "publication",
+        "required_outputs": ["GPD/review/STAGE-reader{round_suffix}.json"],
+        "stage_artifacts": ["GPD/review/STAGE-legacy{round_suffix}.json"],
+    }
+    error_fragment = (
+        "stage_artifacts must be covered by required_outputs: GPD/review/STAGE-legacy{round_suffix}.json"
+    )
+
+    with pytest.raises(ValueError, match=re.escape(error_fragment)):
+        normalize_review_contract_payload(payload)
+    with pytest.raises(ValueError, match=re.escape(error_fragment)):
+        registry._parse_review_contract(payload, "gpd:test")
+
+
 def test_review_contract_normalizer_canonicalizes_case_only_enum_drift() -> None:
     payload = {
         "schema_version": 1,

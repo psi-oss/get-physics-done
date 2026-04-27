@@ -15,6 +15,9 @@ __all__ = [
     "command_visibility_note",
     "MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE",
     "AGENT_ARTIFACT_WRITE_AUTHORITIES",
+    "AGENT_FRONTMATTER_AUTHORITY_POINTER",
+    "INTERNAL_AGENT_BOUNDARY_POINTER",
+    "READ_ONLY_INTERNAL_AGENT_BOUNDARY_POINTER",
     "AGENT_COMMIT_AUTHORITIES",
     "AGENT_ROLE_FAMILIES",
     "AGENT_SHARED_STATE_AUTHORITIES",
@@ -47,6 +50,18 @@ AGENT_SURFACES = ("public", "internal")
 AGENT_ROLE_FAMILIES = ("worker", "analysis", "verification", "review", "coordination")
 AGENT_ARTIFACT_WRITE_AUTHORITIES = ("scoped_write", "read_only")
 AGENT_SHARED_STATE_AUTHORITIES = ("return_only", "direct")
+AGENT_FRONTMATTER_AUTHORITY_POINTER = (
+    "Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and "
+    "shared-state policy."
+)
+INTERNAL_AGENT_BOUNDARY_POINTER = (
+    "Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as "
+    "the default writable implementation agent."
+)
+READ_ONLY_INTERNAL_AGENT_BOUNDARY_POINTER = (
+    "Internal specialist boundary: stay read-only inside assigned scoped artifacts and the return envelope; "
+    "do not act as the default writable implementation agent."
+)
 COMMAND_POLICY_FRONTMATTER_KEY = "command-policy"
 COMMAND_POLICY_PROMPT_WRAPPER_KEY = "command_policy"
 REVIEW_CONTRACT_MODES = ("publication", "review")

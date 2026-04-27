@@ -15,6 +15,8 @@ CI_CATEGORY_SHARD_COUNTS = {
     "mcp": 1,
     "core": 5,
 }
+CI_FAST_SUITE_BUDGET_SECONDS = 180
+CI_PYTEST_SHARD_TIMEOUT_MINUTES = 10
 
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
 # real bottlenecks inside their category. Split them inside the file so the
@@ -194,7 +196,14 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert "Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']}" in resolve_targets_command
     assert "shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
+    assert pytest_steps[-1]["timeout-minutes"] == CI_PYTEST_SHARD_TIMEOUT_MINUTES
+    assert pytest_steps[-1]["env"]["GPD_FAST_SUITE_BUDGET_SECONDS"] == str(CI_FAST_SUITE_BUDGET_SECONDS)
+    assert (
+        f"Fast suite budget target: ${{GPD_FAST_SUITE_BUDGET_SECONDS}}s full-suite wall clock; "
+        f"shard timeout: {CI_PYTEST_SHARD_TIMEOUT_MINUTES} minutes"
+    ) in pytest_shard_command
+    assert '--durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
+    assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert pytest_steps[-1]["name"] == "Run pytest shard"
     assert pytest_steps[-1]["run"] == pytest_shard_command
     node_step = next(step for step in pytest_steps if step.get("name") == "Set up Node.js")

@@ -35,8 +35,12 @@ from gpd.core.proof_review import (
 )
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
-    review_artifact_round,
     review_round_suffix,
+)
+from gpd.core.publication_rounds import (
+    latest_publication_round_number,
+    publication_response_round_path_maps,
+    publication_review_round_path_maps,
 )
 from gpd.core.reference_ingestion import (
     ManuscriptReferenceStatusIngestion,
@@ -58,10 +62,6 @@ __all__ = [
     "resolve_publication_runtime_snapshot",
 ]
 
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
-_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 _PUBLICATION_BLOCKER_PATTERNS = (
     re.compile(r"\bpublication\b"),
     re.compile(r"\b(arxiv|submission|manuscript)\b"),
@@ -528,33 +528,6 @@ def _target_not_reviewed_status(detail: str) -> ProofReviewStatus:
     )
 
 
-def _latest_round_number(*round_maps: dict[int, Path | None]) -> int | None:
-    rounds: set[int] = set()
-    for round_map in round_maps:
-        rounds.update(round_map)
-    if not rounds:
-        return None
-    return max(rounds)
-
-
-def _round_file_map(
-    *search_roots: Path,
-    filename_pattern: re.Pattern[str],
-    glob_pattern: str,
-) -> dict[int, Path]:
-    round_map: dict[int, Path] = {}
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-        for path in sorted(root.glob(glob_pattern)):
-            details = review_artifact_round(path, pattern=filename_pattern)
-            if details is None:
-                continue
-            round_number, _round_suffix = details
-            round_map.setdefault(round_number, path)
-    return round_map
-
-
 def _first_existing_path(*candidates: Path) -> Path | None:
     for candidate in candidates:
         if candidate.exists():
@@ -688,15 +661,9 @@ def resolve_latest_publication_review_artifacts(
     if not review_dir.exists():
         return None
 
-    ledger_by_round = _round_file_map(
-        review_dir,
-        filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
-        glob_pattern="REVIEW-LEDGER*.json",
-    )
-    decision_by_round = _round_file_map(
-        review_dir,
-        filename_pattern=_REFEREE_DECISION_FILENAME_RE,
-        glob_pattern="REFEREE-DECISION*.json",
+    ledger_by_round, decision_by_round = publication_review_round_path_maps(
+        project_root,
+        manuscript=resolved_manuscript,
     )
     round_numbers = sorted({*ledger_by_round, *decision_by_round}, reverse=True)
     for round_number in round_numbers:
@@ -759,27 +726,21 @@ def resolve_latest_publication_response_artifacts(
         publication_subject=publication_subject,
     )
     if subject.resolved and subject.manuscript_entrypoint is not None:
-        publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
+        _publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     elif manuscript_entrypoint is not None:
         layout = ProjectLayout(project_root)
-        publication_root, review_dir = layout.gpd, layout.gpd / "review"
+        review_dir = layout.gpd / "review"
     else:
         return None
     if not review_dir.exists():
         return None
 
-    author_by_round = _round_file_map(
-        publication_root,
-        review_dir,
-        filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
-        glob_pattern="AUTHOR-RESPONSE*.md",
+    author_by_round, referee_by_round = publication_response_round_path_maps(
+        project_root,
+        manuscript=subject.manuscript_entrypoint if subject.resolved else manuscript_entrypoint,
+        include_review_roots_for_author_response=True,
     )
-    referee_by_round = _round_file_map(
-        review_dir,
-        filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
-        glob_pattern="REFEREE_RESPONSE*.md",
-    )
-    round_number = review_artifacts.round_number if review_artifacts is not None else _latest_round_number(
+    round_number = review_artifacts.round_number if review_artifacts is not None else latest_publication_round_number(
         author_by_round,
         referee_by_round,
     )

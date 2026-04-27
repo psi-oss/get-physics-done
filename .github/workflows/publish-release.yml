@@ -267,12 +267,14 @@ jobs:
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
       - name: Trigger gpd-web production rebuild
+        id: gpd_web_rebuild
         env:
           GPD_WEB_TOKEN: ${{ secrets.GPD_WEB_DISPATCH_TOKEN }}
         run: |
           VERSION="${{ needs.build-release.outputs.version }}"
           if [ -z "$GPD_WEB_TOKEN" ]; then
             echo "::warning::GPD_WEB_DISPATCH_TOKEN not configured — skipping production rebuild trigger"
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           curl -sf -X POST \
@@ -280,12 +282,14 @@ jobs:
             -H "Authorization: Bearer ${GPD_WEB_TOKEN}" \
             https://api.github.com/repos/physicalsuperintelligence/gpd-web/dispatches \
             -d "{\"event_type\":\"rebuild-gpd\",\"client_payload\":{\"source\":\"npm\",\"version\":\"${VERSION}\",\"image_tag\":\"prod\"}}"
+          echo "status=dispatched" >> "$GITHUB_OUTPUT"
           echo "Dispatched production rebuild to gpd-web for GPD v${VERSION}"
 
       - name: Write publish summary
         env:
           RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
           METADATA_PR_URL: ${{ steps.metadata_pr.outputs.pr_url }}
+          GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}
         run: |
           VERSION="${{ needs.build-release.outputs.version }}"
           RELEASE_SHA="${{ needs.build-release.outputs.release_sha }}"
@@ -305,5 +309,9 @@ jobs:
             else
               echo "- Follow-up metadata PR: not needed; release PR already used the publish date"
             fi
-            echo "- GPD Web production rebuild: dispatched"
+            if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then
+              echo "- GPD Web production rebuild: dispatched"
+            else
+              echo "- GPD Web production rebuild: skipped; \`GPD_WEB_DISPATCH_TOKEN\` is not configured"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -401,6 +401,47 @@ def _normalize_review_contract_scope_variants(value: object) -> list[dict[str, o
     return normalized
 
 
+def _validate_review_contract_stage_artifacts(payload: dict[str, object]) -> None:
+    required_outputs = set(payload["required_outputs"])
+    stage_artifacts = list(payload["stage_artifacts"])
+    uncovered_stage_artifacts = [artifact for artifact in stage_artifacts if artifact not in required_outputs]
+    if uncovered_stage_artifacts:
+        formatted = ", ".join(uncovered_stage_artifacts)
+        raise ValueError(f"stage_artifacts must be covered by required_outputs: {formatted}")
+
+    for index, requirement in enumerate(payload["conditional_requirements"]):
+        if not isinstance(requirement, Mapping):
+            continue
+        conditional_required_outputs = set(requirement["required_outputs"])
+        conditional_stage_artifacts = list(requirement["stage_artifacts"])
+        uncovered_conditional_artifacts = [
+            artifact for artifact in conditional_stage_artifacts if artifact not in conditional_required_outputs
+        ]
+        if uncovered_conditional_artifacts:
+            formatted = ", ".join(uncovered_conditional_artifacts)
+            raise ValueError(
+                f"conditional_requirements[{index}].stage_artifacts must be covered by "
+                f"conditional_requirements[{index}].required_outputs: {formatted}"
+            )
+
+    if not stage_artifacts:
+        return
+    for index, variant in enumerate(payload["scope_variants"]):
+        if not isinstance(variant, Mapping):
+            continue
+        variant_required_outputs = set(variant.get("required_outputs_override", []) or [])
+        if not variant_required_outputs:
+            continue
+        uncovered_variant_artifacts = [
+            artifact for artifact in stage_artifacts if artifact not in variant_required_outputs
+        ]
+        if uncovered_variant_artifacts:
+            formatted = ", ".join(uncovered_variant_artifacts)
+            raise ValueError(
+                f"scope_variants[{index}].required_outputs_override must cover stage_artifacts: {formatted}"
+            )
+
+
 def _normalize_review_contract_payload(
     review_contract: object,
     *,
@@ -457,7 +498,7 @@ def _normalize_review_contract_payload(
         loaded.get("conditional_requirements")
     )
     scope_variants = _normalize_review_contract_scope_variants(loaded.get("scope_variants"))
-    return {
+    payload = {
         "schema_version": schema_version,
         "review_mode": _normalize_review_contract_choice(
             loaded.get("review_mode"),
@@ -485,6 +526,8 @@ def _normalize_review_contract_payload(
         "scope_variants": scope_variants,
         "required_state": required_state,
     }
+    _validate_review_contract_stage_artifacts(payload)
+    return payload
 
 
 def normalize_review_contract_payload(review_contract: object) -> dict[str, object]:

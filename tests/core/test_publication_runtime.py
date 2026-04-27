@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 
 from gpd.core.manuscript_artifacts import resolve_explicit_publication_subject
+from gpd.core.publication_rounds import (
+    publication_review_round_path_maps,
+    resolve_latest_publication_review_round_artifacts,
+)
 from gpd.core.publication_runtime import publication_runtime_snapshot_context, resolve_publication_runtime_snapshot
 from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.mcp.paper.models import ReviewConfidence, ReviewLedger, ReviewRecommendation
@@ -56,6 +60,27 @@ def _write_artifact_manifest(manuscript_root: Path, entrypoint_name: str) -> Non
         )
         + "\n",
     )
+
+
+def test_publication_round_helpers_index_round_suffixed_artifacts(tmp_path: Path) -> None:
+    review_dir = tmp_path / "GPD" / "review"
+    _write(review_dir / "REVIEW-LEDGER.json", "{}\n")
+    _write(review_dir / "REFEREE-DECISION-R2.json", "{}\n")
+    _write(review_dir / "REVIEW-LEDGER-R3.json", "{}\n")
+
+    review_ledgers, referee_decisions = publication_review_round_path_maps(tmp_path)
+    latest = resolve_latest_publication_review_round_artifacts(tmp_path)
+
+    assert review_ledgers == {
+        1: review_dir / "REVIEW-LEDGER.json",
+        3: review_dir / "REVIEW-LEDGER-R3.json",
+    }
+    assert referee_decisions == {2: review_dir / "REFEREE-DECISION-R2.json"}
+    assert latest is not None
+    assert latest.round_number == 3
+    assert latest.round_suffix == "-R3"
+    assert latest.review_ledger == review_dir / "REVIEW-LEDGER-R3.json"
+    assert latest.referee_decision is None
 
 
 def test_publication_runtime_snapshot_uses_the_matching_review_round_for_an_explicit_subject(

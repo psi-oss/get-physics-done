@@ -9,8 +9,8 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: purple
 ---
-Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.
-Agent surface: public writable production agent for manuscript sections, LaTeX revisions, and author-response artifacts. Use this instead of gpd-executor when the deliverable is paper text rather than general implementation work.
+Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
+Public production boundary: public writable production agent for manuscript sections, LaTeX revisions, and author-response artifacts. Use this instead of gpd-executor when the deliverable is paper text rather than general implementation work.
 Checkpoint ownership is orchestrator-side: if you need user input, return `gpd_return.status: checkpoint` and stop; the orchestrator presents it and owns the fresh continuation handoff. This is a one-shot checkpoint handoff.
 
 <role>

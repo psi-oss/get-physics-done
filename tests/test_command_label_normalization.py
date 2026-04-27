@@ -11,6 +11,7 @@ from gpd.command_labels import (
     canonical_command_label,
     canonical_skill_label,
     command_slug_from_label,
+    parse_command_label,
     rewrite_runtime_command_surfaces,
     runtime_command_prefixes,
     runtime_public_command_prefixes,
@@ -149,6 +150,28 @@ def test_runtime_native_command_labels_canonicalize_across_shared_surfaces(descr
     assert canonical_command_label(label) == "gpd:execute-phase"
     assert canonical_skill_label(label) == "gpd-execute-phase"
     assert _canonical_command_name(label) == "gpd:execute-phase"
+
+
+@pytest.mark.parametrize(
+    ("label", "expected_slug", "expected_args"),
+    [
+        ("gpd:new-project --minimal", "new-project", "--minimal"),
+        ("$gpd-new-project --minimal", "new-project", "--minimal"),
+        ("new-project --minimal", "new-project", "--minimal"),
+        ("gpd:new-project --minimal @plan.md", "new-project", "--minimal @plan.md"),
+    ],
+)
+def test_command_label_parser_normalizes_base_command_and_preserves_inline_args(
+    label: str,
+    expected_slug: str,
+    expected_args: str,
+) -> None:
+    parsed = parse_command_label(label)
+
+    assert parsed.slug == expected_slug
+    assert parsed.inline_args == expected_args
+    assert command_slug_from_label(label) == expected_slug
+    assert canonical_command_label(label) == f"gpd:{expected_slug}"
 
 
 @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda item: item.runtime_name)

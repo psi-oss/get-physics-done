@@ -1315,6 +1315,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
             "subject-owned publication root under `GPD/publication/{subject_slug}`",
             "subject-owned publication root at `GPD/publication/{subject_slug}`",
             "subject-owned publication root under `GPD/publication/{subject_slug}/...`",
+            "subject-owned publication root at `GPD/publication/{subject_slug}/...`",
             "outputs live under `GPD/publication/{subject_slug}/...`",
         ),
         label="subject-owned external continuation boundary",

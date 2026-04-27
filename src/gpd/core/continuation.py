@@ -444,7 +444,7 @@ def normalize_continuation_reference(
     except (OSError, ValueError):
         return None
 
-    if require_exists and not resolved_target.exists():
+    if require_exists and (not resolved_target.exists() or not resolved_target.is_file()):
         return None
 
     return candidate.as_posix()

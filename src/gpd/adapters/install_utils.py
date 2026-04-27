@@ -257,6 +257,14 @@ def build_runtime_install_repair_command(
     return command
 
 
+def projection_target_dir_from_path_prefix(path_prefix: str, *, config_dir_name: str) -> Path:
+    """Return a best-effort install target for runtime prompt projection."""
+    normalized = path_prefix.replace("\\", "/").rstrip("/")
+    if normalized:
+        return Path(normalized)
+    return Path.cwd() / config_dir_name
+
+
 def should_preserve_public_local_cli_command(command: str) -> bool:
     """Return whether *command* is part of the public local-CLI contract.
 
@@ -1281,11 +1289,28 @@ def project_markdown_for_runtime(
 
     from gpd.adapters import get_adapter
 
-    return get_adapter(runtime).project_markdown_surface(
+    adapter = get_adapter(runtime)
+    bridge_command = None
+    if surface_kind == "command":
+        descriptor = get_runtime_descriptor(runtime)
+        target_dir = workflow_target_dir or projection_target_dir_from_path_prefix(
+            path_prefix,
+            config_dir_name=descriptor.config_dir_name,
+        )
+        bridge_command = build_runtime_cli_bridge_command(
+            runtime,
+            target_dir=target_dir,
+            config_dir_name=descriptor.config_dir_name,
+            is_global=_normalize_install_scope_flag(install_scope) == "--global",
+            explicit_target=explicit_target,
+        )
+
+    return adapter.project_markdown_surface(
         compiled,
         surface_kind=surface_kind,
         path_prefix=path_prefix,
         command_name=command_name,
+        bridge_command=bridge_command,
     )
 
 
@@ -1572,6 +1597,7 @@ def _copy_dir_contents(
                     explicit_target=explicit_target,
                 )
             content = _inject_command_visibility_sections_from_frontmatter(content)
+            content = _inject_skeptical_rigor_guardrails_section(content)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy
@@ -2143,6 +2169,28 @@ def copy_hook_scripts(gpd_root: Path, target_dir: Path) -> list[str]:
         return []
 
     return ["hooks"]
+
+
+def installed_hook_scripts_matching_source(gpd_root: Path, target_dir: Path) -> set[str]:
+    """Return hook filenames whose installed copy matches this install source."""
+    hooks_src = gpd_root / "hooks"
+    hooks_dest = target_dir / "hooks"
+    if not hooks_src.is_dir() or not hooks_dest.is_dir():
+        return set()
+
+    matching: set[str] = set()
+    for hook_file in hooks_src.iterdir():
+        if not hook_file.is_file() or hook_file.name.startswith("__"):
+            continue
+        installed = hooks_dest / hook_file.name
+        if not installed.is_file():
+            continue
+        try:
+            if file_hash(installed) == file_hash(hook_file):
+                matching.add(hook_file.name)
+        except OSError:
+            continue
+    return matching
 
 
 def remove_stale_agents(agents_dest: Path, new_agent_names: set[str]) -> None:

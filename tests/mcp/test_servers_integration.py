@@ -519,7 +519,7 @@ class TestSkillsServerIntegration:
         assert "gpd-help" in result["content"]
         assert "## Command Requirements" in result["content"]
         assert "Quick Start Extract" in result["content"]
-        assert "## Contextual Help" in result["content"]
+        assert "## Contextual Help" not in result["content"]
         assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in result["content"]
         assert "resolved GPD-owned manuscript root" in result["content"]
         assert result["file_count"] == 1

@@ -69,11 +69,44 @@ def test_help_wrapper_followups_do_not_hard_code_gpd_help_runtime_syntax() -> No
     assert "Unknown command. Run <current-help-command> --all for the compact command index." in help_command
 
 
+def test_help_wrapper_documents_inline_argument_command_lookup_normalization() -> None:
+    help_command = _read("src/gpd/commands/help.md")
+
+    assert "gpd:new-project --minimal" in help_command
+    assert "current runtime's native command label" in help_command
+    assert "new-project --minimal" in help_command
+    assert "parse the inline arguments separately" in help_command
+    assert "base command block" in help_command
+
+
+def test_help_workflow_removes_unreachable_contextual_help_variant() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+    quick_start = _section(help_workflow, "## Quick Start", "## Command Index")
+
+    assert '<step name="contextual_help">' not in help_workflow
+    assert "## Contextual Help (State-Aware Variant)" not in help_workflow
+    assert "Returning work" in quick_start
+    assert "gpd:resume-work" in quick_start
+
+
+def test_peer_review_detailed_help_uses_command_policy_instead_of_suffix_inventory() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+    peer_review_detail = _section(
+        help_workflow,
+        "**`gpd:peer-review [paper directory | manuscript path | explicit artifact path]`**",
+        "**`gpd:respond-to-referees",
+    )
+
+    assert "one explicit subject allowed by its command policy" in help_workflow
+    assert "command-policy supported suffixes for publication-artifact paths" in peer_review_detail
+    assert "`.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`" not in peer_review_detail
+
+
 def test_help_workflow_paper_toolchain_doctor_row_is_single_sourced() -> None:
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 
-    assert len(re.findall(r"(?m)^\s*gpd doctor --runtime <runtime> --local\|--global\b.*$", help_workflow)) == 1
-    assert len(re.findall(r"(?m)^\s*gpd doctor --runtime <runtime> --global\b.*$", help_workflow)) == 0
+    assert help_workflow.count("`gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global`") == 1
+    assert len(re.findall(r"(?m)^\s*gpd doctor --runtime <runtime> --local\|--global\b.*$", help_workflow)) == 0
 
 
 def test_public_docs_frame_typed_review_surfaces_as_command_policy_specializations() -> None:
@@ -96,11 +129,17 @@ def test_public_docs_explain_publication_lane_boundary_and_follow_on_command_arg
     assert_publication_lane_boundary_contract(help_workflow)
     assert "bounded external-authoring lane driven by an explicit intake manifest only" in readme
     assert "bounded external-authoring lane driven by an explicit intake manifest only" in help_workflow
-    assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in readme
+    assert (
+        "subject-owned publication root at `GPD/publication/{subject_slug}`" in readme
+        or "subject-owned publication root at `GPD/publication/{subject_slug}/...`" in readme
+    )
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in help_workflow
-    assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in readme
+    assert (
+        "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in readme
+        or "`GPD/publication/{subject_slug}/intake/` keeps intake/provenance state only" in readme
+    )
     assert "`GPD/publication/{subject_slug}/intake/` for intake and provenance state only" in help_workflow
-    assert "Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths." in readme
+    assert "Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths" in readme
     assert "Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths." in help_workflow
     assert "The later publication commands stay stricter:" in readme
     assert "**`gpd:respond-to-referees [--manuscript PATH --report PATH | report path | paste]`**" in help_workflow

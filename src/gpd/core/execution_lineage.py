@@ -362,6 +362,21 @@ def derive_execution_lineage_head(
     )
 
 
+def _ledger_tail_entry(entries: Sequence[ExecutionLineageEntry]) -> ExecutionLineageEntry | None:
+    if not entries:
+        return None
+    return max(entries, key=lambda item: (item.seq, item.recorded_at, item.event_id))
+
+
+def _head_matches_ledger_tail(
+    head: ExecutionLineageHead,
+    tail: ExecutionLineageEntry | None,
+) -> bool:
+    if tail is None:
+        return True
+    return head.last_applied_seq == tail.seq and head.last_applied_event_id == tail.event_id
+
+
 def _head_to_json(head: ExecutionLineageHead) -> str:
     return head.model_dump_json(indent=2)
 
@@ -383,14 +398,21 @@ def write_execution_lineage_head(
 def load_execution_lineage_head(project_root: Path | str | ProjectLayout) -> ExecutionLineageHead | None:
     """Load the cached head or derive it from the ledger if needed."""
     path = execution_lineage_head_path(project_root)
+    entries: list[ExecutionLineageEntry] | None = None
     raw = _read_json(path)
     if raw is not None:
         try:
-            return ExecutionLineageHead.model_validate(raw)
+            cached = ExecutionLineageHead.model_validate(raw)
         except Exception:
             pass
+        else:
+            entries = load_execution_lineage_entries(project_root)
+            if _head_matches_ledger_tail(cached, _ledger_tail_entry(entries)):
+                return cached
 
-    derived = derive_execution_lineage_head(load_execution_lineage_entries(project_root))
+    if entries is None:
+        entries = load_execution_lineage_entries(project_root)
+    derived = derive_execution_lineage_head(entries)
     if derived is None:
         return None
     return derived

@@ -16,7 +16,7 @@ from gpd.version import resolve_active_version
 logger = logging.getLogger(__name__)
 
 ARXIV_SOURCE_URL_TEMPLATE = "https://arxiv.org/e-print/{arxiv_id}"
-ARXIV_DEFAULT_STORAGE_PATH = Path.home() / ".arxiv-mcp-server" / "papers"
+ARXIV_DEFAULT_STORAGE_PATH = Path("~/.arxiv-mcp-server/papers")
 ARXIV_SOURCE_STORAGE_DIRNAME = "sources"
 ARXIV_SOURCE_USER_AGENT_TEMPLATE = "get-physics-done/{version} (https://github.com/psi-oss/get-physics-done)"
 ARXIV_SOURCE_TIMEOUT_SECONDS = 60
@@ -46,6 +46,12 @@ def arxiv_source_user_agent() -> str:
     """Return the versioned user agent sent to arXiv source endpoints."""
 
     return ARXIV_SOURCE_USER_AGENT_TEMPLATE.format(version=resolve_active_version())
+
+
+def default_arxiv_source_storage_path() -> Path:
+    """Return the default arXiv source storage root using the current home directory."""
+
+    return Path.home() / ".arxiv-mcp-server" / "papers"
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,7 +102,7 @@ def build_source_download_url(arxiv_id: str) -> str:
 def resolve_source_storage_dir(storage_path: str | Path | None = None) -> Path:
     """Return the directory where source archives should be stored."""
 
-    base = Path(storage_path) if storage_path is not None else ARXIV_DEFAULT_STORAGE_PATH
+    base = Path(storage_path) if storage_path is not None else default_arxiv_source_storage_path()
     resolved = base.expanduser().resolve(strict=False) / ARXIV_SOURCE_STORAGE_DIRNAME
     resolved.mkdir(parents=True, exist_ok=True)
     return resolved
@@ -298,6 +304,7 @@ __all__ = [
     "ArxivSourceDownload",
     "arxiv_source_user_agent",
     "build_source_download_url",
+    "default_arxiv_source_storage_path",
     "download_arxiv_source_archive",
     "normalize_arxiv_id",
     "resolve_source_storage_dir",

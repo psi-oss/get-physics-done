@@ -297,6 +297,51 @@ def test_resolve_continuation_falls_back_to_handoff_when_canonical_bounded_segme
     assert projection.resumable is False
 
 
+def test_resolve_continuation_does_not_activate_directory_resume_targets(tmp_path: Path) -> None:
+    resume_dir = tmp_path / "GPD" / "phases" / "03-analysis" / "resume-dir"
+    resume_dir.mkdir(parents=True)
+
+    projection = resolve_continuation(
+        tmp_path,
+        state={
+            "continuation": {
+                "handoff": {"resume_file": "GPD/phases/03-analysis/resume-dir"},
+                "bounded_segment": {
+                    "resume_file": "GPD/phases/03-analysis/resume-dir",
+                    "segment_status": "paused",
+                    "segment_id": "seg-dir",
+                },
+            }
+        },
+        current_execution={
+            "resume_file": "GPD/phases/03-analysis/resume-dir",
+            "segment_status": "paused",
+            "segment_id": "live-dir",
+        },
+    )
+
+    assert normalize_continuation_reference(
+        tmp_path,
+        "GPD/phases/03-analysis/resume-dir",
+        require_exists=True,
+    ) is None
+    assert canonical_bounded_segment_from_execution_snapshot(
+        tmp_path,
+        {
+            "resume_file": "GPD/phases/03-analysis/resume-dir",
+            "segment_status": "paused",
+            "segment_id": "live-dir",
+        },
+    ) is None
+    assert projection.source == ContinuationSource.CANONICAL
+    assert projection.recorded_handoff_resume_file == "GPD/phases/03-analysis/resume-dir"
+    assert projection.handoff_resume_file is None
+    assert projection.bounded_segment_resume_file is None
+    assert projection.active_resume_file is None
+    assert projection.active_resume_source is None
+    assert projection.resumable is False
+
+
 def test_resolve_continuation_uses_live_bounded_segment_when_recorded_handoff_file_is_missing(
     tmp_path: Path,
 ) -> None:

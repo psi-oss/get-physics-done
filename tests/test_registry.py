@@ -1974,7 +1974,8 @@ class TestRegistryPromptIncludeInlining:
         assert "Checkpoint after the initial survey with scope confirmation." in agent.content
         assert "gpd_return:" in agent.content
         assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.content
-        assert "Do NOT run `gpd commit`, `git commit`, or stage files." in agent.content
+        assert "commit_authority: orchestrator" in agent.content
+        assert "Authority: use the frontmatter-derived Agent Requirements block" in agent.content
         assert "wait for confirmation" not in agent.content
         assert "pause here for approval" not in agent.content
         assert "ask the user then continue" not in agent.content
@@ -2915,6 +2916,22 @@ class TestPublicAPI:
         assert isinstance(cmd, CommandDef)
         assert cmd.name == "gpd:peer-review"
         assert cmd.description == "Peer review"
+
+    def test_get_command_accepts_inline_arguments_on_command_labels(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "new-project.md").write_text(
+            "---\nname: gpd:new-project\ndescription: New project\n---\nNew project body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        registry.invalidate_cache()
+
+        for label in ("gpd:new-project --minimal", "$gpd-new-project --minimal", "new-project --minimal"):
+            assert registry.get_command(label).name == "gpd:new-project"
 
     def test_get_command_rejects_foreign_bare_slash_command(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

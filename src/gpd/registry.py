@@ -20,7 +20,12 @@ from typing import Literal
 import yaml
 
 from gpd.adapters.install_utils import expand_at_includes
-from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
+from gpd.command_labels import (
+    canonical_command_label,
+    canonical_skill_label,
+    command_slug_from_label,
+    parse_command_label,
+)
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
 from gpd.core.model_visible_text import (
     AGENT_ARTIFACT_WRITE_AUTHORITIES,
@@ -2531,10 +2536,11 @@ def get_command(name: str) -> CommandDef:
     Raises KeyError if not found.
     """
     commands = _cache.commands()
-    slug = command_slug_from_label(name)
+    parsed = parse_command_label(name)
+    slug = parsed.slug
     candidates = []
     for candidate in (
-        canonical_command_label(name),
+        parsed.canonical_command,
         slug,
     ):
         if candidate and candidate not in candidates:

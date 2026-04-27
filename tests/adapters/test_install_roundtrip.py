@@ -12,6 +12,7 @@ import json
 import os
 import re
 import tomllib
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -133,6 +134,7 @@ def test_install_roundtrip_full_runtime_matrix_matches_catalog_runtimes() -> Non
     assert FULL_RUNTIME_MATRIX == tuple(adapter.runtime_name for adapter in iter_adapters())
 
 
+@cache
 def _source_signature(root: Path) -> tuple[str, ...]:
     signature_entries: list[str] = []
     for path in sorted(root.rglob("*")):

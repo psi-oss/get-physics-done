@@ -446,6 +446,7 @@ class TestCommandVisibilityInjection:
             "  review_mode: review\n"
             "  required_outputs:\n"
             "    - GPD/review/output.md\n"
+            "    - artifact.md\n"
             "  required_evidence:\n"
             "    - GPD/review/evidence.md\n"
             "  blocking_conditions:\n"

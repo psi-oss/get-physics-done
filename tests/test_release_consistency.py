@@ -462,7 +462,10 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert "Run pytest shard" in workflow
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
     assert "PYTEST_CATEGORY" in workflow
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in workflow
+    assert "GPD_FAST_SUITE_BUDGET_SECONDS: \"180\"" in workflow
+    assert "timeout-minutes: 10" in workflow
+    assert "--durations=20 --durations-min=1.0" in workflow
+    assert 'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in workflow
 
     # Staging rebuild trigger lives in a separate workflow (staging-rebuild.yml)
     # to avoid showing as a skipped check on PRs. It gates on tests via workflow_run.
@@ -548,6 +551,26 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert 'npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json' in workflow
     assert "scripts/release_workflow.py release-notes" in workflow
     assert "gh pr create" in workflow
+    assert "id: gpd_web_rebuild" in workflow
+    assert "GPD_WEB_DISPATCH_TOKEN not configured" in workflow
+    assert 'echo "status=skipped" >> "$GITHUB_OUTPUT"' in workflow
+    assert 'echo "status=dispatched" >> "$GITHUB_OUTPUT"' in workflow
+    assert "GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}" in workflow
+    assert 'if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then' in workflow
+    assert 'echo "- GPD Web production rebuild: dispatched"' in workflow
+    assert (
+        'echo "- GPD Web production rebuild: skipped; \\`GPD_WEB_DISPATCH_TOKEN\\` is not configured"'
+        in workflow
+    )
+    summary_lines = [line.strip() for line in workflow.splitlines()]
+    condition_index = summary_lines.index('if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then')
+    dispatched_index = summary_lines.index('echo "- GPD Web production rebuild: dispatched"')
+    else_index = next(index for index in range(condition_index + 1, len(summary_lines)) if summary_lines[index] == "else")
+    skipped_index = summary_lines.index(
+        'echo "- GPD Web production rebuild: skipped; \\`GPD_WEB_DISPATCH_TOKEN\\` is not configured"'
+    )
+    fi_index = next(index for index in range(else_index + 1, len(summary_lines)) if summary_lines[index] == "fi")
+    assert condition_index < dispatched_index < else_index < skipped_index < fi_index
 
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:

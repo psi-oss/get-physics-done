@@ -563,6 +563,15 @@ def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
 
 
+def _render_codex_command_skill(content: str, *, skill_name: str, launcher: str) -> str:
+    """Render one canonical command markdown source into Codex SKILL.md content."""
+    content = _convert_to_codex_skill(content, skill_name)
+    content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+    content = _rewrite_codex_gpd_cli_invocations(content, launcher)
+    content = _normalize_codex_questioning(content)
+    return _inject_codex_command_runtime_note(content, launcher)
+
+
 def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
     """Rewrite shell-executable ``gpd`` calls to the shared runtime CLI bridge."""
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
@@ -660,6 +669,7 @@ class CodexAdapter(RuntimeAdapter):
         surface_kind: str,
         path_prefix: str,
         command_name: str | None = None,
+        bridge_command: str | None = None,
     ) -> str:
         del path_prefix
         if surface_kind != "command":
@@ -668,10 +678,13 @@ class CodexAdapter(RuntimeAdapter):
                 surface_kind=surface_kind,
                 path_prefix="",
                 command_name=command_name,
+                bridge_command=bridge_command,
             )
         if command_name is None:
             raise ValueError("command_name is required for projected command surfaces")
-        return _convert_to_codex_skill(content, f"gpd-{command_name}")
+        if bridge_command is None:
+            raise ValueError("bridge_command is required for projected Codex command surfaces")
+        return _render_codex_command_skill(content, skill_name=f"gpd-{command_name}", launcher=bridge_command)
 
     def translate_shared_command_references(self, content: str) -> str:
         return _rewrite_codex_command_references(content)
@@ -1435,11 +1448,7 @@ def _render_commands_as_skills(
                 workflow_target_dir=workflow_target_dir,
                 explicit_target=explicit_target,
             )
-            content = _convert_to_codex_skill(content, skill_name)
-            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-            content = _rewrite_codex_gpd_cli_invocations(content, launcher)
-            content = _normalize_codex_questioning(content)
-            content = _inject_codex_command_runtime_note(content, launcher)
+            content = _render_codex_command_skill(content, skill_name=skill_name, launcher=launcher)
 
             (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
     return generated_skill_dirs

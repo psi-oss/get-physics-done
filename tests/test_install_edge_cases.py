@@ -104,6 +104,25 @@ def _legacy_gpd_hook_body() -> str:
     )
 
 
+def _settings_session_start_commands(settings: dict[str, object]) -> list[str]:
+    hooks = settings.get("hooks")
+    session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else []
+    if not isinstance(session_start, list):
+        return []
+
+    commands: list[str] = []
+    for entry in session_start:
+        if not isinstance(entry, dict):
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            continue
+        for hook in entry_hooks:
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str):
+                commands.append(hook["command"])
+    return commands
+
+
 def _seed_ambiguous_install_target(target: Path, *, manifest_state: str) -> None:
     """Create a target that looks like an install but lacks trustworthy ownership data."""
     (target / "commands" / "gpd").mkdir(parents=True, exist_ok=True)
@@ -378,6 +397,30 @@ class TestNonGpdFilesPreserved:
         adapter.install(gpd_root, target, is_global=True)
 
         assert stale_hook.read_text(encoding="utf-8") == _legacy_gpd_hook_body()
+
+    @pytest.mark.parametrize("runtime_name", _RUNTIMES_WITH_STATUSLINE_CONFIG)
+    def test_install_does_not_configure_unmanaged_reserved_hook_basenames(
+        self,
+        tmp_path: Path,
+        runtime_name: str,
+    ) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter(runtime_name)
+        target = tmp_path / adapter.config_dir_name
+        statusline_hook = target / "hooks" / "statusline.py"
+        update_hook = target / "hooks" / "check_update.py"
+        statusline_hook.parent.mkdir(parents=True)
+        statusline_hook.write_text("# third-party statusline hook\n", encoding="utf-8")
+        update_hook.write_text("# third-party update hook\n", encoding="utf-8")
+
+        result = adapter.install(gpd_root, target, is_global=False)
+        adapter.finalize_install(result)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert statusline_hook.read_text(encoding="utf-8") == "# third-party statusline hook\n"
+        assert update_hook.read_text(encoding="utf-8") == "# third-party update hook\n"
+        assert "statusLine" not in settings
+        assert all("hooks/check_update.py" not in command for command in _settings_session_start_commands(settings))
 
     def test_uninstall_preserves_manifestless_hook_residue_with_matching_basename(self, tmp_path: Path) -> None:
         adapter = get_adapter(PRIMARY_RUNTIME)

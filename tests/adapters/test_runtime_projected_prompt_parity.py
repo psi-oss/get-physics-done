@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.install_utils import expand_at_includes, project_markdown_for_runtime
+from gpd.adapters.install_utils import (
+    build_runtime_cli_bridge_command,
+    expand_at_includes,
+    project_markdown_for_runtime,
+)
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, iter_runtime_descriptors
 from gpd.core.model_visible_text import (
     agent_visibility_note,
@@ -119,6 +123,29 @@ def _project_markdown(path: Path, runtime: str, *, is_agent: bool) -> str:
     )
 
 
+def _bridge_for_projection(runtime: str, target_dir: Path) -> str:
+    descriptor = get_runtime_descriptor(runtime)
+    return build_runtime_cli_bridge_command(
+        runtime,
+        target_dir=target_dir,
+        config_dir_name=descriptor.config_dir_name,
+        is_global=False,
+    )
+
+
+def _project_fixture_command(content: str, runtime: str, target_dir: Path) -> str:
+    descriptor = get_runtime_descriptor(runtime)
+    return project_markdown_for_runtime(
+        content,
+        runtime=runtime,
+        path_prefix=f"./{descriptor.config_dir_name}/",
+        surface_kind="command",
+        install_scope="--local",
+        workflow_target_dir=target_dir,
+        command_name="projection-probe",
+    )
+
+
 def _assert_fragments_visible(text: str, fragments: tuple[str, ...], *, label: str) -> None:
     missing = sorted(fragment for fragment in fragments if fragment not in text)
     assert not missing, f"{label} is missing contract-bearing fragments: {', '.join(missing)}"
@@ -219,3 +246,85 @@ def test_runtime_projected_spawn_contract_blocks_match_canonical_command_content
         return
 
     assert projected_contracts == expanded_contracts
+
+
+def test_codex_projected_command_surface_matches_install_runtime_rewrites(tmp_path: Path) -> None:
+    target_dir = tmp_path / ".codex"
+    bridge = _bridge_for_projection("codex", target_dir)
+    source = (
+        "---\n"
+        "name: gpd:projection-probe\n"
+        "description: Projection probe\n"
+        "allowed-tools:\n"
+        "  - shell\n"
+        "---\n"
+        "Ask ONE question inline (freeform, NOT ask_user):\n"
+        "\n"
+        "```bash\n"
+        "gpd --raw init progress --include state,config\n"
+        "```\n"
+    )
+
+    projected = _project_fixture_command(source, "codex", target_dir)
+
+    assert "<codex_runtime_notes>" in projected
+    assert "<codex_questioning>" in projected
+    assert "Ask exactly one inline freeform question with no preamble or restatement:" in projected
+    assert f"{bridge} --raw init progress --include state,config" in projected
+
+
+def test_gemini_projected_command_surface_matches_install_runtime_rewrites(tmp_path: Path) -> None:
+    target_dir = tmp_path / ".gemini"
+    bridge = _bridge_for_projection("gemini", target_dir)
+    source = (
+        "---\n"
+        "name: gpd:projection-probe\n"
+        "description: Projection probe\n"
+        "allowed-tools:\n"
+        "  - shell\n"
+        "---\n"
+        "```bash\n"
+        "gpd config ensure-section\n"
+        "INIT=$(gpd --raw init progress --include state,config)\n"
+        "if [ $? -ne 0 ]; then\n"
+        '  echo "ERROR: gpd initialization failed: $INIT"\n'
+        "  # STOP \u2014 display the error to the user and do not proceed.\n"
+        "fi\n"
+        "```\n"
+    )
+
+    projected = _project_fixture_command(source, "gemini", target_dir)
+
+    assert "<gemini_runtime_notes>" in projected
+    assert "Run these as separate shell calls in Gemini auto-edit mode." in projected
+    assert f"{bridge} config ensure-section" in projected
+    assert f"{bridge} --raw init progress --include state,config --no-project-reentry" in projected
+    assert "INIT=$(gpd --raw init progress --include state,config)" not in projected
+
+
+@pytest.mark.parametrize("runtime", ("claude-code", "opencode"))
+def test_projected_command_surfaces_rewrite_fenced_cli_invocations_to_runtime_bridge(
+    runtime: str,
+    tmp_path: Path,
+) -> None:
+    descriptor = get_runtime_descriptor(runtime)
+    target_dir = tmp_path / descriptor.config_dir_name
+    bridge = _bridge_for_projection(runtime, target_dir)
+    source = (
+        "---\n"
+        "name: gpd:projection-probe\n"
+        "description: Projection probe\n"
+        "allowed-tools:\n"
+        "  - shell\n"
+        "---\n"
+        "Inline `gpd --raw init progress` stays prose.\n"
+        "\n"
+        "```bash\n"
+        "gpd --raw init progress --include state,config\n"
+        "```\n"
+    )
+
+    projected = _project_fixture_command(source, runtime, target_dir)
+
+    assert f"{bridge} --raw init progress --include state,config" in projected
+    assert "Inline `gpd --raw init progress` stays prose." in projected

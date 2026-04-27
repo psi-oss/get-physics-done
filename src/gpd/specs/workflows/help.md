@@ -4,78 +4,6 @@ Display the complete GPD command reference. Output ONLY the reference content. D
 
 <process>
 
-<step name="contextual_help">
-## Contextual Help (State-Aware Variant)
-
-When a state-aware help view is requested, show only the commands relevant to the current project state:
-
-**No project exists:**
-```
-Getting started:
-  gpd:start               — Guided router for create, map, resume, or explain decisions
-  gpd:tour               — Read-only guided tour of the main commands
-  gpd:new-project         — Start a new research project with full scoping
-  gpd:new-project --minimal — Faster one-question project bootstrap
-  gpd:map-research        — Map an existing research project
-```
-
-**Project exists, paused or resumable:**
-```
-Returning to work:
-  gpd resume             — Current-workspace read-only recovery snapshot from your normal terminal
-  gpd resume --recent    — Find the workspace first when you need to reopen a different one
-  gpd:resume-work         — Continue in-runtime from the selected project's canonical state
-  gpd:progress            — Review the broader project snapshot
-  gpd:suggest-next        — Fastest post-resume next command
-  gpd observe execution    — Read-only live status from your normal terminal; use this for progress / waiting state, then follow its suggested read-only checks rather than runtime hotkeys
-  gpd cost                 — Read-only machine-local usage / cost summary from your normal terminal
-  gpd:tangent             — Choose stay / quick / defer / branch when a side investigation appears
-```
-
-**Project exists, no plans yet:**
-```
-Phase {N}: {name}
-  gpd:discuss-phase {N}   — Gather context before planning
-  gpd:plan-phase {N}      — Create execution plan
-  gpd:progress --full     — See full project status
-```
-
-**Plans exist, not executed:**
-```
-Ready to execute:
-  gpd:execute-phase {N}   — Execute phase {N} plans
-  gpd:show-phase {N}      — Review phase details first
-```
-
-**Phase complete:**
-```
-Phase {N} complete:
-  gpd:discuss-phase {N+1}  — Gather context before planning the next phase
-  gpd:plan-phase {N+1}    — Create execution plan
-  gpd:complete-milestone   — If all phases done
-```
-
-**Manuscript exists, no referee report yet:**
-```
-Publication workflow:
-  gpd:peer-review         — Run manuscript peer review on the current project manuscript or one explicit artifact
-  gpd:arxiv-submission    — Package only the resolved GPD-owned manuscript root after review passes and the paper-build contract succeeds
-  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
-  gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
-```
-
-**Referee report exists:**
-```
-Revision workflow:
-  gpd:respond-to-referees --manuscript PATH --report PATH — Preferred explicit intake for drafting responses and revising the resolved manuscript root
-  gpd:respond-to-referees [path to referee report or 'paste'] — Project-manuscript shorthand when the manuscript resolves from current GPD state
-  gpd:peer-review         — Re-run peer review after revision
-```
-
-For the compact command index: `gpd:help --all`
-For one detailed command entry: `gpd:help --command gpd:plan-phase`
-</step>
-
 <step name="concepts">
 ## GPD Concepts
 
@@ -121,7 +49,7 @@ Use the shared onboarding surfaces in the README or installer output for the lon
 
 1. `gpd:help` - See the command reference first.
 2. `gpd:start` - Let GPD choose the safest first step for the current folder.
-3. `gpd:tour` - Get a read-only walkthrough before you choose.
+3. `gpd:tour` - Get a read-only guided tour before you choose.
 4. `gpd:new-project` or `gpd:map-research` - Begin the actual work path once you know the folder state.
 5. `gpd:resume-work` - Continue later from the selected project's canonical state.
 6. `gpd:settings` - Change autonomy, permissions, or runtime preferences after your first successful start or later.
@@ -796,7 +724,7 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, `.xlsx`, or manuscript-directory target; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` packages only a GPD-owned manuscript root. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
+Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit subject allowed by its command policy (manuscript root/path or publication-artifact path); it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` packages only a GPD-owned manuscript root. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
 
 **`gpd:write-paper [--intake path/to/paper-authoring-input.json]`**
 Structure and write a physics paper from current project research results or one bounded explicit external-authoring intake manifest.
@@ -823,9 +751,9 @@ Run skeptical peer review on an existing manuscript or explicit review artifact.
 
 - Runs strict review preflight checks against the resolved review target and available supporting artifacts
 - Loads manuscript files or explicit artifact text, plus project summaries and verification context when present
-- Explicit artifact intake accepts `.txt`, `.pdf`, `.docx`, `.csv`, `.tsv`, and `.xlsx`; canonical in-project manuscript discovery still stays on the resolved `.tex` / `.md` entrypoint under `paper/`, `manuscript/`, or `draft/`
+- Explicit artifact intake follows the command-policy supported suffixes for publication-artifact paths; canonical in-project manuscript discovery still stays on the resolved manuscript entrypoint under `paper/`, `manuscript/`, or `draft/`
 - Standalone explicit-artifact intake is a peer-review-only entrypoint; downstream `gpd:respond-to-referees` and `gpd:arxiv-submission` stay bound to the resolved project manuscript root
-- Non-plain-text artifact intake (`.pdf`, `.docx`, `.xlsx`) uses `gpd validate artifact-text <path> --output <txt-path>` or a same-directory `.txt` companion file
+- Non-plain-text artifact intake uses `gpd validate artifact-text <path> --output <txt-path>` or a same-directory `.txt` companion file
 - Spawns a six-agent review panel plus the auxiliary `gpd-check-proof` critic when theorem-bearing claims are present
 - Project-backed review artifacts stay on the current `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` paths
 - If an explicit external manuscript becomes a continued GPD publication subject, the GPD-owned continuation lineage can anchor under `GPD/publication/{subject_slug}/...`
@@ -950,8 +878,8 @@ Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.
 
 **Workflow presets**
 
-- `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
-- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` still requires the built manuscript
+- `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect paper-toolchain readiness with `gpd doctor`, inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
+- `gpd doctor --runtime <runtime> --local` / `gpd doctor --runtime <runtime> --global` - Check the local or global runtime target from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version`, `tectonic --version`, or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
 - `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
 - `gpd presets show <preset>` - Preview one preset's bundle before applying it
 - `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema

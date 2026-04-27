@@ -3600,6 +3600,47 @@ def test_validate_command_context_accepts_tokenized_standalone_arguments(tmp_pat
     assert payload["passed"] is True
 
 
+def test_validate_command_context_accepts_inline_arguments_in_command_label(tmp_path: Path) -> None:
+    empty_dir = tmp_path / "empty-context"
+    empty_dir.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(empty_dir),
+            "validate",
+            "command-context",
+            "gpd:discover finite-temperature RG flow --depth deep",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:discover"
+    assert payload["context_mode"] == "project-aware"
+    assert payload["passed"] is True
+
+
+@pytest.mark.parametrize("label", ["gpd:new-project --minimal", "$gpd-new-project --minimal", "new-project --minimal"])
+def test_validate_command_context_normalizes_inline_new_project_labels(label: str, tmp_path: Path) -> None:
+    empty_dir = tmp_path / "empty-context"
+    empty_dir.mkdir()
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(empty_dir), "validate", "command-context", label],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:new-project"
+    assert payload["context_mode"] == "projectless"
+
+
 def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: Path) -> None:
     empty_dir = tmp_path / "empty-context"
     empty_dir.mkdir()
@@ -6827,6 +6868,32 @@ def test_resolve_latest_publication_review_round_artifacts_uses_subject_owned_re
     assert round_bundle.referee_decision == subject_review_dir / "REFEREE-DECISION-R2.json"
 
 
+def test_resolve_latest_publication_review_round_artifacts_keeps_cli_latest_even_if_stale(
+    tmp_path: Path,
+) -> None:
+    manuscript = tmp_path / "paper" / "main.tex"
+    manuscript.parent.mkdir(parents=True)
+    manuscript.write_text("\\documentclass{article}\\begin{document}Main\\end{document}\n", encoding="utf-8")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    (review_dir / "REVIEW-LEDGER-R2.json").write_text("{}", encoding="utf-8")
+    (review_dir / "REFEREE-DECISION-R2.json").write_text("{}", encoding="utf-8")
+    stale_ledger = review_dir / "REVIEW-LEDGER-R3.json"
+    stale_decision = review_dir / "REFEREE-DECISION-R3.json"
+    stale_ledger.write_text("{}", encoding="utf-8")
+    stale_decision.write_text("{}", encoding="utf-8")
+
+    round_bundle = cli_module._resolve_latest_publication_review_round_artifacts(
+        tmp_path,
+        manuscript=manuscript,
+    )
+
+    assert round_bundle is not None
+    assert round_bundle.round_number == 3
+    assert round_bundle.review_ledger == stale_ledger
+    assert round_bundle.referee_decision == stale_decision
+
+
 def test_resolve_latest_publication_response_round_artifacts_uses_subject_owned_publication_root_for_managed_manuscript(
     tmp_path: Path,
 ) -> None:
@@ -7015,6 +7082,32 @@ def test_review_preflight_respond_to_referees_accepts_explicit_manuscript_and_re
     assert "reports/ref1.md present" in checks["referee_report_source"]["detail"]
     assert "reports/ref2.md present" in checks["referee_report_source"]["detail"]
     assert payload["passed"] is True
+
+
+def test_validate_review_preflight_accepts_inline_peer_review_subject(tmp_path: Path) -> None:
+    manuscript = tmp_path / "README.md"
+    manuscript.write_text("# External manuscript\n\nA standalone review target.\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(tmp_path),
+            "validate",
+            "review-preflight",
+            "peer-review README.md",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    checks = {check["name"]: check for check in payload["checks"]}
+    assert payload["command"] == "gpd:peer-review"
+    assert payload["passed"] is True
+    assert checks["manuscript"]["passed"] is True
+    assert "README.md" in checks["manuscript"]["detail"]
 
 
 def test_resolve_review_preflight_manuscript_directory_uses_manifest_declared_entrypoint(tmp_path: Path) -> None:

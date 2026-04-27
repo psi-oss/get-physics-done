@@ -249,6 +249,13 @@ def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
     )
 
 
+def _render_opencode_command_markdown(content: str, *, path_prefix: str, bridge_command: str | None = None) -> str:
+    """Render one canonical command markdown source into OpenCode command content."""
+    if bridge_command:
+        content = _rewrite_gpd_cli_invocations(content, bridge_command)
+    return convert_claude_to_opencode_frontmatter(content, path_prefix)
+
+
 # ---------------------------------------------------------------------------
 # Command copying (flattened structure)
 # ---------------------------------------------------------------------------
@@ -316,9 +323,11 @@ def copy_flattened_commands(
                 workflow_target_dir=workflow_target_dir,
                 explicit_target=explicit_target,
             )
-            if bridge_command:
-                content = _rewrite_gpd_cli_invocations(content, bridge_command)
-            content = convert_claude_to_opencode_frontmatter(content, path_prefix)
+            content = _render_opencode_command_markdown(
+                content,
+                path_prefix=path_prefix,
+                bridge_command=bridge_command,
+            )
 
             dest_path.write_text(content, encoding="utf-8")
             if managed_command_files is not None and dest_name.startswith("gpd-"):
@@ -862,6 +871,7 @@ class OpenCodeAdapter(RuntimeAdapter):
         surface_kind: str,
         path_prefix: str,
         command_name: str | None = None,
+        bridge_command: str | None = None,
     ) -> str:
         del command_name
         if surface_kind != "command":
@@ -869,8 +879,9 @@ class OpenCodeAdapter(RuntimeAdapter):
                 content,
                 surface_kind=surface_kind,
                 path_prefix=path_prefix,
+                bridge_command=bridge_command,
             )
-        return convert_claude_to_opencode_frontmatter(content, path_prefix)
+        return _render_opencode_command_markdown(content, path_prefix=path_prefix, bridge_command=bridge_command)
 
     def translate_shared_command_references(self, content: str) -> str:
         result = content.replace("/gpd:", self.public_command_surface_prefix)

@@ -444,11 +444,14 @@ def test_public_surface_contract_loader_requires_recovery_ladder_commands_to_sta
 
 def test_public_surface_contract_bridge_note_surfaces_runtime_readiness_and_plan_validation() -> None:
     note = local_cli_bridge_note()
+    commands = public_surface_contract_module.local_cli_bridge_commands()
 
     assert public_surface_contract_module.local_cli_bridge_purpose_phrase() in note
     assert "gpd doctor --runtime <runtime> --local" not in note
     assert "gpd doctor --runtime <runtime> --global" not in note
-    assert "gpd validate plan-preflight <PLAN.md>" in note
+    assert "gpd validate plan-preflight <PLAN.md>" not in note
+    assert "gpd validate plan-preflight <PLAN.md>" in commands
+    assert public_surface_contract_module.local_cli_unattended_readiness_command() in commands
     assert public_surface_contract_module.local_cli_doctor_local_command() == "gpd doctor --runtime <runtime> --local"
     assert public_surface_contract_module.local_cli_doctor_global_command() == "gpd doctor --runtime <runtime> --global"
     assert "gpd validate plan-preflight <PLAN.md>" in public_surface_contract_module.local_cli_plan_preflight_command()
@@ -653,9 +656,9 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert recovery_cross_workspace_command() == "resume --recent"
     assert public_surface_contract_module.local_cli_bridge_purpose_phrase() == "workspace diagnostics"
     bridge_note = local_cli_bridge_note()
-    assert bridge_note.startswith("Use `gpd --help`, `gpd doctor`")
+    assert bridge_note == "Use `gpd --help` in your normal terminal for the broader local CLI surface: workspace diagnostics."
     assert public_surface_contract_module.local_cli_bridge_purpose_phrase() in bridge_note
-    assert public_surface_contract_module.local_cli_plan_preflight_command() in bridge_note
+    assert public_surface_contract_module.local_cli_plan_preflight_command() not in bridge_note
     assert public_surface_contract_module.local_cli_install_local_example_command() == "gpd install <runtime> --local"
     assert (
         public_surface_contract_module.local_cli_validate_command_context_command()

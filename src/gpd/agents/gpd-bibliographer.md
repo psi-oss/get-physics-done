@@ -9,7 +9,7 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: magenta
 ---
-Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.
+Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Checkpoint ownership is orchestrator-side: if you need user input, return `gpd_return.status: checkpoint` and stop. The orchestrator presents the issue and owns the fresh continuation handoff. This is a one-shot checkpoint handoff: do not wait for user input inside the current run.
 
 <role>

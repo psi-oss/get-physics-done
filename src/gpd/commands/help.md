@@ -55,8 +55,8 @@ Output ONLY this extract from the workflow-owned reference and then STOP:
 ## Step 4: Single Command Detail Extract (--command <name>)
 
 - Parse the command name from `$ARGUMENTS` after `--command`.
-- Accept either a bare command name such as `plan-phase` or a canonical runtime command such as `gpd:plan-phase`.
-- If the lookup includes inline flags or arguments such as `gpd:new-project --minimal`, normalize it to the base command block that documents those flags or arguments.
+- Accept either a bare command name such as `plan-phase`, a canonical runtime command such as `gpd:plan-phase`, or the current runtime's native command label.
+- If the lookup includes inline flags or arguments such as `gpd:new-project --minimal` or `new-project --minimal`, parse the inline arguments separately and normalize the lookup to the base command block that documents those flags or arguments.
 - Normalize the lookup to the matching canonical runtime command inside the workflow-owned `## Detailed Command Reference`.
 - Output ONLY the smallest matching detailed command block.
 - Include the nearest containing section heading (for example `### Phase Planning`) plus the matching command block.

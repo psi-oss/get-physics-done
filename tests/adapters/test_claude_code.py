@@ -219,6 +219,7 @@ class TestInstall:
         assert help_file.exists()
         content = help_file.read_text(encoding="utf-8")
         assert "{GPD_INSTALL_DIR}" not in content
+        assert "## Scientific Rigor Guardrails" in content
 
     def test_install_agents_have_placeholder_replacement(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path

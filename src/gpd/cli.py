@@ -35,7 +35,7 @@ from rich.table import Table
 from rich.text import Text
 
 from gpd.adapters.runtime_catalog import normalize_runtime_name
-from gpd.command_labels import canonical_command_label, validated_public_command_prefix
+from gpd.command_labels import canonical_command_label, parse_command_label, validated_public_command_prefix
 from gpd.core.artifact_text import (
     DIGEST_KNOWLEDGE_SOURCE_SUFFIXES,
     PEER_REVIEW_ARTIFACT_SUFFIXES,
@@ -108,8 +108,28 @@ from gpd.core.public_surface_contract import (
 )
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
-    review_artifact_round,
-    review_round_suffix,
+)
+from gpd.core.publication_rounds import (
+    PublicationResponseRoundArtifacts,
+    PublicationReviewRoundArtifacts,
+)
+from gpd.core.publication_rounds import (
+    publication_lineage_search_roots as _core_publication_lineage_search_roots,
+)
+from gpd.core.publication_rounds import (
+    publication_response_round_path_maps as _core_publication_response_round_path_maps,
+)
+from gpd.core.publication_rounds import (
+    publication_review_round_artifacts as _core_publication_review_round_artifacts,
+)
+from gpd.core.publication_rounds import (
+    publication_review_round_path_maps as _core_publication_review_round_path_maps,
+)
+from gpd.core.publication_rounds import (
+    resolve_latest_publication_response_round_artifacts as _core_resolve_latest_publication_response_round_artifacts,
+)
+from gpd.core.publication_rounds import (
+    resolve_latest_publication_review_round_artifacts as _core_resolve_latest_publication_review_round_artifacts,
 )
 from gpd.core.publication_runtime import (
     publication_blockers_for_project,
@@ -6545,56 +6565,9 @@ class ManuscriptPublicationArtifacts:
     reproducibility_manifest: Path | None = None
 
 
-@dataclasses.dataclass(frozen=True)
-class PublicationReviewRoundArtifacts:
-    """Latest review-round artifacts, even when they no longer match the active manuscript."""
-
-    round_number: int
-    round_suffix: str
-    review_ledger: Path | None
-    referee_decision: Path | None
-
-
-@dataclasses.dataclass(frozen=True)
-class PublicationResponseRoundArtifacts:
-    """Latest response-round artifacts without assuming fresh staged review exists."""
-
-    round_number: int
-    round_suffix: str
-    author_response: Path | None
-    referee_response: Path | None
-
-
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
-_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 _MANAGED_BRIDGE_MODULE_FALLBACKS = {
     "gpd-mcp-wolfram": "gpd.mcp.integrations.wolfram_bridge",
 }
-
-
-def _managed_publication_root_for_target(project_root: Path, target: Path) -> Path | None:
-    """Return the managed publication root for one target under ``GPD/publication/<slug>/manuscript``."""
-
-    from gpd.core.constants import ProjectLayout
-
-    manuscript_root = _supported_manuscript_root_for_target(project_root, target)
-    if manuscript_root is None:
-        return None
-    try:
-        relative_root = manuscript_root.resolve(strict=False).relative_to(project_root.resolve(strict=False))
-    except ValueError:
-        return None
-    if (
-        len(relative_root.parts) >= 4
-        and relative_root.parts[0] == PLANNING_DIR_NAME
-        and relative_root.parts[1] == PUBLICATION_DIR_NAME
-        and relative_root.parts[2]
-        and relative_root.parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
-    ):
-        return ProjectLayout(project_root).publication_subject_dir(relative_root.parts[2])
-    return None
 
 
 def _publication_lineage_search_roots(
@@ -6604,54 +6577,11 @@ def _publication_lineage_search_roots(
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     """Return candidate publication-root and review-root search paths for one manuscript subject."""
 
-    planning_dir = project_root / PLANNING_DIR_NAME
-    publication_roots: list[Path] = [planning_dir]
-    review_roots: list[Path] = [planning_dir / "review"]
-
-    if manuscript is None:
-        return tuple(publication_roots), tuple(review_roots)
-
-    managed_publication_root = _managed_publication_root_for_target(project_root, manuscript)
-    if managed_publication_root is not None:
-        return (managed_publication_root,), (managed_publication_root / "review",)
-
-    if _supported_manuscript_root_for_target(project_root, manuscript) is None:
-        from gpd.core.constants import ProjectLayout
-
-        subject_root = ProjectLayout(project_root).publication_subject_dir(
-            _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript)
-        )
-        publication_roots.insert(0, subject_root)
-        review_roots.insert(0, subject_root / "review")
-
-    return tuple(dict.fromkeys(publication_roots)), tuple(dict.fromkeys(review_roots))
-
-
-def _round_file_map(
-    *search_roots: Path,
-    filename_pattern: re.Pattern[str],
-    glob_pattern: str,
-) -> dict[int, Path]:
-    """Return one round-number-to-path map across ordered search roots."""
-
-    round_map: dict[int, Path] = {}
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-        for path in sorted(root.glob(glob_pattern)):
-            round_info = review_artifact_round(path, pattern=filename_pattern)
-            if round_info is None:
-                continue
-            round_number, _round_suffix = round_info
-            round_map.setdefault(round_number, path)
-    return round_map
-
-
-def _latest_round_number(*round_maps: dict[int, Path]) -> int | None:
-    """Return the latest round number present across one or more artifact maps."""
-
-    round_numbers = {round_number for round_map in round_maps for round_number in round_map}
-    return max(round_numbers) if round_numbers else None
+    return _core_publication_lineage_search_roots(
+        project_root,
+        manuscript=manuscript,
+        include_global_fallback_for_external=True,
+    )
 
 
 def _publication_review_round_path_maps(
@@ -6661,18 +6591,10 @@ def _publication_review_round_path_maps(
 ) -> tuple[dict[int, Path], dict[int, Path]]:
     """Return staged review-artifact maps rooted at the manuscript's publication lineage."""
 
-    _publication_roots, review_roots = _publication_lineage_search_roots(project_root, manuscript=manuscript)
-    return (
-        _round_file_map(
-            *review_roots,
-            filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
-            glob_pattern="REVIEW-LEDGER*.json",
-        ),
-        _round_file_map(
-            *review_roots,
-            filename_pattern=_REFEREE_DECISION_FILENAME_RE,
-            glob_pattern="REFEREE-DECISION*.json",
-        ),
+    return _core_publication_review_round_path_maps(
+        project_root,
+        manuscript=manuscript,
+        include_global_fallback_for_external=True,
     )
 
 
@@ -6683,18 +6605,10 @@ def _publication_response_round_path_maps(
 ) -> tuple[dict[int, Path], dict[int, Path]]:
     """Return paired response-artifact maps rooted at the manuscript's publication lineage."""
 
-    publication_roots, review_roots = _publication_lineage_search_roots(project_root, manuscript=manuscript)
-    return (
-        _round_file_map(
-            *publication_roots,
-            filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
-            glob_pattern="AUTHOR-RESPONSE*.md",
-        ),
-        _round_file_map(
-            *review_roots,
-            filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
-            glob_pattern="REFEREE_RESPONSE*.md",
-        ),
+    return _core_publication_response_round_path_maps(
+        project_root,
+        manuscript=manuscript,
+        include_global_fallback_for_external=True,
     )
 
 
@@ -6706,11 +6620,10 @@ def _publication_review_round_artifacts(
 ) -> PublicationReviewRoundArtifacts:
     """Return one staged review round bundle from precomputed round maps."""
 
-    return PublicationReviewRoundArtifacts(
+    return _core_publication_review_round_artifacts(
         round_number=round_number,
-        round_suffix=review_round_suffix(round_number),
-        review_ledger=review_ledger_by_round.get(round_number),
-        referee_decision=referee_decision_by_round.get(round_number),
+        review_ledger_by_round=review_ledger_by_round,
+        referee_decision_by_round=referee_decision_by_round,
     )
 
 
@@ -6721,17 +6634,10 @@ def _resolve_latest_publication_review_round_artifacts(
 ) -> PublicationReviewRoundArtifacts | None:
     """Return the newest staged review round without enforcing manuscript-path matching."""
 
-    review_ledger_by_round, referee_decision_by_round = _publication_review_round_path_maps(
+    return _core_resolve_latest_publication_review_round_artifacts(
         project_root,
         manuscript=manuscript,
-    )
-    round_number = _latest_round_number(review_ledger_by_round, referee_decision_by_round)
-    if round_number is None:
-        return None
-    return _publication_review_round_artifacts(
-        round_number,
-        review_ledger_by_round=review_ledger_by_round,
-        referee_decision_by_round=referee_decision_by_round,
+        include_global_fallback_for_external=True,
     )
 
 
@@ -6742,18 +6648,10 @@ def _resolve_latest_publication_response_round_artifacts(
 ) -> PublicationResponseRoundArtifacts | None:
     """Return the newest paired-response round without assuming fresh review clearance exists."""
 
-    author_response_by_round, referee_response_by_round = _publication_response_round_path_maps(
+    return _core_resolve_latest_publication_response_round_artifacts(
         project_root,
         manuscript=manuscript,
-    )
-    round_number = _latest_round_number(author_response_by_round, referee_response_by_round)
-    if round_number is None:
-        return None
-    return PublicationResponseRoundArtifacts(
-        round_number=round_number,
-        round_suffix=review_round_suffix(round_number),
-        author_response=author_response_by_round.get(round_number),
-        referee_response=referee_response_by_round.get(round_number),
+        include_global_fallback_for_external=True,
     )
 
 
@@ -8944,6 +8842,14 @@ def _canonical_command_name(command_name: str) -> str:
     return canonical_command_label(command_name)
 
 
+def _command_label_lookup_and_arguments(command_name: str, arguments: str | None = None) -> tuple[str, str | None]:
+    """Return the base lookup label plus command-label inline args merged with explicit args."""
+
+    parsed = parse_command_label(command_name)
+    merged_arguments = " ".join(part for part in (parsed.inline_args, arguments or "") if part)
+    return parsed.command or command_name.strip(), merged_arguments or None
+
+
 def _command_supports_project_reentry(command: object) -> bool:
     """Return whether one registry command can recover a project root before execution."""
     project_reentry_mode = _command_effective_project_reentry_mode(command).casefold()
@@ -9148,6 +9054,7 @@ def _build_command_context_preflight(
     from gpd.core.constants import ProjectLayout
 
     cwd = _get_cwd()
+    command_name, arguments = _command_label_lookup_and_arguments(command_name, arguments)
     command, public_command_name = _resolve_registry_command(command_name)
     context_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=arguments)
     layout = ProjectLayout(context_cwd)
@@ -9599,6 +9506,7 @@ def _build_review_preflight(
     from gpd.core.state import state_validate
 
     cwd = _get_cwd()
+    command_name, subject = _command_label_lookup_and_arguments(command_name, subject)
     command, public_command_name = _resolve_registry_command(command_name)
     project_cwd = _command_preflight_cwd(command, cwd=cwd, arguments=subject)
     layout = ProjectLayout(project_cwd)

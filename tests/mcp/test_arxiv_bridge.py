@@ -7,13 +7,21 @@ from contextlib import asynccontextmanager
 import pytest
 
 
-def test_load_settings_uses_default_storage_root() -> None:
-    from gpd.core.arxiv_source_download import ARXIV_DEFAULT_STORAGE_PATH
-    from gpd.mcp.servers.arxiv_bridge import load_settings
+def test_load_settings_uses_current_home_for_default_storage_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridgeConfig, load_settings
+
+    home = tmp_path / "home"
+    monkeypatch.setattr("gpd.core.arxiv_source_download.Path.home", lambda: home)
 
     config = load_settings()
+    dataclass_default = ArxivBridgeConfig()
 
-    assert config.storage_path == ARXIV_DEFAULT_STORAGE_PATH.resolve()
+    expected = (home / ".arxiv-mcp-server" / "papers").resolve()
+    assert config.storage_path == expected
+    assert dataclass_default.storage_path == home / ".arxiv-mcp-server" / "papers"
 
 
 @pytest.mark.asyncio

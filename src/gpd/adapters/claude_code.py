@@ -102,6 +102,27 @@ class ClaudeCodeAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return "claude-code"
 
+    def project_markdown_surface(
+        self,
+        content: str,
+        *,
+        surface_kind: str,
+        path_prefix: str,
+        command_name: str | None = None,
+        bridge_command: str | None = None,
+    ) -> str:
+        if surface_kind != "command":
+            return super().project_markdown_surface(
+                content,
+                surface_kind=surface_kind,
+                path_prefix=path_prefix,
+                command_name=command_name,
+                bridge_command=bridge_command,
+            )
+        if bridge_command is None:
+            raise ValueError("bridge_command is required for projected Claude Code command surfaces")
+        return _render_claude_command_markdown(content, bridge_command=bridge_command)
+
     # --- Template method hooks ---
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
@@ -116,7 +137,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 prefix,
                 install_scope=install_scope,
             )
-            return _rewrite_gpd_cli_invocations(translated, bridge_command)
+            return _render_claude_command_markdown(translated, bridge_command=bridge_command)
 
         copy_with_path_replacement(
             commands_src,
@@ -203,6 +224,8 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         if settings_parse_error is not None:
             raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during install.")
         settings = settings_state or {}
+        should_install_statusline = self._installed_hook_script_available(HOOK_SCRIPTS["statusline"])
+        should_install_update_hook = self._installed_hook_script_available(HOOK_SCRIPTS["check_update"])
         statusline_command = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["statusline"],
@@ -217,12 +240,15 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             config_dir_name=self.config_dir_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
-        ensure_update_hook(
-            settings,
-            update_check_command,
-            target_dir=target_dir,
-            config_dir_name=self.config_dir_name,
-        )
+        if should_install_update_hook:
+            ensure_update_hook(
+                settings,
+                update_check_command,
+                target_dir=target_dir,
+                config_dir_name=self.config_dir_name,
+            )
+        else:
+            logger.warning("Skipping update check hook because hooks/check_update.py is not GPD-managed")
 
         # Wire MCP servers into the correct config file.
         # Claude Code reads mcpServers from:
@@ -265,6 +291,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             "settingsPath": str(settings_path),
             "settings": settings,
             "statuslineCommand": statusline_command,
+            "shouldInstallStatusline": should_install_statusline,
             "mcpServers": mcp_count,
         }
 
@@ -445,6 +472,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         settings_path = install_result.get("settingsPath")
         settings = install_result.get("settings")
         statusline_command = install_result.get("statuslineCommand")
+        should_install_statusline = install_result.get("shouldInstallStatusline", True)
         if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
             _, settings_parse_error = _read_claude_settings_state(Path(settings_path))
             if settings_parse_error is not None:
@@ -453,7 +481,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 settings_path,
                 settings,
                 statusline_command,
-                True,
+                bool(should_install_statusline),
                 force_statusline=force_statusline,
             )
 
@@ -678,6 +706,11 @@ def _rewrite_gpd_cli_invocations(content: str, command: str) -> str:
         command,
         shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
+
+
+def _render_claude_command_markdown(content: str, *, bridge_command: str) -> str:
+    """Render one canonical command markdown source into Claude Code command content."""
+    return _rewrite_gpd_cli_invocations(content, bridge_command)
 
 
 def _mcp_config_path(target_dir: Path, *, is_global: bool) -> Path:

@@ -253,6 +253,61 @@ def test_get_current_execution_honors_clear_lineage_when_head_cache_is_missing(
     assert get_current_execution(project) is None
 
 
+def test_stale_execution_head_cache_does_not_override_newer_clear_row(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.execution_lineage import load_execution_lineage_head
+    from gpd.core.observability import derive_execution_visibility, ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="06",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-stale"}},
+    )
+    layout = ProjectLayout(project)
+    stale_head = layout.execution_lineage_head.read_text(encoding="utf-8")
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="finish",
+        status="ok",
+        command="execute-phase",
+        phase="06",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_status": "completed"}},
+    )
+    layout.execution_lineage_head.write_text(stale_head, encoding="utf-8")
+
+    lineage_rows = _read_jsonl(layout.execution_lineage_ledger)
+    derived_head = load_execution_lineage_head(project)
+    visibility = derive_execution_visibility(project)
+
+    assert lineage_rows[-1]["head_effect"] == "clear"
+    assert derived_head is not None
+    assert derived_head.last_applied_event_id == lineage_rows[-1]["event_id"]
+    assert derived_head.execution is None
+    assert get_current_execution(project) is None
+    assert visibility is not None
+    assert visibility.has_live_execution is False
+
+
 def test_get_current_execution_prefers_lineage_head_over_stale_snapshot(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)

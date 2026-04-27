@@ -1700,6 +1700,23 @@ def test_state_get_rebuilds_missing_state_markdown_from_state_json(tmp_path: Pat
     assert layout.state_md.exists()
 
 
+def test_state_get_recovers_pending_intent_before_reading_state_markdown(tmp_path: Path) -> None:
+    stale_state = default_state_dict()
+    stale_state["position"]["current_phase"] = "01"
+
+    recovered_state = default_state_dict()
+    recovered_state["position"]["current_phase"] = "05"
+    recovered_state["position"]["status"] = "Executing"
+
+    layout = _write_intent_recovery_state(tmp_path, stale_state=stale_state, recovered_state=recovered_state)
+
+    result = state_get(tmp_path, "Current Phase")
+
+    assert result.value == "05"
+    assert not layout.state_intent.exists()
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["position"]["current_phase"] == "05"
+
+
 def test_state_get_prefers_canonical_session_continuation_and_handoff_payloads(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
