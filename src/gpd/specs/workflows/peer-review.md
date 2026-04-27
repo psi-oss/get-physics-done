@@ -383,6 +383,18 @@ Output paths:
 - `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`
 - `${REVIEW_ROOT}/STAGE-reader{round_suffix}.json`
 
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${REVIEW_ROOT}/CLAIMS{round_suffix}.json
+    - ${REVIEW_ROOT}/STAGE-reader{round_suffix}.json
+expected_artifacts:
+  - ${REVIEW_ROOT}/CLAIMS{round_suffix}.json
+  - ${REVIEW_ROOT}/STAGE-reader{round_suffix}.json
+shared_state_policy: return_only
+</spawn_contract>
+
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`
 
@@ -449,6 +461,16 @@ Selected protocol bundles: {selected_protocol_bundle_ids}
 Carry-forward context: protocol bundle guidance {protocol_bundle_context}; project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`
 
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${REVIEW_ROOT}/STAGE-literature{round_suffix}.json
+expected_artifacts:
+  - ${REVIEW_ROOT}/STAGE-literature{round_suffix}.json
+shared_state_policy: return_only
+</spawn_contract>
+
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`
 - `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`
@@ -480,6 +502,16 @@ Target journal: {target_journal}
 Round: {round}
 Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `${REVIEW_ROOT}/STAGE-math{round_suffix}.json`
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${REVIEW_ROOT}/STAGE-math{round_suffix}.json
+expected_artifacts:
+  - ${REVIEW_ROOT}/STAGE-math{round_suffix}.json
+shared_state_policy: return_only
+</spawn_contract>
 
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`
@@ -514,6 +546,16 @@ Target journal: {target_journal}
 Round: {round}
 Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Write to: `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md
+expected_artifacts:
+  - ${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md
+shared_state_policy: return_only
+</spawn_contract>
 
 Before writing frontmatter, bind these fields exactly from the active round artifacts rather than approximating them:
 - `manuscript_path`: copy exactly from `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`
@@ -600,6 +642,16 @@ Additive specialized guidance: {protocol_bundle_context}
 Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json`
 
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${REVIEW_ROOT}/STAGE-physics{round_suffix}.json
+expected_artifacts:
+  - ${REVIEW_ROOT}/STAGE-physics{round_suffix}.json
+shared_state_policy: return_only
+</spawn_contract>
+
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`
 - `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`
@@ -669,6 +721,16 @@ Target journal: {target_journal}
 Round: {round}
 Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json`
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json
+expected_artifacts:
+  - ${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json
+shared_state_policy: return_only
+</spawn_contract>
 
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`
@@ -747,6 +809,23 @@ Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
 Additive specialized guidance: {protocol_bundle_context}
 Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - ${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md
+    - ${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex
+    - ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json
+    - ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json
+    - ${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md
+expected_artifacts:
+  - ${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md
+  - ${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex
+  - ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json
+  - ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json
+shared_state_policy: return_only
+</spawn_contract>
 
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`

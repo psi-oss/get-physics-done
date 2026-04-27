@@ -155,6 +155,40 @@ def test_install_readiness_treats_same_runtime_incomplete_install_as_repairable(
     assert foreign.readiness_state == "blocked"
 
 
+@pytest.mark.parametrize(
+    "manifest_update",
+    [
+        {"files": {"/tmp/escape": "hash"}},
+        {"files": {"../escape": "hash"}},
+        {"files": {"hooks//statusline.py": "hash"}},
+        {"files": {"hooks\\..\\escape.py": "hash"}},
+        {"codex_generated_skill_dirs": ["../escape"]},
+        {"codex_generated_skill_dirs": ["user-skill"]},
+        {"opencode_generated_command_files": ["gpd-../../escape.md"]},
+        {"managed_runtime_files": ["policies/../escape.toml"]},
+    ],
+)
+def test_install_readiness_treats_unsafe_manifest_path_metadata_as_untrusted(
+    tmp_path: Path,
+    manifest_update: dict[str, object],
+) -> None:
+    descriptor = _INSTALL_LIFECYCLE_DESCRIPTORS[0]
+    target = tmp_path / descriptor.config_dir_name
+    target.mkdir()
+    manifest = {
+        "runtime": descriptor.runtime_name,
+        "install_scope": "local",
+        **manifest_update,
+    }
+    (target / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+    assessment = assess_install_target(target, expected_runtime=descriptor.runtime_name)
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.readiness_state == "blocked"
+    assert assessment.manifest_state in {"malformed_files", "malformed_path_metadata"}
+
+
 def test_install_preflight_allows_same_runtime_incomplete_repair(monkeypatch: pytest.MonkeyPatch) -> None:
     from gpd.cli import _run_install_readiness_preflight
     from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary

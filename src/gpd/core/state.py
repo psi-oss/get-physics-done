@@ -204,9 +204,7 @@ def _project_recent_project_entry(
         )
         return None
     except Exception:
-        logger.warning(
-            "Recent-project projection failed for %s while resolving continuation", cwd, exc_info=True
-        )
+        logger.warning("Recent-project projection failed for %s while resolving continuation", cwd, exc_info=True)
         return None
 
     session = state_obj.get("session") if isinstance(state_obj.get("session"), dict) else {}
@@ -321,15 +319,9 @@ def _project_recent_project_entry(
         if target_kind == "handoff"
         else None
     )
-    source_session_id = (
-        active_bounded_segment.source_session_id if active_bounded_segment is not None else None
-    )
-    source_segment_id = (
-        active_bounded_segment.segment_id if active_bounded_segment is not None else None
-    )
-    source_transition_id = (
-        active_bounded_segment.transition_id if active_bounded_segment is not None else None
-    )
+    source_session_id = active_bounded_segment.source_session_id if active_bounded_segment is not None else None
+    source_segment_id = active_bounded_segment.segment_id if active_bounded_segment is not None else None
+    source_transition_id = active_bounded_segment.transition_id if active_bounded_segment is not None else None
     source_recorded_at = resume_target_recorded_at
     source_event_id = None
     if existing is not None and existing.resume_file == resume_file and existing.resume_target_kind == target_kind:
@@ -385,7 +377,9 @@ def _refresh_recent_project_projection(cwd: Path, state_obj: dict[str, object]) 
             index = RecentProjectIndex(rows=_sort_recent_project_rows(rows))
             atomic_write(index_path, index.model_dump_json(indent=2) + "\n")
     except FileNotFoundError:
-        logger.debug("Skipping recent-project projection for %s because cache storage is unavailable", cwd, exc_info=True)
+        logger.debug(
+            "Skipping recent-project projection for %s because cache storage is unavailable", cwd, exc_info=True
+        )
     except Exception:
         logger.warning("Recent-project projection failed for %s while updating cache", cwd, exc_info=True)
 
@@ -1365,14 +1359,16 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
 }
 
 # Keep in sync with generate_state_markdown() Session Continuity fields.
-_SESSION_CONTINUITY_MIRROR_FIELDS = frozenset({
-    "last session",
-    "stopped at",
-    "resume file",
-    "last result id",
-    "hostname",
-    "platform",
-})
+_SESSION_CONTINUITY_MIRROR_FIELDS = frozenset(
+    {
+        "last session",
+        "stopped at",
+        "resume file",
+        "last result id",
+        "hostname",
+        "platform",
+    }
+)
 
 
 def _session_continuity_mirror_field_reason(field_norm: str) -> str:
@@ -1942,9 +1938,7 @@ def _normalize_state_schema(
     if raw is None:
         return default_state_dict(), []
     if not raw:  # {} case — emit sentinel to trigger backup recovery
-        return default_state_dict(), [
-            "schema normalization: irrecoverable validation failure; reset to defaults"
-        ]
+        return default_state_dict(), ["schema normalization: irrecoverable validation failure; reset to defaults"]
     if not isinstance(raw, dict):
         return default_state_dict(), [f"state root must be an object, got {type(raw).__name__}"]
 
@@ -2013,7 +2007,7 @@ def _normalize_state_schema(
                             removed_validation_paths.add(list_parent_loc)
                             removed_validation_paths.add(loc)
                             issue = (
-                                f'schema normalization: dropped malformed list entry '
+                                f"schema normalization: dropped malformed list entry "
                                 f'"{_format_validation_location(list_parent_loc)}": {message}'
                             )
                             if issue not in validation_findings:
@@ -2656,16 +2650,10 @@ def generate_state_markdown(raw: dict) -> str:
     p(f"**Current Phase:** {pos.get('current_phase') or INACTIVE_FIELD_SENTINEL}")
     p(f"**Current Phase Name:** {pos.get('current_phase_name') or INACTIVE_FIELD_SENTINEL}")
     total_phases_value = pos.get("total_phases")
-    p(
-        f"**Total Phases:** "
-        f"{total_phases_value if total_phases_value is not None else INACTIVE_FIELD_SENTINEL}"
-    )
+    p(f"**Total Phases:** {total_phases_value if total_phases_value is not None else INACTIVE_FIELD_SENTINEL}")
     p(f"**Current Plan:** {pos.get('current_plan') or INACTIVE_FIELD_SENTINEL}")
     total_plans_value = pos.get("total_plans_in_phase")
-    p(
-        f"**Total Plans in Phase:** "
-        f"{total_plans_value if total_plans_value is not None else INACTIVE_FIELD_SENTINEL}"
-    )
+    p(f"**Total Plans in Phase:** {total_plans_value if total_plans_value is not None else INACTIVE_FIELD_SENTINEL}")
     p(f"**Status:** {pos.get('status') or EM_DASH}")
     p(f"**Last Activity:** {pos.get('last_activity') or INACTIVE_FIELD_SENTINEL}")
     if pos.get("last_activity_desc"):
@@ -2902,11 +2890,152 @@ def _intent_path(cwd: Path) -> Path:
 
 
 _STATE_LOCK_TIMEOUT_SECONDS = 30.0
+_STATE_JSON_TMP_NAME_RE = re.compile(r"^state\.json\.tmp\.\d+(?:\.[0-9a-f]{32})?$")
+_STATE_MD_TMP_NAME_RE = re.compile(r"^STATE\.md\.tmp\.\d+(?:\.[0-9a-f]{32})?$")
+_LEGACY_INTENT_TEMP_NAMES = {
+    STATE_JSON_FILENAME: ".state-json-tmp",
+    "STATE.md": ".state-md-tmp",
+}
 
 
 def _state_lock(cwd: Path, timeout: float = _STATE_LOCK_TIMEOUT_SECONDS):
     """Return the canonical lock for all dual-file state operations."""
     return file_lock(_state_json_path(cwd), timeout=timeout)
+
+
+def _remove_intent_marker(intent_file: Path) -> None:
+    try:
+        intent_file.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _valid_intent_temp_path(cwd: Path, raw_path: str, *, expected: str) -> Path | None:
+    """Return a safe intent temp path or ``None`` if the marker is untrusted."""
+
+    stripped = raw_path.strip()
+    if not stripped:
+        return None
+    candidate = Path(stripped)
+    if not candidate.is_absolute():
+        candidate = cwd / candidate
+
+    gpd_dir = _planning_dir(cwd)
+    try:
+        canonical_gpd = gpd_dir.resolve(strict=True)
+        canonical_parent = candidate.parent.resolve(strict=True)
+    except OSError:
+        return None
+    if canonical_parent != canonical_gpd:
+        return None
+
+    if expected == STATE_JSON_FILENAME:
+        name_ok = (
+            bool(_STATE_JSON_TMP_NAME_RE.match(candidate.name)) or candidate.name == _LEGACY_INTENT_TEMP_NAMES[expected]
+        )
+    else:
+        name_ok = (
+            bool(_STATE_MD_TMP_NAME_RE.match(candidate.name)) or candidate.name == _LEGACY_INTENT_TEMP_NAMES[expected]
+        )
+    if not name_ok:
+        return None
+
+    try:
+        if candidate.is_symlink():
+            return None
+    except OSError:
+        return None
+
+    return candidate
+
+
+def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
+    """Return whether ``state.json.bak`` is older than the markdown state mirror."""
+
+    try:
+        if backup_path.is_symlink():
+            return True
+        backup_mtime = backup_path.stat().st_mtime_ns
+    except OSError:
+        return False
+    try:
+        md_mtime = md_path.stat().st_mtime_ns
+    except OSError:
+        return False
+    if backup_mtime >= md_mtime:
+        return False
+
+    try:
+        backup_payload = json.loads(backup_path.read_text(encoding="utf-8"))
+        md_payload = parse_state_to_json(md_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return True
+    if not isinstance(backup_payload, dict):
+        return True
+
+    backup_normalized, _issues = _normalize_state_schema(backup_payload)
+    comparable_fields = (
+        "project_reference",
+        "position",
+        "active_calculations",
+        "intermediate_results",
+        "open_questions",
+        "decisions",
+        "blockers",
+        "performance_metrics",
+        "approximations",
+        "propagated_uncertainties",
+        "pending_todos",
+        "continuation",
+    )
+    for field in comparable_fields:
+        if field in md_payload and backup_normalized.get(field) != md_payload.get(field):
+            return True
+    if md_payload.get("convention_lock") and backup_normalized.get("convention_lock") != md_payload.get(
+        "convention_lock"
+    ):
+        return True
+    return False
+
+
+def _read_state_backup_text(cwd: Path, backup_path: Path, *, require_fresh: bool = True) -> str | None:
+    """Read ``state.json.bak`` only when it is a regular, fresh recovery source."""
+
+    try:
+        if backup_path.is_symlink():
+            logger.warning("Ignoring symlinked state.json.bak")
+            return None
+    except OSError:
+        return None
+    if require_fresh and _backup_is_stale_for_markdown(backup_path, _state_md_path(cwd)):
+        logger.warning("Ignoring stale state.json.bak because STATE.md is newer")
+        return None
+    return safe_read_file(backup_path)
+
+
+def _load_state_backup_payload(cwd: Path, backup_path: Path, *, require_fresh: bool = True) -> dict | None:
+    backup_raw = _read_state_backup_text(cwd, backup_path, require_fresh=require_fresh)
+    if backup_raw is None:
+        return None
+    try:
+        backup_parsed = json.loads(backup_raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return backup_parsed if isinstance(backup_parsed, dict) else None
+
+
+def _refresh_state_backup_from_primary(cwd: Path) -> None:
+    """Refresh ``state.json.bak`` from a valid primary state after intent recovery."""
+
+    json_path = _state_json_path(cwd)
+    backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
+    try:
+        primary = json_path.read_text(encoding="utf-8")
+        parsed = json.loads(primary)
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return
+    if isinstance(parsed, dict):
+        atomic_write(backup_path, primary if primary.endswith("\n") else primary + "\n")
 
 
 def _recover_intent_locked(cwd: Path) -> None:
@@ -2921,15 +3050,21 @@ def _recover_intent_locked(cwd: Path) -> None:
         return
     except OSError:
         # Intent file exists but unreadable — remove
-        try:
-            intent_file.unlink(missing_ok=True)
-        except OSError:
-            pass
+        _remove_intent_marker(intent_file)
         return
 
-    parts = intent_raw.strip().split("\n")
-    json_tmp = Path(parts[0]) if parts else None
-    md_tmp = Path(parts[1]) if len(parts) > 1 else None
+    parts = [part.strip() for part in intent_raw.strip().splitlines() if part.strip()]
+    if len(parts) != 2:
+        logger.warning("Ignoring invalid state write intent marker")
+        _remove_intent_marker(intent_file)
+        return
+
+    json_tmp = _valid_intent_temp_path(cwd, parts[0], expected=STATE_JSON_FILENAME)
+    md_tmp = _valid_intent_temp_path(cwd, parts[1], expected="STATE.md")
+    if json_tmp is None or md_tmp is None:
+        logger.warning("Ignoring invalid state write intent temp path")
+        _remove_intent_marker(intent_file)
+        return
 
     json_tmp_exists = json_tmp is not None and json_tmp.exists()
     md_tmp_exists = md_tmp is not None and md_tmp.exists()
@@ -2977,6 +3112,7 @@ def _recover_intent_locked(cwd: Path) -> None:
         # Both temp files ready and valid — complete the interrupted write
         _replace_with_retry(json_tmp, json_path)
         _replace_with_retry(md_tmp, md_path)
+        _refresh_state_backup_from_primary(cwd)
     elif not json_tmp_exists and md_tmp_exists and json_path_valid and md_valid:
         # The JSON temp may already have been promoted before the process died.
         # Complete the markdown half only when neither current file looks newer
@@ -2984,21 +3120,23 @@ def _recover_intent_locked(cwd: Path) -> None:
         md_tmp_mtime = _mtime_ns(md_tmp)
         json_path_mtime = _mtime_ns(json_path)
         md_path_mtime = _mtime_ns(md_path)
-        current_newer_than_md_tmp = (
-            md_tmp_mtime is not None
-            and (
-                (json_path_mtime is not None and json_path_mtime > md_tmp_mtime)
-                or (md_path_mtime is not None and md_path_mtime > md_tmp_mtime)
-            )
+        current_newer_than_md_tmp = md_tmp_mtime is not None and (
+            (json_path_mtime is not None and json_path_mtime > md_tmp_mtime)
+            or (md_path_mtime is not None and md_path_mtime > md_tmp_mtime)
         )
         if not current_newer_than_md_tmp:
             _replace_with_retry(md_tmp, md_path)
+            _refresh_state_backup_from_primary(cwd)
         else:
             logger.warning("Ignoring stale state write intent because current state files are newer than temp files")
             try:
                 md_tmp.unlink()
             except OSError:
                 pass
+    elif not json_tmp_exists and not md_tmp_exists and json_path_valid:
+        # Both temps may already have been promoted before the process died.
+        # Keep the backup in the same generation before consuming the marker.
+        _refresh_state_backup_from_primary(cwd)
     else:
         if conflict_with_current:
             logger.warning("Ignoring stale state write intent because current state files are newer than temp files")
@@ -3014,10 +3152,7 @@ def _recover_intent_locked(cwd: Path) -> None:
             except OSError:
                 pass
 
-    try:
-        intent_file.unlink(missing_ok=True)
-    except OSError:
-        pass
+    _remove_intent_marker(intent_file)
 
 
 def _build_state_from_markdown(
@@ -3063,11 +3198,8 @@ def _build_state_from_markdown(
         primary_unreadable = True
 
     if primary_unreadable:
-        try:
-            backup_existing = json.loads(backup_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-            backup_existing = None
-        if isinstance(backup_existing, dict):
+        backup_existing = _load_state_backup_payload(cwd, backup_path)
+        if backup_existing is not None:
             existing = copy.deepcopy(backup_existing)
 
     if existing and isinstance(existing, dict):
@@ -3232,12 +3364,8 @@ def _write_state_pair_locked(
         intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
         _replace_with_retry(json_tmp, json_path)
         _replace_with_retry(md_tmp, md_path)
-        try:
-            intent_file.unlink(missing_ok=True)
-        except OSError:
-            pass
-
         atomic_write(backup_path, backup_rendered)
+        _remove_intent_marker(intent_file)
     except Exception:
         for f in (intent_file, json_tmp, md_tmp):
             try:
@@ -3299,7 +3427,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
 
     json_content = json.dumps(merged, indent=2) + "\n"
     prior_json = safe_read_file(json_path)
-    prior_backup = safe_read_file(backup_path)
+    prior_backup = _read_state_backup_text(cwd, backup_path, require_fresh=False)
     try:
         atomic_write(json_path, json_content)
         atomic_write(backup_path, json_content)
@@ -3363,14 +3491,7 @@ def _load_state_json_with_integrity_issues(
             parsed = json.loads(raw)
             if not isinstance(parsed, dict):
                 raise TypeError(f"state root must be an object, got {type(parsed).__name__}")
-            backup_parsed: dict | None = None
-            try:
-                bak_raw = bak_path.read_text(encoding="utf-8")
-                bak_parsed = json.loads(bak_raw)
-            except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-                bak_parsed = None
-            if isinstance(bak_parsed, dict):
-                backup_parsed = bak_parsed
+            backup_parsed = _load_state_backup_payload(cwd, bak_path)
             (
                 normalized,
                 integrity_issues,
@@ -3408,9 +3529,7 @@ def _load_state_json_with_integrity_issues(
             if integrity_mode == "review" and integrity_issues:
                 logger.warning("state.json failed review-mode integrity checks: %s", "; ".join(integrity_issues))
             if persist_recovery and (
-                state_source != "state.json"
-                or recovered_position_from_backup
-                or recovered_continuation_from_backup
+                state_source != "state.json" or recovered_position_from_backup or recovered_continuation_from_backup
             ):
                 preserved_contract = _preserved_visible_project_contract_from_raw_state(
                     cwd,
@@ -3426,6 +3545,7 @@ def _load_state_json_with_integrity_issues(
             return normalized, integrity_issues, state_source
         except FileNotFoundError:
             restored, integrity_issues = _load_state_json_from_backup(
+                cwd,
                 bak_path,
                 integrity_mode=integrity_mode,
                 allow_project_contract_salvage=allow_project_contract_salvage,
@@ -3453,6 +3573,7 @@ def _load_state_json_with_integrity_issues(
                 logger.debug("state.json structural error: %s", e)
             structural_issue = f"state.json structural error: {e}"
             restored, integrity_issues = _load_state_json_from_backup(
+                cwd,
                 bak_path,
                 integrity_mode=integrity_mode,
                 allow_project_contract_salvage=allow_project_contract_salvage,
@@ -3486,6 +3607,7 @@ def _load_state_json_with_integrity_issues(
             parse_issue = f"state.json parse error: {e}"
             # Try backup
             restored, integrity_issues = _load_state_json_from_backup(
+                cwd,
                 bak_path,
                 integrity_mode=integrity_mode,
                 allow_project_contract_salvage=allow_project_contract_salvage,
@@ -3602,6 +3724,7 @@ def _restore_visible_project_contract(
 
 
 def _load_state_json_from_backup(
+    cwd: Path,
     bak_path: Path,
     *,
     integrity_mode: str,
@@ -3610,7 +3733,9 @@ def _load_state_json_from_backup(
     project_root: Path | None = None,
 ) -> tuple[dict | None, list[str]]:
     try:
-        bak_raw = bak_path.read_text(encoding="utf-8")
+        bak_raw = _read_state_backup_text(cwd, bak_path)
+        if bak_raw is None:
+            return None, []
         bak_parsed = json.loads(bak_raw)
         if not isinstance(bak_parsed, dict):
             raise TypeError(f"state root must be an object, got {type(bak_parsed).__name__}")
@@ -3872,11 +3997,8 @@ def _preserved_project_contract_for_markdown_save(
     elif not allow_backup_fallback_on_primary_failure:
         return None
 
-    try:
-        backup_existing = json.loads(layout.state_json_backup.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return None
-    if not isinstance(backup_existing, dict):
+    backup_existing = _load_state_backup_payload(cwd, layout.state_json_backup)
+    if backup_existing is None:
         return None
     return _preserved_visible_project_contract_from_raw_state(
         cwd,
@@ -4129,9 +4251,7 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
 
             if field_norm.lower() == "status" and not is_valid_status(value):
                 failed.append(field)
-                failure_reasons[field] = (
-                    f'Invalid status: "{value}". Valid: {", ".join(VALID_STATUSES)}'
-                )
+                failure_reasons[field] = f'Invalid status: "{value}". Valid: {", ".join(VALID_STATUSES)}'
                 continue
 
             if field_norm.lower() == "status":
@@ -4150,10 +4270,7 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                 failed.append(field)
                 if also_tried:
                     tried_str = ", ".join(f'"{t}"' for t in also_tried)
-                    failure_reasons[field] = (
-                        f'Field "{field}" not found in STATE.md'
-                        f" (also tried {tried_str})"
-                    )
+                    failure_reasons[field] = f'Field "{field}" not found in STATE.md (also tried {tried_str})'
                 else:
                     failure_reasons[field] = f'Field "{field}" not found in STATE.md'
 
@@ -4651,9 +4768,7 @@ def state_record_metric(
         new_row = f"| {canonical_label} | {canonical_duration} | {tasks or '-'} tasks | {files or '-'} files |"
 
         table_is_empty = (
-            not table_body.strip()
-            or "None yet" in table_body
-            or re.match(r"^\|\s*-\s*\|", table_body.strip())
+            not table_body.strip() or "None yet" in table_body or re.match(r"^\|\s*-\s*\|", table_body.strip())
         )
         if table_is_empty:
             table_body = new_row
@@ -4916,8 +5031,7 @@ def state_record_session(
         )
         if (
             not clear_resume_file
-            and
-            resume_file is not None
+            and resume_file is not None
             and normalized_resume_file is None
             and resume_file.strip()
             and resume_file.strip() not in {EM_DASH, "[Not set]"}

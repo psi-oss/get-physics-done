@@ -15,6 +15,7 @@ EXPECTED_WORKFLOW_COUNTS = {
     "new-milestone.md": 3,
     "new-project.md": 7,
     "parameter-sweep.md": 1,
+    "peer-review.md": 7,
     "plan-phase.md": 1,
     "research-phase.md": 1,
     "verify-work.md": 1,
@@ -55,9 +56,7 @@ def _assert_contract_shape(contract: dict[str, object], *, workflow_name: str, i
 
 
 def test_spawn_contract_inventory_is_exhaustive_and_canonical() -> None:
-    actual_files = {
-        path.name for path in WORKFLOWS_DIR.glob("*.md") if "<spawn_contract>" in _read(path)
-    }
+    actual_files = {path.name for path in WORKFLOWS_DIR.glob("*.md") if "<spawn_contract>" in _read(path)}
 
     assert actual_files == set(EXPECTED_WORKFLOW_COUNTS)
 

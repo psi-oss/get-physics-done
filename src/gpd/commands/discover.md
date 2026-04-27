@@ -23,6 +23,7 @@ command-policy:
     default_output_subtree: GPD/analysis
 allowed-tools:
   - file_read
+  - file_write
   - shell
   - search_files
   - find_files
@@ -58,8 +59,7 @@ Standalone Level 2-3 artifacts live under `GPD/analysis/` in the invoking worksp
 <context>
 Phase or topic: $ARGUMENTS
 
-@GPD/STATE.md
-@GPD/ROADMAP.md
+Validated command-context owns optional current-workspace project context. Use the `CONTEXT` payload and the workflow-owned `init` step for optional `GPD/STATE.md` / `GPD/ROADMAP.md` background when present; this wrapper must not attach raw project-file includes.
 </context>
 
 <process>
@@ -92,6 +92,7 @@ Follow the discover workflow for the determined depth level.
 ## Step 3: Persistence Policy (if Level 2-3 produced RESEARCH.md)
 
 Do not commit `RESEARCH.md` separately.
+The documented write route is the workflow-owned Level 2-3 discovery artifact path: phase-scoped `${phase_dir}/RESEARCH.md` or current-workspace `GPD/analysis/discovery-{slug}.md`.
 If discovery ran phase-scoped, leave the phase `RESEARCH.md` in the working tree for the later phase-completion commit.
 If discovery ran in standalone mode, report the findings directly and, for Level 2-3, point to `GPD/analysis/discovery-{slug}.md` under the invoking workspace. Do not emit phase-only commit messages or file paths.
 

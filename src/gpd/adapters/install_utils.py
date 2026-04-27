@@ -14,7 +14,7 @@ import re
 import shlex
 import sys
 from collections.abc import Callable
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
@@ -61,6 +61,34 @@ HOOK_SCRIPTS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
+
+
+def normalize_manifest_relpath(value: object) -> str | None:
+    """Return a safe POSIX manifest relpath, or ``None`` when untrusted.
+
+    Install manifests are local metadata and must never be allowed to redirect
+    cleanup or backup I/O outside the runtime-controlled roots.  Keep this
+    check independent of the host OS so a manifest forged on one platform is
+    still unsafe on another.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if "\\" in value:
+        return None
+    if PurePosixPath(value).is_absolute():
+        return None
+    windows_path = PureWindowsPath(value)
+    if windows_path.is_absolute() or windows_path.drive:
+        return None
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return None
+    return PurePosixPath(*parts).as_posix()
+
+
+def is_safe_manifest_relpath(value: object) -> bool:
+    """Return whether *value* is safe to resolve beneath a managed root."""
+    return normalize_manifest_relpath(value) is not None
 
 
 def expand_tilde(file_path: str | None) -> str | None:
@@ -795,7 +823,9 @@ def _inject_command_visibility_sections_from_frontmatter(content: str) -> str:
     normalized_section = _normalize_markdown_eol(section, eol=eol)
     body_without_constraints = body
     if section_heading == "Command Requirements":
-        body_without_constraints = _strip_top_level_markdown_section(body_without_constraints, heading="Review Contract")
+        body_without_constraints = _strip_top_level_markdown_section(
+            body_without_constraints, heading="Review Contract"
+        )
         body_without_constraints = _strip_top_level_markdown_section(
             body_without_constraints,
             heading="Command Requirements",
@@ -1807,7 +1837,12 @@ def tracked_hook_paths_from_manifest(config_dir: Path) -> set[str]:
     if not isinstance(raw_files, dict):
         return set()
 
-    return {str(path) for path in raw_files if str(path).startswith("hooks/")}
+    tracked: set[str] = set()
+    for path in raw_files:
+        rel_path = normalize_manifest_relpath(path)
+        if rel_path is not None and rel_path.startswith("hooks/"):
+            tracked.add(rel_path)
+    return tracked
 
 
 def managed_hook_paths(config_dir: Path) -> set[str]:
@@ -1889,6 +1924,20 @@ def _managed_install_paths(
 # ---------------------------------------------------------------------------
 
 
+def _validated_manifest_files(raw_files: object) -> dict[str, str] | None:
+    """Return sanitized manifest file entries, or ``None`` for untrusted shape."""
+    if not isinstance(raw_files, dict):
+        return None
+
+    tracked_files: dict[str, str] = {}
+    for rel_path, original_hash in raw_files.items():
+        normalized_relpath = normalize_manifest_relpath(rel_path)
+        if normalized_relpath is None or not isinstance(original_hash, str):
+            return None
+        tracked_files[normalized_relpath] = original_hash
+    return tracked_files
+
+
 def save_local_patches(
     config_dir: str | Path,
     *,
@@ -1917,11 +1966,9 @@ def save_local_patches(
         if isinstance(manifest, dict):
             manifest_version = str(manifest.get("version", "unknown"))
             raw_files = manifest.get("files") or {}
-            if isinstance(raw_files, dict) and all(
-                isinstance(rel_path, str) and isinstance(original_hash, str)
-                for rel_path, original_hash in raw_files.items()
-            ):
-                tracked_files = raw_files
+            validated_files = _validated_manifest_files(raw_files)
+            if validated_files is not None:
+                tracked_files = validated_files
             else:
                 fallback_snapshot = True
         else:

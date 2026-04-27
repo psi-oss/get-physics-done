@@ -111,9 +111,7 @@ def test_write_paper_public_metadata_only_advertises_intake_manifest() -> None:
 
 def test_health_runtime_wrapper_accepts_unhealthy_json_exit_status() -> None:
     """Runtime prompt must parse raw health JSON even when the CLI uses exit 1 for fail."""
-    health_command = (Path(__file__).resolve().parents[1] / "src/gpd/commands/health.md").read_text(
-        encoding="utf-8"
-    )
+    health_command = (Path(__file__).resolve().parents[1] / "src/gpd/commands/health.md").read_text(encoding="utf-8")
 
     assert "HEALTH_STATUS=$?" in health_command
     assert "Do not treat a nonzero `HEALTH_STATUS` as a wrapper failure" in health_command
@@ -1218,9 +1216,7 @@ def _move_publication_review_outcome_to_subject_review(
         source.unlink()
     decision_path = subject_review_dir / f"REFEREE-DECISION{round_suffix}.json"
     decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
-    decision_payload["stage_artifacts"] = [
-        f"GPD/publication/{subject_slug}/review/{name}" for name in stage_names
-    ]
+    decision_payload["stage_artifacts"] = [f"GPD/publication/{subject_slug}/review/{name}" for name in stage_names]
     decision_path.write_text(json.dumps(decision_payload), encoding="utf-8")
 
 
@@ -2380,7 +2376,9 @@ class TestReviewValidationCommands:
         assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
         assert "${REVIEW_ROOT}/CLAIMS{round_suffix}.json" in payload["review_contract"]["required_outputs"]
-        assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert (
+            "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        )
         assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/CONSISTENCY-REPORT.md" not in payload["review_contract"]["required_outputs"]
         assert payload["review_contract"]["preflight_checks"] == PEER_REVIEW_COMMON_PREFLIGHT_CHECKS
@@ -3441,6 +3439,7 @@ class TestReviewValidationCommands:
             "unsupported physical significance claims",
             "collapsed novelty or venue fit",
         ]
+
     def test_command_required_files_override_detail_uses_contract_metadata_not_command_name(
         self, tmp_path: Path
     ) -> None:
@@ -3671,6 +3670,7 @@ class TestReviewValidationCommands:
         assert checks["artifact_manifest"]["blocking"] is False
         assert checks["bibliography_audit"]["passed"] is True
         assert checks["bibliography_audit"]["blocking"] is False
+
     def test_review_preflight_falls_back_when_runtime_resolution_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", lambda cwd=None: None)
 
@@ -3695,7 +3695,11 @@ class TestReviewValidationCommands:
                 ["predictions.csv", "experiment.csv"],
                 ["prediction, dataset path, phase identifier, or comparison target"],
             ),
-            ("compare-results", ["results/01-SUMMARY.md"], ["comparison target, phase, artifact path, or source-a vs source-b"]),
+            (
+                "compare-results",
+                ["results/01-SUMMARY.md"],
+                ["comparison target, phase, artifact path, or source-a vs source-b"],
+            ),
             ("discover", ["finite-temperature RG flow", "--depth", "deep"], ["phase number or standalone topic"]),
             ("explain", ["Ward identity"], ["concept, result, method, notation, or paper"]),
             ("literature-review", ["Sachdev-Ye-Kitaev model thermodynamics"], ["topic or research question"]),
@@ -3742,7 +3746,11 @@ class TestReviewValidationCommands:
                 ["results/mesh-study.py", "--param", "coupling", "--range", "0:1:20"],
                 ["computation anchor or file path", "--param name", "--range start:end:steps"],
             ),
-            ("sensitivity-analysis", ["--target", "energy-gap", "--params", "g,m"], ["--target quantity", "--params p1,p2,..."]),
+            (
+                "sensitivity-analysis",
+                ["--target", "energy-gap", "--params", "g,m"],
+                ["--target quantity", "--params p1,p2,..."],
+            ),
         ],
     )
     def test_command_context_project_aware_analysis_wrappers_accept_explicit_inputs_without_project(
@@ -3872,7 +3880,11 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:parameter-sweep"
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is False
-        assert payload["explicit_inputs"] == ["computation anchor or file path", "--param name", "--range start:end:steps"]
+        assert payload["explicit_inputs"] == [
+            "computation anchor or file path",
+            "--param name",
+            "--range start:end:steps",
+        ]
         assert checks["project_exists"]["passed"] is False
         assert checks["explicit_inputs"]["passed"] is False
         assert checks["explicit_inputs"]["detail"] == (
@@ -4272,9 +4284,7 @@ class TestReviewValidationCommands:
         workspace.mkdir()
         knowledge_path = _write_draft_knowledge_document(workspace)
         monkeypatch.chdir(workspace)
-        subject = (
-            knowledge_path.relative_to(workspace).as_posix() if subject_kind == "path" else knowledge_path.stem
-        )
+        subject = knowledge_path.relative_to(workspace).as_posix() if subject_kind == "path" else knowledge_path.stem
 
         result = runner.invoke(
             app,
@@ -6438,7 +6448,9 @@ class TestReviewValidationCommands:
         assert resolved_subject["status"] == "resolved"
         assert resolved_subject["ownership_mode"] == "project_backed"
         assert resolved_subject["explicit_input"] is False
-        assert resolved_subject["target_path"].endswith("GPD/publication/curvature-flow/manuscript/managed_manuscript.tex")
+        assert resolved_subject["target_path"].endswith(
+            "GPD/publication/curvature-flow/manuscript/managed_manuscript.tex"
+        )
         assert resolved_subject["detail"] == f"{cli_module._format_display_path(manuscript)} present"
 
     def test_command_context_respond_to_referees_exposes_managed_response_roots(
@@ -8595,8 +8607,9 @@ class TestReviewValidationCommands:
 
         monkeypatch.delenv("LOG_LEVEL", raising=False)
         monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "test-secret")
+        monkeypatch.setenv(WOLFRAM_MCP_ENDPOINT_ENV_VAR, "https://example.invalid/mcp")
         (gpd_project / "GPD" / "integrations.json").write_text(
-            json.dumps({WOLFRAM_MANAGED_INTEGRATION.integration_id: {"endpoint": "https://example.invalid/mcp"}}),
+            json.dumps({WOLFRAM_MANAGED_INTEGRATION.integration_id: {"enabled": True}}),
             encoding="utf-8",
         )
 
@@ -8635,8 +8648,9 @@ class TestReviewValidationCommands:
         )
 
         monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "test-secret")
+        monkeypatch.setenv(WOLFRAM_MCP_ENDPOINT_ENV_VAR, "https://example.invalid/mcp")
         (gpd_project / "GPD" / "integrations.json").write_text(
-            json.dumps({WOLFRAM_MANAGED_INTEGRATION.integration_id: {"endpoint": "https://example.invalid/mcp"}}),
+            json.dumps({WOLFRAM_MANAGED_INTEGRATION.integration_id: {"enabled": True}}),
             encoding="utf-8",
         )
 
@@ -9061,6 +9075,8 @@ def test_cli_uninstall_and_resolution_paths(monkeypatch: pytest.MonkeyPatch, gpd
         )
         is True
     )
+
+
 def test_resolve_model_explain_surfaces_runtime_default_reason(
     monkeypatch: pytest.MonkeyPatch,
     gpd_project: Path,
@@ -9071,7 +9087,9 @@ def test_resolve_model_explain_surfaces_runtime_default_reason(
     monkeypatch.setattr(config_module, "validate_agent_name", lambda agent_name: None)
     monkeypatch.setattr(config_module, "resolve_tier", lambda cwd, agent_name: config_module.ModelTier.TIER_1)
     monkeypatch.setattr(context_module, "_resolve_model", lambda cwd, agent_name: None)
-    monkeypatch.setattr(context_module, "_detect_platform", lambda cwd=None: _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name)
+    monkeypatch.setattr(
+        context_module, "_detect_platform", lambda cwd=None: _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name
+    )
 
     result = runner.invoke(
         app,
@@ -9102,7 +9120,9 @@ def test_resolve_model_keeps_blank_stdout_by_default_when_no_override(
     monkeypatch.setattr(cli_module, "_stdout_is_interactive", lambda: False)
     monkeypatch.setattr(config_module, "validate_agent_name", lambda agent_name: None)
     monkeypatch.setattr(context_module, "_resolve_model", lambda cwd, agent_name: None)
-    monkeypatch.setattr(context_module, "_detect_platform", lambda cwd=None: _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name)
+    monkeypatch.setattr(
+        context_module, "_detect_platform", lambda cwd=None: _PRIMARY_RAW_RUNTIME_DESCRIPTOR.runtime_name
+    )
 
     result = runner.invoke(
         app,

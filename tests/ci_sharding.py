@@ -16,6 +16,7 @@ CI_CATEGORY_SHARD_COUNTS = {
     "core": 5,
 }
 CI_FAST_SUITE_BUDGET_SECONDS = 180
+CI_PYTEST_SHARD_RESOLUTION_TIMEOUT_MINUTES = 3
 CI_PYTEST_SHARD_TIMEOUT_MINUTES = 10
 CI_SHARD_WEIGHT_SPREAD_TOLERANCE = 0.2
 
@@ -123,10 +124,7 @@ def ci_shard_specs() -> tuple[CIShardSpec, ...]:
 
 
 def expected_ci_shard_matrix() -> tuple[tuple[str, str, int, int], ...]:
-    return tuple(
-        (spec.display_name, spec.category, spec.shard_index, spec.shard_total)
-        for spec in ci_shard_specs()
-    )
+    return tuple((spec.display_name, spec.category, spec.shard_index, spec.shard_total) for spec in ci_shard_specs())
 
 
 def synthetic_test_inventory() -> dict[str, tuple[str, ...]]:
@@ -136,8 +134,7 @@ def synthetic_test_inventory() -> dict[str, tuple[str, ...]]:
         return tuple(f"tests/{rel_path}::test_{index:02d}" for index in range(1, count + 1))
 
     inventory: dict[str, tuple[str, ...]] = {
-        rel_path: _nodeids(rel_path, split_count)
-        for rel_path, split_count in CI_HOT_TEST_FILE_SPLITS.items()
+        rel_path: _nodeids(rel_path, split_count) for rel_path, split_count in CI_HOT_TEST_FILE_SPLITS.items()
     }
     inventory["test_smoke.py"] = _nodeids("test_smoke.py", 2)
     inventory["mcp/test_wolfram.py"] = ("tests/mcp/test_wolfram.py::test_smoke",)
@@ -190,11 +187,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
 
     pytest_steps = workflow_job_steps(workflow, "pytest")
     pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
-    pytest_run_steps = {
-        str(step.get("name", "")): str(step.get("run", ""))
-        for step in pytest_steps
-        if "run" in step
-    }
+    pytest_run_steps = {str(step.get("name", "")): str(step.get("run", "")) for step in pytest_steps if "run" in step}
     matrix_include = pytest_matrix_include(workflow)
     pytest_job = _workflow_job(workflow, "pytest")
     strategy = pytest_job["strategy"]
@@ -211,13 +204,19 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
 
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
+    resolve_targets_step = next(step for step in pytest_steps if step.get("name") == "Resolve pytest shard targets")
     resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
     pytest_shard_command = pytest_run_steps["Run pytest shard"]
+    assert resolve_targets_step["timeout-minutes"] == CI_PYTEST_SHARD_RESOLUTION_TIMEOUT_MINUTES
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
+    assert "import time" in resolve_targets_command
+    assert "started_at = time.perf_counter()" in resolve_targets_command
+    assert "elapsed_seconds = time.perf_counter() - started_at" in resolve_targets_command
     assert "PYTEST_CATEGORY" in resolve_targets_command
     assert "PYTEST_SHARD_TARGET_FILE" in resolve_targets_command
     assert "Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']}" in resolve_targets_command
     assert "shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}" in resolve_targets_command
+    assert "in {elapsed_seconds:.2f}s" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert pytest_steps[-1]["timeout-minutes"] == CI_PYTEST_SHARD_TIMEOUT_MINUTES
     assert pytest_steps[-1]["env"]["GPD_FAST_SUITE_BUDGET_SECONDS"] == str(CI_FAST_SUITE_BUDGET_SECONDS)
@@ -232,8 +231,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     ) in pytest_shard_command
     assert 'if [ "$pytest_status" -eq 124 ]; then' in pytest_shard_command
     assert (
-        'echo "::error::pytest shard exceeded enforced '
-        '${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"'
+        'echo "::error::pytest shard exceeded enforced ${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"'
     ) in pytest_shard_command
     assert 'exit "$pytest_status"' in pytest_shard_command
     assert '--durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
@@ -245,7 +243,7 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject_text
-    assert 'pytest-xdist>=3.8.0' in pyproject_text
+    assert "pytest-xdist>=3.8.0" in pyproject_text
 
 
 def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
@@ -256,6 +254,7 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
     assert "The 180 second fast-suite budget is enforced per CI pytest shard" in tests_readme
     assert "10 minute job timeout remains the outer failure boundary" in tests_readme
+    assert "Shard target resolution has its own 3 minute timeout and logs elapsed seconds" in tests_readme
     assert "advisory full-suite wall-clock target" not in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert (

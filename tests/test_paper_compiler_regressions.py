@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pybtex.database import BibliographyData, Entry
 
@@ -12,6 +14,7 @@ from gpd.mcp.paper.compiler import (
     _compile_with_latexmk,
     _reference_bibtex_keys_from_audit,
     build_paper,
+    compile_paper,
 )
 from gpd.mcp.paper.models import Author, PaperConfig, Section, derive_output_filename
 from gpd.utils.latex import AutoFixResult
@@ -47,6 +50,40 @@ def test_reference_bibtex_keys_rejects_duplicate_reference_id() -> None:
 
     with pytest.raises(ValueError, match="duplicate bibliography reference_id 'ref-duplicate'"):
         _reference_bibtex_keys_from_audit(audit)
+
+
+@pytest.mark.asyncio
+async def test_compile_paper_resolves_relative_tex_and_output_paths_once(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    tex_path = paper_dir / "main.tex"
+    tex_path.write_text(r"\documentclass{article}\begin{document}test\end{document}", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    async def fake_manual_multipass(resolved_tex_path, resolved_output_dir, compiler):
+        captured["tex_path"] = resolved_tex_path
+        captured["output_dir"] = resolved_output_dir
+        captured["compiler"] = compiler
+        return CompilationResult(success=False, error="stopped before subprocess")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_tectonic", lambda: None)
+    monkeypatch.setattr(
+        "gpd.mcp.paper.compiler.find_latex_compiler",
+        lambda name: "/usr/bin/pdflatex" if name == "pdflatex" else None,
+    )
+    monkeypatch.setattr("gpd.mcp.paper.compiler._compile_manual_multipass", fake_manual_multipass)
+
+    result = await compile_paper(Path("paper/main.tex"), Path("build"))
+
+    assert result.error == "stopped before subprocess"
+    assert captured == {
+        "tex_path": tex_path.resolve(strict=False),
+        "output_dir": (tmp_path / "build").resolve(strict=False),
+        "compiler": "pdflatex",
+    }
 
 
 class _FakeProcess:
@@ -232,9 +269,7 @@ async def test_manual_multipass_rejects_missing_bibtex_even_after_autofix(
 
 
 @pytest.mark.asyncio
-async def test_manual_multipass_rejects_stale_preexisting_pdf(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_manual_multipass_rejects_stale_preexisting_pdf(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     tex_path = tmp_path / "paper.tex"
     tex_path.write_text(r"\documentclass{article}\begin{document}test\end{document}", encoding="utf-8")
     pdf_path = tmp_path / "paper.pdf"
@@ -433,6 +468,4 @@ def test_figureref_is_importable_from_compiler_module() -> None:
     ``list[tuple[FigureRef, FigureRef]]`` resolves at runtime (Issue 1)."""
     import gpd.mcp.paper.compiler as compiler_mod
 
-    assert hasattr(compiler_mod, "FigureRef"), (
-        "FigureRef should be importable from compiler module"
-    )
+    assert hasattr(compiler_mod, "FigureRef"), "FigureRef should be importable from compiler module"

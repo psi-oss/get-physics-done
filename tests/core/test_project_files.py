@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from gpd.core.constants import PLANNING_DIR_NAME, PROJECT_FILENAME, ROADMAP_FILENAME
@@ -96,3 +97,21 @@ def test_migrate_survives_permission_error(tmp_path: Path, monkeypatch) -> None:
 
     assert migrated == []
     assert not (tmp_path / PLANNING_DIR_NAME / ROADMAP_FILENAME).exists()
+
+
+def test_migrate_removes_temp_copy_when_atomic_copy_fails(tmp_path: Path, monkeypatch) -> None:
+    """A failed migration must not leave a partial GPD/ planning file."""
+    (tmp_path / ROADMAP_FILENAME).write_text("# R\n", encoding="utf-8")
+
+    def _partial_copy(_src, dst, *_args, **_kwargs):
+        Path(dst).write_text("partial", encoding="utf-8")
+        raise OSError("copy interrupted")
+
+    monkeypatch.setattr(shutil, "copy2", _partial_copy)
+
+    migrated = migrate_root_planning_files(tmp_path)
+
+    gpd_dir = tmp_path / PLANNING_DIR_NAME
+    assert migrated == []
+    assert not (gpd_dir / ROADMAP_FILENAME).exists()
+    assert list(gpd_dir.glob(f".{ROADMAP_FILENAME}.*.tmp")) == []

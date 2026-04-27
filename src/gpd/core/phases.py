@@ -230,18 +230,33 @@ def _backup_directory_tree(path: Path) -> tuple[Path | None, Path | None]:
     """Copy *path* to a temporary backup tree for rollback."""
     if not path.exists():
         return None, None
+    if path.is_symlink():
+        raise PhaseValidationError(f"Refusing to operate on symlinked phase directory: {path}")
     backup_root = Path(tempfile.mkdtemp(prefix=f"gpd-{path.name}-backup-"))
     backup_path = backup_root / path.name
-    shutil.copytree(path, backup_path)
+    shutil.copytree(path, backup_path, symlinks=True)
     return backup_root, backup_path
 
 
 def _restore_directory_tree(path: Path, backup_path: Path | None) -> None:
     """Restore *path* from *backup_path* when rollback is required."""
+    if path.is_symlink():
+        return
     if path.exists():
         shutil.rmtree(path)
     if backup_path is not None and backup_path.exists():
-        shutil.copytree(backup_path, path)
+        shutil.copytree(backup_path, path, symlinks=True)
+
+
+def _is_real_directory(path: Path) -> bool:
+    """Return true for real directories, excluding symlinked directory entries."""
+    return path.is_dir() and not path.is_symlink()
+
+
+def _ensure_phase_directory_parent(phases_dir: Path) -> None:
+    if phases_dir.is_symlink():
+        raise PhaseValidationError(f"Refusing to operate on symlinked phase directory: {phases_dir}")
+    phases_dir.mkdir(parents=True, exist_ok=True)
 
 
 def _state_content_with_total_phases(state_content: str, *, total_phases: int) -> str:
@@ -324,9 +339,7 @@ def _phase_complete_state_content(
     else:
         state_content = _replace_state_field(state_content, "Current Phase", next_phase_num or phase_num)
         phase_name_display = (
-            next_phase_name.replace("-", " ")
-            if next_phase_name
-            else (next_phase_num or INACTIVE_FIELD_SENTINEL)
+            next_phase_name.replace("-", " ") if next_phase_name else (next_phase_num or INACTIVE_FIELD_SENTINEL)
         )
         state_content = _replace_state_field(state_content, "Current Phase Name", phase_name_display)
 
@@ -419,12 +432,12 @@ def _tick_completed_plan_checkboxes(cwd: Path, roadmap_content: str) -> str:
         return roadmap_content
 
     phases_dir = _phases_dir(cwd)
-    if not phases_dir.exists():
+    if not _is_real_directory(phases_dir):
         return roadmap_content
 
     completed_plans: set[str] = set()
     for phase_dir in phases_dir.iterdir():
-        if not phase_dir.is_dir():
+        if not _is_real_directory(phase_dir):
             continue
         for summary in phase_dir.glob("*-SUMMARY.md"):
             stem = summary.name[: -len("-SUMMARY.md")]
@@ -837,7 +850,9 @@ def _milestone_completion_snapshot(cwd: Path) -> _MilestoneCompletionSnapshot:
         if phase_info is None:
             continue
 
-        if is_phase_complete(len(phase_info.plans), matching_phase_artifact_count(phase_info.plans, phase_info.summaries)):
+        if is_phase_complete(
+            len(phase_info.plans), matching_phase_artifact_count(phase_info.plans, phase_info.summaries)
+        ):
             completed_phases += 1
 
     phase_count = len(phase_numbers)
@@ -865,15 +880,17 @@ def _roadmap_path(cwd: Path) -> Path:
 def _list_phase_dirs(cwd: Path) -> list[str]:
     """List phase directories sorted by phase number."""
     phases_dir = _phases_dir(cwd)
-    if not phases_dir.is_dir():
+    if not _is_real_directory(phases_dir):
         return []
-    dirs = [d.name for d in phases_dir.iterdir() if d.is_dir()]
+    dirs = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)]
     return _sorted_phases(dirs)
 
 
 def _list_phase_dirs_raw(phases_dir: Path) -> list[str]:
     """List and sort phase directories from a phases_dir Path."""
-    return _sorted_phases([d.name for d in phases_dir.iterdir() if d.is_dir()])
+    if not _is_real_directory(phases_dir):
+        return []
+    return _sorted_phases([d.name for d in phases_dir.iterdir() if _is_real_directory(d)])
 
 
 def _ensure_list(value: object, *, field_name: str) -> list[str]:
@@ -915,7 +932,7 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
     phases_dir = layout.phases_dir
     normalized = phase_normalize(phase)
 
-    if not phases_dir.is_dir():
+    if not _is_real_directory(phases_dir):
         return None
 
     with gpd_span("phases.find", phase=phase):
@@ -943,7 +960,9 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
 
         # Determine incomplete plans (plans without matching summaries)
         completed_plan_ids = {phase_artifact_id(s, SUMMARY_SUFFIX, STANDALONE_SUMMARY) for s in summaries}
-        incomplete_plans = [p for p in plans if phase_artifact_id(p, PLAN_SUFFIX, STANDALONE_PLAN) not in completed_plan_ids]
+        incomplete_plans = [
+            p for p in plans if phase_artifact_id(p, PLAN_SUFFIX, STANDALONE_PLAN) not in completed_plan_ids
+        ]
 
         # Build slug
         phase_slug = None
@@ -1002,7 +1021,7 @@ def list_phase_files(cwd: Path, file_type: str, phase: str | None = None) -> Pha
     with gpd_span("phases.list_files", file_type=file_type):
         layout = ProjectLayout(cwd)
         phases_dir = layout.phases_dir
-        if not phases_dir.is_dir():
+        if not _is_real_directory(phases_dir):
             return PhaseFilesResult()
 
         dirs = _list_phase_dirs(cwd)
@@ -1093,10 +1112,10 @@ def next_decimal_phase(cwd: Path, base_phase: str) -> NextDecimalResult:
         normalized = phase_normalize(base_phase)
         phases_dir = _phases_dir(cwd)
 
-        if not phases_dir.is_dir():
+        if not _is_real_directory(phases_dir):
             return NextDecimalResult(found=False, base_phase=normalized, next=f"{normalized}.1")
 
-        dirs = [d.name for d in phases_dir.iterdir() if d.is_dir()]
+        dirs = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)]
         base_exists = any(d.startswith(normalized + "-") or d == normalized for d in dirs)
 
         escaped = re.escape(normalized)
@@ -1381,8 +1400,8 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
 
         # Read phase directories once
         phase_dir_names: list[str] = []
-        if phases_dir.is_dir():
-            phase_dir_names = [d.name for d in phases_dir.iterdir() if d.is_dir()]
+        if _is_real_directory(phases_dir):
+            phase_dir_names = [d.name for d in phases_dir.iterdir() if _is_real_directory(d)]
 
         # Extract all phase headings
         phases: list[RoadmapPhase] = []
@@ -1413,9 +1432,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             contract_advances = _coverage_items(section, "Advances")
             contract_anchor_coverage = _coverage_items(section, "Anchor coverage")
             contract_forbidden_proxies = _coverage_items(section, "Forbidden proxies")
-            has_contract_coverage = bool(
-                contract_advances or contract_anchor_coverage or contract_forbidden_proxies
-            )
+            has_contract_coverage = bool(contract_advances or contract_anchor_coverage or contract_forbidden_proxies)
 
             # Check disk status
             normalized = phase_normalize(phase_num)
@@ -1638,6 +1655,8 @@ def _get_roadmap_phase_by_number(cwd: Path, phase_num: str | None) -> RoadmapPha
         if compare_phase_numbers(phase_normalize(phase.number), normalized) == 0:
             return phase
     return None
+
+
 def _remap_phase_after_removal(current_phase: str | None, removed_phase: str, remaining: list[str]) -> str | None:
     """Map a stored current phase to the post-removal numbering scheme."""
     current_norm = _normalize_phase_label(current_phase)
@@ -1993,9 +2012,14 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             new_phase_num = max_phase + 1
             padded = str(new_phase_num).zfill(2)
             dir_name = f"{padded}-{slug}" if slug else padded
-            dir_path = _phases_dir(cwd) / dir_name
-
-            dir_path.mkdir(parents=True, exist_ok=True)
+            phases_dir = _phases_dir(cwd)
+            if phases_dir.is_symlink():
+                raise PhaseValidationError(f"Refusing to operate on symlinked phase directory: {phases_dir}")
+            dir_path = phases_dir / dir_name
+            if dir_path.is_symlink():
+                raise PhaseValidationError(f"Refusing to use symlinked phase directory: {dir_path.name}")
+            dir_preexisting = dir_path.exists()
+            created_dir = False
 
             heading_level, pad_width, separator = _detect_phase_heading_format(content)
             display_num = _format_phase_display_num(new_phase_num, pad_width)
@@ -2016,8 +2040,13 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             else:
                 updated = content + phase_entry
 
-            atomic_write(roadmap_path, updated)
             try:
+                atomic_write(roadmap_path, updated)
+                _ensure_phase_directory_parent(phases_dir)
+                if dir_path.is_symlink():
+                    raise PhaseValidationError(f"Refusing to use symlinked phase directory: {dir_path.name}")
+                dir_path.mkdir(exist_ok=True)
+                created_dir = not dir_preexisting
                 # Update STATE.md using the canonical state lock so the markdown
                 # write stays coupled to the state.json write path.
                 total_phases = roadmap_analyze(cwd).phase_count
@@ -2029,7 +2058,7 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
                     ),
                 )
             except Exception:
-                if dir_path.exists():
+                if created_dir and dir_path.exists() and not dir_path.is_symlink():
                     shutil.rmtree(dir_path)
                 atomic_write(roadmap_path, content)
                 raise
@@ -2080,11 +2109,11 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             phases_dir = _phases_dir(cwd)
             existing_decimals: list[int] = []
 
-            if phases_dir.is_dir():
+            if _is_real_directory(phases_dir):
                 escaped_base = re.escape(normalized_base)
                 dec_pattern = re.compile(rf"^{escaped_base}\.(\d+)")
                 for d in phases_dir.iterdir():
-                    if d.is_dir():
+                    if _is_real_directory(d):
                         dm = dec_pattern.match(d.name)
                         if dm:
                             existing_decimals.append(int(dm.group(1)))
@@ -2094,7 +2123,9 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             dir_name = f"{decimal_phase}-{slug}" if slug else decimal_phase
 
             heading_level, pad_width, separator = _detect_phase_heading_format(content)
-            display_decimal_phase = _format_phase_display_num(f"{phase_unpad(normalized_base)}.{next_decimal}", pad_width)
+            display_decimal_phase = _format_phase_display_num(
+                f"{phase_unpad(normalized_base)}.{next_decimal}", pad_width
+            )
             depends_display = _format_phase_display_num(phase_unpad(after_phase), pad_width)
             phase_entry = (
                 f"\n{heading_level} Phase {display_decimal_phase}{separator}{description} (INSERTED)\n\n"
@@ -2108,11 +2139,21 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             _section_start, insert_idx = _roadmap_phase_section_bounds(content, after_heading)
 
             dir_path = phases_dir / dir_name
-            dir_path.mkdir(parents=True, exist_ok=True)
+            if phases_dir.is_symlink():
+                raise PhaseValidationError(f"Refusing to operate on symlinked phase directory: {phases_dir}")
+            if dir_path.is_symlink():
+                raise PhaseValidationError(f"Refusing to use symlinked phase directory: {dir_path.name}")
+            dir_preexisting = dir_path.exists()
+            created_dir = False
 
             updated = content[:insert_idx] + phase_entry + content[insert_idx:]
-            atomic_write(roadmap_path, updated)
             try:
+                atomic_write(roadmap_path, updated)
+                _ensure_phase_directory_parent(phases_dir)
+                if dir_path.is_symlink():
+                    raise PhaseValidationError(f"Refusing to use symlinked phase directory: {dir_path.name}")
+                dir_path.mkdir(exist_ok=True)
+                created_dir = not dir_preexisting
                 # Update STATE.md using the canonical state lock so the
                 # markdown write stays coupled to the state.json write path.
                 total_phases = roadmap_analyze(cwd).phase_count
@@ -2124,7 +2165,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
                     ),
                 )
             except Exception:
-                if dir_path.exists():
+                if created_dir and dir_path.exists() and not dir_path.is_symlink():
                     shutil.rmtree(dir_path)
                 atomic_write(roadmap_path, content)
                 raise
@@ -2167,7 +2208,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
     with gpd_span("phases.remove", phase=target_phase, force=force):
         # Find the removed directory subtree.
         target_dirs: list[str] = []
-        if phases_dir.is_dir():
+        if _is_real_directory(phases_dir):
             dirs = _list_phase_dirs(cwd)
             target_dirs = [d for d in dirs if _phase_dir_in_subtree(d, normalized)]
         target_dir = next(
@@ -2221,7 +2262,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
                 if is_decimal:
                     rd, rf_ = _renumber_decimal_phases(phases_dir, normalized)
-                elif phases_dir.is_dir():
+                elif _is_real_directory(phases_dir):
                     rd, rf_ = _renumber_integer_phases(phases_dir, int(normalized))
                 else:
                     rd, rf_ = [], []
@@ -2269,7 +2310,7 @@ def _renumber_decimal_phases(phases_dir: Path, normalized: str) -> tuple[list[Re
     renamed_dirs: list[RenameEntry] = []
     renamed_files: list[RenameEntry] = []
 
-    if not phases_dir.is_dir():
+    if not _is_real_directory(phases_dir):
         return renamed_dirs, renamed_files
 
     dirs = _list_phase_dirs_raw(phases_dir)
@@ -2340,7 +2381,7 @@ def _renumber_integer_phases(phases_dir: Path, removed_int: int) -> tuple[list[R
     renamed_dirs: list[RenameEntry] = []
     renamed_files: list[RenameEntry] = []
 
-    if not phases_dir.is_dir():
+    if not _is_real_directory(phases_dir):
         return renamed_dirs, renamed_files
 
     dirs = _list_phase_dirs_raw(phases_dir)
@@ -2539,52 +2580,51 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
     state_updated = False
 
     with gpd_span("milestone.complete", version=version, milestone=milestone_name):
-        # Gather stats from the union of roadmap phases and on-disk phase dirs so
-        # milestone completion cannot ignore either unscaffolded roadmap entries
-        # or real phase work that exists only on disk.
-        total_tasks = 0
-        accomplishments: list[str] = []
-
-        completion_snapshot = _milestone_completion_snapshot(cwd)
-
-        for phase_number in completion_snapshot.phase_numbers:
-            phase_info = find_phase(cwd, phase_number)
-            if phase_info is None:
-                continue
-
-            phase_dir = phases_dir / Path(phase_info.directory).name
-            for summary_name in phase_info.summaries:
-                try:
-                    content = (phase_dir / summary_name).read_text(encoding="utf-8")
-                    fm = _extract_frontmatter(content)
-                except FrontmatterParseError as exc:
-                    raise PhaseValidationError(f"{summary_name}: {exc}") from exc
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise PhaseValidationError(f"{summary_name}: {exc}") from exc
-
-                one_liner = fm.get("one-liner")
-                if not one_liner:
-                    body_match = re.search(
-                        r"^---[\s\S]*?---\s*(?:#[^\n]*\n\s*)?\*\*(.+?)\*\*",
-                        content,
-                        re.MULTILINE,
-                    )
-                    if body_match:
-                        one_liner = body_match.group(1)
-                if one_liner:
-                    accomplishments.append(one_liner)
-
-                task_matches = re.findall(r"##\s*Task\s*\d+", content, re.IGNORECASE)
-                total_tasks += len(task_matches)
-
-        # Guard: all phases must be complete
-        if completion_snapshot.phase_count > 0 and not completion_snapshot.all_phases_complete:
-            raise MilestoneIncompleteError(
-                completion_snapshot.phase_count - completion_snapshot.completed_phases,
-                completion_snapshot.phase_count,
-            )
-
         with file_lock(roadmap_path):
+            # Gather stats from the union of roadmap phases and on-disk phase dirs
+            # under the same lock that archives ROADMAP.md.
+            total_tasks = 0
+            accomplishments: list[str] = []
+
+            completion_snapshot = _milestone_completion_snapshot(cwd)
+
+            for phase_number in completion_snapshot.phase_numbers:
+                phase_info = find_phase(cwd, phase_number)
+                if phase_info is None:
+                    continue
+
+                phase_dir = phases_dir / Path(phase_info.directory).name
+                for summary_name in phase_info.summaries:
+                    try:
+                        content = (phase_dir / summary_name).read_text(encoding="utf-8")
+                        fm = _extract_frontmatter(content)
+                    except FrontmatterParseError as exc:
+                        raise PhaseValidationError(f"{summary_name}: {exc}") from exc
+                    except (OSError, UnicodeDecodeError) as exc:
+                        raise PhaseValidationError(f"{summary_name}: {exc}") from exc
+
+                    one_liner = fm.get("one-liner")
+                    if not one_liner:
+                        body_match = re.search(
+                            r"^---[\s\S]*?---\s*(?:#[^\n]*\n\s*)?\*\*(.+?)\*\*",
+                            content,
+                            re.MULTILINE,
+                        )
+                        if body_match:
+                            one_liner = body_match.group(1)
+                    if one_liner:
+                        accomplishments.append(one_liner)
+
+                    task_matches = re.findall(r"##\s*Task\s*\d+", content, re.IGNORECASE)
+                    total_tasks += len(task_matches)
+
+            # Guard: all phases must be complete
+            if completion_snapshot.phase_count > 0 and not completion_snapshot.all_phases_complete:
+                raise MilestoneIncompleteError(
+                    completion_snapshot.phase_count - completion_snapshot.completed_phases,
+                    completion_snapshot.phase_count,
+                )
+
             milestones_before = milestones_path.read_text(encoding="utf-8") if milestones_path.exists() else None
             roadmap_archive_path = archive_dir / f"{version}-ROADMAP.md"
             requirements_archive_path = archive_dir / f"{version}-REQUIREMENTS.md"
@@ -2708,7 +2748,7 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
         total_plans = 0
         total_summaries = 0
 
-        if phases_dir.is_dir():
+        if _is_real_directory(phases_dir):
             dirs = _list_phase_dirs(cwd)
             for d in dirs:
                 dm = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", d)

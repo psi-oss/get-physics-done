@@ -112,9 +112,7 @@ class FiguresQualityInput(BaseModel):
     decisive_artifacts_referenced_in_text: CoverageMetric = Field(
         default_factory=lambda: CoverageMetric(not_applicable=True)
     )
-    decisive_artifact_roles_clear: CoverageMetric = Field(
-        default_factory=lambda: CoverageMetric(not_applicable=True)
-    )
+    decisive_artifact_roles_clear: CoverageMetric = Field(default_factory=lambda: CoverageMetric(not_applicable=True))
 
 
 class CitationsQualityInput(BaseModel):
@@ -368,7 +366,9 @@ def _status_for_score(score: float) -> str:
     return "not_ready"
 
 
-def _metric_issue(category: str, check: str, points: float, max_points: float, summary: str) -> PaperQualityIssue | None:
+def _metric_issue(
+    category: str, check: str, points: float, max_points: float, summary: str
+) -> PaperQualityIssue | None:
     if points >= max_points:
         return None
     severity = Severity.major if points == 0 else Severity.minor
@@ -400,9 +400,7 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
     if not data.results.decisive_comparison_failures_scoped.not_applicable:
         decisive_result_ratios.append(data.results.decisive_comparison_failures_scoped.ratio)
     comparison_ratio = (
-        min(decisive_result_ratios)
-        if decisive_result_ratios
-        else data.results.comparison_with_prior_work_present.ratio
+        min(decisive_result_ratios) if decisive_result_ratios else data.results.comparison_with_prior_work_present.ratio
     )
 
     eq_checks = {
@@ -431,7 +429,9 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
         "notation_consistent": 5.0 * data.conventions.notation_consistent.ratio,
     }
 
-    unreliable_count = sum(1 for c in data.verification.key_result_confidences if c == VerificationConfidence.unreliable)
+    unreliable_count = sum(
+        1 for c in data.verification.key_result_confidences if c == VerificationConfidence.unreliable
+    )
     verification_checks = {
         "report_passed": 5.0 * data.verification.report_passed.ratio,
         "contract_targets_verified": _ratio_points(data.verification.contract_targets_verified.ratio, 5.0),
@@ -451,8 +451,12 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
     }
 
     categories = {
-        "equations": CategoryScore(name="equations", score=sum(eq_checks.values()), max_score=CATEGORY_MAX["equations"], checks=eq_checks),
-        "figures": CategoryScore(name="figures", score=sum(figures_checks.values()), max_score=CATEGORY_MAX["figures"], checks=figures_checks),
+        "equations": CategoryScore(
+            name="equations", score=sum(eq_checks.values()), max_score=CATEGORY_MAX["equations"], checks=eq_checks
+        ),
+        "figures": CategoryScore(
+            name="figures", score=sum(figures_checks.values()), max_score=CATEGORY_MAX["figures"], checks=figures_checks
+        ),
         "citations": CategoryScore(
             name="citations",
             score=sum(citation_checks.values()),
@@ -477,7 +481,9 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
             max_score=CATEGORY_MAX["completeness"],
             checks=completeness_checks,
         ),
-        "results": CategoryScore(name="results", score=sum(results_checks.values()), max_score=CATEGORY_MAX["results"], checks=results_checks),
+        "results": CategoryScore(
+            name="results", score=sum(results_checks.values()), max_score=CATEGORY_MAX["results"], checks=results_checks
+        ),
     }
 
     issues.extend(
@@ -595,7 +601,10 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
                 blocking=True,
             )
         )
-    if not data.results.comparison_with_prior_work_present.not_applicable and not data.results.comparison_with_prior_work_present.passed:
+    if (
+        not data.results.comparison_with_prior_work_present.not_applicable
+        and not data.results.comparison_with_prior_work_present.passed
+    ):
         blockers.append(
             PaperQualityIssue(
                 category="results",
@@ -781,7 +790,7 @@ _CITE_CMD_PREFIX_WITH_NOCITE = (
 
 _MISSING_CITE_FINDING_RE = re.compile(_CITE_CMD_PREFIX + r"(?:\[[^\]]*\])*\{MISSING:")
 _EMPTY_CITE_FINDING_RE = re.compile(_CITE_CMD_PREFIX + r"(?:\[[^\]]*\])*\{\s*\}")
-_EMPTY_REF_FINDING_RE = re.compile(r"\\ref\{\s*\}")
+_EMPTY_REF_FINDING_RE = re.compile(r"\\(?:ref|eqref|autoref|pageref|nameref|cref|Cref)\{\s*\}")
 _EMPTY_LABEL_FINDING_RE = re.compile(r"\\label\{\s*\}")
 _LABEL_FINDING_RE = re.compile(r"\\label\{([^}]+)\}")
 _BEGIN_ENV_FINDING_RE = re.compile(r"\\begin\{([^}]+)\}")
@@ -803,6 +812,15 @@ def _comment_start_index(line: str) -> int | None:
     return None
 
 
+def _visible_tex_line(line: str) -> str:
+    comment_start = _comment_start_index(line)
+    return line if comment_start is None else line[:comment_start]
+
+
+def _visible_tex_content(tex_content: str) -> str:
+    return "\n".join(_visible_tex_line(line) for line in tex_content.splitlines())
+
+
 def validate_tex_draft(tex_content: str) -> list[DraftingFinding]:
     """Return structured draft-lint findings without mutating manuscript text."""
 
@@ -812,8 +830,7 @@ def validate_tex_draft(tex_content: str) -> list[DraftingFinding]:
     visible_lines: list[str] = []
 
     for lineno, line in enumerate(tex_content.splitlines(), start=1):
-        comment_start = _comment_start_index(line)
-        visible = line if comment_start is None else line[:comment_start]
+        visible = _visible_tex_line(line)
         visible_lines.append(visible)
 
         for match in _PLACEHOLDER_FINDING_RE.finditer(visible):

@@ -24,7 +24,15 @@ from gpd.core.paper_quality import (
     validate_tex_draft,
 )
 
-TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs" / "templates" / "paper" / "paper-quality-input-schema.md"
+TEMPLATE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "gpd"
+    / "specs"
+    / "templates"
+    / "paper"
+    / "paper-quality-input-schema.md"
+)
 
 
 def _full_metric(total: int) -> CoverageMetric:
@@ -543,8 +551,7 @@ def test_category_max_scores_match_constant():
 
     for name, cat in report.categories.items():
         assert cat.max_score == CATEGORY_MAX[name], (
-            f"Category {name!r}: max_score={cat.max_score} does not match "
-            f"CATEGORY_MAX[{name!r}]={CATEGORY_MAX[name]}"
+            f"Category {name!r}: max_score={cat.max_score} does not match CATEGORY_MAX[{name!r}]={CATEGORY_MAX[name]}"
         )
 
 
@@ -755,35 +762,45 @@ def test_validate_tex_draft_reports_structured_findings() -> None:
     assert findings[0].severity == "blocker"
 
 
+@pytest.mark.parametrize("command", ["ref", "eqref", "autoref", "pageref", "nameref", "cref", "Cref"])
+def test_validate_tex_draft_detects_empty_reference_command_variants(command: str) -> None:
+    findings = validate_tex_draft(
+        f"\\documentclass{{article}}\n\\begin{{document}}\nSee \\{command}{{}}.\n\\end{{document}}\n"
+    )
+
+    assert any(finding.check == "empty_reference_command" for finding in findings)
+
+
 def test_validate_tex_draft_ignores_commented_markup() -> None:
     findings = validate_tex_draft(
         "\\documentclass{article}\n"
         "\\begin{document}\n"
         "% TODO in a comment should not block.\n"
         "% \\cite{}\n"
+        "% \\eqref{}\n"
         "\\end{document}\n"
     )
 
     assert findings == []
 
 
-def test_validate_tex_draft_detects_natbib_empty_citep() -> None:
+def test_validate_tex_draft_preserves_escaped_percent_before_reference_lint() -> None:
     findings = validate_tex_draft(
-        "\\documentclass{article}\n"
-        "\\begin{document}\n"
-        "See \\citep{}.\n"
-        "\\end{document}\n"
+        "\\documentclass{article}\n\\begin{document}\nValue is 50\\% of Eq.~\\eqref{}.\n\\end{document}\n"
     )
+
+    assert any(finding.check == "empty_reference_command" and finding.line == 3 for finding in findings)
+
+
+def test_validate_tex_draft_detects_natbib_empty_citep() -> None:
+    findings = validate_tex_draft("\\documentclass{article}\n\\begin{document}\nSee \\citep{}.\n\\end{document}\n")
     checks = {finding.check for finding in findings}
     assert "empty_citation_command" in checks
 
 
 def test_validate_tex_draft_detects_natbib_missing_citep() -> None:
     findings = validate_tex_draft(
-        "\\documentclass{article}\n"
-        "\\begin{document}\n"
-        "See \\citep{MISSING:ref1}.\n"
-        "\\end{document}\n"
+        "\\documentclass{article}\n\\begin{document}\nSee \\citep{MISSING:ref1}.\n\\end{document}\n"
     )
     checks = {finding.check for finding in findings}
     assert "missing_citation_placeholder" in checks

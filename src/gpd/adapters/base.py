@@ -422,7 +422,7 @@ class RuntimeAdapter(abc.ABC):
                 other_runtime_label = other_runtime
             raise RuntimeError(
                 f"Refusing to {action} `{target_dir}`.\n"
-                f'Its GPD manifest belongs to {other_runtime_label} (`{other_runtime}`), '
+                f"Its GPD manifest belongs to {other_runtime_label} (`{other_runtime}`), "
                 f"not {self.display_name} (`{self.runtime_name}`)."
             )
 
@@ -556,6 +556,7 @@ class RuntimeAdapter(abc.ABC):
             try:
                 self._validate(gpd_root)
                 self._validate_target_runtime(target_dir, action="install into")
+                self._preflight_runtime_config(target_dir, is_global)
                 path_prefix = self._compute_path_prefix(target_dir, is_global)
                 self._pre_cleanup(target_dir)
                 install_version = version_for_gpd_root(gpd_root) or __version__
@@ -617,6 +618,10 @@ class RuntimeAdapter(abc.ABC):
     def _pre_cleanup(self, target_dir: Path) -> None:
         """Clean up files from previous installations."""
         pre_install_cleanup(target_dir)
+
+    def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
+        """Validate runtime-owned config before install mutates GPD files."""
+        del target_dir, is_global
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         """Install commands in runtime-specific format.

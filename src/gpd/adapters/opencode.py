@@ -954,6 +954,13 @@ class OpenCodeAdapter(RuntimeAdapter):
         """Return OpenCode-owned files required for a complete install."""
         return ("opencode.json",)
 
+    def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
+        """Fail before copying files when OpenCode-owned config is malformed."""
+        del is_global
+        _, config_parse_error = _read_opencode_config_state(target_dir)
+        if config_parse_error is not None:
+            raise RuntimeError("OpenCode opencode.json is malformed; refusing to overwrite it during install.")
+
     def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
         """Return missing OpenCode install artifacts, including the command surface."""
         missing = list(super().missing_install_artifacts(target_dir))
@@ -1096,7 +1103,9 @@ class OpenCodeAdapter(RuntimeAdapter):
         desired_mode = "yolo" if autonomy == "yolo" else "default"
         managed_state = self._runtime_permissions_manifest_state(target_dir) or {}
         managed_by_gpd = managed_state.get("mode") == "yolo"
-        configured_mode = "malformed" if not config_valid else "yolo" if _opencode_permission_is_yolo(permission_value) else "default"
+        configured_mode = (
+            "malformed" if not config_valid else "yolo" if _opencode_permission_is_yolo(permission_value) else "default"
+        )
         requires_relaunch = False
         next_step: str | None = None
 
@@ -1112,13 +1121,13 @@ class OpenCodeAdapter(RuntimeAdapter):
                 else 'OpenCode is not yet configured for prompt-free execution; set `permission` to `"allow"`.'
             )
             if config_aligned:
-                next_step = (
-                    "Restart OpenCode so the current session picks up the prompt-free permission setting."
-                )
+                next_step = "Restart OpenCode so the current session picks up the prompt-free permission setting."
         else:
             config_aligned = not managed_by_gpd
             if managed_by_gpd:
-                message = "OpenCode is still pinned to a GPD-managed `permission = allow` setting from an earlier yolo sync."
+                message = (
+                    "OpenCode is still pinned to a GPD-managed `permission = allow` setting from an earlier yolo sync."
+                )
             elif configured_mode == "yolo":
                 message = (
                     "OpenCode is still configured for `permission = allow`, but GPD left it untouched because "

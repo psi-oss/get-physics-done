@@ -232,7 +232,7 @@ def test_representative_workflows_keep_runtime_note_and_agent_prompt_bootstrap()
         _assert_expanded_runtime_note(path)
         expanded_content = expand_at_includes(content, REPO_ROOT / "src/gpd", "/runtime/")
         if workflow_name == "explain.md":
-            assert 'prompt=filled_prompt' in content
+            assert "prompt=filled_prompt" in content
             assert 'subagent_type="gpd-explainer"' in content
             assert 'description="Explain {slug}"' in content
             continue
@@ -263,13 +263,16 @@ def test_new_project_roadmapper_spawn_contract_uses_direct_shared_state_and_arti
         ),
     )
     assert "Do not trust the runtime handoff status by itself." in content
-    assert "subagent_type=\"gpd-roadmapper\"" in task.text
-    assert "model=\"{roadmapper_model}\"" in task.text
+    assert 'subagent_type="gpd-roadmapper"' in task.text
+    assert 'model="{roadmapper_model}"' in task.text
     assert "Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability)" in task.text
     assert "gpd_return.files_written" in task.text
     assert "GPD/REQUIREMENTS.md" in task.text
     assert "do not rely on runtime completion text alone." in task.text
-    assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in content
+    assert (
+        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
+        in content
+    )
 
 
 def test_new_milestone_roadmapper_spawn_contract_keeps_return_only_shared_state_and_explicit_contract_inputs() -> None:
@@ -300,8 +303,14 @@ def test_new_milestone_roadmapper_spawn_contract_keeps_return_only_shared_state_
     assert "gpd_return.files_written" in task.text
     assert "treat existing files as stale unless the same paths appear in `gpd_return.files_written`" in task.text
     assert "GPD/REQUIREMENTS.md" in content
-    assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in content
-    assert "If any expected artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete and request a fresh continuation." in content
+    assert (
+        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
+        in content
+    )
+    assert (
+        "If any expected artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete and request a fresh continuation."
+        in content
+    )
 
 
 def test_debug_workflow_and_command_share_the_same_one_shot_debugger_contract() -> None:
@@ -350,7 +359,10 @@ def test_execute_phase_requires_state_return_envelope_and_handoff_spot_checks() 
     content = _read(WORKFLOWS_DIR / "execute-phase.md")
     executor = _find_single_task(WORKFLOWS_DIR / "execute-phase.md", "gpd-executor")
 
-    assert "Return state updates (position, decisions, metrics) in your response -- do NOT write STATE.md directly." in executor.text
+    assert (
+        "Return state updates (position, decisions, metrics) in your response -- do NOT write STATE.md directly."
+        in executor.text
+    )
     assert "State updates returned (NOT written to STATE.md directly)" in executor.text
     assert "Executor subagents MUST NOT write STATE.md directly." in content
     assert "Verify expected output files, the structured return envelope, and git commits" in content
@@ -368,7 +380,10 @@ def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_upda
     assert "write_scope:" in executor.text
     assert "expected_artifacts:" in executor.text
     assert "shared_state_policy: return_only" in executor.text
-    assert "State updates returned (NOT written to STATE.md directly) only when authoritative phase-backed persistence is actually in scope" in executor.text
+    assert (
+        "State updates returned (NOT written to STATE.md directly) only when authoritative phase-backed persistence is actually in scope"
+        in executor.text
+    )
     assert "${SWEEP_RESULTS_DIR}/point-{PADDED_INDEX}.json" in executor.text
     assert "${SWEEP_DOC_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md" in executor.text
     assert "${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json" not in executor.text
@@ -377,7 +392,10 @@ def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_upda
 def test_research_phase_verifies_research_artifact_before_accepting_handoff() -> None:
     content = _read(WORKFLOWS_DIR / "research-phase.md")
 
-    assert "Accept the researcher handoff automatically only once `expected_artifacts` exist and pass the artifact check." in content
+    assert (
+        "Accept the researcher handoff automatically only once `expected_artifacts` exist and pass the artifact check."
+        in content
+    )
     assert "Do not trust the runtime handoff status by itself." in content
     assert "Artifact gate:" in content
     assert "If `gpd_return.status: completed` but the `expected_artifacts` entry (`RESEARCH.md`) is missing" in content
@@ -442,7 +460,10 @@ def test_map_research_parallel_mappers_use_spawn_contracts_and_return_only_artif
     assert len(outputs) == len(set(outputs))
     assert len(tasks) == 4
     assert content.count("<spawn_contract>") >= 4
-    assert "Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run." in content
+    assert (
+        "Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run."
+        in content
+    )
     assert "gpd --raw config get research_mode" not in content
     assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in content
 
@@ -492,7 +513,10 @@ def test_validate_conventions_uses_one_shot_delegation_and_artifact_gating_for_r
     assert "Route only on the canonical `gpd_return.status`:" in content
     assert "Do not route on checker-local text markers or headings." in content
     assert "gpd-notation-coordinator" in content
-    assert "If the checker's `next_actions` call for notation repair, spawn `gpd-notation-coordinator` with the checker report and the same scope." in content
+    assert (
+        "If the checker's `next_actions` call for notation repair, spawn `gpd-notation-coordinator` with the checker report and the same scope."
+        in content
+    )
     assert "Keep that handoff thin: the coordinator owns the repair policy, not this workflow." in content
     assert "If the checker returns `gpd_return.status: completed`, accept success only after verifying that:" in content
     assert "The same path appears in `gpd_return.files_written`." in content
@@ -503,10 +527,21 @@ def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> 
 
     assert content.count("<spawn_contract>") >= 3
     assert "Do not trust the runtime handoff status by itself." in content
-    assert "If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing" in content
-    assert "If the synthesizer reports `gpd_return.status: completed`, verify that `GPD/literature/SUMMARY.md` is readable and named in `gpd_return.files_written`." in content
-    assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in content
-    assert "If any expected artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete and request a fresh continuation." in content
+    assert (
+        "If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing" in content
+    )
+    assert (
+        "If the synthesizer reports `gpd_return.status: completed`, verify that `GPD/literature/SUMMARY.md` is readable and named in `gpd_return.files_written`."
+        in content
+    )
+    assert (
+        "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`."
+        in content
+    )
+    assert (
+        "If any expected artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete and request a fresh continuation."
+        in content
+    )
     assert "GPD/REQUIREMENTS.md" in content
     assert "gpd_return.files_written" in content
     assert "shared_state_policy: return_only" in content
@@ -564,6 +599,29 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in referee.text
     assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in referee.text
     assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in referee.text
+
+    _assert_spawn_contract(
+        reader,
+        (
+            "${REVIEW_ROOT}/CLAIMS{round_suffix}.json",
+            "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json",
+        ),
+    )
+    _assert_spawn_contract(literature, ("${REVIEW_ROOT}/STAGE-literature{round_suffix}.json",))
+    _assert_spawn_contract(math, ("${REVIEW_ROOT}/STAGE-math{round_suffix}.json",))
+    _assert_spawn_contract(check_proof, ("${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md",))
+    _assert_spawn_contract(physics, ("${REVIEW_ROOT}/STAGE-physics{round_suffix}.json",))
+    _assert_spawn_contract(significance, ("${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json",))
+    _assert_spawn_contract(
+        referee,
+        (
+            "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md",
+            "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex",
+            "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json",
+            "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json",
+        ),
+        expected_write_paths=("${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md",),
+    )
 
 
 def test_referee_response_template_uses_round_suffixed_decision_artifacts() -> None:

@@ -25,6 +25,10 @@ def test_agent_delegation_reference_makes_one_shot_checkpoint_and_artifact_gate_
     assert "Fresh continuation ownership" in text
     assert "spawn a fresh continuation handoff" in text
     assert "must not wait for the user inside the same handoff" in text
+    assert (
+        "File-producing or state-sensitive spawned prompts must include this block directly in the prompt text" in text
+    )
+    assert "adjacent documented exemption" in text
 
 
 def test_runtime_delegation_note_reuses_the_same_one_shot_and_artifact_language() -> None:
@@ -58,10 +62,7 @@ def test_continuation_prompt_frames_the_spawn_as_a_fresh_continuation_not_an_in_
 
     assert "fresh continuation handoff owned by the orchestrator" in text
     assert "Do not wait for the user inside the spawned run." in text
-    assert (
-        "If the checkpoint payload names expected artifacts, verify them on disk "
-        "before continuing" in text
-    )
+    assert "If the checkpoint payload names expected artifacts, verify them on disk before continuing" in text
     assert (
         "New executor verifies prior commits, incorporates user response, "
         "verifies any required artifacts, and continues execution" in text

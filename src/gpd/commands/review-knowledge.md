@@ -77,8 +77,7 @@ Keep the wrapper thin and let the workflow own target resolution, review artifac
 <context>
 Review target: $ARGUMENTS
 
-@GPD/knowledge/
-@GPD/knowledge/reviews/
+Validated command-context owns knowledge target resolution. Use the explicit current-workspace canonical target returned by preflight; the workflow reads `GPD/knowledge/{knowledge_id}.md` and prior `GPD/knowledge/reviews/` artifacts only after the target is validated. Do not attach raw knowledge-directory includes from this wrapper.
 
 Use `GPD/STATE.md` only as optional background context when it exists. Strict knowledge review preflight is anchored to the explicit current-workspace knowledge target, not to project-state recovery.
 

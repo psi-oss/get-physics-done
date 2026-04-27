@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from gpd._python_compat import MIN_SUPPORTED_PYTHON_LABEL
+from gpd._python_compat import MIN_SUPPORTED_PYTHON_LABEL, PREFERRED_PYTHON_VERSIONS
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from scripts.release_workflow import (
     ReleaseError,
@@ -44,9 +44,21 @@ _EXPECTED_OPTIONAL_DEPENDENCIES = {
     "paper": ["cairosvg>=2.7.0", "pypdf>=5.0"],
     "arxiv": ["arxiv-mcp-server>=0.4.11", "arxiv>=2.4.1", "cairosvg>=2.7.0", "pypdf>=5.0"],
 }
-_OPTIONAL_DECLARED_PUBLICATION_IMPORTS = {
-    "src/gpd/mcp/paper/bibliography.py": {"arxiv"},
-    "src/gpd/mcp/paper/figures.py": {"cairosvg"},
+_OPTIONAL_IMPORT_MODULE_TO_DEPENDENCY = {
+    "arxiv": "arxiv",
+    "cairosvg": "cairosvg",
+    "pypdf": "pypdf",
+}
+_EXPECTED_OPTIONAL_IMPORT_LOCATIONS = {
+    "arxiv": {"src/gpd/mcp/paper/bibliography.py"},
+    "cairosvg": {"src/gpd/mcp/paper/figures.py"},
+    "pypdf": {"src/gpd/core/artifact_text.py", "src/gpd/mcp/paper/compiler.py"},
+}
+_EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS = {
+    "arxiv": {"arxiv"},
+    "arxiv-mcp-server": {"arxiv"},
+    "cairosvg": {"arxiv", "paper"},
+    "pypdf": {"arxiv", "paper"},
 }
 
 
@@ -154,13 +166,10 @@ def _source_wheel_package_data_paths(src_gpd: Path) -> set[str]:
 def _uv_build_blocked_by_environment(stderr: str) -> bool:
     """Detect uv failures that happen before the package build starts."""
 
-    return (
-        ("failed to open file" in stderr and "/.cache/uv/sdists" in stderr)
-        or (
-            "system-configuration" in stderr
-            and "Attempted to create a NULL object" in stderr
-            and "Tokio executor failed" in stderr
-        )
+    return ("failed to open file" in stderr and "/.cache/uv/sdists" in stderr) or (
+        "system-configuration" in stderr
+        and "Attempted to create a NULL object" in stderr
+        and "Tokio executor failed" in stderr
     )
 
 
@@ -170,19 +179,30 @@ def _copy_checkout_for_release_test(repo_root: Path, destination: Path) -> None:
         destination,
         ignore=shutil.ignore_patterns(
             ".git",
+            ".coverage",
+            ".coverage.*",
             ".mypy_cache",
+            ".nox",
             ".npm-cache",
             ".pytest_cache",
             ".ruff_cache",
+            ".tox",
             ".uv-cache",
             ".venv",
             "__pycache__",
             "*.egg-info",
+            "*.prof",
+            "*.profdata",
+            "*.profraw",
             "*.pyc",
             "*.pyo",
             "build",
+            "coverage.xml",
             "dist",
             "GPD*",
+            "htmlcov",
+            "junit.xml",
+            "pytest-report.xml",
             "tmp",
         ),
     )
@@ -205,6 +225,38 @@ def _direct_imported_modules(repo_root: Path, relative_path: str) -> set[str]:
     return modules
 
 
+def _optional_import_locations(repo_root: Path, module_names: set[str]) -> dict[str, set[str]]:
+    locations: dict[str, set[str]] = {module_name: set() for module_name in module_names}
+    for path in sorted((repo_root / "src" / "gpd").rglob("*.py")):
+        relative_path = path.relative_to(repo_root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative_path)
+        for node in ast.walk(tree):
+            imported_modules: set[str] = set()
+            if isinstance(node, ast.Import):
+                imported_modules.update(alias.name.split(".", 1)[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported_modules.add(node.module.split(".", 1)[0])
+            for module_name in imported_modules & module_names:
+                locations[module_name].add(relative_path)
+    return {module_name: paths for module_name, paths in sorted(locations.items()) if paths}
+
+
+def _string_constant_assignments(repo_root: Path, relative_path: str) -> dict[str, str]:
+    tree = ast.parse((repo_root / relative_path).read_text(encoding="utf-8"), filename=relative_path)
+    assignments: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if (
+            not isinstance(node, ast.Assign)
+            or not isinstance(node.value, ast.Constant)
+            or not isinstance(node.value.value, str)
+        ):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                assignments[target.id] = node.value.value
+    return assignments
+
+
 def _expected_runtime_dependency_names() -> set[str]:
     return {
         "jinja2",
@@ -220,9 +272,7 @@ def _expected_runtime_dependency_names() -> set[str]:
 
 def _expected_wheel_dependency_names() -> set[str]:
     optional_requirements = [
-        requirement
-        for requirements in _EXPECTED_OPTIONAL_DEPENDENCIES.values()
-        for requirement in requirements
+        requirement for requirements in _EXPECTED_OPTIONAL_DEPENDENCIES.values() for requirement in requirements
     ]
     return _expected_runtime_dependency_names() | _normalized_dependency_names(optional_requirements)
 
@@ -241,11 +291,18 @@ def _normalized_dependency_names(requirements: list[str]) -> set[str]:
     return {_normalized_requirement_name(requirement) for requirement in requirements}
 
 
+def _optional_dependency_extras(optional_dependencies: dict[str, list[str]]) -> dict[str, set[str]]:
+    extras_by_dependency: dict[str, set[str]] = {}
+    for extra_name, requirements in optional_dependencies.items():
+        for requirement in requirements:
+            dependency_name = _normalized_requirement_name(requirement)
+            extras_by_dependency.setdefault(dependency_name, set()).add(extra_name)
+    return extras_by_dependency
+
+
 def _wheel_dependency_names(metadata: str) -> set[str]:
     requirements = [
-        line.split(":", 1)[1].strip()
-        for line in metadata.splitlines()
-        if line.startswith("Requires-Dist:")
+        line.split(":", 1)[1].strip() for line in metadata.splitlines() if line.startswith("Requires-Dist:")
     ]
     return _normalized_dependency_names(requirements)
 
@@ -338,6 +395,7 @@ def test_public_metadata_records_psi_affiliation() -> None:
     assert "Physical Superintelligence PBC (PSI)" in contributing
     assert pyproject["project"]["authors"] == [{"name": "Physical Superintelligence PBC"}]
     assert pyproject["project"]["maintainers"] == [{"name": "Physical Superintelligence PBC"}]
+
 
 def test_public_release_surfaces_share_agentic_system_positioning() -> None:
     repo_root = _repo_root()
@@ -502,6 +560,10 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert f"name: pytest ${{{{ matrix.display_name }}}} ({MIN_SUPPORTED_PYTHON_LABEL})" in workflow
     assert "actions/setup-python@v6" in workflow
     assert f'python-version: "{MIN_SUPPORTED_PYTHON_LABEL}"' in workflow
+    assert "name: python compatibility (${{ matrix.python-version }})" in workflow
+    assert 'python-version: ["3.12", "3.13"]' in workflow
+    assert "uv run gpd --version" in workflow
+    assert "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}" in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "Check repo graph generated artifacts" in workflow
     assert "python scripts/sync_repo_graph_contract.py --check" in workflow
@@ -540,7 +602,7 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "gh pr create" in workflow
     assert "--jq '.[0].url // \"\"'" in workflow
     assert "--jq '.[0].url')" not in workflow
-    assert 'git add CHANGELOG.md CITATION.cff README.md package.json pyproject.toml uv.lock' in workflow
+    assert "git add CHANGELOG.md CITATION.cff README.md package.json pyproject.toml uv.lock" in workflow
     assert "Publish release" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" not in workflow
     assert "npm publish" not in workflow
@@ -591,16 +653,24 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "gh release create" in workflow
     assert "git fetch --tags origin" in workflow
     assert "--verify-tag" in workflow
-    assert "GitHub release v${VERSION} already exists at the reviewed release commit; continuing publish recovery." in workflow
+    assert (
+        "GitHub release v${VERSION} already exists at the reviewed release commit; continuing publish recovery."
+        in workflow
+    )
     assert "Tag v${VERSION} exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}." in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
     assert "Run stamped release validation" in workflow
-    assert workflow.index("Stamp actual publish date in release checkout") < workflow.index("Run stamped release validation")
+    assert workflow.index("Stamp actual publish date in release checkout") < workflow.index(
+        "Run stamped release validation"
+    )
     assert workflow.index("Run stamped release validation") < workflow.index("Publish to npm")
     assert "uv run pytest tests/test_release_consistency.py -v" in workflow
     assert "rm -rf dist\n          uv build --out-dir dist" in workflow
-    assert 'rm -rf dist\n          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json' in workflow
+    assert (
+        'rm -rf dist\n          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json'
+        in workflow
+    )
     assert (
         'rm -rf dist\n          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json'
         in workflow
@@ -619,14 +689,13 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}" in workflow
     assert 'if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then' in workflow
     assert 'echo "- GPD Web production rebuild: dispatched"' in workflow
-    assert (
-        'echo "- GPD Web production rebuild: skipped; \\`GPD_WEB_DISPATCH_TOKEN\\` is not configured"'
-        in workflow
-    )
+    assert 'echo "- GPD Web production rebuild: skipped; \\`GPD_WEB_DISPATCH_TOKEN\\` is not configured"' in workflow
     summary_lines = [line.strip() for line in workflow.splitlines()]
     condition_index = summary_lines.index('if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then')
     dispatched_index = summary_lines.index('echo "- GPD Web production rebuild: dispatched"')
-    else_index = next(index for index in range(condition_index + 1, len(summary_lines)) if summary_lines[index] == "else")
+    else_index = next(
+        index for index in range(condition_index + 1, len(summary_lines)) if summary_lines[index] == "else"
+    )
     skipped_index = summary_lines.index(
         'echo "- GPD Web production rebuild: skipped; \\`GPD_WEB_DISPATCH_TOKEN\\` is not configured"'
     )
@@ -642,27 +711,34 @@ def test_publish_release_followup_recreates_or_fails_when_branch_exists_without_
         'origin "HEAD:${FOLLOWUP_BRANCH}"'
     )
     branch_exists_block = workflow[
-        workflow.index('if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH"')
-        : workflow.index('prepare_followup_branch\n          git push --set-upstream origin "$FOLLOWUP_BRANCH"')
+        workflow.index('if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH"') : workflow.index(
+            'prepare_followup_branch\n          git push --set-upstream origin "$FOLLOWUP_BRANCH"'
+        )
     ]
 
     assert 'if [ -n "$PR_URL" ]; then' in branch_exists_block
     assert "--jq '.[0].url // \"\"'" in branch_exists_block
     assert 'EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk' in branch_exists_block
-    assert 'echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found' in branch_exists_block
+    assert (
+        'echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found'
+        in branch_exists_block
+    )
     assert "restamping and updating the branch before recreating the PR" in branch_exists_block
     assert "prepare_followup_branch" in branch_exists_block
     assert force_with_lease_push in branch_exists_block
     assert 'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"' in branch_exists_block
     assert 'if [ -z "$PR_URL" ]; then' in branch_exists_block
-    assert 'echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} exists, but no open PR URL could be found' in branch_exists_block
-    assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < branch_exists_block.index(
-        "prepare_followup_branch"
+    assert (
+        'echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} exists, but no open PR URL could be found'
+        in branch_exists_block
     )
+    assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < branch_exists_block.index("prepare_followup_branch")
     assert branch_exists_block.index("prepare_followup_branch") < branch_exists_block.index(force_with_lease_push)
-    assert branch_exists_block.index(force_with_lease_push) < branch_exists_block.index(
-        'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"'
-    ) < branch_exists_block.index("if [ -z \"$PR_URL\" ]; then")
+    assert (
+        branch_exists_block.index(force_with_lease_push)
+        < branch_exists_block.index('gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"')
+        < branch_exists_block.index('if [ -z "$PR_URL" ]; then')
+    )
 
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:
@@ -673,9 +749,7 @@ def test_claude_sdk_is_not_shipped_in_public_install() -> None:
 
     assert not any(item.startswith("claude-agent-sdk") for item in dependencies)
     assert "claude-subagents" not in optional
-    assert not any(
-        item.startswith("claude-agent-sdk") for items in optional.values() for item in items
-    )
+    assert not any(item.startswith("claude-agent-sdk") for items in optional.values() for item in items)
     assert "scientific" not in optional
 
 
@@ -689,21 +763,38 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     assert optional == _EXPECTED_OPTIONAL_DEPENDENCIES
 
 
+def test_public_python_classifiers_cover_supported_compatibility_minors() -> None:
+    repo_root = _repo_root()
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    classifiers = set(project["classifiers"])
+    expected_classifiers = {
+        f"Programming Language :: Python :: {major}.{minor}" for major, minor in PREFERRED_PYTHON_VERSIONS
+    }
+
+    assert expected_classifiers <= classifiers
+
+
 def test_optional_publication_imports_stay_explicitly_declared_integrations() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
     optional = project.get("optional-dependencies", {})
     runtime_requirement_names = _normalized_dependency_names(dependencies)
-    optional_requirement_names = _normalized_dependency_names(
-        [requirement for requirements in optional.values() for requirement in requirements]
+    optional_extras_by_dependency = _optional_dependency_extras(optional)
+
+    assert _optional_import_locations(repo_root, set(_OPTIONAL_IMPORT_MODULE_TO_DEPENDENCY)) == (
+        _EXPECTED_OPTIONAL_IMPORT_LOCATIONS
     )
 
-    for relative_path, expected_imports in _OPTIONAL_DECLARED_PUBLICATION_IMPORTS.items():
-        direct_imports = _direct_imported_modules(repo_root, relative_path)
-        assert direct_imports & expected_imports == expected_imports
-        assert not expected_imports & runtime_requirement_names
-        assert expected_imports <= optional_requirement_names
+    for module_name, dependency_name in _OPTIONAL_IMPORT_MODULE_TO_DEPENDENCY.items():
+        assert dependency_name not in runtime_requirement_names
+        assert module_name in _EXPECTED_OPTIONAL_IMPORT_LOCATIONS
+        assert _EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS[dependency_name] <= optional_extras_by_dependency[dependency_name]
+
+    bridge_constants = _string_constant_assignments(repo_root, "src/gpd/mcp/servers/arxiv_bridge.py")
+    assert bridge_constants["UPSTREAM_ARXIV_MODULE"] == "arxiv_mcp_server"
+    assert "arxiv-mcp-server" not in runtime_requirement_names
+    assert _EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS["arxiv-mcp-server"] <= optional_extras_by_dependency["arxiv-mcp-server"]
 
 
 def test_registry_command_surface_rewrite_surfaces_live_registry_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -756,9 +847,7 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
             assert marker not in content, f"{path.name} should not mention {marker!r}"
         assert json.loads(content) == expected_descriptors[path.stem]
 
-    assert {
-        path.stem for path in (repo_root / "infra").glob("gpd-*.json")
-    } == set(expected_descriptors)
+    assert {path.stem for path in (repo_root / "infra").glob("gpd-*.json")} == set(expected_descriptors)
 
 
 def test_public_gpd_infra_descriptors_use_entry_points_not_python() -> None:
@@ -775,6 +864,24 @@ def test_gitignore_covers_repo_local_npm_cache() -> None:
     assert ".npm-cache/" in (repo_root / ".gitignore").read_text(encoding="utf-8")
 
 
+def test_gitignore_covers_repo_local_uv_cache_and_test_reports() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / ".gitignore").read_text(encoding="utf-8")
+
+    assert ".uv-cache/" in content
+    assert ".tox/" in content
+    assert ".nox/" in content
+    assert ".coverage" in content
+    assert ".coverage.*" in content
+    assert "coverage.xml" in content
+    assert "htmlcov/" in content
+    assert "junit.xml" in content
+    assert "pytest-report.xml" in content
+    assert "*.prof" in content
+    assert "*.profraw" in content
+    assert "*.profdata" in content
+
+
 def test_gitignore_covers_repo_local_tmp_root() -> None:
     repo_root = _repo_root()
     content = (repo_root / ".gitignore").read_text(encoding="utf-8")
@@ -787,6 +894,7 @@ def test_gitignore_covers_local_gpd_fix_reports() -> None:
     content = (repo_root / ".gitignore").read_text(encoding="utf-8")
 
     assert "GPD-FIX-REPORT-*.md" in content
+    assert "GPD-FIX-REPORT*/" in content
 
 
 def test_gitignore_covers_runtime_config_dirs_from_runtime_catalog() -> None:
@@ -838,11 +946,15 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path, check=True, capture_output=True,
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test"],
-        cwd=tmp_path, check=True, capture_output=True,
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
 
     # Seed an initial commit so HEAD exists.
@@ -850,7 +962,9 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
-        cwd=tmp_path, check=True, capture_output=True,
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
 
     # Stage a GPD file and a non-GPD file.
@@ -873,7 +987,10 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     # GPD/STATE.md should be unstaged; real.txt should remain staged.
     staged = subprocess.run(
         ["git", "diff", "--cached", "--name-only"],
-        cwd=tmp_path, capture_output=True, text=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     staged_files = staged.stdout.strip().splitlines()
     assert "real.txt" in staged_files
@@ -947,9 +1064,7 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_cache = repo_root / ".npm-cache"
     existed_before = repo_cache.exists()
     before_paths = (
-        sorted(path.relative_to(repo_cache).as_posix() for path in repo_cache.rglob("*"))
-        if existed_before
-        else []
+        sorted(path.relative_to(repo_cache).as_posix() for path in repo_cache.rglob("*")) if existed_before else []
     )
 
     pack = _npm_pack_dry_run(repo_root, tmp_path)
@@ -994,6 +1109,17 @@ def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None
         (build_root / "tests" / "gpd-sdist-hygiene-leak.pyo", b"pyo"),
         (build_root / ".npm-cache" / "gpd-sdist-hygiene-leak.txt", b"cache"),
         (build_root / ".uv-cache" / "gpd-sdist-hygiene-leak.txt", b"uv-cache"),
+        (build_root / ".tox" / "py312" / "gpd-sdist-hygiene-leak.txt", b"tox"),
+        (build_root / ".nox" / "tests" / "gpd-sdist-hygiene-leak.txt", b"nox"),
+        (build_root / "htmlcov" / "index.html", b"coverage"),
+        (build_root / ".coverage", b"coverage"),
+        (build_root / ".coverage.local", b"coverage"),
+        (build_root / "coverage.xml", b"coverage"),
+        (build_root / "junit.xml", b"junit"),
+        (build_root / "pytest-report.xml", b"pytest"),
+        (build_root / "profile.prof", b"profile"),
+        (build_root / "coverage.profraw", b"profile"),
+        (build_root / "coverage.profdata", b"profile"),
         (build_root / "build" / "gpd-sdist-hygiene-leak.txt", b"build"),
         (build_root / "dist" / "gpd-sdist-hygiene-leak.tar.gz", b"dist"),
         (build_root / "tmp" / "gpd-sdist-hygiene-leak.txt", b"tmp"),
@@ -1032,25 +1158,31 @@ def test_python_sdist_excludes_local_generated_artifacts(tmp_path: Path) -> None
     forbidden_fragments = (
         ".DS_Store",
         "__pycache__/",
+        ".coverage",
         ".mypy_cache/",
+        ".nox/",
         ".npm-cache/",
         ".pytest_cache/",
         ".ruff_cache/",
+        ".tox/",
         ".uv-cache/",
         ".venv/",
         ".egg-info/",
+        ".prof",
+        ".profdata",
+        ".profraw",
         ".pyc",
         ".pyo",
         "/build/",
+        "/coverage.xml",
         "/GPD-FIX-REPORT",
+        "/htmlcov/",
+        "/junit.xml",
+        "/pytest-report.xml",
         "/dist/",
         "/tmp/",
     )
-    assert not [
-        name
-        for name in sorted(names)
-        if any(fragment in name for fragment in forbidden_fragments)
-    ]
+    assert not [name for name in sorted(names) if any(fragment in name for fragment in forbidden_fragments)]
 
 
 def test_python_wheel_contains_public_metadata_console_scripts_and_package_data(tmp_path: Path) -> None:
@@ -1138,12 +1270,7 @@ def test_python_wheel_contains_public_metadata_console_scripts_and_package_data(
         "/GPD-FIX-REPORT",
         "/tmp/",
     )
-    assert not [
-        name
-        for name in sorted(names)
-        if any(fragment in name for fragment in forbidden_fragments)
-    ]
-
+    assert not [name for name in sorted(names) if any(fragment in name for fragment in forbidden_fragments)]
 
 
 def test_prepare_release_updates_all_versioned_public_surfaces(tmp_path: Path) -> None:
@@ -1156,7 +1283,9 @@ def test_prepare_release_updates_all_versioned_public_surfaces(tmp_path: Path) -
 
     changelog_path = tmp_path / "CHANGELOG.md"
     changelog_path.write_text(
-        (repo_root / "CHANGELOG.md").read_text(encoding="utf-8").replace(
+        (repo_root / "CHANGELOG.md")
+        .read_text(encoding="utf-8")
+        .replace(
             "All notable changes to Get Physics Done are documented here.\n\n",
             "All notable changes to Get Physics Done are documented here.\n\n"
             "## vNEXT\n\n"

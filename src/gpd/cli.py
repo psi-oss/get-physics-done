@@ -1386,7 +1386,9 @@ def state_validate() -> None:
     """Validate state consistency and schema compliance."""
     from gpd.core.state import state_validate as core_state_validate
 
-    result = core_state_validate(_read_only_marker_backed_project_scoped_cwd(), recover_intent=False, acquire_lock=False)
+    result = core_state_validate(
+        _read_only_marker_backed_project_scoped_cwd(), recover_intent=False, acquire_lock=False
+    )
     _output(result)
     if hasattr(result, "valid") and not result.valid:
         raise typer.Exit(code=1)
@@ -1581,11 +1583,7 @@ def contract_context_fingerprint_cmd(
     project_root = _require_project_root(_get_cwd(), command_label="gpd contract commands")
     if path is None:
         state_obj = state_load(project_root).state
-        current_phase = (
-            state_obj.get("position", {}).get("current_phase")
-            if isinstance(state_obj, dict)
-            else None
-        )
+        current_phase = state_obj.get("position", {}).get("current_phase") if isinstance(state_obj, dict) else None
         if current_phase is None:
             _error(
                 "No CONTEXT.md could be resolved: state.position.current_phase is "
@@ -1593,9 +1591,7 @@ def contract_context_fingerprint_cmd(
             )
         phase_info = find_phase(project_root, str(current_phase))
         if phase_info is None:
-            _error(
-                f"No CONTEXT.md could be resolved: phase {current_phase!r} not found."
-            )
+            _error(f"No CONTEXT.md could be resolved: phase {current_phase!r} not found.")
         phase_dir = project_root / phase_info.directory
         resolved = _find_phase_artifact_path(phase_dir, CONTEXT_SUFFIX, STANDALONE_CONTEXT)
         if resolved is None:
@@ -2415,7 +2411,9 @@ def _recent_project_resume_file_state(project_root: object, resume_file: object)
     candidate = Path(resume_file).expanduser()
     try:
         resolved_target = (
-            candidate.resolve(strict=False) if candidate.is_absolute() else (project_path / candidate).resolve(strict=False)
+            candidate.resolve(strict=False)
+            if candidate.is_absolute()
+            else (project_path / candidate).resolve(strict=False)
         )
     except OSError:
         return False, "resume file unavailable"
@@ -2489,7 +2487,9 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
                 except OSError:
                     derived_availability_reason = "project unavailable on this machine"
                 else:
-                    derived_availability_reason = "project root is not a directory" if project_exists else "project root missing"
+                    derived_availability_reason = (
+                        "project root is not a directory" if project_exists else "project root missing"
+                    )
     normalized: dict[str, object] = {
         "project_root": project_root,
         "workspace": _format_display_path(project_path),
@@ -3221,9 +3221,7 @@ def progress(
         _output(progress_render(cwd, fmt))
         return
     if fmt != "json":
-        err_console.print(
-            f"[dim]--watch overrides fmt={fmt!r} → 'json' for live execution rendering.[/dim]"
-        )
+        err_console.print(f"[dim]--watch overrides fmt={fmt!r} → 'json' for live execution rendering.[/dim]")
         fmt = "json"
     try:
         _run_progress_watch_loop(cwd, fmt, interval, exit_on_idle, raw_mode=_raw)
@@ -7256,11 +7254,7 @@ def _discover_literature_review_citation_sources(
     if not matches:
         return None, None
     bound_stems = _citation_source_bound_stems(paper_config)
-    bound_matches = [
-        path
-        for path in matches
-        if path.name[: -len("-CITATION-SOURCES.json")].casefold() in bound_stems
-    ]
+    bound_matches = [path for path in matches if path.name[: -len("-CITATION-SOURCES.json")].casefold() in bound_stems]
     if len(bound_matches) == 1:
         return bound_matches[0], None
     if len(bound_matches) > 1:
@@ -7441,7 +7435,10 @@ def _progress_reconcile_confirmation_check(command: object) -> tuple[bool, str]:
     allowed_tools = set(getattr(command, "allowed_tools", []) or [])
     if "ask_user" in allowed_tools:
         return True, "ask_user is available before progress reconciliation writes state"
-    return False, "progress --reconcile requires ask_user or an explicit typed-confirmation contract before state writes"
+    return (
+        False,
+        "progress --reconcile requires ask_user or an explicit typed-confirmation contract before state writes",
+    )
 
 
 def _write_paper_external_authoring_intake_argument(arguments: str | None) -> str | None:
@@ -7476,9 +7473,9 @@ def _resolve_write_paper_external_authoring_intake(
         return None
 
     workspace_root = (workspace_cwd or project_root).resolve(strict=False)
-    intake_path = (_resolve_subject_path(intake_argument, base=workspace_root) or (workspace_root / intake_argument)).resolve(
-        strict=False
-    )
+    intake_path = (
+        _resolve_subject_path(intake_argument, base=workspace_root) or (workspace_root / intake_argument)
+    ).resolve(strict=False)
     if intake_path.suffix.lower() != ".json":
         return WritePaperExternalAuthoringIntakeResolution(
             status="invalid",
@@ -7532,8 +7529,7 @@ def _resolve_write_paper_external_authoring_intake(
         manifest = WritePaperAuthoringInput.model_validate(payload)
     except PydanticValidationError as exc:
         details = "; ".join(
-            _format_pydantic_schema_error(error, root_label="write_paper_authoring_input")
-            for error in exc.errors()[:3]
+            _format_pydantic_schema_error(error, root_label="write_paper_authoring_input") for error in exc.errors()[:3]
         )
         return WritePaperExternalAuthoringIntakeResolution(
             status="invalid",
@@ -7545,12 +7541,7 @@ def _resolve_write_paper_external_authoring_intake(
         )
 
     subject_slug = _write_paper_external_authoring_subject_slug(manifest)
-    publication_root = (
-        project_root.resolve(strict=False)
-        / PLANNING_DIR_NAME
-        / PUBLICATION_DIR_NAME
-        / subject_slug
-    )
+    publication_root = project_root.resolve(strict=False) / PLANNING_DIR_NAME / PUBLICATION_DIR_NAME / subject_slug
     manuscript_root = publication_root / PUBLICATION_MANUSCRIPT_DIR_NAME
     intake_root = publication_root / "intake"
     return WritePaperExternalAuthoringIntakeResolution(
@@ -8264,7 +8255,12 @@ def _managed_publication_slug_for_target(project_root: Path, target: Path | None
     except ValueError:
         return None
     parts = relative.parts
-    if len(parts) >= 4 and parts[0] == PLANNING_DIR_NAME and parts[1] == PUBLICATION_DIR_NAME and parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME:
+    if (
+        len(parts) >= 4
+        and parts[0] == PLANNING_DIR_NAME
+        and parts[1] == PUBLICATION_DIR_NAME
+        and parts[3] == PUBLICATION_MANUSCRIPT_DIR_NAME
+    ):
         return parts[2]
     return None
 
@@ -8314,7 +8310,9 @@ def _review_preflight_publication_routing(
     """Return publication routing fields emitted by raw review-preflight."""
     selected_publication_root = context_preflight.selected_publication_root
     selected_review_root = context_preflight.selected_review_root
-    manuscript_root = _supported_manuscript_root_for_target(project_root, manuscript) if manuscript is not None else None
+    manuscript_root = (
+        _supported_manuscript_root_for_target(project_root, manuscript) if manuscript is not None else None
+    )
     if manuscript is not None and manuscript_root is None:
         manuscript_root = manuscript.parent
 
@@ -8354,7 +8352,8 @@ def _resolved_subject_uses_managed_publication_root(resolved_subject: ResolvedCo
     return (
         resolved_subject is not None
         and resolved_subject.subject_kind == "manuscript"
-        and _managed_publication_slug_for_target(resolved_subject.context_root, resolved_subject.target_path) is not None
+        and _managed_publication_slug_for_target(resolved_subject.context_root, resolved_subject.target_path)
+        is not None
     )
 
 
@@ -8367,9 +8366,7 @@ def _command_managed_output_bindings(
     manuscript_entrypoint = _resolved_subject_manuscript_entrypoint(resolved_subject)
     if manuscript_entrypoint is None:
         return {}
-    return {
-        "subject_slug": _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript_entrypoint)
-    }
+    return {"subject_slug": _publication_subject_slug_for_manuscript_entrypoint(project_root, manuscript_entrypoint)}
 
 
 def _command_managed_output_policy(
@@ -8418,7 +8415,9 @@ def _command_managed_output_policy(
 
     stage_policy_raw = str(getattr(output_policy, "stage_artifact_policy", "") or "").strip().casefold()
     stage_artifact_policy = (
-        StageArtifactPolicy.ALLOWED if stage_policy_raw in {"allowed", "gpd_owned_outputs_only"} else StageArtifactPolicy.DISALLOWED
+        StageArtifactPolicy.ALLOWED
+        if stage_policy_raw in {"allowed", "gpd_owned_outputs_only"}
+        else StageArtifactPolicy.DISALLOWED
     )
 
     output_mode = str(getattr(output_policy, "output_mode", "") or "").strip().casefold()
@@ -8534,7 +8533,9 @@ def _resolve_review_knowledge_target(
     if not _looks_like_digest_knowledge_path_token(candidate):
         return "invalid", None, "review target must be a canonical K-* id or GPD/knowledge/{knowledge_id}.md path"
 
-    target_path = (_resolve_subject_path(candidate, base=workspace_root) or (workspace_root / candidate)).resolve(strict=False)
+    target_path = (_resolve_subject_path(candidate, base=workspace_root) or (workspace_root / candidate)).resolve(
+        strict=False
+    )
     try:
         relative = target_path.relative_to(context_root.resolve(strict=False))
     except ValueError:
@@ -8604,10 +8605,7 @@ def _build_nonpublication_resolved_command_subject(
     explicit_inputs = _command_explicit_input_labels_from_policy(command)
     subject_kind = _command_subject_kind(command) or "subject"
 
-    if (
-        not (isinstance(subject, str) and subject.strip())
-        and _command_allows_interactive_subject_intake(command)
-    ):
+    if not (isinstance(subject, str) and subject.strip()) and _command_allows_interactive_subject_intake(command):
         return ResolvedCommandSubject(
             command=str(getattr(command, "name", "") or ""),
             workspace_root=workspace_root,
@@ -8687,7 +8685,9 @@ def _build_nonpublication_resolved_command_subject(
     elif resolution_mode == "knowledge_input":
         first = tokens[0]
         if _looks_like_digest_knowledge_path_token(first):
-            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(
+                strict=False
+            )
             target_root = target_path if target_path.is_dir() else target_path.parent
             detail = f"explicit knowledge input path {_format_display_path(target_path)}"
         elif _looks_like_digest_knowledge_arxiv_token(first):
@@ -8697,7 +8697,9 @@ def _build_nonpublication_resolved_command_subject(
     elif resolution_mode in {"compare_subject", "compare_experiment_subject"}:
         first = tokens[0]
         if _looks_like_digest_knowledge_path_token(first):
-            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(
+                strict=False
+            )
             target_root = target_path if target_path.is_dir() else target_path.parent
             detail = f"explicit comparison target {_format_display_path(target_path)}"
         else:
@@ -8705,7 +8707,9 @@ def _build_nonpublication_resolved_command_subject(
     elif resolution_mode == "explanation_input":
         first = tokens[0]
         if _looks_like_digest_knowledge_path_token(first):
-            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(strict=False)
+            target_path = (_resolve_subject_path(first, base=workspace_root) or (workspace_root / first)).resolve(
+                strict=False
+            )
             target_root = target_path if target_path.is_dir() else target_path.parent
             detail = f"explicit explanation anchor {_format_display_path(target_path)}"
         else:
@@ -8817,11 +8821,7 @@ def _build_resolved_command_subject(
         intake_target_root = (
             intake_resolution.manuscript_root
             or intake_resolution.intake_root
-            or (
-                intake_resolution.intake_path.parent
-                if intake_resolution.intake_path is not None
-                else None
-            )
+            or (intake_resolution.intake_path.parent if intake_resolution.intake_path is not None else None)
         )
         if intake_resolution.status == "resolved":
             return ResolvedCommandSubject(
@@ -9294,7 +9294,9 @@ def _build_command_context_preflight(
                 selected_root = reentry.resolved_project_root or context_cwd
                 selected_root_source = reentry.source or "workspace"
             selected_root_auto_selected = current_workspace_candidate is None and reentry.auto_selected
-            selected_root_requires_user_selection = current_workspace_candidate is None and reentry.requires_user_selection
+            selected_root_requires_user_selection = (
+                current_workspace_candidate is None and reentry.requires_user_selection
+            )
             selected_reentry_mode = "current-workspace" if current_workspace_candidate is not None else reentry.mode
             layout = ProjectLayout(selected_root)
             state_exists, roadmap_exists, project_exists = recoverable_project_context(selected_root)
@@ -9548,13 +9550,17 @@ def _build_command_context_preflight(
             )
         reconcile_confirmation_passed = True
         if _progress_reconcile_requested(command, arguments):
-            reconcile_confirmation_passed, reconcile_confirmation_detail = _progress_reconcile_confirmation_check(command)
+            reconcile_confirmation_passed, reconcile_confirmation_detail = _progress_reconcile_confirmation_check(
+                command
+            )
             add_check(
                 "reconcile_confirmation",
                 reconcile_confirmation_passed,
                 reconcile_confirmation_detail,
             )
-        passed = project_exists and required_files_present and manuscript_context_passed and reconcile_confirmation_passed
+        passed = (
+            project_exists and required_files_present and manuscript_context_passed and reconcile_confirmation_passed
+        )
         guidance = (
             ""
             if passed
@@ -9592,7 +9598,9 @@ def _build_command_context_preflight(
 
     explicit_inputs = _command_explicit_input_labels_from_policy(command)
     if not explicit_inputs:
-        explicit_inputs = [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"]
+        explicit_inputs = (
+            [command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"]
+        )
     predicate = _PROJECT_AWARE_EXPLICIT_INPUT_PREDICATES.get(
         str(getattr(command, "name", "") or ""),
         _has_simple_positional_inputs,
@@ -9615,9 +9623,8 @@ def _build_command_context_preflight(
         interactive_intake_allowed = resolved_subject.status == "interactive"
     else:
         explicit_inputs_ok = predicate(arguments)
-        if (
-            str(getattr(command, "name", "") or "") == "gpd:write-paper"
-            and _has_write_paper_external_authoring_intake(arguments)
+        if str(getattr(command, "name", "") or "") == "gpd:write-paper" and _has_write_paper_external_authoring_intake(
+            arguments
         ):
             explicit_inputs_ok = bool(
                 resolved_subject is not None
@@ -10469,9 +10476,7 @@ def _build_review_preflight(
                                     manuscript,
                                     cwd=project_cwd,
                                 )
-                                review_ledger_round_valid = (
-                                    review_ledger.round == required_review_round.round_number
-                                )
+                                review_ledger_round_valid = review_ledger.round == required_review_round.round_number
                                 if "review_ledger_valid" in review_checks_requested:
                                     review_ledger_reasons: list[str] = []
                                     if not review_ledger_manuscript_valid:
@@ -11538,7 +11543,11 @@ def paper_build(
     storage_layout = ProjectStorageLayout(storage_root)
     managed_output_policies = tuple(
         policy
-        for policy in (_managed_publication_manuscript_output_policy(project_root=project_root, manuscript_config_path=config_file),)
+        for policy in (
+            _managed_publication_manuscript_output_policy(
+                project_root=project_root, manuscript_config_path=config_file
+            ),
+        )
         if policy is not None
     )
     storage_layout.validate_final_output(output_path, managed_output_policies=managed_output_policies)
@@ -11746,7 +11755,9 @@ def resolve_model_cmd(
             else resolve_context_model(_get_cwd(), agent_name)
         )
         if explain:
-            effective_runtime = runtime if runtime is not None else normalize_runtime_name(detect_context_runtime(_get_cwd()))
+            effective_runtime = (
+                runtime if runtime is not None else normalize_runtime_name(detect_context_runtime(_get_cwd()))
+            )
             tier = resolve_tier(_get_cwd(), agent_name).value
             if resolved_model is not None:
                 detail = (
@@ -12488,7 +12499,9 @@ def _install_repairable_runtime_target_messages(report: object, runtime_name: st
         target_assessment = details.get("target_assessment")
         assessment_payload = target_assessment if isinstance(target_assessment, dict) else details
         manifest_runtime = normalize_runtime_name(str(assessment_payload.get("manifest_runtime") or "")) or None
-        expected_runtime = normalize_runtime_name(str(assessment_payload.get("expected_runtime") or "")) or canonical_runtime
+        expected_runtime = (
+            normalize_runtime_name(str(assessment_payload.get("expected_runtime") or "")) or canonical_runtime
+        )
         if manifest_runtime not in {None, canonical_runtime} or expected_runtime != canonical_runtime:
             continue
         issues = [str(issue) for issue in getattr(check, "issues", []) or [] if str(issue).strip()]
@@ -12777,6 +12790,12 @@ def install(
         _print_install_summary(results)
 
     if failures:
+        if not _raw:
+            console.print()
+            err_console.print("[bold red]Install failures:[/]", highlight=False)
+            for rt, err in failures:
+                adapter = _get_adapter_or_error(rt, action="install failure reporting")
+                err_console.print(f"- {adapter.display_name} ({rt}): {err}", highlight=False, soft_wrap=True)
         raise typer.Exit(code=1)
 
 
@@ -12798,6 +12817,13 @@ def uninstall(
     local_uninstall: bool = typer.Option(False, "--local", help="Uninstall from local config"),
     global_uninstall: bool = typer.Option(False, "--global", help="Uninstall from global config"),
     target_dir: str | None = typer.Option(None, "--target-dir", help="Override target directory (testing)"),
+    assume_yes: bool = typer.Option(
+        False,
+        "--yes",
+        "--force",
+        "-y",
+        help="Confirm uninstall without prompting",
+    ),
 ) -> None:
     """Remove GPD skills, agents, and hooks from runtime config directories.
 
@@ -12845,10 +12871,15 @@ def uninstall(
     else:
         is_global = global_uninstall
 
-    if not _raw and not target_dir:
+    if not _raw and not assume_yes:
         location_label = "global" if is_global else "local"
         runtime_names = _format_runtime_list(selected)
-        if not Confirm.ask(f"Remove GPD from {runtime_names} ({location_label})?", default=False):
+        if target_dir:
+            resolved_target = _resolve_cli_target_dir(target_dir)
+            confirm_message = f"Remove GPD from {runtime_names} at {_format_display_path(resolved_target)}?"
+        else:
+            confirm_message = f"Remove GPD from {runtime_names} ({location_label})?"
+        if not Confirm.ask(confirm_message, default=False):
             console.print("[dim]Cancelled.[/]")
             raise typer.Exit()
 
@@ -12977,9 +13008,7 @@ def mcp_serve(
 
     if server not in _BUILTIN_SERVERS:
         managed_server_keys = {integration.managed_server_key for integration in managed_aliases.values()}
-        available = ", ".join(
-            sorted(set(_BUILTIN_SERVERS.keys()) | managed_server_keys)
-        )
+        available = ", ".join(sorted(set(_BUILTIN_SERVERS.keys()) | managed_server_keys))
         raise typer.BadParameter(f"Unknown server: {server}. Available: {available}")
 
     entry = _BUILTIN_SERVERS[server]

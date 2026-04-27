@@ -1381,6 +1381,66 @@ Done.
     assert "empty_reference_commands_absent" in blocker_checks
 
 
+def test_build_paper_quality_input_ignores_commented_citations_and_references(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.md",
+        """
+# Curvature Flow Bounds
+
+## Abstract
+Markdown manuscript test.
+
+## Introduction
+% See \\cite{missing2026}, \\cite{MISSING:legacy}, and Eq.~\\eqref{}.
+No active citation here.
+
+## Conclusion
+Done.
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Curvature Flow Bounds", "jhep")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.citations.citation_keys_resolve.total == 0
+    assert result.citations.missing_placeholders.passed is True
+    assert result.journal_extra_checks["empty_citation_commands_absent"] is True
+    assert result.journal_extra_checks["empty_reference_commands_absent"] is True
+
+
+def test_build_paper_quality_input_preserves_escaped_percent_before_citation_lint(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.md",
+        """
+# Curvature Flow Bounds
+
+## Abstract
+Markdown manuscript test.
+
+## Introduction
+Value is 50\\% of \\cite{missing2026}; see Eq.~\\Cref{}.
+
+## Conclusion
+Done.
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Curvature Flow Bounds", "jhep")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.citations.citation_keys_resolve.total == 1
+    assert result.citations.citation_keys_resolve.satisfied == 0
+    assert result.journal_extra_checks["empty_reference_commands_absent"] is False
+
+
 def test_build_paper_quality_input_collects_comparison_verdicts_from_active_manuscript_root(tmp_path: Path) -> None:
     _write(
         tmp_path / "manuscript" / "curvature_flow_bounds.tex",

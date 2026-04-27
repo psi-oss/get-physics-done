@@ -247,6 +247,7 @@ Run the discovery:
 <step name="create_discovery_output">
 For Level 2-3, ensure the output directory exists and write the discovery artifact:
 
+This workflow is the documented write route for `gpd:discover` managed outputs.
 Keep standalone discovery artifacts rooted under `GPD/analysis/` in the current workspace.
 
 **Phase-scoped:** `${phase_dir}/RESEARCH.md`

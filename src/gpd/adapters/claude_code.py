@@ -95,6 +95,7 @@ def _validated_deferred_install_payload(
 
     return settings_path, settings, statusline_command, should_install_statusline
 
+
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "Read",
     "file_write": "Write",
@@ -239,6 +240,33 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         """Defer settings.json validation until finalize_install()."""
         return self.install_detection_relpaths()
 
+    def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
+        """Fail before copying files when Claude-owned config is malformed."""
+        settings_path = target_dir / "settings.json"
+        _, settings_parse_error = _read_claude_settings_state(settings_path)
+        if settings_parse_error is not None:
+            raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during install.")
+
+        project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
+        mcp_servers = _build_managed_mcp_servers(cwd=project_cwd)
+        if not mcp_servers:
+            return
+
+        mcp_config_path = _mcp_config_path(target_dir, is_global=is_global)
+        if not mcp_config_path.exists():
+            return
+
+        try:
+            mcp_config = parse_jsonc(mcp_config_path.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as exc:
+            raise RuntimeError(
+                f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
+            ) from exc
+        if not isinstance(mcp_config, dict) or not _claude_mcp_config_shape_is_valid(mcp_config):
+            raise RuntimeError(
+                f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
+            )
+
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
         settings_state, settings_parse_error = _read_claude_settings_state(settings_path)
@@ -324,12 +352,20 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         settings = settings or {}
         permissions = settings.get("permissions")
         permissions_dict = permissions if isinstance(permissions, dict) else {}
-        default_mode = permissions_dict.get("defaultMode") if isinstance(permissions_dict.get("defaultMode"), str) else None
+        default_mode = (
+            permissions_dict.get("defaultMode") if isinstance(permissions_dict.get("defaultMode"), str) else None
+        )
         bypass_disabled = permissions_dict.get("disableBypassPermissionsMode") == "disable"
         desired_mode = "yolo" if autonomy == "yolo" else "default"
         managed_state = self._runtime_permissions_manifest_state(target_dir) or {}
         managed_by_gpd = managed_state.get("mode") == "yolo"
-        config_aligned = False if not config_valid else default_mode == "bypassPermissions" if desired_mode == "yolo" else not managed_by_gpd
+        config_aligned = (
+            False
+            if not config_valid
+            else default_mode == "bypassPermissions"
+            if desired_mode == "yolo"
+            else not managed_by_gpd
+        )
         requires_relaunch = desired_mode == "yolo" and config_aligned
         next_step: str | None = None
         message = "Claude Code is using its normal permission mode."
@@ -352,7 +388,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             else:
                 message = "Claude Code is not yet configured to open in bypassPermissions mode."
         elif managed_by_gpd:
-            message = "Claude Code is still pinned to a GPD-managed bypassPermissions default from an earlier yolo sync."
+            message = (
+                "Claude Code is still pinned to a GPD-managed bypassPermissions default from an earlier yolo sync."
+            )
         return {
             "runtime": self.runtime_name,
             "desired_mode": desired_mode,
@@ -401,7 +439,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                         "remove the managed restriction to get uninterrupted yolo execution."
                     ),
                 }
-            current_mode = permissions_dict.get("defaultMode") if isinstance(permissions_dict.get("defaultMode"), str) else None
+            current_mode = (
+                permissions_dict.get("defaultMode") if isinstance(permissions_dict.get("defaultMode"), str) else None
+            )
             if current_mode != "bypassPermissions":
                 restore_state = {
                     "had_permissions": settings_had_permissions,
@@ -589,9 +629,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 except (ValueError, OSError):
                     mcp_config = None
                 if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
-                    removed_keys = [
-                        key for key in list(mcp_config["mcpServers"]) if key in _managed_mcp_server_keys()
-                    ]
+                    removed_keys = [key for key in list(mcp_config["mcpServers"]) if key in _managed_mcp_server_keys()]
                     if removed_keys:
                         for key in removed_keys:
                             del mcp_config["mcpServers"][key]

@@ -258,6 +258,73 @@ def load_install_manifest_explicit_target_status(config_dir: Path) -> tuple[str,
     return "ok", payload, explicit_target
 
 
+def _safe_manifest_relpath(value: object) -> str | None:
+    install_utils = import_module("gpd.adapters.install_utils")
+    return install_utils.normalize_manifest_relpath(value)
+
+
+def _safe_manifest_path_segment(value: object) -> str | None:
+    relpath = _safe_manifest_relpath(value)
+    if relpath is None or "/" in relpath:
+        return None
+    return relpath
+
+
+def _list_values_are_safe_path_segments(
+    payload: dict[str, object],
+    key: str,
+    *,
+    prefix: str | None = None,
+    suffix: str | None = None,
+) -> bool:
+    raw_values = payload.get(key)
+    if raw_values is None:
+        return True
+    if not isinstance(raw_values, list):
+        return False
+    for raw_value in raw_values:
+        value = _safe_manifest_path_segment(raw_value)
+        if value is None:
+            return False
+        if prefix is not None and not value.startswith(prefix):
+            return False
+        if suffix is not None and not value.endswith(suffix):
+            return False
+    return True
+
+
+def _manifest_path_metadata_state(payload: dict[str, object]) -> str:
+    raw_files = payload.get("files")
+    if raw_files is not None:
+        if not isinstance(raw_files, dict):
+            return "malformed_files"
+        for rel_path, original_hash in raw_files.items():
+            if _safe_manifest_relpath(rel_path) is None or not isinstance(original_hash, str):
+                return "malformed_files"
+
+    generated_skill_dirs_key = "".join(("co", "dex_generated_skill_dirs"))
+    generated_command_files_key = "".join(("open", "code_generated_command_files"))
+
+    if not _list_values_are_safe_path_segments(payload, generated_skill_dirs_key, prefix="gpd-"):
+        return "malformed_path_metadata"
+    if not _list_values_are_safe_path_segments(
+        payload,
+        generated_command_files_key,
+        prefix="gpd-",
+        suffix=".md",
+    ):
+        return "malformed_path_metadata"
+
+    raw_managed_runtime_files = payload.get("managed_runtime_files")
+    if raw_managed_runtime_files is not None:
+        if not isinstance(raw_managed_runtime_files, list):
+            return "malformed_path_metadata"
+        if any(_safe_manifest_relpath(rel_path) is None for rel_path in raw_managed_runtime_files):
+            return "malformed_path_metadata"
+
+    return "ok"
+
+
 def assess_install_target(
     config_dir: Path,
     *,
@@ -282,6 +349,16 @@ def assess_install_target(
     missing_install_artifacts: tuple[str, ...] = ()
 
     if manifest_state == "ok" and manifest_runtime is not None:
+        path_metadata_state = _manifest_path_metadata_state(_payload)
+        if path_metadata_state != "ok":
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="untrusted_manifest",
+                manifest_state=path_metadata_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
         if manifest_scope_state != "ok":
             return InstallTargetAssessment(
                 config_dir=resolved,

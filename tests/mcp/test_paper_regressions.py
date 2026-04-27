@@ -113,7 +113,9 @@ def test_build_artifact_manifest_captures_tex_and_optional_bib(tmp_path) -> None
     from gpd.mcp.paper.models import Author, PaperConfig, Section
 
     tex_path = tmp_path / "paper.tex"
-    tex_path.write_text("\\documentclass{article}\\begin{document}\\bibliography{refs}\\end{document}", encoding="utf-8")
+    tex_path.write_text(
+        "\\documentclass{article}\\begin{document}\\bibliography{refs}\\end{document}", encoding="utf-8"
+    )
     bib_path = tmp_path / "refs.bib"
     bib_path.write_text("@article{test2024, author={Test}, title={Title}, year={2024}}", encoding="utf-8")
 
@@ -258,6 +260,40 @@ def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> No
 
     figure_artifact = next(artifact for artifact in manifest.artifacts if artifact.category == "figure")
     assert figure_artifact.sources[0].path == str(original_path)
+
+
+def test_build_artifact_manifest_skips_prepared_figures_outside_output_dir(tmp_path) -> None:
+    from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
+    from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    tex_path = output_dir / "paper.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}\\end{document}", encoding="utf-8")
+    outside_path = tmp_path / "outside-prepared-figure.pdf"
+    outside_path.write_text("outside prepared figure", encoding="utf-8")
+
+    config = PaperConfig(
+        title="Contained Manifest",
+        authors=[Author(name="Test Author", affiliation="Test Univ")],
+        abstract="Abstract text.",
+        sections=[Section(title="Intro", content="Content")],
+        journal="jhep",
+    )
+
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        figure_source_pairs=[
+            (
+                FigureRef(path=tmp_path / "source.pdf", caption="Source", label="source"),
+                FigureRef(path=outside_path, caption="Prepared", label="prepared"),
+            )
+        ],
+    )
+
+    assert all(artifact.category != "figure" for artifact in manifest.artifacts)
 
 
 def test_prepare_figures_returns_relative_paths(tmp_path) -> None:
