@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/psi-oss/get-physics-done"
+    "url": "git+https://github.com/psi-oss/get-physics-done.git"
   },
   "homepage": "https://github.com/psi-oss/get-physics-done#readme",
   "bugs": {
