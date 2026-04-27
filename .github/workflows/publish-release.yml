@@ -1,7 +1,9 @@
 # Admin-owned publish workflow:
 # - Run manually from merged `main` after the release PR has landed.
 # - This workflow rebuilds from that reviewed commit, publishes to PyPI first,
-#   then publishes npm and creates the GitHub Release/tag.
+#   then publishes npm, and finally creates the GitHub Release/tag.
+# - PyPI and npm use trusted publishing. Configure the matching publishers in
+#   the package registries before running this workflow.
 # - If the actual publish day differs from the already-merged release PR, this
 #   workflow stamps the real publish date locally for the release artifacts and
 #   opens a tiny follow-up PR to persist `CITATION.cff` / `README.md`.
@@ -136,6 +138,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+          skip-existing: true
 
   publish-npm-and-github-release:
     name: publish npm and create GitHub release
@@ -143,8 +146,12 @@ jobs:
       - build-release
       - publish-pypi
     runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/get-physics-done
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Check out release commit
@@ -166,22 +173,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
-
-      - name: Ensure npm token is configured
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::NPM_TOKEN is not configured."
-            exit 1
-          fi
 
       - name: Publish to npm
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
         id: github_release
@@ -270,7 +266,7 @@ jobs:
             echo "- Commit: \`${RELEASE_SHA}\`"
             echo "- Publish date: \`${RELEASE_DATE}\`"
             echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
-            echo "- npm: published from the merged release commit"
+            echo "- npm: published via trusted publishing from environment \`npm\`"
             echo "- GitHub release: ${RELEASE_URL}"
             if [ "${METADATA_CHANGED}" = "true" ]; then
               echo "- Follow-up metadata PR: ${METADATA_PR_URL}"
