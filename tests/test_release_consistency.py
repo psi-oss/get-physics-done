@@ -275,6 +275,10 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
     packaged_files = set(package_json.get("files", []))
 
     assert package_json["name"] == "get-physics-done"
+    assert package_json["repository"] == {
+        "type": "git",
+        "url": "git+https://github.com/psi-oss/get-physics-done.git",
+    }
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
     assert "bin/" in packaged_files
     assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
@@ -423,17 +427,25 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "Ordinary PR merges to `main` must never invoke this flow automatically." in workflow
     assert "name: publish release" in workflow
     assert "workflow_dispatch:" in workflow
+    assert "release_sha:" in workflow
+    assert "ref: ${{ inputs.release_sha || github.sha }}" in workflow
+    assert "git merge-base --is-ancestor HEAD" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
     assert "id-token: write" in workflow
+    assert "skip-existing: true" in workflow
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
+    assert 'node-version: "24"' in workflow
     assert "actions/upload-artifact@v7" in workflow
     assert "actions/download-artifact@v8" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" in workflow
+    assert "name: npm" in workflow
+    assert "NODE_AUTH_TOKEN" not in workflow
+    assert "NPM_TOKEN" not in workflow
     assert "npm publish" in workflow
     assert "gh release create" in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
