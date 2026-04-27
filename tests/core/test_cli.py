@@ -6631,20 +6631,22 @@ def test_paper_build_rejects_legacy_sidecar_flags(legacy_flag: str, tmp_path: Pa
     with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock()) as mock_build:
         result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build", legacy_flag])
 
+    normalized_output = _normalize_cli_output(result.output)
     assert result.exit_code != 0
-    assert "No such option" in result.output
-    assert legacy_flag in result.output
+    assert "No such option" in normalized_output
+    assert legacy_flag in normalized_output
     mock_build.assert_not_called()
 
 
 def test_paper_build_help_omits_legacy_sidecar_flags() -> None:
     result = runner.invoke(app, ["paper-build", "--help"])
 
+    normalized_output = _normalize_cli_output(result.output)
     assert result.exit_code == 0
-    assert "--minimal" in result.output
-    assert "--with-provenance" not in result.output
-    assert "--with-audits" not in result.output
-    assert "--with-review-sidecars" not in result.output
+    assert "--minimal" in normalized_output
+    assert "--with-provenance" not in normalized_output
+    assert "--with-audits" not in normalized_output
+    assert "--with-review-sidecars" not in normalized_output
 
 
 def test_paper_build_rejects_ambiguous_supported_config_roots_without_a_resolved_manuscript(tmp_path: Path) -> None:

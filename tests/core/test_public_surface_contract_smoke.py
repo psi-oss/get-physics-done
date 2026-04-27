@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shlex
 from pathlib import Path
 
@@ -8,6 +9,8 @@ from typer.testing import CliRunner
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import app
 from gpd.core.public_surface_contract import load_public_surface_contract
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def _example_runtime_name() -> str:
@@ -62,7 +65,8 @@ def test_public_surface_contract_bridge_commands_parse_live_cli_help(tmp_path: P
     for command in contract.local_cli_bridge.commands:
         args = _bridge_command_help_args(command, tmp_path=tmp_path)
         result = runner.invoke(app, ["--cwd", str(tmp_path), *args])
-        if result.exit_code != 0 or "Usage: gpd" not in result.output:
+        output = _ANSI_ESCAPE_RE.sub("", result.output)
+        if result.exit_code != 0 or "Usage: gpd" not in output:
             failures.append(f"{command!r} via {args!r}: exit={result.exit_code}\n{result.output}")
 
     assert failures == []
