@@ -24,13 +24,12 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.continuation import ContinuationBoundedSegment
-from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
+from gpd.core.utils import atomic_write, phase_normalize, safe_read_file
 
 __all__ = [
     "ExecutionHeadEffect",
     "ExecutionLineageEntry",
     "ExecutionLineageHead",
-    "append_execution_lineage_entry",
     "build_execution_lineage_entry",
     "clear_execution_lineage_head",
     "derive_execution_lineage_head",
@@ -295,12 +294,6 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _append_row_locked(path: Path, row: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, default=str, sort_keys=True) + "\n")
-
-
 def _entry_from_mapping(row: dict[str, object]) -> ExecutionLineageEntry | None:
     try:
         return ExecutionLineageEntry.model_validate(row)
@@ -319,26 +312,6 @@ def load_execution_lineage_entries(project_root: Path | str | ProjectLayout) -> 
             entries.append(entry)
     entries.sort(key=lambda item: (item.seq, item.recorded_at, item.event_id))
     return entries
-
-
-def append_execution_lineage_entry(
-    project_root: Path | str | ProjectLayout,
-    entry: ExecutionLineageEntry | Mapping[str, object] | BaseModel,
-) -> ExecutionLineageEntry:
-    """Append one validated execution lineage entry and assign the next sequence."""
-    ledger_path = execution_lineage_ledger_path(project_root)
-
-    with file_lock(ledger_path):
-        current_entries = load_execution_lineage_entries(project_root)
-        next_seq = current_entries[-1].seq + 1 if current_entries else 1
-        candidate = (
-            entry
-            if isinstance(entry, ExecutionLineageEntry)
-            else ExecutionLineageEntry.model_validate(_as_mapping(entry) or {})
-        )
-        stored = candidate.model_copy(update={"seq": next_seq})
-        _append_row_locked(ledger_path, stored.model_dump(mode="json"))
-    return stored
 
 
 def project_execution_lineage_head(
@@ -389,6 +362,21 @@ def derive_execution_lineage_head(
     )
 
 
+def _ledger_tail_entry(entries: Sequence[ExecutionLineageEntry]) -> ExecutionLineageEntry | None:
+    if not entries:
+        return None
+    return max(entries, key=lambda item: (item.seq, item.recorded_at, item.event_id))
+
+
+def _head_matches_ledger_tail(
+    head: ExecutionLineageHead,
+    tail: ExecutionLineageEntry | None,
+) -> bool:
+    if tail is None:
+        return True
+    return head.last_applied_seq == tail.seq and head.last_applied_event_id == tail.event_id
+
+
 def _head_to_json(head: ExecutionLineageHead) -> str:
     return head.model_dump_json(indent=2)
 
@@ -410,14 +398,21 @@ def write_execution_lineage_head(
 def load_execution_lineage_head(project_root: Path | str | ProjectLayout) -> ExecutionLineageHead | None:
     """Load the cached head or derive it from the ledger if needed."""
     path = execution_lineage_head_path(project_root)
+    entries: list[ExecutionLineageEntry] | None = None
     raw = _read_json(path)
     if raw is not None:
         try:
-            return ExecutionLineageHead.model_validate(raw)
+            cached = ExecutionLineageHead.model_validate(raw)
         except Exception:
             pass
+        else:
+            entries = load_execution_lineage_entries(project_root)
+            if _head_matches_ledger_tail(cached, _ledger_tail_entry(entries)):
+                return cached
 
-    derived = derive_execution_lineage_head(load_execution_lineage_entries(project_root))
+    if entries is None:
+        entries = load_execution_lineage_entries(project_root)
+    derived = derive_execution_lineage_head(entries)
     if derived is None:
         return None
     return derived

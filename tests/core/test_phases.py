@@ -12,6 +12,7 @@ import pytest
 import gpd.core.phases as phases_module
 from gpd.core.phases import (
     MilestoneIncompleteError,
+    PhaseAmbiguityError,
     PhaseIncompleteError,
     PhaseNotFoundError,
     PhaseValidationError,
@@ -20,6 +21,7 @@ from gpd.core.phases import (
     RoadmapNotFoundError,
     find_phase,
     get_milestone_info,
+    list_phase_files,
     list_phases,
     milestone_complete,
     next_decimal_phase,
@@ -177,6 +179,27 @@ def test_find_phase_decimal(tmp_path: Path) -> None:
     assert result.phase_name == "hotfix"
 
 
+def test_find_phase_raises_clear_error_for_duplicate_phase_number(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "01-alpha")
+    _create_phase_dir(tmp_path, "01-beta")
+
+    with pytest.raises(PhaseAmbiguityError, match="01-alpha, 01-beta"):
+        find_phase(tmp_path, "1")
+
+
+def test_find_phase_exact_directory_disambiguates_duplicate_phase_number(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "01-alpha")
+    _create_phase_dir(tmp_path, "01-beta")
+
+    result = find_phase(tmp_path, "01-beta")
+
+    assert result is not None
+    assert result.phase_number == "01"
+    assert result.phase_name == "beta"
+
+
 # ─── list_phases ────────────────────────────────────────────────────────────────
 
 
@@ -196,6 +219,34 @@ def test_list_phases_empty(tmp_path: Path) -> None:
     result = list_phases(tmp_path)
     assert result.count == 0
     assert result.directories == []
+
+
+def test_list_phase_files_preserves_phase_directory_identity(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    first = _create_phase_dir(tmp_path, "01-alpha")
+    second = _create_phase_dir(tmp_path, "02-beta")
+    (first / "shared-PLAN.md").write_text("plan 1", encoding="utf-8")
+    (second / "shared-PLAN.md").write_text("plan 2", encoding="utf-8")
+
+    result = list_phase_files(tmp_path, "plans")
+
+    assert result.files == ["shared-PLAN.md", "shared-PLAN.md"]
+    assert result.files_by_phase == {
+        "01-alpha": ["shared-PLAN.md"],
+        "02-beta": ["shared-PLAN.md"],
+    }
+
+
+def test_list_phase_files_reports_ambiguous_phase_filter(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "01-alpha")
+    _create_phase_dir(tmp_path, "01-beta")
+
+    result = list_phase_files(tmp_path, "plans", phase="1")
+
+    assert result.error is not None
+    assert "Phase 1 is ambiguous" in result.error
+    assert "01-alpha, 01-beta" in result.error
 
 
 # ─── validate_waves ─────────────────────────────────────────────────────────────
@@ -286,6 +337,24 @@ def test_roadmap_analyze_no_roadmap(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     result = roadmap_analyze(tmp_path)
     assert result.phase_count == 0
+
+
+def test_roadmap_analyze_marks_duplicate_phase_directories_ambiguous(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** Get started
+        """,
+    )
+    _create_phase_dir(tmp_path, "01-alpha")
+    _create_phase_dir(tmp_path, "01-beta")
+
+    result = roadmap_analyze(tmp_path)
+
+    assert result.phase_count == 1
+    assert result.phases[0].disk_status == "ambiguous"
 
 
 # ─── roadmap_get_phase ──────────────────────────────────────────────────────────
@@ -825,6 +894,28 @@ def test_phase_insert(tmp_path: Path) -> None:
     assert (tmp_path / result.directory).is_dir()
 
 
+def test_phase_insert_accepts_padded_em_dash_heading(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 01 — First
+        **Goal:** do first
+
+        ### Phase 02 — Second
+        **Goal:** do second
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="01", current_phase_name="First", total_phases=2)
+
+    result = phase_insert(tmp_path, "1", "Hotfix")
+
+    assert result.phase_number == "01.1"
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 01.1 — Hotfix (INSERTED)" in roadmap
+    assert "**Depends on:** Phase 01" in roadmap
+
+
 def test_phase_insert_invalid_phase(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: X\n")
@@ -884,6 +975,36 @@ def test_phase_remove_basic(tmp_path: Path) -> None:
 
     roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "Phase 2: Second" not in roadmap
+
+
+def test_phase_remove_nonexistent_phase_raises(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: Only\n**Goal:** only\n")
+    _create_phase_dir(tmp_path, "01-only")
+    before = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+
+    with pytest.raises(PhaseNotFoundError):
+        phase_remove(tmp_path, "99")
+
+    assert (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8") == before
+
+
+def test_phase_remove_refuses_executed_work_without_backup_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: X\n**Goal:** x\n")
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
+    scratch_tmp = tmp_path / "temp"
+    scratch_tmp.mkdir()
+    monkeypatch.setattr(phases_module.tempfile, "tempdir", str(scratch_tmp))
+
+    with pytest.raises(PhaseValidationError, match="force"):
+        phase_remove(tmp_path, "1")
+
+    assert list(scratch_tmp.glob("gpd-phases-backup-*")) == []
 
 
 def test_phase_remove_renumber_same_slug(tmp_path: Path) -> None:
@@ -1217,6 +1338,55 @@ def test_phase_complete_uses_roadmap_for_unscaffolded_next_phase(tmp_path: Path)
     assert "**Status:** Ready to plan" in state
 
 
+def test_phase_complete_handles_padded_em_dash_roadmap_heading(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Phase Overview
+
+        - [ ] Phase 01 — Setup
+
+        | Phase | Status | Updated |
+        |---|---|---|
+        | 01. Setup | Ready | - |
+
+        ### Phase 01 — Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 02 — Build
+        **Goal:** build
+        **Plans:** 0 plans
+        """,
+    )
+    _create_state(
+        tmp_path,
+        """\
+        **Current Phase:** 01
+        **Current Phase Name:** Setup
+        **Total Phases:** 2
+        **Current Plan:** 1
+        **Total Plans in Phase:** 1
+        **Status:** in_progress
+        **Last Activity:** 2026-03-01
+        **Last Activity Description:** Working
+        """,
+    )
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
+
+    result = phase_complete(tmp_path, "1")
+
+    assert result.next_phase == "02"
+    assert result.next_phase_name == "Build"
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "- [x] Phase 01 — Setup (completed " in roadmap
+    assert "**Plans:** 1/1 plans complete" in roadmap
+    assert "| 01. Setup | Complete" in roadmap
+
+
 def test_phase_complete_not_found(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     with pytest.raises(PhaseNotFoundError):
@@ -1273,6 +1443,9 @@ def test_milestone_complete_counts_unscaffolded_roadmap_phases(tmp_path: Path) -
 
     with pytest.raises(MilestoneIncompleteError):
         milestone_complete(tmp_path, "v1.0", name="Test")
+
+    assert not (tmp_path / "GPD" / "milestones").exists()
+    assert not (tmp_path / "GPD" / "MILESTONES.md").exists()
 
 
 def test_milestone_complete_incomplete_phases(tmp_path: Path) -> None:
@@ -1390,6 +1563,50 @@ def test_phase_remove_integer_renumbers_decimal_roadmap_references(tmp_path: Pat
     assert "**Depends on:** Phase 1" in roadmap
     assert "01.1-01-PLAN.md" in roadmap
     assert "02.1-01-PLAN.md" not in roadmap
+
+
+def test_phase_remove_preserves_padded_em_dash_roadmap_format(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Phase Overview
+
+        - [ ] Phase 01 — Setup
+        - [ ] Phase 02 — Main
+        - [ ] Phase 03 — Validation
+
+        | Phase | Status | Updated |
+        |---|---|---|
+        | 01. Setup | Ready | - |
+        | 02. Main | Ready | - |
+        | 03. Validation | Ready | - |
+
+        ### Phase 01 — Setup
+        **Goal:** setup
+
+        ### Phase 02 — Main
+        **Goal:** main
+
+        ### Phase 03 — Validation
+        **Goal:** validate
+        **Artifact:** 03-01-PLAN.md
+        """,
+    )
+    _seed_state_pair(tmp_path, current_phase="03", current_phase_name="Validation", total_phases=3, status="in_progress")
+    _create_phase_dir(tmp_path, "01-setup")
+    _create_phase_dir(tmp_path, "02-main")
+    validation_dir = _create_phase_dir(tmp_path, "03-validation")
+    (validation_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
+
+    phase_remove(tmp_path, "2")
+
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "### Phase 02 — Validation" in roadmap
+    assert "- [ ] Phase 02 — Validation" in roadmap
+    assert "| 02. Validation | Ready | - |" in roadmap
+    assert "02-01-PLAN.md" in roadmap
+    assert "Phase 03" not in roadmap
 
 
 # ─── get_milestone_info ──────────────────────────────────────────────────────────
@@ -1511,6 +1728,19 @@ def test_validate_phase_waves_reports_malformed_frontmatter(tmp_path: Path) -> N
     assert any("a-PLAN.md" in error for error in result.validation.errors)
 
 
+def test_validate_phase_waves_reports_ambiguous_phase_filter(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "01-alpha")
+    _create_phase_dir(tmp_path, "01-beta")
+
+    result = validate_phase_waves(tmp_path, "1")
+
+    assert result.error is not None
+    assert "Phase 1 is ambiguous" in result.error
+    assert result.validation.valid is False
+    assert result.validation.errors == [result.error]
+
+
 def test_validate_phase_waves_rejects_coercive_wave_values(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
@@ -1531,6 +1761,18 @@ def test_phase_plan_index_rejects_coercive_wave_values(tmp_path: Path) -> None:
 
     assert result.validation.valid is False
     assert any("wave must be an integer" in error for error in result.validation.errors)
+
+
+def test_phase_plan_index_reports_ambiguous_phase_filter(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "01-alpha")
+    _create_phase_dir(tmp_path, "01-beta")
+
+    result = phase_plan_index(tmp_path, "1")
+
+    assert result.plans == []
+    assert result.validation.valid is False
+    assert result.validation.errors == ["Phase 1 is ambiguous; matching directories: 01-alpha, 01-beta. Use the exact phase directory name to disambiguate."]
 
 
 def test_phase_plan_index_not_found(tmp_path: Path) -> None:

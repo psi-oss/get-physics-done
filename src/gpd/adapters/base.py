@@ -26,6 +26,7 @@ from gpd.adapters.install_utils import (
     convert_tool_references_in_body,
     copy_hook_scripts,
     install_gpd_content,
+    installed_hook_scripts_matching_source,
     managed_hook_paths,
     pre_install_cleanup,
     process_settings_commit_attribution,
@@ -259,10 +260,11 @@ class RuntimeAdapter(abc.ABC):
         surface_kind: str,
         path_prefix: str,
         command_name: str | None = None,
+        bridge_command: str | None = None,
     ) -> str:
         """Return the runtime-visible prompt surface for compiled shared markdown."""
 
-        del path_prefix, command_name
+        del path_prefix, command_name, bridge_command
         if surface_kind not in {"agent", "command"}:
             raise ValueError("surface_kind must be 'agent' or 'command'")
         return content
@@ -652,6 +654,12 @@ class RuntimeAdapter(abc.ABC):
     def _install_hooks(self, gpd_root: Path, target_dir: Path, failures: list[str]) -> None:
         """Copy hook scripts."""
         failures.extend(copy_hook_scripts(gpd_root, target_dir))
+        self._installed_hook_scripts = installed_hook_scripts_matching_source(gpd_root, target_dir)
+
+    def _installed_hook_script_available(self, hook_filename: str) -> bool:
+        """Return whether this install owns a runnable hook script by filename."""
+        installed = getattr(self, "_installed_hook_scripts", set())
+        return hook_filename in installed
 
     def _current_install_scope_flag(self) -> str:
         """Return the active install scope as a bootstrap-friendly flag."""
@@ -744,12 +752,12 @@ class RuntimeAdapter(abc.ABC):
                 shutil.rmtree(gpd_dir)
                 removed.append(f"{GPD_INSTALL_DIR_NAME}/")
 
-            # Remove gpd-*.md agent files
+            # Remove managed gpd-* agent files shared by markdown and TOML runtimes.
             agents_dir = target_dir / AGENTS_DIR_NAME
             if agents_dir.is_dir():
                 agent_count = 0
                 for f in agents_dir.iterdir():
-                    if f.name.startswith("gpd-") and f.suffix == ".md":
+                    if f.name.startswith("gpd-") and f.suffix in {".md", ".toml"}:
                         f.unlink()
                         agent_count += 1
                 if agent_count:

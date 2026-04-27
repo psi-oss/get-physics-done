@@ -1153,7 +1153,7 @@ def _collect_artifact_contract_results_errors(value: object) -> list[str]:
 
 
 class ConventionLock(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     metric_signature: str | None = None
     fourier_convention: str | None = None
@@ -2202,7 +2202,16 @@ _CONTRACT_ID_GROUPS: tuple[tuple[str, str], ...] = (
     ("forbidden proxy", "forbidden_proxies"),
     ("link", "links"),
 )
-_AMBIGUOUS_TARGET_ID_KINDS: tuple[str, ...] = ("claim", "deliverable", "acceptance test", "reference")
+_LINK_ENDPOINT_ID_KINDS: tuple[str, ...] = (
+    "observable",
+    "claim",
+    "deliverable",
+    "acceptance test",
+    "reference",
+    "forbidden proxy",
+    "link",
+)
+_AMBIGUOUS_TARGET_ID_KINDS: tuple[str, ...] = _LINK_ENDPOINT_ID_KINDS
 
 
 def _contract_ids_by_kind(contract: ResearchContract) -> dict[str, set[str]]:
@@ -2317,6 +2326,9 @@ def collect_contract_integrity_errors(contract: ResearchContract) -> list[str]:
     ids_by_kind = _contract_ids_by_kind(contract)
     owners_by_id: dict[str, list[str]] = defaultdict(list)
     errors: list[str] = []
+
+    if not contract.scope.in_scope:
+        errors.append("scope.in_scope must include at least one non-empty string")
 
     for kind, field_name in _CONTRACT_ID_GROUPS:
         counts: dict[str, int] = defaultdict(int)
@@ -2673,7 +2685,10 @@ def collect_plan_contract_integrity_errors(
     deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
     acceptance_test_ids = {test.id for test in contract.acceptance_tests}
     reference_ids = {reference.id for reference in contract.references}
+    forbidden_proxy_ids = {forbidden_proxy.id for forbidden_proxy in contract.forbidden_proxies}
+    link_ids = {link.id for link in contract.links}
     known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
+    link_endpoint_ids = known_ids | observable_ids | forbidden_proxy_ids | link_ids
 
     if contract.references and not _has_concrete_must_surface_reference(
         contract,
@@ -2737,9 +2752,9 @@ def collect_plan_contract_integrity_errors(
             )
 
     for link in contract.links:
-        if link.source not in known_ids:
+        if link.source not in link_endpoint_ids:
             issues.append(f"link {link.id} references unknown source {link.source}")
-        if link.target not in known_ids:
+        if link.target not in link_endpoint_ids:
             issues.append(f"link {link.id} references unknown target {link.target}")
         for verification_id in link.verified_by:
             if verification_id not in acceptance_test_ids:

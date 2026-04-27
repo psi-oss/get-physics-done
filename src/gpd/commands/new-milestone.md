@@ -46,7 +46,7 @@ Milestone name: $ARGUMENTS (optional - will prompt if not provided)
 </context>
 
 <process>
-**Follow the new-milestone workflow** from `@{GPD_INSTALL_DIR}/workflows/new-milestone.md`.
+**Follow the included new-milestone workflow.**
 Use the workflow's staged init: bootstrap context first, then a fresh late-stage init before roadmapping. The roadmapper handoff must prove freshness with a typed return and `files_written`.
 
 Load late-stage authorities only when the workflow reaches the matching stage:

@@ -141,6 +141,11 @@ NEW_PROJECT_INIT_FIELDS = frozenset(
         "autonomy",
         "research_mode",
         "project_exists",
+        "state_exists",
+        "roadmap_exists",
+        "recoverable_project_exists",
+        "partial_project_exists",
+        "project_recovery_status",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -664,7 +669,27 @@ MAP_RESEARCH_INIT_FIELDS = frozenset(
         "active_reference_count",
     }
 )
-VERIFY_WORK_INIT_FIELDS = frozenset(
+VERIFY_WORK_MCP_VERIFICATION_TOOLS = frozenset(
+    {
+        "mcp__gpd_verification__get_bundle_checklist",
+        "mcp__gpd_verification__suggest_contract_checks",
+        "mcp__gpd_verification__run_contract_check",
+    }
+)
+VERIFY_WORK_STAGE_ALLOWED_TOOLS = frozenset(
+    {
+        "ask_user",
+        "file_read",
+        "file_edit",
+        "file_write",
+        "find_files",
+        "search_files",
+        "shell",
+        "task",
+        *VERIFY_WORK_MCP_VERIFICATION_TOOLS,
+    }
+)
+VERIFY_WORK_BASE_INIT_FIELDS = frozenset(
     {
         "planner_model",
         "checker_model",
@@ -678,16 +703,27 @@ VERIFY_WORK_INIT_FIELDS = frozenset(
         "phase_name",
         "has_verification",
         "has_validation",
-        "platform",
         "phase_proof_review_status",
+        "platform",
+    }
+)
+VERIFY_WORK_CONTRACT_GATE_FIELDS = frozenset(
+    {
         "project_contract",
         "project_contract_validation",
         "project_contract_load_info",
         "project_contract_gate",
+    }
+)
+VERIFY_WORK_REFERENCE_RUNTIME_FIELDS = frozenset(
+    {
         "contract_intake",
         "effective_reference_intake",
         "derived_active_references",
         "derived_active_reference_count",
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_warnings",
         "citation_source_files",
         "citation_source_count",
         "citation_source_warnings",
@@ -703,12 +739,21 @@ VERIFY_WORK_INIT_FIELDS = frozenset(
         "protocol_bundle_verifier_extensions",
         "protocol_bundle_context",
         "active_reference_context",
+        "knowledge_doc_files",
+        "knowledge_doc_count",
+        "stable_knowledge_doc_files",
+        "stable_knowledge_doc_count",
+        "knowledge_doc_status_counts",
         "literature_review_files",
         "literature_review_count",
         "research_map_reference_files",
         "research_map_reference_count",
         "reference_artifact_files",
         "reference_artifacts_content",
+    }
+)
+VERIFY_WORK_STRUCTURED_STATE_FIELDS = frozenset(
+    {
         "state_load_source",
         "state_integrity_issues",
         "convention_lock",
@@ -719,6 +764,10 @@ VERIFY_WORK_INIT_FIELDS = frozenset(
         "approximation_count",
         "propagated_uncertainties",
         "propagated_uncertainty_count",
+    }
+)
+VERIFY_WORK_STATE_MEMORY_FIELDS = frozenset(
+    {
         "derived_convention_lock",
         "derived_convention_lock_count",
         "derived_intermediate_results",
@@ -727,6 +776,18 @@ VERIFY_WORK_INIT_FIELDS = frozenset(
         "derived_approximation_count",
     }
 )
+VERIFY_WORK_INIT_FIELDS = frozenset(
+    {
+        *VERIFY_WORK_BASE_INIT_FIELDS,
+        *VERIFY_WORK_CONTRACT_GATE_FIELDS,
+        *VERIFY_WORK_REFERENCE_RUNTIME_FIELDS,
+        *VERIFY_WORK_STRUCTURED_STATE_FIELDS,
+        *VERIFY_WORK_STATE_MEMORY_FIELDS,
+    }
+)
+_DEFAULT_ALLOWED_TOOLS_BY_WORKFLOW = {
+    "verify-work": VERIFY_WORK_STAGE_ALLOWED_TOOLS,
+}
 WRITE_PAPER_INIT_FIELDS = frozenset(
     {
         "commit_docs",
@@ -749,6 +810,7 @@ WRITE_PAPER_INIT_FIELDS = frozenset(
         "publication_lane_owner",
         "publication_artifact_base",
         "selected_publication_root",
+        "selected_review_root",
         "publication_intake_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
@@ -1027,7 +1089,9 @@ class WorkflowStage:
             "workflow_id": workflow_id,
             "stage_id": self.id,
             "order": self.order,
+            "mode_paths": list(self.mode_paths),
             "loaded_authorities": list(self.loaded_authorities),
+            "eager_authorities": list(self.eager_authorities()),
             "conditional_authorities": [entry.to_payload() for entry in self.conditional_authorities],
             "must_not_eager_load": list(self.must_not_eager_load),
             "allowed_tools": list(self.allowed_tools),
@@ -1149,9 +1213,9 @@ def _normalize_write_path(raw: object, *, label: str) -> str:
     return normalized
 
 
-def _normalize_tool_set(values: Iterable[str] | None) -> frozenset[str]:
+def _normalize_tool_set(values: Iterable[str] | None, *, workflow_id: str) -> frozenset[str]:
     if values is None:
-        return frozenset(CANONICAL_TOOL_NAMES)
+        return _DEFAULT_ALLOWED_TOOLS_BY_WORKFLOW.get(workflow_id, frozenset(CANONICAL_TOOL_NAMES))
     normalized: set[str] = set()
     for value in values:
         if not isinstance(value, str):
@@ -1360,7 +1424,7 @@ def validate_workflow_stage_manifest_payload(
     if not isinstance(stages_raw, list) or not stages_raw:
         raise ValueError("stages must be a non-empty list")
 
-    normalized_allowed_tools = _normalize_tool_set(allowed_tools)
+    normalized_allowed_tools = _normalize_tool_set(allowed_tools, workflow_id=workflow_id)
     normalized_known_init_fields = _normalize_init_field_set(known_init_fields, workflow_id=workflow_id)
     stages = tuple(
         _validate_stage(
@@ -1406,8 +1470,10 @@ def validate_workflow_stage_manifest_payload(
     return WorkflowStageManifest(schema_version=schema_version, workflow_id=workflow_id, stages=stages)
 
 
-def _cache_key_tools(values: Iterable[str] | None) -> tuple[str, ...]:
-    return tuple(sorted(_normalize_tool_set(values)))
+def _cache_key_tools(values: Iterable[str] | None, *, workflow_id: str) -> tuple[str, ...] | None:
+    if values is None:
+        return None
+    return tuple(sorted(_normalize_tool_set(values, workflow_id=workflow_id)))
 
 
 def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str) -> tuple[str, ...] | None:
@@ -1419,7 +1485,7 @@ def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str) ->
 def _load_workflow_stage_manifest_cached(
     manifest_path: str,
     expected_workflow_id: str | None,
-    allowed_tools_key: tuple[str, ...],
+    allowed_tools_key: tuple[str, ...] | None,
     known_init_fields_key: tuple[str, ...] | None,
 ) -> WorkflowStageManifest:
     path = Path(manifest_path)
@@ -1446,7 +1512,7 @@ def load_workflow_stage_manifest(
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,
-        _cache_key_tools(allowed_tools),
+        _cache_key_tools(allowed_tools, workflow_id=workflow_id),
         _cache_key_init_fields(known_init_fields, workflow_id=workflow_id),
     )
 
@@ -1469,7 +1535,7 @@ def load_workflow_stage_manifest_from_path(
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,
-        _cache_key_tools(allowed_tools),
+        _cache_key_tools(allowed_tools, workflow_id=workflow_id or ""),
         normalized_init_fields,
     )
 
@@ -1592,6 +1658,8 @@ __all__ = [
     "QUICK_STAGE_MANIFEST_PATH",
     "RESEARCH_PHASE_INIT_FIELDS",
     "RESEARCH_PHASE_STAGE_MANIFEST_PATH",
+    "VERIFY_WORK_BASE_INIT_FIELDS",
+    "VERIFY_WORK_CONTRACT_GATE_FIELDS",
     "NewProjectConditionalAuthority",
     "NewProjectStage",
     "NewProjectStageContract",
@@ -1601,6 +1669,11 @@ __all__ = [
     "WORKFLOW_STAGE_MANIFEST_DIR",
     "WORKFLOW_STAGE_MANIFEST_SUFFIX",
     "VERIFY_WORK_INIT_FIELDS",
+    "VERIFY_WORK_MCP_VERIFICATION_TOOLS",
+    "VERIFY_WORK_REFERENCE_RUNTIME_FIELDS",
+    "VERIFY_WORK_STAGE_ALLOWED_TOOLS",
+    "VERIFY_WORK_STATE_MEMORY_FIELDS",
+    "VERIFY_WORK_STRUCTURED_STATE_FIELDS",
     "PEER_REVIEW_INIT_FIELDS",
     "WorkflowStage",
     "WorkflowStageConditionalAuthority",

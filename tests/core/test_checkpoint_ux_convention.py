@@ -102,7 +102,10 @@ def test_checkpoint_ux_prompt_references_are_install_relative() -> None:
 
     for path in paths:
         text = path.read_text(encoding="utf-8")
-        assert "@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md" in text, path
+        if path.name == "gpd-executor.md":
+            assert "{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md" in text, path
+        else:
+            assert "@{GPD_INSTALL_DIR}/references/orchestration/checkpoint-ux-convention.md" in text, path
         assert "specs/references/orchestration/checkpoint-ux-convention.md" not in text, path
 
 
@@ -146,6 +149,15 @@ def test_y_n_prompts_unified_and_carve_outs_preserved() -> None:
             "(expected '(y/n)', a '\"yes\"'/'\"no\"' confirmation, or a "
             "numeric-options decision menu)"
         )
+
+
+def test_merge_phase_confirmation_carve_out_has_explicit_nonapproval_semantics() -> None:
+    workflow = (WORKFLOWS_DIR / "merge-phases.md").read_text(encoding="utf-8")
+
+    assert "Proceed? (y/n)" in workflow
+    assert "Wait for user confirmation." not in workflow
+    assert "Continue only if the user answers `y`" in workflow
+    assert "abort without mutations on `n` or any ambiguous response" in workflow
 
 
 def test_workflow_y_n_e_prompts_define_edit_branch_semantics() -> None:

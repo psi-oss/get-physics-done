@@ -21,8 +21,8 @@ def test_peer_review_workflow_references_canonical_reliability_doc_and_round_suf
     assert "${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in workflow
     assert "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json" in workflow
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in workflow
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in workflow
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md" in workflow
+    assert "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex" in workflow
     assert "gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json" in workflow
     assert (
         "gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger "
@@ -130,20 +130,28 @@ def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_re
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
 
     stage_six_outputs = (
-        "GPD/REFEREE-REPORT{round_suffix}.md",
-        "GPD/REFEREE-REPORT{round_suffix}.tex",
+        "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md",
+        "${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex",
         "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json",
         "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json",
-        "GPD/CONSISTENCY-REPORT.md",
+        "${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md",
     )
     for artifact in stage_six_outputs:
         assert artifact in workflow
     for artifact in (
+        "${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json",
+        "${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json",
+    ):
+        assert artifact in panel
+    for artifact in (
         "GPD/review/REVIEW-LEDGER{round_suffix}.json",
         "GPD/review/REFEREE-DECISION{round_suffix}.json",
     ):
-        assert artifact in panel
         assert artifact in reliability
+    for artifact in (
+        "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json",
+        "${selected_review_root}/REFEREE-DECISION{round_suffix}.json",
+    ):
         assert artifact in referee
 
     assert "fresh `gpd_return.files_written`" in workflow
@@ -155,16 +163,16 @@ def test_peer_review_stage_six_boundary_aligns_reliability_workflow_panel_and_re
         "or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`."
     ) in workflow
     assert (
-        "Treat `GPD/review/CLAIMS{round_suffix}.json`, every `GPD/review/STAGE-*.json`, and "
-        "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence."
+        "Treat `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, every `${REVIEW_ROOT}/STAGE-*.json`, and "
+        "`${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` as read-only upstream evidence."
     ) in panel
     assert (
         "Treat `GPD/review/CLAIMS{round_suffix}.json`, any `GPD/review/STAGE-*.json`, and "
         "`GPD/review/PROOF-REDTEAM{round_suffix}.md` as read-only upstream artifacts during Stage 6."
     ) in reliability
     assert (
-        "Never modify upstream staged-review inputs such as `GPD/review/CLAIMS{round_suffix}.json`, "
-        "any `GPD/review/STAGE-*.json`, or `GPD/review/PROOF-REDTEAM{round_suffix}.md`."
+        "Never modify upstream staged-review inputs such as `${selected_review_root}/CLAIMS{round_suffix}.json`, "
+        "any `${selected_review_root}/STAGE-*.json`, or `${selected_review_root}/PROOF-REDTEAM{round_suffix}.md`."
     ) in referee
 
     assert "return `gpd_return.status: blocked`" in workflow

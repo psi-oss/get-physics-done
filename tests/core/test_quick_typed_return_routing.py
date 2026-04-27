@@ -16,7 +16,8 @@ def test_quick_workflow_routes_on_typed_gpd_return_and_applies_child_returns() -
     assert "gpd_return.status: blocked" in workflow
     assert "gpd_return.status: failed" in workflow
     assert "gpd_return.files_written" in workflow
-    assert "staged planner loading" in workflow
+    assert "loads staged quick init" in workflow
+    assert "staged_loading" in workflow
     assert "tool_requirements" in workflow
     assert "gpd validate plan-preflight" in workflow
     assert "gpd apply-return-updates" in workflow

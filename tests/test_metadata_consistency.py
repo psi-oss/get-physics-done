@@ -13,14 +13,25 @@ from pathlib import Path
 import pytest
 
 from gpd import registry as content_registry
-from gpd._python_compat import MIN_SUPPORTED_PYTHON, MIN_SUPPORTED_PYTHON_LABEL
+from gpd._python_compat import (
+    MIN_SUPPORTED_PYTHON,
+    MIN_SUPPORTED_PYTHON_LABEL,
+    PREFERRED_VERSIONED_PYTHON_MINORS,
+    RECOMMENDED_PYTHON_VERSION,
+)
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
-from gpd.core.constants import MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR
+from gpd.core.constants import (
+    MIN_PYTHON_MAJOR,
+    MIN_PYTHON_MINOR,
+)
+from gpd.core.constants import (
+    RECOMMENDED_PYTHON_VERSION as CORE_RECOMMENDED_PYTHON_VERSION,
+)
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
-from gpd.registry import VALID_CONTEXT_MODES
+from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
 
 
 def _repo_root() -> Path:
@@ -202,11 +213,15 @@ def test_python_floor_is_consistent_across_install_surfaces() -> None:
 
     readme = _read("README.md")
     installer = _read("bin/install.js")
+    installer_preferred_minors = _installer_preferred_python_minors(installer)
 
     assert f"Python {MIN_SUPPORTED_PYTHON_LABEL}+" in readme
+    assert CORE_RECOMMENDED_PYTHON_VERSION == RECOMMENDED_PYTHON_VERSION
     assert _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MAJOR") == MIN_SUPPORTED_PYTHON[0]
     assert _installer_js_int_constant(installer, "MIN_SUPPORTED_PYTHON_MINOR") == MIN_SUPPORTED_PYTHON[1]
-    assert MIN_SUPPORTED_PYTHON[1] in _installer_preferred_python_minors(installer)
+    assert installer_preferred_minors == PREFERRED_VERSIONED_PYTHON_MINORS
+    assert installer_preferred_minors[0] == RECOMMENDED_PYTHON_VERSION[1]
+    assert MIN_SUPPORTED_PYTHON[1] in installer_preferred_minors
     assert "Python 3.11+ is required" not in installer
     assert "Python ${MIN_SUPPORTED_PYTHON_LABEL} is required" in installer
     assert "preferredPythonCommands" in installer
@@ -385,11 +400,41 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     dependencies: list[str] = project["dependencies"]
     optional = project.get("optional-dependencies", {})
     assert not any(item.startswith("arxiv-mcp-server") for item in dependencies)
-    assert optional == {"arxiv": ["arxiv-mcp-server>=0.4.11", "pypdf>=5.0"]}
+    assert set(optional) == {"arxiv", "paper"}
+    assert set(optional["paper"]) == {
+        "cairosvg>=2.7.0",
+        "pypdf>=5.0",
+    }
+    assert set(optional["arxiv"]) == {
+        "arxiv-mcp-server>=0.4.11",
+        "arxiv>=2.4.1",
+        "cairosvg>=2.7.0",
+        "pypdf>=5.0",
+    }
 
     descriptor = build_public_descriptors()["gpd-arxiv"]
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]
     assert descriptor["capabilities"][-1] == "download_source"
+
+
+def test_paper_journal_vocabulary_docs_match_builder_contract() -> None:
+    from gpd.mcp.paper.models import SUPPORTED_PAPER_JOURNALS
+
+    expected = set(SUPPORTED_PAPER_JOURNALS)
+
+    paper_config_schema = _read("src/gpd/specs/templates/paper/paper-config-schema.md")
+    supported_journals_match = re.search(
+        r"## Supported `journal` Values(?P<section>.*?)(?=^## Validation Rules)",
+        paper_config_schema,
+        re.M | re.S,
+    )
+    assert supported_journals_match is not None
+    assert set(re.findall(r"^- `([^`]+)`$", supported_journals_match.group("section"), re.M)) == expected
+
+    authoring_input_schema = _read("src/gpd/specs/templates/paper/write-paper-authoring-input-schema.md")
+    target_journal_match = re.search(r"^- `target_journal`: one of (?P<values>.+)$", authoring_input_schema, re.M)
+    assert target_journal_match is not None
+    assert set(re.findall(r"`([^`]+)`", target_journal_match.group("values"))) == expected
 
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:
@@ -449,12 +494,16 @@ def test_execute_phase_docs_use_review_cadence_not_removed_verify_between_waves_
     execute_command = _read("src/gpd/commands/execute-phase.md")
     execute_workflow = _read("src/gpd/specs/workflows/execute-phase.md")
 
-    assert "execution.review_cadence" in execute_command
-    assert "dense" in execute_command
-    assert "adaptive" in execute_command
-    assert "sparse" in execute_command
+    assert "@{GPD_INSTALL_DIR}/workflows/execute-phase.md" in execute_command
+    assert "execution.review_cadence" not in execute_command
+    assert "dense" not in execute_command
+    assert "adaptive" not in execute_command
+    assert "sparse" not in execute_command
     assert "workflow.verify_between_waves" not in execute_command
     assert "review_cadence" in execute_workflow
+    assert "dense" in execute_workflow
+    assert "adaptive" in execute_workflow
+    assert "sparse" in execute_workflow
     assert "verify_between_waves" not in execute_workflow
 
 
@@ -465,6 +514,17 @@ def test_health_check_count_matches_skill_documentation() -> None:
     command = _read("src/gpd/commands/health.md")
     assert "All {total} health checks passed." in command
     assert "All checks reported with status" in command
+
+
+def test_health_command_defaults_read_only_and_confirms_fix_before_mutation() -> None:
+    command = _read("src/gpd/commands/health.md")
+    metadata, _body = _parse_frontmatter(command)
+    allowed_tools = metadata["allowed-tools"]
+
+    assert "file_write" not in allowed_tools
+    assert "ask_user" in allowed_tools
+    assert "Default mode is read-only." in command
+    assert "Do not run `gpd --raw health --fix` unless the researcher confirms." in command
 
 
 def test_every_command_declares_valid_context_mode() -> None:
@@ -492,7 +552,10 @@ def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
     workflow = _read("src/gpd/specs/workflows/update.md")
 
     assert "<GPD_CONFIG_DIR>" not in workflow
-    assert '"{GPD_CONFIG_DIR}/cache/gpd-update-check.json"' in workflow
+    assert "get_update_cache_files(cwd=Path.cwd(), home=Path.home())" in workflow
+    assert "home_update_cache_file(home=Path.home())" in workflow
+    assert 'for root in (current_config, current_global_config, Path.home() / "{GPD_HOME_DATA_DIR_NAME}")' in workflow
+    assert 'root / "{GPD_CACHE_DIR_NAME}" / "{GPD_UPDATE_CACHE_FILENAME}"' in workflow
 
 
 def test_referee_response_round_suffix_convention_is_consistent() -> None:

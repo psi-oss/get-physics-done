@@ -8,7 +8,6 @@ from pathlib import Path
 
 import gpd.hooks.install_context as hook_layout
 from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
-from gpd.core.root_resolution import resolve_project_root
 
 DebugLogger = Callable[[str], None]
 
@@ -115,16 +114,38 @@ def primary_update_cache_file(candidates: list[object], *, home: str | Path | No
     return home_update_cache_file(home=home)
 
 
-def _project_layout_update_cache_candidate(workspace_path: Path | None):
-    """Return the project-layout cache candidate when a GPD project root is visible."""
-    from gpd.hooks.runtime_detect import UpdateCacheCandidate
+def _candidate_config_dir(candidate_path: object) -> Path | None:
+    """Return the runtime config dir for a standard runtime update-cache path."""
+    if not isinstance(candidate_path, Path):
+        return None
+    if candidate_path.name != UPDATE_CACHE_FILENAME or candidate_path.parent.name != CACHE_DIR_NAME:
+        return None
+    return candidate_path.parent.parent
 
-    if workspace_path is None:
-        return None
-    project_root = resolve_project_root(workspace_path, require_layout=True)
-    if project_root is None:
-        return None
-    return UpdateCacheCandidate(project_root / "GPD" / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+
+def _manifest_matches_candidate(candidate: object, *, config_dir: Path) -> bool:
+    """Return whether candidate metadata agrees with an authoritative install manifest."""
+    from gpd.hooks.install_metadata import (
+        load_install_manifest_runtime_status,
+        load_install_manifest_scope_status,
+    )
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, normalize_runtime_name
+
+    candidate_runtime = normalize_runtime_name(getattr(candidate, "runtime", None))
+    if candidate_runtime in (None, RUNTIME_UNKNOWN):
+        candidate_runtime = None
+    candidate_scope = getattr(candidate, "scope", None)
+
+    runtime_state, _runtime_manifest, manifest_runtime = load_install_manifest_runtime_status(config_dir)
+    if runtime_state != "ok" or manifest_runtime is None:
+        return False
+    if candidate_runtime is not None and candidate_runtime != manifest_runtime:
+        return False
+
+    scope_state, _scope_manifest, manifest_scope = load_install_manifest_scope_status(config_dir)
+    if scope_state != "ok" or manifest_scope is None:
+        return False
+    return candidate_scope is None or candidate_scope == manifest_scope
 
 
 def latest_update_cache(
@@ -160,13 +181,9 @@ def latest_update_cache(
                 return cache, self_candidate
 
     fallback_hit: tuple[dict[str, object], object] | None = None
-    project_candidate = _project_layout_update_cache_candidate(workspace_path)
-    if project_candidate is not None:
-        project_cache = _read_update_cache(project_candidate.path, debug=debug)
-        if project_cache is not None:
-            fallback_hit = (project_cache, project_candidate)
     for candidate in ordered_update_cache_candidates(
         cwd=workspace_path,
+        home=resolved_home,
         preferred_runtime=preferred_runtime,
         active_installed_runtime=active_installed_runtime,
     ):
@@ -192,26 +209,38 @@ def update_command_for_candidate(
     cwd: str | Path | None,
 ) -> str | None:
     """Return the repair/update command for one resolved update-cache candidate."""
-    from gpd.hooks.install_metadata import installed_update_command
+    from gpd.hooks.install_metadata import installed_update_command, load_install_manifest_state
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
-        _runtime_dir_has_gpd_install,
         detect_active_runtime_with_gpd_install,
         detect_install_scope,
+        runtime_has_gpd_install,
         update_command_for_runtime,
     )
+
+    candidate_path = getattr(candidate, "path", None)
+    candidate_config_dir = _candidate_config_dir(candidate_path)
+    if candidate_config_dir is not None:
+        manifest_state, _manifest = load_install_manifest_state(candidate_config_dir)
+        if manifest_state != "missing":
+            if not _manifest_matches_candidate(candidate, config_dir=candidate_config_dir):
+                return None
+            return installed_update_command(candidate_config_dir)
+
+    self_install = hook_layout.detect_self_owned_install(hook_file)
+    if self_install is not None and candidate_path == self_install.cache_file:
+        return installed_update_command(self_install.config_dir)
 
     lookup = hook_layout.resolve_hook_lookup_context(cwd=cwd)
     workspace_path = lookup.lookup_cwd
     scope_lookup_cwd = workspace_path if cwd is not None else None
-    self_install = hook_layout.detect_self_owned_install(hook_file)
-    candidate_path = getattr(candidate, "path", None)
-    if self_install is not None and candidate_path == self_install.cache_file:
-        return installed_update_command(self_install.config_dir)
-
     runtime = getattr(candidate, "runtime", None) or RUNTIME_UNKNOWN
     scope = getattr(candidate, "scope", None)
-    if runtime != RUNTIME_UNKNOWN and not _runtime_dir_has_gpd_install(runtime, cwd=workspace_path, home=lookup.resolved_home):
+    if runtime != RUNTIME_UNKNOWN and not runtime_has_gpd_install(
+        runtime,
+        cwd=workspace_path,
+        home=lookup.resolved_home,
+    ):
         runtime = RUNTIME_UNKNOWN
         scope = None
     if runtime == RUNTIME_UNKNOWN:

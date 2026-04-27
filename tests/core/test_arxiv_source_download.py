@@ -11,6 +11,7 @@ from gpd.core.arxiv_source_download import (
     ArxivSourceDownload,
     arxiv_source_user_agent,
     build_source_download_url,
+    default_arxiv_source_storage_path,
     download_arxiv_source_archive,
     normalize_arxiv_id,
     resolve_source_storage_dir,
@@ -37,6 +38,10 @@ def test_normalize_arxiv_id_accepts_known_forms() -> None:
     assert normalize_arxiv_id("2401.12345") == "2401.12345"
     assert normalize_arxiv_id("arXiv:2401.12345v2") == "2401.12345v2"
     assert normalize_arxiv_id("https://arxiv.org/abs/hep-th/9901001") == "hep-th/9901001"
+    assert normalize_arxiv_id("https://arxiv.org/abs/2401.12345?context=math#references") == "2401.12345"
+    assert normalize_arxiv_id("https://arxiv.org/pdf/2401.12345v2.pdf?download=1") == "2401.12345v2"
+    assert normalize_arxiv_id("https://arxiv.org/pdf/hep-th/9901001.pdf#page=1") == "hep-th/9901001"
+    assert normalize_arxiv_id("https://arxiv.org/e-print/2401.12345v2") == "2401.12345v2"
 
 
 def test_normalize_arxiv_id_rejects_invalid_values() -> None:
@@ -57,6 +62,17 @@ def test_arxiv_source_user_agent_tracks_package_version() -> None:
 def test_resolve_source_storage_dir_uses_sources_subdirectory(tmp_path: Path) -> None:
     resolved = resolve_source_storage_dir(tmp_path / "papers")
     assert resolved == (tmp_path / "papers" / "sources").resolve()
+    assert resolved.is_dir()
+
+
+def test_default_source_storage_path_uses_current_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setattr("gpd.core.arxiv_source_download.Path.home", lambda: home)
+
+    assert default_arxiv_source_storage_path() == home / ".arxiv-mcp-server" / "papers"
+    resolved = resolve_source_storage_dir()
+
+    assert resolved == (home / ".arxiv-mcp-server" / "papers" / "sources").resolve()
     assert resolved.is_dir()
 
 

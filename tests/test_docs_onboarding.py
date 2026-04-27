@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,20 @@ _SHARED_INSTALL = get_shared_install_metadata()
 
 def _read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _markdown_heading_ids(content: str) -> set[str]:
+    counts: dict[str, int] = {}
+    heading_ids: set[str] = set()
+    for match in re.finditer(r"^#{1,6}\s+(.+?)\s*$", content, re.M):
+        heading = re.sub(r"<[^>]+>", "", match.group(1))
+        heading = re.sub(r"`([^`]+)`", r"\1", heading)
+        slug = re.sub(r"[^\w\s-]", "", heading.strip().lower())
+        slug = re.sub(r"\s+", "-", slug).strip("-")
+        duplicate_count = counts.get(slug, 0)
+        counts[slug] = duplicate_count + 1
+        heading_ids.add(slug if duplicate_count == 0 else f"{slug}-{duplicate_count}")
+    return heading_ids
 
 
 def _assert_fragments(content: str, fragments: tuple[str, ...]) -> None:
@@ -150,6 +165,22 @@ def test_docs_onboarding_hub_links_os_and_runtime_guides() -> None:
     )
 
 
+def test_docs_onboarding_hub_surfaces_release_source_policy() -> None:
+    content = _read("docs/README.md")
+
+    _assert_in_order(
+        content,
+        (
+            "PyPI pinned release",
+            "tagged GitHub release sources",
+            "`--upgrade`",
+            "latest unreleased GitHub `main` source",
+        ),
+    )
+    assert "Supervised mode is the default" in content
+    assert "Graduate to Balanced" in content
+
+
 def test_root_readme_start_here_links_to_docs_onboarding_hub() -> None:
     content = _read("README.md")
     start_here = _markdown_section(content, "## Start Here")
@@ -165,6 +196,58 @@ def test_root_readme_start_here_links_to_docs_onboarding_hub() -> None:
             "Inside your AI runtime:",
         ),
     )
+
+
+def test_root_readme_local_heading_anchors_resolve() -> None:
+    content = _read("README.md")
+    linked_heading_ids = set(re.findall(r"\[[^\]]+\]\(#([^)]+)\)", content))
+
+    assert linked_heading_ids
+    assert linked_heading_ids <= _markdown_heading_ids(content)
+
+
+def test_root_readme_install_source_policy_and_peer_review_target_are_current() -> None:
+    content = _read("README.md")
+    quick_start = _markdown_section(content, "## Quick Start")
+    install_options_start = quick_start.index("<summary><strong>Install options</strong></summary>")
+    install_options = quick_start[install_options_start:quick_start.index("</details>", install_options_start)]
+    command_context = _markdown_section(content, "## Key GPD Paths")
+
+    _assert_in_order(
+        install_options,
+        (
+            "PyPI pinned release first",
+            "tagged GitHub release sources",
+            "`--upgrade`",
+            "latest unreleased GitHub `main` source",
+        ),
+    )
+    assert "matching tagged GitHub source" not in install_options
+    assert "one explicit manuscript/artifact path or paper directory target" in command_context
+    assert "`.tex`, `.md`, `.txt`, `.pdf`" not in command_context
+
+
+def test_root_readme_runtime_workflow_examples_are_prefixless_and_uninstall_link_is_current() -> None:
+    content = _read("README.md")
+    quick_start = _markdown_section(content, "## Quick Start")
+    worked_example = _markdown_section(content, "## Worked Example")
+    uninstall = _markdown_section(content, "## Uninstall")
+
+    assert "Typical new-project workflow, shown as command names without runtime prefixes:" in quick_start
+    assert "`new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work 1`" in quick_start
+    assert "The example below uses canonical command names without runtime prefixes." in worked_example
+    assert "Claude Code / Gemini CLI syntax" not in worked_example
+    assert "```text\nnew-project\n" in worked_example
+    assert "```text\nplan-phase 1\nexecute-phase 1\nverify-work 1\n```" in worked_example
+    assert "```text\nwrite-paper\npeer-review\nrespond-to-referees\narxiv-submission\n```" in worked_example
+    assert "```text\ngpd:new-project\n" not in worked_example
+    assert "`gpd:plan-phase N`" not in worked_example
+    assert "Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`" in content
+    assert "Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`" in content
+    assert "gpd:new-project ->" not in content
+    assert "gpd:write-paper ->" not in content
+    assert "matching uninstall command from [Start Here]" not in uninstall
+    assert "npx -y get-physics-done --uninstall" in uninstall
 
 
 def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces() -> None:
@@ -185,6 +268,29 @@ def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces(
     assert "CODEX_SKILLS_DIR" not in content
     assert "GEMINI_CONFIG_DIR" not in content
     assert "OPENCODE_CONFIG_DIR" not in content
+
+
+def test_root_readme_model_overrides_example_covers_catalog_runtimes() -> None:
+    content = _read("README.md")
+    config_example = _markdown_section(content, "## Optional: Model Profiles And Tier Overrides")
+
+    for surface in beginner_runtime_surfaces():
+        assert f'"{surface.runtime_name}"' in config_example
+
+
+def test_runtime_config_guide_omits_unsupported_skip_mcp_advice() -> None:
+    content = _read("src/gpd/specs/references/tooling/runtime-config-guide.md")
+
+    assert "--skip-mcp" not in content
+    assert "free space before installing" in content
+
+
+def test_set_tier_models_workflow_keeps_runtime_model_examples_generic() -> None:
+    content = _read("src/gpd/specs/workflows/set-tier-models.md")
+
+    assert "adapter catalog" not in content
+    assert "Runtime-native examples are intentionally not hard-coded here." in content
+    assert "runtime/provider's own model documentation" in content
 
 
 def test_runtime_quickstarts_keep_current_provider_specific_setup_notes() -> None:

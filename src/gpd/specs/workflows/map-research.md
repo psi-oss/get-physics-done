@@ -527,7 +527,7 @@ Created GPD/research-map/:
 
 `gpd:new-project`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

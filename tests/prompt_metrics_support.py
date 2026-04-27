@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.adapters.install_utils import expand_at_includes
+from gpd.adapters.install_utils import expand_at_includes, parse_at_include_path
 
 __all__ = [
     "PromptSurfaceMetrics",
@@ -16,9 +15,8 @@ __all__ = [
     "first_line_containing_any",
     "line_number_for_fragment",
     "measure_prompt_surface",
+    "parse_at_include_path",
 ]
-
-_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?`?(@[^\s`]+)`?(?:\s+.*)?$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,21 +57,8 @@ def count_raw_includes(text: str) -> int:
             continue
         if in_code_fence:
             continue
-        include_match = _AT_INCLUDE_LINE_RE.match(stripped)
-        if include_match is None:
-            continue
-        include_candidate = include_match.group(1)
-        if len(include_candidate) < 3 or include_candidate[1] == " " or re.match(r"^@\w+\{", include_candidate):
-            continue
-        include_path = include_candidate[1:]
-        include_path = include_path.split(" (see")[0]
-        include_path = include_path.split(" -> ")[0]
-        include_path = re.sub(r"\s+\([^)]*\)\s*$", "", include_path).strip()
-        if "/" not in include_path:
-            continue
-        if include_path.startswith(("GPD/", "path/")):
-            continue
-        include_count += 1
+        if parse_at_include_path(stripped) is not None:
+            include_count += 1
     return include_count
 
 

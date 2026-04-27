@@ -21,6 +21,9 @@ The paired response-artifact contract at `@{GPD_INSTALL_DIR}/references/publicat
 ---
 response_to: REFEREE-REPORT{round_suffix}.md
 round: {N}
+manuscript_path: {path/to/active-manuscript.tex}
+review_ledger: ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json
+referee_decision: ${selected_review_root}/REFEREE-DECISION{round_suffix}.json
 date: YYYY-MM-DDTHH:MM:SSZ
 issues_fixed: {count}
 issues_rebutted: {count}

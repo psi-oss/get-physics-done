@@ -13,19 +13,30 @@ Everywhere else, shared code should stay runtime-agnostic.
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
+from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 
 from gpd.adapters import iter_adapters
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    get_hook_payload_policy,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+)
 from gpd.command_labels import runtime_public_command_prefixes
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _SHARED_INSTALL = get_shared_install_metadata()
+_RUNTIME_COMMAND_SURFACE_LEFT_BOUNDARY = r"(^|[^A-Za-z0-9_.@/}\-])"
+
+
+def _runtime_command_surface_prefix_literal_pattern(prefix: str) -> str:
+    return _RUNTIME_COMMAND_SURFACE_LEFT_BOUNDARY + re.escape(prefix)
 
 
 def _runtime_env_prefix_patterns() -> list[str]:
@@ -59,12 +70,13 @@ def _runtime_literal_patterns() -> list[str]:
         ):
             if value:
                 patterns.add(re.escape(value))
+        for prefix in (descriptor.command_prefix, descriptor.public_command_surface_prefix):
+            if prefix:
+                patterns.add(_runtime_command_surface_prefix_literal_pattern(prefix))
         for value in descriptor.selection_flags:
             patterns.add(re.escape(value))
         for value in descriptor.selection_aliases:
             patterns.add(re.escape(value))
-            if descriptor.command_prefix == "$gpd-":
-                patterns.add(re.escape(descriptor.command_prefix))
     return sorted(patterns)
 
 
@@ -194,6 +206,24 @@ _SHARED_RUNTIME_AGNOSTIC_PATHS = (
     REPO_ROOT / "src/gpd/registry.py",
     REPO_ROOT / "src/gpd/mcp/servers/skills_server.py",
 )
+_COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+_RAW_PROJECT_INCLUDE_PATTERN = re.compile(r"@GPD/")
+
+
+def _command_context_mode(path: Path) -> str | None:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return None
+    frontmatter_end = text.find("\n---", 4)
+    if frontmatter_end == -1:
+        return None
+    frontmatter = text[4:frontmatter_end]
+    match = re.search(r"(?m)^context_mode:\s*(?P<mode>[a-z-]+)\s*$", frontmatter)
+    if match is None:
+        return None
+    return match.group("mode")
+
+
 def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
     paths: list[Path] = []
     for path in sorted((REPO_ROOT / "tests").rglob("*.py")):
@@ -226,6 +256,19 @@ _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
 _SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN = re.compile(
     r"""["'](?:openai|anthropic|google|gpt-[^"']+|claude-(?!code)[^"']+|gemini-(?!cli)[^"']+)["']"""
 )
+_SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS = (
+    REPO_ROOT / "src/gpd/hooks/notify.py",
+    REPO_ROOT / "src/gpd/hooks/payload_roots.py",
+    REPO_ROOT / "src/gpd/hooks/statusline.py",
+    REPO_ROOT / "tests/hooks/test_notify.py",
+    REPO_ROOT / "tests/hooks/test_payload_roots.py",
+    REPO_ROOT / "tests/hooks/test_statusline.py",
+)
+_RUNTIME_ADAPTER_IMPLEMENTATION_PATHS = tuple(
+    REPO_ROOT / f"src/gpd/adapters/{adapter.__class__.__module__.rsplit('.', 1)[-1]}.py"
+    for adapter in iter_adapters()
+)
+_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
@@ -299,11 +342,6 @@ def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -
     return matches
 
 
-def _runtime_literal_sequence_pattern(values: tuple[str, ...]) -> re.Pattern[str]:
-    quoted_values = [rf'["\']{re.escape(value)}["\']' for value in values]
-    return re.compile(r"[\[(]\s*" + r"\s*,\s*".join(quoted_values) + r"\s*[\])]", re.DOTALL)
-
-
 def _runtime_fixture_values() -> tuple[str, ...]:
     values: set[str] = set()
     for descriptor in _RUNTIME_DESCRIPTORS:
@@ -320,6 +358,19 @@ def _runtime_fixture_values() -> tuple[str, ...]:
             if value:
                 values.add(value)
     return tuple(sorted(values))
+
+
+def _runtime_command_surface_prefix_values() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                prefix
+                for descriptor in _RUNTIME_DESCRIPTORS
+                for prefix in (descriptor.command_prefix, descriptor.public_command_surface_prefix)
+                if prefix
+            }
+        )
+    )
 
 
 def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2) -> list[str]:
@@ -350,6 +401,116 @@ def _runtime_tool_alias_literal_pattern() -> re.Pattern[str]:
     return re.compile(rf"(?:{'|'.join(pieces)})")
 
 
+def _literal_string_tuple(node: ast.AST) -> tuple[str, ...] | None:
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "frozenset"
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        return _literal_string_tuple(node.args[0])
+    if not isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return None
+
+    values: list[str] = []
+    for element in node.elts:
+        if not isinstance(element, ast.Constant) or not isinstance(element.value, str):
+            return None
+        values.append(element.value)
+    return tuple(values)
+
+
+def _assignment_target_names(node: ast.Assign | ast.AnnAssign) -> tuple[str, ...]:
+    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+    names: list[str] = []
+
+    def collect(target: ast.AST) -> None:
+        if isinstance(target, ast.Name):
+            names.append(target.id)
+        elif isinstance(target, ast.Attribute):
+            names.append(target.attr)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                collect(element)
+
+    for target in targets:
+        collect(target)
+    return tuple(names)
+
+
+def _runtime_hook_payload_key_tuples() -> dict[tuple[str, ...], set[str]]:
+    key_tuples: dict[tuple[str, ...], set[str]] = {}
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for field in fields(descriptor.hook_payload):
+            if not field.name.endswith("_keys"):
+                continue
+            values = getattr(descriptor.hook_payload, field.name)
+            if values:
+                key_tuples.setdefault(tuple(values), set()).add(field.name)
+    return key_tuples
+
+
+def test_merged_hook_payload_policy_is_descriptor_wise_union_for_every_field() -> None:
+    merged_policy = get_hook_payload_policy()
+
+    for field in fields(merged_policy):
+        expected_values: list[str] = []
+        for descriptor in _RUNTIME_DESCRIPTORS:
+            for value in getattr(descriptor.hook_payload, field.name):
+                if value not in expected_values:
+                    expected_values.append(value)
+
+        assert getattr(merged_policy, field.name) == tuple(expected_values)
+
+
+def test_shared_hook_policy_consumers_do_not_duplicate_catalog_hook_payload_key_tuples() -> None:
+    catalog_key_tuples = _runtime_hook_payload_key_tuples()
+    leaks: list[tuple[Path, int, str]] = []
+
+    for path in _SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(REPO_ROOT)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            target_names = _assignment_target_names(node)
+            if not any("key" in name.casefold() for name in target_names):
+                continue
+            literal = _literal_string_tuple(node.value)
+            if literal not in catalog_key_tuples:
+                continue
+            fields_text = ", ".join(sorted(catalog_key_tuples[literal]))
+            leaks.append(
+                (
+                    rel_path,
+                    node.lineno,
+                    f"{', '.join(target_names)} duplicates runtime_catalog hook_payload {fields_text}",
+                )
+            )
+
+    assert leaks == [], (
+        "Shared hooks and hook tests should consume hook payload keys from runtime_catalog policies instead of duplicating them:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_runtime_adapters_use_shared_shell_fence_language_constant() -> None:
+    leaks: list[tuple[Path, int, str]] = []
+    for path in _RUNTIME_ADAPTER_IMPLEMENTATION_PATHS:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(REPO_ROOT)
+        for node in ast.walk(tree):
+            literal = _literal_string_tuple(node)
+            if literal is not None and frozenset(literal) == _RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES:
+                leaks.append((rel_path, node.lineno, "duplicate runtime bridge shell fence languages literal"))
+
+    assert leaks == [], (
+        "Runtime adapters should use DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES from install_utils:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
 def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -> None:
     runtime_literal = _RUNTIME_DESCRIPTORS[0].runtime_name
     findings = _runtime_fixture_literal_findings(f'(["{runtime_literal}"])', minimum_matches=1)
@@ -358,16 +519,40 @@ def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -
 
 
 def test_runtime_pattern_includes_capability_surface_literals() -> None:
-    capability_literals = (
-        "settings.json:permissions.defaultMode",
-        "settings.json:statusLine",
-        "config.toml:approval_policy+sandbox_mode",
-        "config.toml:notify",
-        "opencode.json:permission",
+    capability_literals = tuple(
+        sorted(
+            {
+                value
+                for descriptor in _RUNTIME_DESCRIPTORS
+                for value in (
+                    descriptor.capabilities.permission_surface_kind,
+                    descriptor.capabilities.statusline_config_surface,
+                    descriptor.capabilities.notify_config_surface,
+                )
+                if value and value != "none"
+            }
+        )
     )
 
+    assert capability_literals
     for literal in capability_literals:
         assert re.search(_RUNTIME_PATTERN, literal) is not None
+
+
+def test_runtime_pattern_includes_descriptor_command_surface_prefix_literals() -> None:
+    prefixes = _runtime_command_surface_prefix_values()
+
+    assert prefixes
+    for prefix in prefixes:
+        assert re.search(_RUNTIME_PATTERN, prefix) is not None
+
+
+def test_runtime_pattern_includes_bare_slash_command_surface_prefix_literals() -> None:
+    slash_prefixes = tuple(prefix for prefix in _runtime_command_surface_prefix_values() if prefix.startswith("/"))
+
+    assert slash_prefixes
+    for prefix in slash_prefixes:
+        assert re.search(_RUNTIME_PATTERN, prefix) is not None
 
 
 def test_loaded_runtime_descriptors_keep_public_command_surfaces_descriptor_owned() -> None:
@@ -572,6 +757,23 @@ def test_shared_runtime_docs_do_not_rebuild_install_metadata_literals() -> None:
     )
 
 
+def test_projectless_and_global_commands_do_not_eagerly_include_project_files() -> None:
+    leaks: list[tuple[Path, int, str]] = []
+    for path in sorted(_COMMANDS_DIR.glob("*.md")):
+        context_mode = _command_context_mode(path)
+        if context_mode not in {"projectless", "global"}:
+            continue
+        rel_path = path.relative_to(REPO_ROOT)
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if _RAW_PROJECT_INCLUDE_PATTERN.search(line):
+                leaks.append((rel_path, line_no, line))
+
+    assert leaks == [], (
+        "Projectless/global command prompts should let workflows or CLI inspect GPD files conditionally:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
 def test_shared_python_modules_keep_wolfram_integration_tokens_out_of_non_boundary_files() -> None:
     wolfram_pattern = re.compile(
         r"(gpd-wolfram|gpd-mcp-wolfram|GPD_WOLFRAM_MCP_API_KEY|GPD_WOLFRAM_MCP_ENDPOINT|WOLFRAM_MCP_SERVICE_API_KEY)"
@@ -659,12 +861,24 @@ def test_shared_generic_tests_do_not_hardcode_provider_or_model_literals() -> No
     )
 
 
+def test_autonomous_success_criteria_do_not_hardcode_provider_literals() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/autonomous.md").read_text(encoding="utf-8")
+    success_criteria = workflow.split("<success_criteria>", 1)[1].split("</success_criteria>", 1)[0]
+
+    provider_literals = ("Anthropic", "OpenAI", "Google", "Claude", "Gemini")
+    leaks = [literal for literal in provider_literals if literal in success_criteria]
+
+    assert "runtime/provider-neutral" in success_criteria
+    assert leaks == []
+
+
 def test_readme_optional_terminal_reference_uses_runtime_placeholders() -> None:
     block = _readme_optional_terminal_reference()
 
-    assert "--codex" not in block
-    assert "--runtime codex" not in block
-    assert "relaunch Codex" not in block
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        assert descriptor.install_flag not in block
+        assert f"--runtime {descriptor.runtime_name}" not in block
+        assert f"relaunch {descriptor.display_name}" not in block
     assert "--<runtime-flag>" in block
     assert "--runtime <runtime>" in block
 

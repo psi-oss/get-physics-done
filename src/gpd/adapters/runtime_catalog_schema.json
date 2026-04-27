@@ -23,7 +23,8 @@
     "agent_prompt_uses_dollar_templates",
     "installer_help_example_scope",
     "validated_command_surface",
-    "public_command_surface_prefix"
+    "public_command_surface_prefix",
+    "managed_install_surface"
   ],
   "global_config_keys": {
     "env_or_home": [
@@ -101,7 +102,8 @@
     ],
     "telemetry_source": [
       "none",
-      "notify-hook"
+      "notify-hook",
+      "runtime-api"
     ],
     "telemetry_completeness": [
       "best-effort",
@@ -144,6 +146,40 @@
     "context_window_size_keys",
     "context_remaining_keys"
   ],
+  "hook_payload_defaults": {
+    "notify_event_types": [],
+    "workspace_keys": [],
+    "project_dir_keys": [],
+    "target_path_keys": [],
+    "target_root_keys": [],
+    "runtime_session_id_keys": [],
+    "model_keys": [],
+    "provider_keys": [],
+    "usage_keys": [],
+    "input_tokens_keys": [],
+    "output_tokens_keys": [],
+    "total_tokens_keys": [],
+    "cached_input_tokens_keys": [],
+    "cache_write_input_tokens_keys": [],
+    "cost_usd_keys": [],
+    "agent_id_keys": [],
+    "agent_name_keys": [],
+    "agent_scope_keys": [],
+    "context_window_size_keys": [],
+    "context_remaining_keys": []
+  },
+  "managed_install_surface_keys": [
+    "gpd_content_globs",
+    "nested_command_globs",
+    "flat_command_globs",
+    "managed_agent_globs"
+  ],
+  "managed_install_surface_defaults": {
+    "gpd_content_globs": [],
+    "nested_command_globs": [],
+    "flat_command_globs": [],
+    "managed_agent_globs": ["agents/gpd-*.md", "agents/gpd-*.toml"]
+  },
   "install_help_example_scopes": [
     "global",
     "local"

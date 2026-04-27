@@ -108,22 +108,29 @@ jobs:
               fh.write(f"metadata_changed={metadata_changed}\n")
           PY
 
-      - name: Check tag does not already exist
+      - name: Check existing release tag safety
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_SHA="$(git rev-parse HEAD)"
           if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
-            echo "::error::Tag v${VERSION} already exists."
-            exit 1
+            TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"
+            if [ "$TAG_SHA" != "$RELEASE_SHA" ]; then
+              echo "::error::Tag v${VERSION} already exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}."
+              exit 1
+            fi
+            echo "::notice::Tag v${VERSION} already points at release commit ${RELEASE_SHA}; continuing publish recovery."
           fi
 
       - name: Run release validation suite
         run: |
           uv run pytest tests/test_release_consistency.py -v
+          rm -rf dist
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json
 
       - name: Build Python distributions
         run: |
-          uv build
+          rm -rf dist
+          uv build --out-dir dist
           uv run --with twine python -m twine check dist/*
 
       - name: Upload Python distributions
@@ -183,6 +190,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install development dependencies
+        run: |
+          uv sync --dev --frozen
+
       - name: Stamp actual publish date in release checkout
         run: |
           python scripts/release_workflow.py stamp-publish-date --repo . --release-date "${{ needs.build-release.outputs.release_date }}" > /tmp/publish-date.json
@@ -193,23 +207,77 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Run stamped release validation
+        run: |
+          uv run pytest tests/test_release_consistency.py -v
+          rm -rf dist
+          npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack-publish.json
+
       - name: Publish to npm
-        run: npm publish
+        id: npm_publish
+        run: |
+          VERSION="${{ needs.build-release.outputs.version }}"
+
+          npm_version_is_published() {
+            PUBLISHED_VERSION="$(npm view "get-physics-done@${VERSION}" version 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
+            [ "$PUBLISHED_VERSION" = "$VERSION" ]
+          }
+
+          if npm_version_is_published; then
+            echo "::notice::get-physics-done@${VERSION} is already published on npm; skipping npm publish."
+            echo "status=already-published" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if npm publish; then
+            echo "status=published" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if npm_version_is_published; then
+            echo "::warning::npm publish failed, but get-physics-done@${VERSION} is now published; continuing."
+            echo "status=already-published" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          exit 1
 
       - name: Create GitHub release
         id: github_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Creating the release with `gh release create` also creates the
-          # matching lightweight tag, but only after PyPI and npm succeeded.
+          # Creating the release also creates the matching lightweight tag when
+          # needed. Reruns after a late publish failure may find the tag or
+          # release already present; those are safe only when the tag points at
+          # the reviewed release commit.
           VERSION="${{ needs.build-release.outputs.version }}"
           RELEASE_SHA="${{ needs.build-release.outputs.release_sha }}"
           python scripts/release_workflow.py release-notes --repo . --version "$VERSION" > /tmp/release-notes.txt
-          gh release create "v${VERSION}" \
-            --target "$RELEASE_SHA" \
-            --title "v${VERSION}" \
-            --notes-file /tmp/release-notes.txt
+
+          git fetch --tags origin
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"
+            if [ "$TAG_SHA" != "$RELEASE_SHA" ]; then
+              echo "::error::Tag v${VERSION} exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}."
+              exit 1
+            fi
+            RELEASE_URL="$(gh release view "v${VERSION}" --json url --jq '.url // ""' 2>/dev/null || true)"
+            if [ -n "$RELEASE_URL" ]; then
+              echo "::notice::GitHub release v${VERSION} already exists at the reviewed release commit; continuing publish recovery."
+              echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            gh release create "v${VERSION}" \
+              --verify-tag \
+              --title "v${VERSION}" \
+              --notes-file /tmp/release-notes.txt
+          else
+            gh release create "v${VERSION}" \
+              --target "$RELEASE_SHA" \
+              --title "v${VERSION}" \
+              --notes-file /tmp/release-notes.txt
+          fi
           RELEASE_URL=$(gh release view "v${VERSION}" --json url --jq '.url')
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
 
@@ -224,19 +292,6 @@ jobs:
           RELEASE_DATE="${{ needs.build-release.outputs.release_date }}"
           FOLLOWUP_BRANCH="post-release/v${VERSION}-publish-date"
 
-          if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH" >/dev/null 2>&1; then
-            PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url')
-            echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git switch -c "$FOLLOWUP_BRANCH"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CITATION.cff README.md
-          git commit -m "docs: stamp v${VERSION} publish date"
-          git push --set-upstream origin "$FOLLOWUP_BRANCH"
-
           cat > /tmp/publish-date-pr-body.md <<EOF
           ## Summary
           - Persist the actual publish date for \`v${VERSION}\` after the manual publish workflow completed.
@@ -247,17 +302,67 @@ jobs:
           - This PR keeps \`main\` aligned with the published metadata without requiring the publish workflow to push directly to protected \`main\`.
           EOF
 
+          configure_git_author() {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          }
+
+          prepare_followup_branch() {
+            python scripts/release_workflow.py stamp-publish-date --repo . --release-date "$RELEASE_DATE" > /tmp/publish-date-followup.json
+            git switch -C "$FOLLOWUP_BRANCH"
+            configure_git_author
+            git add CITATION.cff README.md
+            if git diff --cached --quiet; then
+              echo "::error::Publish-date metadata was expected to change, but no follow-up diff was produced."
+              exit 1
+            fi
+            git commit -m "docs: stamp v${VERSION} publish date"
+          }
+
+          if git ls-remote --exit-code --heads origin "$FOLLOWUP_BRANCH" >/dev/null 2>&1; then
+            PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
+            if [ -n "$PR_URL" ]; then
+              echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk '{print $1}')"
+            if [ -z "$EXISTING_BRANCH_SHA" ]; then
+              echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} was reported as existing, but its remote SHA could not be resolved."
+              exit 1
+            fi
+            echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found; restamping and updating the branch before recreating the PR."
+            prepare_followup_branch
+            git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}" origin "HEAD:${FOLLOWUP_BRANCH}"
+            gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --title "docs: stamp v${VERSION} publish date" --body-file /tmp/publish-date-pr-body.md
+            PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
+            if [ -z "$PR_URL" ]; then
+              echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} exists, but no open PR URL could be found after PR creation."
+              exit 1
+            fi
+            echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          prepare_followup_branch
+          git push --set-upstream origin "$FOLLOWUP_BRANCH"
+
           gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --title "docs: stamp v${VERSION} publish date" --body-file /tmp/publish-date-pr-body.md
-          PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url')
+          PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH" --json url --jq '.[0].url // ""')
+          if [ -z "$PR_URL" ]; then
+            echo "::error::Follow-up PR was created for ${FOLLOWUP_BRANCH}, but no open PR URL could be found."
+            exit 1
+          fi
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
       - name: Trigger gpd-web production rebuild
+        id: gpd_web_rebuild
         env:
           GPD_WEB_TOKEN: ${{ secrets.GPD_WEB_DISPATCH_TOKEN }}
         run: |
           VERSION="${{ needs.build-release.outputs.version }}"
           if [ -z "$GPD_WEB_TOKEN" ]; then
             echo "::warning::GPD_WEB_DISPATCH_TOKEN not configured — skipping production rebuild trigger"
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           curl -sf -X POST \
@@ -265,12 +370,15 @@ jobs:
             -H "Authorization: Bearer ${GPD_WEB_TOKEN}" \
             https://api.github.com/repos/physicalsuperintelligence/gpd-web/dispatches \
             -d "{\"event_type\":\"rebuild-gpd\",\"client_payload\":{\"source\":\"npm\",\"version\":\"${VERSION}\",\"image_tag\":\"prod\"}}"
+          echo "status=dispatched" >> "$GITHUB_OUTPUT"
           echo "Dispatched production rebuild to gpd-web for GPD v${VERSION}"
 
       - name: Write publish summary
         env:
           RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
+          NPM_PUBLISH_STATUS: ${{ steps.npm_publish.outputs.status }}
           METADATA_PR_URL: ${{ steps.metadata_pr.outputs.pr_url }}
+          GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}
         run: |
           VERSION="${{ needs.build-release.outputs.version }}"
           RELEASE_SHA="${{ needs.build-release.outputs.release_sha }}"
@@ -283,12 +391,20 @@ jobs:
             echo "- Commit: \`${RELEASE_SHA}\`"
             echo "- Publish date: \`${RELEASE_DATE}\`"
             echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
-            echo "- npm: published via trusted publishing from environment \`npm\`"
+            if [ "${NPM_PUBLISH_STATUS}" = "already-published" ]; then
+              echo "- npm: already published; skipped trusted-publishing rerun"
+            else
+              echo "- npm: published via trusted publishing from environment \`npm\`"
+            fi
             echo "- GitHub release: ${RELEASE_URL}"
             if [ "${METADATA_CHANGED}" = "true" ]; then
               echo "- Follow-up metadata PR: ${METADATA_PR_URL}"
             else
               echo "- Follow-up metadata PR: not needed; release PR already used the publish date"
             fi
-            echo "- GPD Web production rebuild: dispatched"
+            if [ "${GPD_WEB_REBUILD_STATUS}" = "dispatched" ]; then
+              echo "- GPD Web production rebuild: dispatched"
+            else
+              echo "- GPD Web production rebuild: skipped; \`GPD_WEB_DISPATCH_TOKEN\` is not configured"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

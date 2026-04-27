@@ -86,7 +86,7 @@ Guidance for that follow-up:
 - Treat blank / `runtime default` / `none` as "no override for this tier".
 - Treat literal `default` as a real model alias only when the active runtime supports it and the user explicitly intends that alias.
 
-runtime-native examples are intentionally not hard-coded here. The installer projects the active runtime's own example guidance from the adapter catalog, so this shared workflow stays generic while still allowing each runtime to show its accepted model-string style.
+Runtime-native examples are intentionally not hard-coded here. Ask for the exact string accepted by the active runtime and preserve it unchanged; if the user is unsure, recommend keeping runtime defaults and checking the runtime/provider's own model documentation.
 </step>
 
 <step name="update_config">

@@ -51,7 +51,7 @@ class _ExecutionSnapshot(SimpleNamespace):
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
-    home_cache = home / "GPD" / "cache"
+    home_cache = home / ".gpd" / "cache"
     home_cache.mkdir(parents=True)
     (home_cache / "gpd-update-check.json").write_text(
         json.dumps({"update_available": False, "checked": 10}),
@@ -492,10 +492,10 @@ def test_record_usage_telemetry_prefers_resolved_active_runtime_when_supplied(tm
     assert mock_record.call_args.kwargs["runtime"] == _TELEMETRY_RUNTIME
 
 
-def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
-    gpd_cache = tmp_path / "GPD" / "cache"
-    gpd_cache.mkdir(parents=True)
-    (gpd_cache / "gpd-update-check.json").write_text(
+def test_notify_home_update_cache_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
+    home_cache = tmp_path / "home" / ".gpd" / "cache"
+    home_cache.mkdir(parents=True)
+    (home_cache / "gpd-update-check.json").write_text(
         json.dumps(
             {
                 "update_available": True,
@@ -510,7 +510,7 @@ def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp
     stderr = io.StringIO()
     with (
         patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
         patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
         patch("sys.stderr", stderr),
     ):
@@ -521,15 +521,50 @@ def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp
     assert "Run: gpd-update" not in output
 
 
+def test_notify_ignores_stale_project_local_update_cache(tmp_path: Path) -> None:
+    project_cache = tmp_path / "GPD" / "cache"
+    project_cache.mkdir(parents=True)
+    (project_cache / "gpd-update-check.json").write_text(
+        json.dumps({"update_available": True, "installed": "2.0.0", "latest": "2.1.0", "checked": 30}),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update()
+
+    assert stderr.getvalue() == ""
+
+
 def test_notification_state_path_uses_project_layout_observability_root(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     (workspace / "GPD").mkdir(parents=True)
+    (workspace / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     nested = workspace / "src" / "notes"
     nested.mkdir(parents=True)
 
     from gpd.hooks.notify import _notification_state_path
 
     assert _notification_state_path(str(nested)) == ProjectLayout(workspace).last_observability_notification
+
+
+def test_notification_state_path_ignores_empty_ancestor_gpd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+    nested = workspace / "src" / "notes"
+    nested.mkdir(parents=True)
+    home = tmp_path / "home"
+    expected = home / HOME_DATA_DIR_NAME / OBSERVABILITY_DIR_NAME / OBSERVABILITY_LAST_NOTIFY_FILENAME
+
+    from gpd.hooks.notify import _notification_state_path
+
+    with patch("gpd.hooks.notify.Path.home", return_value=home):
+        assert _notification_state_path(str(nested)) == expected
 
 
 def test_notification_state_path_uses_home_data_root_outside_project_layout(tmp_path: Path) -> None:
@@ -1558,11 +1593,16 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
         patch("gpd.hooks.notify._execution_notification_message", side_effect=_message),
         patch("sys.stderr", stderr),
     ):
-        threads = [threading.Thread(target=_emit), threading.Thread(target=_emit)]
+        threads = [
+            threading.Thread(target=_emit, name="notify-dedupe-1", daemon=True),
+            threading.Thread(target=_emit, name="notify-dedupe-2", daemon=True),
+        ]
         for thread in threads:
             thread.start()
         for thread in threads:
-            thread.join()
+            thread.join(timeout=5)
+        live_threads = [thread.name for thread in threads if thread.is_alive()]
+        assert not live_threads, f"Notification threads did not stop: {live_threads}; errors: {errors}"
 
     assert errors == []
     assert stderr.getvalue().count("Resume candidate from live overlay for 04-02") == 1

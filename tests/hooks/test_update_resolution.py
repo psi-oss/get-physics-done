@@ -290,6 +290,33 @@ def test_latest_update_cache_falls_back_when_self_owned_cache_is_missing(tmp_pat
     assert candidate is fallback_candidate
 
 
+def test_latest_update_cache_reuses_resolved_home_for_candidate_ordering(tmp_path: Path) -> None:
+    resolved_home = tmp_path / "home"
+    resolved_home.mkdir()
+    candidate = SimpleNamespace(path=tmp_path / "runtime-cache.json", runtime="codex", scope="global")
+    candidate.path.write_text(json.dumps({"update_available": True, "checked": 43}), encoding="utf-8")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
+        patch(
+            "gpd.hooks.update_resolution.resolve_update_cache_inputs",
+            return_value=(tmp_path, resolved_home, "codex", "codex"),
+        ),
+        patch("gpd.hooks.runtime_detect.detect_runtime_install_target", return_value=None),
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[candidate]) as ordered,
+    ):
+        cache, selected = latest_update_cache(hook_file=__file__, cwd=str(tmp_path), debug=_noop_debug)
+
+    assert cache == {"update_available": True, "checked": 43}
+    assert selected is candidate
+    ordered.assert_called_once_with(
+        cwd=tmp_path,
+        home=resolved_home,
+        preferred_runtime="codex",
+        active_installed_runtime="codex",
+    )
+
+
 def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path: Path) -> None:
     from gpd.hooks.install_context import SelfOwnedInstallContext
 
@@ -356,7 +383,7 @@ def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path
             None,
             _repair_command("codex", install_scope="local", target_dir=local_runtime_dir, explicit_target=False),
             workspace,
-            (("gpd.hooks.runtime_detect._runtime_dir_has_gpd_install", True),),
+            (("gpd.hooks.runtime_detect.runtime_has_gpd_install", True),),
         ),
         (
             SimpleNamespace(
@@ -400,9 +427,94 @@ def test_update_command_for_candidate_prefers_expected_resolution_modes(tmp_path
             elif expected is None and candidate.path == stale_self_install.cache_file:
                 command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))
             elif candidate.path.parent.name == "cache" and candidate.path.parent.parent.name == ".codex" and candidate.path.parent.parent.parent == workspace:
-                with patch("gpd.hooks.runtime_detect._runtime_dir_has_gpd_install", return_value=True):
+                with patch("gpd.hooks.runtime_detect.runtime_has_gpd_install", return_value=True):
                     command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))
             else:
                 command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(cwd))
 
         assert command == expected
+
+
+def test_update_command_for_candidate_uses_non_self_explicit_target_manifests(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+
+    local_target = tmp_path / "custom-local-codex"
+    seed_complete_runtime_install(
+        local_target,
+        runtime="codex",
+        install_scope="local",
+        explicit_target=True,
+    )
+    global_target = tmp_path / "custom-global-codex"
+    seed_complete_runtime_install(
+        global_target,
+        runtime="codex",
+        install_scope="global",
+        home=home,
+        explicit_target=True,
+    )
+
+    cases = (
+        (
+            SimpleNamespace(path=local_target / "cache" / "gpd-update-check.json", runtime="codex", scope="local"),
+            _repair_command("codex", install_scope="local", target_dir=local_target, explicit_target=True),
+        ),
+        (
+            SimpleNamespace(path=global_target / "cache" / "gpd-update-check.json", runtime="codex", scope="global"),
+            _repair_command("codex", install_scope="global", target_dir=global_target, explicit_target=True),
+        ),
+    )
+
+    with patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None):
+        for candidate, expected in cases:
+            command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
+
+            assert command == expected
+
+
+def test_update_command_for_candidate_fails_closed_for_non_self_manifest_identity_mismatch(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = tmp_path / "custom-local-codex"
+    seed_complete_runtime_install(
+        target,
+        runtime="codex",
+        install_scope="local",
+        explicit_target=True,
+    )
+
+    cases = (
+        SimpleNamespace(path=target / "cache" / "gpd-update-check.json", runtime="claude-code", scope="local"),
+        SimpleNamespace(path=target / "cache" / "gpd-update-check.json", runtime="codex", scope="global"),
+    )
+
+    with patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None):
+        for candidate in cases:
+            command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
+
+            assert command is None
+
+
+def test_update_command_for_candidate_fails_closed_for_non_self_legacy_manifest(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    legacy_target = tmp_path / "legacy-custom-codex"
+    seed_complete_runtime_install(
+        legacy_target,
+        runtime="codex",
+        install_scope="local",
+        explicit_target=True,
+    )
+    manifest_path = legacy_target / _SHARED_INSTALL.manifest_name
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    candidate = SimpleNamespace(path=legacy_target / "cache" / "gpd-update-check.json", runtime="codex", scope="local")
+
+    with patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=workspace)
+
+    assert command is None

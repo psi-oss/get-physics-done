@@ -32,6 +32,7 @@ def _plan_markdown(*, extra_frontmatter: str = "") -> str:
             "  schema_version: 1",
             "  scope:",
             "    question: What benchmark must this plan recover?",
+            "    in_scope: [benchmark recovery]",
             "  context_intake:",
             "    must_read_refs: [ref-main]",
             "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]",

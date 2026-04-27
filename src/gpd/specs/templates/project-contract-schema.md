@@ -160,6 +160,15 @@ Canonical schema for the `project_contract` object inside `GPD/state.json`. This
 
 The `project_contract` value must be a JSON object. Do not replace it with prose, a list, or a string.
 
+Preferred validation + persistence path for prompt-authored contracts:
+
+```bash
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
+```
+
+The stdin path is canonical because it keeps the exact approved JSON payload in-memory across validation and persistence. Do not tell the model to round-trip through a temporary file unless a human explicitly chose that workflow.
+
 `schema_version` must be the integer `1`. Unsupported schema versions are invalid.
 
 Project contracts must include at least one observable, claim, or deliverable.
@@ -167,6 +176,8 @@ Project contracts must include at least one observable, claim, or deliverable.
 `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
 
 Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.
+
+Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`; target resolution becomes ambiguous.
 
 `scope.in_scope` must name at least one project boundary or objective.
 

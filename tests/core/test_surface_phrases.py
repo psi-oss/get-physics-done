@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from gpd.core.public_surface_contract import recovery_ladder_note as public_recovery_ladder_note
+from gpd.core.public_surface_contract import (
+    local_cli_bridge_commands,
+    local_cli_bridge_purpose_phrase,
+)
+from gpd.core.public_surface_contract import (
+    recovery_ladder_note as public_recovery_ladder_note,
+)
 from gpd.core.surface_phrases import (
     command_follow_up_action,
     cost_after_run_action,
@@ -244,6 +250,14 @@ def test_preset_and_local_bridge_phrases_remain_command_oriented() -> None:
         assert token in preset_note
 
     bridge_note = local_cli_bridge_note()
+    assert bridge_note == (
+        "Use `gpd --help` from your normal terminal for the broader local CLI surface: "
+        f"{local_cli_bridge_purpose_phrase()}."
+    )
+    assert "gpd validate plan-preflight <PLAN.md>" not in bridge_note
+    assert "gpd permissions sync --runtime <runtime> --autonomy <mode>" not in bridge_note
+
+    bridge_inventory = local_cli_bridge_commands()
     for token in (
         "gpd --help",
         "gpd doctor",
@@ -257,7 +271,7 @@ def test_preset_and_local_bridge_phrases_remain_command_oriented() -> None:
         "gpd presets list",
         "gpd integrations status wolfram",
     ):
-        assert token in bridge_note
+        assert token in bridge_inventory
     assert (
         post_start_settings_note()
         == "After your first successful start or later, use the runtime `settings` command to review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides."

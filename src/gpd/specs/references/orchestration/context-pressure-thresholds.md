@@ -1,6 +1,6 @@
 # Context Pressure Thresholds
 
-Standardized context pressure monitoring thresholds for all GPD agents. This file covers per-agent threshold calibration. For workflow-level context budgeting (how to segment plans, when to /clear, token cost estimates), see `references/orchestration/context-budget.md`.
+Standardized context pressure monitoring thresholds for all GPD agents. This file covers per-agent threshold calibration. For workflow-level context budgeting (how to segment plans, when to reset context, token cost estimates), see `references/orchestration/context-budget.md`.
 
 **Default thresholds:** use `references/orchestration/agent-infrastructure.md` §Context Pressure Management as the canonical GREEN/YELLOW/ORANGE/RED table. This file only lists per-agent overrides and calibration notes.
 

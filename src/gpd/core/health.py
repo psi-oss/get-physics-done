@@ -37,6 +37,7 @@ from gpd.core.constants import (
     REQUIRED_PLANNING_FILES,
     REQUIRED_SPECS_SUBDIRS,
     ROADMAP_FILENAME,
+    STATE_JSON_BACKUP_FILENAME,
     STATE_LINES_TARGET,
     UNCOMMITTED_FILES_THRESHOLD,
     ProjectLayout,
@@ -176,14 +177,42 @@ def check_environment() -> HealthCheck:
 
 
 _ROOT_MIGRATABLE_FILES = frozenset({ROADMAP_FILENAME, PROJECT_FILENAME})
+_LEGACY_GPD_DIR_NAME = ".gpd"
+
+
+def _legacy_gpd_project_markers(cwd: Path) -> list[str]:
+    """Return project-state markers found in repo-local legacy ``.gpd/``."""
+
+    legacy_dir = cwd / _LEGACY_GPD_DIR_NAME
+    if not legacy_dir.is_dir():
+        return []
+
+    markers: list[str] = []
+    for name in (*REQUIRED_PLANNING_FILES, STATE_JSON_BACKUP_FILENAME):
+        if (legacy_dir / name).exists():
+            markers.append(f"{_LEGACY_GPD_DIR_NAME}/{name}")
+    for name in REQUIRED_PLANNING_DIRS:
+        if (legacy_dir / name).is_dir():
+            markers.append(f"{_LEGACY_GPD_DIR_NAME}/{name}/")
+    return markers
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
     """Check that required GPD/ files and directories exist."""
-    layout = ProjectLayout(cwd)
+    project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+    layout = ProjectLayout(project_root)
     issues: list[str] = []
     warnings: list[str] = []
     details: dict[str, object] = {}
+
+    legacy_markers = _legacy_gpd_project_markers(project_root)
+    if legacy_markers:
+        details["legacy_gpd_project_markers"] = legacy_markers
+        warnings.append(
+            f"Legacy {_LEGACY_GPD_DIR_NAME}/ contains project markers "
+            f"({', '.join(legacy_markers)}). Canonical project state lives in {PLANNING_DIR_NAME}/; "
+            "move or remove the legacy files."
+        )
 
     for name in REQUIRED_PLANNING_FILES:
         full = layout.gpd / name
@@ -362,14 +391,23 @@ def _render_contract_cli_command(
     return " ".join(shlex.quote(part) for part in rendered)
 
 
-def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | None, str | None]:
+def _resolve_health_project_root(cwd: Path) -> Path:
+    """Return the root health checks should use for project-scoped state files."""
+    return resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+
+
+def _peek_normalized_state_for_health(
+    cwd: Path,
+    *,
+    project_root: Path | None = None,
+) -> tuple[dict[str, object] | None, str | None]:
     """Load normalized state for inspection without mutating on-disk files.
 
     Health checks need visibility into structurally parseable blocked
     ``project_contract`` payloads so approval blockers are reported as failures
     instead of being hidden by draft-scoping normalization.
     """
-    project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+    project_root = project_root or _resolve_health_project_root(cwd)
     state_obj, _integrity_issues, state_source = peek_state_json(
         project_root,
         recover_intent=False,
@@ -386,16 +424,17 @@ def check_state_validity(cwd: Path) -> HealthCheck:
 
     Delegates core validation to :func:`state_validate` and wraps the result.
     """
-    result = state_validate(cwd, recover_intent=False)
+    project_root = _resolve_health_project_root(cwd)
+    result = state_validate(project_root, recover_intent=False, acquire_lock=False)
     issues = list(result.issues)
     warnings = list(result.warnings)
 
-    state_obj, state_source = _peek_normalized_state_for_health(cwd)
+    state_obj, state_source = _peek_normalized_state_for_health(project_root, project_root=project_root)
     if isinstance(state_obj, dict) and state_obj.get("project_contract") is not None:
         approval_validation = validate_project_contract(
             state_obj["project_contract"],
             mode="approved",
-            project_root=cwd,
+            project_root=project_root,
         )
         if not approval_validation.valid:
             for error in approval_validation.errors:
@@ -413,7 +452,7 @@ def check_state_validity(cwd: Path) -> HealthCheck:
             if not re.match(r"^\d{2,}(\.\d+)*$", phase):
                 warnings.append(f'phase ID format: "{phase}" -- expected zero-padded')
 
-    layout = ProjectLayout(cwd)
+    layout = ProjectLayout(project_root)
     details: dict[str, object] = {
         "has_json": layout.state_json.exists(),
         "has_md": layout.state_md.exists(),
@@ -803,7 +842,12 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
 
     try:
         result = subprocess.run(
-            ["git", "tag", "-l", "gpd-checkpoint-*"],
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)%00%(creatordate:unix)",
+                "refs/tags/gpd-checkpoint-*",
+            ],
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -815,30 +859,29 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
             warnings.append(message)
             return HealthCheck(status=CheckStatus.WARN, label="Checkpoint Tags", details=details, warnings=warnings)
 
-        tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        details["tag_count"] = len(tags)
-
         now = int(time.time())
+        tags: list[str] = []
         stale_tags: list[str] = []
-        for tag in tags:
-            tag_result = subprocess.run(
-                ["git", "log", "-1", "--format=%ct", tag],
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if tag_result.returncode != 0:
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            tag, separator, created_at_text = line.partition("\x00")
+            tag = tag.strip()
+            if not tag:
+                continue
+            tags.append(tag)
+            if not separator:
                 warnings.append(f"Unable to inspect checkpoint tag {tag}")
                 continue
             try:
-                created_at = int(tag_result.stdout.strip())
+                created_at = int(created_at_text.strip())
             except ValueError:
                 warnings.append(f"Invalid timestamp for checkpoint tag {tag}")
                 continue
             if now - created_at >= STALE_CHECKPOINT_TAG_MAX_AGE_SECONDS:
                 stale_tags.append(tag)
 
+        details["tag_count"] = len(tags)
         details["stale_tags"] = stale_tags
         if stale_tags:
             warnings.append(f"{len(stale_tags)} checkpoint tag(s) older than {STALE_CHECKPOINT_TAG_MAX_AGE_DAYS} days")
@@ -999,7 +1042,17 @@ def _apply_fixes(
     state_check = next((c for c in checks if c.label == "State Validity"), None)
     if state_check and state_check.status != CheckStatus.OK:
         restored_state, _restored_issues, state_source = peek_state_json(cwd)
-        if restored_state is not None and state_source in {"state.json.bak", "STATE.md"}:
+        if restored_state is not None and state_source == "state.json" and not layout.state_md.exists():
+            try:
+                save_state_json(cwd, restored_state)
+                fixes.append("Regenerated STATE.md from state.json")
+                state_check.details["state_source"] = state_source
+                refreshed_labels.update(
+                    {"Project Structure", "State Validity", "State Compaction", "Convention Lock"}
+                )
+            except OSError as e:
+                fixes.append(f"Failed to restore STATE.md: {e}")
+        elif restored_state is not None and state_source in {"state.json.bak", "STATE.md"}:
             try:
                 save_state_json(cwd, restored_state)
                 if state_source == "state.json.bak":
@@ -1113,10 +1166,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
     """Run all health checks and return a full report.
 
     Args:
-        cwd: Project root directory.
+        cwd: Project root or nested workspace directory.
         fix: If True, attempt auto-fixes for common issues.
     """
     with gpd_span("health.run", **{"gpd.health.fix": fix}):
+        project_root = _resolve_health_project_root(cwd)
         checks: list[HealthCheck] = []
 
         for name, check_fn in _ALL_CHECKS:
@@ -1124,11 +1178,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                 if name == "environment":
                     checks.append(check_fn())  # type: ignore[operator]
                 else:
-                    checks.append(check_fn(cwd))  # type: ignore[operator]
+                    checks.append(check_fn(project_root))  # type: ignore[operator]
 
         fixes: list[str] = []
         if fix:
-            fixes, refreshed_labels = _apply_fixes(cwd, checks, return_refreshed_labels=True)
+            fixes, refreshed_labels = _apply_fixes(project_root, checks, return_refreshed_labels=True)
             if refreshed_labels:
                 refreshed_checks: list[HealthCheck] = []
                 check_labels = {
@@ -1157,7 +1211,7 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                         if name == "environment":
                             refreshed_checks.append(check_fn())  # type: ignore[operator]
                         else:
-                            refreshed_checks.append(check_fn(cwd))  # type: ignore[operator]
+                            refreshed_checks.append(check_fn(project_root))  # type: ignore[operator]
                 checks = refreshed_checks
 
         ok_count = sum(1 for c in checks if c.status == CheckStatus.OK)
@@ -1345,27 +1399,32 @@ def _permissions_capability_fallback_payload(
     contract_source: str,
     contract_error: str | None = None,
 ) -> dict[str, object]:
+    from gpd.adapters.runtime_catalog import RuntimeCapabilityPolicy
+
     payload: dict[str, object] = {
         "contract_source": contract_source,
+        **_runtime_capability_policy_payload(RuntimeCapabilityPolicy()),
         "permissions_surface": "adapter-defined",
         "permission_surface_kind": "unknown",
-        "prompt_free_mode_value": None,
-        "supports_runtime_permission_sync": False,
-        "supports_prompt_free_mode": False,
-        "prompt_free_requires_relaunch": False,
         "statusline_surface": "unknown",
         "statusline_config_surface": "unknown",
         "notify_surface": "unknown",
         "notify_config_surface": "unknown",
         "telemetry_source": "unknown",
         "telemetry_completeness": "unknown",
-        "supports_usage_tokens": False,
-        "supports_cost_usd": False,
-        "supports_context_meter": False,
+        "child_artifact_persistence_reliability": "unknown",
+        "continuation_surface": "unknown",
+        "checkpoint_stop_semantics": "unknown",
     }
     if contract_error is not None:
         payload["contract_error"] = contract_error
     return payload
+
+
+def _runtime_capability_policy_payload(capabilities: object) -> dict[str, object]:
+    """Serialize the complete runtime capability contract into public payload fields."""
+
+    return {field.name: getattr(capabilities, field.name) for field in dataclasses.fields(capabilities)}
 
 
 def _permissions_capability_payload(runtime_name: object) -> dict[str, object]:
@@ -1385,21 +1444,7 @@ def _permissions_capability_payload(runtime_name: object) -> dict[str, object]:
         else:
             return {
                 "contract_source": "runtime-catalog",
-                "permissions_surface": capabilities.permissions_surface,
-                "permission_surface_kind": capabilities.permission_surface_kind,
-                "prompt_free_mode_value": capabilities.prompt_free_mode_value,
-                "supports_runtime_permission_sync": capabilities.supports_runtime_permission_sync,
-                "supports_prompt_free_mode": capabilities.supports_prompt_free_mode,
-                "prompt_free_requires_relaunch": capabilities.prompt_free_requires_relaunch,
-                "statusline_surface": capabilities.statusline_surface,
-                "statusline_config_surface": capabilities.statusline_config_surface,
-                "notify_surface": capabilities.notify_surface,
-                "notify_config_surface": capabilities.notify_config_surface,
-                "telemetry_source": capabilities.telemetry_source,
-                "telemetry_completeness": capabilities.telemetry_completeness,
-                "supports_usage_tokens": capabilities.supports_usage_tokens,
-                "supports_cost_usd": capabilities.supports_cost_usd,
-                "supports_context_meter": capabilities.supports_context_meter,
+                **_runtime_capability_policy_payload(capabilities),
             }
     return _permissions_capability_fallback_payload(contract_source="generic-fallback")
 
@@ -2061,7 +2106,7 @@ def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool
             "Publication / manuscript and full research presets are degraded without pypdf: "
             "`write-paper`, `paper-build`, and `arxiv-submission` remain usable, and `peer-review` still accepts "
             "TeX/Markdown/TXT/CSV/TSV plus built-in DOCX/XLSX intake, but PDF-backed `peer-review` intake requires "
-            "pypdf (`pip install 'get-physics-done[arxiv]'`) or a nearby `.txt` companion file."
+            "pypdf (`pip install 'get-physics-done[paper]'`) or a nearby `.txt` companion file."
         )
 
     status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN

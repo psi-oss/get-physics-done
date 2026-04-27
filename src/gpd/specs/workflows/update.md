@@ -23,10 +23,7 @@ PATCH_META="{GPD_PATCH_META}"
 PYTHON_BIN="${GPD_PYTHON:-}"
 
 if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
-fi
-if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN="python3"
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
 fi
 
 if [ -f "$GPD_INSTALL_DIR/VERSION" ]; then
@@ -62,10 +59,7 @@ LATEST_RELEASE_URL="{GPD_RELEASE_LATEST_URL}"
 PYTHON_BIN="${GPD_PYTHON:-}"
 
 if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
-fi
-if [ -z "$PYTHON_BIN" ]; then
-  PYTHON_BIN="python3"
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
 fi
 
 "$PYTHON_BIN" - "$LATEST_RELEASE_URL" <<'PY'
@@ -86,8 +80,7 @@ If that fails, show:
 
 Couldn't check for updates (offline or release metadata unavailable).
 
-To update manually, run:
-`<UPDATE_COMMAND>`
+To update manually, run the command from line 3 of the install detection output.
 ```
 
 Then exit.
@@ -143,10 +136,7 @@ Display the confirmation prompt in this shape:
 ### What's New
 [short preview of recent release notes, or a brief fallback note]
 
->> **Note:** This reinstalls the current runtime's managed GPD files:
-- GPD command files for this runtime will be replaced
-- `{GPD_INSTALL_ROOT_DIR_NAME}/` will be replaced
-- `gpd-*` agent files will be replaced
+>> **Note:** This replaces the runtime's managed GPD commands, agents, and `{GPD_INSTALL_ROOT_DIR_NAME}/`.
 
 Custom files outside the managed GPD install are preserved.
 If you've modified managed GPD files directly, they will be backed up to `{GPD_PATCHES_DIR_NAME}/` and can be reapplied with `gpd:reapply-patches` after the update.
@@ -168,17 +158,44 @@ If the user cancels, exit.
 Run the update with the public bootstrap command from step 1:
 
 ```bash
-<UPDATE_COMMAND>
+: "${UPDATE_COMMAND:?ERROR: UPDATE_COMMAND is empty; use line 3 from detect_current_install.}"
+sh -c "$UPDATE_COMMAND"
 ```
 
 Capture output. If the update command fails, show the error and exit.
 
-Then clear the configured update caches so indicators disappear immediately:
+Clear update-cache candidates with the hook helper when importable and literal paths as fallback:
 
 ```bash
-rm -f \
-  "{GPD_CONFIG_DIR}/cache/gpd-update-check.json" \
-  "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json"
+GPD_CONFIG_DIR="${GPD_CONFIG_DIR:-{GPD_CONFIG_DIR}}"
+GPD_GLOBAL_CONFIG_DIR="${GPD_GLOBAL_CONFIG_DIR:-{GPD_GLOBAL_CONFIG_DIR}}"
+PYTHON_BIN="${PYTHON_BIN:-${GPD_PYTHON:-}}"
+if [ -z "$PYTHON_BIN" ]; then
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+fi
+"$PYTHON_BIN" - "$GPD_CONFIG_DIR" "$GPD_GLOBAL_CONFIG_DIR" <<'PY'
+from pathlib import Path; import sys
+
+current_config = Path(sys.argv[1])
+current_global_config = Path(sys.argv[2])
+cache_files = set()
+for root in (current_config, current_global_config, Path.home() / "{GPD_HOME_DATA_DIR_NAME}"):
+    cache_files.add(root / "{GPD_CACHE_DIR_NAME}" / "{GPD_UPDATE_CACHE_FILENAME}")
+
+try:
+    from gpd.hooks.runtime_detect import get_update_cache_files, home_update_cache_file
+    cache_files.update(get_update_cache_files(cwd=Path.cwd(), home=Path.home()))
+    cache_files.add(home_update_cache_file(home=Path.home()))
+except Exception:
+    pass
+
+for cache_file in sorted(cache_files):
+    for candidate in (cache_file, cache_file.with_name(f"{cache_file.name}.inflight")):
+        try:
+            candidate.unlink(missing_ok=True)
+        except OSError:
+            pass
+PY
 ```
 </step>
 

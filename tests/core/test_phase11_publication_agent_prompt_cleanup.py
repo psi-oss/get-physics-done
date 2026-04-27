@@ -34,7 +34,7 @@ def test_paper_writer_prompt_uses_typed_status_and_one_shot_checkpoint_language(
     assert "Return WRITING BLOCKED." not in source
 
 
-def test_paper_writer_return_example_shows_required_base_fields_before_extensions() -> None:
+def test_paper_writer_return_example_defers_base_fields_and_keeps_extensions() -> None:
     source = _read(PAPER_WRITER)
     envelope = _gpd_return_block(PAPER_WRITER)
 
@@ -43,57 +43,38 @@ def test_paper_writer_return_example_shows_required_base_fields_before_extension
         "Use the actual resolved manuscript-root path in `files_written`, for example `paper/results.tex` or `GPD/publication/{subject_slug}/manuscript/results.tex`."
         in source
     )
-    assert "status: completed | checkpoint | blocked | failed" in envelope
-    assert "files_written: [{resolved_manuscript_root}/{section_file}.tex]" in envelope
-    assert "issues: [list of issues encountered, if any]" in envelope
-    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
+    assert "# files_written uses the actual resolved manuscript-root path." in envelope
     assert 'section_name: "{section drafted}"' in envelope
-    assert envelope.index("status: completed | checkpoint | blocked | failed") < envelope.index(
-        "files_written: [{resolved_manuscript_root}/{section_file}.tex]"
+    assert envelope.index(
+        "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+    ) < envelope.index(
+        "# files_written uses the actual resolved manuscript-root path."
     )
-    assert envelope.index("files_written: [{resolved_manuscript_root}/{section_file}.tex]") < envelope.index(
-        "issues: [list of issues encountered, if any]"
-    )
-    assert envelope.index("issues: [list of issues encountered, if any]") < envelope.index(
-        "next_actions: [concrete commands or exact artifact review actions]"
-    )
-    assert envelope.index("next_actions: [concrete commands or exact artifact review actions]") < envelope.index(
+    assert envelope.index("# files_written uses the actual resolved manuscript-root path.") < envelope.index(
         'section_name: "{section drafted}"'
     )
-    assert "base fields (status, files_written, issues, next_actions)" not in source
 
 
-def test_bibliographer_prompt_uses_typed_status_and_base_field_first_return_example() -> None:
+def test_bibliographer_prompt_uses_typed_status_and_deferred_base_fields() -> None:
     source = _read(BIBLIOGRAPHER)
     envelope = _gpd_return_block(BIBLIOGRAPHER)
 
-    assert "This is a one-shot checkpoint handoff: do not wait for user input inside the current run." in source
-    assert "Use `gpd_return.status: checkpoint` as the control surface." in source
-    assert "The `## CHECKPOINT REACHED` heading below is presentation only." in source
-    assert (
-        "Return `gpd_return.status: completed`; use a `## BIBLIOGRAPHY UPDATED` or `## CITATION ISSUES FOUND` heading only as a human-readable presentation choice."
-        in source
-    )
-    assert (
-        "Use `status: completed` when the bibliography task finished, even if the human-readable heading is `## CITATION ISSUES FOUND`"
-        in source
-    )
+    assert "Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields, and one-shot handoff semantics." in source
+    assert "Route on `gpd_return.status`, not presentation headings." in source
+    assert "Use `completed` when the bibliography task finished" in source
+    assert "Use `gpd_return.status: checkpoint` as the control surface." not in source
     assert "Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND" not in source
-    assert "status: completed | checkpoint | blocked | failed" in envelope
-    assert "files_written: [references/references.bib, GPD/references-status.json]" in envelope
-    assert "issues: [list of citation problems, if any]" in envelope
-    assert "next_actions: [concrete commands or exact artifact review actions]" in envelope
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in envelope
+    assert "# files_written names references/references.bib and GPD/references-status.json when written." in envelope
     assert "entries_added: N" in envelope
-    assert envelope.index("status: completed | checkpoint | blocked | failed") < envelope.index(
-        "files_written: [references/references.bib, GPD/references-status.json]"
+    assert envelope.index(
+        "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+    ) < envelope.index(
+        "# files_written names references/references.bib and GPD/references-status.json when written."
     )
-    assert envelope.index("files_written: [references/references.bib, GPD/references-status.json]") < envelope.index(
-        "issues: [list of citation problems, if any]"
-    )
-    assert envelope.index("issues: [list of citation problems, if any]") < envelope.index(
-        "next_actions: [concrete commands or exact artifact review actions]"
-    )
-    assert envelope.index("next_actions: [concrete commands or exact artifact review actions]") < envelope.index(
+    assert envelope.index(
+        "# files_written names references/references.bib and GPD/references-status.json when written."
+    ) < envelope.index(
         "entries_added: N"
     )
-    assert "base fields (status, files_written, issues, next_actions)" not in source

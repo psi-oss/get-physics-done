@@ -16,8 +16,16 @@ import pytest
 
 import gpd.hooks.runtime_detect as runtime_detect_module
 from gpd.adapters import get_adapter
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
-from gpd.adapters.runtime_catalog import normalize_runtime_name as catalog_normalize_runtime_name
+from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
+from gpd.adapters.runtime_catalog import (
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+    resolve_global_config_dir,
+)
+from gpd.adapters.runtime_catalog import (
+    normalize_runtime_name as catalog_normalize_runtime_name,
+)
+from gpd.core.constants import TODOS_DIR_NAME
 from gpd.hooks.install_metadata import installed_runtime
 from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
@@ -34,6 +42,7 @@ from gpd.hooks.runtime_detect import (
     detect_active_runtime,
     detect_active_runtime_with_gpd_install,
     detect_install_scope,
+    detect_local_runtime_with_gpd_install,
     detect_runtime_for_gpd_use,
     detect_runtime_install_target,
     get_cache_dirs,
@@ -44,13 +53,17 @@ from gpd.hooks.runtime_detect import (
     get_update_cache_files,
     normalize_runtime_name,
     resolve_effective_runtime,
+    runtime_has_gpd_install,
     should_consider_todo_candidate,
     should_consider_update_cache_candidate,
     supported_runtime_names,
     update_command_for_runtime,
 )
 from tests.hooks.helpers import clean_runtime_env as _clean_runtime_env
+from tests.hooks.helpers import clear_runtime_env as _clear_runtime_env
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
+from tests.hooks.helpers import runtime_env_prefixes as _runtime_env_prefixes
+from tests.hooks.helpers import runtime_env_vars_to_clear as _runtime_env_vars_to_clear
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _RUNTIME_BY_NAME = {descriptor.runtime_name: descriptor for descriptor in _RUNTIME_DESCRIPTORS}
@@ -59,6 +72,97 @@ RUNTIME_CLAUDE = _RUNTIME_BY_NAME["claude-code"].runtime_name
 RUNTIME_CODEX = _RUNTIME_BY_NAME["codex"].runtime_name
 RUNTIME_GEMINI = _RUNTIME_BY_NAME["gemini"].runtime_name
 RUNTIME_OPENCODE = _RUNTIME_BY_NAME["opencode"].runtime_name
+
+
+def _catalog_activation_env_vars() -> set[str]:
+    return {env_var for descriptor in _RUNTIME_DESCRIPTORS for env_var in descriptor.activation_env_vars}
+
+
+def _catalog_global_config_env_vars() -> set[str]:
+    env_vars: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        global_config = descriptor.global_config
+        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
+            if env_var:
+                env_vars.add(env_var)
+    return env_vars
+
+
+def _global_config_dir_env_var(runtime: str) -> str:
+    global_config = _RUNTIME_BY_NAME[runtime].global_config
+    env_var = global_config.env_var or global_config.env_dir_var
+    assert env_var is not None
+    return env_var
+
+
+def _canonical_global_config_dir(runtime: str, home: Path) -> Path:
+    return resolve_global_config_dir(_RUNTIME_BY_NAME[runtime], home=home, environ={})
+
+
+def test_runtime_env_prefixes_cover_catalog_activation_env_vars() -> None:
+    prefixes = set(_runtime_env_prefixes())
+    expected_prefixes: set[str] = set()
+    for env_var in _catalog_activation_env_vars():
+        expected_prefixes.add(env_var)
+        expected_prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
+
+    assert expected_prefixes <= prefixes
+
+
+def test_runtime_env_vars_to_clear_covers_catalog_global_config_env_vars() -> None:
+    env_vars = _runtime_env_vars_to_clear()
+
+    assert {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"} <= env_vars
+    assert _catalog_global_config_env_vars() <= env_vars
+
+
+def test_runtime_env_vars_to_clear_extends_base_for_home_scoped_fixtures() -> None:
+    base_env_vars = _runtime_env_vars_to_clear()
+    home_scoped_env_vars = _runtime_env_vars_to_clear(extra_env_vars=("HOME", "GPD_HOME"))
+
+    assert base_env_vars <= home_scoped_env_vars
+    assert {"HOME", "GPD_HOME"} <= home_scoped_env_vars
+
+
+def test_clear_runtime_env_removes_catalog_keys_and_requested_extras(monkeypatch) -> None:
+    activation_env_var = sorted(_catalog_activation_env_vars())[0]
+    activation_prefix = activation_env_var.rsplit("_", 1)[0] if "_" in activation_env_var else activation_env_var
+    future_catalog_env_var = f"{activation_prefix}_FUTURE_SIGNAL"
+    global_config_env_var = sorted(_catalog_global_config_env_vars())[0]
+    env_vars_to_remove = {
+        activation_env_var,
+        future_catalog_env_var,
+        global_config_env_var,
+        "GPD_ACTIVE_RUNTIME",
+        "XDG_CONFIG_HOME",
+        "HOME",
+        "GPD_HOME",
+    }
+    for env_var in env_vars_to_remove:
+        monkeypatch.setenv(env_var, f"value-for-{env_var.lower()}")
+    monkeypatch.setenv("UNRELATED_TEST_ENV", "keep")
+
+    _clear_runtime_env(monkeypatch, extra_env_vars=("HOME", "GPD_HOME"))
+
+    for env_var in env_vars_to_remove:
+        assert env_var not in os.environ
+    assert os.environ["UNRELATED_TEST_ENV"] == "keep"
+
+
+def test_clean_runtime_env_returns_snapshot_without_catalog_keys_or_requested_extras(monkeypatch) -> None:
+    activation_env_var = sorted(_catalog_activation_env_vars())[0]
+    global_config_env_var = sorted(_catalog_global_config_env_vars())[0]
+    for env_var in (activation_env_var, global_config_env_var, "HOME", "GPD_HOME"):
+        monkeypatch.setenv(env_var, f"value-for-{env_var.lower()}")
+    monkeypatch.setenv("UNRELATED_TEST_ENV", "keep")
+
+    clean_env = _clean_runtime_env(extra_env_vars=("HOME", "GPD_HOME"))
+
+    assert activation_env_var not in clean_env
+    assert global_config_env_var not in clean_env
+    assert "HOME" not in clean_env
+    assert "GPD_HOME" not in clean_env
+    assert clean_env["UNRELATED_TEST_ENV"] == "keep"
 
 
 def _mark_gpd_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = SCOPE_LOCAL) -> None:
@@ -264,6 +368,71 @@ class TestResolveEffectiveRuntime:
         assert result.source == SOURCE_LOCAL
         assert result.has_gpd_install is True
         assert result.install_scope == SCOPE_LOCAL
+
+    def test_ancestor_local_install_outranks_global_install(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        nested = workspace / "notes" / "drafts"
+        nested.mkdir(parents=True)
+        home = tmp_path / "home"
+        ancestor_local_dir = workspace / ".codex"
+        global_dir = home / ".claude"
+        _mark_gpd_install(ancestor_local_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+        _mark_gpd_install(global_dir, runtime=RUNTIME_CLAUDE, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            result = resolve_effective_runtime(cwd=nested, home=home)
+
+        assert result.runtime == RUNTIME_CODEX
+        assert result.source == SOURCE_LOCAL
+        assert result.install_scope == SCOPE_LOCAL
+        assert detect_local_runtime_with_gpd_install(cwd=nested, home=home) == RUNTIME_CODEX
+        assert detect_runtime_install_target(RUNTIME_CODEX, cwd=nested, home=home).config_dir == ancestor_local_dir
+
+    def test_home_global_install_is_not_misclassified_as_ancestor_local(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        workspace = home / "src" / "project"
+        workspace.mkdir(parents=True)
+        global_runtime_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        _mark_gpd_install(global_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            target = detect_runtime_install_target(RUNTIME_CODEX, cwd=workspace, home=home)
+            update_candidates = get_update_cache_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+            todo_candidates = get_todo_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+
+        assert detect_local_runtime_with_gpd_install(cwd=workspace, home=home) == RUNTIME_UNKNOWN
+        assert target is not None
+        assert target.config_dir == global_runtime_dir
+        assert target.install_scope == SCOPE_GLOBAL
+        assert update_candidates[0].path == global_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
+        assert update_candidates[0].scope == SCOPE_GLOBAL
+        assert todo_candidates[0].path == global_runtime_dir / TODOS_DIR_NAME
+        assert todo_candidates[0].scope == SCOPE_GLOBAL
+
+    def test_home_directory_global_install_does_not_satisfy_local_only_detection(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        home.mkdir(parents=True)
+        global_runtime_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        _mark_gpd_install(global_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            assert detect_local_runtime_with_gpd_install(cwd=home, home=home) == RUNTIME_UNKNOWN
+            assert runtime_has_gpd_install(
+                RUNTIME_CODEX,
+                cwd=home,
+                home=home,
+                include_local=True,
+                include_global=False,
+            ) is False
+
+            target = detect_runtime_install_target(RUNTIME_CODEX, cwd=home, home=home)
+
+        assert target is not None
+        assert target.config_dir == global_runtime_dir
+        assert target.install_scope == SCOPE_GLOBAL
 
     def test_reports_global_source_without_install(self, tmp_path: Path) -> None:
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -806,22 +975,26 @@ class TestAllRuntimeDirs:
 
     def test_uses_env_override_paths(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        env = {
-            "CLAUDE_CONFIG_DIR": str(tmp_path / "claude-custom"),
-            "CODEX_CONFIG_DIR": str(tmp_path / "codex-custom"),
-            "GEMINI_CONFIG_DIR": str(tmp_path / "gemini-custom"),
-            "OPENCODE_CONFIG_DIR": str(tmp_path / "opencode-custom"),
-        }
+        env = _clean_runtime_env()
+        overrides: dict[str, Path] = {}
+        for descriptor in _RUNTIME_DESCRIPTORS:
+            env_var = _global_config_dir_env_var(descriptor.runtime_name)
+            override = tmp_path / f"{descriptor.runtime_name}-custom"
+            env[env_var] = str(override)
+            overrides[descriptor.runtime_name] = override.resolve(strict=False)
+
         with (
-            patch.dict(os.environ, env, clear=False),
+            patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             dirs = all_runtime_dirs()
 
-        assert tmp_path / "claude-custom" in dirs
-        assert tmp_path / "codex-custom" in dirs
-        assert tmp_path / "gemini-custom" in dirs
-        assert tmp_path / "opencode-custom" in dirs
+        for descriptor in _RUNTIME_DESCRIPTORS:
+            override = overrides[descriptor.runtime_name]
+            canonical = resolve_global_config_dir(descriptor, home=home, environ={})
+            assert override in dirs
+            assert canonical in dirs
+            assert dirs.index(override) < dirs.index(canonical)
 
 
 # ─── get_todo_dirs / get_cache_dirs ────────────────────────────────────────
@@ -922,6 +1095,89 @@ class TestHelperDirs:
         assert candidates[0].runtime == RUNTIME_CODEX
         assert candidates[0].scope == SCOPE_LOCAL
 
+    def test_lookup_candidates_keep_canonical_global_install_after_env_override(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        local_runtime_dir = workspace / _RUNTIME_BY_NAME[RUNTIME_CODEX].config_dir_name
+        canonical_global_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        foreign_global_dir = (tmp_path / "foreign-codex").resolve(strict=False)
+        _mark_gpd_install(canonical_global_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        env[_global_config_dir_env_var(RUNTIME_CODEX)] = str(foreign_global_dir)
+        with patch.dict(os.environ, env, clear=True):
+            update_candidates = get_update_cache_candidates(
+                cwd=workspace,
+                home=home,
+                preferred_runtime=RUNTIME_CODEX,
+            )
+            todo_candidates = get_todo_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+            install_dirs = get_gpd_install_dirs(prefer_active=True, cwd=workspace, home=home)
+
+        assert [candidate.path for candidate in update_candidates[:3]] == [
+            canonical_global_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+            local_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+            foreign_global_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+        ]
+        assert [candidate.scope for candidate in update_candidates[:3]] == [
+            SCOPE_GLOBAL,
+            SCOPE_LOCAL,
+            SCOPE_GLOBAL,
+        ]
+        assert [candidate.path for candidate in todo_candidates[:3]] == [
+            canonical_global_dir / TODOS_DIR_NAME,
+            local_runtime_dir / TODOS_DIR_NAME,
+            foreign_global_dir / TODOS_DIR_NAME,
+        ]
+        assert [candidate.scope for candidate in todo_candidates[:3]] == [
+            SCOPE_GLOBAL,
+            SCOPE_LOCAL,
+            SCOPE_GLOBAL,
+        ]
+        assert install_dirs[:3] == [
+            canonical_global_dir / GPD_INSTALL_DIR_NAME,
+            local_runtime_dir / GPD_INSTALL_DIR_NAME,
+            foreign_global_dir / GPD_INSTALL_DIR_NAME,
+        ]
+
+    def test_lookup_candidates_prefer_installed_ancestor_local_before_global(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        nested = workspace / "analysis" / "drafts"
+        nested.mkdir(parents=True)
+        home = tmp_path / "home"
+        cwd_runtime_dir = nested / _RUNTIME_BY_NAME[RUNTIME_CODEX].config_dir_name
+        ancestor_runtime_dir = workspace / _RUNTIME_BY_NAME[RUNTIME_CODEX].config_dir_name
+        global_runtime_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        _mark_gpd_install(ancestor_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+        _mark_gpd_install(global_runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        with patch.dict(os.environ, _clean_runtime_env(), clear=True):
+            update_candidates = get_update_cache_candidates(cwd=nested, home=home, preferred_runtime=RUNTIME_CODEX)
+            todo_candidates = get_todo_candidates(cwd=nested, home=home, preferred_runtime=RUNTIME_CODEX)
+            install_dirs = get_gpd_install_dirs(prefer_active=True, cwd=nested, home=home)
+
+        assert [candidate.path for candidate in update_candidates[:3]] == [
+            ancestor_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+            cwd_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+            global_runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+        ]
+        assert [candidate.scope for candidate in update_candidates[:3]] == [
+            SCOPE_LOCAL,
+            SCOPE_LOCAL,
+            SCOPE_GLOBAL,
+        ]
+        assert [candidate.path for candidate in todo_candidates[:3]] == [
+            ancestor_runtime_dir / TODOS_DIR_NAME,
+            cwd_runtime_dir / TODOS_DIR_NAME,
+            global_runtime_dir / TODOS_DIR_NAME,
+        ]
+        assert install_dirs[:3] == [
+            ancestor_runtime_dir / GPD_INSTALL_DIR_NAME,
+            cwd_runtime_dir / GPD_INSTALL_DIR_NAME,
+            global_runtime_dir / GPD_INSTALL_DIR_NAME,
+        ]
+
 
 class TestDetectInstallScope:
     """Tests for local/global install-scope detection."""
@@ -946,6 +1202,25 @@ class TestDetectInstallScope:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             assert detect_install_scope(RUNTIME_GEMINI) == SCOPE_GLOBAL
+
+    def test_global_lookup_finds_canonical_install_when_env_points_elsewhere(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        canonical_global_dir = _canonical_global_config_dir(RUNTIME_CODEX, home)
+        foreign_global_dir = tmp_path / "foreign-codex"
+        _mark_gpd_install(canonical_global_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+        env = _clean_runtime_env()
+        env[_global_config_dir_env_var(RUNTIME_CODEX)] = str(foreign_global_dir)
+        with patch.dict(os.environ, env, clear=True):
+            target = detect_runtime_install_target(RUNTIME_CODEX, cwd=workspace, home=home)
+
+            assert target is not None
+            assert target.config_dir == canonical_global_dir
+            assert target.install_scope == SCOPE_GLOBAL
+            assert detect_install_scope(RUNTIME_CODEX, cwd=workspace, home=home) == SCOPE_GLOBAL
+            assert runtime_has_gpd_install(RUNTIME_CODEX, cwd=workspace, home=home) is True
 
     def test_manifest_scope_overrides_env_global_dir_for_explicit_target(self, tmp_path: Path) -> None:
         custom_dir = tmp_path / "custom-codex"
@@ -1405,22 +1680,28 @@ class TestUpdateCommand:
         assert update_command_for_runtime(RUNTIME_UNKNOWN) == _SHARED_INSTALL.bootstrap_command
 
     def test_claude_runtime_uses_claude_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(" --claude")
+        assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(f" {_RUNTIME_BY_NAME[RUNTIME_CLAUDE].install_flag}")
 
     def test_codex_runtime_uses_codex_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CODEX).endswith(" --codex")
+        assert update_command_for_runtime(RUNTIME_CODEX).endswith(f" {_RUNTIME_BY_NAME[RUNTIME_CODEX].install_flag}")
 
     def test_gemini_runtime_uses_gemini_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_GEMINI).endswith(" --gemini")
+        assert update_command_for_runtime(RUNTIME_GEMINI).endswith(f" {_RUNTIME_BY_NAME[RUNTIME_GEMINI].install_flag}")
 
     def test_opencode_runtime_uses_opencode_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_OPENCODE).endswith(" --opencode")
+        assert update_command_for_runtime(RUNTIME_OPENCODE).endswith(
+            f" {_RUNTIME_BY_NAME[RUNTIME_OPENCODE].install_flag}"
+        )
 
     def test_local_scope_adds_local_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CLAUDE, scope=SCOPE_LOCAL).endswith(" --claude --local")
+        assert update_command_for_runtime(RUNTIME_CLAUDE, scope=SCOPE_LOCAL).endswith(
+            f" {_RUNTIME_BY_NAME[RUNTIME_CLAUDE].install_flag} --local"
+        )
 
     def test_global_scope_adds_global_flag(self) -> None:
-        assert update_command_for_runtime(RUNTIME_OPENCODE, scope=SCOPE_GLOBAL).endswith(" --opencode --global")
+        assert update_command_for_runtime(RUNTIME_OPENCODE, scope=SCOPE_GLOBAL).endswith(
+            f" {_RUNTIME_BY_NAME[RUNTIME_OPENCODE].install_flag} --global"
+        )
 
 
 # ─── _has_gpd_install ──────────────────────────────────────────────────────

@@ -544,7 +544,7 @@ End with `## > Next Up`:
 - If verification passed and the milestone is complete: primary `gpd:complete-milestone`
 - If gaps remain: primary `gpd:plan-phase ${phase_number} --gaps`; after gap plans exist, `gpd:execute-phase ${phase_number} --gaps-only`; confirm with `gpd:verify-work ${phase_number}`
 - Always include `gpd:suggest-next` as the recovery/confirmation command
-- Include `<sub>\`/clear\` first for fresh context, then run the primary command above.</sub>`
+- Include `<sub>Start a fresh context window, then run the primary command above.</sub>`
 </step>
 
 </process>

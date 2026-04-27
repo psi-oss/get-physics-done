@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import re
-import shutil
 import subprocess
-from contextlib import contextmanager
 from pathlib import Path
 
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.registry import LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS
 from scripts.repo_graph_contract import (
+    EXCLUDED_GRAPH_DIRS,
     GENERATED_ON_END,
     GENERATED_ON_START,
     REPO_ROOT,
@@ -25,51 +25,36 @@ from scripts.repo_graph_contract import (
     parse_scope_count,
     read_graph_text,
     render_generated_on_block,
+    render_same_stem_command_workflow_block,
     render_scope_block,
     replace_marked_block,
     sync_readme_text,
 )
+from scripts.sync_repo_graph_contract import check_generated_artifacts
+
+_WORKFLOW_ONLY_STEMS = {"execute-plan", "transition", "verify-phase"}
 
 
-@contextmanager
-def _transient_root_artifacts():
-    sentinel_root = "__gpd_repo_graph_test__"
-    transient_roots = (
-        ".npm-cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".mypy_cache",
+def _tracked_prompt_stems() -> tuple[set[str], set[str]]:
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
     )
-    created_paths: list[tuple[Path, bool]] = []
-
-    try:
-        for root_name in transient_roots:
-            root_path = REPO_ROOT / root_name
-            sentinel_dir = root_path / sentinel_root
-            root_existed = root_path.exists()
-            sentinel_dir.mkdir(parents=True, exist_ok=True)
-            (sentinel_dir / "sentinel.txt").write_text("graph regression coverage\n", encoding="utf-8")
-            created_paths.append((root_path, root_existed))
-        yield [root_path / sentinel_root / "sentinel.txt" for root_path, _ in created_paths]
-    finally:
-        for root_path, root_existed in created_paths:
-            sentinel_dir = root_path / sentinel_root
-            if sentinel_dir.exists():
-                shutil.rmtree(sentinel_dir, ignore_errors=True)
-            if not root_existed and root_path.exists() and not any(root_path.iterdir()):
-                root_path.rmdir()
-
-
-def test_graph_scope_counts_match_live_prompt_inventory() -> None:
-    expected = expected_scope_counts()
-
-    mismatches = [
-        f"{label}: graph={parse_scope_count(label)} live={count}"
-        for label, count in expected.items()
-        if parse_scope_count(label) != count
-    ]
-
-    assert not mismatches, "Graph scope counts are stale:\n" + "\n".join(mismatches)
+    tracked_paths = [Path(path) for path in tracked.stdout.decode("utf-8").split("\0") if path]
+    command_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
+    }
+    workflow_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "specs", "workflows") and path.suffix == ".md"
+    }
+    return command_stems, workflow_stems
 
 
 def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
@@ -81,12 +66,69 @@ def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
     assert match is not None, "Missing same-stem command/workflow edge inventory"
 
     graph_stems = [stem.strip() for stem in match.group(1).split(",") if stem.strip()]
-    actual_stems = sorted(
-        {path.stem for path in (REPO_ROOT / "src/gpd/commands").glob("*.md")}
-        & {path.stem for path in (REPO_ROOT / "src/gpd/specs/workflows").glob("*.md")}
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
     )
+    tracked_paths = [Path(path) for path in tracked.stdout.decode("utf-8").split("\0") if path]
+    command_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
+    }
+    workflow_stems = {
+        path.stem
+        for path in tracked_paths
+        if path.parts[:-1] == ("src", "gpd", "specs", "workflows") and path.suffix == ".md"
+    }
+    actual_stems = sorted(command_stems & workflow_stems)
 
     assert graph_stems == actual_stems
+
+
+def test_workflow_only_and_command_only_prompt_inventory_is_explicit() -> None:
+    command_stems, workflow_stems = _tracked_prompt_stems()
+
+    assert workflow_stems - command_stems == _WORKFLOW_ONLY_STEMS
+    assert command_stems - workflow_stems == LOCAL_CLI_BRIDGE_WORKFLOW_EXEMPT_COMMANDS
+
+
+def test_graph_same_stem_inventory_ignores_untracked_matching_files(tmp_path: Path) -> None:
+    tmp_root = tmp_path / "repo"
+    commands_dir = tmp_root / "src" / "gpd" / "commands"
+    workflows_dir = tmp_root / "src" / "gpd" / "specs" / "workflows"
+    commands_dir.mkdir(parents=True)
+    workflows_dir.mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=tmp_root, check=True, capture_output=True, text=True)
+
+    for directory in (commands_dir, workflows_dir):
+        (directory / "tracked.md").write_text("tracked\n", encoding="utf-8")
+        (directory / "scratch.md").write_text("untracked\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "src/gpd/commands/tracked.md", "src/gpd/specs/workflows/tracked.md"],
+        cwd=tmp_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    block = render_same_stem_command_workflow_block(tmp_root)
+
+    assert "{tracked}" in block
+    assert "scratch" not in block
+
+
+def test_graph_captures_current_ci_action_and_shard_edges() -> None:
+    graph = read_graph_text()
+
+    assert graph_has_edge(".github/workflows/test.yml", "tests/ci_sharding.py", graph)
+    assert graph_has_edge(".github/workflows/test.yml", "actions/checkout@v6", graph)
+    assert graph_has_edge(".github/workflows/test.yml", "actions/setup-node@v6", graph)
+    assert not graph_has_edge(".github/workflows/test.yml", "actions/checkout@v5", graph)
+    assert not graph_has_edge(".github/workflows/test.yml", "actions/setup-node@v5", graph)
 
 
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
@@ -202,6 +244,27 @@ def test_graph_readme_generated_blocks_match_contract() -> None:
     assert extract_marked_block(graph_text, SCOPE_START, SCOPE_END) == render_scope_block(contract)
 
 
+def test_graph_check_detects_stale_generated_contract_without_mutation(tmp_path: Path) -> None:
+    graph_path = tmp_path / "README.md"
+    contract_path = tmp_path / "repo_graph_contract.json"
+    contract = load_contract()
+    stale_contract = dict(contract)
+    stale_contract["scope_counts"] = {
+        label: int(value) + 1 for label, value in contract["scope_counts"].items()
+    }
+    graph_path.write_text(read_graph_text(), encoding="utf-8")
+    contract_path.write_text(json.dumps(stale_contract, indent=2) + "\n", encoding="utf-8")
+
+    before_graph = graph_path.read_text(encoding="utf-8")
+    before_contract = contract_path.read_text(encoding="utf-8")
+
+    diffs = check_generated_artifacts(graph_path=graph_path, contract_path=contract_path)
+
+    assert any("repo_graph_contract.json" in diff for diff in diffs)
+    assert graph_path.read_text(encoding="utf-8") == before_graph
+    assert contract_path.read_text(encoding="utf-8") == before_contract
+
+
 def test_graph_sync_repairs_stale_marked_blocks() -> None:
     original = read_graph_text()
     contract = load_contract()
@@ -241,14 +304,6 @@ def test_graph_sync_repairs_stale_marked_blocks() -> None:
 
 
 def test_live_repo_file_count_ignores_worktree_artifacts(tmp_path: Path) -> None:
-    baseline = live_repo_file_count()
-
-    with _transient_root_artifacts() as sentinel_files:
-        assert all(path.is_file() for path in sentinel_files)
-        assert live_repo_file_count() == baseline
-
-    assert all(not path.exists() for path in sentinel_files)
-
     tmp_root = tmp_path / "repo"
     tmp_root.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=tmp_root, check=True, capture_output=True, text=True)
@@ -266,11 +321,25 @@ def test_live_repo_file_count_ignores_worktree_artifacts(tmp_path: Path) -> None
     tracked_file.unlink()
     assert live_repo_file_count(tmp_root) == 0
 
-    for config_dir_name in {descriptor.config_dir_name for descriptor in iter_runtime_descriptors()}:
-        rel_path = f"{config_dir_name}/sentinel.txt"
-        path = tmp_root / rel_path
-        path.parent.mkdir(parents=True, exist_ok=True)
+    excluded_sentinels: list[Path] = []
+    for excluded_name in EXCLUDED_GRAPH_DIRS:
+        if excluded_name == ".git":
+            continue
+        if excluded_name == ".mcp.json":
+            path = tmp_root / excluded_name
+        else:
+            path = tmp_root / excluded_name / "sentinel.txt"
+            path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("runtime mirror sentinel\n", encoding="utf-8")
+        excluded_sentinels.append(path)
+
+    subprocess.run(
+        ["git", "add", *[path.relative_to(tmp_root).as_posix() for path in excluded_sentinels]],
+        cwd=tmp_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
     assert live_repo_file_count(tmp_root) == 0
 
@@ -280,6 +349,18 @@ def test_graph_test_file_references_exist() -> None:
         {
             ref
             for ref in re.findall(r"tests/[A-Za-z0-9_./-]+\.py", read_graph_text())
+            if not (REPO_ROOT / ref).is_file()
+        }
+    )
+
+    assert missing == []
+
+
+def test_graph_docs_file_references_exist() -> None:
+    missing = sorted(
+        {
+            ref
+            for ref in re.findall(r"docs/[A-Za-z0-9_./-]+\.md", read_graph_text())
             if not (REPO_ROOT / ref).is_file()
         }
     )

@@ -38,7 +38,7 @@ def test_respond_to_referees_command_stays_thin_and_only_eagerly_loads_the_workf
     assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md" not in command_text
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/respond-to-referees.md` exactly." in command_text
+    assert "Follow the included respond-to-referees workflow exactly." in command_text
     assert metrics.expanded_line_count > workflow.expanded_line_count
     assert metrics.expanded_char_count > workflow.expanded_char_count
     assert metrics.expanded_line_count < workflow.expanded_line_count + 120

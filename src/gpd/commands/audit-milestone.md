@@ -40,8 +40,8 @@ Version: $ARGUMENTS (optional — defaults to current milestone)
 find_files: GPD/phases/*/*SUMMARY.md
 
 Use canonical phase helpers for verification artifacts:
-- `gpd phase list`
-- `gpd show-phase <phase-number>`
+- Local CLI: `gpd phase list`
+- Runtime command: `gpd:show-phase <phase-number>`
 - Do not preload raw `*-VERIFICATION.md` globs here.
 </context>
 
@@ -67,7 +67,7 @@ Use canonical phase helpers for verification artifacts:
 </inline_guidance>
 
 <process>
-Execute the audit-milestone workflow from @{GPD_INSTALL_DIR}/workflows/audit-milestone.md end-to-end.
+Execute the included audit-milestone workflow end-to-end.
 Preserve all workflow gates (scope determination, verification reading, integration check, requirements coverage, routing).
 
 The audit evaluates research completeness across these dimensions:

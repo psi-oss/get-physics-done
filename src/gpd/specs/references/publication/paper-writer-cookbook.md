@@ -40,3 +40,26 @@ Use this pack only when the venue or manuscript structure needs concrete example
 - Pick the 3-5 results that actually carry that claim.
 - Move long derivations and exhaustive tables out of the main text when they do not advance the story.
 - Keep the strongest defensible claim aligned with the evidence already present in summaries, verification artifacts, and comparison verdicts.
+
+## Abstract And Section Shape
+
+- Write the abstract last. Use context, gap, approach, result, and implication; avoid roadmap abstracts and result-free summaries.
+- Introduction should state the contribution early, cite specific prior work, and make the gap precise.
+- Methods should define the system, assumptions, notation, and reproducibility hooks needed to understand the result.
+- Results should lead with the main finding, quantify uncertainties, and compare against benchmarks or prior work where the contract requires it.
+- Discussion should separate interpretation, limitations, implications, and future directions.
+
+## Equation And Figure Details
+
+- Number equations that are referenced later or carry key results; leave throwaway intermediate steps unnumbered.
+- Define every symbol at first use and keep notation aligned with the active convention lock and notation glossary.
+- Group related equations with `align`; move derivations longer than five displayed equations to appendices or supplemental material unless they are the central result.
+- Figure captions must state the physical message, axes and units, uncertainty representation, and comparison baseline.
+- Prefer vector figure output for LaTeX manuscripts; use the figure-generation template pack for concrete matplotlib defaults and journal sizing.
+
+## Supplemental Material Placement
+
+- Main text must stand alone: claim, method, result, and significance remain visible without the supplement.
+- Supplemental material carries long derivations, alternative cross-checks, full convergence data, extended tables, extra figures, and convention/unit conversion details.
+- Number supplemental equations, figures, and tables with an `S` prefix when the journal style allows it.
+- PRL-style manuscripts should keep supplemental material reproducibility-focused; long-form journals can usually carry appendices in the paper.

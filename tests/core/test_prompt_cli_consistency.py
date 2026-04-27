@@ -21,7 +21,7 @@ from gpd.core.public_surface_contract import (
     local_cli_validate_command_context_command,
     resume_authority_fields,
 )
-from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
+from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter, get_command
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
     assert_beginner_startup_routing_contract,
@@ -351,12 +351,16 @@ def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
         f"If you still need to rediscover the project first, do that in your normal terminal with `{local_cli_resume_command()}` for the current workspace or `{local_cli_resume_recent_command()}` for the explicit multi-project picker before reopening the runtime."
         in suggest_prompt
     )
-    assert "Keep `/clear` as a fresh-context reset, not as a recovery step." in suggest_prompt
-    assert "`/clear` first -> fresh context window, then `{command}`." in suggest_prompt
+    assert (
+        "Start the recommended command in a fresh context window; do not treat the fresh context reset as project recovery."
+        in suggest_prompt
+    )
+    assert "Start a fresh context window, then run `{command}`." in suggest_prompt
     assert (
         f"If you still need to rediscover the project first, do that in your normal terminal with `{local_cli_resume_command()}` for the current workspace or `{local_cli_resume_recent_command()}` for a different project before reopening the runtime."
         in suggest_prompt
     )
+    assert "/clear" not in suggest_prompt
     assert (
         f"`/clear` first -> fresh context window, then `{{command}}`; if you still need to rediscover the project, use `{local_cli_resume_recent_command()}` before reopening the runtime"
         not in suggest_prompt
@@ -392,7 +396,7 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/progress.md").read_text(encoding="utf-8")
 
     assert "@{GPD_INSTALL_DIR}/workflows/progress.md" in command
-    assert "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly." in command
+    assert "Follow the included workflow exactly. Do not duplicate the workflow logic here." in command
     assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command
     assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" not in command
     assert "The recent-project picker is advisory" not in command
@@ -409,6 +413,8 @@ def test_health_prompt_documents_the_real_raw_health_report_shape() -> None:
     health_command = (COMMANDS_DIR / "health.md").read_text(encoding="utf-8")
 
     assert_health_command_public_contract(health_command)
+    assert "{fixable_count}" not in health_command
+    assert "Run `gpd:health --fix`" in health_command
 
 
 def test_progress_prompt_requires_project_not_roadmap() -> None:
@@ -429,6 +435,13 @@ def test_progress_prompt_and_help_clarify_runtime_vs_local_cli_boundary() -> Non
     assert "takes `json|bar|table` and does not accept these flags" in normalized_command
     assert "The local CLI `gpd progress` is a separate read-only renderer" in normalized_progress_section
     assert "Local CLI: `gpd progress json|bar|table`" in normalized_progress_section
+
+
+def test_progress_health_advice_uses_runtime_command_wording() -> None:
+    workflow = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
+
+    assert "Run `gpd:health --fix`" in workflow
+    assert "Run `gpd health --fix`" not in workflow
 
 
 def test_plan_phase_prompt_is_a_thin_dispatch_shell() -> None:
@@ -484,7 +497,11 @@ def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence()
 
 
 def test_state_json_schema_stays_aligned_with_stdin_contract_persistence_flow() -> None:
-    schema = (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
+    schema = expand_at_includes(
+        (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd/specs",
+        "/runtime/",
+    )
 
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in schema
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in schema
@@ -563,10 +580,13 @@ def test_new_project_and_help_surface_runtime_default_and_state_backup_gitignore
     assert "without commentary about the missing override" in new_project
     assert 'normal "use the runtime default model" path' in new_project
     assert "GPD/state.json.bak" in new_project
+    assert "GPD/state.json.lock" in new_project
     assert "GPD/state.json.bak" in help_workflow
+    assert "GPD/state.json.lock" in help_workflow
     assert "GPD/state.json.bak" in planning_config
-    assert "crash-recovery backup" in help_workflow
-    assert "crash-recovery backup" in planning_config
+    assert "GPD/state.json.lock" in planning_config
+    assert "local recovery/coordination files" in help_workflow
+    assert "local recovery/coordination files" in planning_config
 
 
 def test_regression_check_prompt_examples_include_optional_phase_before_quick_flag() -> None:
@@ -637,7 +657,23 @@ def test_help_prompt_surfaces_bounded_write_paper_external_authoring_lane() -> N
     assert "`GPD/publication/{subject_slug}/intake/`" in help_workflow
     assert "does not mine arbitrary folders" in help_workflow
     assert "embedded external staged-review parity is out of scope" in help_workflow
-    assert "Usage: `gpd:write-paper --intake intake/paper-authoring-input.json`" in help_workflow
+    assert "Usage: `gpd:write-paper --intake intake/write-paper-authoring-input.json`" in help_workflow
+
+
+def test_help_prompt_selected_signatures_match_registry_argument_hints() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    for command_name in ("write-paper", "arxiv-submission", "record-backtrack", "execute-phase"):
+        command = get_command(command_name)
+        signature = f"`{command.name} {command.argument_hint}`"
+        assert signature in help_workflow
+
+
+def test_help_prompt_plan_phase_skip_verify_keeps_proof_bearing_exception() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "`--skip-verify`" in help_workflow
+    assert "proof-bearing plans still require checker review or an equivalent main-context audit" in help_workflow
 
 
 def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command() -> None:

@@ -405,7 +405,9 @@ def _read_current_execution_raw(layout: ProjectLayout) -> dict[str, object] | No
 
 def _current_execution_snapshot(layout: ProjectLayout) -> CurrentExecutionState | None:
     head_snapshot = load_execution_lineage_head(layout.root)
-    if head_snapshot is not None and isinstance(head_snapshot.execution, dict):
+    if head_snapshot is not None:
+        if head_snapshot.execution is None:
+            return None
         try:
             return CurrentExecutionState.model_validate(head_snapshot.execution)
         except Exception:
@@ -532,18 +534,18 @@ def _sync_execution_visibility_anchors_from_canonical_continuation(
     head_payload: ExecutionLineageHead | None = None
     head_raw: dict[str, object] | None = None
     if head_exists:
-        head_raw = _read_json(layout.execution_lineage_head)
-        if isinstance(head_raw, dict):
-            try:
-                head_payload = ExecutionLineageHead.model_validate(head_raw)
-            except Exception:
-                head_payload = None
-            else:
-                if isinstance(head_payload.execution, dict):
-                    try:
-                        head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
-                    except Exception:
-                        head_snapshot = None
+        head_payload = load_execution_lineage_head(layout.root)
+        if head_payload is not None:
+            head_raw = head_payload.model_dump(mode="json")
+            if head_payload.execution is None:
+                return False
+            if isinstance(head_payload.execution, dict):
+                try:
+                    head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
+                except Exception:
+                    head_snapshot = None
+        else:
+            head_raw = _read_json(layout.execution_lineage_head)
 
     live_snapshot = head_snapshot or current_snapshot
     if live_snapshot is None:
@@ -999,7 +1001,13 @@ def _execution_visibility_source_state(
     head_exists = layout.execution_lineage_head.exists()
 
     current_raw = _read_current_execution_raw(layout) if current_exists else None
-    head_raw = _read_json(layout.execution_lineage_head) if head_exists else None
+    head_payload = load_execution_lineage_head(layout.root) if head_exists else None
+    if head_payload is not None:
+        head_raw = head_payload.model_dump(mode="json")
+    elif head_exists:
+        head_raw = _read_json(layout.execution_lineage_head)
+    else:
+        head_raw = None
 
     current_snapshot: CurrentExecutionState | None = None
     head_snapshot: CurrentExecutionState | None = None
@@ -1019,23 +1027,28 @@ def _execution_visibility_source_state(
             degraded_reasons.append("current-execution.json is missing or unreadable")
 
     if head_exists:
-        if isinstance(head_raw, dict):
-            try:
-                head_payload = ExecutionLineageHead.model_validate(head_raw)
-            except Exception:
-                degraded_reasons.append("execution-head.json is malformed")
-            else:
-                if isinstance(head_payload.execution, dict):
-                    try:
-                        head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
-                    except Exception:
-                        degraded_reasons.append("execution-head.json payload is malformed")
-                    else:
-                        head_valid = True
+        if head_payload is not None:
+            if isinstance(head_payload.execution, dict):
+                try:
+                    head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
+                except Exception:
+                    degraded_reasons.append("execution-head.json payload is malformed")
                 else:
-                    degraded_reasons.append("execution-head.json is incomplete")
+                    head_valid = True
+            else:
+                degraded_reasons.append("execution-head.json is incomplete")
+        elif isinstance(head_raw, dict):
+            degraded_reasons.append("execution-head.json is malformed")
         else:
             degraded_reasons.append("execution-head.json is missing or unreadable")
+
+    if head_payload is not None and head_payload.execution is None:
+        note = (
+            "execution lineage head is clear; ignoring stale current-execution.json"
+            if current_exists
+            else None
+        )
+        return None, "idle", note
 
     snapshot = authoritative_snapshot or head_snapshot or current_snapshot
     if snapshot is None:
@@ -2133,12 +2146,6 @@ def observe_event(
             _persist_durable_bounded_segment(layout, next_execution)
     else:
         _append_event(session_log, payload.model_dump(mode="json"))
-        next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
-        if next_execution is None:
-            _clear_current_execution(layout)
-        else:
-            _save_current_execution(layout, next_execution)
-        _persist_durable_bounded_segment(layout, next_execution)
 
     updated = _updated_session(
         session,

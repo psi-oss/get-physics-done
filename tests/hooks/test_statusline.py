@@ -9,10 +9,12 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import call, patch
 
+from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.hooks.runtime_detect import TodoCandidate, update_command_for_runtime
 from gpd.hooks.statusline import (
     _check_update,
@@ -20,6 +22,7 @@ from gpd.hooks.statusline import (
     _execution_badge,
     _format_context_window_size,
     _project_state_dir,
+    _read_context_remaining,
     _read_current_task,
     _read_execution_state,
     _read_model_label,
@@ -33,6 +36,10 @@ from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 from tests.hooks.helpers import repair_command as _repair_command
 
 _TEST_MODEL = "model-under-test"
+
+
+def _strip_ansi(value: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", value)
 
 
 def _todo_candidates(*paths: Path) -> list[TodoCandidate]:
@@ -141,12 +148,19 @@ class TestContextBar:
     """Tests for _context_bar boundary values."""
 
     def test_remaining_zero_shows_max_used(self) -> None:
-        """remaining_percentage=0 → 100% used (capped), critical color."""
+        """remaining_percentage=0 -> 100% used (capped), critical color."""
         bar = _context_bar(0)
         # raw_used=100, used = min(100, round(100/80*100)) = 100
         assert "100%" in bar
-        # Should be critical (blinking red)
-        assert "\x1b[5;31m" in bar
+        assert "\x1b[31m" in bar
+        assert "[CRITICAL]" in bar
+
+    def test_critical_context_bar_is_ascii_after_ansi_stripping(self) -> None:
+        plain = _strip_ansi(_context_bar(0))
+
+        assert "[CRITICAL]" in plain
+        assert "\U0001f480" not in plain
+        plain.encode("ascii")
 
     def test_remaining_100_shows_zero_used(self) -> None:
         """remaining_percentage=100 → 0% used, green color."""
@@ -201,15 +215,26 @@ class TestStatusMetadata:
         assert _format_context_window_size(200_000) == "200k context"
 
     def test_read_model_label_combines_display_name_and_context_size(self) -> None:
-        label = _read_model_label({"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}})
-        assert label == "Opus 4.6 (1M context)"
-
-    def test_read_model_label_uses_canonical_fallback_keys_when_policy_is_sparse(self) -> None:
         label = _read_model_label(
             {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}},
-            SimpleNamespace(model_keys=(), context_window_size_keys=()),
+            get_hook_payload_policy(),
         )
         assert label == "Opus 4.6 (1M context)"
+
+    def test_statusline_payload_fields_come_only_from_resolved_policy_keys(self) -> None:
+        sparse_policy = SimpleNamespace(model_keys=(), context_window_size_keys=(), context_remaining_keys=())
+
+        label = _read_model_label(
+            {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}},
+            sparse_policy,
+        )
+        remaining = _read_context_remaining(
+            {"context_window": {"remaining_percentage": 0}},
+            sparse_policy,
+        )
+
+        assert label == ""
+        assert remaining is None
 
     def test_read_workspace_label_prefers_project_relative_path(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
@@ -667,21 +692,23 @@ class TestCheckUpdateHook:
         ):
             assert _check_update() == ""
 
-    def test_cache_with_update_available(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
-        gpd_cache.mkdir(parents=True)
-        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
+    def test_runtime_cache_with_update_available(self, tmp_path: Path) -> None:
+        runtime_dir = tmp_path / ".codex"
+        runtime_cache = runtime_dir / "cache"
+        runtime_cache.mkdir(parents=True)
+        _mark_complete_install(runtime_dir, runtime="codex")
+        (runtime_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
         ):
             result = _check_update()
-            expected = update_command_for_runtime("claude-code")
+            expected = _repair_command("codex", install_scope="local", target_dir=runtime_dir, explicit_target=False)
             assert expected in result
 
     def test_cache_with_no_update(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+        gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": False}), encoding="utf-8")
         with (
@@ -691,7 +718,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_corrupt_cache_returns_empty(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+        gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text("broken{json", encoding="utf-8")
         with (
@@ -701,7 +728,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_non_mapping_cache_is_ignored_instead_of_crashing(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+        gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
 
@@ -713,7 +740,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_can_override_stale_home_cache(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / "GPD" / "cache"
+        home_cache = home / ".gpd" / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -740,7 +767,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_uses_cache_runtime_when_install_exists(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / "GPD" / "cache"
+        home_cache = home / ".gpd" / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -1049,14 +1076,15 @@ class TestCheckUpdateHook:
         ):
             assert _check_update() == ""
 
-    def test_unknown_runtime_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / "GPD" / "cache"
+    def test_home_update_cache_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        gpd_cache = home / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
         ):
             result = _check_update()
@@ -1064,21 +1092,22 @@ class TestCheckUpdateHook:
         assert update_command_for_runtime("unknown") in result
         assert "gpd-update" not in result
 
-    def test_known_runtime_resolves_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
+    def test_home_update_cache_resolves_known_runtime_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
         """Known runtimes should still resolve scope before rendering the bootstrap command."""
-        gpd_cache = tmp_path / "GPD" / "cache"
+        home = tmp_path / "home"
+        gpd_cache = home / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
             patch("gpd.hooks.runtime_detect.detect_install_scope") as mock_scope,
         ):
             result = _check_update()
 
-        mock_scope.assert_called_once_with("claude-code", cwd=None, home=tmp_path)
+        mock_scope.assert_called_once_with("claude-code", cwd=None, home=home)
         assert result != ""
 
 
@@ -1089,11 +1118,12 @@ class TestMain:
     """Tests for main() entry point with various JSON inputs."""
 
     def _run_main(self, input_data: dict[str, object]) -> str:
-        """Run main() with given input data, capture stdout."""
+        """Run main() with generic catalog-merged payload keys, capture stdout."""
         captured = io.StringIO()
         with (
             patch("sys.stdin", io.StringIO(json.dumps(input_data))),
             patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=get_hook_payload_policy()),
             patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())),
             patch("gpd.hooks.statusline._read_position", return_value=""),
             patch("gpd.hooks.statusline._read_current_task", return_value=""),
@@ -1136,6 +1166,13 @@ class TestMain:
         """remaining_percentage=0 → shows 100% usage."""
         output = self._run_main({"context_window": {"remaining_percentage": 0}})
         assert "100%" in output
+
+    def test_critical_context_window_output_is_ascii_after_ansi_stripping(self) -> None:
+        output = self._run_main({"context_window": {"remaining_percentage": 0}})
+        plain = _strip_ansi(output)
+
+        assert "[CRITICAL]" in plain
+        plain.encode("ascii")
 
     def test_context_window_remaining_100(self) -> None:
         """remaining_percentage=100 → shows 0% usage."""
@@ -1382,7 +1419,24 @@ class TestMain:
         output = self._run_main({"context_window": {"remainingPercent": 20}})
         assert "100%" in output
 
-    def test_context_window_uses_canonical_aliases_when_policy_is_sparse(self) -> None:
+    def test_context_window_uses_catalog_merged_policy_for_no_runtime_aliases(self) -> None:
+        captured = io.StringIO()
+        merged_policy = get_hook_payload_policy()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"context_window": {"remaining_percentage": 0}}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=merged_policy),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value=""),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        assert "100%" in captured.getvalue()
+
+    def test_context_window_ignores_runtime_aliases_when_policy_is_sparse(self) -> None:
         captured = io.StringIO()
         sparse_policy = SimpleNamespace(
             workspace_keys=(),
@@ -1404,7 +1458,9 @@ class TestMain:
         ):
             main()
 
-        assert "100%" in captured.getvalue()
+        output = captured.getvalue()
+        assert "GPD" in output
+        assert "100%" not in output
 
     def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
         output = self._run_main(

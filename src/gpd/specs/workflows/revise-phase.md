@@ -381,7 +381,7 @@ Present completion summary and next steps:
 **Plan the replacement phase now?**
 `gpd:plan-phase {replacement_number}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 **Review affected downstream phases first?**
 {List gpd:show-phase commands for affected phases}

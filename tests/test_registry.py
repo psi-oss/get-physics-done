@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd import cli as cli_module
 from gpd import registry
 from gpd.core.model_visible_text import (
     COMMAND_POLICY_PROMPT_WRAPPER_KEY,
@@ -23,6 +24,7 @@ from gpd.registry import (
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
+    _parse_spawn_contracts,
     _parse_tools,
     _RegistryCache,
     load_agents_from_dir,
@@ -97,6 +99,8 @@ class TestParseFrontmatter:
         assert agent_visibility_note().startswith("Agent YAML rules. Use this YAML.")
         assert command_visibility_note().startswith("Command YAML rules. Use this YAML.")
         assert review_contract_visibility_note().startswith("Review-contract YAML rules. Use this YAML.")
+        assert len(command_visibility_note()) <= 2_500
+        assert len(review_contract_visibility_note()) <= 2_500
 
     def test_malformed_yaml_frontmatter_raises(self) -> None:
         text = "---\nname: test\nbad: [unterminated\n---\nBody."
@@ -415,6 +419,109 @@ class TestParseAgentFile:
 
         with pytest.raises(ValueError, match=expected_error):
             _parse_agent_file(f, source="agents")
+
+
+class TestParseSpawnContracts:
+    """Tests for spawn-contract sidecar parsing and validation."""
+
+    @staticmethod
+    def _contract_block(
+        *,
+        output: str = "GPD/out.md",
+        mode: str = "scoped_write",
+        shared_state_policy: str = "return_only",
+        allowed_paths: tuple[str, ...] | None = None,
+        expected_artifacts: tuple[str, ...] | None = None,
+    ) -> str:
+        allowed = allowed_paths if allowed_paths is not None else (output,)
+        expected = expected_artifacts if expected_artifacts is not None else (output,)
+        allowed_lines = "".join(f"    - {path}\n" for path in allowed)
+        expected_lines = "".join(f"  - {path}\n" for path in expected)
+        return (
+            "<spawn_contract>\n"
+            "write_scope:\n"
+            f"  mode: {mode}\n"
+            "  allowed_paths:\n"
+            f"{allowed_lines}"
+            "expected_artifacts:\n"
+            f"{expected_lines}"
+            f"shared_state_policy: {shared_state_policy}\n"
+            "</spawn_contract>"
+        )
+
+    def test_parse_spawn_contracts_dedupes_identical_blocks_in_first_seen_order(self) -> None:
+        first = self._contract_block(output="GPD/first.md")
+        second = self._contract_block(output="GPD/second.md", shared_state_policy="direct")
+
+        contracts = _parse_spawn_contracts(
+            "\n\n".join([first, first, second, first]),
+            owner_name="gpd:test",
+        )
+
+        assert contracts == (
+            {
+                "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/first.md"]},
+                "expected_artifacts": ["GPD/first.md"],
+                "shared_state_policy": "return_only",
+            },
+            {
+                "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/second.md"]},
+                "expected_artifacts": ["GPD/second.md"],
+                "shared_state_policy": "direct",
+            },
+        )
+
+    def test_parse_spawn_contracts_rejects_invalid_write_scope_mode(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="invalid write_scope\\.mode 'global'; expected one of: scoped_write, direct",
+        ):
+            _parse_spawn_contracts(
+                self._contract_block(mode="global"),
+                owner_name="gpd:test",
+            )
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_error"),
+        [
+            (
+                {"allowed_paths": ()},
+                r"write_scope\.allowed_paths must not be empty",
+            ),
+            (
+                {"allowed_paths": ("GPD/out.md", "GPD/out.md")},
+                r"write_scope\.allowed_paths\[1\] duplicates write_scope\.allowed_paths\[0\]",
+            ),
+            (
+                {"expected_artifacts": ()},
+                r"expected_artifacts must not be empty",
+            ),
+            (
+                {"expected_artifacts": ("GPD/out.md", "GPD/out.md")},
+                r"expected_artifacts\[1\] duplicates expected_artifacts\[0\]",
+            ),
+        ],
+    )
+    def test_parse_spawn_contracts_rejects_empty_or_duplicate_lists(
+        self,
+        kwargs: dict[str, tuple[str, ...]],
+        expected_error: str,
+    ) -> None:
+        with pytest.raises(ValueError, match=expected_error):
+            _parse_spawn_contracts(
+                self._contract_block(**kwargs),
+                owner_name="gpd:test",
+            )
+
+    def test_parse_spawn_contracts_rejects_invalid_shared_state_policy(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="invalid shared_state_policy 'mutable'; expected one of: return_only, direct",
+        ):
+            _parse_spawn_contracts(
+                self._contract_block(shared_state_policy="mutable"),
+                owner_name="gpd:test",
+            )
 
 
 class TestParseCommandFile:
@@ -1692,6 +1799,34 @@ class TestDiscovery:
             assert command.context_mode == "project-aware"
             assert command.project_reentry_capable is False
 
+    def test_project_aware_cli_predicates_take_input_labels_from_command_policy(self) -> None:
+        registry.invalidate_cache()
+
+        for command_name, predicate in cli_module._PROJECT_AWARE_EXPLICIT_INPUT_PREDICATES.items():
+            command = registry.get_command(command_name)
+
+            assert callable(predicate)
+            assert cli_module._command_explicit_input_labels_from_policy(command), command_name
+
+    def test_project_aware_label_only_policy_does_not_make_analysis_helpers_subject_required(self) -> None:
+        registry.invalidate_cache()
+
+        for command_name in (
+            "derive-equation",
+            "dimensional-analysis",
+            "limiting-cases",
+            "numerical-convergence",
+            "parameter-sweep",
+            "sensitivity-analysis",
+        ):
+            command = registry.get_command(command_name)
+            subject_policy = command.command_policy.subject_policy
+
+            assert subject_policy is not None
+            assert subject_policy.explicit_input_kinds
+            assert subject_policy.resolution_mode is None
+            assert cli_module._command_has_typed_subject_policy(command) is False
+
     def test_command_skill_categories_cover_current_registry_without_other_fallbacks(self) -> None:
         registry.invalidate_cache()
 
@@ -1838,8 +1973,9 @@ class TestRegistryPromptIncludeInlining:
         assert agent.path.endswith("gpd-project-researcher.md")
         assert "Checkpoint after the initial survey with scope confirmation." in agent.content
         assert "gpd_return:" in agent.content
-        assert "status: completed | checkpoint | blocked | failed" in agent.content
-        assert "Do NOT run `gpd commit`, `git commit`, or stage files." in agent.content
+        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.content
+        assert "commit_authority: orchestrator" in agent.content
+        assert "Authority: use the frontmatter-derived Agent Requirements block" in agent.content
         assert "wait for confirmation" not in agent.content
         assert "pause here for approval" not in agent.content
         assert "ask the user then continue" not in agent.content
@@ -1951,6 +2087,175 @@ class TestRegistryPromptIncludeInlining:
                 blocking_conditions_override=["invalid or incomplete external authoring intake manifest"],
             )
         ]
+
+    def test_write_paper_registry_surface_matches_frontmatter_external_authoring_contract(self) -> None:
+        command = registry.get_command("gpd:write-paper")
+        meta, _ = _parse_frontmatter(Path(command.path).read_text(encoding="utf-8"))
+        policy_meta = meta["command-policy"]
+        subject_policy_meta = policy_meta["subject_policy"]
+        supporting_context_meta = policy_meta["supporting_context_policy"]
+        review_contract_meta = meta["review-contract"]
+        frontmatter_scope_variants = {
+            str(variant["scope"]): variant for variant in review_contract_meta["scope_variants"]
+        }
+        scope_variant_meta = frontmatter_scope_variants["explicit_intake_manifest"]
+
+        assert command.argument_hint == meta["argument-hint"]
+        assert command.context_mode == meta["context_mode"]
+        assert command.command_policy is not None
+        assert command.command_policy.subject_policy is not None
+        assert command.command_policy.subject_policy.explicit_input_kinds == subject_policy_meta["explicit_input_kinds"]
+        assert command.command_policy.subject_policy.allow_external_subjects == subject_policy_meta[
+            "allow_external_subjects"
+        ]
+        assert command.command_policy.subject_policy.allow_interactive_without_subject == subject_policy_meta[
+            "allow_interactive_without_subject"
+        ]
+        assert command.command_policy.subject_policy.bootstrap_allowed == subject_policy_meta["bootstrap_allowed"]
+        assert command.command_policy.supporting_context_policy is not None
+        assert (
+            command.command_policy.supporting_context_policy.project_context_mode
+            == supporting_context_meta["project_context_mode"]
+        )
+        assert (
+            command.command_policy.supporting_context_policy.project_reentry_mode
+            == supporting_context_meta["project_reentry_mode"]
+        )
+
+        assert command.review_contract is not None
+        scope_variants = {
+            str(variant.scope): variant for variant in command.review_contract.scope_variants
+        }
+        scope_variant = scope_variants["explicit_intake_manifest"]
+        assert scope_variant.relaxed_preflight_checks == scope_variant_meta["relaxed_preflight_checks"]
+        assert scope_variant.optional_preflight_checks == scope_variant_meta["optional_preflight_checks"]
+        assert scope_variant.required_outputs_override == scope_variant_meta["required_outputs_override"]
+        assert scope_variant.required_evidence_override == scope_variant_meta["required_evidence_override"]
+        assert scope_variant.blocking_conditions_override == scope_variant_meta["blocking_conditions_override"]
+
+    def test_write_paper_external_authoring_validator_accepts_order_equivalent_scope_lists(self) -> None:
+        command_policy = registry.CommandPolicy(
+            subject_policy=registry.CommandSubjectPolicy(
+                explicit_input_kinds=["authoring_intake_manifest"],
+                allow_external_subjects=False,
+                allow_interactive_without_subject=False,
+                bootstrap_allowed=True,
+            ),
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-aware",
+                project_reentry_mode="disallowed",
+            ),
+        )
+        review_contract = registry.ReviewCommandContract(
+            review_mode="publication",
+            required_outputs=[],
+            required_evidence=[],
+            blocking_conditions=[],
+            preflight_checks=[],
+            scope_variants=[
+                registry.ReviewContractScopeVariant(
+                    scope="explicit_intake_manifest",
+                    activation="validated external intake",
+                    relaxed_preflight_checks=[
+                        "manuscript_proof_review",
+                        "verification_reports",
+                        "research_artifacts",
+                        "conventions",
+                        "roadmap",
+                        "project_state",
+                    ],
+                    optional_preflight_checks=[
+                        "reproducibility_ready",
+                        "reproducibility_manifest",
+                        "bibliography_audit_clean",
+                        "bibliography_audit",
+                        "artifact_manifest",
+                    ],
+                    required_outputs_override=[
+                        "${PAPER_DIR}/reproducibility-manifest.json",
+                        "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                        "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                        "${PAPER_DIR}/PAPER-CONFIG.json",
+                        "${PAPER_DIR}/{topic_specific_stem}.tex",
+                    ],
+                    required_evidence_override=[
+                        "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                    ],
+                    blocking_conditions_override=["invalid or incomplete external authoring intake manifest"],
+                )
+            ],
+        )
+
+        registry._validate_write_paper_external_authoring_frontmatter(
+            Path(registry.get_command("gpd:write-paper").path),
+            command_name="gpd:write-paper",
+            context_mode="project-aware",
+            command_policy=command_policy,
+            review_contract=review_contract,
+        )
+
+    def test_write_paper_external_authoring_validator_rejects_duplicate_scope_list_entries(self) -> None:
+        command_policy = registry.CommandPolicy(
+            subject_policy=registry.CommandSubjectPolicy(
+                explicit_input_kinds=["authoring_intake_manifest"],
+                allow_external_subjects=False,
+                allow_interactive_without_subject=False,
+                bootstrap_allowed=True,
+            ),
+            supporting_context_policy=registry.CommandSupportingContextPolicy(
+                project_context_mode="project-aware",
+                project_reentry_mode="disallowed",
+            ),
+        )
+        review_contract = registry.ReviewCommandContract(
+            review_mode="publication",
+            required_outputs=[],
+            required_evidence=[],
+            blocking_conditions=[],
+            preflight_checks=[],
+            scope_variants=[
+                registry.ReviewContractScopeVariant(
+                    scope="explicit_intake_manifest",
+                    activation="validated external intake",
+                    relaxed_preflight_checks=[
+                        "project_state",
+                        "project_state",
+                        "roadmap",
+                        "conventions",
+                        "research_artifacts",
+                        "verification_reports",
+                        "manuscript_proof_review",
+                    ],
+                    optional_preflight_checks=[
+                        "artifact_manifest",
+                        "bibliography_audit",
+                        "bibliography_audit_clean",
+                        "reproducibility_manifest",
+                        "reproducibility_ready",
+                    ],
+                    required_outputs_override=[
+                        "${PAPER_DIR}/{topic_specific_stem}.tex",
+                        "${PAPER_DIR}/PAPER-CONFIG.json",
+                        "${PAPER_DIR}/ARTIFACT-MANIFEST.json",
+                        "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json",
+                        "${PAPER_DIR}/reproducibility-manifest.json",
+                    ],
+                    required_evidence_override=[
+                        "validated external authoring intake manifest with explicit claim-to-evidence bindings"
+                    ],
+                    blocking_conditions_override=["invalid or incomplete external authoring intake manifest"],
+                )
+            ],
+        )
+
+        with pytest.raises(ValueError, match=r"relaxed_preflight_checks must not contain duplicates"):
+            registry._validate_write_paper_external_authoring_frontmatter(
+                Path(registry.get_command("gpd:write-paper").path),
+                command_name="gpd:write-paper",
+                context_mode="project-aware",
+                command_policy=command_policy,
+                review_contract=review_contract,
+            )
 
     def test_publication_review_skills_keep_the_needed_contract_references_visible(self) -> None:
         from gpd.mcp.servers.skills_server import get_skill
@@ -2392,6 +2697,23 @@ class TestPublicAPI:
         }
         assert {contract["write_scope"]["mode"] for contract in command.spawn_contracts} == {"scoped_write"}
 
+    def test_registry_spawn_contract_inventory_dedupes_repeated_continuation_sidecars(self) -> None:
+        registry.invalidate_cache()
+
+        plan_phase = registry.get_command("gpd:plan-phase")
+        research_phase = registry.get_command("gpd:research-phase")
+
+        expected = {
+            "write_scope": {
+                "mode": "scoped_write",
+                "allowed_paths": ["{phase_dir}/{phase_number}-RESEARCH.md"],
+            },
+            "expected_artifacts": ["{phase_dir}/{phase_number}-RESEARCH.md"],
+            "shared_state_policy": "return_only",
+        }
+        assert plan_phase.spawn_contracts == (expected,)
+        assert research_phase.spawn_contracts == (expected,)
+
     def test_get_command_new_milestone_surfaces_roadmapper_handoff(self) -> None:
         registry.invalidate_cache()
 
@@ -2733,7 +3055,7 @@ class TestPublicAPI:
         assert "## RESEARCH COMPLETE" in agent.system_prompt
         assert "## RESEARCH BLOCKED" in agent.system_prompt
         assert "gpd_return:" in agent.system_prompt
-        assert "status: completed | checkpoint | blocked | failed" in agent.system_prompt
+        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.system_prompt
         assert "RESEARCH.md" in agent.system_prompt
 
     def test_registry_cache_invalidation_clears_new_project_stage_manifest(self) -> None:
@@ -2763,6 +3085,22 @@ class TestPublicAPI:
         assert isinstance(cmd, CommandDef)
         assert cmd.name == "gpd:peer-review"
         assert cmd.description == "Peer review"
+
+    def test_get_command_accepts_inline_arguments_on_command_labels(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "new-project.md").write_text(
+            "---\nname: gpd:new-project\ndescription: New project\n---\nNew project body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        registry.invalidate_cache()
+
+        for label in ("gpd:new-project --minimal", "$gpd-new-project --minimal", "new-project --minimal"):
+            assert registry.get_command(label).name == "gpd:new-project"
 
     def test_get_command_rejects_foreign_bare_slash_command(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

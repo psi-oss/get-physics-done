@@ -22,6 +22,7 @@ from gpd.adapters.runtime_catalog import (
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.hooks.install_metadata import GPD_INSTALL_DIR_NAME
 from gpd.runtime_cli import _parse_args, _resolve_cli_cwd_from_argv, main
+from tests.hooks.helpers import clear_runtime_env
 from tests.runtime_install_helpers import seed_complete_runtime_install
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
@@ -46,35 +47,10 @@ for descriptor in _RUNTIME_DESCRIPTORS:
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
 
 
-def _runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        for env_var in descriptor.activation_env_vars:
-            prefixes.add(env_var)
-            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
-    return tuple(sorted(prefixes, key=len, reverse=True))
-
-
-def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME", "CODEX_SKILLS_DIR"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        global_config = descriptor.global_config
-        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
-            if env_var:
-                env_vars.add(env_var)
-    return env_vars
-
-
-_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
-_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
-
-
 @pytest.fixture(autouse=True)
 def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep runtime-CLI tests isolated from ambient runtime env drift."""
-    for key in list(os.environ):
-        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
+    clear_runtime_env(monkeypatch)
 
 
 def _mark_complete_install(
@@ -104,12 +80,28 @@ def _mark_incomplete_install(config_dir: Path, *, runtime: str, install_scope: s
     )
 
 
+def _mark_lookup_only_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
+    """Seed only the manifest fields needed by local-config lookup tests."""
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / MANIFEST_NAME).write_text(
+        json.dumps({"runtime": runtime, "install_scope": install_scope}),
+        encoding="utf-8",
+    )
+
+
+def _mark_lookup_only_managed_surface(config_dir: Path) -> None:
+    marker = config_dir / GPD_INSTALL_DIR_NAME / "VERSION"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("test\n", encoding="utf-8")
+
+
 def _run_runtime_cli_with_recording(
     monkeypatch,
     *,
     cwd: Path,
     argv: list[str],
     runtime: str = _RUNTIME_NAMES[0],
+    validate_install_artifacts: bool = True,
 ) -> tuple[int, dict[str, object]]:
     observed: dict[str, object] = {}
     adapter = get_adapter(runtime)
@@ -117,7 +109,9 @@ def _run_runtime_cli_with_recording(
 
     def record_missing_install_artifacts(target_dir: Path) -> tuple[str, ...]:
         observed["config_dir"] = target_dir
-        return original_missing_install_artifacts(target_dir)
+        if validate_install_artifacts:
+            return original_missing_install_artifacts(target_dir)
+        return ()
 
     def fake_entrypoint() -> int:
         observed["argv"] = list(sys.argv)
@@ -347,6 +341,65 @@ def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target
     assert f"--target-dir {shlex.quote(str(config_dir))}" not in captured.err
 
 
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        descriptor
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+    ],
+    ids=lambda descriptor: descriptor.runtime_name,
+)
+def test_runtime_cli_treats_canonical_global_target_as_global_repair_target_when_env_overrides_elsewhere(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    if os.name == "nt":
+        monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    canonical_global_dir = resolve_global_config_dir(descriptor, home=home, environ={})
+    _mark_incomplete_install(canonical_global_dir, runtime=descriptor.runtime_name, install_scope="global")
+
+    override_dir = tmp_path / "override-global" / descriptor.config_dir_name
+    override_dir.mkdir(parents=True)
+    global_config = descriptor.global_config
+    env_var = global_config.env_var or global_config.env_dir_var or global_config.env_file_var
+    assert env_var is not None
+    env_value = str(override_dir / "config.json") if env_var == global_config.env_file_var else str(override_dir)
+    monkeypatch.setenv(env_var, env_value)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for canonical-global manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(canonical_global_dir),
+            "--install-scope",
+            "global",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert f"GPD runtime install incomplete for {descriptor.display_name}" in captured.err
+    assert "--global" in captured.err
+    assert f"--target-dir {shlex.quote(str(canonical_global_dir))}" not in captured.err
+
+
 @pytest.mark.parametrize("runtime_value", ["", 123, "not-a-runtime"])
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_fails_when_manifest_runtime_is_missing_or_unrecognized(
@@ -403,7 +456,7 @@ def test_runtime_cli_fails_when_manifest_runtime_field_is_missing(
 ) -> None:
     adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / adapter.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     manifest_path = config_dir / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.pop("runtime", None)
@@ -443,7 +496,7 @@ def test_runtime_cli_preserves_custom_global_target_in_missing_runtime_repair_gu
     descriptor,
 ) -> None:
     config_dir = tmp_path / "custom-global" / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
     manifest_path = config_dir / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.pop("runtime", None)
@@ -475,21 +528,6 @@ def test_runtime_cli_preserves_custom_global_target_in_missing_runtime_repair_gu
     assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
-def test_codex_custom_global_install_seeding_stays_within_temp_root(monkeypatch, tmp_path: Path) -> None:
-    outside_root = tmp_path.parent / "codex-skills-leak"
-    leak_skills_dir = outside_root / ".agents" / "skills"
-    monkeypatch.setenv("CODEX_SKILLS_DIR", str(leak_skills_dir))
-
-    adapter = get_adapter("codex")
-    config_dir = tmp_path / "custom-global" / adapter.config_dir_name
-    _mark_complete_install(config_dir, runtime=adapter.runtime_name, install_scope="global")
-
-    safe_skills_dir = config_dir.parent / ".agents" / "skills"
-    assert safe_skills_dir.is_relative_to(tmp_path)
-    assert safe_skills_dir.exists()
-    assert not leak_skills_dir.exists()
-
-
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_preserves_custom_global_target_in_malformed_runtime_repair_guidance(
     monkeypatch,
@@ -498,7 +536,7 @@ def test_runtime_cli_preserves_custom_global_target_in_malformed_runtime_repair_
     descriptor,
 ) -> None:
     config_dir = tmp_path / "custom-global" / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
     manifest_path = config_dir / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["runtime"] = ""
@@ -534,7 +572,7 @@ def test_runtime_cli_manifest_scoped_local_candidate_matching_does_not_consult_h
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    adapter = get_adapter("codex")
+    adapter = get_adapter(_RUNTIME_NAMES[0])
     local_config_dir = tmp_path / adapter.config_dir_name
     global_config_dir = tmp_path / "custom-global" / adapter.config_dir_name
     local_config_dir.mkdir(parents=True, exist_ok=True)
@@ -581,8 +619,7 @@ def test_runtime_cli_resolves_manifestless_managed_surface_for_diagnostics(
     nested_cwd = workspace / "research" / "notes"
     nested_cwd.mkdir(parents=True)
 
-    seed_complete_runtime_install(ancestor_config_dir, runtime=descriptor.runtime_name)
-    (ancestor_config_dir / MANIFEST_NAME).unlink()
+    _mark_lookup_only_managed_surface(ancestor_config_dir)
 
     resolved = runtime_cli._resolve_local_config_dir(
         f"./{descriptor.config_dir_name}",
@@ -691,6 +728,45 @@ def test_runtime_cli_infers_target_dir_for_missing_explicit_target_repair_guidan
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_bridge_explicit_target_flag_overrides_missing_manifest_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    seed_complete_runtime_install(config_dir, runtime=adapter.runtime_name, explicit_target=False)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("runtime", None)
+    manifest.pop("explicit_target", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    exit_code = main(
+        [
+            "--runtime",
+            adapter.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "--explicit-target",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / adapter.config_dir_name
@@ -775,7 +851,7 @@ def test_runtime_cli_canonicalizes_display_names_and_aliases(
 def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: Path, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / adapter.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     foreign_runtime = next(name for name in _RUNTIME_NAMES if name != descriptor.runtime_name)
 
     exit_code, observed = _run_runtime_cli_with_recording(
@@ -794,6 +870,7 @@ def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: P
             foreign_runtime,
         ],
         runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
@@ -1080,23 +1157,14 @@ def test_runtime_cli_resolves_local_config_dir_from_ancestor_workspace(
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     nested_cwd = tmp_path / "research" / "notes"
     nested_cwd.mkdir(parents=True)
-    monkeypatch.chdir(nested_cwd)
-    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
 
-    observed: dict[str, object] = {}
-
-    def fake_entrypoint() -> int:
-        observed["argv"] = list(sys.argv)
-        observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
-        return 0
-
-    monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
-
-    exit_code = main(
-        [
+    exit_code, observed = _run_runtime_cli_with_recording(
+        monkeypatch,
+        cwd=nested_cwd,
+        argv=[
             "--runtime",
             descriptor.runtime_name,
             "--config-dir",
@@ -1105,10 +1173,13 @@ def test_runtime_cli_resolves_local_config_dir_from_ancestor_workspace(
             "local",
             "state",
             "load",
-        ]
+        ],
+        runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
+    assert observed["config_dir"] == config_dir
     assert observed["argv"] == ["gpd", "state", "load"]
     assert observed["runtime"] == descriptor.runtime_name
 
@@ -1228,8 +1299,7 @@ def test_runtime_cli_rejects_missing_manifest_before_dispatch(
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
-    (config_dir / MANIFEST_NAME).unlink()
+    _mark_lookup_only_managed_surface(config_dir)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
     monkeypatch.setattr(
@@ -1264,8 +1334,7 @@ def test_runtime_cli_rejects_manifestless_ancestor_local_candidate_before_dispat
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
-    (config_dir / MANIFEST_NAME).unlink()
+    _mark_lookup_only_managed_surface(config_dir)
     nested_cwd = tmp_path / "research" / "notes"
     nested_cwd.mkdir(parents=True)
     monkeypatch.chdir(nested_cwd)
@@ -1385,7 +1454,7 @@ def test_runtime_cli_preserves_custom_global_target_in_untrusted_manifest_repair
     descriptor,
 ) -> None:
     config_dir = tmp_path / "custom-global" / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
     (config_dir / MANIFEST_NAME).write_text("not-json", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
@@ -1422,7 +1491,7 @@ def test_runtime_cli_rejects_non_utf8_manifest_before_dispatch(
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     (config_dir / MANIFEST_NAME).write_bytes(b"\xff")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
@@ -1460,7 +1529,7 @@ def test_runtime_cli_resolves_local_config_dir_from_forwarded_cli_cwd(
     launcher_cwd.mkdir()
     workspace_root = tmp_path / "project"
     config_dir = workspace_root / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     forwarded_cwd = workspace_root / "research" / "notes"
     forwarded_cwd.mkdir(parents=True)
 
@@ -1480,6 +1549,7 @@ def test_runtime_cli_resolves_local_config_dir_from_forwarded_cli_cwd(
             str(forwarded_cwd),
         ],
         runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
@@ -1501,24 +1571,14 @@ def test_runtime_cli_uses_last_repeated_forwarded_cli_cwd_for_bridge_resolution(
     ignored_cwd.mkdir(parents=True)
     workspace_root = tmp_path / "project"
     config_dir = workspace_root / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     final_cwd = workspace_root / "research" / "notes"
     final_cwd.mkdir(parents=True)
 
-    observed: dict[str, object] = {}
-
-    def fake_entrypoint() -> int:
-        observed["argv"] = list(sys.argv)
-        observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
-        observed["disable_reexec"] = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
-        return 0
-
-    monkeypatch.chdir(launcher_cwd)
-    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
-
-    exit_code = main(
-        [
+    exit_code, observed = _run_runtime_cli_with_recording(
+        monkeypatch,
+        cwd=launcher_cwd,
+        argv=[
             "--runtime",
             descriptor.runtime_name,
             "--config-dir",
@@ -1531,10 +1591,13 @@ def test_runtime_cli_uses_last_repeated_forwarded_cli_cwd_for_bridge_resolution(
             str(ignored_cwd),
             "--cwd",
             str(final_cwd),
-        ]
+        ],
+        runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
+    assert observed["config_dir"] == config_dir
     assert observed["argv"] == ["gpd", "state", "load", "--cwd", str(ignored_cwd), "--cwd", str(final_cwd)]
     assert observed["runtime"] == descriptor.runtime_name
     assert observed["disable_reexec"] == "1"
@@ -1590,7 +1653,7 @@ def test_runtime_cli_fails_when_resolved_local_config_dir_manifest_runtime_misma
     foreign_runtime = next(name for name in _RUNTIME_NAMES if name != descriptor.runtime_name)
     adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / adapter.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     manifest_path = config_dir / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["runtime"] = foreign_runtime
@@ -1701,6 +1764,44 @@ def test_runtime_cli_uses_manifest_owner_scope_for_mismatch_repair_guidance(
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_scope_mismatch_uses_normalized_manifest_scope(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    config_dir = tmp_path / f"custom-{descriptor.runtime_name}-dir"
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name, install_scope="local")
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["install_scope"] = " local "
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "global",
+            "--explicit-target",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge scope mismatch" in captured.err
+    assert "Resolved install manifest pins `local`, but this bridge was launched as `global`." in captured.err
+    assert "--local" in captured.err
+    assert "--global" not in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_preserves_custom_global_target_in_mismatch_repair_guidance_without_bridge_flag(
     monkeypatch,
     tmp_path: Path,
@@ -1709,7 +1810,7 @@ def test_runtime_cli_preserves_custom_global_target_in_mismatch_repair_guidance_
 ) -> None:
     foreign_runtime = next(name for name in _RUNTIME_NAMES if name != descriptor.runtime_name)
     config_dir = tmp_path / "custom-global" / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name, install_scope="global")
     manifest_path = config_dir / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["runtime"] = foreign_runtime
@@ -1746,11 +1847,11 @@ def test_runtime_cli_ignores_unrelated_nested_runtime_dirs_when_resolving_ancest
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     for other_descriptor in _RUNTIME_DESCRIPTORS:
         if other_descriptor.runtime_name == descriptor.runtime_name:
             continue
-        _mark_complete_install(
+        _mark_lookup_only_install(
             tmp_path / "research" / other_descriptor.config_dir_name,
             runtime=other_descriptor.runtime_name,
         )
@@ -1771,6 +1872,7 @@ def test_runtime_cli_ignores_unrelated_nested_runtime_dirs_when_resolving_ancest
             "load",
         ],
         runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
@@ -1788,7 +1890,7 @@ def test_runtime_cli_skips_stale_partial_nested_local_candidate_when_ancestor_in
 ) -> None:
     adapter = get_adapter(descriptor.runtime_name)
     ancestor_config_dir = tmp_path / adapter.config_dir_name
-    _mark_complete_install(ancestor_config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(ancestor_config_dir, runtime=descriptor.runtime_name)
     stale_workspace = tmp_path / "workspace"
     _mark_incomplete_install(stale_workspace / adapter.config_dir_name, runtime=descriptor.runtime_name)
     nested_cwd = stale_workspace / "research" / "notes"
@@ -1824,9 +1926,9 @@ def test_runtime_cli_ignores_global_scope_candidates_when_resolving_ancestor_loc
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name)
     global_dir = tmp_path / "home" / descriptor.config_dir_name
-    _mark_complete_install(global_dir, runtime=descriptor.runtime_name, install_scope="global")
+    _mark_lookup_only_install(global_dir, runtime=descriptor.runtime_name, install_scope="global")
     nested_cwd = tmp_path / "research" / "notes"
     nested_cwd.mkdir(parents=True)
     global_config = get_adapter(descriptor.runtime_name).runtime_descriptor.global_config
@@ -1849,6 +1951,7 @@ def test_runtime_cli_ignores_global_scope_candidates_when_resolving_ancestor_loc
             "load",
         ],
         runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
@@ -1865,7 +1968,7 @@ def test_runtime_cli_prefers_manifest_scoped_local_install_when_global_env_point
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
-    _mark_complete_install(config_dir, runtime=descriptor.runtime_name, install_scope="local")
+    _mark_lookup_only_install(config_dir, runtime=descriptor.runtime_name, install_scope="local")
     nested_cwd = tmp_path / "research" / "notes"
     nested_cwd.mkdir(parents=True)
 
@@ -1889,6 +1992,7 @@ def test_runtime_cli_prefers_manifest_scoped_local_install_when_global_env_point
             "load",
         ],
         runtime=descriptor.runtime_name,
+        validate_install_artifacts=False,
     )
 
     assert exit_code == 0
@@ -1909,7 +2013,7 @@ def test_runtime_cli_does_not_treat_canonical_global_dir_as_local_when_runtime_e
     monkeypatch.setenv("HOME", str(home))
 
     canonical_global_dir = resolve_global_config_dir(descriptor, home=home, environ={})
-    _mark_complete_install(canonical_global_dir, runtime=descriptor.runtime_name, install_scope="global")
+    _mark_lookup_only_install(canonical_global_dir, runtime=descriptor.runtime_name, install_scope="global")
 
     override_dir = tmp_path / "override" / descriptor.config_dir_name
     override_dir.mkdir(parents=True)
@@ -1957,8 +2061,7 @@ def test_runtime_cli_does_not_treat_marker_only_canonical_global_dir_as_local_wh
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
     canonical_global_dir = resolve_global_config_dir(descriptor, home=home, environ={})
-    _mark_complete_install(canonical_global_dir, runtime=descriptor.runtime_name, install_scope="global")
-    (canonical_global_dir / MANIFEST_NAME).unlink()
+    _mark_lookup_only_managed_surface(canonical_global_dir)
 
     override_dir = tmp_path / "override" / descriptor.config_dir_name
     override_dir.mkdir(parents=True)
@@ -2007,9 +2110,7 @@ def test_runtime_cli_does_not_treat_marker_only_env_global_dir_as_local_ancestor
 
     workspace = tmp_path / "workspace"
     override_dir = workspace / descriptor.config_dir_name
-    override_dir.mkdir(parents=True)
-    _mark_complete_install(override_dir, runtime=descriptor.runtime_name, install_scope="global")
-    (override_dir / MANIFEST_NAME).unlink()
+    _mark_lookup_only_managed_surface(override_dir)
 
     global_config = descriptor.global_config
     env_var = global_config.env_var or global_config.env_dir_var or global_config.env_file_var

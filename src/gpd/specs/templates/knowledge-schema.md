@@ -220,8 +220,8 @@ All list-valued subfields must remain YAML lists.
 review:
   reviewed_at: "2026-04-07T12:00:00Z"
   review_round: 1
-  reviewer_kind: human
-  reviewer_id: gpd-knowledge-reviewer
+  reviewer_kind: workflow
+  reviewer_id: gpd-review-knowledge
   decision: approved
   summary: "The document is reviewed and ready for downstream use."
   approval_artifact_path: "GPD/knowledge/reviews/K-renormalization-group-fixed-points-R1-REVIEW.md"

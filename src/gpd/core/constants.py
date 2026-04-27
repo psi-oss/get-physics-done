@@ -12,7 +12,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd._python_compat import MIN_SUPPORTED_PYTHON
+from gpd._python_compat import (
+    MIN_SUPPORTED_PYTHON,
+)
+from gpd._python_compat import (
+    RECOMMENDED_PYTHON_VERSION as PYTHON_COMPAT_RECOMMENDED_PYTHON_VERSION,
+)
 from gpd.core.return_contract import REQUIRED_RETURN_FIELDS, VALID_RETURN_STATUSES
 
 __all__ = [
@@ -389,7 +394,7 @@ MIN_PYTHON_MAJOR = MIN_SUPPORTED_PYTHON[0]
 MIN_PYTHON_MINOR = MIN_SUPPORTED_PYTHON[1]
 """Minimum required Python minor version."""
 
-RECOMMENDED_PYTHON_VERSION: tuple[int, int] = (3, 12)
+RECOMMENDED_PYTHON_VERSION: tuple[int, int] = PYTHON_COMPAT_RECOMMENDED_PYTHON_VERSION
 """Recommended Python version for best compatibility."""
 
 SEED_PATTERN_INITIAL_OCCURRENCES: int = 5

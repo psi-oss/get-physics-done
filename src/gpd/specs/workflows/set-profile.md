@@ -36,17 +36,11 @@ This creates `GPD/config.json` with defaults if missing and loads current config
 </step>
 
 <step name="update_config">
-Read current config from init output or directly:
+Update only the `model_profile` field through the config CLI, preserving all other `GPD/config.json` keys:
 
-Update `model_profile` field:
-
-```json
-{
-  "model_profile": "$ARGUMENTS.profile"
-}
+```bash
+gpd config set model_profile "$ARGUMENTS.profile"
 ```
-
-Write updated config back to `GPD/config.json`.
 </step>
 
 <step name="confirm">

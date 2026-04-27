@@ -57,7 +57,8 @@ def test_consistency_checker_and_notation_coordinator_keep_ownership_boundaries_
     assert "shared_state_authority: direct" in notation
     assert "This agent OWNS CONVENTIONS.md — it is the only agent that creates, modifies, or extends the conventions file." in notation
     assert "the gpd-consistency-checker DETECTS convention violations but delegates resolution to this agent" in notation
-    assert "Do not act as the default writable implementation agent" in checker
+    assert "Authority: use the frontmatter-derived Agent Requirements block" in checker
+    assert "shared_state_authority: return_only" in checker
 
 
 def test_audit_milestone_consumes_checker_reports_without_spawning_notation_resolution() -> None:

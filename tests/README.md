@@ -4,12 +4,12 @@ This directory contains the automated test suite for GPD: core CLI and state reg
 
 The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
 
-Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. For default full-suite local runs, `tests/conftest.py` also raises xdist auto-worker selection toward the current CI shard fanout, so local `uv run pytest` stays in the same rough parallelism range as CI without changing what gets collected. If you need a serial run for debugging, override that default explicitly with `uv run pytest -n 0`. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` still weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`, and greedily rebalances those work units inside each category so the thematic shard names remain close to the well-balanced anonymous-shard timings while each shard still inherits the same default pytest work-stealing parallelism policy.
+Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. For default full-suite local runs, `tests/conftest.py` also raises xdist auto-worker selection toward the current CI shard fanout, so local `uv run pytest` stays in the same rough parallelism range as CI without changing what gets collected. If you need a serial run for debugging, override that default explicitly with `uv run pytest -n 0`. The 180 second fast-suite budget is enforced per CI pytest shard, while the 10 minute job timeout remains the outer failure boundary for setup or cleanup stalls. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` still weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and `tests/mcp/test_verification_contract_server_regressions.py`, and greedily rebalances those work units inside each category so the thematic shard names remain close to the well-balanced anonymous-shard timings while each shard still inherits the same default pytest work-stealing parallelism policy.
 
 ## Repository Interdependency Graph
 
 <!-- repo-graph-generated-on:start -->
-Generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
+Only marked repo-graph blocks are generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
 <!-- repo-graph-generated-on:end -->
 
 ## Status
@@ -32,7 +32,7 @@ This graph therefore includes:
 - `src/gpd/agents/*.md`: `24`
 - `src/gpd/specs/workflows/*.md`: `72`
 - `src/gpd/specs/templates/**/*.md`: `80`
-- `src/gpd/specs/references/**/*.md`: `181`
+- `src/gpd/specs/references/**/*.md`: `180`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/servers/*.py`: `9`
@@ -160,9 +160,9 @@ flowchart TD
 - `bin/install.js -> GitHub main-branch source family {https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> tagged release install candidate chain {tag archive, https tag checkout}`
+- `bin/install.js -> release install candidate chain {PyPI package, tag archive, https tag checkout}`
   `ordering-contract`
-  Normal install and `--reinstall` stay pinned to the matching tagged release and fail closed if it cannot be installed.
+  Normal install and `--reinstall` use the pinned PyPI release first, then matching tagged GitHub release sources as fallback, and fail closed if neither can be installed.
 
 - `bin/install.js -> main-branch upgrade candidate chain {main archive, https main checkout}`
   `ordering-contract`
@@ -205,7 +205,11 @@ flowchart TD
 
 - `.github/workflows/test.yml -> tests/**`
   `authority`
-  Runs fast and full pytest coverage explicitly in CI.
+  Runs the full checked-in pytest suite as category-named runtime-informed shards.
+
+- `.github/workflows/test.yml -> tests/ci_sharding.py`
+  `authority`
+  Resolves live non-empty pytest shard targets from the current test inventory and owns the category shard counts plus hotspot split and weight metadata.
 
 - `.github/workflows/test.yml -> pyproject.toml`
   `authority`
@@ -215,10 +219,13 @@ flowchart TD
   `authority`
   Locked dependency resolution surface for CI.
 
-- `.github/workflows/test.yml -> actions/checkout@v5`
+- `.github/workflows/test.yml -> actions/checkout@v6`
   `external-service`
 
 - `.github/workflows/test.yml -> actions/setup-python@v6`
+  `external-service`
+
+- `.github/workflows/test.yml -> actions/setup-node@v6`
   `external-service`
 
 - `.github/workflows/test.yml -> astral-sh/setup-uv@v7`
@@ -1511,9 +1518,6 @@ They explicitly preserve:
   `generated-output`
 
 - `tests/test_release_consistency.py -> dist/*.whl::!gpd/mcp/viewer/cli.py`
-  `negative-packaging-contract`
-
-- `tests/test_release_consistency.py -> docs/USER-GUIDE.md`
   `negative-packaging-contract`
 
 - `tests/test_release_consistency.py -> MANUAL-TEST-PLAN.md`

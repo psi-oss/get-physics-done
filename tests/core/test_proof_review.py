@@ -237,9 +237,7 @@ def _write_managed_manuscript_review_anchor(project_root: Path, *, project_backe
 
     if project_backed:
         (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
-        review_dir = project_root / "GPD" / "review"
-    else:
-        review_dir = project_root / "GPD" / "publication" / "ising-bootstrap" / "review"
+    review_dir = project_root / "GPD" / "publication" / "ising-bootstrap" / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     (review_dir / "CLAIMS.json").write_text(
         json.dumps(
@@ -278,6 +276,93 @@ def _write_managed_manuscript_review_anchor(project_root: Path, *, project_backe
                 "claims_reviewed": [],
                 "summary": "math review",
                 "strengths": ["checked manuscript"],
+                "findings": [],
+                "proof_audits": [],
+                "confidence": "high",
+                "recommendation_ceiling": "minor_revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manuscript_path
+
+
+def _write_nested_project_manuscript_review_anchor(project_root: Path) -> Path:
+    manuscript_root = project_root / "paper"
+    manuscript_path = manuscript_root / "tex" / "main.tex"
+    manuscript_path.parent.mkdir(parents=True, exist_ok=True)
+    manuscript_path.write_text(
+        "\\documentclass{article}\n\\usepackage{paper-style}\n\\begin{document}\nNested draft.\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (manuscript_root / "references.bib").write_text("@article{demo,title={Nested Demo}}\n", encoding="utf-8")
+    (manuscript_root / "paper-style.sty").write_text("\\ProvidesPackage{paper-style}\n", encoding="utf-8")
+    (manuscript_root / "figures").mkdir(parents=True, exist_ok=True)
+    (manuscript_root / "figures" / "summary.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (manuscript_root / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Nested Paper",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "tex/main.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manuscript_rel = "paper/tex/main.tex"
+    manuscript_sha256 = compute_sha256(manuscript_path)
+    review_dir = project_root / "GPD" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "CLAIMS.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims": [
+                    {
+                        "claim_id": "CLM-NESTED-001",
+                        "claim_type": "main_result",
+                        "claim_kind": "other",
+                        "text": "The manuscript reports a nested project result.",
+                        "artifact_path": manuscript_rel,
+                        "section": "Main Result",
+                        "equation_refs": [],
+                        "figure_refs": [],
+                        "supporting_artifacts": [],
+                        "theorem_assumptions": [],
+                        "theorem_parameters": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "STAGE-math.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": 1,
+                "stage_id": "math",
+                "stage_kind": "math",
+                "manuscript_path": manuscript_rel,
+                "manuscript_sha256": manuscript_sha256,
+                "claims_reviewed": [],
+                "summary": "math review",
+                "strengths": ["checked nested manuscript"],
                 "findings": [],
                 "proof_audits": [],
                 "confidence": "high",
@@ -1020,6 +1105,29 @@ def test_manuscript_proof_review_turns_stale_after_bibliography_edit(tmp_path: P
     assert fresh.state == "fresh"
 
     bibliography_path.write_text("@article{demo,title={Updated Demo}}\n", encoding="utf-8")
+
+    stale = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
+
+    assert stale.state == "stale"
+    assert stale.can_rely_on_prior_review is False
+    assert bibliography_path in stale.changed_files
+
+
+def test_nested_manuscript_proof_review_watches_resolved_manuscript_root(tmp_path: Path) -> None:
+    manuscript_path = _write_nested_project_manuscript_review_anchor(tmp_path)
+    manuscript_root = tmp_path / "paper"
+    bibliography_path = manuscript_root / "references.bib"
+    style_path = manuscript_root / "paper-style.sty"
+    figure_path = manuscript_root / "figures" / "summary.png"
+
+    fresh = resolve_manuscript_proof_review_status(tmp_path, manuscript_path, persist_manifest=True)
+
+    assert fresh.state == "fresh"
+    assert bibliography_path in fresh.watched_files
+    assert style_path in fresh.watched_files
+    assert figure_path in fresh.watched_files
+
+    bibliography_path.write_text("@article{demo,title={Updated Nested Demo}}\n", encoding="utf-8")
 
     stale = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
 

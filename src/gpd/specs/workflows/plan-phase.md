@@ -682,6 +682,8 @@ Human-readable headings such as `## PLANNING COMPLETE`, `## CHECKPOINT REACHED`,
 - **`gpd_return.status: checkpoint`:** Present to user, get response, spawn a fresh planner continuation handoff. Do not route planner checkpoints into the checker revision loop.
 - **`gpd_return.status: blocked` or `failed`:** Show attempts, offer: Add context / Retry / Manual
 
+On completed returns, consume `gpd_return.roadmap_updates` before checker review or next-step output. The spawned planner does not own `GPD/ROADMAP.md` in default mode; it returns the proposed roadmap patch, replacement, or structured edit for the orchestrator to apply. Apply that update to `GPD/ROADMAP.md`, then verify the phase's plan placeholders/count match the fresh `*-PLAN.md` artifacts. If `roadmap_updates` is absent, malformed, or cannot apply cleanly, treat the handoff as incomplete and choose Retry planner / Apply manually / Abort rather than accepting stale roadmap state.
+
 Before the checker loop, validate only the fresh plan artifacts named by the planner return:
 
 ```bash
@@ -963,7 +965,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 gpd:execute-phase {X}
 
-<sub>/clear first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

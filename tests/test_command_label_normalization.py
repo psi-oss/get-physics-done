@@ -11,6 +11,7 @@ from gpd.command_labels import (
     canonical_command_label,
     canonical_skill_label,
     command_slug_from_label,
+    parse_command_label,
     rewrite_runtime_command_surfaces,
     runtime_command_prefixes,
     runtime_public_command_prefixes,
@@ -151,6 +152,28 @@ def test_runtime_native_command_labels_canonicalize_across_shared_surfaces(descr
     assert _canonical_command_name(label) == "gpd:execute-phase"
 
 
+@pytest.mark.parametrize(
+    ("label", "expected_slug", "expected_args"),
+    [
+        ("gpd:new-project --minimal", "new-project", "--minimal"),
+        ("$gpd-new-project --minimal", "new-project", "--minimal"),
+        ("new-project --minimal", "new-project", "--minimal"),
+        ("gpd:new-project --minimal @plan.md", "new-project", "--minimal @plan.md"),
+    ],
+)
+def test_command_label_parser_normalizes_base_command_and_preserves_inline_args(
+    label: str,
+    expected_slug: str,
+    expected_args: str,
+) -> None:
+    parsed = parse_command_label(label)
+
+    assert parsed.slug == expected_slug
+    assert parsed.inline_args == expected_args
+    assert command_slug_from_label(label) == expected_slug
+    assert canonical_command_label(label) == f"gpd:{expected_slug}"
+
+
 @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda item: item.runtime_name)
 def test_runtime_native_command_surfaces_rewrite_to_canonical_skill_labels(descriptor: object) -> None:
     content = (
@@ -193,6 +216,22 @@ def test_runtime_command_surface_rewrite_skips_urls_and_paths_but_keeps_examples
     assert "/tmp/$gpd-help.txt" in rewritten
     assert "./docs/gpd-help.md" in rewritten
     assert "foo$gpd-help/bar" in rewritten
+
+
+def test_runtime_command_surface_rewrite_uses_registry_command_slugs_for_public_labels() -> None:
+    content = (
+        "Run $gpd-help and /gpd:execute-phase as commands.\n"
+        "Keep checkpoint gpd-phase-03, agent gpd-planner, file gpd-file-manifest.json, "
+        "and generated gpd-help.json unchanged.\n"
+    )
+
+    rewritten = rewrite_runtime_command_surfaces(content, canonical="command")
+
+    assert "Run gpd:help and gpd:execute-phase as commands." in rewritten
+    assert "checkpoint gpd-phase-03" in rewritten
+    assert "agent gpd-planner" in rewritten
+    assert "file gpd-file-manifest.json" in rewritten
+    assert "generated gpd-help.json" in rewritten
 
 
 def test_foreign_bare_slash_command_is_not_canonicalized_into_gpd() -> None:

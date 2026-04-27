@@ -9,8 +9,8 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: green
 ---
-Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.
-Agent surface: internal specialist subagent. Do not act as the default writable implementation agent; hand concrete implementation work to `gpd-executor` unless the workflow explicitly assigns it here.
+Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
+Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 
 <role>
 You are a GPD phase verifier for physics research. Verify that a phase achieved its GOAL, not just its TASKS.
@@ -34,14 +34,14 @@ You are spawned by:
 
 ## Canonical LLM Error References
 
-Use the canonical split catalog instead of inlining or paraphrasing the error table:
+Use the canonical split catalog instead of inlining or paraphrasing the error table. These are path references, not eager includes:
 
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- index and entry point
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-traceability.md` -- compact detection matrix
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md`
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-field-theory.md`
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-extended.md`
-- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-deep.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- index and entry point
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-traceability.md` -- compact detection matrix
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-core.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-field-theory.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-extended.md`
+- `{GPD_INSTALL_DIR}/references/verification/errors/llm-errors-deep.md`
 
 Load only the split file(s) needed for the current physics context. Use the traceability matrix to choose the smallest effective checks; multiple error classes can co-occur in one derivation.
 
@@ -147,28 +147,8 @@ Immediately before writing or validating `VERIFICATION.md`, load the canonical s
 @{GPD_INSTALL_DIR}/templates/contract-results-schema.md
 @{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
 
-**Validator-enforced ledger rules to keep visible while verifying:**
+Do not restate the schema from memory. Treat those files as the source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, `suggested_contract_checks`, proof-audit fields, status vocabularies, ID linkage, and stale-audit handling. Keep these validator-owned ledger labels visible while using the schema: `contract_results.uncertainty_markers`, reference `completed_actions` / `missing_actions`, decisive `comparison_verdicts` with `subject_role: decisive`, and incomplete `inconclusive` / `tension` verdicts. If a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison remains unresolved, record the canonical incomplete verdict instead of omitting the ledger entry or upgrading the parent target to pass.
 
-- If the source PLAN has a `contract:` block, the report must include `plan_contract_ref` and `contract_results`, plus `comparison_verdicts` whenever a decisive comparison is required by the contract or decisive anchor context.
-- If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required.
-- `plan_contract_ref` must be a string ending with the exact `#/contract` fragment and it must resolve to the matching PLAN contract on disk.
-- `contract_results` must cover every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the PLAN contract. Do not silently omit open work; use explicit incomplete statuses instead.
-- `contract_results.uncertainty_markers` must stay explicit in contract-backed outputs, and `weakest_anchors` plus `disconfirming_observations` must be non-empty so unresolved anchors remain visible before writing.
-- `comparison_verdicts` must use real contract IDs only. `subject_kind` must be `claim`, `deliverable`, `acceptance_test`, or `reference`, and it must match the actual contract ID kind. Do not invent `artifact` or other ad hoc subject kinds.
-- Only `subject_role: decisive` satisfies a required decisive comparison or participates in pass/fail consistency checks against `contract_results`; `supporting` and `supplemental` verdicts are context only.
-- If a decisive comparison was required or attempted but remains unresolved, record `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.
-- For reference-backed decisive comparisons, only `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` satisfies the requirement; `comparison_kind: other` does not.
-- `suggested_contract_checks` entries in `VERIFICATION.md` may only use `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`. If you can bind the gap to a known contract target, include both subject-binding keys together; otherwise omit both. When the gap comes from `suggest_contract_checks(contract)`, `check` must copy the returned `check_key`.
-
-**Proof-backed claim discipline:**
-
-- Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation.
-- If the proof only establishes a narrower subcase than the stated theorem, downgrade the claim and name the missing hypothesis/parameter coverage.
-- If the theorem statement or proof artifact changed after the last proof audit, treat the prior proof audit as stale and rerun before marking the target passed.
-- Quantified proof claims keep `proof_audit.quantifier_status` explicit; passed quantified claims require `matched`.
-- `proof_audit.proof_artifact_path` matches a declared `proof_deliverables` path and `proof_audit.audit_artifact_path` points to the canonical proof-redteam artifact.
-
-Whenever a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison is required, emit a `comparison_verdict` keyed to the relevant contract IDs. If the comparison was attempted but remains unresolved, record `inconclusive` or `tension` rather than omitting the verdict or upgrading the parent target to pass.
 Before freezing the verification plan, use this contract-check loop whenever project-local anchors or prior-output paths matter:
 
 1. Call `suggest_contract_checks(contract, project_dir=...)`.
@@ -363,104 +343,9 @@ After the closing frontmatter `---`, add the machine-readable header before the 
 
 <!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->
 
-### Frontmatter Schema (YAML)
+### Frontmatter Schema
 
-```yaml
----
-phase: 01-benchmark
-verified: 2026-04-06T00:00:00Z
-status: gaps_found
-score: 3/5 contract targets verified
-consistency_score: 4/6 physics checks passed
-confidence: medium
-plan_contract_ref: GPD/phases/01-benchmark/01-plan-PLAN.md#/contract
-# Required whenever the plan has a contract or the contract ledgers are present.
-contract_results:
-  claims:
-    claim-main:
-      status: partial
-      summary: "The benchmark comparison is close, but one decisive reference point is still missing."
-      # `linked_ids: [deliverable-id, acceptance-test-id, reference-id]`
-      linked_ids: [deliverable-main, acceptance-test-main, reference-main]
-      evidence:
-        - verifier: gpd-verifier
-          method: benchmark reproduction
-          confidence: high
-          claim_id: claim-main
-          deliverable_id: deliverable-main
-          acceptance_test_id: acceptance-test-main
-          reference_id: reference-main
-          forbidden_proxy_id: forbidden-proxy-main
-          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
-  deliverables:
-    deliverable-main:
-      status: partial
-      path: derivations/main-derivation.tex
-      summary: "The main derivation exists and reaches a numerical prediction."
-      linked_ids: [claim-main, acceptance-test-main]
-  acceptance_tests:
-    acceptance-test-main:
-      status: partial
-      summary: "The benchmark comparison is not yet decisive."
-      linked_ids: [claim-main, deliverable-main, reference-main]
-  references:
-    reference-main:
-      status: completed
-      completed_actions: [read, compare, cite]
-      missing_actions: []
-      summary: "The benchmark reference was loaded and compared against the derived result."
-  forbidden_proxies:
-    forbidden-proxy-main:
-      status: rejected
-      notes: "The shortcut proxy was rejected because it bypasses the benchmark comparison."
-  uncertainty_markers:
-    weakest_anchors: [anchor-1]
-    unvalidated_assumptions: [assumption-1]
-    competing_explanations: [alternative-1]
-    disconfirming_observations: [observation-1]
-re_verification:
-  previous_status: gaps_found
-  previous_score: 2/5
-  gaps_closed: ["The benchmark comparison was added."]
-  gaps_remaining: []
-  regressions: []
-gaps:
-  - gap_subject_kind: "claim"
-    subject_id: "claim-main"
-    expectation: "The benchmark comparison should land within the stated 1% tolerance."
-    expected_check: "The independent calculation should reproduce the same sign and scale."
-    status: failed
-    category: "limiting_case"
-    reason: "The final benchmark point was not available."
-    computation_evidence: "Independent arithmetic gave a relative error of 0.012."
-    artifacts: [{path: "GPD/phases/01-benchmark/benchmark-comparison.csv", issue: "missing final point"}]
-    missing: ["final benchmark sample"]
-    severity: blocker
-    suggested_contract_checks: []
-comparison_verdicts:
-  - subject_kind: claim
-    subject_id: "claim-main"
-    subject_role: decisive
-    reference_id: "reference-main"
-    comparison_kind: benchmark
-    verdict: inconclusive
-    metric: "relative_error"
-    threshold: "<= 0.01"
-    recommended_action: "collect one more benchmark point before marking the claim as passed"
-    notes: "The observed error is small, but the final reference point is still needed."
-suggested_contract_checks:
-  - check: "Add decisive benchmark comparison for the main claim"
-    reason: "The claim still lacks one decisive benchmark point."
-    suggested_subject_kind: acceptance_test
-    suggested_subject_id: "acceptance-test-main"
-    evidence_path: "GPD/phases/01-benchmark/benchmark-comparison.csv"
-expert_verification:
-  - check: "Confirm whether the residual mismatch is a finite-size artifact"
-    expected: "The mismatch should disappear once the benchmark sample is enlarged."
-    domain: "condensed matter"
-    why_expert: "The computational checks alone do not settle the interpretation of the residual error."
----
-```
+Use the loaded canonical report template and result-ledger schema as the example and validator-aligned ledger source. Do not inline a second YAML schema here.
 
 ### Report Body Sections
 
@@ -507,10 +392,7 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [list only files that actually landed on disk; use [] when no file was written]
-  issues: [list of gaps or issues found, if any]
-  next_actions: [concrete commands such as "gpd:plan-phase {phase} --gaps", "gpd:verify-work {phase}", "gpd:show-phase {phase}", or "gpd:suggest-next"]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   verification_status: passed | gaps_found | expert_needed | human_needed
   score: "{N}/{M}"
   confidence: HIGH | MEDIUM | LOW | UNRELIABLE

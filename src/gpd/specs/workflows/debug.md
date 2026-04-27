@@ -69,8 +69,23 @@ With diagnosis: "Result disagrees with literature" -> "Missing factor of 2 from 
 
 <process>
 
+<step name="route_mode">
+**Route before loading evidence:**
+
+- Interactive mode (direct user invocation): do not parse `VERIFICATION.md`. Run `gpd --raw init progress --include state,roadmap,config --no-project-reentry`, list active `GPD/debug/*.md` sessions when `$ARGUMENTS` is empty, gather the missing symptom fields with `ask_user`, and spawn one diagnosis-only `gpd-debugger`.
+- Batch mode (verify-work handoff): parse `VERIFICATION.md` gaps and spawn one diagnosis-only `gpd-debugger` per gap.
+
+Interactive symptom fields: expected result, actual result, discrepancy character, parameter/regime where it breaks, and checks already tried. If an active session is resumed, the continuation prompt points the child to `GPD/debug/{slug}.md`; do not inline an `@GPD/debug/{slug}.md` attachment.
+
+Interactive typed-return handling:
+
+- `gpd_return.status: completed` -- verify `GPD/debug/{slug}.md`, present the evidence-backed root cause, and offer: Fix now, Plan fix, Manual fix.
+- `gpd_return.status: checkpoint` -- present the checkpoint, collect the user response, and spawn a fresh continuation that first reads the session file.
+- `gpd_return.status: blocked` or `failed` -- show what was checked and offer: Continue investigating, Manual investigation, Add more context, Simplify the problem.
+</step>
+
 <step name="parse_gaps">
-**Extract gaps from VERIFICATION.md:**
+**Batch mode: extract gaps from VERIFICATION.md:**
 
 Read the "Gaps" section (YAML format):
 
@@ -212,7 +227,7 @@ gpd commit "docs({phase}): add root causes from diagnosis" --files "${phase_dir}
 </step>
 
 <step name="report_results">
-**Report diagnosis results and hand off:**
+**Batch mode: report diagnosis results and hand off:**
 
 Display:
 
@@ -233,13 +248,14 @@ Proceeding to plan fixes...
 ```
 
 Return to verify-work orchestrator for automatic planning.
-Do NOT offer manual next steps - verify-work handles the rest.
+Do NOT offer manual next steps in batch mode - verify-work handles the rest.
 </step>
 
 </process>
 
 <context_efficiency>
-Agents start with symptoms pre-filled from validation (no symptom gathering).
+Batch agents start with symptoms pre-filled from validation (no symptom gathering).
+Interactive agents gather only missing symptom fields before spawn.
 Agents only diagnose -- plan-phase --gaps handles fixes (no fix application).
 </context_efficiency>
 

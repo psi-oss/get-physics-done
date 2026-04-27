@@ -42,25 +42,16 @@ Parse the patterns table. Each row contains:
 <step name="filter_if_requested">
 **If $ARGUMENTS provided (category filter):**
 
-Normalize the category argument to match known categories:
+Normalize the category argument by trimming whitespace and lowercasing it. Accept only the live pattern-library categories:
 
-| Input           | Matches       |
-| --------------- | ------------- |
-| `sign`          | sign          |
-| `factor`        | factor        |
-| `convention`    | convention    |
-| `numerical`     | numerical     |
-| `approximation` | approximation |
-| `boundary`      | boundary      |
-| `gauge`         | gauge         |
-| `combinatorial` | combinatorial |
+`sign-error`, `factor-error`, `convention-pitfall`, `convergence-issue`, `approximation-failure`, `numerical-instability`, `conceptual-error`, `dimensional-error`
 
 **If category not recognized:**
 
 ```
 Unknown category: "{input}"
 
-Available categories: sign, factor, convention, numerical, approximation, boundary, gauge, combinatorial
+Available categories: sign-error, factor-error, convention-pitfall, convergence-issue, approximation-failure, numerical-instability, conceptual-error, dimensional-error
 
 Usage: gpd:error-patterns [category]
 ```
@@ -101,9 +92,9 @@ Showing {N} of {total} patterns. Run `gpd:error-patterns` to see all.
 
 | Category | Count | Most Recent |
 |----------|-------|-------------|
-| sign | {N} | {date} |
-| factor | {N} | {date} |
-| convention | {N} | {date} |
+| sign-error | {N} | {date} |
+| factor-error | {N} | {date} |
+| convention-pitfall | {N} | {date} |
 {... for each category with entries}
 
 ## All Patterns
@@ -114,7 +105,7 @@ Showing {N} of {total} patterns. Run `gpd:error-patterns` to see all.
 
 ---
 
-{total} patterns recorded. Filter by category: `gpd:error-patterns sign`
+{total} patterns recorded. Filter by category: `gpd:error-patterns sign-error`
 ```
 
 </step>

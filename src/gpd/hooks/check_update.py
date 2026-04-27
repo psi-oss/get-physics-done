@@ -19,8 +19,7 @@ _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
 UPDATE_CHECK_INFLIGHT_TTL_SECONDS = 5 * 60
-NPM_PACKAGE_NAME = _SHARED_INSTALL_METADATA.bootstrap_package_name
-NPM_LATEST_RELEASE_URL = _SHARED_INSTALL_METADATA.latest_release_url
+LATEST_RELEASE_URL = _SHARED_INSTALL_METADATA.latest_release_url
 _VERSION_RELEASE_RE = re.compile(r"^\s*v?(?P<release>\d+(?:\.\d+)*)(?P<suffix>.*)$")
 
 
@@ -123,7 +122,6 @@ def _read_installed_version() -> str:
         except OSError as exc:
             _debug(f"Failed to read self-owned VERSION file {version_file}: {exc}")
 
-    # Primary: importlib.metadata (single source of truth)
     try:
         from gpd.version import __version__
 
@@ -132,7 +130,6 @@ def _read_installed_version() -> str:
     except Exception as exc:
         _debug(f"importlib.metadata lookup failed: {exc}")
 
-    # Fallback: VERSION files (for hook running outside installed package)
     for vf in _version_files():
         try:
             if vf.exists():
@@ -156,7 +153,7 @@ def _do_check(cache_file: Path) -> None:
         try:
             import urllib.request
 
-            with urllib.request.urlopen(NPM_LATEST_RELEASE_URL, timeout=10) as resp:
+            with urllib.request.urlopen(LATEST_RELEASE_URL, timeout=10) as resp:
                 data = json.loads(resp.read())
                 latest = data["version"]
         except Exception as exc:

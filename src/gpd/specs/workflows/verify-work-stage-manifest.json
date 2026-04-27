@@ -188,7 +188,10 @@
         "find_files",
         "search_files",
         "shell",
-        "task"
+        "task",
+        "mcp__gpd_verification__get_bundle_checklist",
+        "mcp__gpd_verification__suggest_contract_checks",
+        "mcp__gpd_verification__run_contract_check"
       ],
       "writes_allowed": [],
       "produced_state": [
@@ -303,7 +306,12 @@
         "project_contract_load_info",
         "project_contract_validation",
         "project_contract_gate",
+        "contract_intake",
+        "effective_reference_intake",
         "active_reference_context",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_context",
+        "protocol_bundle_verifier_extensions",
         "reference_artifact_files",
         "reference_artifacts_content"
       ],

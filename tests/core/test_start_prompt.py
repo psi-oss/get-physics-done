@@ -43,6 +43,11 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
     workflow = (WORKFLOWS_DIR / "start.md").read_text(encoding="utf-8")
 
     assert_start_workflow_router_contract(workflow)
+    assert "gpd --raw init new-project --stage scope_intake" in workflow
+    assert "workspace-bound, read-only classifier" in workflow
+    assert "Do not use that file search to override the core classifier." in workflow
+    assert "HAS_GPD_PROJECT=false" not in workflow
+    assert "RESEARCH_FILE_COUNT" not in workflow
 
     for fragment_options in (
         (
@@ -77,6 +82,7 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
         (
             "If the researcher chooses `Resume this project (recommended)` or `Continue where I left off`:",
             "If the researcher chooses `Resume this project` or `Continue where I left off`:",
+            "If the researcher chooses `Resume this project (recommended)`, `Continue where I left off`, `Inspect recovery state (recommended)`, or `Inspect recovery state`:",
         ),
         (
             "If the researcher chooses `Map this folder first (recommended)` or `Refresh the research map`:",
@@ -114,6 +120,9 @@ def test_start_workflow_routes_to_existing_entrypoints() -> None:
         ("keep the official GPD terms visible in plain-English form",),
     ):
         assert any(fragment in workflow for fragment in fragment_options)
+
+    assert "- `Keep the numbered list short." not in workflow
+    assert "this is an internal structuring rule, not a line to show the researcher" in workflow
 
     assert "Read `{GPD_INSTALL_DIR}/workflows/new-project.md` with the file-read tool." not in workflow
     assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in workflow

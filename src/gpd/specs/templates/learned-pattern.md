@@ -4,7 +4,7 @@ template_version: 1
 
 # Learned Pattern Template
 
-Template for `~/GPD/learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
+Template for `{patterns_root}/patterns-by-domain/{domain}/{category}-{slug}.md`, where `patterns_root` resolves as `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/.gpd/learned-patterns`. The default data-dir fallback is `~/.gpd/learned-patterns/patterns-by-domain/...`. This records a reusable error pattern captured from debugging or verification across GPD projects.
 
 **Purpose:** Record a physics error pattern, convention pitfall, or recurring computational issue so that future projects can detect and prevent it before it causes problems.
 

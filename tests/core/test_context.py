@@ -47,6 +47,7 @@ from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_BACKEND_ONLY_FIELDS
+from gpd.core.utils import file_lock
 from gpd.core.workflow_staging import load_workflow_stage_manifest
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -57,6 +58,21 @@ _XDG_RUNTIME_DESCRIPTOR = next(
 )
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def test_file_lock_leaves_durable_sidecar_after_release(tmp_path: Path) -> None:
+    target = tmp_path / "state.json"
+    target.write_text("{}", encoding="utf-8")
+    lock_path = target.with_suffix(".json.lock")
+
+    with file_lock(target):
+        assert lock_path.exists()
+
+    assert lock_path.exists()
+    with file_lock(target):
+        target.write_text('{"reacquired": true}', encoding="utf-8")
+
+    assert json.loads(target.read_text(encoding="utf-8")) == {"reacquired": True}
 
 
 def _setup_project(tmp_path: Path) -> Path:
@@ -1262,7 +1278,7 @@ class TestInitExecutePhase:
         assert status["manifest_bootstrapped"] is False
         assert not (tmp_path / "paper" / "PROOF-REVIEW-MANIFEST.json").exists()
 
-    def test_state_exists_uses_recoverable_backup_without_persisting_repair(
+    def test_state_exists_ignores_backup_only_state_without_persisting_repair(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1274,7 +1290,7 @@ class TestInitExecutePhase:
             encoding="utf-8",
         )
 
-        assert _state_exists(tmp_path) is True
+        assert _state_exists(tmp_path) is False
         assert not (tmp_path / "GPD" / "state.json").exists()
 
     def test_surfaces_active_reference_context(self, tmp_path: Path) -> None:
@@ -1491,6 +1507,26 @@ class TestInitPlanPhase:
         assert ctx["has_plans"] is False
         assert ctx["padded_phase"] == "02"
         assert "staged_loading" not in ctx
+
+    def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "02-analysis")
+        (tmp_path / "GPD" / "STATE.md").write_text("# State\nRoot state.\n", encoding="utf-8")
+        (tmp_path / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (phase_dir / "RESEARCH.md").write_text("nested research", encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_plan_phase(nested, "2", includes={"state", "roadmap", "research"})
+
+        assert ctx["phase_found"] is True
+        assert ctx["phase_number"] == "02"
+        assert ctx["planning_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["state_content"] == "# State\nRoot state.\n"
+        assert ctx["roadmap_content"] == "# Roadmap\n"
+        assert ctx["research_content"] == "nested research"
+        assert not (nested / "GPD").exists()
 
     def test_stage_phase_bootstrap_returns_only_bootstrap_payload(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2115,11 +2151,40 @@ class TestInitNewProject:
         assert ctx["planning_exists"] is False
         assert "staged_loading" not in ctx
 
+    def test_new_project_is_workspace_bound_from_nested_workspace(self, tmp_path: Path) -> None:
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (planning / "state.json").write_text("{}", encoding="utf-8")
+        nested = tmp_path / "notes" / "scratch"
+        nested.mkdir(parents=True)
+        (nested / "calc.py").write_text("print('local research')\n", encoding="utf-8")
+
+        ctx = init_new_project(nested, stage="scope_intake")
+
+        assert ctx["project_exists"] is False
+        assert ctx["state_exists"] is False
+        assert ctx["recoverable_project_exists"] is False
+        assert ctx["planning_exists"] is False
+        assert ctx["has_research_map"] is False
+        assert ctx["has_research_files"] is True
+        assert ctx["needs_research_map"] is True
+        assert not (planning / "state.json.lock").exists()
+
     def test_detects_research_files(self, tmp_path: Path) -> None:
         (tmp_path / "calc.py").write_text("import numpy", encoding="utf-8")
         ctx = init_new_project(tmp_path)
         assert ctx["has_research_files"] is True
         assert "has_existing_project" not in ctx
+
+    @pytest.mark.parametrize("filename", ("draft.pdf", "measurements.csv"))
+    def test_detects_documented_research_file_extensions(self, tmp_path: Path, filename: str) -> None:
+        (tmp_path / filename).write_text("research artifact\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is True
+        assert ctx["needs_research_map"] is True
 
     def test_ignores_runtime_owned_dirs_when_detecting_research_files(self, tmp_path: Path) -> None:
         for runtime_dir in _runtime_owned_local_install_dirs(tmp_path):
@@ -2221,6 +2286,23 @@ class TestInitNewProject:
         assert ctx["project_contract_validation"]["valid"] is True
         assert ctx["project_contract_gate"]["authoritative"] is True
 
+    def test_new_project_surfaces_partial_recoverable_state_without_project_md(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n\n## Phase 1: Setup\n", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path, stage="scope_intake")
+
+        assert ctx["project_exists"] is False
+        assert ctx["state_exists"] is True
+        assert ctx["roadmap_exists"] is True
+        assert ctx["recoverable_project_exists"] is True
+        assert ctx["partial_project_exists"] is True
+        assert ctx["project_recovery_status"] == "partial"
+
     def test_new_project_stage_scope_intake_filters_payload(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
 
@@ -2290,6 +2372,7 @@ class TestInitNewProject:
             "references/ui/ui-brand.md",
             "templates/project.md",
             "templates/requirements.md",
+            "templates/state.md",
         ]
         assert ctx["staged_loading"]["writes_allowed"] == [
             "GPD/PROJECT.md",
@@ -2299,6 +2382,7 @@ class TestInitNewProject:
             "GPD/state.json",
             "GPD/config.json",
             "GPD/CONVENTIONS.md",
+            "GPD/init-progress.json",
             "GPD/literature/PRIOR-WORK.md",
             "GPD/literature/METHODS.md",
             "GPD/literature/COMPUTATIONAL.md",
@@ -2376,7 +2460,7 @@ class TestInitNewProject:
             "surface the first scoping question",
             "preserve contract gate visibility without assuming approval-stage authority",
         ]
-        assert ctx["staged_loading"]["writes_allowed"] == []
+        assert ctx["staged_loading"]["writes_allowed"] == ["GPD/init-progress.json"]
 
     def test_stage_scope_approval_returns_only_contract_fields(self, tmp_path: Path) -> None:
         ctx = init_new_project(tmp_path, stage="scope_approval")
@@ -2452,6 +2536,27 @@ class TestInitNewProject:
         assert "templates/state-json-schema.md" in ctx["staged_loading"]["must_not_eager_load"]
         assert "state_md_content" not in ctx
         assert "state_json_content" not in ctx
+
+    def test_sync_state_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict, generate_state_markdown
+
+        _setup_project(tmp_path)
+        layout = ProjectLayout(tmp_path)
+        state = default_state_dict()
+        state["position"]["current_phase"] = "07"
+        layout.state_json.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        layout.state_md.write_text(generate_state_markdown(state), encoding="utf-8")
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        ctx = init_sync_state(nested)
+
+        assert ctx["state_md_exists"] is True
+        assert ctx["state_json_exists"] is True
+        assert ctx["state_json_backup_exists"] is False
+        assert '"current_phase": "07"' in ctx["state_json_content"]
+        assert "**Current Phase:** 07" in ctx["state_md_content"]
+        assert not (nested / "GPD").exists()
 
     def test_sync_state_stage_conflict_analysis_filters_payload(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -2672,7 +2777,7 @@ class TestInitNewProject:
         manuscript_dir.mkdir(parents=True)
         intake_dir = manuscript_dir.parent / "intake"
         intake_dir.mkdir(parents=True)
-        (intake_dir / "paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
+        (intake_dir / "write-paper-authoring-input.json").write_text('{"schema_version": 1}\n', encoding="utf-8")
         (manuscript_dir / "main.tex").write_text(
             "\\documentclass{article}\\begin{document}External lane draft.\\end{document}\n",
             encoding="utf-8",
@@ -3343,6 +3448,47 @@ class TestInitResume:
         assert ctx["resume_candidates"] == []
         assert "active_execution_segment" not in ctx
         assert "resume_surface" not in ctx
+
+    def test_live_execution_workspace_prevents_recent_project_hijack(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        recent_project = tmp_path / "recent-project"
+        data_root = tmp_path / "data"
+        _setup_project(workspace)
+        _write_current_execution(
+            workspace,
+            {
+                "session_id": "sess-local",
+                "phase": "03",
+                "plan": "02",
+                "segment_id": "seg-local",
+                "segment_status": "active",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        _setup_project(recent_project)
+        (recent_project / "GPD" / "PROJECT.md").write_text("# Recent project\n", encoding="utf-8")
+        (recent_project / "GPD" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        resume_path = recent_project / "GPD" / "phases" / "01-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        record_recent_project(
+            recent_project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "resume_file": "GPD/phases/01-analysis/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        ctx = init_resume(workspace, data_root=data_root)
+
+        assert ctx["project_root"] == workspace.resolve().as_posix()
+        assert ctx["project_reentry_mode"] == "current-workspace"
+        assert ctx["project_reentry_selected_candidate"]["reason"] == "workspace carries live execution state"
+        assert ctx["derived_execution_head"]["segment_id"] == "seg-local"
+        assert ctx["active_resume_kind"] is None
+        assert ctx["resume_candidates"] == []
 
     def test_handoff_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -4055,6 +4201,34 @@ class TestInitProgress:
         assert ctx["current_phase"]["number"] == "02"
         assert ctx["next_phase"]["number"] == "03"
 
+    def test_progress_uses_roadmap_inventory_for_phases_without_directories(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "ROADMAP.md").write_text(
+            "# Roadmap\n\n"
+            "## Phase 1: Setup\n\n"
+            "**Goal:** Establish baseline.\n\n"
+            "## Phase 2: Analysis\n\n"
+            "**Goal:** Analyze the main target.\n\n"
+            "## Phase 3: Synthesis\n\n"
+            "**Goal:** Package the result.\n",
+            encoding="utf-8",
+        )
+        p1 = _create_phase_dir(tmp_path, "01-setup")
+        (p1 / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        (p1 / "a-SUMMARY.md").write_text("summary", encoding="utf-8")
+        p2 = _create_phase_dir(tmp_path, "02-analysis")
+        (p2 / "b-PLAN.md").write_text("plan", encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert [phase["number"] for phase in ctx["phases"]] == ["1", "2", "3"]
+        assert ctx["phase_count"] == 3
+        assert ctx["completed_count"] == 1
+        assert ctx["current_phase"]["number"] == "2"
+        assert ctx["current_phase"]["disk_status"] == "planned"
+        assert ctx["next_phase"]["number"] == "3"
+        assert ctx["next_phase"]["directory"] is None
+
     def test_progress_prefers_phase_inventory_over_stale_state_position(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict
 
@@ -4122,13 +4296,13 @@ class TestInitProgress:
         assert ctx["project_root"] == workspace.resolve().as_posix()
         assert ctx["project_root_source"] == "workspace"
         assert ctx["project_root_auto_selected"] is False
-        assert ctx["init_root_policy"] == "workspace_locked"
+        assert ctx["init_root_policy"] == "project_scoped"
         assert ctx["config_content"] is not None
         assert "project_reentry_mode" not in ctx
         assert "project_reentry_candidates" not in ctx
         assert "project_reentry_selected_candidate" not in ctx
 
-    def test_progress_without_project_reentry_stays_workspace_locked_under_ancestor_project(
+    def test_progress_without_recent_project_reentry_still_resolves_ancestor_project(
         self,
         tmp_path: Path,
     ) -> None:
@@ -4137,15 +4311,17 @@ class TestInitProgress:
 
         project.mkdir()
         _setup_project(project)
+        (project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
         nested.mkdir(parents=True)
 
         ctx = init_progress(nested, include_project_reentry=False)
 
         assert ctx["workspace_root"] == nested.resolve().as_posix()
-        assert ctx["project_root"] == nested.resolve().as_posix()
+        assert ctx["project_root"] == project.resolve().as_posix()
         assert ctx["project_root_source"] == "workspace"
         assert ctx["project_root_auto_selected"] is False
-        assert ctx["init_root_policy"] == "workspace_locked"
+        assert ctx["init_root_policy"] == "project_scoped"
+        assert ctx["project_exists"] is True
         assert "project_reentry_mode" not in ctx
 
     def test_progress_rejects_stale_autonomy_values(self, tmp_path: Path) -> None:

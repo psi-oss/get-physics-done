@@ -58,6 +58,6 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Execute the compare-results workflow from @{GPD_INSTALL_DIR}/workflows/compare-results.md end-to-end.
+Execute the included compare-results workflow end-to-end.
 Preserve all validation gates (target mapping, metric selection, verdict emission, and follow-up routing), and keep the final comparison package under the current workspace `GPD/comparisons/` subtree.
 </process>

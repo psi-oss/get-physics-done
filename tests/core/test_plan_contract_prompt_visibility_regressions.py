@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
@@ -9,6 +11,10 @@ TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 
 def _read_template(name: str) -> str:
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
+
+
+def _expanded_template(name: str) -> str:
+    return expand_at_includes(_read_template(name), REPO_ROOT / "src/gpd/specs", "/runtime/")
 
 
 def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_constraints() -> None:
@@ -32,6 +38,10 @@ def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_cons
     assert "Use concrete anchors in `must_read_refs[]`" in plan_schema
     assert "`approach_policy` does not count as grounding on its own; use `context_intake`, preserved scoping inputs, or `references[]` for actual anchors." in plan_schema
     assert "Proof-bearing claims must use an explicit non-`other` `claim_kind`" in plan_schema
+    assert (
+        "`source` and `target` may only reference declared observable, claim, deliverable, acceptance-test, "
+        "reference, forbidden-proxy, or link IDs."
+    ) in plan_schema
     assert (
         "`references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs."
         in plan_schema
@@ -79,9 +89,9 @@ def test_planner_and_checker_examples_surface_concrete_contract_anchors() -> Non
 
     assert "in_scope: [\"Recover the benchmark curve within tolerance\"]" in planner_prompt
     assert "claim_kind: theorem" in planner_prompt
-    assert 'parameters:\n        - symbol: "q"' in planner_prompt
-    assert 'hypotheses:\n        - id: "hyp-gauge"' in planner_prompt
-    assert 'conclusion_clauses:\n        - id: "concl-transverse"' in planner_prompt
+    assert 'parameters -> symbol "q"' in planner_prompt
+    assert "hypotheses -> hyp-gauge" in planner_prompt
+    assert "conclusion_clauses -> concl-transverse" in planner_prompt
     assert "GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md" in planner_prompt
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention" in planner_prompt
     assert "schema_version: 1" in checker_prompt
@@ -167,7 +177,7 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
 def test_contract_schema_docs_make_lowercase_closed_vocab_rule_model_visible() -> None:
     plan_schema = _read_template("plan-contract-schema.md")
     project_schema = _read_template("project-contract-schema.md")
-    state_schema = _read_template("state-json-schema.md")
+    state_schema = _expanded_template("state-json-schema.md")
 
     expected = "Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation."
 
@@ -180,9 +190,9 @@ def test_planner_prompt_stays_compact_while_preserving_canonical_contract_wiring
     planner_prompt = (REPO_ROOT / "src/gpd/agents/gpd-planner.md").read_text(encoding="utf-8")
     planner_role = planner_prompt.partition("</role>")[0]
 
-    assert "parameters:\n        - symbol: \"q\"" in planner_prompt
-    assert "hypotheses:\n        - id: \"hyp-gauge\"" in planner_prompt
-    assert "conclusion_clauses:\n        - id: \"concl-transverse\"" in planner_prompt
+    assert 'parameters -> symbol "q"' in planner_prompt
+    assert "hypotheses -> hyp-gauge" in planner_prompt
+    assert "conclusion_clauses -> concl-transverse" in planner_prompt
     assert 'parameters: ["q"]' not in planner_prompt
     assert 'hypotheses: ["Gauge-fixing and regularization conventions match the approved anchor"]' not in planner_prompt
     assert 'conclusion_clauses: ["q_mu Pi^{mu nu} = 0"]' not in planner_prompt

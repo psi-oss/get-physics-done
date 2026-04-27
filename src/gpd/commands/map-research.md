@@ -30,6 +30,6 @@ Project state is loaded by the workflow from the current workspace or its neares
 </context>
 
 <process>
-Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/map-research.md`.
+Follow the included map-research workflow.
 Do not duplicate staged init, mapper fanout, or return routing here.
 </process>

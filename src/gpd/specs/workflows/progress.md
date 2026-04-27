@@ -65,6 +65,8 @@ Options:
 
 If user chooses sync: update STATE.md position, progress bar, and plan counters to match disk reality using `gpd state` commands.
 
+Confirmation contract: before any command that writes reconciled state, ask for an explicit user decision. If `ask_user` is available, present the three options above with `Sync STATE.md to disk` as the recommended option. If `ask_user` is not available, require a typed reply that exactly matches one of `Sync STATE.md to disk`, `Keep STATE.md`, or `Show details`; do not infer consent from a vague acknowledgement.
+
 **If no discrepancies:** Report "STATE.md is consistent with disk artifacts." and continue to full report.
 </step>
 
@@ -80,6 +82,8 @@ fi
 ```
 
 Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `knowledge_doc_files`, `knowledge_doc_count`, `stable_knowledge_doc_files`, `stable_knowledge_doc_count`, `knowledge_doc_status_counts`, `derived_knowledge_docs`, `derived_knowledge_doc_count`, `knowledge_doc_warnings`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`.
+
+`phases`, `current_phase`, `next_phase`, `completed_count`, and `phase_count` are derived from the same canonical roadmap inventory used by `gpd --raw roadmap analyze`, including roadmap phases whose directories do not exist yet. Do not rescan only `GPD/phases/` to override them.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
@@ -258,7 +262,7 @@ If `HEALTH.summary.warn > 0` or `HEALTH.summary.fail > 0`, append a summary:
 
 ```
 ## System Health
-{warn_count} warning(s), {fail_count} failure(s) detected. Run `gpd health --fix` to auto-repair what it can.
+{warn_count} warning(s), {fail_count} failure(s) detected. Run `gpd:health --fix` to auto-repair what it can.
 ```
 
 </step>
@@ -339,7 +343,7 @@ Read its `<objective>` section.
 
 `gpd:execute-phase {phase}`
 
-<sub>`/clear` first, then run `gpd:execute-phase {phase}`</sub>
+<sub>Start a fresh context window, then run `gpd:execute-phase {phase}`</sub>
 
 ---
 ```
@@ -362,7 +366,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 
 `gpd:plan-phase {phase-number}`
 
-<sub>`/clear` first, then run `gpd:plan-phase {phase-number}`</sub>
+<sub>Start a fresh context window, then run `gpd:plan-phase {phase-number}`</sub>
 
 ---
 ```
@@ -378,7 +382,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 
 `gpd:discuss-phase {phase}` — gather context and clarify approach
 
-<sub>`/clear` first, then run `gpd:discuss-phase {phase}`</sub>
+<sub>Start a fresh context window, then run `gpd:discuss-phase {phase}`</sub>
 
 ---
 
@@ -406,7 +410,7 @@ Examples: [e.g., "Dimension mismatch in eq. 14", "Wrong sign in g -> 0 limit"]
 
 `gpd:plan-phase {phase} --gaps`
 
-<sub>`/clear` first, then run `gpd:plan-phase {phase} --gaps`</sub>
+<sub>Start a fresh context window, then run `gpd:plan-phase {phase} --gaps`</sub>
 
 ---
 
@@ -432,7 +436,7 @@ Gap-closure plans were created by `gpd:plan-phase --gaps` but have not been exec
 
 `gpd:execute-phase {phase} --gaps-only`
 
-<sub>`/clear` first, then run `gpd:execute-phase {phase} --gaps-only`</sub>
+<sub>Start a fresh context window, then run `gpd:execute-phase {phase} --gaps-only`</sub>
 
 ---
 
@@ -480,7 +484,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 `gpd:discuss-phase {Z+1}` — gather context and clarify approach
 
-<sub>`/clear` first, then run `gpd:discuss-phase {Z+1}`</sub>
+<sub>Start a fresh context window, then run `gpd:discuss-phase {Z+1}`</sub>
 
 ---
 
@@ -508,7 +512,7 @@ All {N} phases finished!
 
 `gpd:complete-milestone`
 
-<sub>`/clear` first, then run `gpd:complete-milestone`</sub>
+<sub>Start a fresh context window, then run `gpd:complete-milestone`</sub>
 
 ---
 
@@ -539,7 +543,7 @@ Ready to plan the next research direction.
 
 `gpd:new-milestone`
 
-<sub>`/clear` first, then run `gpd:new-milestone`</sub>
+<sub>Start a fresh context window, then run `gpd:new-milestone`</sub>
 
 ---
 ```

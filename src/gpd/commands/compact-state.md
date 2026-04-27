@@ -27,7 +27,7 @@ STATE.md is the project's living memory — it accumulates decisions, insights, 
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/compact-state.md` exactly.
+Follow the included compact-state workflow exactly.
 
 If `--force` flag is present, skip the line-count check and compact regardless of current size.
 </process>

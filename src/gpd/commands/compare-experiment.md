@@ -77,7 +77,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Follow the compare-experiment workflow: @{GPD_INSTALL_DIR}/workflows/compare-experiment.md
+Follow the included compare-experiment workflow.
 </process>
 
 <success_criteria>

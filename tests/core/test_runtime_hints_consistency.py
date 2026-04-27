@@ -113,7 +113,7 @@ def test_build_runtime_hint_payload_reuses_one_resolved_runtime_for_commands_and
     assert payload.orientation["fast_next_command"] == adapter.format_command("suggest-next")
 
 
-def test_build_runtime_hint_payload_falls_back_to_cost_summary_runtime_when_no_install_runtime_exists(
+def test_build_runtime_hint_payload_keeps_ambient_runtime_metadata_without_native_commands_when_no_install_runtime_exists(
     tmp_path: Path,
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -157,8 +157,9 @@ def test_build_runtime_hint_payload_falls_back_to_cost_summary_runtime_when_no_i
             include_workflow_presets=False,
         )
 
-    adapter = get_adapter(runtime)
     assert payload.source_meta["active_runtime"] == runtime
     assert payload.source_meta["current_session_id"] == "sess-cost-fallback"
-    assert payload.orientation["continue_command"] == adapter.format_command("resume-work")
-    assert payload.orientation["fast_next_command"] == adapter.format_command("suggest-next")
+    assert payload.orientation["continue_command"] == "runtime `resume-work`"
+    assert payload.orientation["fast_next_command"] == "runtime `suggest-next`"
+    assert "resume-work" in payload.orientation["continue_command"]
+    assert "suggest-next" in payload.orientation["fast_next_command"]

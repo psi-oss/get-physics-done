@@ -204,7 +204,7 @@ def test_file_lock_allows_writes_while_held(tmp_path: Path) -> None:
     assert '"locked": true' in target.read_text(encoding="utf-8")
 
 
-def test_file_lock_creates_and_cleans_up_lock_file(tmp_path: Path) -> None:
+def test_file_lock_leaves_lock_file_for_future_waiters(tmp_path: Path) -> None:
     target = tmp_path / "test.json"
     target.write_text("{}", encoding="utf-8")
     lock_path = target.with_suffix(".json.lock")
@@ -212,7 +212,7 @@ def test_file_lock_creates_and_cleans_up_lock_file(tmp_path: Path) -> None:
     with file_lock(target):
         assert lock_path.exists()
 
-    assert not lock_path.exists()
+    assert lock_path.exists()
 
 
 def test_file_lock_creates_parent_directories_for_missing_targets(tmp_path: Path) -> None:

@@ -219,7 +219,7 @@ def test_publication_intake_output_requires_an_explicit_managed_policy(tmp_path:
     monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
     (tmp_path / "GPD").mkdir()
     layout = ProjectStorageLayout(tmp_path)
-    output_path = tmp_path / "GPD" / "publication" / "curvature-flow" / "intake" / "paper-authoring-input.json"
+    output_path = tmp_path / "GPD" / "publication" / "curvature-flow" / "intake" / "write-paper-authoring-input.json"
     output_path.parent.mkdir(parents=True)
 
     with pytest.raises(StoragePathError, match="GPD/"):

@@ -1,6 +1,12 @@
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.model_visible_text import (
+    agent_visibility_note,
+    command_visibility_note,
+    review_contract_visibility_note,
+    skeptical_rigor_guardrails_section,
+)
 
 WORKFLOWS_DIR = Path("src/gpd/specs/workflows")
 COMMANDS_DIR = Path("src/gpd/commands")
@@ -35,6 +41,9 @@ OWNED_COMMANDS = (
 )
 FRESH_CONTEXT_PHRASE_EXEMPTIONS = {
     COMMANDS_DIR / "write-paper.md",
+}
+THIN_WORKFLOW_DELEGATOR_COMMANDS = {
+    COMMANDS_DIR / "debug.md",
 }
 
 
@@ -71,6 +80,62 @@ def test_quick_command_and_workflow_keep_the_project_gate_and_drop_the_custom_st
     assert "Quick tasks can run mid-phase and do NOT require ROADMAP.md." in quick_workflow
     assert "They still require an initialized project workspace with `GPD/PROJECT.md` and the `GPD/` directory." in quick_workflow
     assert "They only need `GPD/` to exist for directory structure." not in quick_workflow
+
+
+def test_peer_review_init_fields_are_manifest_owned_and_stage5_bullets_are_space_indented() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields`" in peer_review
+    assert "peer-review-stage-manifest.json" in peer_review
+    assert "Parse bootstrap JSON for: `project_exists`" not in peer_review
+    assert "Parse target-aware init JSON for: `project_exists`" not in peer_review
+
+    stage_5 = peer_review[
+        peer_review.index("**Stage 5")
+        : peer_review.index("You must explicitly decide whether the paper is:")
+    ]
+    assert "\t-" not in stage_5
+
+
+def test_paper_writer_response_paths_are_orchestrator_supplied_not_global_authority() -> None:
+    paper_writer = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
+    author_response = paper_writer[
+        paper_writer.index("<author_response>") : paper_writer.index("</author_response>")
+    ]
+
+    for token in (
+        "referee_report_path",
+        "review_ledger_path",
+        "referee_decision_path",
+        "author_response_path",
+        "referee_response_path",
+        "selected_publication_root",
+        "selected_review_root",
+    ):
+        assert token in author_response
+
+    assert "`GPD/AUTHOR-RESPONSE{round_suffix}.md` is the canonical internal tracker" not in author_response
+    assert "`GPD/review/REFEREE_RESPONSE{round_suffix}.md` is the synchronized journal-facing sibling" not in author_response
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" not in author_response
+    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" not in author_response
+
+
+def test_research_project_templates_point_existing_artifact_analysis_to_map_research() -> None:
+    for path in sorted((TEMPLATES_DIR / "research-project").glob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        assert "templates/analysis/" not in content, path.name
+        assert "use `map-research`" in content, path.name
+        assert "`GPD/research-map/`" in content, path.name
+        assert "`references/templates/research-mapper/`" in content, path.name
+
+
+def test_knowledge_schema_uses_existing_knowledge_review_workflow_id() -> None:
+    knowledge_schema = (TEMPLATES_DIR / "knowledge-schema.md").read_text(encoding="utf-8")
+
+    assert "reviewer_kind: workflow" in knowledge_schema
+    assert "reviewer_id: gpd-review-knowledge" in knowledge_schema
+    assert "gpd-knowledge-reviewer" not in knowledge_schema
 
 
 def test_branch_hypothesis_and_transition_workflows_keep_state_updates_structured() -> None:
@@ -177,7 +242,7 @@ def test_literature_and_research_commands_trim_inline_methodology_blocks() -> No
     research_phase = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
 
     assert "Run the literature-review workflow as a thin wrapper" in literature
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature
+    assert "Follow the included literature-review workflow exactly." in literature
     assert "A physics literature review is not a bibliography." not in literature
     assert "Method A lineage: paper1 -> paper2 -> paper3" not in literature
     assert "What do I not know that I don't know?" not in research_phase
@@ -206,6 +271,10 @@ def test_shared_context_budget_guidance_stays_runtime_neutral() -> None:
 def test_owned_commands_keep_a_single_concise_subagent_rationale() -> None:
     for path in OWNED_COMMANDS:
         text = path.read_text(encoding="utf-8")
+        if path in THIN_WORKFLOW_DELEGATOR_COMMANDS:
+            assert "Why subagent:" not in text, path
+            assert "Follow the included " in text, path
+            continue
         assert text.count("Why subagent:") == 1, path
         if path in FRESH_CONTEXT_PHRASE_EXEMPTIONS:
             assert "Fresh context" not in text, path
@@ -244,9 +313,9 @@ def test_debugger_session_paths_keep_the_active_and_resolved_lifecycles_separate
     debug_agent = (AGENTS_DIR / "gpd-debugger.md").read_text(encoding="utf-8")
     debug_workflow = (WORKFLOWS_DIR / "debug.md").read_text(encoding="utf-8")
 
-    assert "Create: GPD/debug/{slug}.md" in debug_command
-    assert "Debug file path: GPD/debug/{slug}.md" in debug_command
-    assert "files_written: [GPD/debug/{slug}.md, ...]" in debug_agent
+    assert "Debug session artifact: `GPD/debug/{slug}.md`" in debug_command
+    assert "the child reads `GPD/debug/{slug}.md` before continuing" in debug_command
+    assert "files_written:\n    - GPD/debug/{slug}.md" in debug_agent
     assert "session_file: GPD/debug/{slug}.md" in debug_agent
     assert "**Troubleshooting Session:** GPD/debug/resolved/{slug}.md" in debug_agent
     assert "session_status: diagnosed" in debug_workflow
@@ -272,3 +341,19 @@ def test_sync_state_workflow_keeps_optional_commit_outside_core_reconcile_path()
     assert "Only if the operator explicitly asks to commit the reconciled state" in sync_state
     assert sync_state.index("<step name=\"reconcile\">") < sync_state.index("<step name=\"optional_commit\">")
     assert sync_state.index("gpd --raw state validate") < sync_state.index("<step name=\"optional_commit\">")
+
+
+def test_model_visible_yaml_notes_do_not_duplicate_scientific_rigor_guardrails() -> None:
+    guardrail_section = skeptical_rigor_guardrails_section()
+    yaml_notes = (
+        agent_visibility_note(),
+        command_visibility_note(),
+        review_contract_visibility_note(),
+    )
+
+    assert "## Scientific Rigor Guardrails" in guardrail_section
+    assert "Use scientific skepticism and critical thinking" in guardrail_section
+    for note in yaml_notes:
+        assert "Use scientific skepticism and critical thinking" not in note
+        assert "Prefer skeptical verification" not in note
+        assert "inventing fallback content" not in note

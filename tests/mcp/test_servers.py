@@ -536,6 +536,13 @@ class TestConventionsServer:
         assert result["found"] is False
         assert "available_domains" in result
 
+    def test_subfield_defaults_blank_returns_error_envelope(self):
+        from gpd.mcp.servers.conventions_server import subfield_defaults
+
+        result = subfield_defaults("   ")
+        assert "error" in result
+        assert "domain must be a non-empty string" in result["error"]
+
     def test_subfield_defaults_all_domains_valid(self):
         from gpd.mcp.servers.conventions_server import SUBFIELD_DEFAULTS, subfield_defaults
 
@@ -577,6 +584,38 @@ class TestConventionsServer:
         result = convention_set(str(tmp_path), "metric_signature", "(+,-,-,-)")
         assert result["status"] == "set"
         assert result["key"] == "metric_signature"
+
+    def test_convention_set_warns_for_nonstandard_standard_value(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
+
+        result = convention_set(str(tmp_path), "metric_signature", "moslty-plus")
+
+        assert result["status"] == "set"
+        assert result["non_standard"] is True
+        assert result["known_options"]
+        assert "Non-standard value" in result["warning"]
+        persisted = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        assert persisted["convention_lock"]["metric_signature"] == "moslty-plus"
+
+    def test_convention_set_persists_nonstandard_standard_value_with_escape_hatch(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
+
+        result = convention_set(str(tmp_path), "metric_signature", "custom-project-signature", allow_nonstandard=True)
+
+        assert result["status"] == "set"
+        assert result["key"] == "metric_signature"
+        assert result["non_standard"] is True
+        assert result["known_options"]
+        persisted = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        assert persisted["convention_lock"]["metric_signature"] == "custom-project-signature"
 
     def test_convention_set_already_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
@@ -655,6 +694,20 @@ class TestConventionsServer:
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps("just a string"), encoding="utf-8")
         with pytest.raises(ValueError, match="not recoverable"):
+            _load_lock_from_project(str(tmp_path))
+
+    def test_load_lock_unknown_convention_field_fails_closed(self, tmp_path):
+        from gpd.core.errors import ConventionError
+        from gpd.mcp.servers.conventions_server import _load_lock_from_project
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(
+            json.dumps({"convention_lock": {"metric_signature": "mostly-plus", "legacy_metric": "mostly-minus"}}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConventionError, match="Malformed project state.convention_lock"):
             _load_lock_from_project(str(tmp_path))
 
     def test_update_lock_non_dict_state_json_fails_closed(self, tmp_path):
@@ -863,6 +916,13 @@ class TestErrorsMcp:
 
         result = check_error_classes("angular momentum coupling calculation")
         assert result["match_count"] >= 1
+
+    def test_check_error_classes_blank_returns_error_envelope(self):
+        from gpd.mcp.servers.errors_mcp import check_error_classes
+
+        result = check_error_classes("   ")
+        assert "error" in result
+        assert "computation_desc must be a non-empty string" in result["error"]
 
     def test_get_detection_strategy(self):
         from gpd.mcp.servers.errors_mcp import get_detection_strategy
@@ -1099,6 +1159,27 @@ class TestProtocolsServer:
 # ---------------------------------------------------------------------------
 # 5. Skills server
 # ---------------------------------------------------------------------------
+
+
+def test_real_bibliographer_skill_surfaces_direct_and_transitive_references():
+    from gpd import registry as content_registry
+    from gpd.mcp.servers.skills_server import get_skill
+
+    content_registry.invalidate_cache()
+    result = get_skill("gpd-bibliographer")
+    content_registry.invalidate_cache()
+
+    direct_paths = {entry["path"] for entry in result["referenced_files"]}
+    transitive_paths = {entry["path"] for entry in result["transitive_referenced_files"]}
+
+    assert "error" not in result
+    assert result["reference_count"] == len(direct_paths)
+    assert result["transitive_reference_count"] == len(transitive_paths)
+    assert all(entry["depth"] >= 1 for entry in result["transitive_referenced_files"])
+    assert any(path.endswith("shared-protocols.md") for path in direct_paths)
+    assert any(path.endswith("bibliography-advanced-search.md") for path in direct_paths)
+    assert any(path.endswith("verification-core.md") for path in transitive_paths)
+    assert any(path.endswith("llm-physics-errors.md") for path in transitive_paths)
 
 
 class TestSkillsServer:
@@ -1519,24 +1600,6 @@ class TestSkillsServer:
         assert result["reference_count"] >= 1
         assert any(entry["kind"] == "workflow" for entry in result["referenced_files"])
         assert all(not entry["path"].startswith("/") for entry in result["referenced_files"])
-
-    def test_get_skill_surfaces_direct_and_transitive_references_when_exposed(self):
-        from gpd.mcp.servers.skills_server import get_skill
-
-        result = get_skill("gpd-bibliographer")
-
-        if "transitive_referenced_files" not in result:
-            pytest.skip("Phase 15 product lane has not exposed transitive skill metadata yet")
-
-        direct_paths = {entry["path"] for entry in result["referenced_files"]}
-        transitive_paths = {entry["path"] for entry in result["transitive_referenced_files"]}
-
-        assert "error" not in result
-        assert result["reference_count"] == len(direct_paths)
-        assert result["transitive_reference_count"] == len(transitive_paths)
-        assert direct_paths.isdisjoint(transitive_paths)
-        assert any(path.endswith("shared-protocols.md") for path in direct_paths)
-        assert any(path.endswith("bibliography-advanced-search.md") for path in transitive_paths)
 
     def test_get_skill_consistency_checker_surfaces_agent_metadata(self):
         from gpd import registry as content_registry
@@ -3362,6 +3425,7 @@ class TestVerificationServer:
         )
 
         assert result == {
+            "contract_error_details": ["claims.0.notes: Extra inputs are not permitted"],
             "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
             "schema_version": 1,
         }
@@ -3435,6 +3499,7 @@ class TestVerificationServer:
         result = suggest_contract_checks(contract)
 
         assert result == {
+            "contract_error_details": ["references.0.notes: Extra inputs are not permitted"],
             "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
             "schema_version": 1,
         }

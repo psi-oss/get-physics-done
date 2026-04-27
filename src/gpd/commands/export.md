@@ -38,7 +38,7 @@ Format: $ARGUMENTS (optional -- if not provided, ask user)
 </context>
 
 <process>
-Execute the export workflow from @{GPD_INSTALL_DIR}/workflows/export.md end-to-end.
+Execute the included export workflow end-to-end.
 
 ## Step 1: Load Project Context
 

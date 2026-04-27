@@ -28,6 +28,12 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     repo_root = Path(__file__).resolve().parents[2]
     plan_schema = (repo_root / "src/gpd/specs/templates/plan-contract-schema.md").read_text(encoding="utf-8")
     state_schema = (repo_root / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
+    project_contract_schema = (
+        repo_root / "src/gpd/specs/templates/project-contract-schema.md"
+    ).read_text(encoding="utf-8")
+    grounding_linkage = (
+        repo_root / "src/gpd/specs/templates/project-contract-grounding-linkage.md"
+    ).read_text(encoding="utf-8")
 
     assert _CONTRACT_PAYLOAD_INPUT_SCHEMA["description"] == VERIFICATION_CONTRACT_POLICY_TEXT
     assert VERIFICATION_BINDING_TARGETS == (
@@ -75,14 +81,15 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
         "at least one reference must set `must_surface: true`."
     ) in plan_schema
     assert "a missing `must_surface: true` reference is a warning, not a blocker" in plan_schema
+    assert "@{GPD_INSTALL_DIR}/templates/project-contract-schema.md" in state_schema
     assert (
         "If a project contract has any `references[]` and does not already carry concrete prior-output, "
         "user-anchor, or baseline grounding, at least one reference must set `must_surface: true`."
-    ) in state_schema
-    assert "a missing `must_surface: true` reference is still a warning" in state_schema
+    ) in grounding_linkage
+    assert "a missing `must_surface: true` reference is still a warning" in grounding_linkage
     assert (
         "Project-scoping contracts must also provide non-empty `scope.in_scope` naming at least one concrete "
         "objective or boundary"
     ) in _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
     assert "`scope.in_scope` is required and must name at least one project boundary or objective." in plan_schema
-    assert "`scope.in_scope` must name at least one project boundary or objective." in state_schema
+    assert "`scope.in_scope` must name at least one project boundary or objective." in project_contract_schema

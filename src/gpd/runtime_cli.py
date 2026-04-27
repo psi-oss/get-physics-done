@@ -252,8 +252,11 @@ def _uses_effective_explicit_target(
 
     adapter = get_adapter(runtime)
     if install_scope == "global":
-        canonical_global_dir = adapter.resolve_global_config_dir(home=Path.home())
-        return not _paths_equal(config_dir, canonical_global_dir)
+        global_config_candidates = resolve_global_config_dir_candidates(
+            adapter.runtime_descriptor,
+            home=Path.home(),
+        )
+        return not any(_paths_equal(config_dir, candidate) for candidate in global_config_candidates)
 
     default_local_config_dir = adapter.resolve_local_config_dir(cli_cwd).resolve(strict=False)
     return not _paths_equal(config_dir, default_local_config_dir)
@@ -709,20 +712,16 @@ def main(argv: list[str] | None = None) -> int:
         cli_cwd=cli_cwd,
     )
     manifest_status, _manifest_payload, manifest_runtime = load_install_manifest_runtime_status(config_dir)
-    manifest_scope_status, manifest_scope_payload, manifest_install_scope = load_install_manifest_scope_status(config_dir)
+    manifest_scope_status, _manifest_scope_payload, manifest_install_scope = load_install_manifest_scope_status(config_dir)
     _manifest_explicit_target_status, _manifest_explicit_target_payload, manifest_explicit_target = (
         load_install_manifest_explicit_target_status(config_dir)
     )
-    if manifest_scope_status == "ok":
-        manifest_install_scope = manifest_scope_payload.get("install_scope")
-        if not isinstance(manifest_install_scope, str):
-            manifest_install_scope = None
     has_managed_install_markers = config_dir_has_managed_install_markers(config_dir)
     repair_explicit_target = _uses_effective_explicit_target(
         runtime=runtime,
         config_dir=config_dir,
         install_scope=manifest_install_scope if isinstance(manifest_install_scope, str) else options.install_scope,
-        explicit_target=manifest_explicit_target if manifest_explicit_target is not None else False,
+        explicit_target=bool(options.explicit_target or manifest_explicit_target),
         cli_cwd=cli_cwd,
     )
     failure = _classify_bridge_failure(

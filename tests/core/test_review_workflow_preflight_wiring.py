@@ -62,8 +62,8 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "- manuscript_path" in command
     assert "- referee_report_path" in command
     assert "- paste_referee_report" in command
-    assert "GPD/publication/*/manuscript/*.tex" in command
-    assert "GPD/publication/*/manuscript/*.md" in command
+    assert "allow_external_subjects: true" in command
+    assert "requires:" not in command
     assert "default_output_subtree: GPD" in command
     assert "scope_variants:" in command
     assert "scope: explicit_external_manuscript" in command
@@ -87,10 +87,15 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "Treat those files as complete only if the expected mirrored artifacts exist on disk" in workflow
-    assert "import or normalize it into `GPD/REFEREE-REPORT{round_suffix}.md` before parsing comments" in workflow
+    assert (
+        "import or normalize it into `${RESPONSE_PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` before parsing comments"
+        in workflow
+    )
     assert "Do not write `AUTHOR-RESPONSE*` or `REFEREE_RESPONSE*` beside `${PAPER_DIR}` or beside the imported report source." in workflow
-    assert "keep auxiliary response outputs under `GPD/`" in workflow
-    assert "managed subject-owned publication root at `GPD/publication/{subject_slug}`" in workflow
+    assert "keep auxiliary response outputs under the selected GPD roots" in workflow
+    assert "selected_publication_root` / `selected_review_root" in workflow
+    assert 'find "${RESPONSE_REVIEW_ROOT}" -maxdepth 1 -type f -name \'REVIEW-LEDGER*.json\' -print' in workflow
+    assert 'find GPD/review -maxdepth 1 -type f -name \'REVIEW-LEDGER*.json\'' not in workflow
     assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in workflow
     assert "${PAPER_DIR}/response-letter.tex" in workflow
     assert "${PAPER_DIR}/{section}.tex" in workflow

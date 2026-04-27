@@ -43,15 +43,18 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 <step name="init" priority="first">
 **Load project context and resolve models:**
 
+This workflow uses the staged write-paper init surface at stage boundaries. Load the matching `--stage` payload before relying on fields or authority documents introduced by that stage.
+
 ```bash
-INIT=$(gpd --raw init phase-op --include config)
+PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap)
 if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
+  echo "ERROR: gpd initialization failed: $PAPER_BOOTSTRAP_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
+INIT="$PAPER_BOOTSTRAP_INIT"
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `publication_subject`, `publication_subject_status`, `publication_subject_source`, `publication_subject_detail`, `publication_artifact_base`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_bootstrap`, `publication_bootstrap_mode`, `publication_bootstrap_root`, `publication_bootstrap_detail`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse bootstrap JSON for: the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`, including `project_contract_gate`, `contract_intake`, `effective_reference_intake`, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `publication_lane_owner`, `selected_publication_root`, `selected_review_root`, `managed_publication_root`, `managed_manuscript_root`, `publication_intake_root`), manuscript artifact paths, protocol bundle fields, active reference context, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, and `derived_manuscript_proof_review_status`. Do not maintain a second inline field list here.
 
 **Load mode settings:**
 
@@ -72,7 +75,7 @@ For detailed mode adaptation specifications (bibliographer search breadth, refer
 Normalize the launch into one of two lanes before preflight:
 
 - `project_backed` -- current GPD project, including a managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
-- `external_authoring_intake` -- explicit `--intake path/to/paper-authoring-input.json`
+- `external_authoring_intake` -- explicit `--intake path/to/write-paper-authoring-input.json`
 
 The bounded external-authoring lane has one entrypoint only:
 
@@ -115,8 +118,9 @@ Use `publication_subject*`, `manuscript_*`, and `publication_bootstrap*` from in
 
 - If `publication_bootstrap_mode` is `resume_existing_manuscript`, bind `PAPER_DIR` to `publication_bootstrap_root`, keep `MANUSCRIPT_ENTRYPOINT` on `manuscript_entrypoint`, and treat `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` as manuscript-root artifacts for that exact resolved subject only. The resolved manuscript root may already be the managed project lane `GPD/publication/{subject_slug}/manuscript`; treat that as project-owned manuscript state rather than `external_artifact` mode.
 - If `publication_bootstrap_mode` is `fresh_project_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root` and bootstrap a fresh manuscript scaffold there. The fresh bootstrap root may be the top-level `paper/` scaffold or the managed project lane `GPD/publication/{subject_slug}/manuscript`, depending on the resolved publication subject and bootstrap plan. Keep that resolved root authoritative for manuscript-local artifacts; do **not** hardcode `paper/` and do not widen this into arbitrary external-manuscript support.
-- If `publication_bootstrap_mode` is `fresh_external_authoring_bootstrap`, bind `PAPER_DIR` to `publication_bootstrap_root`, persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/`, and bootstrap the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
 - If `publication_bootstrap_mode` is `blocked`, STOP and repair the ambiguous or inconsistent manuscript state before writing.
+
+For `external_authoring_intake`, use the strict command preflight's managed subject handoff: persist intake/provenance/bootstrap state under `GPD/publication/{subject_slug}/intake/` and bind `PAPER_DIR` to the only manuscript/build root at `GPD/publication/{subject_slug}/manuscript`. Do **not** write manuscript files into `paper/`, `manuscript/`, or `draft/` for this lane. `${PAPER_DIR}/PAPER-CONFIG.json` is a manuscript-root builder artifact, not the external intake contract.
 
 Keep the resolved manuscript-root binding visible when writing shell snippets so the shell-oriented workflow contract stays consistent:
 
@@ -277,6 +281,8 @@ cat GPD/phases/*/*SUMMARY.md
 cat GPD/state.json
 ```
 
+Read summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`) before raw phase files.
+
 **If NO digest found:**
 
 Display a clear warning explaining why and offering alternatives:
@@ -292,18 +298,6 @@ a curated narrative arc, convention timeline, and figure registry.
 Options:
   1. Continue anyway — build paper from raw phase data (proceed below)
   2. Run gpd:complete-milestone first — generates the digest, then return here
-  3. Use --from-phases to explicitly select which phases to include:
-     gpd:write-paper --from-phases 1,2,3,5
-```
-
-**If `--from-phases` flag is present:** Read summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`) and research artifacts only from the specified phase directories. Skip milestone digest lookup entirely. This is useful for writing papers that cover a subset of phases or when milestones haven't been completed yet.
-
-```bash
-# Example: --from-phases 1,3,5
-for PHASE_NUM in $(echo "$FROM_PHASES" | tr ',' ' '); do
-  PHASE_DIR=$(ls -d GPD/phases/*/ | grep "^GPD/phases/0*${PHASE_NUM}-")
-  cat "$PHASE_DIR"/*SUMMARY.md 2>/dev/null
-done
 ```
 
 Proceed to establish_scope and catalog_artifacts, which will gather research context from the init payload first, then summary artifacts, and only the remaining raw phase files directly.
@@ -377,15 +371,11 @@ If this run is `external_authoring_intake`, run this bounded manifest audit firs
 5. Proof-style claims still require passed proof-review support when the intake says a theorem-style claim is being made.
 6. Do **not** enumerate `GPD/phases/*`, `GPD/milestones/*`, or loose workspace files to repair missing evidence.
 
-For the project-backed lane, run checks across all contributing phases (from digest, `--from-phases`, or all completed phases):
+For the project-backed lane, run checks across contributing phases from the research digest or all completed phases:
 
 ```bash
 # Identify contributing phases
-if [ -n "$FROM_PHASES" ]; then
-  PHASE_DIRS=$(for n in $(echo "$FROM_PHASES" | tr ',' ' '); do ls -d GPD/phases/0*${n}-* 2>/dev/null; done)
-else
-  PHASE_DIRS=$(ls -d GPD/phases/*/ 2>/dev/null)
-fi
+PHASE_DIRS=$(ls -d GPD/phases/*/ 2>/dev/null)
 ```
 
 ### Check 1: summary-artifact completeness
@@ -398,6 +388,12 @@ For each phase directory:
 2. If the phase is contract-backed and supports a paper claim, check for `plan_contract_ref` and `contract_results`
 3. If a contract-backed target depends on a decisive comparison, check for the corresponding `comparison_verdicts` entry and an evidence path the manuscript can surface
 4. Confirm the summary or verification artifacts identify where the substantive evidence lives
+
+```bash
+for PHASE_DIR in $PHASE_DIRS; do
+  cat "$PHASE_DIR"/*SUMMARY.md 2>/dev/null
+done
+```
 
 **Missing summary artifact** → CRITICAL gap (phase results not summarized).
 **Contract-backed phase missing `contract_results` for a paper-relevant target** → CRITICAL gap.
@@ -544,7 +540,7 @@ Paper-readiness audit found {N} critical gap(s):
 Options:
   1. Fix gaps first — return to research phases to address critical issues
   2. Proceed anyway — acknowledge gaps as known limitations in the paper
-  3. Exclude problematic phases — re-scope paper with --from-phases to skip incomplete phases
+  3. Narrow the project-backed paper scope in the research artifacts first, then rerun `gpd:write-paper`
 ```
 
 Wait for user decision before proceeding. Do NOT silently continue past critical gaps.
@@ -553,6 +549,17 @@ Wait for user decision before proceeding. Do NOT silently continue past critical
 
 <step name="create_outline">
 Generate a detailed outline tailored to the journal format.
+
+Load the staged outline/scaffold payload before using outline-time publication scaffolding fields or paper schema authorities:
+
+```bash
+OUTLINE_INIT=$(gpd --raw init write-paper --stage outline_and_scaffold)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper outline/scaffold init failed: $OUTLINE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$OUTLINE_INIT"
+```
 
 For each section:
 
@@ -645,6 +652,17 @@ Treat both emitted JSON artifacts as strict review inputs. If they need to be re
 
 <step name="generate_figures">
 ## Figure Generation
+
+Load the staged figure/section authoring payload before generating figures or spawning paper-writer section agents:
+
+```bash
+AUTHORING_INIT=$(gpd --raw init write-paper --stage figure_and_section_authoring)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper authoring init failed: $AUTHORING_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$AUTHORING_INIT"
+```
 
 Ensure the paper directory structure exists before writing any files:
 
@@ -820,6 +838,17 @@ Each figure must:
 
 <step name="consistency_check">
 After all sections are drafted, verify internal consistency:
+
+Load the staged consistency/reference payload before notation checks, bibliography verification, or reproducibility manifest work:
+
+```bash
+CONSISTENCY_INIT=$(gpd --raw init write-paper --stage consistency_and_references)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper consistency/reference init failed: $CONSISTENCY_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$CONSISTENCY_INIT"
+```
 
 **Notation audit:**
 
@@ -1030,6 +1059,17 @@ If validation fails, stop and fix the manifest now. Do not enter `pre_submission
 <step name="pre_submission_review">
 Branch by write-paper lane before finalizing:
 
+Load the staged publication-review payload before running the embedded peer-review panel or evaluating review-round artifacts:
+
+```bash
+PUBLICATION_REVIEW_INIT=$(gpd --raw init write-paper --stage publication_review)
+if [ $? -ne 0 ]; then
+  echo "ERROR: write-paper publication-review init failed: $PUBLICATION_REVIEW_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$PUBLICATION_REVIEW_INIT"
+```
+
 **Project-backed lane:** run the same staged peer-review panel used by `gpd:peer-review`. Do not fall back to a single generalist referee pass here, because that is precisely the failure mode this workflow is meant to avoid.
 
 For theorem-style or `proof_obligation` claims, this stage also carries the mandatory auxiliary proof-redteam gate from `peer-review.md`. Missing or open proof-redteam artifacts are fail-closed blockers even if the rest of the manuscript review looks clean.
@@ -1053,7 +1093,7 @@ Then follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the res
 
 **After final adjudication:**
 
-Read `GPD/review/REFEREE-DECISION{round_suffix}.json` and `GPD/review/REVIEW-LEDGER{round_suffix}.json` first when they exist, then read `GPD/REFEREE-REPORT{round_suffix}.md` and assess the findings:
+Read `${selected_review_root}/REFEREE-DECISION{round_suffix}.json` and `${selected_review_root}/REVIEW-LEDGER{round_suffix}.json` first when they exist, then read `${selected_publication_root}/REFEREE-REPORT{round_suffix}.md` and assess the findings:
 
 - **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to `final_review`. Note minor issues for the user.
 - **If recommendation is `major_revision` or `reject`:** Present the major issues to the user before proceeding. For each major issue, show the location, description, and suggested fix. Ask the user whether to:
@@ -1143,15 +1183,19 @@ When revising a paper in response to referee reports:
      subagent_type="gpd-paper-writer",
      model="{writer_model}",
      readonly=false,
-     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md, the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md, and the shared publication response-writer handoff at {GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md. Produce both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
-       "Referee report: GPD/REFEREE-REPORT{round_suffix}.md\n" +
-       "Review ledger (if present): GPD/review/REVIEW-LEDGER{round_suffix}.json\n" +
-       "Decision artifact (if present): GPD/review/REFEREE-DECISION{round_suffix}.json\n" +
+     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md, the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md, and the shared publication response-writer handoff at {GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md. Produce both response artifacts at the concrete paths below.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
+       "selected_publication_root: ${selected_publication_root}\n" +
+       "selected_review_root: ${selected_review_root}\n" +
+       "author_response_path: ${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md\n" +
+       "referee_response_path: ${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md\n" +
+       "Referee report: ${selected_publication_root}/REFEREE-REPORT{round_suffix}.md\n" +
+       "Review ledger (if present): ${selected_review_root}/REVIEW-LEDGER{round_suffix}.json\n" +
+       "Decision artifact (if present): ${selected_review_root}/REFEREE-DECISION{round_suffix}.json\n" +
        "Manuscript tree: all .tex files under ${PAPER_DIR} recursively, rooted at the manifest-resolved manuscript directory, after the section revision agents have landed their edits\n" +
        "Round: {N}\n\n" +
        "For each REF-xxx issue, classify as fixed/rebutted/acknowledged/needs-calculation only after the corresponding manuscript edits exist on disk. Use fixed only for issues whose section changes are already present; otherwise use acknowledged or needs-calculation.\n" +
        "If an issue needs new work, keep `New calculations required` and `Source phase for new work` explicit in the author-response tracker.\n" +
-       "Write to GPD/AUTHOR-RESPONSE{round_suffix}.md and GPD/review/REFEREE_RESPONSE{round_suffix}.md",
+       "Write to ${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md and ${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md",
      description="Author response: round {N}"
    )
    ```
@@ -1160,8 +1204,8 @@ When revising a paper in response to referee reports:
 
    @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
-   **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
-   Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md`, `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.
+   **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
+   Treat `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md`, `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.
 
    See the canonical `templates/paper/author-response.md` and `templates/paper/referee-response.md` contracts plus the shared publication response-writer handoff for the full response-tracker format.
 

@@ -9,6 +9,7 @@ from gpd.core.manuscript_artifacts import (
     ManuscriptRootResolution,
     PublicationSubjectResolution,
     locate_publication_artifact,
+    publication_root_for_subject,
     resolve_current_manuscript_artifacts,
     resolve_current_manuscript_entrypoint,
     resolve_current_manuscript_resolution,
@@ -18,8 +19,8 @@ from gpd.core.manuscript_artifacts import (
     resolve_manuscript_entrypoint_from_root,
     resolve_publication_bootstrap_resolution,
     resolve_publication_subject_artifact,
+    review_dir_for_subject,
 )
-from gpd.core.publication_review_paths import publication_root_for_subject, review_dir_for_subject
 
 
 def _write(path: Path, content: str = "") -> None:
@@ -265,9 +266,9 @@ def test_resolve_current_publication_subject_supports_managed_project_manuscript
     assert subject.publication_subject_slug == "curvature-flow-bounds"
     assert subject.publication_lane_kind == "managed_publication_manuscript"
     assert subject.publication_lane_owner == "project_managed"
-    assert subject.publication_root == tmp_path / "GPD"
-    assert subject.review_dir == tmp_path / "GPD" / "review"
     assert subject.managed_publication_root == tmp_path / "GPD" / "publication" / "curvature-flow-bounds"
+    assert subject.publication_root == subject.managed_publication_root
+    assert subject.review_dir == subject.managed_publication_root / "review"
     assert subject.managed_intake_root == subject.managed_publication_root / "intake"
     assert subject.managed_manuscript_root == manuscript_root
     assert resolve_current_manuscript_root(tmp_path) == manuscript_root

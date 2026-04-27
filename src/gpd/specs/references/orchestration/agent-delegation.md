@@ -1,6 +1,6 @@
 # Agent Delegation Reference
 
-This is the canonical delegation contract for spawned GPD agents. Reuse these rules anywhere a workflow, runtime note, or continuation template needs to describe a handoff.
+This is the canonical delegation contract for spawned GPD agents. Reuse these rules anywhere a workflow, runtime note, infrastructure reference, or continuation template needs to describe a handoff. Other prompt surfaces should link here instead of restating these rules.
 
 ## Delegation Invariants
 
@@ -31,7 +31,7 @@ task(
 | Method | Agent Spawn Method |
 |--------|-------------------|
 | **Subagent spawning** | `task(subagent_type="gpd-{agent}", model="{model}", readonly=false, prompt="...")` or equivalent; omit `model` when it resolves empty |
-| **Projected command surface** | Invoke the runtime's installed GPD command or agent action surface. For example, some runtimes expose `gpd:{agent}` slash commands. |
+| **Projected command surface** | Invoke the runtime's installed GPD command or agent action surface. |
 | **Tool discovery** | Agents may appear on the runtime's discoverable action/tool surface after installation |
 | **Fallback** | Execute the installed agent prompt instructions sequentially in the main context |
 

@@ -671,6 +671,76 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
     assert "ref-benchmark" in result.intake.must_read_refs
 
 
+def test_ingest_reference_artifacts_preserves_yaml_active_anchor_must_surface_booleans(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "REVIEW.md").write_text(
+        "# Review\n\n"
+        "```yaml\n"
+        "review_summary:\n"
+        "  active_anchors:\n"
+        '    - anchor_id: "ref-benchmark"\n'
+        '      anchor: "Benchmark Ref"\n'
+        '      locator: "Benchmark Paper"\n'
+        '      type: "benchmark"\n'
+        '      required_action: "compare"\n'
+        "      must_surface: false\n"
+        '    - anchor_id: "ref-background"\n'
+        '      anchor: "Background Ref"\n'
+        '      locator: "Background Paper"\n'
+        '      type: "background"\n'
+        "      must_surface: true\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/REVIEW.md"],
+        research_map_reference_files=[],
+    )
+
+    by_id = {ref.id: ref for ref in result.references}
+    assert by_id["ref-benchmark"].must_surface is False
+    assert by_id["ref-background"].must_surface is True
+
+
+def test_ingest_reference_artifacts_preserves_explicit_false_when_duplicate_has_derived_true(
+    tmp_path: Path,
+) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "REVIEW.md").write_text(
+        "# Review\n\n"
+        "```yaml\n"
+        "review_summary:\n"
+        "  active_anchors:\n"
+        '    - anchor_id: "ref-benchmark"\n'
+        '      anchor: "Benchmark Ref"\n'
+        '      locator: "Benchmark Paper"\n'
+        '      type: "benchmark"\n'
+        '      required_action: "compare"\n'
+        "      must_surface: false\n"
+        "```\n\n"
+        "## Active Anchor Registry\n\n"
+        "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Required Action |\n"
+        "| --------- | ------ | ---- | ---------------- | -------------- | --------------- |\n"
+        "| ref-benchmark | Benchmark Ref | benchmark | Benchmark Paper | Decisive benchmark | compare |\n",
+        encoding="utf-8",
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/REVIEW.md"],
+        research_map_reference_files=[],
+    )
+
+    ref = next(ref for ref in result.references if ref.id == "ref-benchmark")
+    assert ref.must_surface is False
+
+
 def test_ingest_reference_artifacts_ignores_legacy_review_summary_aliases(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
     literature_dir = tmp_path / "GPD" / "literature"
@@ -980,7 +1050,7 @@ def test_ingest_reference_artifacts_emits_warning_for_invalid_knowledge_doc(tmp_
     assert "K-broken.md" in result.knowledge_doc_warnings[0]
 
 
-def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_literature_is_missing(
+def test_ingest_reference_artifacts_ignores_selected_legacy_research_review_sidecars(
     tmp_path: Path,
 ) -> None:
     _bootstrap_project(tmp_path)
@@ -1007,6 +1077,20 @@ def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_l
             }
         ],
     )
+    (research_dir / "STALE-REVIEW.md").write_text("# Stale Review\n", encoding="utf-8")
+    _write_citation_sources_sidecar(
+        research_dir,
+        "STALE-REVIEW.md",
+        [
+            {
+                "reference_id": "ref-stale",
+                "source_type": "paper",
+                "title": "Stale Reference",
+                "authors": ["B. Author"],
+                "year": "2023",
+            }
+        ],
+    )
 
     result = ingest_reference_artifacts(
         tmp_path,
@@ -1014,7 +1098,6 @@ def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_l
         research_map_reference_files=[],
     )
 
-    assert result.citation_source_files == ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
-    assert [source.reference_id for source in result.citation_sources] == ["ref-legacy"]
-    assert [ref.id for ref in result.references] == ["ref-legacy"]
-    assert result.references[0].source_artifacts == ["GPD/research/LEGACY-REVIEW.md"]
+    assert result.citation_source_files == []
+    assert result.citation_sources == []
+    assert result.references == []

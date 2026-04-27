@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import gpd.hooks.install_context as hook_layout
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
-from gpd.core.root_resolution import normalize_workspace_hint
+from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.state import peek_state_json
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
@@ -30,10 +30,9 @@ _CONTEXT_REAL_LIMIT_PCT = 80
 _CONTEXT_WARN_THRESHOLD = 63
 _CONTEXT_HIGH_THRESHOLD = 81
 _CONTEXT_CRITICAL_THRESHOLD = 95
+_CONTEXT_FILLED = "#"
+_CONTEXT_EMPTY = "-"
 _STATUS_LABEL = "GPD"
-_CANONICAL_MODEL_KEYS = ("display_name", "name", "id")
-_CANONICAL_CONTEXT_WINDOW_SIZE_KEYS = ("context_window_size",)
-_CANONICAL_CONTEXT_REMAINING_KEYS = ("remaining_percentage", "remainingPercent", "remaining")
 
 
 def _context_bar(remaining_pct: float) -> str:
@@ -43,7 +42,7 @@ def _context_bar(remaining_pct: float) -> str:
     used = min(100, round((raw_used / _CONTEXT_REAL_LIMIT_PCT) * 100))
 
     filled = used // 10
-    bar = "\u2588" * filled + "\u2591" * (10 - filled)
+    bar = _CONTEXT_FILLED * filled + _CONTEXT_EMPTY * (10 - filled)
 
     if used < _CONTEXT_WARN_THRESHOLD:
         return f" \x1b[32m{bar} {used}%\x1b[0m"
@@ -51,7 +50,7 @@ def _context_bar(remaining_pct: float) -> str:
         return f" \x1b[33m{bar} {used}%\x1b[0m"
     if used < _CONTEXT_CRITICAL_THRESHOLD:
         return f" \x1b[38;5;208m{bar} {used}%\x1b[0m"
-    return f" \x1b[5;31m\U0001f480 {bar} {used}%\x1b[0m"
+    return f" \x1b[31m[CRITICAL] {bar} {used}%\x1b[0m"
 
 
 def _debug(msg: str) -> None:
@@ -83,14 +82,10 @@ def _first_value(value: object, *keys: str) -> object | None:
     return None
 
 
-def _merged_policy_keys(value: object, attribute: str, *, fallback: tuple[str, ...]) -> tuple[str, ...]:
-    """Return policy-owned keys plus canonical fallbacks, deduplicated in order."""
-    raw_keys = getattr(value, attribute, ())
-    merged: list[str] = []
-    for key in (*raw_keys, *fallback):
-        if isinstance(key, str) and key and key not in merged:
-            merged.append(key)
-    return tuple(merged)
+def _policy_keys(value: object, attribute: str) -> tuple[str, ...]:
+    """Return non-empty string keys owned by the resolved hook payload policy."""
+    raw_keys = getattr(value, attribute, ()) or ()
+    return tuple(key for key in raw_keys if isinstance(key, str) and key)
 
 
 def _object_value(value: object, key: str) -> object | None:
@@ -177,13 +172,13 @@ def _read_model_label(data: dict[str, object], hook_payload=None) -> str:
     else:
         model_label = _first_string(
             model_value,
-            *_merged_policy_keys(policy, "model_keys", fallback=_CANONICAL_MODEL_KEYS),
+            *_policy_keys(policy, "model_keys"),
         )
 
     context_label = _format_context_window_size(
         _first_value(
             data.get("context_window"),
-            *_merged_policy_keys(policy, "context_window_size_keys", fallback=_CANONICAL_CONTEXT_WINDOW_SIZE_KEYS),
+            *_policy_keys(policy, "context_window_size_keys"),
         )
     )
     if model_label and context_label:
@@ -236,23 +231,14 @@ def _statusline_project_root(workspace_dir: str) -> Path | None:
     normalized = normalize_workspace_hint(workspace_dir)
     if normalized is None:
         return None
-
-    bare_gpd_root: Path | None = None
-    for steps, candidate in enumerate((normalized, *normalized.parents)):
-        layout = ProjectLayout(candidate)
-        if not layout.gpd.is_dir():
-            continue
-        if (
-            layout.state_json.exists()
-            or layout.state_md.exists()
-            or layout.project_md.exists()
-            or layout.roadmap.exists()
-            or layout.phases_dir.is_dir()
-        ):
-            return candidate
-        if steps == 0 and bare_gpd_root is None:
-            bare_gpd_root = candidate
-    return bare_gpd_root
+    resolution = resolve_project_roots(normalized)
+    if resolution is None:
+        return None
+    if resolution.has_project_layout:
+        return resolution.project_root
+    if resolution.project_root == normalized and ProjectLayout(resolution.project_root).gpd.is_dir():
+        return resolution.project_root
+    return None
 
 
 def _read_position(workspace_dir: str) -> str:
@@ -347,7 +333,7 @@ def _read_context_remaining(data: dict[str, object], hook_payload) -> float | in
     """Read remaining context percentage from runtime payload aliases."""
     remaining = _first_value(
         data.get("context_window"),
-        *_merged_policy_keys(hook_payload, "context_remaining_keys", fallback=_CANONICAL_CONTEXT_REMAINING_KEYS),
+        *_policy_keys(hook_payload, "context_remaining_keys"),
     )
     if isinstance(remaining, (int, float)) and math.isfinite(remaining):
         return remaining
@@ -585,7 +571,7 @@ def _check_update(workspace_dir: str | None = None) -> str:
         )
         if command is None:
             return ""
-        return f"\x1b[33m\u2b06 {command}\x1b[0m \u2502 "
+        return f"\x1b[33mUP {command}\x1b[0m | "
     return ""
 
 
@@ -680,7 +666,7 @@ def main() -> None:
         if position:
             segments.append(f"\x1b[36m{position}\x1b[0m")
 
-        statusline = " \u2502 ".join(segments)
+        statusline = " | ".join(segments)
         if gpd_update:
             statusline = f"{gpd_update}{statusline}"
 

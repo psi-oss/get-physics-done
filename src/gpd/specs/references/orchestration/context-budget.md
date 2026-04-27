@@ -1,7 +1,7 @@
 <overview>
 Context windows are finite (~80% usable before the runtime compresses). Research workflows that ignore context pressure produce degraded results: missed signs, sloppy limits, forgotten conventions. Managing context is part of research discipline, not an engineering detail.
 
-**Core principle:** A fresh context with the right files loaded outperforms a saturated context with everything accumulated. Plan segmentation, strategic `/clear`, and proactive handoffs are research quality tools.
+**Core principle:** A fresh context with the right files loaded outperforms a saturated context with everything accumulated. Plan segmentation, strategic context resets, and proactive handoffs are research quality tools.
 
 **Key ratios:**
 
@@ -30,6 +30,34 @@ Different workflows consume context at different rates. Use these targets to pla
 
 **Rule of thumb:** If a plan will touch >5 files or produce >3 derivation steps, budget ~50% and segment if needed.
 </budget_allocation>
+
+<phase_class_budget_targets>
+
+## Phase-Class Budget Targets
+
+Use this table as the canonical numeric guidance for orchestrator planning. Other orchestration docs should refer here instead of restating these percentages.
+
+| Phase Class | Orchestrator Target | Primary Agent Targets | Notes |
+|---|---|---|---|
+| literature | 15-20% | researcher 40-60%, bibliographer ~30% | Heavy source intake; segment after roughly 10 papers or one coherent claim cluster |
+| formulation | 15-20% | researcher ~25%, planner ~15%, executor 30-60% | Usually fits in one pass unless multiple formalisms compete |
+| derivation | ~15% | planner ~10%, executor 50-70%, verifier 20-40% | Executor dominates; split if a derivation has more than about 5 intermediate results |
+| numerical | 10-15% | planner ~10%, executor 40-60%, debugger ~20%, verifier 15-35% | Budget debugger headroom for convergence or environment iteration |
+| validation | 10-15% | verifier 50-60%, consistency-checker ~25% | Verification is the main work; keep contract-critical checks in the first pass |
+| writing | 10-25% | paper-writer 50-70%, bibliographer/referee ~15% each | Section drafts are context-heavy; process one section or review dimension at a time |
+| mixed/unknown | 15-20% | executor ~50%, verifier ~30% | Default allocation until the phase class is clear |
+
+**Adaptation rules:**
+
+- Derivation exceeds ~50% executor budget: split the plan into sub-plans or checkpoint after a self-contained intermediate result.
+- Literature exceeds ~60% researcher budget: write a structured summary and continue in a fresh researcher invocation.
+- Verification exceeds ~50% verifier budget: keep contract-critical, anchor, and decisive-comparison checks in the current pass; queue optional depth for follow-up.
+- Numerical debugging exceeds ~20% debugger budget: write a debugging report with hypotheses and reinvoke the debugger with that artifact.
+
+**Plan count heuristic:** Estimate phase cost as `plan_count * tasks_per_plan * 6000` tokens. If that estimate exceeds ~80% of the model context window, verify segmentation, confirm wave parallelism, and warn on any single plan with more than 8 substantive tasks.
+
+**Summary aggregation heuristic:** For wave aggregation, estimate a full `SUMMARY.md` read as about 3000 tokens. Treat `CONTEXT_BUDGET` as the usable-token budget when the workflow provides it; otherwise assume the runtime-specific usable window described above. If reading summaries would exceed the orchestrator target for the phase class, switch to `gpd --raw summary-extract <path> --field one_liner` before loading full files.
+</phase_class_budget_targets>
 
 <context_consumption>
 
@@ -118,39 +146,39 @@ Plans should be sized to fit within context budget. Segment when a plan would ex
 **Anti-pattern:** Don't segment so aggressively that each segment lacks the context to verify its own physics. A derivation + its limiting case check should be in the same segment.
 </segmentation_guidelines>
 
-<clear_and_resume>
+<context_reset_and_resume>
 
-## When to /clear and Resume
+## When to Reset Context and Resume
 
-**Always /clear between:**
+**Always reset context between:**
 
 - Phase planning and phase execution (orchestrator context vs executor context)
 - Completing one plan and starting the next
 - Literature review and derivation work
 - Debugging session and resumption of normal execution
 
-**Consider /clear when:**
+**Consider a fresh context reset when:**
 
 - Statusline shows >65% (moderate pressure)
 - You've finished a logical unit of work (completed a derivation, verified a result)
 - You're about to start a task requiring heavy file reads
 - Error investigation consumed significant context
 
-**Before /clear, always:**
+**Before resetting context, always:**
 
 1. Commit all work in progress
 2. Update STATE.md with current position
 3. If mid-plan: create `.continue-here.md` via `gpd:pause-work`
 4. Ensure intermediate results are saved to files (not just in conversation memory)
 
-**After /clear:**
+**After resetting context:**
 
 1. `gpd:resume-work` reloads the project's canonical continuation state, then uses any handoff artifact or derivation history only as supporting context
 2. Re-read only the files needed for the next unit of work
 3. Do NOT re-read files from completed work unless needed for reference
 
 **The goal:** Start each work unit with a fresh, focused context containing exactly what's needed.
-</clear_and_resume>
+</context_reset_and_resume>
 
 <planning_for_context>
 
@@ -212,7 +240,7 @@ During plan execution, monitor context usage:
 1. Commit current task's work
 2. Note completed tasks and remaining tasks
 3. Create `.continue-here.md` with derivation state, parameter values, intermediate results
-4. Recommend `/clear` + `gpd:resume-work`
+4. Recommend a fresh context reset, then `gpd:resume-work`
 
 **Never do when context is heavy:**
 

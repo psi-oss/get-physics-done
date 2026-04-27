@@ -112,6 +112,42 @@ class TestDetectLatexToolchain:
         assert status.arxiv_submission_ready is True
         assert "readiness=ready" in status.message
 
+    def test_pdf_intake_warning_recommends_paper_extra_when_pypdf_is_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import importlib.abc
+        import sys
+
+        def fake_find(binary: str) -> str | None:
+            mapping = {
+                "pdflatex": "/usr/bin/pdflatex",
+                "bibtex": "/usr/bin/bibtex",
+                "latexmk": "/usr/bin/latexmk",
+                "kpsewhich": "/usr/bin/kpsewhich",
+            }
+            return mapping.get(binary)
+
+        class _BlockPypdf(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname: str, path, target=None):
+                if fullname == "pypdf" or fullname.startswith("pypdf."):
+                    raise ImportError("pypdf is disabled for this test")
+                return None
+
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
+        original_pypdf = sys.modules.pop("pypdf", None)
+        blocker = _BlockPypdf()
+        sys.meta_path.insert(0, blocker)
+        try:
+            status = detect_latex_toolchain()
+        finally:
+            sys.meta_path.remove(blocker)
+            if original_pypdf is not None:
+                sys.modules["pypdf"] = original_pypdf
+
+        warning = next(warning for warning in status.warnings if "pypdf not found" in warning)
+        assert "get-physics-done[paper]" in warning
+        assert "get-physics-done[arxiv]" not in warning
+
     def test_degrades_when_bibtex_is_missing_but_compiler_is_present(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

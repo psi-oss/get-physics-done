@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,7 @@ from gpd.core.root_resolution import resolve_project_root
 WOLFRAM_INTEGRATION_ID = "wolfram"
 WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
 WOLFRAM_BRIDGE_COMMAND = "gpd-mcp-wolfram"
+WOLFRAM_BRIDGE_MODULE = "gpd.mcp.integrations.wolfram_bridge"
 WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
 WOLFRAM_MCP_DEFAULT_ENDPOINT = "https://services.wolfram.com/api/mcp"
@@ -27,8 +29,10 @@ INTEGRATIONS_CONFIG_FILENAME = "integrations.json"
 
 def _project_integrations_config_path(cwd: Path) -> Path:
     workspace_cwd = cwd.expanduser().resolve(strict=False)
-    project_root = resolve_project_root(workspace_cwd, require_layout=True)
-    return ProjectLayout(project_root or workspace_cwd).gpd / INTEGRATIONS_CONFIG_FILENAME
+    project_root = resolve_project_root(workspace_cwd)
+    if project_root is None or not ProjectLayout(project_root).gpd.is_dir():
+        project_root = workspace_cwd
+    return ProjectLayout(project_root).gpd / INTEGRATIONS_CONFIG_FILENAME
 
 
 def _strict_unknown_keys_error(*, section: str, unknown_keys: list[str], supported_keys: list[str]) -> RuntimeError:
@@ -69,6 +73,7 @@ class ManagedIntegrationDescriptor:
     integration_id: str
     managed_server_key: str
     bridge_command: str
+    bridge_module: str
     api_key_env_var: str
     endpoint_env_var: str
     default_endpoint: str
@@ -188,10 +193,13 @@ class ManagedIntegrationDescriptor:
         self,
         env: Mapping[str, str] | None = None,
         cwd: Path | None = None,
+        *,
+        python_path: str | None = None,
     ) -> dict[str, object]:
+        interpreter = python_path or sys.executable or "python3"
         entry: dict[str, object] = {
-            "command": self.bridge_command,
-            "args": [],
+            "command": interpreter,
+            "args": ["-m", self.bridge_module],
         }
         projected_env = self.projected_environment(env, cwd=cwd)
         if projected_env:
@@ -208,6 +216,7 @@ class ManagedIntegrationDescriptor:
             "integration_id": self.integration_id,
             "managed_server_key": self.managed_server_key,
             "bridge_command": self.bridge_command,
+            "bridge_module": self.bridge_module,
             "api_key_env_var": self.api_key_env_var,
             "api_key_env_vars": list(self.api_key_env_vars),
             "endpoint_env_var": self.endpoint_env_var,
@@ -223,6 +232,7 @@ WOLFRAM_MANAGED_INTEGRATION = ManagedIntegrationDescriptor(
     integration_id=WOLFRAM_INTEGRATION_ID,
     managed_server_key=WOLFRAM_MANAGED_SERVER_KEY,
     bridge_command=WOLFRAM_BRIDGE_COMMAND,
+    bridge_module=WOLFRAM_BRIDGE_MODULE,
     api_key_env_var=WOLFRAM_MCP_API_KEY_ENV_VAR,
     endpoint_env_var=WOLFRAM_MCP_ENDPOINT_ENV_VAR,
     default_endpoint=WOLFRAM_MCP_DEFAULT_ENDPOINT,
@@ -258,6 +268,7 @@ def projected_managed_optional_mcp_servers(
     env: Mapping[str, str] | None = None,
     *,
     cwd: Path | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Project all configured optional managed integrations into MCP server entries."""
 
@@ -268,6 +279,7 @@ def projected_managed_optional_mcp_servers(
         managed_servers[integration.managed_server_key] = integration.projected_server_entry(
             env,
             cwd=cwd,
+            python_path=python_path,
         )
     return managed_servers
 

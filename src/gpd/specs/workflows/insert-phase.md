@@ -113,7 +113,7 @@ Project state updated: GPD/STATE.md
 
 `gpd:plan-phase {decimal_phase}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

@@ -57,6 +57,13 @@ _RUNTIME_PAUSE_WORK_COMMANDS = {name: adapter.format_command("pause-work") for n
 _RUNTIME_HELP_EXAMPLE_DESCRIPTORS = tuple(
     descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.installer_help_example_scope is not None
 )
+_RUNTIME_DESCRIPTORS_WITH_GLOBAL_ENV_OVERRIDE = tuple(
+    descriptor
+    for descriptor in _RUNTIME_DESCRIPTORS
+    if descriptor.global_config.env_var
+    or descriptor.global_config.env_dir_var
+    or descriptor.global_config.env_file_var
+)
 _CODEX_RUNTIME_NAME = PRIMARY_RUNTIME
 _CLAUDE_RUNTIME_NAME, _CLAUDE_RUNTIME_ALIAS = runtime_with_multiword_alias(exclude=(_CODEX_RUNTIME_NAME,))
 _OPENCODE_RUNTIME_NAME, _OPENCODE_RUNTIME_ALIAS = runtime_with_multiword_alias(
@@ -76,6 +83,7 @@ _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
     suggest_next_phrase="{suggest_next}",
     pause_work_phrase="{pause_work}",
 )
+MANAGED_HOME_DIRNAME = ".gpd"
 
 
 def _render_runtime_recovery_ladder(runtime: str) -> str:
@@ -172,6 +180,11 @@ def _assert_install_summary_semantic_contract(
         pause_work_fragments=pause_work_fragments,
     )
     assert_install_summary_runtime_follow_up_contract(output, runtime_help_fragments=runtime_help_fragments)
+
+
+def _assert_in_order(content: str, fragments: tuple[str, ...]) -> None:
+    positions = [content.index(fragment) for fragment in fragments]
+    assert positions == sorted(positions)
 
 
 def test_version_consistency():
@@ -653,7 +666,7 @@ def _run_bootstrap_with_fake_python(
         _write_fake_launcher(fake_bin / launch_command, launch_command)
 
     if precreate_managed_version is not None:
-        managed_bin = home / "GPD" / "venv" / "bin"
+        managed_bin = home / MANAGED_HOME_DIRNAME / "venv" / "bin"
         for name in ("python", "python3"):
             _write_fake_python(managed_bin / name, log_path, precreate_managed_version)
 
@@ -663,7 +676,7 @@ def _run_bootstrap_with_fake_python(
         if not key.startswith("FAKE_PIP_")
     }
     env["HOME"] = str(home)
-    env["GPD_HOME"] = str(home / "GPD")
+    env.pop("GPD_HOME", None)
     env["GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES"] = "1"
     env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin)])
     if extra_env:
@@ -1047,18 +1060,46 @@ def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None
     result = _run_node_contract_validation(
         r"""
 const assert = require("node:assert/strict");
-const { validateRuntimeCatalog } = require("./bin/install.js");
+const { validateRuntimeCatalog, validateRuntimeCatalogSchemaShape } = require("./bin/install.js");
 const catalog = require("./src/gpd/adapters/runtime_catalog.json");
 const runtimeCatalogSchema = require("./src/gpd/adapters/runtime_catalog_schema.json");
 const installHelpExampleScopes = new Set(runtimeCatalogSchema.install_help_example_scopes);
 const installHelpExampleScopeList = [...installHelpExampleScopes].sort();
 const launchWrapperPermissionSurfaceKinds = [...new Set(runtimeCatalogSchema.launch_wrapper_permission_surface_kinds)].sort();
+const telemetrySourceList = runtimeCatalogSchema.capability_enums.telemetry_source.join(", ");
 const launchWrapperDisjunction = launchWrapperPermissionSurfaceKinds.length === 1
   ? JSON.stringify(launchWrapperPermissionSurfaceKinds[0])
   : `one of ${launchWrapperPermissionSurfaceKinds.map((value) => JSON.stringify(value)).join(", ")}`;
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 assert.doesNotThrow(() => validateRuntimeCatalog(catalog));
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(runtimeCatalogSchema));
+const normalizedCatalog = validateRuntimeCatalog(catalog);
+assert.ok(
+  catalog.some((runtime) => Object.keys(runtime.capabilities).length < runtimeCatalogSchema.capability_keys.length)
+);
+assert.ok(
+  catalog.some((runtime) => Object.keys(runtime.hook_payload).length < runtimeCatalogSchema.hook_payload_keys.length)
+);
+for (const runtime of normalizedCatalog) {
+  assert.deepEqual(Object.keys(runtime.capabilities).sort(), runtimeCatalogSchema.capability_keys.slice().sort());
+  assert.deepEqual(Object.keys(runtime.hook_payload).sort(), runtimeCatalogSchema.hook_payload_keys.slice().sort());
+  assert.deepEqual(
+    Object.keys(runtime.managed_install_surface).sort(),
+    runtimeCatalogSchema.managed_install_surface_keys.slice().sort()
+  );
+}
+for (const runtime of catalog) {
+  for (const [fieldName, value] of Object.entries(runtime.capabilities)) {
+    assert.notDeepEqual(value, runtimeCatalogSchema.capability_defaults[fieldName]);
+  }
+  for (const [fieldName, value] of Object.entries(runtime.hook_payload)) {
+    assert.notDeepEqual(value, runtimeCatalogSchema.hook_payload_defaults[fieldName]);
+  }
+  for (const [fieldName, value] of Object.entries(runtime.managed_install_surface || {})) {
+    assert.notDeepEqual(value, runtimeCatalogSchema.managed_install_surface_defaults[fieldName]);
+  }
+}
 
 const helpExampleRuntimes = catalog.filter((runtime) => runtime.installer_help_example_scope);
 assert.ok(helpExampleRuntimes.length >= 2);
@@ -1121,6 +1162,53 @@ assert.deepEqual(
   explicitSurfaceCatalog[0].hook_payload.target_root_keys
 );
 
+const partialHookPayloadCatalog = JSON.parse(JSON.stringify(catalog));
+partialHookPayloadCatalog[0].capabilities = { permissions_surface: "unsupported" };
+partialHookPayloadCatalog[0].hook_payload = { target_path_keys: ["selected_path"] };
+const normalizedPartialHookPayload = validateRuntimeCatalog(partialHookPayloadCatalog);
+assert.deepEqual(
+  Object.keys(normalizedPartialHookPayload[0].hook_payload).sort(),
+  runtimeCatalogSchema.hook_payload_keys.slice().sort()
+);
+assert.deepEqual(normalizedPartialHookPayload[0].hook_payload.target_path_keys, ["selected_path"]);
+assert.deepEqual(
+  normalizedPartialHookPayload[0].hook_payload.target_root_keys,
+  runtimeCatalogSchema.hook_payload_defaults.target_root_keys
+);
+
+const contextMeterRuntimeIndex = catalog.findIndex((runtime) => runtime.capabilities.supports_context_meter);
+assert.notEqual(contextMeterRuntimeIndex, -1);
+const badContextMeterHookCatalog = JSON.parse(JSON.stringify(catalog));
+delete badContextMeterHookCatalog[contextMeterRuntimeIndex].hook_payload.context_window_size_keys;
+delete badContextMeterHookCatalog[contextMeterRuntimeIndex].hook_payload.context_remaining_keys;
+assert.throws(
+  () => validateRuntimeCatalog(badContextMeterHookCatalog),
+  new RegExp(
+    `runtime catalog entry ${contextMeterRuntimeIndex}\\.capabilities\\.supports_context_meter requires `
+    + `runtime catalog entry ${contextMeterRuntimeIndex}\\.hook_payload\\.context_window_size_keys, `
+    + `runtime catalog entry ${contextMeterRuntimeIndex}\\.hook_payload\\.context_remaining_keys`
+  )
+);
+
+const partialManagedSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
+partialManagedSurfaceCatalog[0].managed_install_surface = { flat_command_globs: ["custom-command/gpd-*.md"] };
+const normalizedPartialManagedSurface = validateRuntimeCatalog(partialManagedSurfaceCatalog);
+assert.deepEqual(
+  Object.keys(normalizedPartialManagedSurface[0].managed_install_surface).sort(),
+  runtimeCatalogSchema.managed_install_surface_keys.slice().sort()
+);
+assert.deepEqual(
+  normalizedPartialManagedSurface[0].managed_install_surface.managed_agent_globs,
+  runtimeCatalogSchema.managed_install_surface_defaults.managed_agent_globs
+);
+
+const badManagedSurfaceGlobCatalog = JSON.parse(JSON.stringify(catalog));
+badManagedSurfaceGlobCatalog[0].managed_install_surface = { flat_command_globs: ["../tmp/*"] };
+assert.throws(
+  () => validateRuntimeCatalog(badManagedSurfaceGlobCatalog),
+  /runtime catalog entry 0\.managed_install_surface\.flat_command_globs\.0 must be a relative managed install glob without traversal/
+);
+
 const unknownKeyCatalog = JSON.parse(JSON.stringify(catalog));
 unknownKeyCatalog[0].legacy_note = "unexpected";
 assert.throws(
@@ -1133,6 +1221,55 @@ blankAliasCatalog[0].selection_aliases = [blankAliasCatalog[0].selection_aliases
 assert.throws(
   () => validateRuntimeCatalog(blankAliasCatalog),
   /runtime catalog entry 0\.selection_aliases\[1\] must be a non-empty string/
+);
+
+const badRuntimeNameCatalog = JSON.parse(JSON.stringify(catalog));
+badRuntimeNameCatalog[0].runtime_name = "Bad Runtime";
+assert.throws(
+  () => validateRuntimeCatalog(badRuntimeNameCatalog),
+  /runtime catalog entry 0\.runtime_name must be a lowercase runtime id/
+);
+
+const badConfigDirNameCatalog = JSON.parse(JSON.stringify(catalog));
+badConfigDirNameCatalog[0].config_dir_name = "../.codex";
+assert.throws(
+  () => validateRuntimeCatalog(badConfigDirNameCatalog),
+  /runtime catalog entry 0\.config_dir_name must be a safe relative path segment without traversal/
+);
+
+const badInstallFlagCatalog = JSON.parse(JSON.stringify(catalog));
+badInstallFlagCatalog[0].install_flag = "--bad flag";
+assert.throws(
+  () => validateRuntimeCatalog(badInstallFlagCatalog),
+  /runtime catalog entry 0\.install_flag must be a --kebab-case flag/
+);
+
+const badActivationEnvCatalog = JSON.parse(JSON.stringify(catalog));
+badActivationEnvCatalog[0].activation_env_vars = ["BAD=1"];
+assert.throws(
+  () => validateRuntimeCatalog(badActivationEnvCatalog),
+  /runtime catalog entry 0\.activation_env_vars\[0\] must be an environment variable name/
+);
+
+const badGlobalEnvCatalog = JSON.parse(JSON.stringify(catalog));
+badGlobalEnvCatalog[0].global_config.env_var = "BAD=1";
+assert.throws(
+  () => validateRuntimeCatalog(badGlobalEnvCatalog),
+  /runtime catalog entry 0\.global_config\.env_var must be an environment variable name/
+);
+
+const badHomeSubpathCatalog = JSON.parse(JSON.stringify(catalog));
+badHomeSubpathCatalog[0].global_config.home_subpath = "../.codex";
+assert.throws(
+  () => validateRuntimeCatalog(badHomeSubpathCatalog),
+  /runtime catalog entry 0\.global_config\.home_subpath must be a safe relative path without traversal/
+);
+
+const badManifestPrefixCatalog = JSON.parse(JSON.stringify(catalog));
+badManifestPrefixCatalog[0].manifest_file_prefixes = ["../skills/"];
+assert.throws(
+  () => validateRuntimeCatalog(badManifestPrefixCatalog),
+  /runtime catalog entry 0\.manifest_file_prefixes\[0\] must be a safe relative path without traversal/
 );
 
 const badFlagCatalog = JSON.parse(JSON.stringify(catalog));
@@ -1227,13 +1364,80 @@ const badTelemetryCatalog = JSON.parse(JSON.stringify(catalog));
 badTelemetryCatalog[0].capabilities.telemetry_source = "webhook";
 assert.throws(
   () => validateRuntimeCatalog(badTelemetryCatalog),
-  /runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook/
+  new RegExp(
+    `runtime catalog entry 0\\.capabilities\\.telemetry_source must be one of: ${escapeRegex(telemetrySourceList)}`
+  )
+);
+
+const runtimeApiTelemetryCatalog = JSON.parse(JSON.stringify(normalizedCatalog));
+const runtimeApiTelemetryRuntime = runtimeApiTelemetryCatalog.find(
+  (runtime) =>
+    runtime.capabilities.telemetry_source === "none"
+);
+assert.ok(runtimeApiTelemetryRuntime, "expected a catalog entry without notify telemetry");
+runtimeApiTelemetryRuntime.capabilities.telemetry_source = "runtime-api";
+runtimeApiTelemetryRuntime.capabilities.telemetry_completeness = "best-effort";
+runtimeApiTelemetryRuntime.capabilities.supports_usage_tokens = true;
+runtimeApiTelemetryRuntime.capabilities.supports_cost_usd = true;
+runtimeApiTelemetryRuntime.hook_payload.usage_keys = ["usage"];
+runtimeApiTelemetryRuntime.hook_payload.input_tokens_keys = ["input_tokens"];
+runtimeApiTelemetryRuntime.hook_payload.output_tokens_keys = ["output_tokens"];
+runtimeApiTelemetryRuntime.hook_payload.cost_usd_keys = ["cost_usd"];
+assert.doesNotThrow(() => validateRuntimeCatalog(runtimeApiTelemetryCatalog));
+
+const badCapabilityDefaultsSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+badCapabilityDefaultsSchema.capability_defaults.supports_context_meter = "false";
+assert.throws(
+  () => validateRuntimeCatalogSchemaShape(badCapabilityDefaultsSchema),
+  /runtime catalog schema\.capability_defaults\.supports_context_meter must be a boolean/
+);
+
+const badCapabilityDefaultEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+badCapabilityDefaultEnumSchema.capability_defaults.telemetry_source = "webhook";
+assert.throws(
+  () => validateRuntimeCatalogSchemaShape(badCapabilityDefaultEnumSchema),
+  new RegExp(
+    `runtime catalog schema\\.capability_defaults\\.telemetry_source must be one of: ${escapeRegex(telemetrySourceList)}`
+  )
+);
+
+const futureCapabilityEnumSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+futureCapabilityEnumSchema.capability_enums.telemetry_source.push("webhook");
+futureCapabilityEnumSchema.capability_defaults.telemetry_source = "webhook";
+futureCapabilityEnumSchema.capability_defaults.telemetry_completeness = "best-effort";
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(futureCapabilityEnumSchema));
+
+const futureLaunchWrapperSchema = JSON.parse(JSON.stringify(runtimeCatalogSchema));
+futureLaunchWrapperSchema.launch_wrapper_permission_surface_kinds.push("future-launch-wrapper");
+futureLaunchWrapperSchema.capability_defaults.permissions_surface = "launch-wrapper";
+futureLaunchWrapperSchema.capability_defaults.permission_surface_kind = "future-launch-wrapper";
+futureLaunchWrapperSchema.capability_defaults.prompt_free_mode_value = "yolo";
+futureLaunchWrapperSchema.capability_defaults.supports_runtime_permission_sync = true;
+futureLaunchWrapperSchema.capability_defaults.supports_prompt_free_mode = true;
+assert.doesNotThrow(() => validateRuntimeCatalogSchemaShape(futureLaunchWrapperSchema));
+
+const badAgentAttributionCatalog = JSON.parse(JSON.stringify(catalog));
+badAgentAttributionCatalog[0].capabilities.supports_agent_payload_attribution = false;
+badAgentAttributionCatalog[0].hook_payload.agent_name_keys = ["agent_name"];
+assert.throws(
+  () => validateRuntimeCatalog(badAgentAttributionCatalog),
+  /runtime catalog entry 0\.capabilities\.supports_agent_payload_attribution must match runtime catalog entry 0\.hook_payload\.agent_id_keys\/agent_name_keys\/agent_scope_keys/
+);
+
+const badSessionAttributionCatalog = JSON.parse(JSON.stringify(catalog));
+badSessionAttributionCatalog[0].capabilities.supports_runtime_session_payload_attribution = false;
+badSessionAttributionCatalog[0].hook_payload.runtime_session_id_keys = ["session_id"];
+assert.throws(
+  () => validateRuntimeCatalog(badSessionAttributionCatalog),
+  /runtime catalog entry 0\.capabilities\.supports_runtime_session_payload_attribution must match runtime catalog entry 0\.hook_payload\.runtime_session_id_keys/
 );
 
 const futureConfigSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
 futureConfigSurfaceCatalog[0].capabilities.permission_surface_kind = "future.json:permissions.mode";
 futureConfigSurfaceCatalog[0].capabilities.statusline_config_surface = "future.json:statusLine";
+futureConfigSurfaceCatalog[0].capabilities.notify_surface = "explicit";
 futureConfigSurfaceCatalog[0].capabilities.notify_config_surface = "future.json:notify";
+futureConfigSurfaceCatalog[0].hook_payload.notify_event_types = ["future-event"];
 const validatedConfigSurfaceCatalog = validateRuntimeCatalog(futureConfigSurfaceCatalog);
 assert.equal(
   validatedConfigSurfaceCatalog[0].capabilities.permission_surface_kind,
@@ -1290,6 +1494,56 @@ assert.throws(
   /runtime catalog entry 0\.capabilities\.notify_config_surface must be "none" or a config surface label like file:key/
 );
 
+const missingStatuslineConfigCatalog = JSON.parse(JSON.stringify(catalog));
+const statuslineRuntime = missingStatuslineConfigCatalog.find(
+  (runtime) => runtime.capabilities.statusline_surface === "explicit"
+);
+statuslineRuntime.capabilities.statusline_config_surface = "none";
+assert.throws(
+  () => validateRuntimeCatalog(missingStatuslineConfigCatalog),
+  /runtime catalog entry \d+\.capabilities\.statusline_config_surface must not be "none" when statusline_surface=explicit/
+);
+
+const unexpectedStatuslineConfigCatalog = JSON.parse(JSON.stringify(catalog));
+const noStatuslineRuntime = unexpectedStatuslineConfigCatalog.find(
+  (runtime) => runtime.capabilities.statusline_surface !== "explicit"
+);
+noStatuslineRuntime.capabilities.statusline_config_surface = "settings.json:statusLine";
+assert.throws(
+  () => validateRuntimeCatalog(unexpectedStatuslineConfigCatalog),
+  /runtime catalog entry \d+\.capabilities\.statusline_config_surface must be "none" when statusline_surface=none/
+);
+
+const missingNotifyConfigCatalog = JSON.parse(JSON.stringify(catalog));
+const notifyRuntime = missingNotifyConfigCatalog.find(
+  (runtime) => runtime.capabilities.notify_surface === "explicit"
+);
+notifyRuntime.capabilities.notify_config_surface = "none";
+assert.throws(
+  () => validateRuntimeCatalog(missingNotifyConfigCatalog),
+  /runtime catalog entry \d+\.capabilities\.notify_config_surface must not be "none" when notify_surface=explicit/
+);
+
+const telemetryNoneWithSourceCatalog = JSON.parse(JSON.stringify(catalog));
+const telemetryRuntime = telemetryNoneWithSourceCatalog.find(
+  (runtime) => runtime.capabilities.telemetry_source && runtime.capabilities.telemetry_source !== "none"
+);
+telemetryRuntime.capabilities.telemetry_completeness = "none";
+assert.throws(
+  () => validateRuntimeCatalog(telemetryNoneWithSourceCatalog),
+  /runtime catalog entry \d+\.capabilities\.telemetry_source must be "none" when telemetry_completeness=none/
+);
+
+const telemetryCompleteWithoutSourceCatalog = JSON.parse(JSON.stringify(catalog));
+const noTelemetryRuntime = telemetryCompleteWithoutSourceCatalog.find(
+  (runtime) => !runtime.capabilities.telemetry_source || runtime.capabilities.telemetry_source === "none"
+);
+noTelemetryRuntime.capabilities.telemetry_completeness = "best-effort";
+assert.throws(
+  () => validateRuntimeCatalog(telemetryCompleteWithoutSourceCatalog),
+  /runtime catalog entry \d+\.capabilities\.telemetry_source must not be "none" when telemetry_completeness is not none/
+);
+
 const badConfigFilePermissionContractCatalog = JSON.parse(JSON.stringify(catalog));
 badConfigFilePermissionContractCatalog[0].capabilities.permissions_surface = "config-file";
 badConfigFilePermissionContractCatalog[0].capabilities.permission_surface_kind = "none";
@@ -1321,6 +1575,13 @@ const publicSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
 publicSurfaceCatalog[0].public_command_surface_prefix = "/public:";
 const normalizedPublicSurface = validateRuntimeCatalog(publicSurfaceCatalog);
 assert.equal(normalizedPublicSurface[0].public_command_surface_prefix, "/public:");
+const badCommandPrefixCatalog = JSON.parse(JSON.stringify(catalog));
+badCommandPrefixCatalog[0].command_prefix = "gpd:";
+badCommandPrefixCatalog[0].public_command_surface_prefix = "/public:";
+assert.throws(
+  () => validateRuntimeCatalog(badCommandPrefixCatalog),
+  /runtime catalog entry 0\.command_prefix must be (a non-empty string|a slash or dollar command prefix)/
+);
 for (const badPrefix of [" public:", "public", "/bad space:", "gpd:"]) {
   const badPublicSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
   badPublicSurfaceCatalog[0].public_command_surface_prefix = badPrefix;
@@ -1329,6 +1590,14 @@ for (const badPrefix of [" public:", "public", "/bad space:", "gpd:"]) {
     /runtime catalog entry 0\.public_command_surface_prefix must be (a non-empty string|a slash or dollar command prefix)/
   );
 }
+
+const missingPromptFreeModeCatalog = JSON.parse(JSON.stringify(catalog));
+missingPromptFreeModeCatalog[0].capabilities.supports_prompt_free_mode = true;
+missingPromptFreeModeCatalog[0].capabilities.prompt_free_mode_value = null;
+assert.throws(
+  () => validateRuntimeCatalog(missingPromptFreeModeCatalog),
+  /runtime catalog entry 0\.capabilities\.prompt_free_mode_value must be a non-empty string when supports_prompt_free_mode=true/
+);
 
 const partialCapabilitiesCatalog = JSON.parse(JSON.stringify(catalog));
 const originalCapabilities = partialCapabilitiesCatalog[0].capabilities;
@@ -1420,6 +1689,31 @@ assert.throws(() => validateRuntimeCatalog(catalog), /runtime catalog contains d
     assert duplicate_result.returncode == 0, f"{duplicate_result.stdout}\n{duplicate_result.stderr}"
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_target_dir_selection_menu_requires_one_runtime() -> None:
+    result = _run_node_contract_validation(
+        r"""
+const assert = require("node:assert/strict");
+const { resolveRuntimeSelectionChoice, runtimeSelectionMenuEntries } = require("./bin/install.js");
+const catalog = require("./src/gpd/adapters/runtime_catalog.json");
+
+assert.ok(runtimeSelectionMenuEntries().some((entry) => entry.label === "All runtimes"));
+assert.ok(!runtimeSelectionMenuEntries({ allowAll: false }).some((entry) => entry.label === "All runtimes"));
+assert.equal(resolveRuntimeSelectionChoice("all").runtimes.length, catalog.length);
+assert.deepEqual(
+  resolveRuntimeSelectionChoice("all", { allowAll: false }),
+  { error: "Select exactly one runtime when using --target-dir." }
+);
+assert.deepEqual(
+  resolveRuntimeSelectionChoice(String(catalog.length + 1), { allowAll: false }),
+  { error: "Select exactly one runtime when using --target-dir." }
+);
+"""
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
@@ -1439,7 +1733,38 @@ def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
         assert (
             f"# Install for {descriptor.display_name} {descriptor.installer_help_example_scope}" in result.stdout
         )
+    _assert_in_order(
+        result.stdout,
+        (
+            "PyPI pinned release",
+            "tagged GitHub fallback",
+            "latest unreleased GitHub main source",
+        ),
+    )
+    assert "Supervised autonomy (`supervised`) is the default" in result.stdout
+    assert "Opt into Balanced autonomy (`balanced`)" in result.stdout
+    assert "Recommended unattended default: Balanced" not in result.stdout
+    assert "matching tagged GitHub source" not in result.stdout
     assert "startsWith(\"$\")" not in result.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_installer_enforces_node_20_floor() -> None:
+    result = _run_node_contract_validation(
+        r"""
+const assert = require("node:assert/strict");
+const { ensureSupportedNodeVersion, nodeMajorVersion } = require("./bin/install.js");
+
+assert.equal(nodeMajorVersion("20.0.0"), 20);
+assert.equal(nodeMajorVersion("v24.1.0"), 24);
+assert.doesNotThrow(() => ensureSupportedNodeVersion("20.0.0"));
+assert.doesNotThrow(() => ensureSupportedNodeVersion("24.1.0"));
+assert.throws(() => ensureSupportedNodeVersion("19.9.0"), /Node\.js 20\+ is required/);
+assert.throws(() => ensureSupportedNodeVersion("not-a-version"), /Node\.js 20\+ is required/);
+"""
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1453,7 +1778,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
 
     assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
     assert any(
-        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/GPD/venv")
+        entry["argv"][:2] == ["-m", "venv"]
+        and entry["argv"][-1].replace("\\", "/").endswith(f"/{MANAGED_HOME_DIRNAME}/venv")
         for entry in entries
     )
 
@@ -1468,7 +1794,17 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert managed_pip_installs[0]["argv"][-1] == PYPI_SPEC
 
     managed_runtime_installs = [
-        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local"]
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--skip-readiness-check",
+        ]
     ]
     assert len(managed_runtime_installs) == 1
     managed_runtime_doctor = [
@@ -1485,11 +1821,19 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     install_index = next(
         index
         for index, entry in enumerate(entries)
-        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local"]
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--skip-readiness-check",
+        ]
     )
     assert doctor_index < install_index
 
-    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()
     assert f"GPD v{PACKAGE_VERSION} - Get Physics Done" in result.stdout
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
@@ -1498,6 +1842,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert "GPD does not verify provider credentials automatically" in result.stdout
     combined_output = result.stdout + result.stderr
     assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in combined_output
+    assert "`gpd validate unattended-readiness`" not in combined_output
+    assert "`gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>`" in combined_output
     assert "Install Summary" in result.stdout
     assert "Startup checklist" in result.stdout
     assert "Beginner Onboarding Hub:" in result.stdout
@@ -1534,7 +1880,8 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
 
     assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
     assert any(
-        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/GPD/venv")
+        entry["argv"][:2] == ["-m", "venv"]
+        and entry["argv"][-1].replace("\\", "/").endswith(f"/{MANAGED_HOME_DIRNAME}/venv")
         for entry in entries
     )
 
@@ -1553,10 +1900,39 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
     ]
     assert managed_runtime_doctor == []
 
-    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()
     assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
     assert "Runtime launcher/target preflight" not in result.stdout
     assert f"Uninstalling GPD from {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." in result.stdout
+    assert "runtime uninstall ok" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_reuses_existing_managed_cli_without_package_install(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", _CODEX_INSTALL_FLAG, "--local"],
+        precreate_managed_version="Python 3.13.2",
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    managed_runtime_uninstalls = [
+        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", _CODEX_RUNTIME_NAME, "--local"]
+    ]
+    venv_creates = [entry for entry in entries if entry["argv"][:2] == ["-m", "venv"] and entry["argv"] != ["-m", "venv", "--help"]]
+
+    assert managed_pip_installs == []
+    assert len(managed_runtime_uninstalls) == 1
+    assert venv_creates == []
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()
+    assert "Trying existing managed GPD CLI for uninstall..." in result.stdout
+    assert "Preparing managed GPD CLI from PyPI" not in result.stdout
     assert "runtime uninstall ok" in result.stdout
 
 
@@ -1823,7 +2199,16 @@ def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> Non
         entry
         for entry in entries
         if entry["managed"]
-        and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local", "--target-dir", str(target_dir)]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--target-dir",
+            str(target_dir),
+            "--skip-readiness-check",
+        ]
     ]
     assert len(managed_runtime_installs) == 1
     managed_runtime_doctor = [
@@ -1862,7 +2247,16 @@ def test_bootstrap_preserves_global_scope_for_canonical_global_target_dir(tmp_pa
         entry
         for entry in entries
         if entry["managed"]
-        and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--global", "--target-dir", str(target_dir)]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            _CODEX_RUNTIME_NAME,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+            "--skip-readiness-check",
+        ]
     ]
 
     assert len(managed_runtime_installs) == 1
@@ -1884,6 +2278,72 @@ def test_bootstrap_preserves_global_scope_for_canonical_global_target_dir(tmp_pa
     ]
     assert len(managed_runtime_doctor) == 1
     assert f"Installing GPD (global) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    _RUNTIME_DESCRIPTORS_WITH_GLOBAL_ENV_OVERRIDE,
+    ids=[descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS_WITH_GLOBAL_ENV_OVERRIDE],
+)
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_preserves_global_scope_for_home_target_when_runtime_env_points_elsewhere(
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    home = tmp_path / "home"
+    target_dir = home / descriptor.global_config.home_subpath
+    env_var = (
+        descriptor.global_config.env_var
+        or descriptor.global_config.env_dir_var
+        or descriptor.global_config.env_file_var
+    )
+    assert env_var is not None
+    env_target = tmp_path / "runtime-env-override" / descriptor.config_dir_name
+    env_value = str(env_target / "config.json") if env_var == descriptor.global_config.env_file_var else str(env_target)
+    result, _home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=[descriptor.install_flag, "--target-dir", str(target_dir)],
+        extra_env={env_var: env_value},
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_installs = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "install",
+            descriptor.runtime_name,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+            "--skip-readiness-check",
+        ]
+    ]
+    assert len(managed_runtime_installs) == 1
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "--raw",
+            "doctor",
+            "--runtime",
+            descriptor.runtime_name,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+        ]
+    ]
+    assert len(managed_runtime_doctor) == 1
+    assert f"Installing GPD (global) for: {descriptor.display_name}" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -2050,7 +2510,7 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
     assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
     assert managed_runtime_installs == []
     assert "git checkout could not resolve branch main" in result.stderr
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from the latest unreleased GitHub main source." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -2062,7 +2522,10 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
 
     entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
     managed_runtime_installs = [
-        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "--all", "--global"]
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == ["-m", "gpd.cli", "install", "--all", "--global", "--skip-readiness-check"]
     ]
 
     assert len(managed_runtime_installs) == 1
@@ -2182,7 +2645,7 @@ def test_bootstrap_release_install_fails_closed_without_falling_back_to_main_sou
     ]
 
     assert managed_pip_targets == [PYPI_SPEC]
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from the PyPI pinned release or tagged GitHub release sources." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -2249,7 +2712,7 @@ def test_bootstrap_fails_closed_when_all_release_sources_fail(tmp_path: Path) ->
         TAG_HTTPS_GIT_SPEC,
     ]
     assert "current main branch source archive" not in result.stdout
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from the PyPI pinned release or tagged GitHub release sources." in result.stderr
     assert "Could not find a version that satisfies the requirement" not in result.stderr
 
 
@@ -2301,4 +2764,4 @@ def test_bootstrap_recreates_managed_env_when_selected_minor_changes(tmp_path: P
     assert len(venv_creations) == 1
     assert venv_creations[0]["exe"].endswith("python3.13")
     assert "switching to Python 3.13.2" in result.stdout
-    assert (home / "GPD" / "venv" / "bin" / "python").exists()
+    assert (home / MANAGED_HOME_DIRNAME / "venv" / "bin" / "python").exists()

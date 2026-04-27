@@ -49,6 +49,7 @@ def test_gpd_verifier_prompt_surface_stays_within_expected_budget() -> None:
     source = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
     assert "@{GPD_INSTALL_DIR}/references/verification/domains/" not in source
     assert "@{GPD_INSTALL_DIR}/references/physics-subfields.md" not in source
+    assert "@{GPD_INSTALL_DIR}/references/verification/errors/llm-" not in source
 
 
 @pytest.mark.parametrize("runtime", RUNTIMES)

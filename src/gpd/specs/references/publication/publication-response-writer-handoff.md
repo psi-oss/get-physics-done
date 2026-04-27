@@ -26,6 +26,7 @@ Use this pack when a workflow or agent spawns `gpd-paper-writer` to draft a resp
 - A spawned response writer is one-shot. If user input is needed, it returns `status: checkpoint` and stops.
 - The orchestrator resumes with a fresh continuation handoff. It does not wait inside the same run.
 - `status: completed` is provisional until the expected response files exist on disk and are named in fresh typed `gpd_return.files_written`.
-- Successful response-round completion requires both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.
+- Successful response-round completion requires both `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`; default project subjects resolve those to `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.
+- For explicit manuscript subjects, both files must carry response frontmatter with `round` and `manuscript_path` matching the active review round; stale same-round files without a binding do not complete the handoff.
 - Do not treat prose-only status messages or stale preexisting files as proof of completion.
 - Keep the hard gate visible at the spawn site, but do not duplicate the full response prose there when this reference is loaded.

@@ -36,6 +36,7 @@ def _write_tool_requirement_plan(plan_path: Path, command: str, *, plan_id: str)
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -227,6 +228,7 @@ def test_build_plan_tool_preflight_without_requirements_passes(tmp_path: Path) -
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -384,7 +386,8 @@ def test_build_plan_tool_preflight_combines_tool_blockers_and_knowledge_warnings
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
-            "  context_intake:\n"
+            "    in_scope: [benchmark recovery]\n"
+        "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
             "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
             "  claims:\n"
@@ -463,6 +466,7 @@ def test_build_plan_tool_preflight_rejects_duplicate_requirement_ids(
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -548,6 +552,7 @@ def test_build_plan_tool_preflight_reports_missing_wolfram(monkeypatch: pytest.M
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -768,6 +773,7 @@ def test_build_plan_tool_preflight_reports_configured_shared_wolfram_integration
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -853,6 +859,7 @@ def test_build_plan_tool_preflight_respects_project_local_wolfram_disable_overri
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -935,6 +942,7 @@ def test_build_plan_tool_preflight_reports_invalid_project_wolfram_config_as_mis
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -1024,6 +1032,7 @@ def test_build_plan_tool_preflight_uses_project_root_integrations_config_for_nes
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -1084,7 +1093,7 @@ def test_build_plan_tool_preflight_parses_quoted_command_executables_with_spaces
         lambda name: executable if name == executable else None,
     )
     plan_path = tmp_path / "01-07-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 07\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 07\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1112,7 +1121,7 @@ def test_build_plan_tool_preflight_skips_leading_env_assignments_when_probing_co
         lambda name: "/usr/local/bin/mycmd" if name == "mycmd" else None,
     )
     plan_path = tmp_path / "01-08-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 08\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 08\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1139,7 +1148,7 @@ def test_build_plan_tool_preflight_resolves_env_wrapped_command_to_real_executab
         lambda name: "/usr/bin/env" if name == "env" else None,
     )
     plan_path = tmp_path / "01-08b-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 08b\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 08b\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1167,7 +1176,7 @@ def test_build_plan_tool_preflight_handles_env_only_invocations(
         lambda name: "/usr/bin/env" if name == "env" else None,
     )
     plan_path = tmp_path / "01-08c-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 08c\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 08c\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1195,7 +1204,7 @@ def test_build_plan_tool_preflight_resolves_env_wrapped_command_after_env_flag_w
         lambda name: "/usr/bin/env" if name == "env" else None,
     )
     plan_path = tmp_path / "01-08d-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 08d\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 08d\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1225,7 +1234,7 @@ def test_build_plan_tool_preflight_unwraps_shell_launchers_to_probe_the_real_com
         lambda name: f"/bin/{name}" if name in {"bash", "sh"} else None,
     )
     plan_path = tmp_path / "01-08e-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 08e\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 08e\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1254,7 +1263,7 @@ def test_build_plan_tool_preflight_parses_quoted_windows_command_executables_wit
         lambda name: executable if name == executable else None,
     )
     plan_path = tmp_path / "01-09-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 09\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 09\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n    in_scope: [test scope]\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -1300,6 +1309,7 @@ def test_build_plan_tool_preflight_optional_missing_tool_without_fallback_stays_
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [benchmark recovery]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"

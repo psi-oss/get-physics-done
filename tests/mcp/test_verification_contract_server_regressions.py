@@ -81,6 +81,18 @@ def _schema_error_messages(schema: dict[str, object], payload: dict[str, object]
     return [error.message for error in Draft202012Validator(schema).iter_errors(payload)]
 
 
+def _schema_errors_with_context(schema: dict[str, object], payload: dict[str, object]):
+    from jsonschema import Draft202012Validator
+
+    pending = list(Draft202012Validator(schema).iter_errors(payload))
+    errors = []
+    while pending:
+        error = pending.pop(0)
+        errors.append(error)
+        pending[0:0] = list(error.context)
+    return errors
+
+
 def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> None:
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA
 
@@ -90,6 +102,72 @@ def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> 
     for schema in (run_project_dir, suggest_project_dir):
         assert schema["anyOf"] == [ABSOLUTE_PROJECT_DIR_SCHEMA, {"type": "null"}]
         assert schema["default"] is None
+
+
+def test_run_contract_check_schema_allows_optional_fields_alongside_required_branch_fields() -> None:
+    schema = _run_contract_check_input_schema()
+    request = {
+        "check_key": "contract.claim_to_proof_alignment",
+        "contract": _load_project_contract_fixture(),
+        "metadata": {
+            "claim_statement": "The proof covers every stated case.",
+            "conclusion_clause_ids": ["conclusion-main"],
+        },
+        "observed": {
+            "scope_status": "matched",
+            "uncovered_conclusion_clause_ids": [],
+        },
+    }
+
+    assert _schema_error_messages(schema, {"request": request}) == []
+
+
+def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
+    contract = _load_project_contract_fixture()
+    contract["scope"]["in_scope"] = []
+
+    run_errors = _schema_errors_with_context(
+        _run_contract_check_input_schema(),
+        {
+            "request": {
+                "check_key": "contract.benchmark_reproduction",
+                "contract": contract,
+                "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+            }
+        },
+    )
+    suggest_errors = _schema_errors_with_context(_suggest_contract_checks_input_schema(), {"contract": contract})
+
+    assert any(
+        list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message for error in run_errors
+    )
+    assert any(
+        list(error.absolute_path)[-2:] == ["scope", "in_scope"] and "non-empty" in error.message
+        for error in suggest_errors
+    )
+
+
+def test_contract_tools_reject_empty_scope_in_scope() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["scope"]["in_scope"] = []
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+    expected = {
+        "error": "Invalid contract payload: scope.in_scope must include at least one non-empty string",
+        "contract_error_details": ["scope.in_scope must include at least one non-empty string"],
+        "schema_version": 1,
+    }
+
+    assert run_contract_check(request) == expected
+    assert suggest_contract_checks(contract) == expected
 
 
 def test_contract_check_tools_reject_relative_project_dir() -> None:
@@ -446,7 +524,10 @@ def _mismatched_direct_proxy_template_contract() -> dict[str, object]:
 def _proof_obligation_contract() -> dict[str, object]:
     return {
         "schema_version": 1,
-        "scope": {"question": "Does the proof cover every named parameter and hypothesis?"},
+        "scope": {
+            "question": "Does the proof cover every named parameter and hypothesis?",
+            "in_scope": ["proof obligation coverage"],
+        },
         "context_intake": {
             "must_read_refs": ["ref-proof-outline"],
             "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
@@ -1011,8 +1092,14 @@ def test_contract_tools_reject_invalid_schema_versions(schema_version: object, e
 
     suggest_result = suggest_contract_checks(contract)
 
-    assert run_result == {"error": expected_error, "schema_version": 1}
-    assert suggest_result == {"error": expected_error, "schema_version": 1}
+    expected_detail = expected_error.removeprefix("Invalid contract payload: ")
+    expected = {
+        "error": expected_error,
+        "contract_error_details": [expected_detail],
+        "schema_version": 1,
+    }
+    assert run_result == expected
+    assert suggest_result == expected
 
 
 def test_contract_tools_reject_missing_schema_version() -> None:
@@ -1033,7 +1120,11 @@ def test_contract_tools_reject_missing_schema_version() -> None:
 
     suggest_result = suggest_contract_checks(contract)
 
-    expected = {"error": "Invalid contract payload: schema_version is required", "schema_version": 1}
+    expected = {
+        "error": "Invalid contract payload: schema_version is required",
+        "contract_error_details": ["schema_version is required"],
+        "schema_version": 1,
+    }
     assert run_result == expected
     assert suggest_result == expected
 
@@ -1058,6 +1149,7 @@ def test_contract_tools_reject_coercive_contract_scalars() -> None:
 
     expected = {
         "error": "Invalid contract payload: references.0.must_surface must be a boolean",
+        "contract_error_details": ["references.0.must_surface must be a boolean"],
         "schema_version": 1,
     }
     assert run_result == expected
@@ -1110,12 +1202,15 @@ def test_contract_tools_salvage_lossy_singleton_section(
         assert run_result["contract_salvaged"] is True
         assert "approach_policy must be an object, not list" in run_result["contract_salvage_findings"]
         assert suggest_result["contract_salvaged"] is True
-        assert any("approach_policy must be an object, not list" in warning for warning in suggest_result["contract_warnings"])
+        assert any(
+            "approach_policy must be an object, not list" in warning for warning in suggest_result["contract_warnings"]
+        )
         return
 
     for result in (run_result, suggest_result):
         assert result["schema_version"] == 1
         assert result["error"] == expected_error
+        assert result["contract_error_details"] == [str(expected_error).removeprefix("Invalid contract payload: ")]
 
 
 def test_contract_tools_reject_missing_context_intake() -> None:
@@ -1173,6 +1268,7 @@ def test_contract_tools_reject_blank_observable_regime_and_units(field_name: str
 
     expected = {
         "error": f"Invalid contract payload: observables.0.{field_name} must be a non-empty string",
+        "contract_error_details": [f"observables.0.{field_name} must be a non-empty string"],
         "schema_version": 1,
     }
 
@@ -1251,7 +1347,9 @@ def test_contract_tools_accept_recoverable_scalar_to_list_contract_drift(
             "context_intake.must_read_refs must be a list, not str",
         ),
         (
-            lambda contract: contract.setdefault("approach_policy", {}).__setitem__("allowed_fit_families", "power_law"),
+            lambda contract: contract.setdefault("approach_policy", {}).__setitem__(
+                "allowed_fit_families", "power_law"
+            ),
             "approach_policy.allowed_fit_families must be a list, not str",
         ),
     ],
@@ -1486,7 +1584,9 @@ def test_suggest_contract_checks_requires_forbidden_proxy_binding_when_contract_
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     result = suggest_contract_checks(_ambiguous_direct_proxy_contract())
-    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    direct_proxy = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency"
+    )
 
     assert direct_proxy["required_request_fields"] == ["binding.forbidden_proxy_ids"]
     assert direct_proxy["request_template"]["binding"] == {}
@@ -1497,7 +1597,9 @@ def test_suggest_contract_checks_ambiguous_direct_proxy_template_round_trips_to_
 
     contract = _ambiguous_direct_proxy_contract()
     result = suggest_contract_checks(contract)
-    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    direct_proxy = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency"
+    )
 
     run_result = run_contract_check(
         {
@@ -1516,7 +1618,9 @@ def test_suggest_contract_checks_direct_proxy_template_does_not_mix_subject_bind
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     result = suggest_contract_checks(_mismatched_direct_proxy_template_contract())
-    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    direct_proxy = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency"
+    )
     binding = direct_proxy["request_template"]["binding"]
 
     assert binding["forbidden_proxy_ids"] == ["fp-01"]
@@ -1974,7 +2078,9 @@ def test_run_contract_check_schema_rejects_benchmark_requests_without_source_ref
     assert any("any of the given schemas" in message for message in messages)
 
 
-def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> None:
+def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> (
+    None
+):
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2177,7 +2283,11 @@ def test_run_contract_check_reports_salvage_relevant_proof_contract_details() ->
         }
     )
 
-    assert result == {"error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str", "schema_version": 1}
+    assert result == {
+        "error": "Invalid contract payload: context_intake.must_read_refs must be a list, not str",
+        "contract_error_details": ["context_intake.must_read_refs must be a list, not str"],
+        "schema_version": 1,
+    }
 
 
 def test_run_contract_check_allows_case_only_salvage_for_proof_checks() -> None:
@@ -2242,12 +2352,15 @@ def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_
     assert result["contract_salvaged"] is True
     assert "claims.0.parameters.0.aliases must be a list, not str" in result["contract_salvage_findings"]
     assert "claims.0.hypotheses.0.symbols must be a list, not str" in result["contract_salvage_findings"]
-    assert "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage" in result[
-        "contract_salvage_findings"
-    ]
+    assert (
+        "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage"
+        in result["contract_salvage_findings"]
+    )
 
 
-def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_collections_when_metadata_is_missing() -> None:
+def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_collections_when_metadata_is_missing() -> (
+    None
+):
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2258,7 +2371,10 @@ def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_coll
             "check_key": "contract.limit_recovery",
             "contract": {
                 "schema_version": 1,
-                "scope": {"question": "What is the asymptotic limit?"},
+                "scope": {
+                    "question": "What is the asymptotic limit?",
+                    "in_scope": ["asymptotic limit recovery"],
+                },
                 "context_intake": {"context_gaps": ["Need benchmark reconciliation."]},
                 "claims": [],
                 "deliverables": [],
@@ -2286,7 +2402,10 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
             "check_key": "contract.limit_recovery",
             "contract": {
                 "schema_version": 1,
-                "scope": {"question": "What is the large-k limit?"},
+                "scope": {
+                    "question": "What is the large-k limit?",
+                    "in_scope": ["large-k limit recovery"],
+                },
                 "context_intake": {"must_read_refs": ["ref-main", " ref-main "]},
                 "uncertainty_markers": {
                     "weakest_anchors": ["Benchmark still tentative"],
@@ -2304,6 +2423,7 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
     assert messages
     assert runtime_result == {
         "error": "Invalid contract payload: context_intake.must_read_refs.1 is a duplicate",
+        "contract_error_details": ["context_intake.must_read_refs.1 is a duplicate"],
         "schema_version": 1,
     }
 
@@ -2481,7 +2601,9 @@ def test_run_contract_check_direct_proxy_consistency_bound_proxy_can_resolve_amb
     assert result["contract_impacts"] == ["fp-01"]
 
 
-def test_run_contract_check_direct_proxy_consistency_rejects_mixed_forbidden_proxy_and_acceptance_test_subjects() -> None:
+def test_run_contract_check_direct_proxy_consistency_rejects_mixed_forbidden_proxy_and_acceptance_test_subjects() -> (
+    None
+):
     from gpd.mcp.servers.verification_server import run_contract_check
 
     result = run_contract_check(
@@ -2585,6 +2707,7 @@ def test_contract_tools_reject_unknown_nested_contract_fields() -> None:
 
     expected = {
         "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
+        "contract_error_details": ["references.0.notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
 
@@ -2606,6 +2729,7 @@ def test_suggest_contract_checks_rejects_unknown_nested_contract_field_salvage_m
     assert salvage_result.recoverable_errors == ["references.0.notes: Extra inputs are not permitted"]
     assert result == {
         "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
+        "contract_error_details": ["references.0.notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
 
@@ -2652,6 +2776,7 @@ def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
 
     expected_error = {
         "error": "Invalid contract payload: legacy_notes: Extra inputs are not permitted",
+        "contract_error_details": ["legacy_notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
     assert run_result == expected_error
@@ -2828,7 +2953,11 @@ def test_contract_tools_reject_blank_or_malformed_contract_list_members_at_mcp_b
     contract = _load_project_contract_fixture()
     mutator(contract)
 
-    expected = {"error": f"Invalid contract payload: {expected_error}", "schema_version": 1}
+    expected = {
+        "error": f"Invalid contract payload: {expected_error}",
+        "contract_error_details": [expected_error],
+        "schema_version": 1,
+    }
 
     assert (
         _call_verification_tool(
@@ -2865,10 +2994,12 @@ def test_contract_tools_reject_blank_or_malformed_contract_list_members_at_mcp_b
         (
             lambda contract: contract["scope"].__setitem__("in_scope", "   "),
             (
+                "scope.in_scope must include at least one non-empty string; "
                 "scope.in_scope must not be blank; "
                 "scope.in_scope was normalized from blank string to empty list"
             ),
             [
+                "scope.in_scope must include at least one non-empty string",
                 "scope.in_scope must not be blank",
                 "scope.in_scope was normalized from blank string to empty list",
             ],
@@ -3118,6 +3249,7 @@ def test_contract_tools_reject_blocking_salvage_schema_drift() -> None:
 
     expected = {
         "error": "Invalid contract payload: acceptance_tests must be a list, not str",
+        "contract_error_details": ["acceptance_tests must be a list, not str"],
         "schema_version": 1,
     }
     assert run_result == expected
@@ -3140,6 +3272,7 @@ def test_contract_tools_reject_cross_link_invalid_contracts() -> None:
 
     expected = {
         "error": "Invalid contract payload: claim claim-benchmark references unknown reference missing-ref",
+        "contract_error_details": ["claim claim-benchmark references unknown reference missing-ref"],
         "schema_version": 1,
     }
     assert run_contract_check(request) == expected
@@ -3167,6 +3300,7 @@ def test_contract_tools_surface_full_contract_error_details_for_multi_error_payl
     suggest_result = suggest_contract_checks(contract)
 
     expected_details = [
+        "scope.in_scope must include at least one non-empty string",
         "scope.in_scope must not be blank",
         "scope.in_scope was normalized from blank string to empty list",
         "claims.0.references must not be blank",
@@ -3177,9 +3311,10 @@ def test_contract_tools_surface_full_contract_error_details_for_multi_error_payl
     ]
 
     assert run_result["error"] == (
-        "Invalid contract payload: scope.in_scope must not be blank; "
+        "Invalid contract payload: scope.in_scope must include at least one non-empty string; "
+        "scope.in_scope must not be blank; "
         "scope.in_scope was normalized from blank string to empty list; "
-        "claims.0.references must not be blank; +4 more"
+        "+5 more"
     )
     assert run_result["contract_error_details"] == expected_details
     assert suggest_result["error"] == run_result["error"]
@@ -3204,7 +3339,9 @@ def test_contract_tool_responses_copy_binding_targets_lists() -> None:
     assert second_run["binding_targets"] == ["claim", "deliverable", "acceptance_test", "reference"]
 
     first_suggest = suggest_contract_checks(_load_project_contract_fixture())
-    benchmark = next(entry for entry in first_suggest["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+    benchmark = next(
+        entry for entry in first_suggest["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction"
+    )
     benchmark["binding_targets"].append("poisoned")
 
     second_suggest = suggest_contract_checks(_load_project_contract_fixture())
@@ -3337,6 +3474,7 @@ def test_run_contract_check_surfaces_unknown_nested_contract_field_salvage_metad
 
     assert result == {
         "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
+        "contract_error_details": ["claims.0.notes: Extra inputs are not permitted"],
         "schema_version": 1,
     }
 

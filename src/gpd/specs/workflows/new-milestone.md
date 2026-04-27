@@ -680,7 +680,7 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files GPD/ROAD
 
 `gpd:discuss-phase [N]`
 
-<sub>`/clear` first for fresh context, then run `gpd:discuss-phase [N]`.</sub>
+<sub>Start a fresh context window, then run `gpd:discuss-phase [N]`.</sub>
 
 ---
 

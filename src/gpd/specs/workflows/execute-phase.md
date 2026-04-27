@@ -632,11 +632,13 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 4. **Spawn executor agents:**
 
    Pass paths only -- executors read files themselves with fresh context.
-   This keeps orchestrator context lean (~10-15%).
+   This keeps orchestrator context lean; use `references/orchestration/context-budget.md` for numeric budget targets.
 
    Canonical runtime delegation convention for every `task()` block in this workflow:
 
    @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+
+   The shared note owns empty-model omission, file-producing `readonly=false`, artifact-gated completion, child checkpoints, and sequential main-context fallback. Later handoff blocks should reference this convention instead of restating those rules.
 
    ```
    task(
@@ -711,7 +713,7 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 
    After a proof-bearing executor has written its proof artifact(s) and `SUMMARY.md`, but before the wave-level spot-check accepts the plan, spawn `gpd-check-proof` in a fresh context:
 
-   > **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
+   > Apply the canonical runtime delegation convention above.
 
    ```
    task(
@@ -1212,7 +1214,7 @@ Plans with `interactive: true` require user interaction.
 <step name="context_budget_check">
 **Before aggregating results, estimate context consumption:**
 
-Count the SUMMARY files that will be read and estimate their impact on orchestrator context:
+Count the SUMMARY files that will be read and estimate their impact on orchestrator context using the summary-aggregation heuristic in `references/orchestration/context-budget.md`.
 
 ```bash
 SUMMARY_COUNT=$(ls "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l)
@@ -1540,7 +1542,7 @@ All automated checks passed. {N} items need human review:
 
 `gpd:plan-phase {X} --gaps`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 Also: `cat {phase_dir}/{phase}-VERIFICATION.md` -- full report
 Also: `gpd:verify-work {X}` -- manual review first
@@ -1568,7 +1570,7 @@ TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$' "
 
 **For localized failures (1 contract target):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
 
-> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
+> Apply the canonical runtime delegation convention above.
 
 ```
 task(
@@ -1604,7 +1606,7 @@ task(
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 ```
 
-> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
+> Apply the canonical runtime delegation convention above.
 
 ```
 task(
@@ -1658,7 +1660,7 @@ Automatically re-verify the phase to confirm gaps are closed:
 VERIFIER_MODEL=$(gpd resolve-model gpd-verifier)
 ```
 
-> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
+> Apply the canonical runtime delegation convention above.
 
 ```
 task(
@@ -1726,7 +1728,7 @@ CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker)
 
 Spawn the consistency checker in rapid mode:
 
-> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
+> Apply the canonical runtime delegation convention above.
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
 
@@ -1776,7 +1778,7 @@ If the user chooses convention repair in a fresh continuation, spawn `gpd-notati
 NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
-> **Runtime delegation:** Use the canonical runtime delegation convention above; preserve empty-model omission, `readonly=false`, artifact-gated completion, and sequential main-context fallback.
+> Apply the canonical runtime delegation convention above.
 
 ```
 task(
@@ -1904,7 +1906,7 @@ Primary: `{chosen primary command}`
 - `{secondary command}` -- when relevant
 - `gpd:suggest-next` -- confirm the next action
 
-<sub>`/clear` first for fresh context, then run the primary command above.</sub>
+<sub>Start a fresh context window, then run the primary command above.</sub>
 ```
 
 **If milestone complete:**
@@ -1918,7 +1920,7 @@ All {N} phases executed.
 
 **Also available:** `gpd:suggest-next`
 
-<sub>`/clear` first for fresh context, then run `gpd:complete-milestone`.</sub>
+<sub>Start a fresh context window, then run `gpd:complete-milestone`.</sub>
 ```
 
 </step>
@@ -1926,7 +1928,7 @@ All {N} phases executed.
 </process>
 
 <context_efficiency>
-Orchestrator: ~10-15% context. Subagents: fresh contexts. No polling (Task blocks). No context bleed.
+Orchestrator stays lean per `references/orchestration/context-budget.md`; subagents get fresh contexts. No polling (Task blocks). No context bleed.
 </context_efficiency>
 
 <failure_handling>

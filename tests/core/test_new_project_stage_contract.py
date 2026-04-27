@@ -13,6 +13,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 NEW_PROJECT_COMMAND_PATH = REPO_ROOT / "src" / "gpd" / "commands" / "new-project.md"
 
 
+def _read_new_project_command() -> str:
+    return NEW_PROJECT_COMMAND_PATH.read_text(encoding="utf-8")
+
+
 def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
     contract = stage_contract_module.load_new_project_stage_contract()
 
@@ -31,6 +35,11 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "autonomy",
         "research_mode",
         "project_exists",
+        "state_exists",
+        "roadmap_exists",
+        "recoverable_project_exists",
+        "partial_project_exists",
+        "project_recovery_status",
         "has_research_map",
         "planning_exists",
         "has_research_files",
@@ -57,7 +66,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "surface the first scoping question",
         "preserve contract gate visibility without assuming approval-stage authority",
     )
-    assert contract.stages[0].writes_allowed == ()
+    assert contract.stages[0].writes_allowed == ("GPD/init-progress.json",)
     assert contract.stages[1].required_init_fields == (
         "project_contract",
         "project_contract_gate",
@@ -92,6 +101,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "references/ui/ui-brand.md",
         "templates/project.md",
         "templates/requirements.md",
+        "templates/state.md",
     )
     assert contract.stages[2].conditional_authorities == ()
     assert contract.stages[2].writes_allowed == (
@@ -102,6 +112,7 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "GPD/state.json",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
+        "GPD/init-progress.json",
         "GPD/literature/PRIOR-WORK.md",
         "GPD/literature/METHODS.md",
         "GPD/literature/COMPUTATIONAL.md",
@@ -120,6 +131,22 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
     )
 
 
+def test_new_project_post_scope_loads_templates_for_every_template_written_artifact() -> None:
+    contract = stage_contract_module.load_new_project_stage_contract()
+    post_scope = contract.stages[2]
+    command_text = _read_new_project_command()
+    required_template_by_output = {
+        "GPD/PROJECT.md": "templates/project.md",
+        "GPD/REQUIREMENTS.md": "templates/requirements.md",
+        "GPD/STATE.md": "templates/state.md",
+    }
+
+    for output_path, template_path in required_template_by_output.items():
+        assert output_path in post_scope.writes_allowed
+        assert template_path in post_scope.loaded_authorities
+        assert f"Read {{GPD_INSTALL_DIR}}/{template_path} only when writing `{output_path}`." in command_text
+
+
 def test_new_project_stage_contract_loader_is_cached() -> None:
     first = stage_contract_module.load_new_project_stage_contract()
     second = stage_contract_module.load_new_project_stage_contract()
@@ -128,7 +155,7 @@ def test_new_project_stage_contract_loader_is_cached() -> None:
 
 
 def test_new_project_command_mentions_approval_time_grounding_linkage() -> None:
-    command_text = NEW_PROJECT_COMMAND_PATH.read_text(encoding="utf-8")
+    command_text = _read_new_project_command()
 
     assert "project-contract-schema.md" in command_text
     assert "project-contract-grounding-linkage.md" in command_text

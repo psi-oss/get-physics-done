@@ -5,6 +5,9 @@ argument-hint: "[equation or topic to derive]"
 context_mode: project-aware
 command-policy:
   schema_version: 1
+  subject_policy:
+    explicit_input_kinds:
+      - equation or topic to derive
   supporting_context_policy:
     project_context_mode: project-aware
     project_reentry_mode: disallowed
@@ -65,7 +68,7 @@ fi
 
 ## 1. Execute the Derivation Workflow
 
-Execute the derive-equation workflow from @{GPD_INSTALL_DIR}/workflows/derive-equation.md end-to-end.
+Execute the included derive-equation workflow end-to-end.
 Preserve all workflow gates (assumption statement, notation, step-by-step derivation, verification, documentation).
 
 The workflow will:

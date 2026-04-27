@@ -104,17 +104,6 @@ def bump_version(version: str, bump: str) -> str:
     return f"{major}.{minor}.{patch}"
 
 
-def extract_vnext_notes(changelog_text: str) -> str:
-    match = re.search(r"^## vNEXT\s*\n(.*?)(?=^## v|\Z)", changelog_text, re.M | re.S)
-    if not match:
-        raise ReleaseError("No ## vNEXT section found in CHANGELOG.md.")
-
-    body = match.group(1).strip()
-    if not body:
-        raise ReleaseError("## vNEXT section in CHANGELOG.md is empty.")
-    return body
-
-
 def update_changelog_text(changelog_text: str, new_version: str) -> tuple[str, str]:
     match = re.search(r"^## vNEXT\s*\n(.*?)(?=^## v|\Z)", changelog_text, re.M | re.S)
     if not match:

@@ -14,7 +14,7 @@ Result IDs are continuity anchors as well as history entries. When a session end
 
 - `continue-here.md` is ephemeral (deleted on resume) — its `<persistent_state>` section is extracted and appended here as a projection
 - `STATE.md` tracks position and accumulated context — DERIVATION-STATE.md tracks equations and derivation progress
-- `CONVENTIONS.md` is the authoritative convention catalog — DERIVATION-STATE.md records which conventions were active per session
+- `GPD/state.json` `convention_lock` is the authoritative convention source — DERIVATION-STATE.md records the active lock/projection snapshot used in each session
 
 ---
 

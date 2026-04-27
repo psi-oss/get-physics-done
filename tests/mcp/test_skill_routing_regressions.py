@@ -9,14 +9,14 @@ import anyio
 from gpd.registry import SkillDef
 
 
-def _skill(name: str, *, category: str, registry_name: str) -> SkillDef:
+def _skill(name: str, *, category: str, registry_name: str, source_kind: str = "command") -> SkillDef:
     return SkillDef(
         name=name,
         description=name,
         content=name,
         category=category,
         path=f"/tmp/{name}.md",
-        source_kind="command",
+        source_kind=source_kind,
         registry_name=registry_name,
     )
 
@@ -164,6 +164,42 @@ def test_route_skill_uses_phrase_level_routes_for_onboarding_and_setup_commands(
         assert route_skill("guided first run for a new folder")["suggestion"] == "gpd-start"
         assert route_skill("want a guided overview of the main commands")["suggestion"] == "gpd-tour"
         assert route_skill("guided first run for a new folder")["suggestion"] != "gpd-execute-phase"
+
+
+def test_route_skill_uses_phrase_priorities_for_publication_review_workflows() -> None:
+    from gpd.mcp.servers.skills_server import route_skill
+
+    with patch(
+        "gpd.mcp.servers.skills_server._load_skill_index",
+        return_value=[
+            _skill("gpd-help", category="help", registry_name="help"),
+            _skill("gpd-write-paper", category="paper", registry_name="write-paper"),
+            _skill("gpd-literature-review", category="research", registry_name="literature-review"),
+            _skill("gpd-peer-review", category="review", registry_name="peer-review"),
+            _skill("gpd-respond-to-referees", category="paper", registry_name="respond-to-referees"),
+            _skill("gpd-review-knowledge", category="knowledge", registry_name="review-knowledge"),
+        ],
+    ):
+        assert route_skill("review manuscript before submission")["suggestion"] == "gpd-peer-review"
+        assert route_skill("referee response for the paper")["suggestion"] == "gpd-respond-to-referees"
+        assert route_skill("respond to referee comments")["suggestion"] == "gpd-respond-to-referees"
+        assert route_skill("approve knowledge note for promotion")["suggestion"] == "gpd-review-knowledge"
+        assert route_skill("promote knowledge draft")["suggestion"] == "gpd-review-knowledge"
+
+
+def test_route_skill_prefers_command_skills_over_agent_skills_on_equal_score() -> None:
+    from gpd.mcp.servers.skills_server import route_skill
+
+    skills = [
+        _skill("gpd-debugger-agent", category="debugging", registry_name="debug", source_kind="agent"),
+        _skill("gpd-debug", category="debugging", registry_name="debug", source_kind="command"),
+        _skill("gpd-help", category="help", registry_name="help"),
+    ]
+
+    with patch("gpd.mcp.servers.skills_server._load_skill_index", return_value=skills):
+        result = route_skill("debug this failure")
+
+    assert result["suggestion"] == "gpd-debug"
 
 
 def test_canonicalize_command_surface_rewrites_real_command_examples_only() -> None:

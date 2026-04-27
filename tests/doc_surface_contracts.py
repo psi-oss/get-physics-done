@@ -403,6 +403,7 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "Run <current-help-command> --all for the compact command index.",
             *tuple(
                 f"Run \\`{command}\\` for the compact command index."
                 for command in _runtime_command_variants("help --all")
@@ -441,6 +442,7 @@ def assert_help_command_all_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "Run <current-help-command> --command <name> for detailed help on one command.",
             *tuple(
                 f"Run \\`{command}\\` for detailed help on one command."
                 for command in _runtime_command_variants("help --command <name>")
@@ -497,6 +499,7 @@ def assert_help_command_single_command_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "Unknown command. Run <current-help-command> --all for the compact command index.",
             "Unknown command. Run `",
             *_quoted_fragments(*_runtime_command_variants("help --all")),
         ),
@@ -997,17 +1000,16 @@ def assert_runtime_reset_rediscovery_contract(
     extra_reset_fragments: Iterable[str] = (),
     extra_reset_not_recovery_fragments: Iterable[str] = (),
 ) -> None:
-    assert "/clear" in content
     assert recovery_local_snapshot_command() in content
     assert recovery_cross_workspace_command() in content
     _assert_contains_any(
         content,
         (
-            "fresh-context reset",
+            "fresh context reset",
             "fresh context window",
             "reset the runtime window",
             "reset the runtime to a fresh context window",
-            "`/clear` first, then run `{next command}`",
+            "Start a fresh context window",
             *tuple(extra_reset_fragments),
         ),
         label="runtime reset wording",
@@ -1025,7 +1027,7 @@ def assert_runtime_reset_rediscovery_contract(
         content,
         (
             "not as a recovery step",
-            "instead of implying that `/clear` performs recovery",
+            "do not treat the fresh context reset as project recovery",
             *tuple(extra_reset_not_recovery_fragments),
         ),
         label="reset-not-recovery wording",
@@ -1313,6 +1315,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
             "subject-owned publication root under `GPD/publication/{subject_slug}`",
             "subject-owned publication root at `GPD/publication/{subject_slug}`",
             "subject-owned publication root under `GPD/publication/{subject_slug}/...`",
+            "subject-owned publication root at `GPD/publication/{subject_slug}/...`",
             "outputs live under `GPD/publication/{subject_slug}/...`",
         ),
         label="subject-owned external continuation boundary",
@@ -1385,8 +1388,8 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "`gpd:arxiv-submission` only packages a GPD-owned manuscript root",
-            "`gpd:arxiv-submission` packages only a GPD-owned manuscript root",
+            "`gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint",
+            "`gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint",
             "resolved GPD-owned manuscript root",
             "optional GPD-owned manuscript-root target",
         ),
@@ -1400,7 +1403,7 @@ def assert_publication_lane_boundary_contract(content: str) -> None:
             "This is not a full publication-root migration.",
             "This is not a full publication-root migration",
             "not a full publication-root migration",
-            "Publication-root handling is partial by design",
+            "Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.",
         ),
         label="manuscript-root migration boundary",
     )

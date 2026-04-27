@@ -14,6 +14,7 @@ Make sure these are already true:
 - Node.js 20+ is available in that same terminal.
 - Python 3.11+ with the standard `venv` module is available there too.
 - Use `--local` while learning so GPD only affects the current folder.
+- Normal installs and `--reinstall` use the PyPI pinned release first, with tagged GitHub release sources only as fallback. `--upgrade` opts into the latest unreleased GitHub `main` source.
 
 <details>
 <summary>What this hub does not do</summary>

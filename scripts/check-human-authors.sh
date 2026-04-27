@@ -13,11 +13,11 @@ set -e
 RED='\033[0;31m'
 NC='\033[0m'
 
-NON_HUMAN_COAUTHOR_PATTERN='Co-Authored-By:.*\(Claude\|Anthropic\|OpenAI\|GPT\|Gemini\|C[oO][pP][iI][lL][oO][tT]\|noreply@anthropic\.com\|noreply@openai\.com\|github-actions\)'
+NON_HUMAN_COAUTHOR_PATTERN='^[[:space:]]*co-authored-by:[[:space:]]*.*(Claude|Anthropic|OpenAI|GPT|C[o]dex|Gemini|Copilot|noreply@anthropic\.com|noreply@openai\.com|github-actions)'
 
 # --- Mode 1: commit-msg hook (single file argument) ---
 if [ -f "${1:-}" ]; then
-    if grep -qi "$NON_HUMAN_COAUTHOR_PATTERN" "$1"; then
+    if grep -Eqi "$NON_HUMAN_COAUTHOR_PATTERN" "$1"; then
         echo "${RED}ERROR: non-human co-author detected in commit message.${NC}" >&2
         echo "" >&2
         echo "This project requires commit attribution to list human authors only." >&2
@@ -32,10 +32,16 @@ fi
 # --- Mode 2: range check (--range <range>) ---
 if [ "${1:-}" = "--range" ] && [ -n "${2:-}" ]; then
     range="$2"
-    offenders=$(git log "$range" --format="%H %s" --grep="Co-Authored-By" 2>/dev/null | while read hash msg; do
-        body=$(git log -1 --format="%b" "$hash")
-        if echo "$body" | grep -qi "$NON_HUMAN_COAUTHOR_PATTERN"; then
-            echo "  $hash $msg"
+    if ! git rev-list "$range" >/dev/null 2>&1; then
+        echo "${RED}ERROR: invalid git range ${range}.${NC}" >&2
+        exit 1
+    fi
+
+    offenders=$(git log "$range" --format="%H" | while read -r hash; do
+        subject=$(git log -1 --format="%s" "$hash")
+        body=$(git log -1 --format="%B" "$hash")
+        if printf '%s\n' "$body" | grep -Eqi "$NON_HUMAN_COAUTHOR_PATTERN"; then
+            echo "  $hash $subject"
         fi
     done)
     if [ -n "$offenders" ]; then

@@ -1025,8 +1025,11 @@ def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
     deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
     acceptance_test_ids = {test.id for test in contract.acceptance_tests}
     reference_ids = {reference.id for reference in contract.references}
+    forbidden_proxy_ids = {forbidden_proxy.id for forbidden_proxy in contract.forbidden_proxies}
+    link_ids = {link.id for link in contract.links}
     known_subject_ids = claim_ids | deliverable_ids
     known_ids = known_subject_ids | acceptance_test_ids | reference_ids
+    link_endpoint_ids = known_ids | observable_ids | forbidden_proxy_ids | link_ids
 
     for must_read_ref in contract.context_intake.must_read_refs:
         if must_read_ref not in reference_ids:
@@ -1067,9 +1070,9 @@ def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
             errors.append(f"forbidden proxy {forbidden_proxy.id} targets unknown subject {forbidden_proxy.subject}")
 
     for link in contract.links:
-        if link.source not in known_ids:
+        if link.source not in link_endpoint_ids:
             errors.append(f"link {link.id} references unknown source {link.source}")
-        if link.target not in known_ids:
+        if link.target not in link_endpoint_ids:
             errors.append(f"link {link.id} references unknown target {link.target}")
         for verification_id in link.verified_by:
             if verification_id not in acceptance_test_ids:
@@ -1425,7 +1428,7 @@ def validate_project_contract(
     if not question:
         errors.append("scope.question is required")
     if not parsed.scope.in_scope:
-        errors.append("scope.in_scope must name at least one project boundary or objective")
+        errors.append("scope.in_scope must include at least one non-empty string")
     if decisive_target_count == 0:
         errors.append("project contract must include at least one observable, claim, or deliverable")
     if not parsed.uncertainty_markers.weakest_anchors:

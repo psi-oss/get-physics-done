@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import gpd.adapters.gemini as gemini_module
 from gpd.adapters.gemini import (
     _GEMINI_APPROVED_CONTRACT_PATH,
     GeminiAdapter,
@@ -654,8 +655,8 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         wolfram = settings["mcpServers"]["gpd-wolfram"]
-        assert wolfram["command"] == "gpd-mcp-wolfram"
-        assert wolfram["args"] == []
+        assert wolfram["command"] == hook_python_interpreter()
+        assert wolfram["args"] == ["-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert wolfram["env"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"}
         assert wolfram["trust"] is True
         assert "super-secret-token" not in json.dumps(wolfram)
@@ -701,8 +702,8 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         wolfram = settings["mcpServers"]["gpd-wolfram"]
-        assert wolfram["command"] == "gpd-mcp-wolfram"
-        assert wolfram["args"] == []
+        assert wolfram["command"] == hook_python_interpreter()
+        assert wolfram["args"] == ["-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert wolfram["env"]["GPD_WOLFRAM_MCP_ENDPOINT"] == "https://custom.invalid/api/mcp"
         assert wolfram["env"]["EXTRA_FLAG"] == "1"
         assert wolfram["cwd"] == "/tmp/custom-wolfram"
@@ -757,6 +758,7 @@ class TestInstall:
         bridge = expected_gemini_bridge(target)
         assert bridge in parsed_policy["rule"][0]["commandPrefix"]
         assert '"git init"' in policy
+        assert "GPD/research" not in policy
 
     def test_install_surfaces_shell_prefix_allowlist_in_model_facing_content(
         self,
@@ -777,6 +779,7 @@ class TestInstall:
         assert f"`{expected_bridge}`" in command
         assert "`git init`" in command
         assert "`mkdir -p GPD`" in command
+        assert "`mkdir -p GPD/research`" not in command
         assert "`printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"`" in command
 
     def test_install_preserves_existing_policy_paths_and_mcp_trust_choice(
@@ -868,8 +871,8 @@ class TestInstall:
         assert "PRE_CHECK=$(" not in workflow
         assert f"{expected_bridge} --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in workflow
         assert f"{expected_bridge} state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in workflow
-        assert f"{expected_bridge} --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in state_schema
-        assert f"{expected_bridge} state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in state_schema
+        assert f"{expected_bridge} --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" not in state_schema
+        assert f"{expected_bridge} state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" not in state_schema
 
     def test_install_rewrites_set_profile_shell_block_for_gemini(
         self,
@@ -1092,6 +1095,52 @@ class TestInstall:
 
         assert settings_path.read_text(encoding="utf-8") == before
 
+    @pytest.mark.parametrize("missing_field", ["settingsPath", "settings", "statuslineCommand"])
+    def test_finalize_install_fails_closed_for_missing_deferred_payload_field(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        missing_field: str,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result.pop(missing_field)
+
+        with pytest.raises(RuntimeError, match="deferred install result is malformed"):
+            adapter.finalize_install(result)
+
+        assert not (target / "settings.json").exists()
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("settingsPath", ["settings.json"]),
+            ("settings", []),
+            ("statuslineCommand", 123),
+            ("shouldInstallStatusline", "yes"),
+            ("settingsWritten", "yes"),
+        ],
+    )
+    def test_finalize_install_fails_closed_for_invalid_deferred_payload_field(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        field: str,
+        value: object,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result[field] = value
+
+        with pytest.raises(RuntimeError, match="deferred install result is malformed"):
+            adapter.finalize_install(result)
+
+        assert not (target / "settings.json").exists()
+
     def test_finalize_install_fails_closed_for_structurally_invalid_settings_json(
         self,
         adapter: GeminiAdapter,
@@ -1202,6 +1251,29 @@ class TestRuntimePermissions:
         assert result["sync_applied"] is True
         assert result["launch_command"] == shlex.quote(str(wrapper))
         assert result["requires_relaunch"] is True
+
+    def test_sync_runtime_permissions_yolo_wrapper_uses_catalog_launch_command(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class _Descriptor:
+            launch_command = "/tmp/Gemini CLI/gemini"
+
+        monkeypatch.setattr(gemini_module, "get_runtime_descriptor", lambda runtime: _Descriptor())
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        wrapper = target / "get-physics-done" / "bin" / "gemini-gpd-yolo"
+
+        assert wrapper.read_text(encoding="utf-8") == (
+            "#!/bin/sh\n"
+            f"exec {shlex.quote(_Descriptor.launch_command)} --approval-mode=yolo \"$@\"\n"
+        )
 
     def test_sync_runtime_permissions_non_yolo_removes_launcher_wrapper(
         self,

@@ -55,6 +55,7 @@ def _valid_plan_contract_frontmatter(
         "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "    in_scope: [test scope]\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
         "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -187,6 +188,7 @@ def _project_local_plan_contract_frontmatter() -> str:
           schema_version: 1
           scope:
             question: What benchmark must this plan recover?
+            in_scope: [test scope]
           context_intake:
             must_read_refs: [ref-benchmark]
             must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]
@@ -275,6 +277,7 @@ def _write_proof_contract_phase(tmp_path: Path) -> tuple[Path, Path]:
               schema_version: 1
               scope:
                 question: Prove the full theorem without silently dropping r_0
+                in_scope: [test scope]
               context_intake:
                 must_read_refs: [ref-proof-anchor]
               observables:
@@ -699,6 +702,7 @@ class TestParseContractBlock:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake: {}\n"
             "  claims:\n"
             "    - id: claim-main\n"
@@ -1496,6 +1500,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake: {}\n"
             "  claims:\n"
             "    - id: claim-main\n"
@@ -1540,6 +1545,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What setup output should be ready for later comparison?\n"
+            "    in_scope: [setup note and starter code]\n"
             "    unresolved_questions: [\"Which benchmark will be authoritative?\"]\n"
             "  context_intake:\n"
             "    must_include_prior_outputs: [GPD/phases/00-setup/00-01-SUMMARY.md]\n"
@@ -1599,6 +1605,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: Which formulation and anchors deserve a first serious pass?\n"
+            "    in_scope: [first-pass formulation scoping]\n"
             "    unresolved_questions:\n"
             "      - Which benchmark should anchor the first computation?\n"
             "  context_intake:\n"
@@ -1631,6 +1638,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake: {}\n"
             "  claims:\n"
             "    - id: claim-main\n"
@@ -1769,6 +1777,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
             "  claims:\n"
@@ -1829,6 +1838,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake:\n"
             "    must_read_refs: [ref-missing]\n"
             "  claims:\n"
@@ -2452,6 +2462,7 @@ class TestVerifyArtifacts:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake: {}\n"
             "  uncertainty_markers:\n"
             "    weakest_anchors: [Missing benchmark decomposition]\n"
@@ -2499,6 +2510,7 @@ class TestVerifyPlanStructure:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
             "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
@@ -2633,6 +2645,7 @@ class TestVerifyPlanStructure:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake: {}\n"
             "  claims:\n"
             "    - id: claim-main\n"
@@ -2674,6 +2687,7 @@ class TestVerifyPlanStructure:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake: {}\n"
             "  claims:\n"
             "    - id: claim-main\n"

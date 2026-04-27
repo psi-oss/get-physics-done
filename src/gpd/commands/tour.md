@@ -32,7 +32,7 @@ and do not silently route into another workflow.
 </inline_guidance>
 
 <process>
-Follow the tour workflow from `@{GPD_INSTALL_DIR}/workflows/tour.md` end-to-end.
+Follow the included tour workflow end-to-end.
 Keep the response instructional and self-contained. Show the main command paths
 and the situations they fit, but do not hand off to another workflow or create
 any artifacts.

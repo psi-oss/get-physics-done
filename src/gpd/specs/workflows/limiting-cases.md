@@ -45,7 +45,7 @@ fi
 
 - A nonzero init exit is a hard stop, not standalone mode.
 - Parse JSON for: `commit_docs`, `project_exists`, `state_exists`.
-- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system and sign conventions. Extract `intermediate_results` from state for previously verified expressions. If you need to find the canonical expression first, use `gpd result search` by identifier, equation, or description; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before checking limits. Keep `gpd query search` for SUMMARY/frontmatter lookup. Extract active approximations and their validity ranges — these define the limits to check.
+- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system and sign conventions. Extract `intermediate_results` from state for previously verified expressions. If you need canonical stored-result context before checking limits, load and follow `{GPD_INSTALL_DIR}/references/results/result-lookup-policy.md`. Extract active approximations and their validity ranges — these define the limits to check.
 - **If init succeeds** (non-empty JSON with `state_exists: false`): Proceed in standalone mode with explicit convention declarations required from user via ask_user.
 - If `TARGET_KIND=phase`, resolve authoritative phase context inside the current workspace:
 

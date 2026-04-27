@@ -68,6 +68,7 @@ __all__ = [
     # Errors
     "PhaseError",
     "PhaseNotFoundError",
+    "PhaseAmbiguityError",
     "PhaseValidationError",
     "PhaseIncompleteError",
     "RoadmapNotFoundError",
@@ -133,6 +134,18 @@ class PhaseNotFoundError(PhaseError):
 
 class PhaseValidationError(PhaseError):
     """Raised when a phase number or input fails validation."""
+
+
+class PhaseAmbiguityError(PhaseValidationError):
+    """Raised when a phase identifier maps to multiple phase directories."""
+
+    def __init__(self, phase: str, matches: list[str]) -> None:
+        self.phase = phase
+        self.matches = matches
+        super().__init__(
+            f"Phase {phase} is ambiguous; matching directories: {', '.join(matches)}. "
+            "Use the exact phase directory name to disambiguate."
+        )
 
 
 class PhaseIncompleteError(PhaseError):
@@ -562,6 +575,8 @@ class PhaseFilesResult(BaseModel):
     files: list[str] = Field(default_factory=list)
     count: int = 0
     phase_dir: str | None = None
+    phase_directory: str | None = None
+    files_by_phase: dict[str, list[str]] = Field(default_factory=dict)
     error: str | None = None
 
 
@@ -743,7 +758,45 @@ class PhaseWaveValidationResult(BaseModel):
 
 def _sorted_phases(dirs: list[str]) -> list[str]:
     """Sort phase directory names by numeric segments."""
-    return sorted(dirs, key=_phase_sort_key)
+    return sorted(dirs, key=lambda name: (_phase_sort_key(name), name))
+
+
+def _phase_dir_number(dir_name: str) -> str | None:
+    """Return the normalized phase number encoded by a phase directory name."""
+    match = re.match(r"^(\d+(?:\.\d+)*)(?:-|$)", dir_name)
+    if match is None:
+        return None
+    return phase_normalize(match.group(1))
+
+
+def _phase_dir_immediate_descendant_of(dir_name: str, normalized_phase: str) -> bool:
+    """Return whether *dir_name* is an immediate decimal descendant of a phase."""
+    prefix = normalized_phase + "."
+    if not dir_name.startswith(prefix):
+        return False
+    rest = dir_name[len(prefix) :]
+    return re.match(r"^\d+(?:-|$)", rest) is not None and re.match(r"^\d+\.", rest) is None
+
+
+def _matching_phase_dir(phase: str, dirs: list[str]) -> str | None:
+    """Resolve a phase query to exactly one directory or raise on ambiguity."""
+    normalized = phase_normalize(phase)
+    if normalized in dirs:
+        return normalized
+
+    exact_number_matches = [d for d in dirs if _phase_dir_number(d) == normalized]
+    if len(exact_number_matches) > 1:
+        raise PhaseAmbiguityError(phase, exact_number_matches)
+    if len(exact_number_matches) == 1:
+        return exact_number_matches[0]
+
+    descendant_matches = [d for d in dirs if _phase_dir_immediate_descendant_of(d, normalized)]
+    if len(descendant_matches) > 1:
+        raise PhaseAmbiguityError(phase, descendant_matches)
+    if len(descendant_matches) == 1:
+        return descendant_matches[0]
+
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -867,22 +920,7 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
 
     with gpd_span("phases.find", phase=phase):
         dirs = _list_phase_dirs(cwd)
-
-        # Find matching directory
-        match_dir: str | None = None
-        for d in dirs:
-            if d == normalized:
-                match_dir = d
-                break
-            if d.startswith(normalized + "-"):
-                match_dir = d
-                break
-            # Decimal sub-phase match: "03.1" matches "03.1-name" but not "03.10-name"
-            if d.startswith(normalized + "."):
-                rest = d[len(normalized) + 1 :]
-                if re.match(r"^\d+(?:-|$)", rest) and not re.match(r"^\d+\.", rest):
-                    match_dir = d
-                    break
+        match_dir = _matching_phase_dir(phase, dirs)
 
         if match_dir is None:
             return None
@@ -971,13 +1009,17 @@ def list_phase_files(cwd: Path, file_type: str, phase: str | None = None) -> Pha
 
         # Filter to specific phase if requested
         if phase:
-            info = find_phase(cwd, phase)
+            try:
+                info = find_phase(cwd, phase)
+            except PhaseAmbiguityError as exc:
+                return PhaseFilesResult(error=str(exc))
             if not info:
                 return PhaseFilesResult(error="Phase not found")
             match_dir = Path(info.directory).name
             dirs = [match_dir]
 
         files: list[str] = []
+        files_by_phase: dict[str, list[str]] = {}
         for d in dirs:
             dir_path = phases_dir / d
             dir_files = sorted(f.name for f in dir_path.iterdir() if f.is_file())
@@ -989,13 +1031,22 @@ def list_phase_files(cwd: Path, file_type: str, phase: str | None = None) -> Pha
             else:
                 filtered = dir_files
 
-            files.extend(sorted(filtered))
+            files_by_phase[d] = sorted(filtered)
+            files.extend(files_by_phase[d])
 
         phase_dir_name = None
+        phase_directory = None
         if phase and dirs:
             phase_dir_name = re.sub(r"^\d+(?:\.\d+)*-?", "", dirs[0])
+            phase_directory = dirs[0]
 
-        return PhaseFilesResult(files=files, count=len(files), phase_dir=phase_dir_name)
+        return PhaseFilesResult(
+            files=files,
+            count=len(files),
+            phase_dir=phase_dir_name,
+            phase_directory=phase_directory,
+            files_by_phase=files_by_phase,
+        )
 
 
 # ─── Roadmap Get Phase ─────────────────────────────────────────────────────────
@@ -1011,38 +1062,20 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
         if content is None:
             return RoadmapPhaseResult(found=False, error="ROADMAP.md not found")
 
-        normalized_query = phase_normalize(str(phase_num))
-        # Match by normalized phase identity so roadmap headers like "Phase 1"
-        # and directory/context values like "01" resolve the same section.
-        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*):\s*([^\n]+)", re.IGNORECASE)
-
-        header_match: re.Match[str] | None = None
-        matched_phase_number: str | None = None
-        phase_name: str | None = None
-        for match in phase_pattern.finditer(content):
-            candidate_phase_number = match.group(1).strip()
-            if phase_normalize(candidate_phase_number) != normalized_query:
-                continue
-            header_match = match
-            matched_phase_number = candidate_phase_number
-            phase_name = match.group(2).strip()
-            break
-
-        if not header_match:
+        heading = _find_roadmap_phase_heading(content, phase_num)
+        if heading is None:
             return RoadmapPhaseResult(found=False, phase_number=phase_num)
 
-        header_index = header_match.start()
-        next_header = phase_pattern.search(content, header_match.end())
-        section_end = next_header.start() if next_header else len(content)
-        section = content[header_index:section_end].strip()
+        section_start, section_end = _roadmap_phase_section_bounds(content, heading)
+        section = content[section_start:section_end].strip()
 
         goal_match = re.search(r"\*\*Goal:\*\*\s*([^\n]+)", section, re.IGNORECASE)
         goal = goal_match.group(1).strip() if goal_match else None
 
         return RoadmapPhaseResult(
             found=True,
-            phase_number=matched_phase_number,
-            phase_name=phase_name,
+            phase_number=heading.number,
+            phase_name=heading.name,
             goal=goal,
             section=section,
         )
@@ -1203,7 +1236,14 @@ def validate_waves(plans: list[PlanEntry]) -> WaveValidation:
 def validate_phase_waves(cwd: Path, phase: str) -> PhaseWaveValidationResult:
     """Validate wave dependencies for a specific phase."""
     normalized = phase_normalize(phase)
-    phase_info = find_phase(cwd, phase)
+    try:
+        phase_info = find_phase(cwd, phase)
+    except PhaseAmbiguityError as exc:
+        return PhaseWaveValidationResult(
+            phase=normalized,
+            error=str(exc),
+            validation=WaveValidation(valid=False, errors=[str(exc)]),
+        )
 
     if not phase_info:
         return PhaseWaveValidationResult(
@@ -1244,7 +1284,13 @@ def validate_phase_waves(cwd: Path, phase: str) -> PhaseWaveValidationResult:
 def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
     """Build an index of plans in a phase with wave grouping and validation."""
     normalized = phase_normalize(phase)
-    phase_info = find_phase(cwd, phase)
+    try:
+        phase_info = find_phase(cwd, phase)
+    except PhaseAmbiguityError as exc:
+        return PhasePlanIndex(
+            phase=normalized,
+            validation=WaveValidation(valid=False, errors=[str(exc)]),
+        )
 
     if not phase_info:
         return PhasePlanIndex(phase=normalized)
@@ -1339,18 +1385,14 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             phase_dir_names = [d.name for d in phases_dir.iterdir() if d.is_dir()]
 
         # Extract all phase headings
-        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*)\s*:\s*([^\n]+)", re.IGNORECASE)
         phases: list[RoadmapPhase] = []
 
-        for match in phase_pattern.finditer(content):
-            phase_num = match.group(1)
-            phase_name = re.sub(r"\(INSERTED\)", "", match.group(2), flags=re.IGNORECASE).strip()
+        for heading in _roadmap_phase_headings(content):
+            phase_num = heading.number
+            phase_name = re.sub(r"\(INSERTED\)", "", heading.name, flags=re.IGNORECASE).strip()
 
             # Extract section text
-            section_start = match.start()
-            rest = content[section_start:]
-            next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest, re.IGNORECASE)
-            section_end = section_start + next_header.start() if next_header else len(content)
+            section_start, section_end = _roadmap_phase_section_bounds(content, heading)
             section = content[section_start:section_end]
 
             goal_match = re.search(r"\*\*Goal:\*\*\s*([^\n]+)", section, re.IGNORECASE)
@@ -1383,10 +1425,11 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             has_context = False
             has_research = False
 
-            dir_match_name = next(
-                (d for d in phase_dir_names if d.startswith(normalized + "-") or d == normalized),
-                None,
-            )
+            try:
+                dir_match_name = _matching_phase_dir(phase_num, _sorted_phases(phase_dir_names))
+            except PhaseAmbiguityError:
+                dir_match_name = None
+                disk_status = "ambiguous"
 
             if dir_match_name:
                 phase_files = [f.name for f in (phases_dir / dir_match_name).iterdir() if f.is_file()]
@@ -1411,10 +1454,15 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
                     disk_status = "empty"
 
             # Check ROADMAP checkbox status
-            escaped_num = re.escape(phase_num)
-            checkbox_pattern = re.compile(rf"-\s*\[(x| )\]\s*.*Phase\s+{escaped_num}(?=[:\s.\)]|$)", re.IGNORECASE)
-            checkbox_match = checkbox_pattern.search(content)
-            roadmap_complete = checkbox_match is not None and checkbox_match.group(1) == "x"
+            roadmap_complete = False
+            for checkbox_match in re.finditer(
+                r"-\s*\[(x| )\]\s*.*?\bPhase\s+(\d+(?:\.\d+)*)(?=[:\s.\)\u2014]|$)",
+                content,
+                re.IGNORECASE,
+            ):
+                if phase_normalize(checkbox_match.group(2)) == normalized:
+                    roadmap_complete = checkbox_match.group(1).lower() == "x"
+                    break
 
             phases.append(
                 RoadmapPhase(
@@ -1648,12 +1696,222 @@ def _remap_phase_after_removal(current_phase: str | None, removed_phase: str, re
     return _closest_previous(removed_norm)
 
 
-# ─── Phase heading format detection ──────────────────────────────────────────
+# ─── Phase heading parsing / format detection ───────────────────────────────
 
 _PHASE_HEADING_RE = re.compile(
-    r"(#{2,4})\s*Phase\s+(\d+)(?:\.\d+)?\s*(?:(\s+\u2014\s+)|(:\s*))",
-    re.IGNORECASE,
+    r"^(?P<indent>[ \t]*)(?P<level>#{2,4})[ \t]*Phase[ \t]+(?P<number>\d+(?:\.\d+)*)"
+    r"(?P<separator>[ \t]*(?::|\u2014)[ \t]*)(?P<name>[^\n]*)",
+    re.IGNORECASE | re.MULTILINE,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _RoadmapPhaseHeading:
+    indent: str
+    level: str
+    number: str
+    separator: str
+    name: str
+    start: int
+    end: int
+
+
+def _roadmap_phase_headings(content: str) -> list[_RoadmapPhaseHeading]:
+    """Return parsed phase headings from ROADMAP.md in document order."""
+    return [
+        _RoadmapPhaseHeading(
+            indent=match.group("indent"),
+            level=match.group("level"),
+            number=match.group("number"),
+            separator=match.group("separator"),
+            name=match.group("name").strip(),
+            start=match.start(),
+            end=match.end(),
+        )
+        for match in _PHASE_HEADING_RE.finditer(content)
+    ]
+
+
+def _find_roadmap_phase_heading(content: str, phase_num: str) -> _RoadmapPhaseHeading | None:
+    """Find a roadmap heading by normalized phase identity."""
+    normalized_query = phase_normalize(str(phase_num))
+    for heading in _roadmap_phase_headings(content):
+        if phase_normalize(heading.number) == normalized_query:
+            return heading
+    return None
+
+
+def _roadmap_phase_section_bounds(content: str, heading: _RoadmapPhaseHeading) -> tuple[int, int]:
+    """Return ``(start, end)`` bounds for a roadmap phase section."""
+    next_heading = _PHASE_HEADING_RE.search(content, heading.end)
+    return heading.start, next_heading.start() if next_heading else len(content)
+
+
+def _remove_roadmap_phase_sections(content: str, phase_numbers: list[str]) -> str:
+    """Remove phase sections matching *phase_numbers* by normalized identity."""
+    targets = {phase_normalize(phase) for phase in phase_numbers}
+    spans: list[tuple[int, int]] = []
+    for heading in _roadmap_phase_headings(content):
+        if phase_normalize(heading.number) not in targets:
+            continue
+        start, end = _roadmap_phase_section_bounds(content, heading)
+        if start > 0 and content[start - 1] == "\n":
+            start -= 1
+        spans.append((start, end))
+
+    merged_spans: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if not merged_spans or start > merged_spans[-1][1]:
+            merged_spans.append((start, end))
+            continue
+        previous_start, previous_end = merged_spans[-1]
+        merged_spans[-1] = (previous_start, max(previous_end, end))
+
+    updated = content
+    for start, end in reversed(merged_spans):
+        updated = updated[:start] + updated[end:]
+    return updated
+
+
+def _phase_number_in_set(phase_num: str, phase_numbers: set[str]) -> bool:
+    """Return whether *phase_num* matches one of *phase_numbers* after normalization."""
+    normalized = phase_normalize(phase_num)
+    return any(compare_phase_numbers(normalized, phase) == 0 for phase in phase_numbers)
+
+
+def _remove_roadmap_phase_reference_lines(content: str, phase_numbers: list[str]) -> str:
+    """Remove checklist/table rows that point at removed phases."""
+    targets = {phase_normalize(phase) for phase in phase_numbers}
+    if not targets:
+        return content
+
+    kept: list[str] = []
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        checkbox_match = re.match(
+            r"-\s*\[[ x]\]\s*.*?\bPhase\s+(\d+(?:\.\d+)*)\b",
+            stripped,
+            re.IGNORECASE,
+        )
+        if checkbox_match and _phase_number_in_set(checkbox_match.group(1), targets):
+            continue
+
+        table_match = re.match(r"\|\s*(\d+(?:\.\d+)*)\.?\s", stripped)
+        if table_match and _phase_number_in_set(table_match.group(1), targets):
+            continue
+
+        kept.append(line)
+    return "".join(kept)
+
+
+def _format_phase_display_num(num: int | str, pad_width: int) -> str:
+    """Format a phase number for roadmap display."""
+    s = str(num)
+    if pad_width <= 0:
+        return s
+    parts = s.split(".")
+    if parts and parts[0].isdigit():
+        parts[0] = parts[0].zfill(pad_width)
+    return ".".join(parts)
+
+
+def _format_shifted_phase_reference(phase_ref: str, removed_phase: str, pad_width: int) -> str:
+    """Shift a display phase reference and preserve roadmap padding style."""
+    shifted = _shift_phase_reference_after_removal(phase_ref, removed_phase)
+    if shifted == phase_ref:
+        return phase_ref
+    return _format_phase_display_num(shifted, pad_width)
+
+
+def _renumber_roadmap_phase_headings(content: str, removed_phase: str, pad_width: int) -> str:
+    """Renumber surviving roadmap phase headings after removal."""
+
+    def _replace(match: re.Match[str]) -> str:
+        number = _format_shifted_phase_reference(match.group("number"), removed_phase, pad_width)
+        return f"{match.group('indent')}{match.group('level')} Phase {number}{match.group('separator')}{match.group('name')}"
+
+    return _PHASE_HEADING_RE.sub(_replace, content)
+
+
+def _renumber_roadmap_phase_references(content: str, removed_phase: str, pad_width: int) -> str:
+    """Renumber non-heading roadmap phase references after removal."""
+    content = re.sub(
+        r"(^\s*-\s*\[[ x]\]\s*(?:\*\*)?Phase\s+)(\d+(?:\.\d+)*)",
+        lambda m: f"{m.group(1)}{_format_shifted_phase_reference(m.group(2), removed_phase, pad_width)}",
+        content,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+    content = re.sub(
+        r"(\*\*Depends on:\*\*\s*Phase\s+)(\d+(?:\.\d+)*)\b",
+        lambda m: f"{m.group(1)}{_format_shifted_phase_reference(m.group(2), removed_phase, pad_width)}",
+        content,
+        flags=re.IGNORECASE,
+    )
+    content = re.sub(
+        r"(\|\s*)(\d+(?:\.\d+)*)(\.\s)",
+        lambda m: f"{m.group(1)}{_format_shifted_phase_reference(m.group(2), removed_phase, pad_width)}{m.group(3)}",
+        content,
+    )
+    return re.sub(
+        r"(?<![\d.])(\d{2}(?:\.\d+)*)(?=-)",
+        lambda m: _shift_phase_reference_after_removal(m.group(1), removed_phase, normalize_output=True),
+        content,
+    )
+
+
+def _mark_roadmap_phase_complete(content: str, phase_num: str, today: str) -> str:
+    """Mark a matching roadmap checklist row complete."""
+    normalized = phase_normalize(phase_num)
+
+    def _replace(match: re.Match[str]) -> str:
+        if phase_normalize(match.group("number")) != normalized or match.group("mark").lower() == "x":
+            return match.group(0)
+        return f"{match.group('prefix')}x{match.group('suffix')} (completed {today})"
+
+    return re.sub(
+        r"(?m)^(?P<prefix>\s*-\s*\[)(?P<mark>[ xX])(?P<suffix>\]\s*.*?\bPhase\s+"
+        r"(?P<number>\d+(?:\.\d+)*)[^\n]*)$",
+        _replace,
+        content,
+    )
+
+
+def _update_roadmap_phase_plan_count(content: str, phase_num: str, summary_count: int, plan_count: int) -> str:
+    """Update the ``**Plans:**`` line within one roadmap phase section."""
+    heading = _find_roadmap_phase_heading(content, phase_num)
+    if heading is None:
+        return content
+    start, end = _roadmap_phase_section_bounds(content, heading)
+    section = content[start:end]
+    updated_section = re.sub(
+        r"(\*\*Plans:\*\*\s*)[^\n]+",
+        rf"\g<1>{summary_count}/{plan_count} plans complete",
+        section,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    return content[:start] + updated_section + content[end:]
+
+
+def _update_roadmap_phase_table_status(content: str, phase_num: str, today: str) -> str:
+    """Update a progress-table row for one phase by normalized identity."""
+    normalized = phase_normalize(phase_num)
+    lines: list[str] = []
+    for line in content.splitlines(keepends=True):
+        newline = ""
+        body = line
+        if body.endswith("\n"):
+            body = body[:-1]
+            newline = "\n"
+        cells = body.split("|")
+        if len(cells) >= 5:
+            phase_match = re.match(r"\s*(\d+(?:\.\d+)*)\.?\b", cells[1])
+            if phase_match and phase_normalize(phase_match.group(1)) == normalized:
+                cells[-3] = " Complete    "
+                cells[-2] = f" {today} "
+                body = "|".join(cells)
+        lines.append(body + newline)
+    return "".join(lines)
 
 
 def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
@@ -1668,28 +1926,25 @@ def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
     When no existing phases are found, returns defaults matching the
     ``new-project`` template: ``("###", 0, ": ")``.
     """
-    matches = list(_PHASE_HEADING_RE.finditer(content))
+    matches = _roadmap_phase_headings(content)
     if not matches:
         return "###", 0, ": "
 
     # Prefer the first integer-only phase (no decimal) for heading level
     heading_level: str | None = None
     for m in matches:
-        # Check this is an integer phase (no dot after the captured digits)
-        after_digits = content[m.end(2):]
-        if not after_digits.startswith("."):
-            heading_level = m.group(1)
+        if "." not in m.number:
+            heading_level = m.level
             break
     if heading_level is None:
         # All phases are decimal; use the first match
-        heading_level = matches[0].group(1)
+        heading_level = matches[0].level
 
     # Detect padding: check if any integer phase number has a leading zero
     pad_width = 0
     for m in matches:
-        raw_num = m.group(2)
-        after_digits = content[m.end(2):]
-        if after_digits.startswith("."):
+        raw_num = m.number
+        if "." in raw_num:
             continue  # skip decimal phases for padding detection
         if len(raw_num) > 1 and raw_num[0] == "0":
             pad_width = len(raw_num)
@@ -1698,22 +1953,10 @@ def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
     # Detect separator: colon vs em-dash
     separator = ": "  # default
     for m in matches:
-        if m.group(3):  # em-dash group matched
-            separator = m.group(3)
-            break
-        if m.group(4):  # colon group matched
-            separator = m.group(4)
-            break
+        separator = m.separator
+        break
 
     return heading_level, pad_width, separator
-
-
-def _format_phase_display_num(num: int | str, pad_width: int) -> str:
-    """Format a phase number for display in headings."""
-    s = str(num)
-    if pad_width > 0:
-        return s.zfill(pad_width)
-    return s
 
 
 # ─── Phase Add ─────────────────────────────────────────────────────────────────
@@ -1742,12 +1985,8 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             content = roadmap_path.read_text(encoding="utf-8")
 
             max_phase = 0
-            for m in re.finditer(
-                r"#{2,4}\s*Phase\s+(\d+)(?:\.\d+)?(?::|(?:\s+\u2014\s+))",
-                content,
-                re.IGNORECASE,
-            ):
-                num = int(m.group(1))
+            for heading in _roadmap_phase_headings(content):
+                num = int(phase_unpad(heading.number).split(".", 1)[0])
                 if num > max_phase:
                     max_phase = num
 
@@ -1833,12 +2072,8 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
         with file_lock(roadmap_path):
             content = roadmap_path.read_text(encoding="utf-8")
 
-            escaped = re.escape(after_phase)
-            if not re.search(
-                rf"#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))",
-                content,
-                re.IGNORECASE,
-            ):
+            after_heading = _find_roadmap_phase_heading(content, after_phase)
+            if after_heading is None:
                 raise PhaseValidationError(f"Phase {after_phase} not found in ROADMAP.md")
 
             normalized_base = phase_normalize(after_phase)
@@ -1858,10 +2093,11 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             decimal_phase = f"{normalized_base}.{next_decimal}"
             dir_name = f"{decimal_phase}-{slug}" if slug else decimal_phase
 
-            heading_level, _pad_width, separator = _detect_phase_heading_format(content)
-            depends_display = phase_normalize(after_phase)
+            heading_level, pad_width, separator = _detect_phase_heading_format(content)
+            display_decimal_phase = _format_phase_display_num(f"{phase_unpad(normalized_base)}.{next_decimal}", pad_width)
+            depends_display = _format_phase_display_num(phase_unpad(after_phase), pad_width)
             phase_entry = (
-                f"\n{heading_level} Phase {decimal_phase}{separator}{description} (INSERTED)\n\n"
+                f"\n{heading_level} Phase {display_decimal_phase}{separator}{description} (INSERTED)\n\n"
                 f"**Goal:** [Urgent work - to be planned]\n"
                 f"**Depends on:** Phase {depends_display}\n"
                 f"**Plans:** 0 plans\n\n"
@@ -1869,22 +2105,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
                 f"- [ ] TBD (run plan-phase {decimal_phase} to break down)\n"
             )
 
-            header_pattern = re.compile(
-                rf"(#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))[^\n]*\n)",
-                re.IGNORECASE,
-            )
-            header_match = header_pattern.search(content)
-            if not header_match:
-                raise PhaseValidationError(f"Could not find Phase {after_phase} header")
-
-            header_idx = content.index(header_match.group(0))
-            after_header = content[header_idx + len(header_match.group(0)) :]
-            next_phase_match = re.search(r"\n#{2,4}\s+Phase\s+\d", after_header, re.IGNORECASE)
-
-            if next_phase_match:
-                insert_idx = header_idx + len(header_match.group(0)) + next_phase_match.start()
-            else:
-                insert_idx = len(content)
+            _section_start, insert_idx = _roadmap_phase_section_bounds(content, after_heading)
 
             dir_path = phases_dir / dir_name
             dir_path.mkdir(parents=True, exist_ok=True)
@@ -1959,7 +2180,12 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
         with file_lock(roadmap_path):
             roadmap_before = roadmap_path.read_text(encoding="utf-8")
-            phases_backup_root, phases_backup_path = _backup_directory_tree(phases_dir)
+            removed_phase_numbers = [
+                phase.number for phase in roadmap_analyze(cwd).phases if _phase_in_subtree(phase.number, normalized)
+            ]
+            if not target_dirs and not removed_phase_numbers:
+                raise PhaseNotFoundError(target_phase)
+
             # Check for executed work (inside lock to avoid TOCTOU race)
             if target_dirs and not force:
                 summaries: list[str] = []
@@ -1971,66 +2197,24 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                         f"Phase {target_phase} has {len(summaries)} executed plan(s). Use force=True to remove anyway."
                     )
 
-            # Step 1: Update ROADMAP.md
-            roadmap_content = roadmap_before
-            removed_phase_numbers = [
-                phase.number for phase in roadmap_analyze(cwd).phases if _phase_in_subtree(phase.number, normalized)
-            ]
-            if not removed_phase_numbers:
-                removed_phase_numbers = [phase_unpad(target_phase)]
-
-            for phase_num in sorted(removed_phase_numbers, key=lambda value: (len(value.split(".")), value), reverse=True):
-                target_escaped = re.escape(phase_num)
-
-                section_pattern = re.compile(
-                    rf"\n?#{{2,4}}\s*Phase\s+{target_escaped}\s*:[\s\S]*?(?=\n#{{2,4}}\s+Phase\s+\d|$)",
-                    re.IGNORECASE,
-                )
-                roadmap_content = section_pattern.sub("", roadmap_content)
-
-                checkbox_pattern = re.compile(
-                    rf"\n?-\s*\[[ x]\]\s*.*Phase\s+{target_escaped}[:\s][^\n]*",
-                    re.IGNORECASE,
-                )
-                roadmap_content = checkbox_pattern.sub("", roadmap_content)
-
-                table_pattern = re.compile(
-                    rf"\n?\|\s*{target_escaped}\.?\s[^|]*\|[^\n]*",
-                    re.IGNORECASE,
-                )
-                roadmap_content = table_pattern.sub("", roadmap_content)
-
-            roadmap_content = re.sub(
-                r"(#{2,4}\s*Phase\s+)(\d+(?:\.\d+)*)(\s*:)",
-                lambda m: f"{m.group(1)}{_shift_phase_reference_after_removal(m.group(2), normalized)}{m.group(3)}",
-                roadmap_content,
-                flags=re.IGNORECASE,
-            )
-            roadmap_content = re.sub(
-                r"(^\s*-\s*\[[ x]\]\s*(?:\*\*)?Phase\s+)(\d+(?:\.\d+)*)([:\s])",
-                lambda m: f"{m.group(1)}{_shift_phase_reference_after_removal(m.group(2), normalized)}{m.group(3)}",
-                roadmap_content,
-                flags=re.MULTILINE,
-            )
-            roadmap_content = re.sub(
-                r"(Depends on:\*\*\s*Phase\s+)(\d+(?:\.\d+)*)\b",
-                lambda m: f"{m.group(1)}{_shift_phase_reference_after_removal(m.group(2), normalized)}",
-                roadmap_content,
-                flags=re.IGNORECASE,
-            )
-            roadmap_content = re.sub(
-                r"(\|\s*)(\d+(?:\.\d+)*)(\.\s)",
-                lambda m: f"{m.group(1)}{_shift_phase_reference_after_removal(m.group(2), normalized)}{m.group(3)}",
-                roadmap_content,
-            )
-            roadmap_content = re.sub(
-                r"(?<![\d.])(\d{2}(?:\.\d+)*)(?=-)",
-                lambda m: _shift_phase_reference_after_removal(m.group(1), normalized, normalize_output=True),
-                roadmap_content,
-            )
-
-            atomic_write(roadmap_path, roadmap_content)
+            phases_backup_root: Path | None = None
+            phases_backup_path: Path | None = None
             try:
+                phases_backup_root, phases_backup_path = _backup_directory_tree(phases_dir)
+
+                # Step 1: Update ROADMAP.md
+                roadmap_content = roadmap_before
+                if not removed_phase_numbers:
+                    removed_phase_numbers = [phase_unpad(target_phase)]
+
+                _heading_level, pad_width, _separator = _detect_phase_heading_format(roadmap_content)
+                roadmap_content = _remove_roadmap_phase_sections(roadmap_content, removed_phase_numbers)
+                roadmap_content = _remove_roadmap_phase_reference_lines(roadmap_content, removed_phase_numbers)
+                roadmap_content = _renumber_roadmap_phase_headings(roadmap_content, normalized, pad_width)
+                roadmap_content = _renumber_roadmap_phase_references(roadmap_content, normalized, pad_width)
+
+                atomic_write(roadmap_path, roadmap_content)
+
                 # Step 2: Filesystem operations
                 for dir_name in target_dirs:
                     shutil.rmtree(phases_dir / dir_name)
@@ -2246,7 +2430,6 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
     _validate_phase_number(phase_num)
 
     roadmap_path = _roadmap_path(cwd)
-    unpadded = phase_unpad(phase_num)
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     next_phase_num: str | None = None
@@ -2274,27 +2457,13 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
             roadmap_before = roadmap_path.read_text(encoding="utf-8") if roadmap_path.exists() else None
             if roadmap_path.exists():
                 roadmap_content = roadmap_before or ""
-                roadmap_phase = phase_unpad(phase_num)
-                roadmap_escaped = re.escape(roadmap_phase)
-                unpadded_escaped = re.escape(unpadded)
-
-                roadmap_content = re.sub(
-                    rf"(-\s*\[) (\]\s*.*Phase\s+{unpadded_escaped}[:\s][^\n]*)",
-                    rf"\g<1>x\2 (completed {today})",
+                roadmap_content = _mark_roadmap_phase_complete(roadmap_content, phase_num, today)
+                roadmap_content = _update_roadmap_phase_table_status(roadmap_content, phase_num, today)
+                roadmap_content = _update_roadmap_phase_plan_count(
                     roadmap_content,
-                    flags=re.IGNORECASE,
-                )
-                roadmap_content = re.sub(
-                    rf"(\|\s*{roadmap_escaped}\.?\s[^|]*\|[^|]*\|)\s*[^|]*(\|)\s*[^|]*(\|)",
-                    rf"\1 Complete    \2 {today} \3",
-                    roadmap_content,
-                    flags=re.IGNORECASE,
-                )
-                roadmap_content = re.sub(
-                    rf"(#{{2,4}}\s*Phase\s+{roadmap_escaped}[\s\S]*?\*\*Plans:\*\*\s*)[^\n]+",
-                    rf"\g<1>{summary_count}/{plan_count} plans complete",
-                    roadmap_content,
-                    flags=re.IGNORECASE,
+                    phase_num,
+                    summary_count,
+                    plan_count,
                 )
                 atomic_write(roadmap_path, roadmap_content)
 
@@ -2367,7 +2536,6 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     milestone_name = name or version
 
-    archive_dir.mkdir(parents=True, exist_ok=True)
     state_updated = False
 
     with gpd_span("milestone.complete", version=version, milestone=milestone_name):
@@ -2422,6 +2590,7 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             requirements_archive_path = archive_dir / f"{version}-REQUIREMENTS.md"
             archived_audit_path = archive_dir / f"{version}-MILESTONE-AUDIT.md"
             audit_file = _planning_path(cwd) / f"{version}-MILESTONE-AUDIT.md"
+            archive_dir.mkdir(parents=True, exist_ok=True)
             try:
                 if roadmap_path.exists():
                     content = roadmap_path.read_text(encoding="utf-8")
@@ -2493,7 +2662,7 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     roadmap_archive_path.unlink()
                 if requirements_archive_path.exists():
                     requirements_archive_path.unlink()
-                if not any(archive_dir.iterdir()):
+                if archive_dir.exists() and not any(archive_dir.iterdir()):
                     archive_dir.rmdir()
                 raise
 

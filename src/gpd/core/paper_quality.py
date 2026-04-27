@@ -7,6 +7,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from gpd.mcp.paper.models import SUPPORTED_PAPER_JOURNALS
+
 __all__ = [
     "Severity",
     "CoverageMetric",
@@ -24,7 +26,10 @@ __all__ = [
     "PaperQualityIssue",
     "CategoryScore",
     "PaperQualityReport",
+    "BUILDER_SCORER_FALLBACKS",
     "score_paper_quality",
+    "SCORING_ONLY_JOURNALS",
+    "SUPPORTED_SCORING_JOURNALS",
     "validate_tex_draft",
 ]
 
@@ -287,6 +292,40 @@ JOURNAL_RULES: dict[str, dict[str, object]] = {
         "extra_points": 3.0,
     },
 }
+
+BUILDER_SCORER_FALLBACKS: dict[str, str] = {
+    "mnras": "generic",
+    "jfm": "generic",
+}
+SCORING_ONLY_JOURNALS = frozenset({"prd", "prb", "prc", "nature_physics"})
+SUPPORTED_SCORING_JOURNALS = frozenset(JOURNAL_RULES) | frozenset(BUILDER_SCORER_FALLBACKS)
+
+
+def _journal_key(value: str) -> str:
+    return value.lower().replace(" ", "_")
+
+
+def _journal_rule_for_key(journal_key: str) -> dict[str, object]:
+    fallback_key = BUILDER_SCORER_FALLBACKS.get(journal_key, journal_key)
+    return JOURNAL_RULES.get(fallback_key, JOURNAL_RULES["generic"])
+
+
+def _validate_journal_policy() -> None:
+    missing_builder_journals = set(SUPPORTED_PAPER_JOURNALS) - SUPPORTED_SCORING_JOURNALS
+    if missing_builder_journals:
+        missing = ", ".join(sorted(missing_builder_journals))
+        raise RuntimeError(f"builder journal(s) missing paper-quality scorer policy: {missing}")
+    invalid_fallbacks = set(BUILDER_SCORER_FALLBACKS) - set(SUPPORTED_PAPER_JOURNALS)
+    if invalid_fallbacks:
+        invalid = ", ".join(sorted(invalid_fallbacks))
+        raise RuntimeError(f"paper-quality builder fallback(s) are not supported builder journals: {invalid}")
+    invalid_scoring_only = SCORING_ONLY_JOURNALS & set(SUPPORTED_PAPER_JOURNALS)
+    if invalid_scoring_only:
+        invalid = ", ".join(sorted(invalid_scoring_only))
+        raise RuntimeError(f"paper-quality scoring-only journal(s) now have builder support: {invalid}")
+
+
+_validate_journal_policy()
 
 
 def _ratio_points(ratio: float, full_points: float) -> float:
@@ -655,8 +694,8 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
 
     base_score = round(sum(category.score for category in categories.values()), 2)
 
-    journal_key = data.journal.lower().replace(" ", "_")
-    journal_rule = JOURNAL_RULES.get(journal_key, JOURNAL_RULES["generic"])
+    journal_key = _journal_key(data.journal)
+    journal_rule = _journal_rule_for_key(journal_key)
     multipliers = journal_rule["multipliers"]
 
     adjusted_total = 0.0

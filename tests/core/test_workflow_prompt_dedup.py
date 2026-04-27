@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
@@ -12,6 +13,7 @@ TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
+RESULT_LOOKUP_WORKFLOWS = ("explain.md", "compare-experiment.md", "limiting-cases.md")
 
 
 def _read(name: str) -> str:
@@ -59,6 +61,26 @@ def test_command_wrappers_do_not_duplicate_workflow_routing_boilerplate() -> Non
             assert phrase not in content, path.relative_to(REPO_ROOT)
 
 
+def test_command_wrappers_do_not_repeat_self_workflow_reference_after_include() -> None:
+    for path in sorted(COMMANDS_DIR.rglob("*.md")):
+        command_slug = path.stem
+        workflow_reference = re.compile(
+            rf"(?<!@)\{{GPD_INSTALL_DIR\}}/workflows/{re.escape(command_slug)}\.md"
+            rf"|@\{{GPD_INSTALL_DIR\}}/workflows/{re.escape(command_slug)}\.md"
+        )
+        content = path.read_text(encoding="utf-8")
+        assert len(workflow_reference.findall(content)) <= 1, path.relative_to(REPO_ROOT)
+
+
+def test_set_profile_updates_only_model_profile_through_config_cli() -> None:
+    set_profile = _read("set-profile.md")
+
+    assert 'gpd config set model_profile "$ARGUMENTS.profile"' in set_profile
+    assert "preserving all other `GPD/config.json` keys" in set_profile
+    assert '"model_profile": "$ARGUMENTS.profile"' not in set_profile
+    assert "Write updated config back to `GPD/config.json`" not in set_profile
+
+
 def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -> None:
     plan_phase_raw = _read("plan-phase.md")
     quick_raw = _read("quick.md")
@@ -78,8 +100,8 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
     assert verify_work_raw.count("templates/planner-subagent-prompt.md") == 2
     assert "templates/planner-subagent-prompt.md" not in quick_raw
     assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/phase-prompt.md") == 1
-    assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
-    assert "These are the hard planner contract gates." in planner_agent_raw
+    assert planner_agent_raw.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 0
+    assert "This template carries the hard planner contract gates." in planner_agent_raw
 
     assert planner_template.count("## Standard Planning Template") == 1
     assert planner_template.count("## Revision Template") == 1
@@ -128,6 +150,28 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
     assert "The shared planner template owns the canonical planning and revision policy." not in verify_work
 
 
+def test_planner_agent_does_not_duplicate_canonical_plan_template_blocks() -> None:
+    planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    phase_template = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+
+    canonical_only_markers = (
+        "# Phase Plan Prompt Template",
+        "## File Template",
+        "phase: XX-name",
+        "type: execute | tdd",
+        "## Required Frontmatter",
+        "## Light Plan Variant",
+        "## Contract Shape Classifier",
+    )
+
+    for marker in canonical_only_markers:
+        assert marker in phase_template
+        assert marker not in planner_agent
+
+    assert "## PLAN.md Source Of Truth" in planner_agent
+    assert "Gap-specific fields to insert into the canonical `phase-prompt.md` template:" in planner_agent
+
+
 def test_new_project_workflow_keeps_contract_preservation_rules_single_sourced() -> None:
     new_project = _read("new-project.md")
 
@@ -147,6 +191,64 @@ def test_new_project_workflow_keeps_contract_preservation_rules_single_sourced()
         "keep `schema_version` at `1`, and keep `references[].must_surface` as a boolean, not a synonym"
         not in new_project
     )
+
+
+def test_new_project_workflow_references_late_artifact_templates_without_inlining_skeletons() -> None:
+    new_project = _read("new-project.md")
+    project_template = (TEMPLATES_DIR / "project.md").read_text(encoding="utf-8")
+    state_template = (TEMPLATES_DIR / "state.md").read_text(encoding="utf-8")
+
+    assert "{GPD_INSTALL_DIR}/templates/project.md" in new_project
+    assert "{GPD_INSTALL_DIR}/templates/state.md" in new_project
+    assert "@{GPD_INSTALL_DIR}/templates/project.md" not in new_project
+    assert "@{GPD_INSTALL_DIR}/templates/state.md" not in new_project
+
+    assert "# {project_title}" in project_template
+    assert "## Scoping Contract Summary" in project_template
+    assert "## Current Position" in state_template
+    assert "**Current Phase Name:** [Phase name]" in state_template
+
+    assert new_project.count("## Scoping Contract Summary") <= 1
+    for removed_project_skeleton_marker in (
+        "# [Extracted Research Title]",
+        "[Extracted research question]",
+        "- **User-stated observables:** [Specific quantity, curve, figure, or smoking-gun signal]",
+        "| Parameter | Symbol | Regime | Notes |",
+        "_Last updated: [today's date] after initialization (minimal)_",
+    ):
+        assert removed_project_skeleton_marker not in new_project
+
+    for removed_state_skeleton_marker in (
+        "# Research State",
+        "See: GPD/PROJECT.md (updated [today's date])",
+        "**Current Phase:** 1",
+        "**Current Phase Name:** [Phase 1 name]",
+        "**Stopped at:** Project initialized (minimal)",
+    ):
+        assert removed_state_skeleton_marker not in new_project
+
+
+def test_notation_coordinator_references_subfield_defaults_without_inlining_table() -> None:
+    notation_coordinator = (AGENTS_DIR / "gpd-notation-coordinator.md").read_text(encoding="utf-8")
+    subfield_defaults = (
+        REFERENCES_DIR / "conventions" / "subfield-convention-defaults.md"
+    ).read_text(encoding="utf-8")
+    canonical_reference = "{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md"
+
+    assert canonical_reference in notation_coordinator
+    assert f"@{canonical_reference}" not in notation_coordinator
+    assert "Load the canonical subfield defaults reference and look up the matching subfield." in notation_coordinator
+    assert "Pre-populate `CONVENTIONS.md` with the default choices." in notation_coordinator
+
+    assert "## Convention Defaults by Subfield" in subfield_defaults
+    assert "## Convention Defaults by Subfield" not in notation_coordinator
+    for canonical_row in (
+        "| Units | Natural: ℏ = c = 1 | Universal in particle physics |",
+        "| Metric signature | (+,−,−,−) (West Coast) | Peskin & Schroeder, Weinberg |",
+        "| Brillouin zone | First BZ; high-symmetry points (Γ, X, M, K) | Setyawan & Curtarolo notation |",
+    ):
+        assert canonical_row in subfield_defaults
+        assert canonical_row not in notation_coordinator
 
 
 def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
@@ -169,6 +271,36 @@ def test_context_pressure_default_threshold_table_is_single_sourced() -> None:
     assert "This file only lists per-agent overrides and calibration notes." in thresholds
 
 
+def test_result_lookup_policy_is_single_sourced_for_high_level_workflows() -> None:
+    policy = (REFERENCES_DIR / "results" / "result-lookup-policy.md").read_text(encoding="utf-8")
+
+    assert policy.count("# Result Lookup Policy") == 1
+    assert policy.count("gpd result search") == 2
+    assert policy.count("gpd result show") == 1
+    assert policy.count("gpd result deps") == 1
+    assert policy.count("gpd result downstream") == 1
+    assert "Keep `gpd query search` for SUMMARY/frontmatter lookup" in policy
+
+    for workflow_name in RESULT_LOOKUP_WORKFLOWS:
+        raw = _read(workflow_name)
+        expanded = _expand(workflow_name)
+
+        assert raw.count("references/results/result-lookup-policy.md") == 1, workflow_name
+        assert expanded.count("references/results/result-lookup-policy.md") == 1, workflow_name
+        assert "# Result Lookup Policy" not in expanded, workflow_name
+
+        for command in (
+            "gpd result search",
+            "gpd result show",
+            "gpd result deps",
+            "gpd result downstream",
+        ):
+            assert command not in raw, workflow_name
+            assert command not in expanded, workflow_name
+        assert "direct stored-result view before" not in raw, workflow_name
+        assert "reverse dependency tree separated into direct and transitive" not in raw, workflow_name
+
+
 def test_state_portability_uses_canonical_continuation_prose() -> None:
     state_portability = (REPO_ROOT / "src/gpd/specs/references/orchestration/state-portability.md").read_text(
         encoding="utf-8"
@@ -177,3 +309,92 @@ def test_state_portability_uses_canonical_continuation_prose() -> None:
     assert "Canonical state in `state.json.continuation` wins first" in state_portability
     assert "gpd --raw resume` emits the canonical top-level list" in state_portability
     assert "A derived head without a portable usable resume file remains advisory continuity context only." not in state_portability
+
+
+def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
+    execute_phase = _read("execute-phase.md")
+
+    assert execute_phase.count("references/orchestration/runtime-delegation-note.md") == 1
+    assert "The shared note owns empty-model omission" in execute_phase
+    assert "preserve empty-model omission, `readonly=false`, artifact-gated completion" not in execute_phase
+    assert execute_phase.count("Apply the canonical runtime delegation convention above.") >= 3
+
+
+def test_experiment_designer_uses_external_ising_example_as_single_source() -> None:
+    designer = (AGENTS_DIR / "gpd-experiment-designer.md").read_text(encoding="utf-8")
+    example = (
+        REPO_ROOT / "src/gpd/specs/references/examples/ising-experiment-design-example.md"
+    ).read_text(encoding="utf-8")
+
+    assert "## Worked Example: 2D Ising Model Phase Diagram via Monte Carlo" not in designer
+    assert designer.count("@{GPD_INSTALL_DIR}/references/examples/ising-experiment-design-example.md") == 1
+    assert "This gives 15 critical-region temperatures" in example
+    assert "This gives 14 temperatures" not in example
+
+
+def test_numeric_context_budget_guidance_is_single_sourced() -> None:
+    context_budget = (REFERENCES_DIR / "orchestration" / "context-budget.md").read_text(encoding="utf-8")
+    infra = (REFERENCES_DIR / "orchestration" / "agent-infrastructure.md").read_text(encoding="utf-8")
+    meta = (REFERENCES_DIR / "orchestration" / "meta-orchestration.md").read_text(encoding="utf-8")
+    execute_phase = _read("execute-phase.md")
+
+    assert "## Phase-Class Budget Targets" in context_budget
+    assert "Summary aggregation heuristic" in context_budget
+    assert "estimated_tokens = plan_count * tasks_per_plan * 6000" not in infra
+    assert "| Phase Type | Orchestrator Budget | Agent Budget (each) | Total per Phase | Notes |" not in meta
+    assert "This document owns strategic routing; it does not restate the budget table." in meta
+    assert "references/orchestration/context-budget.md` as the canonical numeric source" in infra
+    assert "references/orchestration/context-budget.md" in execute_phase
+
+
+def test_executor_uses_plain_paths_for_inline_references_and_at_includes_only_for_real_includes() -> None:
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+
+    inline_at_lines = [
+        line for line in executor.splitlines() if "@{GPD_INSTALL_DIR}" in line and not line.strip().startswith("@{GPD_INSTALL_DIR}/")
+    ]
+    assert inline_at_lines == []
+    assert "`{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md`" in executor
+    assert "`{GPD_INSTALL_DIR}/templates/summary.md`" in executor
+
+
+def test_agent_specific_return_examples_defer_base_envelope_fields_to_infrastructure() -> None:
+    trimmed_agents = (
+        "gpd-experiment-designer.md",
+        "gpd-notation-coordinator.md",
+        "gpd-project-researcher.md",
+        "gpd-phase-researcher.md",
+        "gpd-plan-checker.md",
+        "gpd-research-mapper.md",
+        "gpd-research-synthesizer.md",
+        "gpd-roadmapper.md",
+        "gpd-paper-writer.md",
+        "gpd-verifier.md",
+        "gpd-executor.md",
+        "gpd-referee.md",
+        "gpd-bibliographer.md",
+        "gpd-debugger.md",
+        "gpd-literature-reviewer.md",
+        "gpd-planner.md",
+    )
+
+    for agent_name in trimmed_agents:
+        text = (AGENTS_DIR / agent_name).read_text(encoding="utf-8")
+        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text, agent_name
+        assert "The four base fields (`status`, `files_written`, `issues`, `next_actions`)" not in text, agent_name
+
+
+def test_bibliographer_delegates_return_boilerplate_to_agent_infrastructure() -> None:
+    text = (AGENTS_DIR / "gpd-bibliographer.md").read_text(encoding="utf-8")
+
+    assert "Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields" in text
+    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in text
+
+    for removed_phrase in (
+        "Checkpoint ownership is orchestrator-side",
+        "Runtime delegation rule:",
+        "The headings in this section are presentation only.",
+        "Use `gpd_return.status: checkpoint` as the control surface.",
+        "Return `gpd_return.status: completed`, `checkpoint`, `blocked`, or `failed`.",
+    ):
+        assert removed_phrase not in text

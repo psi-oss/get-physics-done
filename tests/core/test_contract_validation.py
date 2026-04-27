@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import (
     PROOF_AUDIT_REVIEWER,
     ComparisonVerdict,
@@ -2209,7 +2210,7 @@ def test_validate_project_contract_salvages_singleton_list_string_drift_at_valid
         (
             lambda contract: contract["scope"].__setitem__("in_scope", "   "),
             False,
-            "scope.in_scope must name at least one project boundary or objective",
+            "scope.in_scope must include at least one non-empty string",
             "scope.in_scope must not be blank",
         ),
     ],
@@ -2260,14 +2261,16 @@ def test_parse_project_contract_data_salvage_normalizes_blank_string_list_corrup
     result = parse_project_contract_data_salvage(contract)
 
     assert result.contract is not None
-    assert result.blocking_errors == []
     assert any(expected_path in error and "must not be blank" in error for error in result.recoverable_errors)
 
     if expected_path == "context_intake.must_read_refs":
+        assert result.blocking_errors == []
         assert result.contract.context_intake.must_read_refs == []
     elif expected_path == "references.0.required_actions":
+        assert result.blocking_errors == []
         assert result.contract.references[0].required_actions == []
     else:
+        assert result.blocking_errors == ["scope.in_scope must include at least one non-empty string"]
         assert result.contract.scope.in_scope == []
 
 
@@ -2391,6 +2394,48 @@ def test_validate_project_contract_rejects_invalid_forbidden_proxy_and_link_bind
     assert "link link-01 references unknown acceptance test missing-test" in result.errors
 
 
+def test_validate_project_contract_accepts_link_endpoints_for_all_contract_node_types() -> None:
+    contract = _load_contract_fixture()
+    contract["links"] = [
+        {
+            "id": "link-observable-to-proxy",
+            "source": "obs-benchmark",
+            "target": "fp-01",
+            "relation": "depends_on",
+            "verified_by": ["test-benchmark"],
+        },
+        {
+            "id": "link-reference-to-test",
+            "source": "ref-benchmark",
+            "target": "test-benchmark",
+            "relation": "benchmarks",
+            "verified_by": ["test-benchmark"],
+        },
+        {
+            "id": "link-link-to-deliverable",
+            "source": "link-observable-to-proxy",
+            "target": "deliv-figure",
+            "relation": "depends_on",
+            "verified_by": ["test-benchmark"],
+        },
+    ]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is True
+    assert not any(error.startswith("link ") for error in result.errors)
+
+
+def test_validate_project_contract_rejects_ambiguous_link_endpoint_ids_across_node_types() -> None:
+    contract = _load_contract_fixture()
+    contract["forbidden_proxies"][0]["id"] = "claim-benchmark"
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "contract id claim-benchmark is reused across claim, forbidden proxy; target resolution is ambiguous" in result.errors
+
+
 def test_validate_project_contract_reports_nested_object_schema_errors() -> None:
     contract = _load_contract_fixture()
     contract["observables"] = ["benchmark observable"]
@@ -2410,7 +2455,7 @@ def test_validate_project_contract_propagates_schema_errors() -> None:
     result = validate_project_contract(contract)
 
     assert result.valid is False
-    assert "scope.in_scope must name at least one project boundary or objective" in result.errors
+    assert "scope.in_scope must include at least one non-empty string" in result.errors
 
 
 def test_validate_project_contract_rejects_reference_aliases_list_shape_drift_at_validation_boundary() -> None:
@@ -3590,7 +3635,12 @@ def test_research_contract_accepts_structured_theorem_claim_fields() -> None:
 
 @pytest.mark.parametrize("schema_name", ("project-contract-schema.md", "state-json-schema.md"))
 def test_project_contract_schema_examples_are_validator_compatible(schema_name: str) -> None:
-    schema_text = (TEMPLATES_DIR / schema_name).read_text(encoding="utf-8")
+    raw_schema_text = (TEMPLATES_DIR / schema_name).read_text(encoding="utf-8")
+    schema_text = (
+        expand_at_includes(raw_schema_text, TEMPLATES_DIR.parent, "/runtime/")
+        if schema_name == "state-json-schema.md"
+        else raw_schema_text
+    )
     match = re.search(r"##+ `project_contract`\n\n```json\n(.*?)\n```", schema_text, re.DOTALL)
 
     assert match is not None

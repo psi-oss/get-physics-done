@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import (
     CONTRACT_ACCEPTANCE_AUTOMATION_VALUES,
     CONTRACT_ACCEPTANCE_TEST_KIND_VALUES,
@@ -26,6 +27,10 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _expanded(path: Path) -> str:
+    return expand_at_includes(_read(path), REPO_ROOT / "src/gpd/specs", "/runtime/")
+
+
 def _vocab_line(field: str, values: tuple[str, ...]) -> str:
     return f"- `{field}: {' | '.join(values)}`"
 
@@ -44,8 +49,11 @@ def test_project_contract_schema_docs_surface_the_closed_contract_vocabularies()
     )
 
     for schema_path in (PROJECT_CONTRACT_SCHEMA, STATE_JSON_SCHEMA):
-        text = _read(schema_path)
-        assert "@{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md" in text
+        text = _read(schema_path) if schema_path == PROJECT_CONTRACT_SCHEMA else _expanded(schema_path)
+        if schema_path == PROJECT_CONTRACT_SCHEMA:
+            assert "@{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md" in text
+        else:
+            assert "Project Contract ID Linkage Rules" in text
         for line in expected_lines:
             assert line in text, f"{schema_path.name} is missing: {line}"
 

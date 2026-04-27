@@ -72,9 +72,6 @@ Keep the wrapper thin and let the workflow own target resolution, review artifac
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/review-knowledge.md
-@{GPD_INSTALL_DIR}/templates/knowledge-schema.md
-@{GPD_INSTALL_DIR}/templates/knowledge.md
-@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
 </execution_context>
 
 <context>
@@ -95,11 +92,7 @@ If the target is ambiguous, the workflow must stop and ask for clarification.
 </context>
 
 <process>
-@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
-@{GPD_INSTALL_DIR}/templates/knowledge-schema.md
-@{GPD_INSTALL_DIR}/templates/knowledge.md
-
-Follow `@{GPD_INSTALL_DIR}/workflows/review-knowledge.md` exactly.
+Follow the included review-knowledge workflow exactly. The workflow owns schema loading, target validation, review artifact writing, freshness checks, and lifecycle updates.
 </process>
 
 <success_criteria>

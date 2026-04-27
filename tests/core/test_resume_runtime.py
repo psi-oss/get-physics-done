@@ -1364,6 +1364,19 @@ def test_init_resume_state_exists_false_when_only_unrecoverable_state_file_is_pr
     assert ctx["state_exists"] is False
 
 
+def test_init_resume_state_exists_false_when_only_state_backup_is_present(tmp_path: Path) -> None:
+    planning = tmp_path / "GPD"
+    planning.mkdir()
+    (planning / "state.json.bak").write_text(json.dumps(state_module.default_state_dict()), encoding="utf-8")
+
+    ctx = init_resume(tmp_path)
+
+    assert ctx["project_reentry_mode"] == "no-recovery"
+    assert ctx["workspace_state_exists"] is False
+    assert ctx["state_exists"] is False
+    assert ctx["state_json_backup_exists"] is True
+
+
 def test_init_resume_nested_workspace_probe_does_not_create_fake_gpd_dir(
     tmp_path: Path,
     state_project_factory,

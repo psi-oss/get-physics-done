@@ -29,11 +29,13 @@ from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     expand_at_includes,
+    finish_install,
     validate_package_integrity,
     write_settings,
 )
 from gpd.registry import _parse_agent_file, _parse_frontmatter
 from tests.runtime_test_support import (
+    FOREIGN_RUNTIME,
     PRIMARY_RUNTIME,
     runtime_empty_config_content,
     runtime_primary_config_filename,
@@ -49,6 +51,11 @@ _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 _ALL_RUNTIMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
 _RUNTIMES_WITH_MANIFEST_FILE_PREFIXES = tuple(
     descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.manifest_file_prefixes
+)
+_RUNTIMES_WITH_STATUSLINE_CONFIG = tuple(
+    descriptor.runtime_name
+    for descriptor in _RUNTIME_DESCRIPTORS
+    if descriptor.capabilities.statusline_config_surface != "none"
 )
 
 
@@ -97,6 +104,25 @@ def _legacy_gpd_hook_body() -> str:
     )
 
 
+def _settings_session_start_commands(settings: dict[str, object]) -> list[str]:
+    hooks = settings.get("hooks")
+    session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else []
+    if not isinstance(session_start, list):
+        return []
+
+    commands: list[str] = []
+    for entry in session_start:
+        if not isinstance(entry, dict):
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            continue
+        for hook in entry_hooks:
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str):
+                commands.append(hook["command"])
+    return commands
+
+
 def _seed_ambiguous_install_target(target: Path, *, manifest_state: str) -> None:
     """Create a target that looks like an install but lacks trustworthy ownership data."""
     (target / "commands" / "gpd").mkdir(parents=True, exist_ok=True)
@@ -114,8 +140,8 @@ def _seed_ambiguous_install_target(target: Path, *, manifest_state: str) -> None
         )
 
 
-def _install_gemini_for_tests(gpd_root: Path, target: Path) -> None:
-    adapter = get_adapter("gemini")
+def _install_foreign_runtime_for_tests(gpd_root: Path, target: Path) -> None:
+    adapter = get_adapter(FOREIGN_RUNTIME)
     result = adapter.install(gpd_root, target, is_global=True)
     adapter.finalize_install(result)
 
@@ -123,7 +149,7 @@ def _install_gemini_for_tests(gpd_root: Path, target: Path) -> None:
 class _CommitAttributionProbeAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
-        return "claude-code"
+        return PRIMARY_RUNTIME
 
     def runtime_install_required_relpaths(self) -> tuple[str, ...]:
         return ("custom-config.json",)
@@ -132,7 +158,7 @@ class _CommitAttributionProbeAdapter(RuntimeAdapter):
 class _NoCommitAttributionProbeAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
-        return "claude-code"
+        return PRIMARY_RUNTIME
 
     def runtime_install_required_relpaths(self) -> tuple[str, ...]:
         return ()
@@ -372,6 +398,30 @@ class TestNonGpdFilesPreserved:
 
         assert stale_hook.read_text(encoding="utf-8") == _legacy_gpd_hook_body()
 
+    @pytest.mark.parametrize("runtime_name", _RUNTIMES_WITH_STATUSLINE_CONFIG)
+    def test_install_does_not_configure_unmanaged_reserved_hook_basenames(
+        self,
+        tmp_path: Path,
+        runtime_name: str,
+    ) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter(runtime_name)
+        target = tmp_path / adapter.config_dir_name
+        statusline_hook = target / "hooks" / "statusline.py"
+        update_hook = target / "hooks" / "check_update.py"
+        statusline_hook.parent.mkdir(parents=True)
+        statusline_hook.write_text("# third-party statusline hook\n", encoding="utf-8")
+        update_hook.write_text("# third-party update hook\n", encoding="utf-8")
+
+        result = adapter.install(gpd_root, target, is_global=False)
+        adapter.finalize_install(result)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert statusline_hook.read_text(encoding="utf-8") == "# third-party statusline hook\n"
+        assert update_hook.read_text(encoding="utf-8") == "# third-party update hook\n"
+        assert "statusLine" not in settings
+        assert all("hooks/check_update.py" not in command for command in _settings_session_start_commands(settings))
+
     def test_uninstall_preserves_manifestless_hook_residue_with_matching_basename(self, tmp_path: Path) -> None:
         adapter = get_adapter(PRIMARY_RUNTIME)
         target = tmp_path / adapter.config_dir_name
@@ -383,6 +433,50 @@ class TestNonGpdFilesPreserved:
 
         assert "1 GPD hooks" not in result["removed"]
         assert stale_hook.exists()
+
+    @pytest.mark.parametrize("runtime_name", _RUNTIMES_WITH_STATUSLINE_CONFIG)
+    @pytest.mark.parametrize("relative_prefix", ("", "./"))
+    def test_local_statusline_reinstall_updates_existing_relative_gpd_command(
+        self,
+        tmp_path: Path,
+        runtime_name: str,
+        relative_prefix: str,
+    ) -> None:
+        adapter = get_adapter(runtime_name)
+        settings_path = tmp_path / adapter.config_dir_name / "settings.json"
+        managed_hook = f"{relative_prefix}{adapter.config_dir_name}/hooks/statusline.py"
+        settings = {
+            "statusLine": {
+                "type": "command",
+                "command": f"/old/python {managed_hook}",
+            }
+        }
+        desired_command = f"/new/python {managed_hook}"
+
+        finish_install(settings_path, settings, desired_command, True)
+
+        written = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert written["statusLine"]["command"] == desired_command
+
+    def test_codex_notify_reinstall_preserves_original_notify_backup_for_uninstall(self, tmp_path: Path) -> None:
+        from gpd.adapters.codex import _configure_config_toml, _remove_gpd_notify_config
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text('notify = ["toolctl", "/path/to/my-tool"]\n', encoding="utf-8")
+
+        _configure_config_toml(target, is_global=False)
+        _configure_config_toml(target, is_global=False)
+
+        reinstalled = config_toml.read_text(encoding="utf-8")
+        assert reinstalled.count("# GPD original notify:") == 1
+        assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in reinstalled
+        assert "gpd-codex-notify-wrapper-v1" in reinstalled
+
+        cleaned = _remove_gpd_notify_config(reinstalled, target_dir=target)
+        assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
+        assert "gpd-codex-notify-wrapper-v1" not in cleaned
 
 
 # =========================================================================
@@ -799,24 +893,24 @@ class TestMultiRuntimeSameTarget:
         gpd_root = _make_gpd_root(tmp_path)
         target_cc = tmp_path / get_adapter(PRIMARY_RUNTIME).config_dir_name
         target_cc.mkdir()
-        target_gem = tmp_path / "gemini"
-        target_gem.mkdir()
+        target_foreign = tmp_path / get_adapter(FOREIGN_RUNTIME).config_dir_name
+        target_foreign.mkdir()
 
         adapter_cc = get_adapter(PRIMARY_RUNTIME)
         adapter_cc.install(gpd_root, target_cc, is_global=True)
 
-        _install_gemini_for_tests(gpd_root, target_gem)
+        _install_foreign_runtime_for_tests(gpd_root, target_foreign)
 
         # Both should have written commands
         assert (target_cc / "commands" / "gpd").is_dir()
-        assert (target_gem / "commands" / "gpd").is_dir()
+        assert (target_foreign / "commands" / "gpd").is_dir()
         # Manifests should be valid independently
         manifest_cc = json.loads((target_cc / MANIFEST_NAME).read_text(encoding="utf-8"))
-        manifest_gem = json.loads((target_gem / MANIFEST_NAME).read_text(encoding="utf-8"))
+        manifest_foreign = json.loads((target_foreign / MANIFEST_NAME).read_text(encoding="utf-8"))
         assert "version" in manifest_cc
-        assert "version" in manifest_gem
+        assert "version" in manifest_foreign
         assert len(manifest_cc["files"]) > 0
-        assert len(manifest_gem["files"]) > 0
+        assert len(manifest_foreign["files"]) > 0
 
 
 # =========================================================================

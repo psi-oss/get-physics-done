@@ -442,7 +442,7 @@ Probe how sensitive results are to assumptions and approximations.
 - Commit file
 - Present summary with next steps
 
-**Resume after /clear:**
+**Resume after a fresh context reset:**
 
 1. Read frontmatter -> know phase and status
 2. Read Current Check -> know where we are

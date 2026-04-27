@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
@@ -122,6 +123,22 @@ class TestPreCommitCheck:
         assert result.details[0].frontmatter_valid is None
         assert result.details[0].has_nan is False
 
+    def test_state_md_validation_does_not_persist_readonly_state_recovery(self, tmp_path: Path) -> None:
+        from gpd.core.state import generate_state_markdown
+
+        gpd_dir = tmp_path / "GPD"
+        gpd_dir.mkdir()
+        (gpd_dir / "STATE.md").write_text(
+            generate_state_markdown({"convention_lock": {"metric_signature": "mostly-minus"}}),
+            encoding="utf-8",
+        )
+
+        result = cmd_pre_commit_check(tmp_path, ["GPD/STATE.md"])
+
+        assert result.passed is True
+        assert not (gpd_dir / "state.json").exists()
+        assert not (gpd_dir / "state.json.bak").exists()
+
     def test_json_nonfinite_detection_fails(self, tmp_path: Path) -> None:
         txt = tmp_path / "data.json"
         txt.write_text('{"value": NaN}', encoding="utf-8")
@@ -208,14 +225,14 @@ class TestPreCommitCheck:
         assert any("internal metadata directories" in warning for warning in result.warnings)
 
     def test_policy_owned_gpd_managed_commit_target_passes_storage_validation(self, tmp_path: Path) -> None:
-        target = tmp_path / "GPD" / "paper" / "main.tex"
+        target = tmp_path / "GPD" / "publication" / "curvature-flow" / "manuscript" / "main.tex"
         target.parent.mkdir(parents=True)
         target.write_text("\\documentclass{article}\n", encoding="utf-8")
 
         result = cmd_pre_commit_check(
             tmp_path,
-            ["GPD/paper/main.tex"],
-            managed_output_policies=(ManagedOutputPolicy.gpd_subtree("paper"),),
+            ["GPD/publication/curvature-flow/manuscript/main.tex"],
+            managed_output_policies=(ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow"),),
         )
 
         assert result.passed is True
@@ -414,6 +431,23 @@ class TestPreCommitCheck:
         assert result.details[0].assert_convention_required is False
         assert result.details[0].assert_convention_valid is None
 
+    def test_docs_phases_verification_markdown_is_not_convention_gated(self, tmp_path: Path) -> None:
+        self._write_convention_lock(tmp_path, metric_signature="mostly-minus")
+        self._write_markdown(
+            tmp_path,
+            "docs/phases/02-derivation/02-VERIFICATION.md",
+            "# Verification Notes\n",
+        )
+
+        result = cmd_pre_commit_check(
+            tmp_path,
+            ["docs/phases/02-derivation/02-VERIFICATION.md"],
+        )
+
+        assert result.passed is True
+        assert result.details[0].assert_convention_required is False
+        assert result.details[0].assert_convention_valid is None
+
     def test_non_gated_python_with_assertion_mismatch_fails(self, tmp_path: Path) -> None:
         self._write_convention_lock(tmp_path, metric_signature="mostly-minus")
         self._write_markdown(
@@ -431,6 +465,14 @@ class TestPreCommitCheck:
         assert any("ASSERT_CONVENTION mismatch" in warning for warning in result.warnings)
 
 
+def test_assert_convention_support_helper_is_defined_once() -> None:
+    import inspect
+
+    import gpd.core.git_ops as git_ops
+
+    assert inspect.getsource(git_ops).count("def _supports_assert_convention_validation(") == 1
+
+
 # ---------------------------------------------------------------------------
 # Commit — unit tests (mocked git)
 # ---------------------------------------------------------------------------
@@ -438,6 +480,15 @@ class TestPreCommitCheck:
 
 class TestCommit:
     """Tests for cmd_commit with mocked git subprocess."""
+
+    def _git(self, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def test_empty_message_raises(self, tmp_path: Path) -> None:
         from gpd.core.errors import ValidationError
@@ -620,6 +671,46 @@ class TestCommit:
         assert result.reason == "commit_docs_disabled"
         mock_precheck.assert_not_called()
         mock_git.assert_not_called()
+
+    def test_commit_preserves_unrelated_pre_staged_paths(self, tmp_path: Path) -> None:
+        self._git(tmp_path, "init")
+        self._git(tmp_path, "config", "user.email", "test@example.com")
+        self._git(tmp_path, "config", "user.name", "Test User")
+
+        state_path = tmp_path / "GPD" / "STATE.md"
+        state_path.parent.mkdir()
+        state_path.write_text("# Research State\n", encoding="utf-8")
+        unrelated_path = tmp_path / "notes.txt"
+        unrelated_path.write_text("initial\n", encoding="utf-8")
+        self._git(tmp_path, "add", "GPD/STATE.md", "notes.txt")
+        self._git(tmp_path, "commit", "-m", "initial")
+
+        unrelated_path.write_text("pre-staged unrelated change\n", encoding="utf-8")
+        self._git(tmp_path, "add", "notes.txt")
+        state_path.write_text("# Research State\n\nScoped change.\n", encoding="utf-8")
+
+        result = cmd_commit(tmp_path, "test: scoped commit", files=["GPD/STATE.md"])
+
+        assert result.committed is True
+        committed_paths = [
+            line
+            for line in self._git(
+                tmp_path,
+                "show",
+                "--format=",
+                "--name-only",
+                "HEAD",
+            ).stdout.splitlines()
+            if line
+        ]
+        assert committed_paths == ["GPD/STATE.md"]
+        staged_paths = self._git(
+            tmp_path,
+            "diff",
+            "--cached",
+            "--name-only",
+        ).stdout.splitlines()
+        assert staged_paths == ["notes.txt"]
 
 
 # ---------------------------------------------------------------------------

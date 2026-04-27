@@ -6,7 +6,7 @@ template_version: 1
 
 Template for `GPD/NOTATION_GLOSSARY.md` - comprehensive notation reference for the research project.
 
-**Purpose:** Single source of truth for all symbols, indices, and conventions used across phases. Prevents notation drift and sign-convention errors when multiple phases build on each other.
+**Purpose:** Human-readable symbol projection and notation audit surface for the research project. The authoritative convention choices live in `GPD/state.json` under `convention_lock`; this file lists symbols, units, index meanings, and notation conflicts against that lock so readers can spot notation drift before phases build on each other.
 
 ---
 
@@ -17,6 +17,12 @@ Template for `GPD/NOTATION_GLOSSARY.md` - comprehensive notation reference for t
 
 **Analysis Date:** [YYYY-MM-DD]
 **Last Updated:** [YYYY-MM-DD]
+**Authoritative convention lock:** `GPD/state.json` -> `convention_lock`
+**Projection status:** [synced | stale | drift_detected]
+
+> This glossary is not a second convention authority. When a symbol row depends on a convention
+> choice, cite the corresponding `convention_lock` key or `GPD/CONVENTIONS.md` projection entry
+> and flag mismatches as notation drift.
 
 ## Coordinates and Spacetime
 
@@ -115,22 +121,23 @@ _Update when new symbols are introduced or conventions change_
 
 **When filling this template:**
 
-- Start with coordinates, metric signature, and unit system from CONVENTIONS.md
+- Start with coordinates, metric signature, and unit system from `state.json.convention_lock`; use CONVENTIONS.md only as the human-readable projection/audit note
 - Add fields and operators as they appear in the theoretical framework
 - Track parameters with their physical ranges and units
 - Record index conventions explicitly (Einstein summation? Which indices are summed?)
 - Note the Fourier transform convention once and reference it everywhere
 - Update per-phase notation as new phases introduce new symbols
 
-**Relationship to CONVENTIONS.md:**
+**Relationship to CONVENTIONS.md and `convention_lock`:**
 
-- CONVENTIONS.md defines the high-level choices (metric signature, unit system, sign conventions)
+- `state.json.convention_lock` defines the high-level choices (metric signature, unit system, sign conventions)
+- CONVENTIONS.md projects those locked choices into a human-readable audit ledger with rationale and test values
 - NOTATION_GLOSSARY.md is the detailed lookup table for every symbol
-- They are complementary: CONVENTIONS.md says "we use natural units", NOTATION_GLOSSARY.md lists every quantity with its natural-unit dimensions
+- They are complementary projections: the lock says "we use natural units"; CONVENTIONS.md explains the choice; NOTATION_GLOSSARY.md lists every quantity with its natural-unit dimensions
 
 **Why this matters for multi-phase research:**
 
 - Phase 3 uses $\Sigma$ for self-energy; Phase 7 introduces $\Sigma$ for stress tensor -> conflict
 - Without a glossary, downstream phases may silently adopt wrong conventions
-- The "Potential Conflicts" section catches these before they cause errors
+- The "Potential Conflicts" section catches these before they cause errors and should point back to the relevant `convention_lock` key whenever a conflict is convention-dependent
   </guidelines>

@@ -65,6 +65,9 @@ from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
 from gpd.core.manuscript_artifacts import (
+    _supported_manuscript_root_for_target as resolve_supported_manuscript_root_for_target,
+)
+from gpd.core.manuscript_artifacts import (
     resolve_current_manuscript_entrypoint,
     resolve_current_publication_subject,
     resolve_publication_bootstrap_resolution,
@@ -73,7 +76,7 @@ from gpd.core.peer_review_mode import (
     PEER_REVIEW_STANDALONE_MODE,
     resolve_peer_review_mode,
 )
-from gpd.core.phases import _milestone_completion_snapshot
+from gpd.core.phases import _milestone_completion_snapshot, roadmap_analyze
 from gpd.core.project_reentry import (
     ProjectReentryCandidate,
     recoverable_project_context,
@@ -151,6 +154,24 @@ from gpd.core.workflow_staging import (
 from gpd.core.workflow_staging import (
     RESEARCH_PHASE_INIT_FIELDS as _RESEARCH_PHASE_INIT_FIELDS,
 )
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_CONTRACT_GATE_FIELDS as _VERIFY_WORK_CONTRACT_GATE_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_INIT_FIELDS as _VERIFY_WORK_INIT_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_REFERENCE_RUNTIME_FIELDS as _VERIFY_WORK_REFERENCE_RUNTIME_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_STAGE_ALLOWED_TOOLS as _VERIFY_WORK_STAGE_ALLOWED_TOOLS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_STATE_MEMORY_FIELDS as _VERIFY_WORK_STATE_MEMORY_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    VERIFY_WORK_STRUCTURED_STATE_FIELDS as _VERIFY_WORK_STRUCTURED_STATE_FIELDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +185,7 @@ class InitRootPolicy(StrEnum):
 
 
 # Research file extensions for project detection.
-_RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
+_RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90", ".pdf", ".csv"})
 _LITERATURE_DIR_NAME = "literature"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
@@ -215,6 +236,7 @@ _RESUME_BASE_INIT_FIELDS = frozenset(
         "workspace_roadmap_exists",
         "workspace_project_exists",
         "workspace_planning_exists",
+        "state_json_backup_exists",
         "state_exists",
         "roadmap_exists",
         "project_exists",
@@ -391,6 +413,7 @@ _WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS = frozenset(
         "publication_lane_owner",
         "publication_artifact_base",
         "selected_publication_root",
+        "selected_review_root",
         "publication_intake_root",
         "manuscript_resolution_status",
         "manuscript_resolution_detail",
@@ -601,115 +624,6 @@ _NEW_MILESTONE_INIT_FIELDS = frozenset(
         *_NEW_MILESTONE_FILE_CONTENT_FIELDS,
     }
 )
-_VERIFY_WORK_STAGE_ALLOWED_TOOLS = frozenset(
-    {
-        "ask_user",
-        "file_read",
-        "file_edit",
-        "file_write",
-        "find_files",
-        "search_files",
-        "shell",
-        "task",
-    }
-)
-_VERIFY_WORK_BASE_INIT_FIELDS = frozenset(
-    {
-        "planner_model",
-        "checker_model",
-        "verifier_model",
-        "commit_docs",
-        "autonomy",
-        "research_mode",
-        "phase_found",
-        "phase_dir",
-        "phase_number",
-        "phase_name",
-        "has_verification",
-        "has_validation",
-        "phase_proof_review_status",
-        "platform",
-    }
-)
-_VERIFY_WORK_CONTRACT_GATE_FIELDS = frozenset(
-    {
-        "project_contract",
-        "project_contract_validation",
-        "project_contract_load_info",
-        "project_contract_gate",
-    }
-)
-_VERIFY_WORK_REFERENCE_RUNTIME_FIELDS = frozenset(
-    {
-        "contract_intake",
-        "effective_reference_intake",
-        "derived_active_references",
-        "derived_active_reference_count",
-        "derived_knowledge_docs",
-        "derived_knowledge_doc_count",
-        "knowledge_doc_warnings",
-        "citation_source_files",
-        "citation_source_count",
-        "citation_source_warnings",
-        "derived_citation_sources",
-        "derived_citation_source_count",
-        "derived_manuscript_reference_status",
-        "derived_manuscript_reference_status_count",
-        "derived_manuscript_proof_review_status",
-        "active_references",
-        "active_reference_count",
-        "selected_protocol_bundle_ids",
-        "protocol_bundle_count",
-        "protocol_bundle_verifier_extensions",
-        "protocol_bundle_context",
-        "active_reference_context",
-        "knowledge_doc_files",
-        "knowledge_doc_count",
-        "stable_knowledge_doc_files",
-        "stable_knowledge_doc_count",
-        "knowledge_doc_status_counts",
-        "literature_review_files",
-        "literature_review_count",
-        "research_map_reference_files",
-        "research_map_reference_count",
-        "reference_artifact_files",
-        "reference_artifacts_content",
-    }
-)
-_VERIFY_WORK_STRUCTURED_STATE_FIELDS = frozenset(
-    {
-        "state_load_source",
-        "state_integrity_issues",
-        "convention_lock",
-        "convention_lock_count",
-        "intermediate_results",
-        "intermediate_result_count",
-        "approximations",
-        "approximation_count",
-        "propagated_uncertainties",
-        "propagated_uncertainty_count",
-    }
-)
-_VERIFY_WORK_STATE_MEMORY_FIELDS = frozenset(
-    {
-        "derived_convention_lock",
-        "derived_convention_lock_count",
-        "derived_intermediate_results",
-        "derived_intermediate_result_count",
-        "derived_approximations",
-        "derived_approximation_count",
-    }
-)
-_VERIFY_WORK_INIT_FIELDS = frozenset(
-    {
-        *_VERIFY_WORK_BASE_INIT_FIELDS,
-        *_VERIFY_WORK_CONTRACT_GATE_FIELDS,
-        *_VERIFY_WORK_REFERENCE_RUNTIME_FIELDS,
-        *_VERIFY_WORK_STRUCTURED_STATE_FIELDS,
-        *_VERIFY_WORK_STATE_MEMORY_FIELDS,
-    }
-)
-
 _EXECUTE_PHASE_STAGE_ALLOWED_TOOLS = frozenset(
     {
         "ask_user",
@@ -893,6 +807,9 @@ def _path_exists(cwd: Path, target: str) -> bool:
 
 def _state_exists(cwd: Path) -> bool:
     """Return whether the project has recoverable state from JSON or STATE.md."""
+    layout = ProjectLayout(cwd)
+    if not (layout.state_json.exists() or layout.state_md.exists()):
+        return False
     state, _state_issues, _state_source = _peek_state_json(
         cwd,
         recover_intent=False,
@@ -991,14 +908,25 @@ def _explicit_workspace_layout_context(cwd: Path) -> tuple[Path, dict[str, objec
     """Return local current-workspace metadata when the caller already targets a GPD layout."""
 
     resolution = resolve_project_roots(cwd)
-    if resolution is None or not resolution.has_project_layout:
+    if resolution is None:
         return None
 
     project_root = resolution.project_root
+    layout = ProjectLayout(project_root)
+    has_execution_resume_surface = (
+        layout.current_observability_execution.exists()
+        or layout.execution_lineage_head.exists()
+        or layout.execution_lineage_ledger.exists()
+    )
+    if not resolution.has_project_layout and not has_execution_resume_surface:
+        return None
+
     state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
-    recoverable = state_exists or roadmap_exists or project_exists
+    recoverable = state_exists or roadmap_exists or project_exists or has_execution_resume_surface
     if resolution.walk_up_steps > 0:
         reason = "workspace resolved to ancestor project root"
+    elif has_execution_resume_surface and not (state_exists or roadmap_exists or project_exists):
+        reason = "workspace carries live execution state"
     elif not project_exists and recoverable:
         reason = "workspace carries partial recoverable GPD state"
     else:
@@ -2112,10 +2040,11 @@ def _resolve_peer_review_target_context(
     if resolved_target.is_file():
         return resolved_target, resolved_target.parent
     if resolved_target.is_dir():
-        resolution = resolve_manuscript_entrypoint_from_root_resolution(resolved_target, allow_markdown=True)
+        manuscript_root = resolve_supported_manuscript_root_for_target(cwd, resolved_target) or resolved_target
+        resolution = resolve_manuscript_entrypoint_from_root_resolution(manuscript_root, allow_markdown=True)
         if resolution.status == "resolved" and resolution.manuscript_entrypoint is not None:
-            return resolution.manuscript_entrypoint.resolve(strict=False), resolved_target
-        return None, resolved_target
+            return resolution.manuscript_entrypoint.resolve(strict=False), manuscript_root
+        return None, manuscript_root
     return None, resolved_target.parent
 
 
@@ -3230,6 +3159,127 @@ def _build_sync_state_file_context(
     return result
 
 
+def _progress_status_from_roadmap_disk_status(disk_status: str) -> str:
+    """Map roadmap disk inventory states onto the progress init status vocabulary."""
+
+    if disk_status == "complete":
+        return "complete"
+    if disk_status in {"planned", "partial"}:
+        return "in_progress"
+    if disk_status == "researched":
+        return "researched"
+    return "pending"
+
+
+def _build_disk_progress_phase_inventory(
+    cwd: Path,
+) -> tuple[list[dict[str, object]], dict[str, object] | None, dict[str, object] | None]:
+    """Build legacy disk-only phase inventory for projects without ROADMAP.md phases."""
+
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
+    phases: list[dict[str, object]] = []
+    current_phase: dict[str, object] | None = None
+    next_phase: dict[str, object] | None = None
+
+    try:
+        dirs = sorted(
+            (d.name for d in phases_dir.iterdir() if d.is_dir()),
+            key=_phase_sort_key,
+        )
+        for dir_name in dirs:
+            dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", dir_name)
+            phase_number = dir_match.group(1) if dir_match else dir_name
+            phase_name = dir_match.group(2) if dir_match and dir_match.group(2) else None
+
+            phase_path = phases_dir / dir_name
+            phase_files = [f.name for f in phase_path.iterdir() if f.is_file()]
+
+            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
+            summaries = [f for f in phase_files if layout.is_summary_file(f)]
+            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
+
+            summary_count = _matching_phase_artifact_count(plans, summaries)
+
+            if _is_phase_complete(len(plans), summary_count):
+                status = "complete"
+            elif plans:
+                status = "in_progress"
+            elif has_research:
+                status = "researched"
+            else:
+                status = "pending"
+
+            phase_entry: dict[str, object] = {
+                "number": phase_number,
+                "name": phase_name,
+                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
+                "status": status,
+                "disk_status": status,
+                "plan_count": len(plans),
+                "summary_count": summary_count,
+                "has_research": has_research,
+            }
+            phases.append(phase_entry)
+
+            if current_phase is None and status in ("in_progress", "researched"):
+                current_phase = phase_entry
+            if next_phase is None and status == "pending":
+                next_phase = phase_entry
+    except FileNotFoundError:
+        pass
+
+    return phases, current_phase, next_phase
+
+
+def _build_progress_phase_inventory(
+    cwd: Path,
+) -> tuple[list[dict[str, object]], dict[str, object] | None, dict[str, object] | None]:
+    """Build progress phase inventory from roadmap analysis, with disk-only fallback."""
+
+    roadmap = roadmap_analyze(cwd)
+    if not roadmap.phases:
+        return _build_disk_progress_phase_inventory(cwd)
+
+    phases: list[dict[str, object]] = []
+    by_number: dict[str, dict[str, object]] = {}
+    layout = ProjectLayout(cwd)
+    phase_dir_names: list[str] = []
+    if layout.phases_dir.is_dir():
+        phase_dir_names = [path.name for path in layout.phases_dir.iterdir() if path.is_dir()]
+
+    for phase in roadmap.phases:
+        normalized = _normalize_phase_name(str(phase.number))
+        dir_match_name = next(
+            (name for name in phase_dir_names if name.startswith(normalized + "-") or name == normalized),
+            None,
+        )
+        status = _progress_status_from_roadmap_disk_status(phase.disk_status)
+        phase_entry: dict[str, object] = {
+            "number": phase.number,
+            "name": phase.name,
+            "directory": (
+                f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_match_name}" if dir_match_name is not None else None
+            ),
+            "status": status,
+            "disk_status": phase.disk_status,
+            "roadmap_complete": phase.roadmap_complete,
+            "plan_count": phase.plan_count,
+            "summary_count": phase.summary_count,
+            "has_research": phase.has_research,
+            "has_context": phase.has_context,
+        }
+        phases.append(phase_entry)
+        by_number[normalized] = phase_entry
+
+    def _lookup(number: str | None) -> dict[str, object] | None:
+        if not number:
+            return None
+        return by_number.get(_normalize_phase_name(str(number)))
+
+    return phases, _lookup(roadmap.current_phase), _lookup(roadmap.next_phase)
+
+
 def init_plan_phase(
     cwd: Path,
     phase: str | None,
@@ -3255,14 +3305,15 @@ def init_plan_phase(
             "gpd init plan-phase does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
-    phase_info = _try_find_phase(cwd, phase)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    config = load_config(effective_cwd)
+    phase_info = _try_find_phase(effective_cwd, phase)
 
     result: dict[str, object] = {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-phase-researcher", config),
-        "planner_model": _resolve_model(cwd, "gpd-planner", config),
-        "checker_model": _resolve_model(cwd, "gpd-plan-checker", config),
+        "researcher_model": _resolve_model(effective_cwd, "gpd-phase-researcher", config),
+        "planner_model": _resolve_model(effective_cwd, "gpd-planner", config),
+        "checker_model": _resolve_model(effective_cwd, "gpd-plan-checker", config),
         # Workflow flags
         "research_enabled": config["research"],
         "plan_checker_enabled": config["plan_checker"],
@@ -3282,17 +3333,17 @@ def init_plan_phase(
         "has_plans": len(phase_info.get("plans", [])) > 0 if phase_info else False,
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # Environment
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
     if stage is None:
-        result.update(_build_reference_runtime_context(cwd))
-        result.update(_build_state_memory_runtime_context(cwd))
+        result.update(_build_reference_runtime_context(effective_cwd))
+        result.update(_build_state_memory_runtime_context(effective_cwd))
         result.update(
             _build_plan_phase_file_context(
-                cwd,
+                effective_cwd,
                 phase_info,
                 include_state="state" in includes,
                 include_roadmap="roadmap" in includes,
@@ -3305,7 +3356,7 @@ def init_plan_phase(
             )
         )
         if "state" in includes:
-            result.update(_build_structured_state_runtime_context(cwd))
+            result.update(_build_structured_state_runtime_context(effective_cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3328,20 +3379,20 @@ def init_plan_phase(
     needs_contract_gate_context = bool(required_fields & _PLAN_PHASE_CONTRACT_GATE_FIELDS)
 
     if needs_full_reference_context:
-        staged_source.update(_build_reference_runtime_context(cwd))
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
     elif needs_contract_gate_context:
-        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _PLAN_PHASE_STATE_MEMORY_FIELDS:
-        staged_source.update(_build_state_memory_runtime_context(cwd))
+        staged_source.update(_build_state_memory_runtime_context(effective_cwd))
 
     if required_fields & _PLAN_PHASE_STRUCTURED_STATE_FIELDS:
-        staged_source.update(_build_structured_state_runtime_context(cwd))
+        staged_source.update(_build_structured_state_runtime_context(effective_cwd))
 
     if required_fields & _PLAN_PHASE_FILE_CONTENT_FIELDS:
         staged_source.update(
             _build_plan_phase_file_context(
-                cwd,
+                effective_cwd,
                 phase_info,
                 include_state="state_content" in required_fields,
                 include_roadmap="roadmap_content" in required_fields,
@@ -3365,7 +3416,9 @@ def init_plan_phase(
 
 def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new project creation."""
-    config = load_config(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    project_cwd = _resolve_workspace_locked_cwd(requested_cwd)
+    config = load_config(project_cwd)
 
     # Detect existing research files (walk up to depth 3, max 5 files)
     has_research_files = False
@@ -3382,47 +3435,62 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
         for entry in entries:
             if found_count >= 5:
                 return
-            if _should_skip_research_scan_entry(cwd, entry):
+            if _should_skip_research_scan_entry(requested_cwd, entry):
                 continue
             if entry.is_dir():
                 _walk(entry, depth + 1)
-            elif entry.is_file() and entry.suffix in _RESEARCH_EXTENSIONS:
+            elif entry.is_file() and entry.suffix.lower() in _RESEARCH_EXTENSIONS:
                 found_count += 1
                 has_research_files = True
 
-    _walk(cwd, 0)
+    _walk(requested_cwd, 0)
 
     has_project_manifest = (
-        _path_exists(cwd, "requirements.txt")
-        or _path_exists(cwd, "pyproject.toml")
-        or _path_exists(cwd, "Makefile")
-        or resolve_current_manuscript_entrypoint(cwd) is not None
+        _path_exists(requested_cwd, "requirements.txt")
+        or _path_exists(requested_cwd, "pyproject.toml")
+        or _path_exists(requested_cwd, "Makefile")
+        or resolve_current_manuscript_entrypoint(requested_cwd) is not None
     )
+
+    state_exists, roadmap_exists, project_file_exists = recoverable_project_context(project_cwd)
+    recoverable_project_exists = state_exists or roadmap_exists or project_file_exists
+    partial_project_exists = recoverable_project_exists and not project_file_exists
+    if project_file_exists:
+        project_recovery_status = "initialized"
+    elif recoverable_project_exists:
+        project_recovery_status = "partial"
+    else:
+        project_recovery_status = "none"
 
     result = {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
-        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
-        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
+        "researcher_model": _resolve_model(project_cwd, "gpd-project-researcher", config),
+        "synthesizer_model": _resolve_model(project_cwd, "gpd-research-synthesizer", config),
+        "roadmapper_model": _resolve_model(project_cwd, "gpd-roadmapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
         # Existing state
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "has_research_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "project_exists": project_file_exists,
+        "state_exists": state_exists,
+        "roadmap_exists": roadmap_exists,
+        "recoverable_project_exists": recoverable_project_exists,
+        "partial_project_exists": partial_project_exists,
+        "project_recovery_status": project_recovery_status,
+        "has_research_map": _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        "planning_exists": _path_exists(project_cwd, PLANNING_DIR_NAME),
         # Existing project detection
         "has_research_files": has_research_files,
         "has_project_manifest": has_project_manifest,
         "needs_research_map": (has_research_files or has_project_manifest)
-        and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        and not _path_exists(project_cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Git state
-        "has_git": _path_exists(cwd, ".git"),
+        "has_git": _path_exists(project_cwd, ".git"),
         # Bootstrap only needs the scoping contract gate, not the full reference ledger.
-        **_build_new_project_contract_runtime_context(cwd),
+        **_build_new_project_contract_runtime_context(project_cwd),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(project_cwd),
     }
 
     if stage is None:
@@ -3717,6 +3785,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         "workspace_planning_exists": workspace_planning_exists,
         # Selected project availability.
         "state_exists": _state_exists(effective_cwd),
+        "state_json_backup_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
         "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
@@ -3819,25 +3888,26 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
 def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for state reconciliation."""
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
     normalized_prefer = prefer_mode.strip() if isinstance(prefer_mode, str) and prefer_mode.strip() else None
     if normalized_prefer not in {None, "md", "json"}:
         raise ValueError("sync-state prefer mode must be one of: md, json")
 
     base_result = {
         "prefer_mode": normalized_prefer,
-        "state_md_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
-        "state_json_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/state.json"),
-        "state_json_backup_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
-        "platform": _detect_platform(cwd),
+        "state_md_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_json_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/state.json"),
+        "state_json_backup_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
+        "platform": _detect_platform(effective_cwd),
     }
 
     if stage is None:
         result = dict(base_result)
-        result.update(_build_structured_state_runtime_context(cwd))
-        result.update(_build_new_project_contract_runtime_context(cwd))
+        result.update(_build_structured_state_runtime_context(effective_cwd))
+        result.update(_build_new_project_contract_runtime_context(effective_cwd))
         result.update(
             _build_sync_state_file_context(
-                cwd,
+                effective_cwd,
                 include_state_md=True,
                 include_state_json=True,
                 include_state_json_backup=True,
@@ -3862,15 +3932,15 @@ def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | N
     staged_source = dict(base_result)
 
     if required_fields & _SYNC_STATE_STRUCTURED_STATE_FIELDS:
-        staged_source.update(_build_structured_state_runtime_context(cwd))
+        staged_source.update(_build_structured_state_runtime_context(effective_cwd))
 
     if required_fields & _SYNC_STATE_CONTRACT_GATE_FIELDS:
-        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _SYNC_STATE_FILE_CONTENT_FIELDS:
         staged_source.update(
             _build_sync_state_file_context(
-                cwd,
+                effective_cwd,
                 include_state_md="state_md_content" in required_fields,
                 include_state_json="state_json_content" in required_fields,
                 include_state_json_backup="state_json_backup_content" in required_fields,
@@ -4464,69 +4534,18 @@ def init_progress(
         )
         init_root_policy = InitRootPolicy.PROJECT_REENTRY_ALLOWED.value
     else:
-        effective_cwd = _resolve_workspace_locked_cwd(requested_cwd)
+        effective_cwd = _resolve_project_scoped_cwd(requested_cwd)
         reentry_metadata = {
             "workspace_root": requested_cwd.as_posix(),
             "project_root": effective_cwd.as_posix(),
             "project_root_source": "workspace",
             "project_root_auto_selected": False,
         }
-        init_root_policy = InitRootPolicy.WORKSPACE_LOCKED.value
+        init_root_policy = InitRootPolicy.PROJECT_SCOPED.value
     config = load_config(effective_cwd)
     milestone = _try_get_milestone_info(effective_cwd)
 
-    # Analyze phases
-    layout = ProjectLayout(effective_cwd)
-    phases_dir = layout.phases_dir
-    phases: list[dict[str, object]] = []
-    current_phase: dict[str, object] | None = None
-    next_phase: dict[str, object] | None = None
-
-    try:
-        dirs = sorted(
-            (d.name for d in phases_dir.iterdir() if d.is_dir()),
-            key=_phase_sort_key,
-        )
-        for dir_name in dirs:
-            dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", dir_name)
-            phase_number = dir_match.group(1) if dir_match else dir_name
-            phase_name = dir_match.group(2) if dir_match and dir_match.group(2) else None
-
-            phase_path = phases_dir / dir_name
-            phase_files = [f.name for f in phase_path.iterdir() if f.is_file()]
-
-            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
-            summaries = [f for f in phase_files if layout.is_summary_file(f)]
-            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
-
-            summary_count = _matching_phase_artifact_count(plans, summaries)
-
-            if _is_phase_complete(len(plans), summary_count):
-                status = "complete"
-            elif plans:
-                status = "in_progress"
-            elif has_research:
-                status = "researched"
-            else:
-                status = "pending"
-
-            phase_entry: dict[str, object] = {
-                "number": phase_number,
-                "name": phase_name,
-                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
-                "status": status,
-                "plan_count": len(plans),
-                "summary_count": summary_count,
-                "has_research": has_research,
-            }
-            phases.append(phase_entry)
-
-            if current_phase is None and status in ("in_progress", "researched"):
-                current_phase = phase_entry
-            if next_phase is None and status == "pending":
-                next_phase = phase_entry
-    except FileNotFoundError:
-        pass
+    phases, current_phase, next_phase = _build_progress_phase_inventory(effective_cwd)
 
     # Check for paused work
     paused_at: str | None = None

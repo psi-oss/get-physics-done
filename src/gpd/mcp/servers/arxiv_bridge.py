@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import mcp.types as types
@@ -17,7 +17,7 @@ from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
 from gpd.core.arxiv_source_download import (
-    ARXIV_DEFAULT_STORAGE_PATH,
+    default_arxiv_source_storage_path,
     download_arxiv_source_archive,
 )
 from gpd.version import __version__ as GPD_VERSION
@@ -64,16 +64,13 @@ _DOWNLOAD_SOURCE_TOOL = types.Tool(
 class ArxivBridgeConfig:
     """Runtime configuration for the bridge."""
 
-    storage_path: Path = ARXIV_DEFAULT_STORAGE_PATH
+    storage_path: Path = field(default_factory=default_arxiv_source_storage_path)
 
 
 def load_settings(*, storage_path: str | Path | None = None) -> ArxivBridgeConfig:
     """Load bridge settings for the upstream server and local source archive storage."""
 
-    if storage_path is None:
-        resolved = ARXIV_DEFAULT_STORAGE_PATH
-    else:
-        resolved = Path(storage_path)
+    resolved = default_arxiv_source_storage_path() if storage_path is None else Path(storage_path)
     return ArxivBridgeConfig(storage_path=resolved.expanduser().resolve(strict=False))
 
 

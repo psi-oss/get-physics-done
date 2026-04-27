@@ -13,7 +13,7 @@ def test_respond_to_referees_group_b_completion_requires_fresh_child_files_writt
 
     assert "If you need user input, return `status: checkpoint` and stop; do not wait inside this run." in source
     assert (
-        "Return only after the fresh `gpd_return.files_written` set names the revised section file plus `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`; stale pre-existing edits do not count."
+        "Return only after the fresh `gpd_return.files_written` set names the revised section file plus `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}`; stale pre-existing edits do not count."
         in source
     )
     assert (
@@ -27,9 +27,9 @@ def test_respond_to_referees_response_letter_generation_stays_file_backed_and_fr
     source = WORKFLOW.read_text(encoding="utf-8")
 
     assert (
-        "Treat those files as complete only if the expected mirrored artifacts exist on disk and the orchestrator has aggregated every section handoff: the revised section file exists, both response artifacts exist, and the fresh child `gpd_return.files_written` for that section names all required outputs."
+        "Treat those files as complete only if the expected mirrored artifacts exist on disk, their response frontmatter binds to the active manuscript path and review round when the subject is explicit, and the orchestrator has aggregated every section handoff"
         in source
     )
     assert "Those two GPD-owned response artifacts stay canonical even when the manuscript subject is explicit or external." in source
-    assert "If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under `GPD/`" in source
+    assert "If the manuscript subject is an explicit external artifact, keep auxiliary response outputs under the selected GPD roots" in source
     assert "Do not rely on stale pre-existing edits or prose completion alone." in source

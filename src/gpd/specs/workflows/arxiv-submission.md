@@ -9,6 +9,8 @@ This workflow is staged:
 4. `package`
 5. `finalize`
 
+The `arxiv-submission-stage-manifest.json` sidecar is metadata-only for the prompt path today: it documents staged authority loading and registry contracts, but there is no public staged init CLI command to call from this workflow. Use the executable `gpd --raw validate command-context arxiv-submission ...` and `gpd --raw validate review-preflight arxiv-submission ... --strict` surfaces below as the prompt's runtime entrypoints until a public staged init command exists.
+
 Keep only arXiv-specific rules inline. Use the shared publication bootstrap reference for manuscript-root resolution, latest-review/latest-response gating, and fail-closed paired artifact handling.
 
 Output: a submission-ready `arxiv-submission.tar.gz` under `GPD/publication/<subject_slug>/arxiv/` and a manual submission checklist.
@@ -92,6 +94,9 @@ Treat `gpd paper-build` as authoritative for `ARTIFACT-MANIFEST.json` and `BIBLI
 ```bash
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
+
+The build result must report the emitted `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` paths explicitly.
+If bibliography input comes from a literature-review citation-source sidecar, pass that file with `--citation-sources` rather than relying on an unrelated single sidecar under `GPD/literature/`.
 
 In strict mode, `bibliography_audit_clean` and `reproducibility_ready` must pass before the workflow continues. Do not package stale audit artifacts.
 Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point.

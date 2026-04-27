@@ -58,6 +58,8 @@ class IntermediateResult(BaseModel):
     depends_on: list[str] = Field(default_factory=list)
     verified: bool = False
     verification_records: list[VerificationEvidence] = Field(default_factory=list)
+    legacy: bool = False
+    legacy_source_index: int | None = None
 
 
 class ResultDeps(BaseModel):
@@ -226,6 +228,53 @@ def _find_result_index(results: list, result_id: str) -> int:
     return -1
 
 
+def _legacy_result_id(index: int, used_ids: set[str]) -> str:
+    """Return a stable virtual ID for a legacy string registry entry."""
+    base_id = f"legacy-string-{index + 1}"
+    if base_id not in used_ids:
+        used_ids.add(base_id)
+        return base_id
+
+    suffix = 2
+    while f"{base_id}-raw-{suffix}" in used_ids:
+        suffix += 1
+    result_id = f"{base_id}-raw-{suffix}"
+    used_ids.add(result_id)
+    return result_id
+
+
+def _legacy_result_from_string(value: str, index: int, used_ids: set[str]) -> IntermediateResult:
+    """Expose a legacy string entry as a read-only intermediate result."""
+    return IntermediateResult(
+        id=_legacy_result_id(index, used_ids),
+        description=value,
+        depends_on=[],
+        verified=False,
+        verification_records=[],
+        legacy=True,
+        legacy_source_index=index,
+    )
+
+
+def _legacy_result_index_for_id(results: list[object], result_id: str) -> int | None:
+    """Return the legacy string source index for a virtual result ID."""
+    used_ids = {str(result.get("id")) for result in results if isinstance(result, dict) and result.get("id")}
+    for index, result in enumerate(results):
+        if not isinstance(result, str):
+            continue
+        if _legacy_result_id(index, used_ids) == result_id:
+            return index
+    return None
+
+
+def _legacy_result_error(result_id: str, source_index: int) -> ResultError:
+    return ResultError(
+        f"Result {result_id!r} refers to legacy string intermediate_results[{source_index}]. "
+        "It is exposed read-only; migrate it to a structured result object before updating, verifying, "
+        "or tracing dependencies."
+    )
+
+
 def _normalize_dependency_ids(depends_on: object) -> list[str]:
     """Normalize a raw depends_on payload into a list of dependency IDs."""
     if depends_on is None:
@@ -269,6 +318,9 @@ def _get_result_registry_context(state: dict, result_id: str) -> tuple[list[obje
     results = state.get("intermediate_results", [])
     idx = _find_result_index(results, result_id)
     if idx == -1:
+        legacy_index = _legacy_result_index_for_id(results, result_id)
+        if legacy_index is not None:
+            raise _legacy_result_error(result_id, legacy_index)
         raise ResultNotFoundError(result_id)
     return results, results[idx], _build_result_lookup(results)
 
@@ -415,7 +467,10 @@ def result_add(
             "Provide a descriptive ID (e.g., 'energy-conservation-eq') or omit it for auto-generation."
         )
 
-    if _find_result_index(state["intermediate_results"], rid) != -1:
+    if (
+        _find_result_index(state["intermediate_results"], rid) != -1
+        or _legacy_result_index_for_id(state["intermediate_results"], rid) is not None
+    ):
         raise DuplicateResultError(rid)
 
     if value is not None and equation is None and description is None:
@@ -453,6 +508,7 @@ def result_list(
     phase: str | None = None,
     verified: bool | None = None,
     unverified: bool | None = None,
+    include_legacy: bool = True,
 ) -> list[IntermediateResult]:
     """List intermediate results with optional filters.
 
@@ -466,24 +522,37 @@ def result_list(
         raise ResultError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
 
     results = state.get("intermediate_results", [])
+    used_ids = {str(result.get("id")) for result in results if isinstance(result, dict) and result.get("id")}
+    listed_results: list[IntermediateResult] = []
 
     if phase is not None:
         normalized_filter = phase_unpad(phase)
-        results = [
-            r
-            for r in results
-            if isinstance(r, dict) and r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_filter
-        ]
     else:
-        results = [r for r in results if isinstance(r, dict)]
+        normalized_filter = None
+
+    for index, raw_result in enumerate(results):
+        if isinstance(raw_result, dict):
+            if (
+                normalized_filter is not None
+                and raw_result.get("phase") is not None
+                and phase_unpad(raw_result["phase"]) != normalized_filter
+            ):
+                continue
+            if normalized_filter is not None and raw_result.get("phase") is None:
+                continue
+            listed_results.append(_result_from_record(raw_result))
+            continue
+
+        if include_legacy and normalized_filter is None and isinstance(raw_result, str):
+            listed_results.append(_legacy_result_from_string(raw_result, index, used_ids))
 
     if verified is True:
-        results = [r for r in results if _has_verification_evidence(r)]
+        listed_results = [r for r in listed_results if r.verified or bool(r.verification_records)]
 
     if unverified is True:
-        results = [r for r in results if not _has_verification_evidence(r)]
+        listed_results = [r for r in listed_results if not (r.verified or bool(r.verification_records))]
 
-    return [_result_from_record(r) for r in results]
+    return listed_results
 
 
 @instrument_gpd_function("results.search")
@@ -500,8 +569,9 @@ def result_search(
 ) -> ResultSearchResult:
     """Search the intermediate result registry.
 
-    Only structured result entries are searched. Legacy string entries in
-    ``state["intermediate_results"]`` are ignored.
+    Structured result entries are searched normally. Legacy string entries in
+    ``state["intermediate_results"]`` are exposed as read-only results with
+    stable ``legacy-string-N`` IDs so user state remains visible.
     """
     if verified is True and unverified is True:
         raise ResultError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
@@ -592,7 +662,7 @@ def result_upsert(
     if normalized_equation:
         equation_matches = [
             result
-            for result in result_list(state, phase=phase)
+            for result in result_list(state, phase=phase, include_legacy=False)
             if _normalize_equation_for_match(result.equation) == normalized_equation
         ]
         if len(equation_matches) > 1:
@@ -623,7 +693,7 @@ def result_upsert(
     if normalized_description:
         description_matches = [
             result
-            for result in result_list(state, phase=phase)
+            for result in result_list(state, phase=phase, include_legacy=False)
             if _normalize_identifier(result.description) == normalized_description
         ]
         if len(description_matches) > 1:
@@ -842,6 +912,9 @@ def result_verify(
     results = state.get("intermediate_results", [])
     idx = _find_result_index(results, result_id)
     if idx == -1:
+        legacy_index = _legacy_result_index_for_id(results, result_id)
+        if legacy_index is not None:
+            raise _legacy_result_error(result_id, legacy_index)
         raise ResultNotFoundError(result_id)
 
     record = VerificationEvidence(
@@ -890,6 +963,9 @@ def result_update(
     results = state.get("intermediate_results", [])
     idx = _find_result_index(results, result_id)
     if idx == -1:
+        legacy_index = _legacy_result_index_for_id(results, result_id)
+        if legacy_index is not None:
+            raise _legacy_result_error(result_id, legacy_index)
         raise ResultNotFoundError(result_id)
 
     # Normalize depends_on to list

@@ -1,22 +1,28 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yaml
 
+import tests.ci_sharding as ci_sharding
 import tests.conftest as tests_conftest
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_HOT_TEST_FILE_SPLITS,
+    CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS,
+    CI_SHARD_WEIGHT_SPREAD_TOLERANCE,
+    actual_ci_shard_matrix,
     all_test_relpaths,
     assert_ci_workflow_pytest_shard_policy,
     assert_tests_readme_documents_ci_shard_policy,
     build_ci_work_units,
     category_for_test_relpath,
-    collected_test_counts_by_file,
+    collected_test_inventory,
     expand_ci_targets_to_nodeids,
+    expected_ci_shard_matrix,
     plan_category_ci_shards,
     synthetic_test_inventory,
 )
@@ -107,13 +113,238 @@ def test_root_conftest_respects_xdist_auto_worker_env_override(
 def test_default_collection_matches_all_checked_in_test_files() -> None:
     repo_root = _repo_root()
     all_relpaths = all_test_relpaths(tests_root=repo_root / "tests")
-    collected_counts = collected_test_counts_by_file(repo_root=repo_root)
+    inventory = collected_test_inventory(repo_root=repo_root)
+    collected_counts = {rel_path: len(nodeids) for rel_path, nodeids in inventory.items()}
     live_categories = {category_for_test_relpath(relpath) for relpath in all_relpaths}
     unsharded_categories = live_categories - set(CI_CATEGORY_SHARD_COUNTS)
 
     assert tuple(sorted(collected_counts)) == all_relpaths
     assert all(count > 0 for count in collected_counts.values())
     assert not unsharded_categories, f"checked-in test categories missing CI shards: {sorted(unsharded_categories)}"
+    _assert_hotspot_metadata_references_live_relpaths(all_relpaths)
+    _assert_live_hotspot_split_files_produce_multiple_work_units(inventory)
+    _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(inventory)
+    _assert_expected_ci_matrix_rows_resolve_live_non_empty_targets(inventory)
+    _assert_live_ci_shard_weight_spread_stays_tight(inventory)
+
+
+def _assert_hotspot_metadata_references_live_relpaths(all_relpaths: tuple[str, ...]) -> None:
+    live_relpaths = set(all_relpaths)
+    split_relpaths = set(CI_HOT_TEST_FILE_SPLITS)
+    weighted_relpaths = set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+
+    assert not split_relpaths - live_relpaths
+    assert not weighted_relpaths - live_relpaths
+
+
+def _assert_live_hotspot_split_files_produce_multiple_work_units(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    work_units = build_ci_work_units(inventory)
+
+    for rel_path, split_count in CI_HOT_TEST_FILE_SPLITS.items():
+        matching = [unit for unit in work_units if unit.label.startswith(f"{rel_path} [")]
+
+        assert len(matching) == split_count
+        assert len(matching) > 1
+        assert all("::" in target for unit in matching for target in unit.targets)
+        assert sum(len(unit.targets) for unit in matching) == len(inventory[rel_path])
+
+
+def test_hook_hotspot_metadata_tracks_measured_slow_hook_files() -> None:
+    measured_slow_hook_files = {
+        "hooks/test_notify.py",
+        "hooks/test_runtime_detect.py",
+        "hooks/test_runtime_lookup.py",
+        "hooks/test_statusline.py",
+        "hooks/test_todo_resolution.py",
+        "hooks/test_update_resolution.py",
+    }
+
+    assert measured_slow_hook_files <= set(CI_HOT_TEST_FILE_SPLITS)
+    assert measured_slow_hook_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+    assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in measured_slow_hook_files)
+    assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_hook_files)
+
+
+def test_mcp_hotspot_metadata_tracks_measured_slow_mcp_files() -> None:
+    measured_slow_mcp_files = {
+        "mcp/test_server_regressions.py",
+        "mcp/test_servers.py",
+        "mcp/test_servers_integration.py",
+        "mcp/test_skills_server_tool_lists.py",
+        "mcp/test_tool_contract_visibility.py",
+        "mcp/test_verification_contract_server_regressions.py",
+    }
+
+    assert CI_CATEGORY_SHARD_COUNTS["mcp"] == 2
+    assert measured_slow_mcp_files <= set(CI_HOT_TEST_FILE_SPLITS)
+    assert measured_slow_mcp_files <= set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+    assert all(CI_HOT_TEST_FILE_SPLITS[rel_path] >= 2 for rel_path in measured_slow_mcp_files)
+    assert all(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS[rel_path] > 1.0 for rel_path in measured_slow_mcp_files)
+
+
+def _assert_ci_shards_cover_inventory_without_overlap_or_empty_shards(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    work_units = build_ci_work_units(inventory)
+    all_nodeids = tuple(nodeid for nodeids in inventory.values() for nodeid in nodeids)
+    flattened: list[str] = []
+
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        planned_shards = plan_category_ci_shards(category=category, inventory=inventory, work_units=work_units)
+        expanded_targets = [
+            expand_ci_targets_to_nodeids(shard_targets, inventory=inventory)
+            for shard_targets in planned_shards
+        ]
+        category_nodeids = tuple(
+            nodeid
+            for rel_path, nodeids in inventory.items()
+            if category_for_test_relpath(rel_path) == category
+            for nodeid in nodeids
+        )
+        category_flattened = [nodeid for shard_nodeids in expanded_targets for nodeid in shard_nodeids]
+
+        assert len(planned_shards) == shard_total
+        assert all(shard_targets for shard_targets in planned_shards), f"{category} CI shard has no targets"
+        assert sorted(category_flattened) == sorted(category_nodeids)
+        assert len(category_flattened) == len(set(category_flattened))
+        flattened.extend(category_flattened)
+
+    assert sorted(flattened) == sorted(all_nodeids)
+    assert len(flattened) == len(set(flattened))
+
+
+def _target_relpath(target: str) -> str:
+    path = target.split("::", 1)[0]
+    return path[len("tests/") :] if path.startswith("tests/") else path
+
+
+def _assert_expected_ci_matrix_rows_resolve_live_non_empty_targets(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    workflow_matrix = actual_ci_shard_matrix(_workflow_data())
+    assert workflow_matrix == expected_ci_shard_matrix()
+
+    work_units = build_ci_work_units(inventory)
+    for display_name, category, shard_index, shard_total in workflow_matrix:
+        planned_shards = plan_category_ci_shards(category=category, inventory=inventory, work_units=work_units)
+        shard_targets = planned_shards[shard_index - 1]
+        target_relpaths = {_target_relpath(target) for target in shard_targets}
+        missing_target_relpaths = target_relpaths - set(inventory)
+
+        assert shard_total == CI_CATEGORY_SHARD_COUNTS[category]
+        assert shard_targets, f"{display_name} resolved no pytest targets"
+        assert not missing_target_relpaths, f"{display_name} resolved missing files: {sorted(missing_target_relpaths)}"
+        expanded_nodeids = expand_ci_targets_to_nodeids(shard_targets, inventory=inventory)
+        assert expanded_nodeids, f"{display_name} resolved no collected tests"
+        assert {
+            category_for_test_relpath(relpath) for relpath in target_relpaths
+        } == {category}, f"{display_name} resolved targets outside category {category!r}"
+
+
+def _assert_live_ci_shard_weight_spread_stays_tight(
+    inventory: dict[str, tuple[str, ...]],
+) -> None:
+    work_units = build_ci_work_units(inventory)
+    per_target_weight = {
+        target: unit.weight / len(unit.targets)
+        for unit in work_units
+        for target in unit.targets
+    }
+
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        if shard_total == 1:
+            continue
+        planned_shards = plan_category_ci_shards(category=category, inventory=inventory, work_units=work_units)
+        shard_weights = [
+            sum(per_target_weight[target] for target in shard_targets)
+            for shard_targets in planned_shards
+        ]
+        average_weight = sum(shard_weights) / len(shard_weights)
+
+        assert max(shard_weights) - min(shard_weights) <= average_weight * CI_SHARD_WEIGHT_SPREAD_TOLERANCE
+
+
+def test_ci_collection_ignores_caller_pytest_addopts_and_disables_cache_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["env"] = kwargs["env"]
+        captured["cwd"] = kwargs["cwd"]
+        return SimpleNamespace(stdout="tests/test_sample.py::test_ok\n")
+
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-k no_tests --cache-clear")
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+    ci_sharding._collected_test_inventory_items.cache_clear()
+    try:
+        inventory = collected_test_inventory(repo_root=tmp_path)
+    finally:
+        ci_sharding._collected_test_inventory_items.cache_clear()
+
+    assert inventory == {"test_sample.py": ("tests/test_sample.py::test_ok",)}
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert "PYTEST_ADDOPTS" not in env
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert captured["args"] == [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "tests/",
+        "--collect-only",
+        "-q",
+        "-n",
+        "0",
+    ]
+    assert captured["cwd"] == tmp_path.resolve()
+
+
+def test_ci_shard_target_resolution_collects_only_requested_category(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["args"] = args
+        captured["cwd"] = kwargs["cwd"]
+        return SimpleNamespace(
+            stdout="\n".join(f"tests/core/test_sample.py::test_{index}" for index in range(5)) + "\n"
+        )
+
+    monkeypatch.setattr(ci_sharding.subprocess, "run", _fake_run)
+    ci_sharding._collected_test_inventory_items.cache_clear()
+    try:
+        targets = ci_sharding.select_ci_shard_targets(
+            category="core",
+            shard_index=1,
+            shard_total=CI_CATEGORY_SHARD_COUNTS["core"],
+            repo_root=tmp_path,
+        )
+    finally:
+        ci_sharding._collected_test_inventory_items.cache_clear()
+
+    assert captured["args"] == [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "tests/core/",
+        "--collect-only",
+        "-q",
+        "-n",
+        "0",
+    ]
+    assert captured["cwd"] == tmp_path.resolve()
+    assert targets == ("tests/core/test_sample.py",)
 
 
 def test_ci_and_test_readme_document_default_full_suite_and_category_named_runtime_informed_shards() -> None:
@@ -185,4 +416,4 @@ def test_synthetic_split_categories_keep_runtime_informed_weight_spread_tight() 
         ]
         average_weight = sum(shard_weights) / len(shard_weights)
 
-        assert max(shard_weights) - min(shard_weights) <= average_weight * 0.2
+        assert max(shard_weights) - min(shard_weights) <= average_weight * CI_SHARD_WEIGHT_SPREAD_TOLERANCE

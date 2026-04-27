@@ -43,14 +43,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Smoke repo graph sync with PATH python
-        run: python scripts/sync_repo_graph_contract.py
+      - name: Check repo graph generated artifacts
+        run: python scripts/sync_repo_graph_contract.py --check
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --frozen
 
       - name: Run ruff check
         run: uv run ruff check .
@@ -114,10 +114,14 @@ jobs:
             category: hooks
             shard_index: 2
             shard_total: 2
-          - display_name: mcp
+          - display_name: mcp 1/2
             category: mcp
             shard_index: 1
-            shard_total: 1
+            shard_total: 2
+          - display_name: mcp 2/2
+            category: mcp
+            shard_index: 2
+            shard_total: 2
           - display_name: core 1/5
             category: core
             shard_index: 1
@@ -157,7 +161,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --frozen
 
       - name: Resolve pytest shard targets
         env:
@@ -185,11 +189,21 @@ jobs:
           PY
 
       - name: Run pytest shard
+        timeout-minutes: 10
         env:
+          GPD_FAST_SUITE_BUDGET_SECONDS: "180"
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
-          uv run pytest -q "${PYTEST_TARGETS[@]}"
+          echo "Fast suite budget: ${GPD_FAST_SUITE_BUDGET_SECONDS}s enforced per pytest shard; job timeout: 10 minutes"
+          set +e
+          timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"
+          pytest_status=$?
+          set -e
+          if [ "$pytest_status" -eq 124 ]; then
+            echo "::error::pytest shard exceeded enforced ${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"
+          fi
+          exit "$pytest_status"
 
   # Staging rebuild trigger moved to staging-rebuild.yml so it doesn't
   # show as a skipped check on PRs.

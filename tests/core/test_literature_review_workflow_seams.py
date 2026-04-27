@@ -16,7 +16,7 @@ def _read(path: Path) -> str:
 def test_literature_review_command_stays_thin_and_leaves_routing_to_the_workflow() -> None:
     command = _read(COMMANDS_DIR / "literature-review.md")
 
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in command
+    assert "Follow the included literature-review workflow exactly." in command
     assert "The workflow owns staged loading, scope fixing, artifact gating, and citation verification." in command
     assert "explicit topic or research question" in command
     assert "under `GPD/literature/` rooted at the current workspace" in command

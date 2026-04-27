@@ -13,9 +13,9 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
 from gpd.core.artifact_text import ArtifactTextError, load_artifact_text_surface
-from gpd.core.constants import PLANNING_DIR_NAME, PROJECT_FILENAME, PUBLICATION_DIR_NAME, ProjectLayout
+from gpd.core.constants import PLANNING_DIR_NAME, PUBLICATION_DIR_NAME, ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
-from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
+from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint, resolve_explicit_publication_subject
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
 from gpd.core.referee_policy import validate_stage_review_artifact_alignment
 from gpd.core.reproducibility import compute_sha256
@@ -64,6 +64,11 @@ _MANUSCRIPT_PROOF_AFFECTING_EXTENSIONS = frozenset(
         ".docx",
         ".md",
         ".pdf",
+        ".eps",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".svg",
         ".tex",
         ".tsv",
         ".bib",
@@ -195,10 +200,6 @@ def _is_project_managed_publication_lane(relative: Path | None) -> bool:
     )
 
 
-def _project_backed_publication_workspace(project_root: Path) -> bool:
-    return (project_root / PLANNING_DIR_NAME / PROJECT_FILENAME).is_file()
-
-
 def publication_lineage_mode(project_root: Path, manuscript_entrypoint: Path) -> str:
     """Return whether review/response lineage stays global or becomes subject-owned."""
 
@@ -209,7 +210,7 @@ def publication_lineage_mode(project_root: Path, manuscript_entrypoint: Path) ->
     if relative is not None and relative.parts and relative.parts[0] in {"paper", "manuscript", "draft"}:
         return "global_gpd"
     if _is_project_managed_publication_lane(relative):
-        return "global_gpd" if _project_backed_publication_workspace(project_root) else "subject_owned"
+        return "subject_owned"
     return "subject_owned"
 
 
@@ -410,7 +411,8 @@ def resolve_manuscript_proof_review_status(
 
     review_anchor = _latest_matching_math_review_anchor(project_root, entrypoint)
     actual_manuscript_sha256 = compute_sha256(entrypoint)
-    watched_files = _collect_manuscript_watched_files(entrypoint.parent)
+    manuscript_watch_root = _resolved_manuscript_watch_root(project_root, entrypoint)
+    watched_files = _collect_manuscript_watched_files(manuscript_watch_root)
     manifest_path = manuscript_proof_review_manifest_path(entrypoint, project_root=project_root)
     if review_anchor is None:
         return ProofReviewStatus(
@@ -697,6 +699,11 @@ def _collect_manuscript_watched_files(manuscript_root: Path) -> tuple[Path, ...]
             continue
         files.append(path)
     return tuple(files)
+
+
+def _resolved_manuscript_watch_root(project_root: Path, manuscript_entrypoint: Path) -> Path:
+    subject = resolve_explicit_publication_subject(project_root, manuscript_entrypoint, allow_markdown=True)
+    return subject.manuscript_root or manuscript_entrypoint.parent
 
 
 def _with_extra_watched_files(*groups: tuple[Path, ...] | Path) -> tuple[Path, ...]:

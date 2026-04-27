@@ -26,9 +26,10 @@ def test_gpd_project_researcher_prompt_stays_within_expected_budget_and_keeps_on
     assert "return typed `gpd_return.status: checkpoint` and stop" in source
     assert "The orchestrator presents the checkpoint and spawns a fresh continuation after the response." in source
     assert "Do not wait inside the same spawned run." in source
-    assert "STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status" in source
     assert "Structured return provided to orchestrator" in source
-    assert "single-session scope is predictable" in source
+    assert "Authority: use the frontmatter-derived Agent Requirements block" in source
+    assert "artifact_write_authority: scoped_write" in source
+    assert "shared_state_authority: return_only" in source
 
     for phrase in (
         "wait for user confirmation",

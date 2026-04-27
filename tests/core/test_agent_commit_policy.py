@@ -8,20 +8,13 @@ from pathlib import Path
 import pytest
 
 from gpd import registry
+from gpd.core.model_visible_text import AGENT_FRONTMATTER_AUTHORITY_POINTER
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 INFRA_PATH = REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md"
 
 DIRECT_AGENTS = {"gpd-debugger", "gpd-executor", "gpd-planner"}
-DIRECT_SENTENCE = (
-    "Commit authority: direct. You may use `gpd commit` for your own scoped artifacts only. "
-    "Do NOT use raw `git commit` when `gpd commit` applies."
-)
-ORCHESTRATOR_SENTENCE = (
-    "Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. "
-    "Return changed paths in `gpd_return.files_written`."
-)
 
 
 @pytest.fixture(autouse=True)
@@ -59,20 +52,26 @@ def test_registry_agent_commit_authority_values_are_valid() -> None:
 def test_agent_infrastructure_commit_policy_uses_frontmatter_inventory_instead_of_manual_matrix() -> None:
     infra = INFRA_PATH.read_text(encoding="utf-8")
 
-    assert "Direct-commit allowlist: `gpd-debugger`, `gpd-executor`, `gpd-planner`." in infra
+    assert "named allowlist" in infra
+    assert "Direct-commit allowlist:" not in infra
     assert "validated by the registry; do not duplicate a hand-maintained matrix" in infra
     assert "Canonical ownership matrix:" not in infra
     assert not re.search(r"^\| (gpd-[a-z-]+) \| `(?:direct|orchestrator)` \|", infra, re.MULTILINE)
 
 
-def test_agent_prompts_include_exact_commit_authority_sentence() -> None:
+def test_agent_prompts_use_frontmatter_derived_commit_authority_surface() -> None:
     for name in registry.list_agents():
-        path = Path(registry.get_agent(name).path)
+        agent = registry.get_agent(name)
+        path = Path(agent.path)
         content = path.read_text(encoding="utf-8")
-        expected = DIRECT_SENTENCE if name in DIRECT_AGENTS else ORCHESTRATOR_SENTENCE
-        unexpected = ORCHESTRATOR_SENTENCE if name in DIRECT_AGENTS else DIRECT_SENTENCE
-        assert content.count(expected) == 1, path.name
-        assert unexpected not in content, path.name
+
+        assert content.count(AGENT_FRONTMATTER_AUTHORITY_POINTER) == 1, path.name
+        assert agent.system_prompt.startswith("## Agent Requirements\n"), path.name
+        assert f"commit_authority: {agent.commit_authority}" in agent.system_prompt, path.name
+        assert f"surface: {agent.surface}" in agent.system_prompt, path.name
+        assert f"artifact_write_authority: {agent.artifact_write_authority}" in agent.system_prompt, path.name
+        assert f"shared_state_authority: {agent.shared_state_authority}" in agent.system_prompt, path.name
+        assert not re.search(r"^Commit authority:", content, re.MULTILINE), path.name
 
 
 def test_agents_do_not_duplicate_stale_commit_ownership_blocks() -> None:
@@ -81,3 +80,5 @@ def test_agents_do_not_duplicate_stale_commit_ownership_blocks() -> None:
 
         assert "## Agent Commit Ownership" not in content, path.name
         assert "Which agents commit their own work vs. return `files_written`" not in content, path.name
+        assert "Do NOT use raw `git commit` when `gpd commit` applies." not in content, path.name
+        assert "Do NOT run `gpd commit`, `git commit`, or stage files." not in content, path.name

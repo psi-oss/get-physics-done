@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
+from gpd.core.root_resolution import RootResolutionConfidence, resolve_project_root, resolve_project_roots
 
 
 @pytest.mark.parametrize(
@@ -137,3 +138,15 @@ def test_project_layout_ignores_non_project_hidden_gpd_dirs(tmp_path: Path) -> N
     (legacy / "venv" / "bin").mkdir(parents=True)
 
     assert ProjectLayout(tmp_path).gpd == tmp_path / PLANNING_DIR_NAME
+
+
+def test_bare_gpd_phases_stub_is_not_high_confidence_project_root(tmp_path: Path) -> None:
+    (tmp_path / PLANNING_DIR_NAME / "phases").mkdir(parents=True)
+
+    resolution = resolve_project_roots(tmp_path)
+
+    assert resolution is not None
+    assert resolution.project_root == tmp_path.resolve(strict=False)
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolve_project_root(tmp_path, require_layout=True) is None

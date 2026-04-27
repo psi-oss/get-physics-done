@@ -41,8 +41,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+paper = [
+    "cairosvg>=2.7.0",
+    "pypdf>=5.0",
+]
 arxiv = [
     "arxiv-mcp-server>=0.4.11",
+    "arxiv>=2.4.1",
+    "cairosvg>=2.7.0",
     "pypdf>=5.0",
 ]
 
@@ -73,6 +79,9 @@ packages = ["src/gpd"]
 
 [tool.hatch.build.targets.sdist]
 include = [
+    "/.github",
+    "/.gitignore",
+    "/.pre-commit-config.yaml",
     "/CHANGELOG.md",
     "/CITATION.cff",
     "/CLA",
@@ -92,13 +101,21 @@ include = [
 exclude = [
     "/.DS_Store",
     "/.mypy_cache",
+    "/.npm-cache",
     "/.pytest_cache",
     "/.ruff_cache",
     "/.uv-cache",
     "/.venv",
+    "/__pycache__",
+    "/build",
     "/GPD*",
     "/dist",
     "/tmp",
+    "/*.egg-info",
+    "**/__pycache__",
+    "**/*.egg-info",
+    "**/*.pyc",
+    "**/*.pyo",
 ]
 
 [tool.pytest.ini_options]

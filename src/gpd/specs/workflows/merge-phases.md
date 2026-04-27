@@ -125,7 +125,7 @@ fi
 Proceed? (y/n)
 ```
 
-Wait for user confirmation.
+Stop for this confirmation. Continue only if the user answers `y`; abort without mutations on `n` or any ambiguous response.
 </step>
 
 <step name="analyze_overlap">

@@ -34,12 +34,12 @@ def test_debugger_vertical_spawn_contract_is_one_shot_and_file_producing() -> No
     assert "one-shot handoff" in expanded_workflow
     assert "Always pass `readonly=false` for file-producing agents." in expanded_workflow
 
-    assert command.count('subagent_type="gpd-debugger"') == 2
-    assert command.count("readonly=false") == 2
-    assert "Create: GPD/debug/{slug}.md" in command
-    assert 'prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.' in command
-    assert 'description="Debug {slug}"' in command
-    assert 'description="Continue debug {slug}"' in command
+    assert command.count('subagent_type="gpd-debugger"') == 1
+    assert "readonly=false" not in command
+    assert "Debug session artifact: `GPD/debug/{slug}.md`" in command
+    assert "read `{GPD_AGENTS_DIR}/gpd-debugger.md` for its role and instructions" in command
+    assert 'description="Debug {slug}"' not in command
+    assert 'description="Continue debug {slug}"' not in command
 
 
 def test_debugger_vertical_artifact_paths_keep_active_and_resolved_session_state_separate() -> None:
@@ -47,13 +47,11 @@ def test_debugger_vertical_artifact_paths_keep_active_and_resolved_session_state
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     agent = AGENT_PATH.read_text(encoding="utf-8")
 
-    assert "Create: GPD/debug/{slug}.md" in command
-    assert "Debug file path: GPD/debug/{slug}.md" in command
-    assert "expected debug session artifact" in command
-    assert "artifact gate" in command
+    assert "Debug session artifact: `GPD/debug/{slug}.md`" in command
+    assert "verifies the debug session artifact before treating a root cause as confirmed" in command
     assert "GPD/debug/{slug}.md" in workflow
     assert "session_status: diagnosed" in workflow
-    assert "files_written: [GPD/debug/{slug}.md, ...]" in agent
+    assert "files_written:\n    - GPD/debug/{slug}.md" in agent
     assert "session_file: GPD/debug/{slug}.md" in agent
     assert "**Troubleshooting Session:** GPD/debug/resolved/{slug}.md" in agent
     assert "A checkpoint is a one-shot handoff for the current run." in agent
@@ -65,10 +63,8 @@ def test_debugger_vertical_seam_routes_on_typed_status_instead_of_headings() -> 
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     agent = AGENT_PATH.read_text(encoding="utf-8")
 
-    assert "gpd_return.status: completed" in command
-    assert "gpd_return.status: checkpoint" in command
-    assert "gpd_return.status: blocked" in command
-    assert "Do not branch on heading text here." in command
+    assert "typed `gpd_return.status` envelope" in command
+    assert "routes only on the typed `gpd_return.status` envelope" in command
     assert "gpd_return.status: completed" in workflow
     assert "gpd_return.status: checkpoint" in workflow
     assert "gpd_return.status: blocked" in workflow

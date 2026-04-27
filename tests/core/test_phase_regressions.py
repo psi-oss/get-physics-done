@@ -366,12 +366,12 @@ def test_phase_insert_matches_heading_level(tmp_path: Path) -> None:
     phase_insert(tmp_path, "1", "Hotfix")
 
     roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
-    assert "## Phase 01.1" in roadmap
+    assert "## Phase 1.1" in roadmap
     assert "### Phase 01.1" not in roadmap
 
 
-def test_phase_insert_depends_on_uses_normalized_form(tmp_path: Path) -> None:
-    """phase_insert Depends-on should use normalized (padded) phase number."""
+def test_phase_insert_depends_on_preserves_roadmap_number_style(tmp_path: Path) -> None:
+    """phase_insert Depends-on should follow the roadmap's visible number style."""
     from gpd.core.phases import phase_insert
 
     _setup_project(tmp_path)
@@ -389,8 +389,4 @@ def test_phase_insert_depends_on_uses_normalized_form(tmp_path: Path) -> None:
     phase_insert(tmp_path, "1", "Urgent Fix")
 
     roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
-    # NOTE: phase_normalize always pads the top-level segment to 2 digits
-    # (e.g., "1" -> "01"), so the Depends-on line says "Phase 01" even though
-    # the ROADMAP uses unpadded headings ("Phase 1:").  This is a known
-    # inconsistency in phase_normalize's design, not a defect in phase_insert.
-    assert "**Depends on:** Phase 01" in roadmap
+    assert "**Depends on:** Phase 1" in roadmap

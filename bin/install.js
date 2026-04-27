@@ -31,15 +31,18 @@ const RUNTIME_CATALOG_SCHEMA = require("../src/gpd/adapters/runtime_catalog_sche
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
-const GPD_HOME_DIRNAME = "GPD";
+const GPD_HOME_DIRNAME = ".gpd";
 const GITHUB_MAIN_BRANCH = "main";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
 const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
+const MIN_SUPPORTED_NODE_MAJOR = 20;
+const MIN_SUPPORTED_NODE_LABEL = `${MIN_SUPPORTED_NODE_MAJOR}+`;
 const MIN_SUPPORTED_PYTHON_MAJOR = 3;
 const MIN_SUPPORTED_PYTHON_MINOR = 11;
 const MIN_SUPPORTED_PYTHON_LABEL = `${MIN_SUPPORTED_PYTHON_MAJOR}.${MIN_SUPPORTED_PYTHON_MINOR}+`;
+// Keep this in sync with gpd._python_compat.PREFERRED_VERSIONED_PYTHON_MINORS.
 const PREFERRED_VERSIONED_PYTHON_MINORS = [13, 12, MIN_SUPPORTED_PYTHON_MINOR];
 
 const red = "\x1b[31m";
@@ -162,10 +165,25 @@ const RUNTIME_CATALOG_CAPABILITY_ENUMS = Object.fromEntries(
 );
 const RUNTIME_CAPABILITY_DEFAULTS = Object.freeze(RUNTIME_CATALOG_SCHEMA.capability_defaults);
 const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.hook_payload_keys);
+const RUNTIME_HOOK_PAYLOAD_DEFAULTS = Object.freeze(RUNTIME_CATALOG_SCHEMA.hook_payload_defaults);
+const RUNTIME_CATALOG_MANAGED_INSTALL_SURFACE_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.managed_install_surface_keys);
+const RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS = Object.freeze(
+  RUNTIME_CATALOG_SCHEMA.managed_install_surface_defaults
+);
 const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.install_help_example_scopes);
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
   RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
 );
+const RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS = new Set([
+  "permissions_surface",
+  "statusline_surface",
+  "notify_surface",
+  "telemetry_source",
+  "telemetry_completeness",
+  "child_artifact_persistence_reliability",
+  "continuation_surface",
+  "checkpoint_stop_semantics",
+]);
 const PUBLIC_SURFACE_CONTRACT_SHAPE = loadSharedPublicSurfaceShape(PUBLIC_SURFACE_CONTRACT);
 const PUBLIC_SURFACE_CONTRACT_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.topLevelKeys];
 const PUBLIC_SURFACE_CONTRACT_ALLOWED_KEYS = new Set(PUBLIC_SURFACE_CONTRACT_KEYS);
@@ -177,6 +195,11 @@ const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
 );
 const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliNamedCommandKeys];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
+const RUNTIME_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+const RUNTIME_FLAG_RE = /^--[a-z0-9][a-z0-9-]*$/;
+const RUNTIME_ENV_VAR_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const PYTHON_MODULE_RE = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+const PYTHON_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function formatQuotedDisjunction(values) {
   const normalized = [...values].sort();
@@ -244,6 +267,59 @@ function requireStrictString(value, label) {
     throw new Error(`${label} must be a non-empty string`);
   }
   return value;
+}
+
+function requireStrictPatternString(value, label, pattern, description) {
+  const normalized = requireStrictString(value, label);
+  if (!pattern.test(normalized)) {
+    throw new Error(`${label} must be ${description}`);
+  }
+  return normalized;
+}
+
+function requireRuntimeEnvVarName(value, label) {
+  return requireStrictPatternString(value, label, RUNTIME_ENV_VAR_RE, "an environment variable name");
+}
+
+function requireRelativeCatalogPath(value, label, { allowSlash = true } = {}) {
+  const rawValue = requireStrictString(value, label);
+  const normalized = rawValue.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter((part) => part.length > 0);
+  if (
+    normalized.startsWith("/") ||
+    normalized.startsWith("~") ||
+    /^[A-Za-z]:/.test(normalized) ||
+    parts.includes("..") ||
+    parts.includes(".") ||
+    (!allowSlash && parts.length !== 1)
+  ) {
+    throw new Error(`${label} must be a safe ${allowSlash ? "relative path" : "relative path segment"} without traversal`);
+  }
+  return rawValue;
+}
+
+function requireRuntimeEnvVarNameList(value, label, options = {}) {
+  const items = requireStrictStringList(value, label, options);
+  for (const [index, item] of items.entries()) {
+    requireRuntimeEnvVarName(item, `${label}[${index}]`);
+  }
+  return items;
+}
+
+function requireRuntimeFlagList(value, label, options = {}) {
+  const items = requireStrictStringList(value, label, options);
+  for (const [index, item] of items.entries()) {
+    requireStrictPatternString(item, `${label}[${index}]`, RUNTIME_FLAG_RE, "a --kebab-case flag");
+  }
+  return items;
+}
+
+function requireRelativeCatalogPathList(value, label, options = {}) {
+  const items = requireStrictStringList(value, label, options);
+  for (const [index, item] of items.entries()) {
+    requireRelativeCatalogPath(item, `${label}[${index}]`, { allowSlash: true });
+  }
+  return items;
 }
 
 function requireStrictEnumString(value, label, allowedValues) {
@@ -406,42 +482,61 @@ function validateRuntimeCatalogGlobalConfig(globalConfig, label) {
   if (strategy === "env_or_home") {
     return {
       strategy,
-      env_var: requireStrictString(payload.env_var, `${label}.env_var`),
-      home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
+      env_var: requireRuntimeEnvVarName(payload.env_var, `${label}.env_var`),
+      home_subpath: requireRelativeCatalogPath(payload.home_subpath, `${label}.home_subpath`),
     };
   }
 
   return {
     strategy,
-    env_dir_var: requireStrictString(payload.env_dir_var, `${label}.env_dir_var`),
-    env_file_var: requireStrictString(payload.env_file_var, `${label}.env_file_var`),
-    xdg_subdir: requireStrictString(payload.xdg_subdir, `${label}.xdg_subdir`),
-    home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
+    env_dir_var: requireRuntimeEnvVarName(payload.env_dir_var, `${label}.env_dir_var`),
+    env_file_var: requireRuntimeEnvVarName(payload.env_file_var, `${label}.env_file_var`),
+    xdg_subdir: requireRelativeCatalogPath(payload.xdg_subdir, `${label}.xdg_subdir`),
+    home_subpath: requireRelativeCatalogPath(payload.home_subpath, `${label}.home_subpath`),
   };
 }
 
 validateSharedPublicSurfaceSchemaShape(PUBLIC_SURFACE_CONTRACT_SCHEMA);
 
-function validateRuntimeCatalogCapabilities(capabilities, label) {
+function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
   const payload = requireJsonObject(capabilities, label);
-  requireKnownKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
-  const capabilityValue = (fieldName) => (
-    Object.prototype.hasOwnProperty.call(payload, fieldName)
-      ? payload[fieldName]
-      : RUNTIME_CAPABILITY_DEFAULTS[fieldName]
+  const capabilityKeys = options.capabilityKeys || RUNTIME_CATALOG_CAPABILITY_KEYS;
+  const capabilityDefaults = Object.prototype.hasOwnProperty.call(options, "capabilityDefaults")
+    ? options.capabilityDefaults
+    : RUNTIME_CAPABILITY_DEFAULTS;
+  const capabilityEnums = options.capabilityEnums || RUNTIME_CATALOG_CAPABILITY_ENUMS;
+  const launchWrapperPermissionSurfaceKinds = (
+    options.launchWrapperPermissionSurfaceKinds || RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS
   );
+  requireKnownKeys(payload, capabilityKeys, label);
+  if (capabilityDefaults === null) {
+    requirePresentKeys(payload, [...capabilityKeys], label);
+  }
+  const capabilityValue = (fieldName) => {
+    if (Object.prototype.hasOwnProperty.call(payload, fieldName)) {
+      return payload[fieldName];
+    }
+    if (
+      capabilityDefaults !== null &&
+      capabilityDefaults !== undefined &&
+      Object.prototype.hasOwnProperty.call(capabilityDefaults, fieldName)
+    ) {
+      return capabilityDefaults[fieldName];
+    }
+    throw new Error(`${label} is missing required key(s): ${fieldName}`);
+  };
   const optionalPromptFreeModeValue = capabilityValue("prompt_free_mode_value");
 
   const validated = {
     permissions_surface: requireStrictEnumString(
       capabilityValue("permissions_surface"),
       `${label}.permissions_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.permissions_surface
+      capabilityEnums.permissions_surface
     ),
     permission_surface_kind: requireRuntimeSurfaceLabel(
       capabilityValue("permission_surface_kind"),
       `${label}.permission_surface_kind`,
-      { allowSpecialValues: RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS }
+      { allowSpecialValues: launchWrapperPermissionSurfaceKinds }
     ),
     prompt_free_mode_value: optionalPromptFreeModeValue === null
       ? null
@@ -461,7 +556,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     statusline_surface: requireStrictEnumString(
       capabilityValue("statusline_surface"),
       `${label}.statusline_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.statusline_surface
+      capabilityEnums.statusline_surface
     ),
     statusline_config_surface: requireRuntimeSurfaceLabel(
       capabilityValue("statusline_config_surface"),
@@ -470,7 +565,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     notify_surface: requireStrictEnumString(
       capabilityValue("notify_surface"),
       `${label}.notify_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.notify_surface
+      capabilityEnums.notify_surface
     ),
     notify_config_surface: requireRuntimeSurfaceLabel(
       capabilityValue("notify_config_surface"),
@@ -479,12 +574,12 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     telemetry_source: requireStrictEnumString(
       capabilityValue("telemetry_source"),
       `${label}.telemetry_source`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.telemetry_source
+      capabilityEnums.telemetry_source
     ),
     telemetry_completeness: requireStrictEnumString(
       capabilityValue("telemetry_completeness"),
       `${label}.telemetry_completeness`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.telemetry_completeness
+      capabilityEnums.telemetry_completeness
     ),
     supports_usage_tokens: requireStrictBoolean(capabilityValue("supports_usage_tokens"), `${label}.supports_usage_tokens`),
     supports_cost_usd: requireStrictBoolean(capabilityValue("supports_cost_usd"), `${label}.supports_cost_usd`),
@@ -492,7 +587,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     child_artifact_persistence_reliability: requireStrictEnumString(
       capabilityValue("child_artifact_persistence_reliability"),
       `${label}.child_artifact_persistence_reliability`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.child_artifact_persistence_reliability
+      capabilityEnums.child_artifact_persistence_reliability
     ),
     supports_structured_child_results: requireStrictBoolean(
       capabilityValue("supports_structured_child_results"),
@@ -501,12 +596,12 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
     continuation_surface: requireStrictEnumString(
       capabilityValue("continuation_surface"),
       `${label}.continuation_surface`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.continuation_surface
+      capabilityEnums.continuation_surface
     ),
     checkpoint_stop_semantics: requireStrictEnumString(
       capabilityValue("checkpoint_stop_semantics"),
       `${label}.checkpoint_stop_semantics`,
-      RUNTIME_CATALOG_CAPABILITY_ENUMS.checkpoint_stop_semantics
+      capabilityEnums.checkpoint_stop_semantics
     ),
     supports_runtime_session_payload_attribution: requireStrictBoolean(
       capabilityValue("supports_runtime_session_payload_attribution"),
@@ -517,10 +612,16 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
       `${label}.supports_agent_payload_attribution`
     ),
   };
+  const validatedFields = new Set(Object.keys(validated));
+  for (const fieldName of [...capabilityKeys].sort()) {
+    if (!validatedFields.has(fieldName)) {
+      validated[fieldName] = requireStrictString(capabilityValue(fieldName), `${label}.${fieldName}`);
+    }
+  }
   if (validated.permissions_surface === "config-file") {
     if (
       validated.permission_surface_kind === "none" ||
-      RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind)
+      launchWrapperPermissionSurfaceKinds.has(validated.permission_surface_kind)
     ) {
       throw new Error(
         `${label}.permission_surface_kind must be a config surface label when permissions_surface=config-file`
@@ -530,9 +631,9 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
       throw new Error(`${label}.supports_runtime_permission_sync must be true when permissions_surface=config-file`);
     }
   } else if (validated.permissions_surface === "launch-wrapper") {
-    if (!RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind)) {
+    if (!launchWrapperPermissionSurfaceKinds.has(validated.permission_surface_kind)) {
       throw new Error(
-        `${label}.permission_surface_kind must be ${formatQuotedDisjunction(RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS)} `
+        `${label}.permission_surface_kind must be ${formatQuotedDisjunction(launchWrapperPermissionSurfaceKinds)} `
         + "when permissions_surface=launch-wrapper"
       );
     }
@@ -556,79 +657,277 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
   if (!validated.supports_prompt_free_mode && validated.prompt_free_requires_relaunch) {
     throw new Error(`${label}.prompt_free_requires_relaunch requires supports_prompt_free_mode=true`);
   }
+  if (validated.supports_prompt_free_mode && validated.prompt_free_mode_value === null) {
+    throw new Error(`${label}.prompt_free_mode_value must be a non-empty string when supports_prompt_free_mode=true`);
+  }
   if (validated.supports_structured_child_results && validated.continuation_surface !== "explicit") {
     throw new Error(`${label}.continuation_surface must be explicit when supports_structured_child_results=true`);
+  }
+  if (validated.statusline_surface === "explicit") {
+    if (validated.statusline_config_surface === "none") {
+      throw new Error(`${label}.statusline_config_surface must not be "none" when statusline_surface=explicit`);
+    }
+  } else if (validated.statusline_config_surface !== "none") {
+    throw new Error(`${label}.statusline_config_surface must be "none" when statusline_surface=none`);
+  }
+  if (validated.notify_surface === "explicit") {
+    if (validated.notify_config_surface === "none") {
+      throw new Error(`${label}.notify_config_surface must not be "none" when notify_surface=explicit`);
+    }
+  } else if (validated.notify_config_surface !== "none") {
+    throw new Error(`${label}.notify_config_surface must be "none" when notify_surface=none`);
+  }
+  if (validated.telemetry_completeness === "none") {
+    if (validated.telemetry_source !== "none") {
+      throw new Error(`${label}.telemetry_source must be "none" when telemetry_completeness=none`);
+    }
+    if (validated.supports_usage_tokens) {
+      throw new Error(`${label}.supports_usage_tokens must be false when telemetry_completeness=none`);
+    }
+    if (validated.supports_cost_usd) {
+      throw new Error(`${label}.supports_cost_usd must be false when telemetry_completeness=none`);
+    }
+  } else if (validated.telemetry_source === "none") {
+    throw new Error(`${label}.telemetry_source must not be "none" when telemetry_completeness is not none`);
   }
   return validated;
 }
 
-function validateRuntimeCatalogHookPayload(hookPayload, label) {
-  const payload = requireJsonObject(hookPayload, label);
-  requireKnownKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
-  requirePresentKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
+function validateRuntimeCatalogCapabilityEnums(capabilityEnumsPayload, capabilityKeys, label) {
+  const payload = requireJsonObject(capabilityEnumsPayload, label);
+  requireKnownKeys(payload, capabilityKeys, label);
+  requirePresentKeys(payload, [...RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS], label);
+  const validated = {};
+  for (const [fieldName, rawValues] of Object.entries(payload)) {
+    if (typeof fieldName !== "string" || !fieldName.trim() || fieldName.trim() !== fieldName) {
+      throw new Error(`${label} keys must be non-empty strings`);
+    }
+    validated[fieldName] = new Set(requireStrictStringList(rawValues, `${label}.${fieldName}`));
+  }
+  return validated;
+}
 
-  return {
-    notify_event_types: requireStrictStringList(payload.notify_event_types, `${label}.notify_event_types`, {
-      allowEmpty: true,
-    }),
-    workspace_keys: requireStrictStringList(payload.workspace_keys, `${label}.workspace_keys`, { allowEmpty: true }),
-    project_dir_keys: requireStrictStringList(payload.project_dir_keys, `${label}.project_dir_keys`, {
-      allowEmpty: true,
-    }),
-    runtime_session_id_keys: requireStrictStringList(
-      payload.runtime_session_id_keys,
-      `${label}.runtime_session_id_keys`,
-      { allowEmpty: true }
-    ),
-    model_keys: requireStrictStringList(payload.model_keys, `${label}.model_keys`, { allowEmpty: true }),
-    provider_keys: requireStrictStringList(payload.provider_keys, `${label}.provider_keys`, { allowEmpty: true }),
-    target_path_keys: requireStrictStringList(payload.target_path_keys, `${label}.target_path_keys`, {
-      allowEmpty: true,
-    }),
-    target_root_keys: requireStrictStringList(payload.target_root_keys, `${label}.target_root_keys`, {
-      allowEmpty: true,
-    }),
-    usage_keys: requireStrictStringList(payload.usage_keys, `${label}.usage_keys`, { allowEmpty: true }),
-    input_tokens_keys: requireStrictStringList(payload.input_tokens_keys, `${label}.input_tokens_keys`, {
-      allowEmpty: true,
-    }),
-    output_tokens_keys: requireStrictStringList(payload.output_tokens_keys, `${label}.output_tokens_keys`, {
-      allowEmpty: true,
-    }),
-    total_tokens_keys: requireStrictStringList(payload.total_tokens_keys, `${label}.total_tokens_keys`, {
-      allowEmpty: true,
-    }),
-    cached_input_tokens_keys: requireStrictStringList(
-      payload.cached_input_tokens_keys,
-      `${label}.cached_input_tokens_keys`,
-      { allowEmpty: true }
-    ),
-    cache_write_input_tokens_keys: requireStrictStringList(
-      payload.cache_write_input_tokens_keys,
-      `${label}.cache_write_input_tokens_keys`,
-      { allowEmpty: true }
-    ),
-    cost_usd_keys: requireStrictStringList(payload.cost_usd_keys, `${label}.cost_usd_keys`, { allowEmpty: true }),
-    agent_id_keys: requireStrictStringList(payload.agent_id_keys, `${label}.agent_id_keys`, { allowEmpty: true }),
-    agent_name_keys: requireStrictStringList(payload.agent_name_keys, `${label}.agent_name_keys`, { allowEmpty: true }),
-    agent_scope_keys: requireStrictStringList(payload.agent_scope_keys, `${label}.agent_scope_keys`, {
-      allowEmpty: true,
-    }),
-    context_window_size_keys: requireStrictStringList(
-      payload.context_window_size_keys,
-      `${label}.context_window_size_keys`,
-      { allowEmpty: true }
-    ),
-    context_remaining_keys: requireStrictStringList(
-      payload.context_remaining_keys,
-      `${label}.context_remaining_keys`,
-      { allowEmpty: true }
-    ),
+function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEMA) {
+  const schema = requireJsonObject(schemaPayload, "runtime catalog schema");
+  const allowedTopLevelKeys = new Set([
+    "schema_version",
+    "entry_required_keys",
+    "entry_optional_keys",
+    "global_config_keys",
+    "capability_keys",
+    "capability_defaults",
+    "capability_enums",
+    "hook_payload_keys",
+    "hook_payload_defaults",
+    "managed_install_surface_keys",
+    "managed_install_surface_defaults",
+    "install_help_example_scopes",
+    "launch_wrapper_permission_surface_kinds",
+  ]);
+  requireKnownKeys(schema, allowedTopLevelKeys, "runtime catalog schema");
+  requirePresentKeys(schema, [...allowedTopLevelKeys], "runtime catalog schema");
+  if (schema.schema_version !== 1) {
+    throw new Error(`Unsupported runtime catalog schema_version: ${JSON.stringify(schema.schema_version)}`);
+  }
+
+  const capabilityKeys = requireStrictStringList(schema.capability_keys, "runtime catalog schema.capability_keys");
+  const capabilityKeySet = new Set(capabilityKeys);
+  const capabilityDefaults = requireJsonObject(schema.capability_defaults, "runtime catalog schema.capability_defaults");
+  requireKnownKeys(capabilityDefaults, capabilityKeySet, "runtime catalog schema.capability_defaults");
+  requirePresentKeys(capabilityDefaults, capabilityKeys, "runtime catalog schema.capability_defaults");
+  const capabilityEnums = validateRuntimeCatalogCapabilityEnums(
+    schema.capability_enums,
+    capabilityKeySet,
+    "runtime catalog schema.capability_enums"
+  );
+  const launchWrapperPermissionSurfaceKinds = new Set(requireStrictStringList(
+    schema.launch_wrapper_permission_surface_kinds,
+    "runtime catalog schema.launch_wrapper_permission_surface_kinds"
+  ));
+  validateRuntimeCatalogCapabilities(capabilityDefaults, "runtime catalog schema.capability_defaults", {
+    capabilityKeys: capabilityKeySet,
+    capabilityDefaults: null,
+    capabilityEnums,
+    launchWrapperPermissionSurfaceKinds,
+  });
+  const hookPayloadKeys = requireStrictStringList(schema.hook_payload_keys, "runtime catalog schema.hook_payload_keys");
+  const hookPayloadKeySet = new Set(hookPayloadKeys);
+  const hookPayloadDefaults = requireJsonObject(
+    schema.hook_payload_defaults,
+    "runtime catalog schema.hook_payload_defaults"
+  );
+  requireKnownKeys(hookPayloadDefaults, hookPayloadKeySet, "runtime catalog schema.hook_payload_defaults");
+  requirePresentKeys(hookPayloadDefaults, hookPayloadKeys, "runtime catalog schema.hook_payload_defaults");
+  validateRuntimeCatalogHookPayload(hookPayloadDefaults, "runtime catalog schema.hook_payload_defaults", {
+    hookPayloadKeys: hookPayloadKeySet,
+    hookPayloadDefaults: null,
+  });
+  const managedInstallSurfaceKeys = requireStrictStringList(
+    schema.managed_install_surface_keys,
+    "runtime catalog schema.managed_install_surface_keys"
+  );
+  const managedInstallSurfaceKeySet = new Set(managedInstallSurfaceKeys);
+  const managedInstallSurfaceDefaults = requireJsonObject(
+    schema.managed_install_surface_defaults,
+    "runtime catalog schema.managed_install_surface_defaults"
+  );
+  requireKnownKeys(
+    managedInstallSurfaceDefaults,
+    managedInstallSurfaceKeySet,
+    "runtime catalog schema.managed_install_surface_defaults"
+  );
+  requirePresentKeys(
+    managedInstallSurfaceDefaults,
+    managedInstallSurfaceKeys,
+    "runtime catalog schema.managed_install_surface_defaults"
+  );
+  validateRuntimeCatalogManagedInstallSurface(
+    managedInstallSurfaceDefaults,
+    "runtime catalog schema.managed_install_surface_defaults",
+    {
+      managedInstallSurfaceKeys: managedInstallSurfaceKeySet,
+      managedInstallSurfaceDefaults: null,
+    }
+  );
+  return schema;
+}
+
+function validateStringListPolicy(payload, keys, defaults, label) {
+  requireKnownKeys(payload, keys, label);
+  if (defaults === null) {
+    requirePresentKeys(payload, [...keys], label);
+  }
+  const validated = {};
+  for (const fieldName of [...keys].sort()) {
+    if (Object.prototype.hasOwnProperty.call(payload, fieldName)) {
+      validated[fieldName] = requireStrictStringList(payload[fieldName], `${label}.${fieldName}`, {
+        allowEmpty: true,
+      });
+      continue;
+    }
+    if (defaults === null) {
+      throw new Error(`${label} is missing required key(s): ${fieldName}`);
+    }
+    validated[fieldName] = [...defaults[fieldName]];
+  }
+  return validated;
+}
+
+function validateRuntimeCatalogHookPayload(hookPayload, label, options = {}) {
+  const payload = requireJsonObject(hookPayload, label);
+  return validateStringListPolicy(
+    payload,
+    options.hookPayloadKeys || RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS,
+    Object.prototype.hasOwnProperty.call(options, "hookPayloadDefaults")
+      ? options.hookPayloadDefaults
+      : RUNTIME_HOOK_PAYLOAD_DEFAULTS,
+    label
+  );
+}
+
+function validateRuntimeCatalogManagedInstallSurface(managedInstallSurface, label, options = {}) {
+  const payload = requireJsonObject(managedInstallSurface, label);
+  const validated = validateStringListPolicy(
+    payload,
+    options.managedInstallSurfaceKeys || RUNTIME_CATALOG_MANAGED_INSTALL_SURFACE_KEYS,
+    Object.prototype.hasOwnProperty.call(options, "managedInstallSurfaceDefaults")
+      ? options.managedInstallSurfaceDefaults
+      : RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS,
+    label
+  );
+  for (const [fieldName, patterns] of Object.entries(validated)) {
+    patterns.forEach((pattern, index) => {
+      const normalized = pattern.replace(/\\/g, "/");
+      if (
+        normalized.startsWith("/") ||
+        normalized.startsWith("~") ||
+        /^[A-Za-z]:/.test(normalized) ||
+        normalized.split("/").includes("..")
+      ) {
+        throw new Error(`${label}.${fieldName}.${index} must be a relative managed install glob without traversal`);
+      }
+    });
+  }
+  return validated;
+}
+
+function validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label) {
+  const supportsRuntimeSessionPayloadAttribution = hookPayload.runtime_session_id_keys.length > 0;
+  if (capabilities.supports_runtime_session_payload_attribution !== supportsRuntimeSessionPayloadAttribution) {
+    throw new Error(
+      `${label}.capabilities.supports_runtime_session_payload_attribution must match `
+      + `${label}.hook_payload.runtime_session_id_keys`
+    );
+  }
+
+  const supportsAgentPayloadAttribution = Boolean(
+    hookPayload.agent_id_keys.length || hookPayload.agent_name_keys.length || hookPayload.agent_scope_keys.length
+  );
+  if (capabilities.supports_agent_payload_attribution !== supportsAgentPayloadAttribution) {
+    throw new Error(
+      `${label}.capabilities.supports_agent_payload_attribution must match `
+      + `${label}.hook_payload.agent_id_keys/agent_name_keys/agent_scope_keys`
+    );
+  }
+}
+
+function validateRuntimeCatalogCapabilityHookPayloadContract(capabilities, hookPayload, label) {
+  const requireHookPayloadFields = (capabilityField, fieldNames) => {
+    const missing = fieldNames.filter((fieldName) => hookPayload[fieldName].length === 0);
+    if (missing.length > 0) {
+      throw new Error(
+        `${label}.capabilities.${capabilityField} requires `
+        + missing.map((fieldName) => `${label}.hook_payload.${fieldName}`).join(", ")
+      );
+    }
   };
+
+  if (capabilities.statusline_surface === "explicit") {
+    requireHookPayloadFields("statusline_surface", ["model_keys"]);
+  }
+  if (capabilities.notify_surface === "explicit") {
+    requireHookPayloadFields("notify_surface", ["notify_event_types"]);
+  }
+  if (capabilities.telemetry_source === "notify-hook") {
+    if (capabilities.notify_surface !== "explicit") {
+      throw new Error(`${label}.capabilities.telemetry_source requires ${label}.capabilities.notify_surface=explicit`);
+    }
+    requireHookPayloadFields("telemetry_source", ["notify_event_types"]);
+  }
+  if (capabilities.supports_usage_tokens) {
+    if (capabilities.telemetry_source === "none") {
+      throw new Error(
+        `${label}.capabilities.supports_usage_tokens requires ${label}.capabilities.telemetry_source!="none"`
+      );
+    }
+    requireHookPayloadFields("supports_usage_tokens", ["usage_keys", "input_tokens_keys", "output_tokens_keys"]);
+  }
+  if (capabilities.supports_cost_usd) {
+    if (capabilities.telemetry_source === "none") {
+      throw new Error(`${label}.capabilities.supports_cost_usd requires ${label}.capabilities.telemetry_source!="none"`);
+    }
+    requireHookPayloadFields("supports_cost_usd", ["cost_usd_keys"]);
+  }
+  if (capabilities.supports_context_meter) {
+    if (capabilities.statusline_surface !== "explicit") {
+      throw new Error(
+        `${label}.capabilities.supports_context_meter requires ${label}.capabilities.statusline_surface=explicit`
+      );
+    }
+    requireHookPayloadFields("supports_context_meter", ["context_window_size_keys", "context_remaining_keys"]);
+  }
 }
 
 function parsePublicCommandSurfacePrefix(value, label, commandPrefix) {
   const prefix = value === undefined || value === null ? commandPrefix : requireStrictString(value, label);
+  if (!/^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$/.test(prefix)) {
+    throw new Error(`${label} must be a slash or dollar command prefix ending in ':' or '-'`);
+  }
+  return prefix;
+}
+
+function parseCommandPrefix(value, label) {
+  const prefix = requireStrictString(value, label);
   if (!/^[/$][A-Za-z0-9][A-Za-z0-9._-]*(?::|-)$/.test(prefix)) {
     throw new Error(`${label} must be a slash or dollar command prefix ending in ':' or '-'`);
   }
@@ -655,25 +954,54 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
   const globalConfig = validateRuntimeCatalogGlobalConfig(payload.global_config, `${label}.global_config`);
   const capabilities = validateRuntimeCatalogCapabilities(payload.capabilities, `${label}.capabilities`);
   const hookPayload = validateRuntimeCatalogHookPayload(payload.hook_payload, `${label}.hook_payload`);
+  const managedInstallSurface = validateRuntimeCatalogManagedInstallSurface(
+    Object.prototype.hasOwnProperty.call(payload, "managed_install_surface") ? payload.managed_install_surface : {},
+    `${label}.managed_install_surface`
+  );
+  validateRuntimeCatalogCapabilityHookPayloadContract(capabilities, hookPayload, label);
+  validateRuntimeCatalogAttributionCoherence(capabilities, hookPayload, label);
 
   return {
-    runtime_name: requireStrictString(payload.runtime_name, `${label}.runtime_name`),
+    runtime_name: requireStrictPatternString(
+      payload.runtime_name,
+      `${label}.runtime_name`,
+      RUNTIME_ID_RE,
+      "a lowercase runtime id"
+    ),
     display_name: requireStrictString(payload.display_name, `${label}.display_name`),
     priority: requireStrictInteger(payload.priority, `${label}.priority`),
-    config_dir_name: requireStrictString(payload.config_dir_name, `${label}.config_dir_name`),
-    install_flag: requireStrictString(payload.install_flag, `${label}.install_flag`),
+    config_dir_name: requireRelativeCatalogPath(payload.config_dir_name, `${label}.config_dir_name`, {
+      allowSlash: false,
+    }),
+    install_flag: requireStrictPatternString(
+      payload.install_flag,
+      `${label}.install_flag`,
+      RUNTIME_FLAG_RE,
+      "a --kebab-case flag"
+    ),
     launch_command: requireStrictString(payload.launch_command, `${label}.launch_command`),
-    adapter_module: requireStrictString(payload.adapter_module, `${label}.adapter_module`),
-    adapter_class: requireStrictString(payload.adapter_class, `${label}.adapter_class`),
-    command_prefix: requireStrictString(payload.command_prefix, `${label}.command_prefix`),
-    activation_env_vars: requireStrictStringList(payload.activation_env_vars, `${label}.activation_env_vars`),
-    selection_flags: requireStrictStringList(payload.selection_flags, `${label}.selection_flags`),
+    adapter_module: requireStrictPatternString(
+      payload.adapter_module,
+      `${label}.adapter_module`,
+      PYTHON_MODULE_RE,
+      "a Python module path"
+    ),
+    adapter_class: requireStrictPatternString(
+      payload.adapter_class,
+      `${label}.adapter_class`,
+      PYTHON_IDENTIFIER_RE,
+      "a Python class name"
+    ),
+    command_prefix: parseCommandPrefix(payload.command_prefix, `${label}.command_prefix`),
+    activation_env_vars: requireRuntimeEnvVarNameList(payload.activation_env_vars, `${label}.activation_env_vars`),
+    selection_flags: requireRuntimeFlagList(payload.selection_flags, `${label}.selection_flags`),
     selection_aliases: requireStrictStringList(payload.selection_aliases, `${label}.selection_aliases`),
     global_config: globalConfig,
     capabilities,
     hook_payload: hookPayload,
+    managed_install_surface: managedInstallSurface,
     manifest_file_prefixes: Object.prototype.hasOwnProperty.call(payload, "manifest_file_prefixes")
-      ? requireStrictStringList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
+      ? requireRelativeCatalogPathList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
           allowEmpty: true,
         })
       : [],
@@ -708,7 +1036,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
         ? payload.public_command_surface_prefix
         : undefined,
       `${label}.public_command_surface_prefix`,
-      requireStrictString(payload.command_prefix, `${label}.command_prefix`)
+      parseCommandPrefix(payload.command_prefix, `${label}.command_prefix`)
     ),
   };
 }
@@ -794,6 +1122,7 @@ function validateRuntimeCatalog(catalogPayload) {
   return entries;
 }
 
+validateRuntimeCatalogSchemaShape(RUNTIME_CATALOG_SCHEMA);
 RUNTIME_CATALOG = validateRuntimeCatalog(BUNDLED_RUNTIME_CATALOG_PAYLOAD);
 ALL_RUNTIMES = RUNTIME_CATALOG.map((runtime) => runtime.runtime_name);
 RUNTIME_BY_NAME = Object.fromEntries(RUNTIME_CATALOG.map((runtime) => [runtime.runtime_name, runtime]));
@@ -1112,6 +1441,22 @@ function error(msg) {
   console.error(` ${red}✗${reset} ${msg}`);
 }
 
+function nodeMajorVersion(versionText) {
+  const match = String(versionText || "").trim().match(/^v?(\d+)(?:\.|$)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function ensureSupportedNodeVersion(versionText = process.versions.node) {
+  const major = nodeMajorVersion(versionText);
+  if (major === null || major < MIN_SUPPORTED_NODE_MAJOR) {
+    const current = versionText ? ` Current Node.js: ${versionText}.` : "";
+    throw new Error(
+      `Node.js ${MIN_SUPPORTED_NODE_LABEL} is required to run the GPD bootstrap installer.${current} `
+      + "Upgrade Node.js, then rerun the installer."
+    );
+  }
+}
+
 function isWindows() {
   return process.platform === "win32";
 }
@@ -1233,7 +1578,8 @@ function releaseInstallCandidates(version) {
     );
   }
 
-  // Release installs stay pinned to the matching tagged GitHub source.
+  // Release fallback candidates stay pinned to the selected version tag.
+  // PyPI is tried before these candidates.
   if (repoGitUrl) {
     candidates.push(
       {
@@ -1569,6 +1915,7 @@ function ensureManagedEnvironment(basePython) {
   const venvDir = managedEnvDir(gpdHome);
   const managedPython = managedPythonPath(venvDir);
   const existingManaged = pythonVersionInfo(managedPython);
+  const hadExistingManaged = Boolean(existingManaged);
 
   let shouldCreate = !existingManaged;
   if (
@@ -1619,7 +1966,7 @@ function ensureManagedEnvironment(basePython) {
 
   log(`Using managed environment at ${venvDir}`);
   log(`Found ${pipVersion}`);
-  return { gpdHome, venvDir, python: managedPython };
+  return { gpdHome, venvDir, python: managedPython, reusedExisting: hadExistingManaged && !shouldCreate };
 }
 
 async function installManagedPackage(python, pythonVersion, options = {}) {
@@ -1688,6 +2035,27 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
   return { ok: false, requestedVersion };
 }
 
+function runManagedCliCommand(python, cliArgs, options = {}) {
+  const { captureOutput = false } = options;
+  const spawnOptions = { env: process.env };
+  if (captureOutput) {
+    spawnOptions.encoding = "utf-8";
+  } else {
+    spawnOptions.stdio = "inherit";
+  }
+  return spawnSync(python, cliArgs, spawnOptions);
+}
+
+function describeFailedCommand(result) {
+  if (result.error) {
+    return result.error.message;
+  }
+  if (result.signal) {
+    return `signal ${result.signal}`;
+  }
+  return `exit ${result.status}`;
+}
+
 async function prompt(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -1733,10 +2101,31 @@ function runtimeGlobalConfigDir(runtime) {
   throw new Error(`Unsupported config policy for runtime ${runtime}`);
 }
 
+function normalizedConfigDirCandidate(targetDir) {
+  return path.resolve(expandTilde(targetDir));
+}
+
+function runtimeGlobalConfigDirCandidates(runtime) {
+  const policy = runtimeRecord(runtime).global_config;
+  const candidates = [];
+  const addCandidate = (candidate) => {
+    if (!candidate) {
+      return;
+    }
+    const resolved = normalizedConfigDirCandidate(candidate);
+    if (!candidates.includes(resolved)) {
+      candidates.push(resolved);
+    }
+  };
+
+  addCandidate(runtimeGlobalConfigDir(runtime));
+  addCandidate(path.join(os.homedir(), policy.home_subpath));
+  return candidates;
+}
+
 function targetDirMatchesGlobal(runtime, targetDir) {
-  const resolvedTargetDir = path.resolve(expandTilde(targetDir));
-  const resolvedGlobalDir = path.resolve(expandTilde(runtimeGlobalConfigDir(runtime)));
-  return resolvedTargetDir === resolvedGlobalDir;
+  const resolvedTargetDir = normalizedConfigDirCandidate(targetDir);
+  return runtimeGlobalConfigDirCandidates(runtime).includes(resolvedTargetDir);
 }
 
 function formatDisplayPath(filePath) {
@@ -2026,7 +2415,7 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
   log(`For the full runtime-target doctor report after install, use ${doctorHints}.`);
   log(
     `Use \`${sharedDoctorCommand()}\` for install and runtime-local readiness, `
-    + `\`${sharedUnattendedReadinessCommand().replace(/\s+--runtime\b[\s\S]*$/u, "")}\` `
+    + `\`${sharedUnattendedReadinessCommand()}\` `
     + `for the unattended or overnight verdict, \`${sharedPermissionsStatusCommand()}\` `
     + "for the read-only runtime-owned permission snapshot, and "
     + `\`${sharedPermissionsSyncCommand()}\` when runtime-owned permission alignment needs a write/sync.`
@@ -2154,8 +2543,8 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/GPD/venv`);
-  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest GitHub main source`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall \${GPD_HOME:-~/.gpd}/venv from the PyPI pinned release, with tagged GitHub fallback`);
+  console.log(` ${cyan}--upgrade${reset}               Upgrade \${GPD_HOME:-~/.gpd}/venv from the latest unreleased GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));
@@ -2176,10 +2565,10 @@ function printHelp() {
   console.log(` ${dim}# Install for ${runtimeDisplayName(localHelpRuntime)} locally${reset}`);
   console.log(` ${installCommand} ${helpExampleFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Reinstall the matching managed GitHub source${reset}`);
+  console.log(` ${dim}# Reinstall the PyPI pinned release${reset}`);
   console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Upgrade to the latest unreleased GitHub main source${reset}`);
   console.log(` ${installCommand} --upgrade ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
@@ -2211,7 +2600,8 @@ function printHelp() {
   );
   console.log(` ${SHARED_PUBLIC_SURFACE_TEXT.settingsCommandSentence}`);
   console.log(
-    " Recommended unattended default: Balanced autonomy (`balanced`). "
+    " Supervised autonomy (`supervised`) is the default. "
+    + "Opt into Balanced autonomy (`balanced`) later through `settings` once you trust GPD's boundary. "
     + SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence
   );
   console.log(
@@ -2343,7 +2733,52 @@ function parseSelectedRuntimes(args) {
   return selected;
 }
 
-async function selectRuntimes(args, action = "install") {
+function runtimeSelectionMenuEntries({ allowAll = true } = {}) {
+  const entries = ALL_RUNTIMES.map((runtime, index) => ({
+    choice: String(index + 1),
+    label: runtimeDisplayName(runtime),
+    details: [runtime],
+  }));
+  if (allowAll) {
+    entries.push({
+      choice: String(ALL_RUNTIMES.length + 1),
+      label: "All runtimes",
+      details: [],
+    });
+  }
+  return entries;
+}
+
+function resolveRuntimeSelectionChoice(choice, { allowAll = true } = {}) {
+  const normalizedChoice = (choice || "1").toLowerCase();
+  if (
+    normalizedChoice === String(ALL_RUNTIMES.length + 1) ||
+    normalizedChoice === "all" ||
+    normalizedChoice === "all runtimes"
+  ) {
+    if (allowAll) {
+      return { runtimes: [...ALL_RUNTIMES] };
+    }
+    return { error: "Select exactly one runtime when using --target-dir." };
+  }
+
+  const numericIndex = Number.parseInt(normalizedChoice, 10);
+  if (Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= ALL_RUNTIMES.length) {
+    return { runtimes: [ALL_RUNTIMES[numericIndex - 1]] };
+  }
+
+  for (const runtime of ALL_RUNTIMES) {
+    const aliases = new Set([runtime, runtimeDisplayName(runtime).toLowerCase(), ...runtimeSelectionAliases(runtime)]);
+    if (aliases.has(normalizedChoice)) {
+      return { runtimes: [runtime] };
+    }
+  }
+
+  return { error: `Invalid runtime selection: ${normalizedChoice}` };
+}
+
+async function selectRuntimes(args, action = "install", options = {}) {
+  const { requireSingleRuntime = false } = options;
   const selected = parseSelectedRuntimes(args);
   if (selected.length > 0) {
     return selected;
@@ -2357,37 +2792,25 @@ async function selectRuntimes(args, action = "install") {
     process.exit(1);
   }
 
+  const allowAll = !requireSingleRuntime;
+  const menuEntries = runtimeSelectionMenuEntries({ allowAll });
   const optionLabelWidth = Math.max(
-    ...ALL_RUNTIMES.map((runtime) => runtimeDisplayName(runtime).length),
-    "All runtimes".length
+    ...menuEntries.map((entry) => entry.label.length)
   );
   const sectionTitle = action === "uninstall" ? "Select runtime(s) to uninstall" : "Select runtime(s) to install";
   console.log(` ${bold}${brandTitle}${sectionTitle}${reset}`);
   console.log("");
-  ALL_RUNTIMES.forEach((runtime, index) => {
-    console.log(formatMenuOption(index + 1, runtimeDisplayName(runtime), [runtime], { labelWidth: optionLabelWidth }));
-  });
-  console.log(formatMenuOption(ALL_RUNTIMES.length + 1, "All runtimes", [], { labelWidth: optionLabelWidth }));
+  for (const entry of menuEntries) {
+    console.log(formatMenuOption(entry.choice, entry.label, entry.details, { labelWidth: optionLabelWidth }));
+  }
   console.log("");
 
-  const choice = ((await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `)) || "1").toLowerCase();
-  if (choice === String(ALL_RUNTIMES.length + 1) || choice === "all" || choice === "all runtimes") {
-    return [...ALL_RUNTIMES];
+  const choice = await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `);
+  const selection = resolveRuntimeSelectionChoice(choice, { allowAll });
+  if (selection.runtimes) {
+    return selection.runtimes;
   }
-
-  const numericIndex = Number.parseInt(choice, 10);
-  if (Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= ALL_RUNTIMES.length) {
-    return [ALL_RUNTIMES[numericIndex - 1]];
-  }
-
-  for (const runtime of ALL_RUNTIMES) {
-    const aliases = new Set([runtime, runtimeDisplayName(runtime).toLowerCase(), ...runtimeSelectionAliases(runtime)]);
-    if (aliases.has(choice)) {
-      return [runtime];
-    }
-  }
-
-  error(`Invalid runtime selection: ${choice}`);
+  error(selection.error);
   process.exit(1);
 }
 
@@ -2438,7 +2861,7 @@ async function selectInstallScope(args, runtimes, targetDir, action = "install")
 }
 
 function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, options = {}) {
-  const { forceStatusline = false } = options;
+  const { forceStatusline = false, skipReadinessCheck = false } = options;
   const cliArgs = ["-m", "gpd.cli", command];
   if (runtimes.length === ALL_RUNTIMES.length) {
     cliArgs.push("--all");
@@ -2452,10 +2875,15 @@ function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, opt
   if (forceStatusline && command === "install") {
     cliArgs.push("--force-statusline");
   }
+  if (skipReadinessCheck && command === "install") {
+    cliArgs.push("--skip-readiness-check");
+  }
   return cliArgs;
 }
 
 async function main() {
+  ensureSupportedNodeVersion();
+
   const args = normalizeBootstrapArgs(process.argv.slice(2));
   const hasHelp = args.includes("--help") || args.includes("-h");
   const isUninstall = args.includes("--uninstall");
@@ -2503,7 +2931,7 @@ async function main() {
   }
 
   const action = isUninstall ? "uninstall" : "install";
-  const selectedRuntimes = await selectRuntimes(args, action);
+  const selectedRuntimes = await selectRuntimes(args, action, { requireSingleRuntime: Boolean(targetDir) });
   if (targetDir && selectedRuntimes.length !== 1) {
     error("Cannot combine --target-dir with --all or multiple runtimes. Select exactly one runtime.");
     process.exit(1);
@@ -2525,6 +2953,27 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
+  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, {
+    forceStatusline,
+    skipReadinessCheck: !isUninstall,
+  });
+
+  if (isUninstall) {
+    log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
+  }
+
+  if (isUninstall && managedEnv.reusedExisting) {
+    log("Trying existing managed GPD CLI for uninstall...");
+    const existingUninstall = runManagedCliCommand(managedEnv.python, cliArgs, { captureOutput: true });
+    if (existingUninstall.status === 0) {
+      flushCapturedOutput(existingUninstall);
+      return;
+    }
+    log(
+      "Existing managed GPD CLI could not complete uninstall "
+      + `(${describeFailedCommand(existingUninstall)}); preparing current managed GPD CLI...`
+    );
+  }
 
   const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
     forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
@@ -2532,7 +2981,10 @@ async function main() {
     purpose: isUninstall ? "uninstall" : "install",
   });
   if (!packageInstall.ok) {
-    error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
+    const failureSource = upgradeManagedPackage
+      ? `the latest unreleased GitHub ${GITHUB_MAIN_BRANCH} source`
+      : "the PyPI pinned release or tagged GitHub release sources";
+    error(`Failed to install GPD v${packageInstall.requestedVersion} from ${failureSource}.`);
     process.exit(1);
   }
 
@@ -2544,17 +2996,8 @@ async function main() {
     }
   }
 
-  if (isUninstall) {
-    log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
-  }
-
-  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, { forceStatusline });
-
   // Run the installer/uninstaller through the managed Python interpreter.
-  const result = spawnSync(managedEnv.python, cliArgs, {
-    stdio: "inherit",
-    env: process.env,
-  });
+  const result = runManagedCliCommand(managedEnv.python, cliArgs);
 
   if (result.status === 0) {
     if (!isUninstall) {
@@ -2575,8 +3018,15 @@ if (require.main === module) {
 }
 
 module.exports = {
+  ensureSupportedNodeVersion,
   loadSharedPublicSurfaceText,
+  nodeMajorVersion,
+  resolveRuntimeSelectionChoice,
+  runtimeGlobalConfigDirCandidates,
+  runtimeSelectionMenuEntries,
+  targetDirMatchesGlobal,
   validateRuntimeCatalog,
+  validateRuntimeCatalogSchemaShape,
   validateSharedPublicSurfaceSchemaShape,
   validateSharedPublicSurfaceContract,
 };

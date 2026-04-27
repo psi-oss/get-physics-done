@@ -26,11 +26,14 @@ def test_arxiv_submission_command_declares_manuscript_root_gates_without_first_m
     assert "GPD/publication/*/manuscript/*.tex" in command
     assert "manuscript-root artifact manifest" in command
     assert "manuscript-root bibliography audit" in command
-    assert "Follow `@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md` exactly." in command
+    assert "Follow the included arxiv-submission workflow exactly." in command
     assert "artifact_manifest" in command
     assert "bibliography_audit" in command
     assert "bibliography_audit_clean" in command
-    assert "Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the active GPD-owned manuscript root)." in command
+    assert (
+        "Paper target: $ARGUMENTS (optional manuscript root or `.tex` entrypoint; "
+        "when omitted, the workflow resolves the active GPD-owned manuscript root)."
+    ) in command
     assert "Explicit manuscript subjects must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/{subject_slug}/manuscript/`." in command
     assert "do not switch to standalone interactive intake or arbitrary external directories" in command
     assert "scope_variants:" not in command

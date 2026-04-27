@@ -44,8 +44,8 @@ The recent-project list is advisory and machine-local; once you choose a workspa
 
 When `active_resume_result` is present, treat it as the hydrated canonical result context for the current resume target. Use its `id` as the continuity anchor, but prefer its structured fields for the user-facing resume summary instead of restating only the raw identifier.
 
-`workspace_state_exists` means the requested workspace could recover usable state from `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`. A stray unreadable file path by itself does not count as recoverable state.
-`state_exists` means the selected project root could recover usable state from `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`.
+`workspace_state_exists` means the requested workspace could recover usable state from `GPD/state.json` or `GPD/STATE.md`. `GPD/state.json.bak` is backup support for a real state file, not a backup-only project anchor. A stray unreadable file path by itself does not count as recoverable state.
+`state_exists` means the selected project root could recover usable state from `GPD/state.json` or `GPD/STATE.md`, with `GPD/state.json.bak` used only as crash-recovery support for the JSON state path.
 Use `workspace_*` to judge the user-requested workspace before auto-selection; use the selected-project fields after re-entry resolution.
 
 The shared resume resolver distinguishes canonical continuation authority, handoff artifacts, and the derived execution head:
@@ -459,7 +459,7 @@ Based on user selection, route to appropriate workflow:
 
   `gpd:execute-phase {phase}`
 
-  <sub>`/clear` first, then run `gpd:execute-phase {phase}`</sub>
+  <sub>Start a fresh context window, then run `gpd:execute-phase {phase}`</sub>
 
   ---
   ```
@@ -475,7 +475,7 @@ Based on user selection, route to appropriate workflow:
 
   `gpd:plan-phase [phase-number]`
 
-  <sub>`/clear` first, then run `gpd:plan-phase [phase-number]`</sub>
+  <sub>Start a fresh context window, then run `gpd:plan-phase [phase-number]`</sub>
 
   ---
 

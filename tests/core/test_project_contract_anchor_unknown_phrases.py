@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.core.contract_validation import validate_project_contract
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -126,7 +127,11 @@ def test_approved_mode_still_rejects_generic_open_gap_without_anchor_unknown_phr
 
 def test_specs_surface_anchor_gap_phrases_for_runtime_visibility() -> None:
     workflow_text = WORKFLOW_SPEC.read_text(encoding="utf-8")
-    state_schema_text = STATE_SCHEMA_SPEC.read_text(encoding="utf-8")
+    state_schema_text = expand_at_includes(
+        STATE_SCHEMA_SPEC.read_text(encoding="utf-8"),
+        Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs",
+        "/runtime/",
+    )
 
     assert "need grounding" in workflow_text
     assert "target not yet chosen" in workflow_text

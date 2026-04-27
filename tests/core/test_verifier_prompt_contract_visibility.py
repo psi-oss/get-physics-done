@@ -65,14 +65,28 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
     verifier = _read_verifier_prompt()
     contract_results_schema = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
 
-    assert "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required." in verifier
-    assert "`plan_contract_ref` must be a string ending with the exact `#/contract` fragment" in verifier
-    assert "`contract_results` must cover every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the PLAN contract." in verifier
-    assert "contract_results.uncertainty_markers" in verifier
-    assert "Only `subject_role: decisive` satisfies a required decisive comparison or participates in pass/fail consistency checks against `contract_results`" in verifier
-    assert "For reference-backed decisive comparisons, only `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` satisfies the requirement; `comparison_kind: other` does not." in verifier
-    assert "`suggested_contract_checks` entries in `VERIFICATION.md` may only use `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in verifier
-    assert "When the gap comes from `suggest_contract_checks(contract)`, `check` must copy the returned `check_key`." in verifier
+    assert "Do not restate the schema from memory." in verifier
+    assert (
+        "Treat those files as the source of truth for `plan_contract_ref`, `contract_results`, "
+        "`comparison_verdicts`, `suggested_contract_checks`, proof-audit fields"
+    ) in verifier
+    assert "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required." not in verifier
+    assert "plan_contract_ref: GPD/phases/XX-name/XX-YY-PLAN.md#/contract" in contract_results_schema
+    assert (
+        "Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced "
+        "PLAN contract must appear in the matching section."
+    ) in contract_results_schema
+    assert "`uncertainty_markers` must remain explicit in contract-backed outputs" in contract_results_schema
+    assert (
+        "Only `subject_role: decisive` satisfies a required decisive comparison or participates in pass/fail "
+        "consistency checks against `contract_results`."
+    ) in contract_results_schema
+    assert (
+        "When a reference-backed decisive comparison is required, use `comparison_kind: benchmark`, `prior_work`, "
+        "`experiment`, `baseline`, or `cross_method`. `comparison_kind: other` does not satisfy that requirement."
+    ) in contract_results_schema
+    assert "Each `suggested_contract_checks` entry may only use these keys: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in contract_results_schema
+    assert "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field" in contract_results_schema
     assert "If you bind a `suggested_contract_checks` entry to a known contract target, `suggested_subject_kind` and `suggested_subject_id` must appear together; otherwise omit both." in contract_results_schema
     assert "For each suggested check, start from `request_template`" in verifier
     assert "`schema_required_request_fields`" in verifier
@@ -122,6 +136,7 @@ def test_verifier_prompt_surfaces_schema_sources_before_the_verification_writer_
 
 def test_verifier_prompt_frontmatter_example_includes_contract_ledgers() -> None:
     verifier = _read_verifier_prompt()
+    verification_template = _read_verification_template()
 
     assert "plan_contract_ref" in verifier
     assert "contract_results" in verifier
@@ -130,6 +145,9 @@ def test_verifier_prompt_frontmatter_example_includes_contract_ledgers() -> None
     assert "\nindependently_confirmed:" not in verifier
     assert "<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->" in verifier
     assert "filler placeholders" not in verifier
+    assert "Use the loaded canonical report template and result-ledger schema" in verifier
+    assert "### Frontmatter Schema (YAML)" not in verifier
+    assert "Verification reports are the decisive readout of the same contract-backed ledger" in verification_template
 
 
 def test_shipped_verification_examples_roundtrip_through_the_verification_validator() -> None:
@@ -156,10 +174,8 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
 
     assert "## Physics Stub Detection Patterns" not in verifier
     assert "<!-- Stub detection patterns extracted to reduce context. Load on demand from `references/verification/examples/verifier-worked-examples.md`. -->" in verifier
-    assert "Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation" in verifier
-    assert "If the theorem statement or proof artifact changed after the last proof audit, treat the prior proof audit as stale and rerun before marking the target passed" in verifier
-    assert "Quantified proof claims keep `proof_audit.quantifier_status` explicit; passed quantified claims require `matched`" in verifier
-    assert "`proof_audit.proof_artifact_path` matches a declared `proof_deliverables` path and `proof_audit.audit_artifact_path` points to the canonical proof-redteam artifact" in verifier
+    assert "proof-audit fields, status vocabularies, ID linkage, and stale-audit handling" in verifier
+    assert "Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation" not in verifier
     assert "A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit" in contract_results_schema
     assert "`proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`" in contract_results_schema
     assert "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema

@@ -18,7 +18,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.observability import humanize_execution_reason
-from gpd.core.root_resolution import resolve_project_root
+from gpd.core.root_resolution import resolve_project_roots
 from gpd.core.utils import atomic_write, file_lock
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
@@ -53,8 +53,19 @@ def _first_string(value: object, *keys: str) -> str:
 
 
 def _has_project_layout(cwd: str) -> bool:
-    resolved_root = resolve_project_root(cwd, require_layout=True)
-    return resolved_root is not None
+    return _notification_project_root(cwd) is not None
+
+
+def _notification_project_root(cwd: str) -> Path | None:
+    """Return the project root for hook-local notification state, if one is authoritative."""
+    resolution = resolve_project_roots(cwd)
+    if resolution is None:
+        return None
+    if resolution.has_project_layout:
+        return resolution.project_root
+    if resolution.walk_up_steps == 0 and ProjectLayout(resolution.project_root).gpd.is_dir():
+        return resolution.project_root
+    return None
 
 
 def _workspace_mapping_prefers_local_notify_lookup(
@@ -162,7 +173,7 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
 
 
 def _notification_state_path(cwd: str) -> Path:
-    workspace_root = resolve_project_root(cwd, require_layout=True)
+    workspace_root = _notification_project_root(cwd)
     if workspace_root is not None:
         return ProjectLayout(workspace_root).last_observability_notification
     self_install = detect_self_owned_install(__file__)
@@ -184,7 +195,7 @@ def _channel_scoped_fingerprint(cwd: str, *, channel: str, fingerprint: str) -> 
     """Avoid cross-workspace dedupe collisions when execution falls back to home state."""
     if channel != "execution":
         return fingerprint
-    if resolve_project_root(cwd, require_layout=True) is not None:
+    if _notification_project_root(cwd) is not None:
         return fingerprint
     return f"{Path(cwd).expanduser().resolve(strict=False).as_posix()}::{fingerprint}"
 

@@ -170,6 +170,7 @@ class ArtifactReference:
     required_actions: list[str] = field(default_factory=list)
     source_artifacts: list[str] = field(default_factory=list)
     source_kind: str = "artifact"
+    must_surface_explicit: bool = False
 
     def to_context_dict(self) -> dict[str, object]:
         return {
@@ -583,10 +584,16 @@ def _ingest_citation_source_sidecar(cwd: Path, path: Path, result: ArtifactRefer
 
 
 def _citation_source_sidecar_paths_for_review_file(rel_path: str) -> tuple[Path, ...]:
-    """Return citation sidecars that belong to one selected review file."""
+    """Return citation sidecars that belong to one selected review file.
+
+    Contract: selected markdown reviews under ``GPD/literature/`` may own a
+    matching ``*-CITATION-SOURCES.json`` sidecar. Bare sidecars and legacy
+    ``GPD/research/`` review sidecars are not discovered here; the canonical
+    literature review file path must be selected by the caller.
+    """
     review_path = Path(rel_path)
     parts = review_path.parts
-    if len(parts) < 3 or parts[0] != "GPD" or parts[1] not in {"literature", "research"}:
+    if len(parts) < 3 or parts[0] != "GPD" or parts[1] != "literature":
         return ()
     if review_path.suffix.lower() != ".md":
         return ()
@@ -594,6 +601,12 @@ def _citation_source_sidecar_paths_for_review_file(rel_path: str) -> tuple[Path,
     if review_path.stem.endswith("-REVIEW"):
         sidecars.append(review_path.with_name(f"{review_path.stem.removesuffix('-REVIEW')}-CITATION-SOURCES.json"))
     return tuple(sidecars)
+
+
+def _is_canonical_literature_review_file(rel_path: str) -> bool:
+    review_path = Path(rel_path)
+    parts = review_path.parts
+    return len(parts) >= 3 and parts[0] == "GPD" and parts[1] == "literature" and review_path.suffix.lower() == ".md"
 
 
 def _ingest_citation_source_sidecars(
@@ -880,7 +893,15 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
         _append_unique(target.source_artifacts, value)
     for value in reference.aliases:
         _append_unique(target.aliases, value)
-    target.must_surface = target.must_surface or reference.must_surface
+    if target.must_surface_explicit and not reference.must_surface_explicit:
+        pass
+    elif reference.must_surface_explicit and not target.must_surface_explicit:
+        target.must_surface = reference.must_surface
+        target.must_surface_explicit = True
+    elif target.must_surface_explicit and reference.must_surface_explicit:
+        target.must_surface = target.must_surface or reference.must_surface
+    else:
+        target.must_surface = target.must_surface or reference.must_surface
 
 
 def _reference_from_active_anchor(
@@ -929,6 +950,7 @@ def _reference_from_active_anchor(
         applies_to=_normalize_multi_value(applies_to),
         carry_forward_to=_normalize_multi_value(downstream),
         must_surface=must_surface,
+        must_surface_explicit=explicit_must_surface is not None,
         required_actions=normalized_actions,
         source_artifacts=[source_path],
         source_kind="artifact",
@@ -1073,6 +1095,7 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                     kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),
+                    must_surface_hint=entry.get("must_surface"),
                     actions=entry.get("required_action") or entry.get("required_actions"),
                     downstream=entry.get("downstream_use") or entry.get("carry_forward_to"),
                     source_path=source_path,
@@ -1157,6 +1180,8 @@ def ingest_reference_artifacts(
     result = ArtifactReferenceIngestion()
 
     for rel_path in literature_review_files:
+        if not _is_canonical_literature_review_file(rel_path):
+            continue
         path = cwd / rel_path
         try:
             content = path.read_text(encoding="utf-8")

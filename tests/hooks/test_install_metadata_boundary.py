@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.runtime_catalog import get_managed_install_surface_policy, iter_runtime_descriptors
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.install_metadata import (
     assess_install_target,
@@ -19,6 +20,15 @@ from gpd.hooks.install_metadata import (
     load_install_manifest_state,
 )
 from gpd.hooks.runtime_detect import _manifest_runtime_status as runtime_detect_manifest_runtime_status
+
+
+def _materialize_test_path_for_glob(config_dir: Path, pattern: str) -> Path:
+    """Create one regular file that satisfies a simple catalog glob."""
+    rel_path = pattern.replace("**/*", "probe.md").replace("*", "probe")
+    path = config_dir / rel_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("probe\n", encoding="utf-8")
+    return path
 
 
 def _seed_anonymous_install_tree(config_dir: Path, *, hook_filename: str) -> Path:
@@ -126,6 +136,25 @@ def test_config_dir_has_managed_install_markers_ignores_empty_managed_dirs(tmp_p
     assert config_dir_has_managed_install_markers(config_dir) is False
 
 
+def test_config_dir_has_managed_install_markers_fails_closed_on_scan_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / ".codex"
+    managed_dir = config_dir / "get-physics-done"
+    (managed_dir / "commands").mkdir(parents=True, exist_ok=True)
+    original_rglob = Path.rglob
+
+    def _rglob(path: Path, pattern: str):
+        if path == managed_dir / "commands":
+            raise OSError("permission denied")
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _rglob)
+
+    assert config_dir_has_managed_install_markers(config_dir) is True
+
+
 def test_config_dir_has_managed_install_markers_ignores_user_agents_and_hooks(tmp_path: Path) -> None:
     config_dir = tmp_path / ".codex"
     hooks_dir = config_dir / "hooks"
@@ -136,6 +165,55 @@ def test_config_dir_has_managed_install_markers_ignores_user_agents_and_hooks(tm
     (agents_dir / "my-custom-agent.md").write_text("custom\n", encoding="utf-8")
 
     assert config_dir_has_managed_install_markers(config_dir) is False
+
+
+def test_assess_install_target_fails_closed_for_opencode_flat_command_in_claude_target(tmp_path: Path) -> None:
+    opencode_policy = get_managed_install_surface_policy("opencode")
+    config_dir = tmp_path / ".claude"
+    _materialize_test_path_for_glob(config_dir, opencode_policy.flat_command_globs[0])
+
+    runtime_specific_marker_scan = config_dir_has_managed_install_markers(config_dir, runtime="claude-code")
+    merged_marker_scan = config_dir_has_managed_install_markers(config_dir)
+    assessment = assess_install_target(config_dir, expected_runtime="claude-code")
+
+    assert runtime_specific_marker_scan is False
+    assert merged_marker_scan is True
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "missing"
+    assert assessment.manifest_runtime is None
+    assert assessment.expected_runtime == "claude-code"
+    assert assessment.has_managed_markers is True
+
+
+def test_expected_runtime_marker_scan_preserves_foreign_manifest_safety(tmp_path: Path) -> None:
+    descriptors = iter_runtime_descriptors()
+    flat_descriptor = next(
+        descriptor
+        for descriptor in descriptors
+        if get_managed_install_surface_policy(descriptor.runtime_name).flat_command_globs
+    )
+    runtime_without_flat_commands = next(
+        descriptor
+        for descriptor in descriptors
+        if descriptor.runtime_name != flat_descriptor.runtime_name
+        and not get_managed_install_surface_policy(descriptor.runtime_name).flat_command_globs
+    )
+    flat_policy = get_managed_install_surface_policy(flat_descriptor.runtime_name)
+    config_dir = tmp_path / "runtime-config"
+    _materialize_test_path_for_glob(config_dir, flat_policy.flat_command_globs[0])
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": flat_descriptor.runtime_name}),
+        encoding="utf-8",
+    )
+
+    assessment = assess_install_target(
+        config_dir,
+        expected_runtime=runtime_without_flat_commands.runtime_name,
+    )
+
+    assert assessment.state == "foreign_runtime"
+    assert assessment.manifest_runtime == flat_descriptor.runtime_name
+    assert assessment.has_managed_markers is True
 
 
 def test_assess_install_target_distinguishes_absent_and_clean_targets(tmp_path: Path) -> None:
@@ -184,6 +262,63 @@ def test_assess_install_target_classifies_owned_complete_and_incomplete_install(
     assert complete.has_managed_markers is True
     assert incomplete.state == "owned_incomplete"
     assert incomplete.missing_install_artifacts == ("agents/gpd-help/SKILL.md",)
+
+
+def test_assess_install_target_rejects_manifest_when_adapter_validation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        encoding="utf-8",
+    )
+
+    def _raise_unknown_adapter(runtime: str) -> None:
+        raise KeyError(runtime)
+
+    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", _raise_unknown_adapter)
+
+    assessment = assess_install_target(config_dir, expected_runtime="codex")
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "ok"
+    assert assessment.manifest_runtime == "codex"
+    assert assessment.has_managed_markers is True
+    assert assessment.readiness_state == "blocked"
+
+
+@pytest.mark.parametrize(
+    ("manifest_payload", "expected_manifest_state"),
+    [
+        ({"runtime": "codex"}, "missing_install_scope"),
+        ({"runtime": "codex", "install_scope": "workspace"}, "malformed_install_scope"),
+    ],
+)
+def test_assess_install_target_rejects_runtime_manifest_without_valid_install_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    manifest_payload: dict[str, object],
+    expected_manifest_state: str,
+) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest_payload), encoding="utf-8")
+
+    class _FakeAdapter:
+        def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+            return ()
+
+    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", lambda runtime: _FakeAdapter())
+
+    assessment = assess_install_target(config_dir, expected_runtime="codex")
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == expected_manifest_state
+    assert assessment.manifest_runtime == "codex"
+    assert assessment.readiness_state == "blocked"
+    assert config_dir_has_complete_install(config_dir) is False
 
 
 @pytest.mark.parametrize(
@@ -421,6 +556,17 @@ def test_runtime_detect_install_helper_signature_drops_unused_cwd_and_home() -> 
     assert "home" not in params
 
 
+def test_update_resolution_uses_public_runtime_install_boundary() -> None:
+    import gpd.hooks.runtime_detect as runtime_detect
+    import gpd.hooks.update_resolution as update_resolution
+
+    source = inspect.getsource(update_resolution)
+
+    assert "_runtime_dir_has_gpd_install" not in source
+    assert "runtime_has_gpd_install" in source
+    assert "runtime_has_gpd_install" in runtime_detect.__all__
+
+
 def test_runtime_cli_uses_shared_manifest_runtime_helper() -> None:
     import gpd.runtime_cli as runtime_cli
 
@@ -438,5 +584,6 @@ def test_install_metadata_keeps_manifest_boundary_free_of_install_utils_imports(
     source = inspect.getsource(install_metadata)
 
     assert "from gpd.adapters.install_utils import" not in source
+    assert "import gpd.adapters.install_utils as" not in source
     assert "get_managed_install_surface_policy" in source
     assert "get_shared_install_metadata" in source

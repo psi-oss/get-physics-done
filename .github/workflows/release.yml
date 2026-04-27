@@ -105,7 +105,8 @@ jobs:
       - name: Run release validation suite
         run: |
           uv run pytest tests/test_release_consistency.py -v
-          uv build
+          rm -rf dist
+          uv build --out-dir dist
           uv run --with twine python -m twine check dist/*
           npm_config_cache="$(mktemp -d)" npm pack --dry-run --json >/tmp/npm-pack.json
 
@@ -145,7 +146,7 @@ jobs:
             exit 1
           fi
 
-          EXISTING_PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --json url --jq '.[0].url')
+          EXISTING_PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --json url --jq '.[0].url // ""')
           if [ -n "$EXISTING_PR_URL" ]; then
             echo "::error::Release PR already exists: $EXISTING_PR_URL"
             exit 1
@@ -192,7 +193,7 @@ jobs:
           PY
 
           gh pr create --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --title "release: v${VERSION}" --body-file /tmp/release-pr-body.md
-          PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --json url --jq '.[0].url')
+          PR_URL=$(gh pr list --state open --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --json url --jq '.[0].url // ""')
           if [ -z "$PR_URL" ]; then
             echo "::error::Failed to determine the new release PR URL."
             exit 1

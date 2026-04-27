@@ -50,7 +50,7 @@ This file records the concrete manuscript artifacts the builder actually produce
       }
     },
     {
-      "artifact_id": "figure-fig:benchmark",
+      "artifact_id": "figure-benchmark",
       "category": "figure",
       "path": "figures/benchmark.pdf",
       "sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
@@ -62,7 +62,7 @@ This file records the concrete manuscript artifacts the builder actually produce
         }
       ],
       "metadata": {
-        "label": "fig:benchmark",
+        "label": "benchmark",
         "caption_length": 92,
         "double_column": false
       }
@@ -127,4 +127,3 @@ Do not write unsupported scoring-only journal labels such as `prd`, `prb`, `prc`
 - Keep every `sha256` exact; approximate hashes do not satisfy the manifest contract.
 - Keep `metadata` machine-readable. Do not replace structured fields with prose blocks.
 - If the manuscript entrypoint changes, regenerate this file through `gpd paper-build` rather than editing only one path by hand.
-

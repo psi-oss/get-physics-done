@@ -20,17 +20,19 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `project_reference` | `object` | see below | Pointer to PROJECT.md with key fields | Derived from PROJECT.md |
 | `project_contract` | `ResearchContract \| null` | `null` | Canonical machine-readable scoping and anchor contract | **Authoritative** (JSON-only, stage-0+ contract flow) |
 | `position` | `object` | see below | Current phase/plan/status | **Authoritative** (synced to STATE.md) |
-| `active_calculations` | `string[]` | `[]` | Work in progress descriptions | STATE.md unless JSON has structured data |
-| `intermediate_results` | `ResultObject[] \| string[]` | `[]` | Partial results with equations | **Authoritative** (structured objects from `result add`) |
-| `open_questions` | `string[]` | `[]` | Physics questions that emerged | STATE.md unless JSON has structured data |
+| `active_calculations` | `(string \| object)[]` | `[]` | Work in progress descriptions | STATE.md unless JSON has structured data |
+| `intermediate_results` | `(ResultObject \| string)[]` | `[]` | Partial results with equations | **Authoritative** (structured objects from `result add`) |
+| `open_questions` | `(string \| object)[]` | `[]` | Physics questions that emerged | STATE.md unless JSON has structured data |
+| `resolved_questions` | `ResolvedQuestionObject[]` | `[]` | Questions resolved with recorded answers | **Authoritative** (JSON-only, from question resolution with answers) |
 | `performance_metrics` | `{ rows: MetricRow[] }` | `{ rows: [] }` | Throughput tracking | Synced from STATE.md |
 | `decisions` | `DecisionObject[]` | `[]` | Accumulated decisions with rationale | Synced from STATE.md |
 | `approximations` | `ApproximationObject[]` | `[]` | Active approximations with validity | **Authoritative** (JSON-only, from `approximation add`) |
 | `convention_lock` | `ConventionLock` | see below | Locked physics conventions | **Authoritative** (JSON-only, from `convention set`) |
 | `propagated_uncertainties` | `UncertaintyObject[]` | `[]` | Uncertainty propagation tracking | **Authoritative** (JSON-only, from `uncertainty add`) |
-| `pending_todos` | `string[]` | `[]` | Ideas captured via gpd:add-todo | Synced from todos/ |
-| `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
+| `pending_todos` | `(string \| object)[]` | `[]` | Ideas captured via gpd:add-todo | Synced from todos/ |
+| `blockers` | `(string \| object)[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority for session handoff and recorded machine identity | **Authoritative** (JSON-only) |
+| `contract_alignment` | `ContractAlignmentGate` | see below | Hashes confirming the user-approved project contract and context alignment | **Authoritative** (JSON-only) |
 
 ### Authoritative vs Derived
 
@@ -58,233 +60,11 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 
 ### `project_contract`
 
-```json
-{
-  "schema_version": 1,
-  "scope": {
-    "question": "What benchmark must the project recover?",
-    "in_scope": ["Recover the published benchmark curve within tolerance"],
-    "out_of_scope": ["adjacent question C"],
-    "unresolved_questions": ["Which reference should serve as the decisive benchmark anchor?"]
-  },
-  "context_intake": {
-    "must_read_refs": ["Ref-01"],
-    "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
-    "user_asserted_anchors": ["GPD/phases/00-baseline/00-01-SUMMARY.md#benchmark-curve"],
-    "known_good_baselines": ["GPD/phases/00-baseline/00-01-SUMMARY.md#accepted-baseline"],
-    "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
-    "crucial_inputs": ["Figure 2 from prior work"]
-  },
-  "approach_policy": {
-    "formulations": ["continuum representation with direct observable X"],
-    "allowed_estimator_families": ["direct estimator"],
-    "forbidden_estimator_families": ["proxy-only estimator"],
-    "allowed_fit_families": ["benchmark-motivated ansatz"],
-    "forbidden_fit_families": ["pure convenience fit"],
-    "stop_and_rethink_conditions": ["First result only validates a proxy while the decisive anchor remains unchecked"]
-  },
-  "observables": [
-    {
-      "id": "obs-main",
-      "name": "Benchmark observable X",
-      "kind": "curve",
-      "definition": "Primary comparison curve for the published benchmark"
-    }
-  ],
-  "claims": [
-    {
-      "id": "claim-main",
-      "statement": "Recover the published benchmark curve within the stated tolerance",
-      "claim_kind": "theorem",
-      "observables": ["obs-main"],
-      "deliverables": ["deliv-main", "deliv-proof-main"],
-      "acceptance_tests": ["test-main", "test-proof-main"],
-      "references": ["Ref-01"],
-      "parameters": [
-        {
-          "symbol": "k",
-          "domain_or_type": "benchmark sample index",
-          "aliases": ["sample-k"],
-          "required_in_proof": true
-        }
-      ],
-      "hypotheses": [
-        {
-          "id": "hyp-main",
-          "text": "Published normalization and tolerance convention are interpreted exactly as stated in Ref-01",
-          "symbols": ["k"],
-          "category": "assumption",
-          "required_in_proof": true
-        }
-      ],
-      "quantifiers": ["for every benchmark sample k in the approved comparison set"],
-      "conclusion_clauses": [
-        {
-          "id": "concl-main",
-          "text": "Relative error stays within the stated 1% tolerance at every approved benchmark sample"
-        }
-      ],
-      "proof_deliverables": ["deliv-proof-main"]
-    }
-  ],
-  "deliverables": [
-    {
-      "id": "deliv-main",
-      "kind": "figure",
-      "path": "paper/figures/benchmark-curve.pdf",
-      "description": "Figure comparing the reproduced curve against the benchmark",
-      "must_contain": ["benchmark overlay"]
-    },
-    {
-      "id": "deliv-proof-main",
-      "kind": "derivation",
-      "path": "derivations/benchmark-proof.md",
-      "description": "Auditable proof sketch tying the tolerance claim to the benchmark construction",
-      "must_contain": ["named hypotheses", "parameter coverage", "conclusion mapping"]
-    }
-  ],
-  "acceptance_tests": [
-    {
-      "id": "test-main",
-      "subject": "claim-main",
-      "kind": "benchmark",
-      "procedure": "Compare the reproduced curve against Ref-01 within tolerance",
-      "pass_condition": "Relative error <= 1%",
-      "evidence_required": ["deliv-main", "Ref-01"],
-      "automation": "hybrid"
-    },
-    {
-      "id": "test-proof-main",
-      "subject": "claim-main",
-      "kind": "claim_to_proof_alignment",
-      "procedure": "Check that every named hypothesis, parameter, and conclusion clause in the theorem claim is covered by the proof artifact",
-      "pass_condition": "Every theorem field is covered explicitly or auditable as intentionally omitted",
-      "evidence_required": ["deliv-proof-main"],
-      "automation": "human"
-    }
-  ],
-  "references": [
-    {
-      "id": "Ref-01",
-      "kind": "paper",
-      "locator": "Author et al., Journal, 2024",
-      "aliases": ["benchmark-paper"],
-      "role": "benchmark",
-      "why_it_matters": "Primary published comparison target",
-      "applies_to": ["claim-main"],
-      "carry_forward_to": ["planning", "execution", "verification", "writing"],
-      "must_surface": true,
-      "required_actions": ["read", "compare", "cite", "avoid"]
-    }
-  ],
-  "forbidden_proxies": [
-    {
-      "id": "fp-main",
-      "subject": "claim-main",
-      "proxy": "Qualitative trend match without the decisive benchmark comparison",
-      "reason": "Would look like progress while skipping the contract-critical anchor"
-    }
-  ],
-  "links": [
-    {
-      "id": "link-main",
-      "source": "claim-main",
-      "target": "deliv-main",
-      "relation": "supports",
-      "verified_by": ["test-main"]
-    }
-  ],
-  "uncertainty_markers": {
-    "weakest_anchors": ["Benchmark tolerance interpretation"],
-    "unvalidated_assumptions": [],
-    "competing_explanations": [],
-    "disconfirming_observations": ["Benchmark agreement disappears after a notation-normalization fix"]
-  }
-}
-```
+The `project_contract` field stores the canonical ResearchContract object or `null`. The raw object schema and contract rules are single-sourced in:
 
-Stored as the canonical machine-readable contract once Stage 1 wiring is complete. Stage 0 freezes the field and model shape so later workflows can write to it safely.
+@{GPD_INSTALL_DIR}/templates/project-contract-schema.md
 
-Preferred validation + persistence path for prompt-authored contracts:
-
-```bash
-printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved
-printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
-```
-
-The stdin path is canonical because it keeps the exact approved JSON payload in-memory across validation and persistence. Do not tell the model to round-trip through a temporary file unless a human explicitly chose that workflow.
-
-#### Project Contract Object Rules
-
-The `project_contract` value itself must be a JSON object. Do not replace it with prose, a list, or a string.
-
-`schema_version` must be the integer `1`. Unsupported schema versions are invalid.
-
-Project contracts must include at least one observable, claim, or deliverable.
-
-`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
-
-Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.
-
-`scope.in_scope` must name at least one project boundary or objective.
-
-`context_intake` must not be empty. At least one of `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, or `crucial_inputs` must carry a non-empty item, and the grounding fields must be concrete enough to re-find later.
-`context_intake`, `approach_policy`, and `uncertainty_markers` are JSON objects when present; do not collapse them to strings or lists.
-Closed-vocabulary enum fields use the exact lowercase literals shown here. Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
-
-#### Closed Schema And List Shape
-
-The `project_contract` schema is closed. Do not invent extra keys at the top level or inside nested objects. Only the fields defined here are valid.
-
-List-shaped fields must stay lists, even when they contain one item. Do not collapse `scope.in_scope`, `scope.out_of_scope`, `scope.unresolved_questions`, `context_intake.*`, or any nested `[]` field to a scalar string.
-
-Blank list entries are invalid. Duplicate list entries are also invalid after trimming whitespace, even if the duplicates only differ by surrounding spaces.
-
-The following fields always store arrays of objects, never arrays of plain strings:
-
-- `observables[]` — `{ "id", "name", "kind", "definition", "regime?", "units?" }`
-- `claims[]` — `{ "id", "statement", "claim_kind", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]", "parameters[]", "hypotheses[]", "quantifiers[]", "conclusion_clauses[]", "proof_deliverables[]" }`
-- `deliverables[]` — `{ "id", "kind", "path?", "description", "must_contain[]" }`
-- `acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`
-- `references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface": true|false, "required_actions[]" }`
-- `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
-- `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
-
-Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
-
-When that applies, require:
-
-- `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
-- Closed semantic enum fields use these exact lowercase literals:
-  - `claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`
-  - `observables[].kind: scalar | curve | map | classification | proof_obligation | other`
-  - `deliverables[].kind: figure | table | dataset | data | derivation | code | note | report | other`
-  - `acceptance_tests[].kind: existence | schema | benchmark | consistency | cross_method | limiting_case | symmetry | dimensional_analysis | convergence | oracle | proxy | reproducibility | proof_hypothesis_coverage | proof_parameter_coverage | proof_quantifier_domain | claim_to_proof_alignment | lemma_dependency_closure | counterexample_search | human_review | other`
-  - `acceptance_tests[].automation: automated | hybrid | human`
-  - `references[].kind: paper | dataset | prior_artifact | spec | user_anchor | other`
-  - `references[].role: definition | benchmark | method | must_consider | background | other`
-  - `required_actions[]: read | use | compare | cite | avoid`
-  - `links[].relation: supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`
-- `claims[].proof_deliverables[]` must be non-empty and contain only `deliverables[].id` values.
-- `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
-- `claims[].acceptance_tests[]` must include at least one proof-specific test kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).
-- `claims[].quantifiers[]` is optional but, when present, must stay a list (not a scalar string).
-
-### Shared Grounding And Linkage Rules
-
-If a project contract has any `references[]` and does not already carry concrete prior-output, user-anchor, or baseline grounding, at least one reference must set `must_surface: true`.
-
-`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root. If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root.
-
-Placeholder or `TBD` text does not count as concrete grounding. Explicit missing-anchor notes preserve uncertainty, but they do not satisfy approved-mode grounding on their own.
-
-Keep these exact grounding reminders visible in the raw schema surface as well:
-
-- Need grounding before the decisive anchor is chosen.
-- Decisive target not yet chosen before planning can proceed.
-- If other grounding already exists, a missing `must_surface: true` reference is still a warning that should be repaired, not a silent ignore.
-
-@{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md
+This state schema intentionally includes that template instead of restating the contract payload inline. Keep prompt-authored contract validation and persistence guidance there so `state-json-schema.md` remains the top-level `GPD/state.json` container schema.
 
 ### `position`
 
@@ -321,7 +101,7 @@ Keep these exact grounding reminders visible in the raw schema surface as well:
 ```
 Not started, Planning, Researching, Ready to execute, Executing,
 Paused, Phase complete — ready for verification,
-Verifying, Complete, Blocked, Ready to plan, Milestone complete
+Verifying, Verified, Complete, Blocked, Ready to plan, Milestone complete
 ```
 
 **Phase ID format:** Top-level segment is zero-padded, sub-phases keep natural numeric width: `"03"`, `"03.1"`, `"03.1.2"`. See `phase_normalize()`.
@@ -413,6 +193,22 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Note:** Markdown-derived entries in this section may be plain strings instead of structured objects. Code handles both formats.
 
+### `ResolvedQuestionObject`
+
+```json
+{
+  "question": "What is the coupling constant?",
+  "answer": "g = 0.3"
+}
+```
+
+| Field | Type | Required |
+|-------|------|----------|
+| `resolved_questions[].question` | `string` | Yes |
+| `answer` | `string` | Yes |
+
+**Written by:** `gpd question resolve --answer ...`
+
 ### `DecisionObject`
 
 ```json
@@ -493,7 +289,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
   "schema_version": 1,
   "handoff": {
     "recorded_at": "2026-03-15T14:30:00.000Z",
-    "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
+    "stopped_at": "Phase 3, Plan 2, work item 4: MC thermalization",
     "resume_file": "GPD/phases/03-analysis/.continue-here.md"
   },
   "bounded_segment": null,
@@ -527,6 +323,24 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 | `hostname` | `string \| null` | Advisory host identity from the last session |
 | `platform` | `string \| null` | Advisory platform string from the last session |
 
+### `ContractAlignmentGate`
+
+```json
+{
+  "confirmed_at": "2026-04-23T12:00:00+00:00",
+  "confirmed_contract_hash": "sha256:abc",
+  "confirmed_context_hash": "sha256:def"
+}
+```
+
+| Field | Type | Default | Meaning |
+|-------|------|---------|---------|
+| `confirmed_at` | `string \| null` | `null` | Timestamp when the user-approved project contract/context alignment was recorded |
+| `confirmed_contract_hash` | `string \| null` | `null` | Hash of the confirmed project contract |
+| `confirmed_context_hash` | `string \| null` | `null` | Hash of the confirmed context packet |
+
+**Written by:** `gpd contract record-alignment`
+
 ---
 
 ## Validation Rules
@@ -539,7 +353,7 @@ Run via `gpd state validate`. Current checks:
 4. **Convention lock completeness** — reports unset conventions (warning, not error)
 5. **No NaN values** — numeric fields (total_phases, total_plans_in_phase, progress_percent) must not be NaN
 6. **Schema completeness** — all fields from `default_state_dict()` must be present at top level
-7. **Status vocabulary** — status must be from VALID_STATUSES list (12 values)
+7. **Status vocabulary** — status must be from VALID_STATUSES list (13 values)
 8. **Phase ID format** — current_phase must match `\d{2}(\.\d+)*` pattern
 9. **Phase range** — current_phase must not exceed total_phases when both are set
 10. **Result ID uniqueness** — all `intermediate_results[].id` values must be unique
@@ -563,7 +377,7 @@ STATE.md and state.json are kept in sync:
 state.json > state.json.bak > STATE.md
 ```
 
-For JSON-only fields (convention_lock, approximations, propagated_uncertainties, structured intermediate_results): state.json is sole authority. STATE.md renders a lossy view (structured objects become flat bullet strings).
+For JSON-only fields (`project_contract`, `resolved_questions`, `approximations`, `convention_lock`, `propagated_uncertainties`, `continuation`, `contract_alignment`, and structured `intermediate_results`): state.json is sole authority. STATE.md renders a lossy view where projections exist.
 
 For position/decisions/blockers: STATE.md is the primary edit surface; state.json is synced from it.
 

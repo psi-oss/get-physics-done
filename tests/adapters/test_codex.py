@@ -18,7 +18,12 @@ from gpd.adapters.codex import (
     _normalize_codex_questioning,
     _tracked_codex_generated_skill_dirs,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command, file_hash, hook_python_interpreter
+from gpd.adapters.install_utils import (
+    build_runtime_cli_bridge_command,
+    compile_markdown_for_runtime,
+    file_hash,
+    hook_python_interpreter,
+)
 from gpd.registry import load_agents_from_dir
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -240,6 +245,76 @@ class TestConvertToCodexSkill:
 
         assert_review_contract_prompt_surface(result)
 
+    def test_command_metadata_is_not_duplicated_in_codex_skill_frontmatter(self) -> None:
+        content = compile_markdown_for_runtime(
+            "---\n"
+            "name: gpd:respond-to-referees\n"
+            "description: D\n"
+            "argument-hint: \"[--manuscript PATH]\"\n"
+            "context_mode: project-aware\n"
+            "requires:\n"
+            "  files:\n"
+            "    - paper/*.tex\n"
+            "command-policy:\n"
+            "  schema_version: 1\n"
+            "  subject_policy:\n"
+            "    subject_kind: publication\n"
+            "    resolution_mode: explicit_or_project_manuscript\n"
+            "    explicit_input_kinds:\n"
+            "      - manuscript_path\n"
+            "    allow_external_subjects: true\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            "  schema_version: 1\n"
+            "  required_outputs:\n"
+            "    - GPD/review/REFEREE_RESPONSE{round_suffix}.md\n"
+            "allowed-tools:\n"
+            "  - Read\n"
+            "---\n"
+            "Body",
+            runtime="codex",
+            path_prefix="/prefix/",
+        )
+
+        result = _convert_to_codex_skill(content, "gpd-respond-to-referees")
+        frontmatter = result.split("---", 2)[1]
+
+        assert "name: gpd-respond-to-referees" in frontmatter
+        assert "description: D" in frontmatter
+        assert "allowed-tools:" in frontmatter
+        assert "read_file" in frontmatter
+        assert "argument-hint:" not in frontmatter
+        assert "context_mode:" not in frontmatter
+        assert "requires:" not in frontmatter
+        assert "command-policy:" not in frontmatter
+        assert "review-contract:" not in frontmatter
+        assert result.count("## Command Requirements") == 1
+        assert result.count("## Review Contract") == 1
+
+
+class TestSharedCommandReferences:
+    def test_bare_runnable_command_references_convert_without_rewriting_paths_or_urls(
+        self,
+        adapter: CodexAdapter,
+    ) -> None:
+        content = (
+            "Run `gpd:resume-work`, then /gpd:help.\n"
+            "Leave `gpd:not-a-command` and /gpd:not-a-command untouched.\n"
+            "Keep https://docs.example/gpd:help, /tmp/gpd:help, ./gpd:help, and C:\\tmp\\gpd:help untouched.\n"
+        )
+
+        result = adapter.translate_shared_command_references(content)
+
+        assert "`$gpd-resume-work`" in result
+        assert "$gpd-help" in result
+        assert "`gpd:not-a-command`" in result
+        assert "/gpd:not-a-command" in result
+        assert "$gpd-not-a-command" not in result
+        assert "https://docs.example/gpd:help" in result
+        assert "/tmp/gpd:help" in result
+        assert "./gpd:help" in result
+        assert "C:\\tmp\\gpd:help" in result
+
 
 class TestInstall:
     def test_help_skill_does_not_describe_codex_commands_as_slash_commands(
@@ -282,6 +357,28 @@ class TestInstall:
         assert any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
         assert not any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
+
+    def test_custom_global_install_uses_explicit_skills_dir_despite_env_override(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        outside_root = tmp_path.parent / "codex-skills-leak"
+        leak_skills_dir = outside_root / ".agents" / "skills"
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(leak_skills_dir))
+
+        target = tmp_path / "custom-global" / adapter.config_dir_name
+        target.mkdir(parents=True)
+        safe_skills_dir = target.parent / ".agents" / "skills"
+
+        result = adapter.install(gpd_root, target, is_global=True, skills_dir=safe_skills_dir)
+
+        assert result["skills_dir"] == str(safe_skills_dir)
+        assert safe_skills_dir.is_relative_to(tmp_path)
+        assert any(d.name.startswith("gpd-") for d in safe_skills_dir.iterdir() if d.is_dir())
+        assert not leak_skills_dir.exists()
 
     def test_install_creates_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -437,9 +534,11 @@ class TestInstall:
         assert "validates the install contract" in skill
         assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" not in skill
         assert expected_bridge + " config ensure-section" in skill
+        assert expected_bridge + ' config set model_profile "$ARGUMENTS.profile"' in skill
         assert f'INIT=$({expected_bridge} --raw init progress --include state,config --no-project-reentry)' in skill
         assert 'echo "ERROR: gpd initialization failed: $INIT"' in skill
         assert expected_bridge + " config ensure-section" in workflow
+        assert expected_bridge + ' config set model_profile "$ARGUMENTS.profile"' in workflow
         assert f'if ! {expected_bridge} verify plan "$plan"; then' in execute_phase
         assert f'INIT=$({expected_bridge} --raw init plan-phase "${{PHASE}}")' in agent
         assert "```bash\ngpd config ensure-section\n" not in workflow
@@ -651,8 +750,8 @@ class TestInstall:
 
         parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
         server = parsed["mcp_servers"][WOLFRAM_MANAGED_SERVER_KEY]
-        assert server["command"] == "gpd-mcp-wolfram"
-        assert server["args"] == []
+        assert server["command"] == hook_python_interpreter()
+        assert server["args"] == ["-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert server["cwd"] == "/tmp/custom-wolfram"
         assert server["env"] == {
             "EXTRA_FLAG": "1",
@@ -1097,6 +1196,36 @@ class TestRuntimePermissions:
         assert result["skills"] == len(manifest["codex_generated_skill_dirs"])
         assert (foreign_skill / "SKILL.md").exists()
 
+    def test_reinstall_removes_manifest_file_tracked_stale_skill_dirs(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        stale_skill = skills / "gpd-old-generated"
+        stale_skill.mkdir()
+        (stale_skill / "SKILL.md").write_text("stale generated skill\n", encoding="utf-8")
+        user_skill = skills / "gpd-user-keep"
+        user_skill.mkdir()
+        (user_skill / "SKILL.md").write_text("keep\n", encoding="utf-8")
+
+        manifest_path = target / "gpd-file-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("codex_generated_skill_dirs", None)
+        manifest["files"]["skills/gpd-old-generated/SKILL.md"] = "old-hash"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert not stale_skill.exists()
+        assert (user_skill / "SKILL.md").exists()
+
     def test_install_returns_counts(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
@@ -1397,6 +1526,27 @@ class TestUninstall:
         adapter.uninstall(target, skills_dir=skills)
 
         assert all(not (skills / name).exists() for name in tracked_skill_names)
+
+    def test_install_completeness_requires_skill_md_in_each_tracked_skill_dir(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        missing_skill_name = manifest["codex_generated_skill_dirs"][0]
+        (skills / missing_skill_name / "SKILL.md").unlink()
+
+        missing = adapter.missing_install_artifacts(target)
+
+        assert adapter.has_complete_install(target) is False
+        assert any(item.startswith("codex generated skills surface") for item in missing)
 
     def test_missing_install_artifacts_does_not_use_packaged_source_skill_fallback(
         self,

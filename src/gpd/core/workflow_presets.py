@@ -542,7 +542,7 @@ def resolve_workflow_preset_readiness(
                 warnings.append(
                     "pypdf is missing: TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX review remain usable, "
                     "but PDF-backed peer-review intake requires pypdf or a nearby `.txt` companion file. "
-                    "Install with: pip install 'get-physics-done[arxiv]'"
+                    "Install with: pip install 'get-physics-done[paper]'"
                 )
             if latexmk_available is False:
                 warnings.append("latexmk is missing: paper builds will fall back to manual multipass compilation.")

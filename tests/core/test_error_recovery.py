@@ -580,6 +580,7 @@ class TestValidateFrontmatter:
             "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "    in_scope: [test scope]\n"
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
             "  claims:\n"

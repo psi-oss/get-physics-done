@@ -46,7 +46,7 @@ def test_review_reader_prompt_keeps_shared_contract_visible() -> None:
         review_reader,
         "full `ClaimIndex` and `StageReviewReport` contracts",
     )
-    assert "Stage 1 must also emit `GPD/review/CLAIMS{round_suffix}.json`." in review_reader
+    assert "Stage 1 must also emit `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`." in review_reader
     assert "Capture theorem kind, explicit hypotheses, and free target parameters for theorem-like claims." in review_reader
     assert "Keep `proof_audits` empty in this stage." in review_reader
     assert "Focus `findings` on overclaiming, missing promised deliverables, and claim-structure blockers." in review_reader
@@ -110,9 +110,10 @@ def test_review_stage_prompts_keep_only_stage_specific_deltas() -> None:
             assert fragment in text
 
         expanded = _expanded(agent_name)
-        assert "Peer Review Panel Protocol" in expanded
-        assert "Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:" in expanded
-        assert "StageReviewReport`, nested `ReviewFinding`, and nested `ProofAuditRecord` entries use a closed schema" in expanded
+        assert "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" in expanded
+        assert "Peer Review Panel Protocol" not in expanded
+        assert "Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:" not in expanded
+        assert "StageReviewReport`, nested `ReviewFinding`, and nested `ProofAuditRecord` entries use a closed schema" not in expanded
 
 
 def test_peer_review_panel_protocol_surfaces_full_review_enum_vocabularies() -> None:

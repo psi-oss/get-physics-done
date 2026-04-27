@@ -19,7 +19,7 @@ Rather than guessing, ask three focused questions:
 2. Are you extending the scope or revising the same result?
 3. Are you adding a new deliverable layer or changing prior conclusions?
 
-Then print exactly one recommended next action. Most recommendations are a single command (`gpd:add-phase`, `gpd:revise-phase`, or `gpd:new-milestone`); the frozen-scope-expansion path is intentionally a compound action: `gpd:complete-milestone` first, then `gpd:new-milestone` after the archive is confirmed.
+Then return one recommended next action. Most recommendations are a single command (`gpd:add-phase`, `gpd:revise-phase`, or `gpd:new-milestone`); the frozen-scope-expansion path is intentionally a compound action: `gpd:complete-milestone` first, then `gpd:new-milestone` after the archive is confirmed.
 
 This is the single-purpose sibling of `gpd:suggest-next`. `suggest-next` infers the best next command from current project state; `route` infers it from the user's intent when that intent is about scope.
 </objective>
@@ -34,7 +34,7 @@ This is the single-purpose sibling of `gpd:suggest-next`. `suggest-next` infers 
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/route.md`. It:
+Follow the included route workflow. It:
 
 1. Reads the current milestone + active phase from state.
 2. Asks three `ask_user` questions (or accepts pre-provided answers via `--frozen=yes|no`, `--change=extend|revise`, `--layer=new|change`).
@@ -46,6 +46,6 @@ Follow `@{GPD_INSTALL_DIR}/workflows/route.md`. It:
 
 - [ ] Current milestone + phase surfaced from state
 - [ ] Three routing questions asked (or pre-provided)
-- [ ] Exactly one recommendation returned; compound recommendations list the required commands in order
+- [ ] One recommendation returned; compound recommendations list the required commands in order
 - [ ] Rationale mentions which answers drove the decision
 </success_criteria>

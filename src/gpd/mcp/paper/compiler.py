@@ -167,7 +167,7 @@ def detect_latex_toolchain(compiler: str = "pdflatex", *, prefer_tectonic: bool 
         warnings.append(
             "pypdf not found; PDF peer-review intake will require a nearby `.txt` companion file, "
             "but TeX/Markdown/TXT/CSV/TSV and built-in DOCX/XLSX intake remain available. "
-            "Install with: pip install 'get-physics-done[arxiv]'"
+            "Install with: pip install 'get-physics-done[paper]'"
         )
 
     # When Tectonic is available and preferred, it replaces pdflatex + bibtex +

@@ -148,4 +148,5 @@ favor of a supported `${PAPER_DIR}/PAPER-CONFIG.json` journal instead of letting
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json"
 ```
 
-This validates the JSON against the typed `PaperConfig` contract, resolves figure paths, and emits the canonical manuscript scaffold plus paper artifacts.
+This validates the JSON against the typed `PaperConfig` contract, resolves figure paths, and emits the canonical manuscript scaffold plus manuscript-local paper artifacts.
+The standard build writes `ARTIFACT-MANIFEST.json` and, when bibliography data exists, `BIBLIOGRAPHY-AUDIT.json` beside the emitted manuscript so strict review and arXiv preflight read the same paths reported by the command output.

@@ -219,6 +219,7 @@ class TestInstall:
         assert help_file.exists()
         content = help_file.read_text(encoding="utf-8")
         assert "{GPD_INSTALL_DIR}" not in content
+        assert "## Scientific Rigor Guardrails" in content
 
     def test_install_agents_have_placeholder_replacement(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
@@ -554,8 +555,8 @@ class TestInstall:
 
         parsed = json.loads(mcp_config.read_text(encoding="utf-8"))
         server = parsed["mcpServers"][WOLFRAM_MANAGED_SERVER_KEY]
-        assert server["command"] == "gpd-mcp-wolfram"
-        assert server["args"] == []
+        assert server["command"] == hook_python_interpreter()
+        assert server["args"] == ["-m", "gpd.mcp.integrations.wolfram_bridge"]
         assert server["cwd"] == "/tmp/custom-wolfram"
         assert server["type"] == "stdio"
         assert server["env"] == {
@@ -846,6 +847,51 @@ class TestRuntimePermissions:
             adapter.finalize_install(result)
 
         assert settings_path.read_text(encoding="utf-8") == before
+
+    @pytest.mark.parametrize("missing_field", ["settingsPath", "settings", "statuslineCommand"])
+    def test_finalize_install_fails_closed_for_missing_deferred_payload_field(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        missing_field: str,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result.pop(missing_field)
+
+        with pytest.raises(RuntimeError, match="deferred install result is malformed"):
+            adapter.finalize_install(result)
+
+        assert not (target / "settings.json").exists()
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("settingsPath", ["settings.json"]),
+            ("settings", []),
+            ("statuslineCommand", 123),
+            ("shouldInstallStatusline", "yes"),
+        ],
+    )
+    def test_finalize_install_fails_closed_for_invalid_deferred_payload_field(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        field: str,
+        value: object,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        result[field] = value
+
+        with pytest.raises(RuntimeError, match="deferred install result is malformed"):
+            adapter.finalize_install(result)
+
+        assert not (target / "settings.json").exists()
 
     def test_finalize_install_fails_closed_for_structurally_invalid_settings_json(
         self,

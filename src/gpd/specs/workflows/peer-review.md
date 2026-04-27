@@ -30,14 +30,14 @@ Set `REVIEW_TARGET="$ARGUMENTS"` unless interactive intake overrides it.
 Bootstrap peer-review context from the dedicated peer-review init surface, not `phase-op`, so manuscript routing, publication blockers, and prior review-round state stay tied to the resolved peer-review target contract.
 
 ```bash
-BOOTSTRAP=$(gpd --raw init peer-review)
+BOOTSTRAP=$(gpd --raw init peer-review --stage bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd peer-review bootstrap failed: $BOOTSTRAP"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse bootstrap JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`, `review_target_input`, `review_target_mode`, `review_target_mode_reason`, `resolved_review_target`, `resolved_review_root`, `publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_blockers`, `latest_review_round`, `latest_review_round_suffix`, `latest_review_ledger`, `latest_referee_decision`, `latest_referee_report_md`, `latest_referee_report_tex`, `latest_proof_redteam`, `latest_review_artifacts`, `latest_response_round`, `latest_response_round_suffix`, `latest_author_response`, `latest_referee_response`, `latest_response_artifacts`.
+Parse bootstrap JSON for: the manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`, including `project_contract_gate`, target routing, publication routing fields (`publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`), manuscript artifact paths, and latest review/response state. Do not maintain a second inline field list here.
 
 **Read mode settings:**
 
@@ -70,14 +70,14 @@ If `REVIEW_TARGET` is empty and `project_exists` is false, ask the user for one 
 After the user has chosen a mode or supplied an explicit path, rerun the subject-aware peer-review init surface for the resolved target. Treat this second payload as authoritative for manuscript routing and review-round state; do not keep using current-project manuscript status from the bootstrap call after an explicit artifact target has been chosen.
 
 ```bash
-INIT=$(gpd --raw init peer-review "$REVIEW_TARGET")
+INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd peer-review target init failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse target-aware init JSON for: `project_exists`, `state_exists`, `commit_docs`, `autonomy`, `research_mode`, `review_target_input`, `review_target_mode`, `review_target_mode_reason`, `resolved_review_target`, `resolved_review_root`, `publication_subject_slug`, `publication_lane_kind`, `managed_publication_root`, `selected_publication_root`, `selected_review_root`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`, `manuscript_resolution_status`, `manuscript_resolution_detail`, `manuscript_root`, `manuscript_entrypoint`, `artifact_manifest_path`, `bibliography_audit_path`, `reproducibility_manifest_path`, `publication_blockers`, `latest_review_round`, `latest_review_round_suffix`, `latest_review_ledger`, `latest_referee_decision`, `latest_referee_report_md`, `latest_referee_report_tex`, `latest_proof_redteam`, `latest_review_artifacts`, `latest_response_round`, `latest_response_round_suffix`, `latest_author_response`, `latest_referee_response`, `latest_response_artifacts`.
+Parse target-aware init JSON for: the same manifest-owned `bootstrap.required_init_fields` in `peer-review-stage-manifest.json`. Treat the target-aware payload as authoritative after explicit artifact intake; if the manifest changes, follow the manifest instead of stale copied field prose.
 
 Run centralized context preflight before continuing:
 
@@ -105,7 +105,7 @@ After resolution, keep all manuscript-local support artifacts rooted at the same
 - `RESOLVED_REVIEW_TARGET` = `resolved_review_target` from the target-aware `INIT` payload
 - `RESOLVED_REVIEW_ROOT` = `resolved_review_root` from the target-aware `INIT` payload
 - `PUBLICATION_SUBJECT_SLUG` = `publication_subject_slug` from the target-aware `INIT` payload when present
-- `PUBLICATION_ROOT` = `selected_publication_root` from target-aware `INIT`, otherwise `managed_publication_root` when present
+- `PUBLICATION_ROOT` = `selected_publication_root` from target-aware `INIT`, otherwise `managed_publication_root` when present, otherwise `GPD`
 - `REVIEW_ROOT` = `selected_review_root` from target-aware `INIT`, otherwise `resolved_review_root`, otherwise `GPD/review`
 - `RESOLVED_MANUSCRIPT` = `manuscript_entrypoint` from the target-aware `INIT` payload
 - `MANUSCRIPT_ROOT` = `manuscript_root` from the target-aware `INIT` payload
@@ -159,6 +159,17 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 <step name="preflight">
 **Run the executable review preflight checks before spawning the review panel:**
 
+Load the staged preflight payload before using manuscript-root gates, reference-artifact summaries, or strict publication schemas:
+
+```bash
+PREFLIGHT_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage preflight)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review preflight init failed: $PREFLIGHT_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$PREFLIGHT_INIT"
+```
+
 Apply the shared manuscript-root bootstrap contract exactly:
 
 @{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
@@ -178,6 +189,17 @@ Passing preflight still does not establish scientific support. Complete manifest
 
 <step name="artifact_discovery">
 **Load the supporting artifact set for the review:**
+
+Load the staged artifact-discovery payload before resolving review-round state or reading supporting artifacts:
+
+```bash
+ARTIFACT_DISCOVERY_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage artifact_discovery)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review artifact-discovery init failed: $ARTIFACT_DISCOVERY_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$ARTIFACT_DISCOVERY_INIT"
+```
 
 Load the following files:
 
@@ -310,9 +332,26 @@ Use the same `-R2` / `-R3` suffix convention for downstream response artifacts:
 <step name="announce_panel">
 **Before spawning any reviewer, give the user a concise stage map:**
 
+Load the staged panel payload before launching Stage 1 through Stage 5 and the conditional proof audit:
+
+```bash
+PANEL_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage panel_stages)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review panel init failed: $PANEL_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$PANEL_INIT"
+```
+
 Use one short sentence that names each stage's job, for example:
 
 `Launching the six-stage review panel: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; theorem-style claims also trigger the auxiliary gpd-check-proof audit; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.`
+</step>
+
+<step name="child_return_contract">
+**Peer-review child return contract:**
+
+Every spawned review child must return a typed `gpd_return` envelope with `status: completed | checkpoint | blocked | failed`, `files_written` naming only artifacts that genuinely landed on disk in that child run, `issues`, `next_actions`, and `peer_review_stage`. Human-readable `STAGE X COMPLETE` / `REVIEW COMPLETE` text is presentation only and does not satisfy the handoff without the typed envelope.
 </step>
 
 <step name="stage_1_read">
@@ -353,7 +392,7 @@ Focus on:
 3. Flag where abstract/introduction/conclusion overclaim the physics.
 4. Do NOT use `STATE.md`, `ROADMAP.md`, or phase summaries as a source of truth for the manuscript's validity.
 
-Return STAGE 1 COMPLETE with assessment, blocker count, and major concern count.",
+Use the child return contract with `peer_review_stage: reader`; `files_written` exactly `${REVIEW_ROOT}/CLAIMS{round_suffix}.json` and `${REVIEW_ROOT}/STAGE-reader{round_suffix}.json` when completed. Optional prose may say STAGE 1 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 1: manuscript read"
 )
 ```
@@ -420,7 +459,7 @@ Files to read:
 - All `*.bib` files under `${MANUSCRIPT_ROOT}`, plus `references/references.bib` if present
 
 Use targeted web search when novelty, significance, or prior-work positioning is uncertain. Treat novelty-heavy claims as requiring external comparison, not trust. Use bundle reference prompts only as additive hints about prior-work or benchmark framing; do not infer novelty or correctness from bundle presence alone.
-Return STAGE 2 COMPLETE with assessment, blocker count, and major concern count.",
+Use the child return contract with `peer_review_stage: literature`; `files_written` exactly `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json` when completed. Optional prose may say STAGE 2 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 2: literature context"
 )
 ```
@@ -453,7 +492,7 @@ Files to read:
 
 Focus on key equations, limits, internal consistency, and approximation validity.
 If theorem-bearing claims are present, `gpd-check-proof` may be running in parallel and will produce `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`; do not wait on that artifact to begin the math review, and do not duplicate the proof audit yourself.
-Return STAGE 3 COMPLETE with assessment, blocker count, and major concern count.",
+Use the child return contract with `peer_review_stage: math`; `files_written` exactly `${REVIEW_ROOT}/STAGE-math{round_suffix}.json` when completed. Optional prose may say STAGE 3 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 3: mathematical soundness"
 )
 ```
@@ -492,7 +531,8 @@ Files to read:
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
 
-Reconstruct the theorem / proof inventory explicitly before judging the proof. If any named parameter, hypothesis, quantifier, or conclusion clause disappears from the proof, set `status: gaps_found`. Do not silently accept a proof of a narrower special case. Run at least one adversarial probe against scope, quantifier coverage, or hidden assumptions before you pass the proof.",
+Reconstruct the theorem / proof inventory explicitly before judging the proof. If any named parameter, hypothesis, quantifier, or conclusion clause disappears from the proof, set `status: gaps_found`. Do not silently accept a proof of a narrower special case. Run at least one adversarial probe against scope, quantifier coverage, or hidden assumptions before you pass the proof.
+Use the child return contract with `peer_review_stage: proof_redteam`; `files_written` exactly `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` when completed.",
   description="Peer review auxiliary proof critique"
 )
 ```
@@ -580,7 +620,7 @@ Focus on:
 
 Treat bundle guidance as additive skepticism only: it may highlight missing decisive comparisons or estimator caveats, but it must not replace authoritative evidence required by the resolved review target or project contract or create new manuscript obligations out of thin air.
 
-Return STAGE 4 COMPLETE with assessment, blocker count, and major concern count.",
+Use the child return contract with `peer_review_stage: physics`; `files_written` exactly `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json` when completed. Optional prose may say STAGE 4 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 4: physical soundness"
 )
 ```
@@ -633,18 +673,18 @@ Output path: `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json`
 Files to read:
 - `MANUSCRIPT_STAGE_FILES`
 - `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`
-	- `${REVIEW_ROOT}/STAGE-reader{round_suffix}.json`
-	- `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`
-	- `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json`
-	- `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
-	- `${PAPER_CONFIG_PATH}` if present
+- `${REVIEW_ROOT}/STAGE-reader{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-literature{round_suffix}.json`
+- `${REVIEW_ROOT}/STAGE-physics{round_suffix}.json`
+- `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
+- `${PAPER_CONFIG_PATH}` if present
 
 You must explicitly decide whether the paper is:
 1. Scientifically interesting enough for the venue
 2. Merely technically competent
 3. Overclaimed relative to its actual contribution
 
-Return STAGE 5 COMPLETE with assessment, blocker count, and major concern count.",
+Use the child return contract with `peer_review_stage: interestingness`; `files_written` exactly `${REVIEW_ROOT}/STAGE-interestingness{round_suffix}.json` when completed. Optional prose may say STAGE 5 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 5: significance and venue fit"
 )
 ```
@@ -672,6 +712,17 @@ After the Stage 5 typed return is captured and `${REVIEW_ROOT}/STAGE-interesting
 
 <step name="final_adjudication">
 **Stage 6 — Final adjudication by `gpd-referee`.**
+
+Load the staged final-adjudication payload before spawning `gpd-referee`:
+
+```bash
+FINAL_ADJUDICATION_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage final_adjudication)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review final-adjudication init failed: $FINAL_ADJUDICATION_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$FINAL_ADJUDICATION_INIT"
+```
 
 Resolve referee model:
 
@@ -731,15 +782,15 @@ Recommendation guardrails:
 8. Run `gpd validate review-ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`.
 9. Run `gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json --strict --ledger ${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
 10. If either validator fails, STOP and classify whether the failure is in Stage 6-owned artifacts or in upstream staged-review inputs before retrying anything.
-11. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when applicable.
+11. Your writable scope is limited to Stage 6-owned adjudication artifacts for this round: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
 12. Do not modify `${REVIEW_ROOT}/CLAIMS{round_suffix}.json`, any `${REVIEW_ROOT}/STAGE-*.json`, or `${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md`. If any of those upstream artifacts are missing, malformed, stale, or inconsistent, return `gpd_return.status: blocked` and hand the failure back to the earliest failing upstream stage instead of repairing it inside Stage 6.
 13. Treat any `gpd_return.files_written` entry outside the Stage 6 allowlist as a failed handoff, not as a successful adjudication.
 
-Write `GPD/REFEREE-REPORT{round_suffix}.md` and the matching `GPD/REFEREE-REPORT{round_suffix}.tex`.
+Write `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and the matching `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`.
 Treat the referee report files as required final-stage artifacts. If either report file is missing after adjudication, the stage is incomplete even if the JSON validators passed.
-Also write `GPD/CONSISTENCY-REPORT.md` when applicable.
+Also write `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable.
 
-Return REVIEW COMPLETE with recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
+Use the child return contract with `peer_review_stage: referee`; `files_written` naming only Stage 6-owned artifacts written in this run. Optional prose may say REVIEW COMPLETE with recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
   description="Peer review stage 6: final adjudication"
 )
 ```
@@ -756,8 +807,8 @@ Treat the Stage 6 return as incomplete if the fresh `gpd_return.files_written` s
 Capture the Stage 6 typed return first, then treat the finished adjudication handoff as closed and retired before classifying the outcome as recovery-eligible, upstream-blocked, or complete. Recovery routing, validation, and final summarization must use the persisted Stage 6 artifacts plus the captured typed return; do not keep the adjudication run live while deciding what to do next.
 
 Check that both `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json` and `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json` exist and parse as valid JSON.
-Also confirm `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete.
-Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist: `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `GPD/CONSISTENCY-REPORT.md` when applicable. Treat any upstream staged-review path in `gpd_return.files_written` as a failed handoff.
+Also confirm `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` and `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` exist before treating the final recommendation as complete.
+Require the fresh `gpd_return.files_written` set to stay within the Stage 6-owned allowlist: `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, and `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md` when applicable. Treat any upstream staged-review path in `gpd_return.files_written` as a failed handoff.
 
 Then run the built-in validators. These are the authoritative fail-closed schema and consistency checks for every final recommendation:
 
@@ -769,7 +820,7 @@ gpd validate referee-decision ${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json
 If validation fails:
 
 1. **Classify the failure first.** Distinguish Stage 6-owned artifact failures from upstream staged-review artifact failures.
-2. **Only retry Stage 6 for Stage 6-owned artifacts.** If the failure is limited to `GPD/REFEREE-REPORT{round_suffix}.md`, `GPD/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, or `GPD/CONSISTENCY-REPORT.md`, re-run the Stage 6 referee subagent once with an explicit reminder to satisfy `review-ledger-schema.md` and `referee-decision-schema.md` by passing the built-in validators above.
+2. **Only retry Stage 6 for Stage 6-owned artifacts.** If the failure is limited to `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex`, `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`, `${REVIEW_ROOT}/REFEREE-DECISION{round_suffix}.json`, or `${PUBLICATION_ROOT}/CONSISTENCY-REPORT.md`, re-run the Stage 6 referee subagent once with an explicit reminder to satisfy `review-ledger-schema.md` and `referee-decision-schema.md` by passing the built-in validators above.
 3. **Do not retry Stage 6 as an upstream repair step.** If validation or consistency errors point at `CLAIMS{round_suffix}.json`, any `STAGE-*.json`, or `PROOF-REDTEAM{round_suffix}.md`, STOP fail-closed and rerun the earliest failing upstream stage instead of letting Stage 6 repair those inputs.
 4. **If the eligible Stage 6 retry also fails,** STOP the pipeline and report the failure: stage name, validation errors, and any partial output. Do not proceed to report summarization.
 
@@ -797,7 +848,7 @@ If TeX is missing, do not block the review:
 
 ```
 Referee review artifacts were written, but a TeX toolchain is not available.
-Continue now with `GPD/REFEREE-REPORT{round_suffix}.md` + `GPD/REFEREE-REPORT{round_suffix}.tex` only.
+Continue now with `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` + `${PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.tex` only.
 If you want the polished PDF artifact as well, Authorize the agent to install TeX now or compile the `.tex` later in an environment that already has TeX.
 ```
 </step>
@@ -805,10 +856,21 @@ If you want the polished PDF artifact as well, Authorize the agent to install Te
 <step name="summarize_report">
 **Read the latest referee report and summarize the decision:**
 
+Load the staged finalize payload before summarizing the report and routing the next action:
+
+```bash
+FINALIZE_INIT=$(gpd --raw init peer-review "$REVIEW_TARGET" --stage finalize)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd peer-review finalize init failed: $FINALIZE_INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+INIT="$FINALIZE_INIT"
+```
+
 1. Identify the most recent referee report among:
-   - `GPD/REFEREE-REPORT.md`
-   - `GPD/REFEREE-REPORT-R2.md`
-   - `GPD/REFEREE-REPORT-R3.md`
+   - `${PUBLICATION_ROOT}/REFEREE-REPORT.md`
+   - `${PUBLICATION_ROOT}/REFEREE-REPORT-R2.md`
+   - `${PUBLICATION_ROOT}/REFEREE-REPORT-R3.md`
 2. Extract:
    - recommendation
    - confidence

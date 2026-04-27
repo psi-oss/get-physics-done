@@ -19,5 +19,5 @@ Create the canonical `.continue-here.md` continuation handoff artifact to preser
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/pause-work.md` exactly.
+Follow the included pause-work workflow exactly.
    </process>

@@ -165,8 +165,8 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
     if reference_documents:
         dependency_hint = (
             "Treat `content` as the wrapper/context surface. Load `schema_documents` and "
-            "`contract_documents` too when present; they carry the markdown bodies that back the "
-            "model-visible schema and contract rules."
+            "`contract_documents` too when present. They carry the markdown bodies that back the "
+            "direct model-visible schema and contract rules."
         )
     elif referenced_files:
         dependency_hint = (
@@ -586,7 +586,6 @@ def _load_reference_document(path: str, *, kind: str) -> dict[str, object]:
         return document
 
     frontmatter, body, parse_error = parse_frontmatter_with_error(content)
-    document["content"] = content
     document["body"] = body
     if frontmatter:
         document["frontmatter"] = frontmatter
@@ -691,7 +690,10 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
             loading_hint = _skill_loading_hint(
                 source_kind=skill.source_kind,
                 referenced_files=bool(referenced_files),
-                reference_documents=bool(schema_documents or contract_documents),
+                reference_documents=bool(
+                    schema_documents
+                    or contract_documents
+                ),
             )
             payload = {
                 "name": skill.name,
@@ -824,7 +826,31 @@ def route_skill(
                 "gpd-verify-work": ["verify", "check", "validate", "test"],
                 "gpd-debug": ["debug", "fix", "investigate", "error", "bug"],
                 "gpd-write-paper": ["write", "paper", "draft", "manuscript"],
-                "gpd-peer-review": ["peer", "referee", "reviewer", "manuscript"],
+                "gpd-peer-review": [
+                    "peer review",
+                    "review manuscript",
+                    "review paper",
+                    "referee report",
+                    "peer",
+                    "referee",
+                    "reviewer",
+                    "manuscript",
+                ],
+                "gpd-respond-to-referees": [
+                    "referee response",
+                    "respond to referee",
+                    "respond to referees",
+                    "response to referee",
+                    "response to referees",
+                    "referee comments",
+                ],
+                "gpd-review-knowledge": [
+                    "approve knowledge",
+                    "promote knowledge",
+                    "review knowledge",
+                    "knowledge approval",
+                    "knowledge promotion",
+                ],
                 "gpd-literature-review": ["literature", "review", "papers", "citations", "references"],
                 "gpd-progress": ["progress", "status", "where", "current"],
                 "gpd-derive-equation": ["derive", "equation", "calculate", "computation"],
@@ -887,7 +913,13 @@ def route_skill(
                 scored.append((new_project_score, "gpd-new-project"))
 
             skill_order = {name: index for index, name in enumerate(skills_by_name)}
-            scored.sort(key=lambda item: (-item[0], skill_order.get(item[1], len(skill_order))))
+            scored.sort(
+                key=lambda item: (
+                    -item[0],
+                    0 if skills_by_name[item[1]].source_kind == "command" else 1,
+                    skill_order.get(item[1], len(skill_order)),
+                )
+            )
 
             if scored:
                 best = scored[0][1]

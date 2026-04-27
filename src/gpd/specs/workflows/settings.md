@@ -45,14 +45,16 @@ if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
+PROJECT_ROOT=$(echo "$INIT" | gpd json get .project_root --default ".")
 ```
 
 Creates `GPD/config.json` with defaults if missing and loads current config values.
+`--no-project-reentry` disables recent-project auto-selection for this settings bootstrap only. It must still allow normal ancestor GPD project resolution when the command is launched from a nested folder inside the current project.
 </step>
 
 <step name="read_current">
 ```bash
-cat GPD/config.json
+cat "$PROJECT_ROOT/GPD/config.json"
 ```
 
 Parse current values, using the schema defaults noted below when a key is absent:
@@ -90,6 +92,8 @@ Infer the active runtime before prompting for explicit model IDs.
 Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install. For GPD-owned model resolution surfaces, prefer the runtime with a concrete GPD install when a higher-priority runtime appears active but is not actually installed for this workspace.
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
+
+Record the resulting runtime id as `SELECTED_RUNTIME`. Use this same value for `model_overrides.<SELECTED_RUNTIME>` and every permissions status/sync command in this workflow; do not let permissions sync re-detect a different runtime after model overrides are written.
 
 If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `tier-2` / `tier-3` values when presenting the settings form.
 </step>
@@ -348,12 +352,12 @@ Merge new settings into existing config.json:
 }
 ```
 
-Write updated config to `GPD/config.json`.
+Write updated config to `$PROJECT_ROOT/GPD/config.json`.
 
 Then immediately sync runtime-owned permissions against the selected autonomy:
 
 ```bash
-PERMISSIONS_SYNC=$(gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
+PERMISSIONS_SYNC=$(gpd --raw permissions sync --runtime "$SELECTED_RUNTIME" --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
 echo "$PERMISSIONS_SYNC"
 ```
 
@@ -409,7 +413,7 @@ Runtime sync:
 - If relaunch is still required, say clearly that unattended use is not ready yet under the newly selected autonomy setting.
 - `gpd permissions status --runtime <runtime> --autonomy <mode>` and `gpd permissions sync --runtime <runtime> --autonomy <mode>` in this workflow only handle runtime-owned permission alignment, not install validation. Use the selected autonomy value; if unchanged, that is `supervised`.
 
-Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`.
+Project conventions still live in `GPD/state.json` (`convention_lock`) with `GPD/CONVENTIONS.md` as the projection/audit surface, not in `GPD/config.json`.
 
 Quick commands:
 - gpd:set-profile <profile> -- switch research profile
@@ -443,7 +447,7 @@ Workflow config from `GPD/config.json` is consumed by:
 - **gpd cost / runtime hints**: advisory USD budget guardrails for the current project/session when configured
 - **gpd hooks / runtime adapters**: Runtime-specific model overrides and related execution defaults
 
-Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
+Project conventions propagate separately through `GPD/state.json` (`convention_lock`) and the `GPD/CONVENTIONS.md` projection, with the lock as the source of truth for planning, execution, and verification.
 </downstream_consumption>
 
 <success_criteria>

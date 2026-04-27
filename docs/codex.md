@@ -13,8 +13,9 @@ Back to the onboarding hub: [GPD Onboarding Hub](./README.md).
 Use Codex if you want GPD inside the OpenAI Codex CLI and are comfortable with
 the `$gpd-...` command style.
 
-If you are on Windows, the official Codex docs currently say Windows support is
-experimental and recommend using Codex in WSL for the best experience.
+The official Codex CLI docs list macOS, Windows, and Linux support. On Windows,
+run Codex natively in PowerShell with the Windows sandbox for the normal path,
+or use WSL2 when your repository or tools need a Linux-native environment.
 
 ## What must already be true
 
@@ -116,3 +117,4 @@ You are in the right place when:
 
 - OpenAI: [Codex CLI docs](https://developers.openai.com/codex/cli)
 - OpenAI: [Codex authentication](https://developers.openai.com/codex/auth)
+- OpenAI: [Codex Windows setup](https://developers.openai.com/codex/windows)

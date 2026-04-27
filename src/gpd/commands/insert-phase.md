@@ -38,6 +38,6 @@ Arguments: $ARGUMENTS (format: <after-phase-number> <description>)
 <process>
 Parse arguments: first token is the phase number, everything after the first space is the description.
 
-Execute the insert-phase workflow from @{GPD_INSTALL_DIR}/workflows/insert-phase.md end-to-end.
+Execute the included insert-phase workflow end-to-end.
 Preserve all validation gates (argument parsing, phase verification, decimal calculation, roadmap updates).
 </process>

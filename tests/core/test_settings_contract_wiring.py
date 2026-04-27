@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
@@ -48,7 +49,10 @@ def test_settings_and_planning_config_keep_conventions_outside_config_json() -> 
     assert "physics research preferences" not in settings_command
     assert "physics-specific settings" not in settings_workflow
     assert "Project conventions do **not** live in `GPD/config.json`." in settings_workflow
-    assert "Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`)" in settings_workflow
+    assert (
+        "Project conventions still live in `GPD/state.json` (`convention_lock`) with "
+        "`GPD/CONVENTIONS.md` as the projection/audit surface"
+    ) in settings_workflow
     assert '"physics": {' not in planning_config
     assert "Project conventions are not part of `config.json`." in planning_config
     assert "Do **not** introduce a `physics` block there." in planning_config
@@ -98,6 +102,20 @@ def test_settings_workflow_preset_contract_keeps_runtime_default_tier_model_path
     assert 'Treat blank / `runtime default` / `none` as "no override for this tier"' in settings_workflow
 
 
+def test_settings_workflow_uses_same_selected_runtime_for_models_and_permissions() -> None:
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    permissions_sync = re.compile(
+        r"gpd --raw permissions sync\b"
+        r"(?=[^\n]*--runtime \"\$SELECTED_RUNTIME\")"
+        r"(?=[^\n]*--autonomy \"\$SELECTED_AUTONOMY\")"
+    )
+
+    assert "`SELECTED_RUNTIME`" in settings_workflow
+    assert "model_overrides.<SELECTED_RUNTIME>" in settings_workflow
+    assert permissions_sync.search(settings_workflow)
+    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' not in settings_workflow
+
+
 def test_set_tier_models_workflow_keeps_runtime_examples_generic() -> None:
     set_tier_models = (WORKFLOWS_DIR / "set-tier-models.md").read_text(encoding="utf-8")
 
@@ -106,7 +124,7 @@ def test_set_tier_models_workflow_keeps_runtime_examples_generic() -> None:
     assert "Gemini CLI" not in set_tier_models
     assert "OpenCode" not in set_tier_models
     assert "gpt-5.4" not in set_tier_models
-    assert "runtime-native examples are intentionally not hard-coded here" in set_tier_models
+    assert "runtime-native examples are intentionally not hard-coded here" in set_tier_models.lower()
 
 
 def test_settings_workflow_keeps_convention_ownership_outside_settings_and_routes_changes_to_validate_conventions() -> None:
@@ -114,7 +132,10 @@ def test_settings_workflow_keeps_convention_ownership_outside_settings_and_route
     settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
 
     assert "Convention work stays outside settings; use `gpd convention set <key> <value>` or `gpd:validate-conventions` for project convention updates." in settings_command
-    assert "Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`." in settings_workflow
+    assert (
+        "Project conventions still live in `GPD/state.json` (`convention_lock`) with "
+        "`GPD/CONVENTIONS.md` as the projection/audit surface, not in `GPD/config.json`."
+    ) in settings_workflow
     assert "gpd:validate-conventions -- verify convention consistency across the project" in settings_workflow
     assert "gpd convention set <key> <value> -- update the locked project conventions directly" in settings_workflow
 

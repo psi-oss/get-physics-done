@@ -23,5 +23,5 @@ Display the cumulative decision log from `GPD/DECISIONS.md`, optionally filtered
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/decisions.md` exactly.
+Follow the included decisions workflow exactly.
    </process>

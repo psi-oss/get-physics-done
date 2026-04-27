@@ -49,6 +49,6 @@ Use `branch-hypothesis` only after you have explicitly decided the tangent deser
 </inline_guidance>
 
 <process>
-Follow the tangent workflow from `@{GPD_INSTALL_DIR}/workflows/tangent.md` end-to-end.
+Follow the included tangent workflow end-to-end.
 Preserve the proposal-first rule: do not silently widen scope, auto-branch, or invent a persistent tangent state machine.
 </process>

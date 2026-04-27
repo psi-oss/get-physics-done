@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from dataclasses import fields, replace
+from dataclasses import asdict, fields, replace
 from pathlib import Path
 
 import pytest
@@ -85,7 +85,19 @@ def _iter_runtime_descriptors_from_schema(
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_ENUMS", schema_shape["capability_enums"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_KEYS", schema_shape["global_config_keys"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_DEFAULTS", schema_shape["capability_defaults"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_KEYS", schema_shape["hook_payload_keys"])
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_DEFAULTS", schema_shape["hook_payload_defaults"])
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_MANAGED_INSTALL_SURFACE_KEYS",
+        schema_shape["managed_install_surface_keys"],
+    )
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_MANAGED_INSTALL_SURFACE_DEFAULTS",
+        schema_shape["managed_install_surface_defaults"],
+    )
     monkeypatch.setattr(
         runtime_catalog,
         "_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS",
@@ -99,6 +111,19 @@ def _iter_runtime_descriptors_from_schema(
         runtime_catalog._load_catalog.cache_clear()
 
 
+def _iter_runtime_descriptors_from_schema_and_payload(
+    schema_payload: dict[str, object],
+    catalog_payload: list[dict[str, object]],
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(catalog_payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    return _iter_runtime_descriptors_from_schema(schema_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(monkeypatch) -> None:
     monkeypatch.setenv("CODEX_CONFIG_DIR", "/tmp/process-codex-config")
 
@@ -108,7 +133,7 @@ def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(m
         environ={},
     )
 
-    assert resolved == Path("/tmp/home/.codex")
+    assert resolved == Path("/tmp/home/.codex").resolve(strict=False)
 
 
 def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monkeypatch) -> None:
@@ -122,7 +147,73 @@ def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monke
         environ={},
     )
 
-    assert resolved == Path("/tmp/home/.config/opencode")
+    assert resolved == Path("/tmp/home/.config/opencode").resolve(strict=False)
+
+
+def test_resolve_global_config_dir_env_or_home_normalizes_env_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("codex"),
+        home=tmp_path / "ignored-home",
+        environ={"CODEX_CONFIG_DIR": "~/codex-config/../codex-final"},
+    )
+
+    assert resolved == (home / "codex-final").resolve(strict=False)
+    assert resolved.is_absolute()
+
+
+def test_resolve_global_config_dir_xdg_dir_normalizes_relative_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=tmp_path / "home",
+        environ={"OPENCODE_CONFIG_DIR": "relative/opencode/../custom-opencode"},
+    )
+
+    assert resolved == (tmp_path / "relative/custom-opencode").resolve(strict=False)
+    assert resolved.is_absolute()
+
+
+def test_resolve_global_config_dir_xdg_file_uses_normalized_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=tmp_path / "ignored-home",
+        environ={"OPENCODE_CONFIG": "~/opencode/config/opencode.json"},
+    )
+
+    assert resolved == (home / "opencode/config").resolve(strict=False)
+    assert resolved.is_absolute()
+
+
+def test_resolve_global_config_dir_xdg_home_normalizes_relative_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=tmp_path / "home",
+        environ={"XDG_CONFIG_HOME": "xdg-config"},
+    )
+
+    assert resolved == (tmp_path / "xdg-config/opencode").resolve(strict=False)
+    assert resolved.is_absolute()
 
 
 def test_runtime_catalog_explicit_priority_order() -> None:
@@ -150,7 +241,17 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
         field.name for field in fields(runtime_catalog.GlobalConfigPolicy)
     }
     assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
+    assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
+    assert {key: tuple(value) for key, value in schema["hook_payload_defaults"].items()} == asdict(
+        runtime_catalog.HookPayloadPolicy()
+    )
+    assert set(schema["managed_install_surface_keys"]) == {
+        field.name for field in fields(runtime_catalog.ManagedInstallSurfacePolicy)
+    }
+    assert set(schema["managed_install_surface_defaults"]) == {
+        field.name for field in fields(runtime_catalog.ManagedInstallSurfacePolicy)
+    }
 
 
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
@@ -310,22 +411,37 @@ def test_normalize_runtime_name_accepts_launch_command_from_fake_catalog_payload
 
 
 def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:
+    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    agent_glob_defaults = tuple(schema["managed_install_surface_defaults"]["managed_agent_globs"])
+    claude_entry = _catalog_entry_by_runtime_name(catalog_payload, "claude-code")
+    opencode_entry = _catalog_entry_by_runtime_name(catalog_payload, "opencode")
     claude_policy = get_managed_install_surface_policy("claude-code")
     opencode_policy = get_managed_install_surface_policy("opencode")
     codex_policy = get_managed_install_surface_policy("codex")
     merged_policy = get_managed_install_surface_policy()
 
-    assert claude_policy.gpd_content_globs == ("get-physics-done/**/*",)
-    assert claude_policy.nested_command_globs == ("commands/gpd/**/*",)
+    assert claude_policy.gpd_content_globs == (f"{get_shared_install_metadata().install_root_dir_name}/**/*",)
+    assert claude_policy.nested_command_globs == tuple(claude_entry["managed_install_surface"]["nested_command_globs"])
     assert claude_policy.flat_command_globs == ()
-    assert claude_policy.managed_agent_globs == ("agents/gpd-*.md", "agents/gpd-*.toml")
+    assert claude_policy.managed_agent_globs == agent_glob_defaults
 
     assert opencode_policy.nested_command_globs == ()
-    assert opencode_policy.flat_command_globs == ("command/gpd-*.md",)
+    assert opencode_policy.flat_command_globs == tuple(opencode_entry["managed_install_surface"]["flat_command_globs"])
     assert codex_policy.nested_command_globs == ()
     assert codex_policy.flat_command_globs == ()
-    assert merged_policy.nested_command_globs == ("commands/gpd/**/*",)
-    assert merged_policy.flat_command_globs == ("command/gpd-*.md",)
+    assert merged_policy.nested_command_globs == claude_policy.nested_command_globs
+    assert merged_policy.flat_command_globs == opencode_policy.flat_command_globs
+
+
+def test_runtime_catalog_source_does_not_hardcode_managed_agent_globs() -> None:
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    source = (Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.py").read_text(
+        encoding="utf-8"
+    )
+
+    for glob in schema["managed_install_surface_defaults"]["managed_agent_globs"]:
+        assert glob not in source
 
 
 def test_runtime_catalog_runtime_keys_are_unique() -> None:
@@ -365,6 +481,34 @@ def test_runtime_catalog_rejects_schema_drift_against_fixed_schema(
         _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+def test_runtime_catalog_rejects_unknown_capability_enum_schema_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["capability_enums"]["legacy_surface"] = ["legacy"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog schema\.capability_enums contains unknown key\(s\): legacy_surface",
+    ):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_missing_required_capability_enum_schema_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    del schema["capability_enums"]["permissions_surface"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog schema\.capability_enums is missing required key\(s\): permissions_surface",
+    ):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["selection_aliases"] = [payload[0]["selection_aliases"][0], " "]
@@ -373,6 +517,64 @@ def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeyp
         ValueError,
         match=r"runtime catalog entry 0\.selection_aliases\[1\] must be a non-empty string",
     ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda entry: entry.update(runtime_name="Bad Runtime"),
+            r"runtime catalog entry 0\.runtime_name must be a lowercase runtime id",
+        ),
+        (
+            lambda entry: entry.update(config_dir_name="../.codex"),
+            r"runtime catalog entry 0\.config_dir_name must be a safe relative path segment without traversal",
+        ),
+        (
+            lambda entry: entry.update(install_flag="--bad flag"),
+            r"runtime catalog entry 0\.install_flag must be a --kebab-case flag",
+        ),
+        (
+            lambda entry: entry.update(adapter_module="gpd.adapters;rm"),
+            r"runtime catalog entry 0\.adapter_module must be a Python module path",
+        ),
+        (
+            lambda entry: entry.update(adapter_class="Bad-Class"),
+            r"runtime catalog entry 0\.adapter_class must be a Python class name",
+        ),
+        (
+            lambda entry: entry.update(activation_env_vars=["BAD=1"]),
+            r"runtime catalog entry 0\.activation_env_vars\[0\] must be an environment variable name",
+        ),
+        (
+            lambda entry: entry.update(selection_flags=["--bad flag"]),
+            r"runtime catalog entry 0\.selection_flags\[0\] must be a --kebab-case flag",
+        ),
+        (
+            lambda entry: entry["global_config"].update(env_var="BAD=1"),
+            r"runtime catalog entry 0\.global_config\.env_var must be an environment variable name",
+        ),
+        (
+            lambda entry: entry["global_config"].update(home_subpath="../.codex"),
+            r"runtime catalog entry 0\.global_config\.home_subpath must be a safe relative path without traversal",
+        ),
+        (
+            lambda entry: entry.update(manifest_file_prefixes=["../skills/"]),
+            r"runtime catalog entry 0\.manifest_file_prefixes\[0\] must be a safe relative path without traversal",
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_unsafe_path_id_and_env_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutator,
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    mutator(payload[0])
+
+    with pytest.raises(ValueError, match=match):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
@@ -426,6 +628,26 @@ def test_runtime_catalog_accepts_descriptor_owned_public_command_surface_prefix(
 
 
 @pytest.mark.parametrize("prefix", [" public:", "public", "/bad space:", "gpd:"])
+def test_runtime_catalog_rejects_malformed_command_prefix_even_with_public_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prefix: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["command_prefix"] = prefix
+    payload[0]["public_command_surface_prefix"] = "/public:"
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime catalog entry 0\.command_prefix must be "
+            r"(a non-empty string|a slash or dollar command prefix)"
+        ),
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize("prefix", [" public:", "public", "/bad space:", "gpd:"])
 def test_runtime_catalog_rejects_malformed_public_command_surface_prefix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -466,12 +688,82 @@ def test_runtime_catalog_rejects_invalid_capability_enum_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    allowed = ", ".join(schema["capability_enums"]["telemetry_source"])
     payload[0]["capabilities"]["telemetry_source"] = "webhook"
 
     with pytest.raises(
         ValueError,
-        match=r"runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook",
+        match=rf"runtime catalog entry 0\.capabilities\.telemetry_source must be one of: {re.escape(allowed)}",
     ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_prompt_free_support_without_mode_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"]["supports_prompt_free_mode"] = True
+    payload[0]["capabilities"]["prompt_free_mode_value"] = None
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime catalog entry 0\.capabilities\.prompt_free_mode_value must be "
+            r"a non-empty string when supports_prompt_free_mode=true"
+        ),
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("runtime_name", "capability_updates", "match"),
+    [
+        (
+            "claude-code",
+            {"statusline_config_surface": "none"},
+            r'runtime catalog entry \d+\.capabilities\.statusline_config_surface must not be "none" when statusline_surface=explicit',
+        ),
+        (
+            "opencode",
+            {"statusline_config_surface": "settings.json:statusLine"},
+            r'runtime catalog entry \d+\.capabilities\.statusline_config_surface must be "none" when statusline_surface=none',
+        ),
+        (
+            "codex",
+            {"notify_config_surface": "none"},
+            r'runtime catalog entry \d+\.capabilities\.notify_config_surface must not be "none" when notify_surface=explicit',
+        ),
+        (
+            "opencode",
+            {"notify_config_surface": "config.toml:notify"},
+            r'runtime catalog entry \d+\.capabilities\.notify_config_surface must be "none" when notify_surface=none',
+        ),
+        (
+            "codex",
+            {"telemetry_completeness": "none"},
+            r'runtime catalog entry \d+\.capabilities\.telemetry_source must be "none" when telemetry_completeness=none',
+        ),
+        (
+            "opencode",
+            {"telemetry_completeness": "best-effort"},
+            r'runtime catalog entry \d+\.capabilities\.telemetry_source must not be "none" when telemetry_completeness is not none',
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_incoherent_statusline_notify_and_telemetry_contracts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_name: str,
+    capability_updates: dict[str, object],
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    entry = _catalog_entry_by_runtime_name(payload, runtime_name)
+    entry["capabilities"].update(capability_updates)
+
+    with pytest.raises(ValueError, match=match):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
@@ -492,6 +784,110 @@ def test_runtime_catalog_merges_partial_capabilities_with_defaults(
     assert descriptors[0].capabilities.statusline_surface == "none"
 
 
+def test_runtime_catalog_merges_partial_hook_payload_with_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    opencode = _catalog_entry_by_runtime_name(payload, "opencode")
+    opencode["hook_payload"] = {
+        "target_path_keys": ["selected_path"],
+    }
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    opencode_descriptor = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "opencode")
+
+    assert opencode_descriptor.hook_payload.target_path_keys == ("selected_path",)
+    assert opencode_descriptor.hook_payload.target_root_keys == ()
+    assert opencode_descriptor.hook_payload.workspace_keys == ()
+    assert opencode_descriptor.hook_payload.supports_runtime_session_payload_attribution is False
+
+
+def test_runtime_catalog_merges_partial_managed_install_surface_with_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["managed_install_surface"] = {
+        "flat_command_globs": ["custom-command/gpd-*.md"],
+    }
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    codex_descriptor = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "codex")
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    assert codex_descriptor.managed_install_surface.flat_command_globs == ("custom-command/gpd-*.md",)
+    assert codex_descriptor.managed_install_surface.managed_agent_globs == tuple(
+        schema["managed_install_surface_defaults"]["managed_agent_globs"]
+    )
+
+
+@pytest.mark.parametrize(
+    "bad_pattern",
+    ["../tmp/*", "commands/../../tmp/*", "/tmp/gpd-*", "~/gpd-*", "C:/tmp/gpd-*", r"commands\..\tmp\*"],
+)
+def test_runtime_catalog_rejects_managed_install_surface_glob_escapes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bad_pattern: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["managed_install_surface"] = {
+        "flat_command_globs": [bad_pattern],
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry \d+\.managed_install_surface\.flat_command_globs\.0 "
+        r"must be a relative managed install glob without traversal",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    [
+        (
+            "supports_usage_tokens",
+            "true",
+            r"runtime catalog schema\.capability_defaults\.supports_usage_tokens must be a boolean",
+        ),
+        (
+            "telemetry_source",
+            "webhook",
+            r"runtime catalog schema\.capability_defaults\.telemetry_source must be one of: none, notify-hook, runtime-api",
+        ),
+        (
+            "prompt_free_mode_value",
+            " ",
+            r"runtime catalog schema\.capability_defaults\.prompt_free_mode_value must be a non-empty string",
+        ),
+        (
+            "statusline_config_surface",
+            "status-line",
+            (
+                r"runtime catalog schema\.capability_defaults\.statusline_config_surface must be "
+                r'"none" or a config surface label like file:key'
+            ),
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_invalid_capability_default_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["capability_defaults"][field_name] = bad_value
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_accepts_future_config_surface_labels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -499,13 +895,47 @@ def test_runtime_catalog_accepts_future_config_surface_labels(
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["capabilities"]["permission_surface_kind"] = "future.json:permissions.mode"
     payload[0]["capabilities"]["statusline_config_surface"] = "future.json:statusLine"
+    payload[0]["capabilities"]["notify_surface"] = "explicit"
     payload[0]["capabilities"]["notify_config_surface"] = "future.json:notify"
+    payload[0]["hook_payload"]["notify_event_types"] = ["future-event"]
 
     descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
     assert descriptors[0].capabilities.permission_surface_kind == "future.json:permissions.mode"
     assert descriptors[0].capabilities.statusline_config_surface == "future.json:statusLine"
     assert descriptors[0].capabilities.notify_config_surface == "future.json:notify"
+
+
+def test_runtime_catalog_accepts_non_notify_telemetry_source_with_usage_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    opencode = _catalog_entry_by_runtime_name(payload, "opencode")
+    opencode["capabilities"].update(
+        {
+            "telemetry_source": "runtime-api",
+            "telemetry_completeness": "best-effort",
+            "supports_usage_tokens": True,
+            "supports_cost_usd": True,
+        }
+    )
+    opencode["hook_payload"].update(
+        {
+            "usage_keys": ["usage"],
+            "input_tokens_keys": ["input_tokens"],
+            "output_tokens_keys": ["output_tokens"],
+            "cost_usd_keys": ["cost_usd"],
+        }
+    )
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    opencode_descriptor = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "opencode")
+
+    assert opencode_descriptor.capabilities.notify_surface == "none"
+    assert opencode_descriptor.capabilities.telemetry_source == "runtime-api"
+    assert opencode_descriptor.capabilities.supports_usage_tokens is True
+    assert opencode_descriptor.capabilities.supports_cost_usd is True
 
 
 def test_runtime_catalog_rejects_malformed_config_surface_labels(
@@ -652,6 +1082,130 @@ def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback
     assert isinstance(merged_policy.agent_scope_keys, tuple)
 
 
+@pytest.mark.parametrize(
+    ("capability_key", "capability_value", "hook_payload_updates", "match"),
+    [
+        (
+            "supports_runtime_session_payload_attribution",
+            False,
+            {"runtime_session_id_keys": ["session_id"]},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_runtime_session_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.runtime_session_id_keys"
+            ),
+        ),
+        (
+            "supports_runtime_session_payload_attribution",
+            True,
+            {"runtime_session_id_keys": []},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_runtime_session_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.runtime_session_id_keys"
+            ),
+        ),
+        (
+            "supports_agent_payload_attribution",
+            False,
+            {"agent_name_keys": ["agent_name"]},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_agent_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.agent_id_keys/agent_name_keys/agent_scope_keys"
+            ),
+        ),
+        (
+            "supports_agent_payload_attribution",
+            True,
+            {"agent_id_keys": [], "agent_name_keys": [], "agent_scope_keys": []},
+            (
+                r"runtime catalog entry 0\.capabilities\.supports_agent_payload_attribution "
+                r"must match runtime catalog entry 0\.hook_payload\.agent_id_keys/agent_name_keys/agent_scope_keys"
+            ),
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_capability_attribution_drift_from_hook_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capability_key: str,
+    capability_value: bool,
+    hook_payload_updates: dict[str, list[str]],
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"][capability_key] = capability_value
+    payload[0]["hook_payload"].update(hook_payload_updates)
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("runtime_name", "capability_updates", "hook_payload_updates", "match"),
+    [
+        (
+            "codex",
+            {},
+            {"notify_event_types": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.notify_surface requires "
+                r"runtime catalog entry \d+\.hook_payload\.notify_event_types"
+            ),
+        ),
+        (
+            "codex",
+            {},
+            {"input_tokens_keys": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.supports_usage_tokens requires "
+                r"runtime catalog entry \d+\.hook_payload\.input_tokens_keys"
+            ),
+        ),
+        (
+            "codex",
+            {},
+            {"cost_usd_keys": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.supports_cost_usd requires "
+                r"runtime catalog entry \d+\.hook_payload\.cost_usd_keys"
+            ),
+        ),
+        (
+            "claude-code",
+            {},
+            {"context_remaining_keys": []},
+            (
+                r"runtime catalog entry \d+\.capabilities\.supports_context_meter requires "
+                r"runtime catalog entry \d+\.hook_payload\.context_remaining_keys"
+            ),
+        ),
+        (
+            "codex",
+            {"notify_surface": "none", "notify_config_surface": "none"},
+            {},
+            (
+                r"runtime catalog entry \d+\.capabilities\.telemetry_source requires "
+                r"runtime catalog entry \d+\.capabilities\.notify_surface=explicit"
+            ),
+        ),
+    ],
+)
+def test_runtime_catalog_rejects_capability_flags_without_required_hook_payload_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_name: str,
+    capability_updates: dict[str, object],
+    hook_payload_updates: dict[str, list[str]],
+    match: str,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    entry = _catalog_entry_by_runtime_name(payload, runtime_name)
+    entry["capabilities"].update(capability_updates)
+    entry["hook_payload"].update(hook_payload_updates)
+
+    with pytest.raises(ValueError, match=match):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_hook_payload_policy_rejects_explicit_unknown_runtime() -> None:
     with pytest.raises(KeyError, match=r"Unknown runtime 'not-a-runtime'"):
         get_hook_payload_policy("not-a-runtime")
@@ -788,9 +1342,10 @@ def test_runtime_capabilities_are_explicit_per_runtime() -> None:
 
 
 def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
     allowed_permissions_surfaces = {"config-file", "launch-wrapper", "unsupported"}
     allowed_hook_surfaces = {"explicit", "none"}
-    allowed_telemetry_sources = {"notify-hook", "none"}
+    allowed_telemetry_sources = set(schema["capability_enums"]["telemetry_source"])
     allowed_telemetry_completeness = {"best-effort", "none"}
     allowed_child_artifact_persistence_reliability = {"best-effort", "none", "reliable"}
     allowed_continuation_surfaces = {"explicit", "none"}
@@ -835,6 +1390,11 @@ def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
         assert hook_payload.supports_agent_payload_attribution == bool(
             hook_payload.agent_id_keys or hook_payload.agent_name_keys or hook_payload.agent_scope_keys
         )
+        assert (
+            capabilities.supports_runtime_session_payload_attribution
+            == hook_payload.supports_runtime_session_payload_attribution
+        )
+        assert capabilities.supports_agent_payload_attribution == hook_payload.supports_agent_payload_attribution
 
         if capabilities.statusline_surface == "explicit":
             assert capabilities.statusline_config_surface != "none"
@@ -856,14 +1416,15 @@ def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
             assert not hook_payload.notify_event_types
 
         if capabilities.telemetry_completeness == "best-effort":
-            assert capabilities.telemetry_source == "notify-hook"
-            assert capabilities.notify_surface == "explicit"
-            assert capabilities.supports_usage_tokens is True
-            assert capabilities.supports_cost_usd is True
-            assert hook_payload.usage_keys
-            assert hook_payload.input_tokens_keys
-            assert hook_payload.output_tokens_keys
-            assert hook_payload.cost_usd_keys
+            assert capabilities.telemetry_source != "none"
+            if capabilities.telemetry_source == "notify-hook":
+                assert capabilities.notify_surface == "explicit"
+            if capabilities.supports_usage_tokens:
+                assert hook_payload.usage_keys
+                assert hook_payload.input_tokens_keys
+                assert hook_payload.output_tokens_keys
+            if capabilities.supports_cost_usd:
+                assert hook_payload.cost_usd_keys
         else:
             assert capabilities.telemetry_source == "none"
             assert capabilities.supports_usage_tokens is False

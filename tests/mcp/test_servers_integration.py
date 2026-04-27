@@ -519,7 +519,7 @@ class TestSkillsServerIntegration:
         assert "gpd-help" in result["content"]
         assert "## Command Requirements" in result["content"]
         assert "Quick Start Extract" in result["content"]
-        assert "## Contextual Help" in result["content"]
+        assert "## Contextual Help" not in result["content"]
         assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in result["content"]
         assert "resolved GPD-owned manuscript root" in result["content"]
         assert result["file_count"] == 1
@@ -597,12 +597,12 @@ class TestSkillsServerIntegration:
             },
             {
                 "when": "theorem-bearing claims are present",
-                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "required_outputs": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
                 "required_evidence": [],
                 "blocking_conditions": [],
                 "preflight_checks": [],
                 "blocking_preflight_checks": [],
-                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "stage_artifacts": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
             }
         ]
         assert result["context_mode"] == "project-aware"

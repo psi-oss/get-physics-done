@@ -30,11 +30,27 @@ def test_agent_delegation_reference_makes_one_shot_checkpoint_and_artifact_gate_
 def test_runtime_delegation_note_reuses_the_same_one_shot_and_artifact_language() -> None:
     text = _read(ORCHESTRATION_REFERENCES / "runtime-delegation-note.md")
 
-    assert "one-shot handoff" in text
+    assert "agent-delegation.md" in text
+    assert "one-shot" in text
     assert "`status: checkpoint`" in text
-    assert "verify the expected artifacts on disk before marking the handoff complete" in text
-    assert "The orchestrator owns any fresh continuation handoff." in text
-    assert "Always pass `readonly=false` for file-producing agents." in text
+    assert "Artifact gate" in text
+    assert "Fresh-continuation ownership" in text
+    assert "Empty-model omission" in text
+    assert "`readonly=false`" in text
+    assert "execute sequentially in the main context" in text
+
+
+def test_agent_infrastructure_points_spawned_write_contract_to_canonical_delegation_reference() -> None:
+    text = _read(ORCHESTRATION_REFERENCES / "agent-infrastructure.md")
+    write_contract = text.split("## Spawned Agent Write Contract", maxsplit=1)[1].split(
+        "## gpd CLI State Commands", maxsplit=1
+    )[0]
+
+    assert "references/orchestration/agent-delegation.md" in write_contract
+    assert "commit_authority" in write_contract
+    assert "write_scope" in write_contract
+    assert "shared_state_policy" in write_contract
+    assert "<spawn_contract>" not in write_contract
 
 
 def test_continuation_prompt_frames_the_spawn_as_a_fresh_continuation_not_an_in_run_wait() -> None:

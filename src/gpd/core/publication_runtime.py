@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.constants import ProjectLayout
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import (
     ManuscriptArtifacts,
     ManuscriptResolution,
@@ -35,16 +36,15 @@ from gpd.core.proof_review import (
 )
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
-    review_artifact_round,
     review_round_suffix,
 )
-from gpd.core.reference_ingestion import (
-    ManuscriptReferenceStatusIngestion,
-    ManuscriptReferenceStatusRecord,
-    ingest_manuscript_reference_status,
+from gpd.core.publication_rounds import (
+    latest_publication_round_number,
+    publication_response_round_path_maps,
+    publication_review_round_path_maps,
 )
+from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
 from gpd.core.state import load_state_json
-from gpd.mcp.paper.bibliography import BibliographyAudit
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
 __all__ = [
@@ -58,10 +58,6 @@ __all__ = [
     "resolve_publication_runtime_snapshot",
 ]
 
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
-_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 _PUBLICATION_BLOCKER_PATTERNS = (
     re.compile(r"\bpublication\b"),
     re.compile(r"\b(arxiv|submission|manuscript)\b"),
@@ -325,13 +321,26 @@ def _resolve_publication_runtime_target(project_root: Path, subject: str | None)
     current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
 
     if mode_resolution.resolved_mode == PEER_REVIEW_PROJECT_BACKED_MODE:
+        explicit_subject = (
+            resolve_explicit_publication_subject(
+                project_root,
+                mode_resolution.resolved_target,
+                allow_markdown=True,
+            )
+            if mode_resolution.subject and mode_resolution.resolved_target is not None
+            else None
+        )
         return PublicationRuntimeTarget(
             mode="project_explicit_manuscript" if mode_resolution.subject else "project_manuscript",
             detail=mode_resolution.mode_reason,
             project_context_role="authoritative",
             subject_path=mode_resolution.subject_path,
             target_path=mode_resolution.resolved_target or current_artifacts.manuscript_entrypoint,
-            target_root=current_artifacts.manuscript_root,
+            target_root=(
+                explicit_subject.manuscript_root
+                if explicit_subject is not None and explicit_subject.manuscript_root is not None
+                else current_artifacts.manuscript_root
+            ),
         )
 
     if mode_resolution.resolved_mode == PEER_REVIEW_STANDALONE_MODE:
@@ -446,64 +455,33 @@ def _resolve_target_manuscript_reference_status(
     artifacts: ManuscriptArtifacts,
     *,
     allow_project_fallback: bool,
+    manuscript_resolution: ManuscriptResolution | None = None,
 ) -> ManuscriptReferenceStatusIngestion:
     if artifacts.manuscript_root is None:
         if allow_project_fallback:
             return ingest_manuscript_reference_status(project_root)
         return ManuscriptReferenceStatusIngestion()
 
-    audit_path = artifacts.bibliography_audit or (artifacts.manuscript_root / "BIBLIOGRAPHY-AUDIT.json")
-    manuscript_root_label = _relative_path(project_root, artifacts.manuscript_root) or ""
-    bibliography_audit_label = _relative_path(project_root, audit_path) or ""
-
-    if not audit_path.exists():
-        return ManuscriptReferenceStatusIngestion(
-            manuscript_root=manuscript_root_label,
-            bibliography_audit_path=bibliography_audit_label,
-        )
-
-    try:
-        raw_audit = json.loads(audit_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return ManuscriptReferenceStatusIngestion(
-            manuscript_root=manuscript_root_label,
-            bibliography_audit_path=bibliography_audit_label,
-            reference_status_warnings=[f"could not read bibliography audit {bibliography_audit_label}: {exc}"],
-        )
-
-    try:
-        audit = BibliographyAudit.model_validate(raw_audit)
-    except Exception as exc:  # noqa: BLE001
-        return ManuscriptReferenceStatusIngestion(
-            manuscript_root=manuscript_root_label,
-            bibliography_audit_path=bibliography_audit_label,
-            reference_status_warnings=[f"invalid bibliography audit {bibliography_audit_label}: {exc}"],
-        )
-
-    reference_status: list[ManuscriptReferenceStatusRecord] = []
-    for entry in audit.entries:
-        reference_id = str(entry.reference_id or "").strip()
-        bibtex_key = str(entry.key or "").strip()
-        if not reference_id or not bibtex_key:
-            continue
-        reference_status.append(
-            ManuscriptReferenceStatusRecord(
-                reference_id=reference_id,
-                bibtex_key=bibtex_key,
-                title=str(entry.title or "").strip(),
-                resolution_status=str(entry.resolution_status or "").strip(),
-                verification_status=str(entry.verification_status or "").strip(),
-                source_artifacts=[bibliography_audit_label],
-                manuscript_root=manuscript_root_label,
-                bibliography_audit_path=bibliography_audit_label,
-            )
-        )
-
-    return ManuscriptReferenceStatusIngestion(
-        manuscript_root=manuscript_root_label,
-        bibliography_audit_path=bibliography_audit_label,
-        reference_status=reference_status,
+    subject_status = manuscript_resolution.status if manuscript_resolution is not None else "resolved"
+    subject_detail = (
+        manuscript_resolution.detail
+        if manuscript_resolution is not None
+        else "publication runtime resolved manuscript artifacts"
     )
+    subject = PublicationSubjectResolution(
+        project_root=project_root,
+        status=subject_status,
+        source="explicit_target",
+        detail=subject_detail,
+        target_path=artifacts.manuscript_entrypoint,
+        manuscript_root=artifacts.manuscript_root,
+        manuscript_entrypoint=artifacts.manuscript_entrypoint,
+        artifact_base=artifacts.manuscript_root,
+        artifact_manifest=artifacts.artifact_manifest,
+        bibliography_audit=artifacts.bibliography_audit,
+        reproducibility_manifest=artifacts.reproducibility_manifest,
+    )
+    return ingest_manuscript_reference_status(project_root, publication_subject=subject)
 
 
 def _target_not_reviewed_status(detail: str) -> ProofReviewStatus:
@@ -513,33 +491,6 @@ def _target_not_reviewed_status(detail: str) -> ProofReviewStatus:
         can_rely_on_prior_review=False,
         detail=detail,
     )
-
-
-def _latest_round_number(*round_maps: dict[int, Path | None]) -> int | None:
-    rounds: set[int] = set()
-    for round_map in round_maps:
-        rounds.update(round_map)
-    if not rounds:
-        return None
-    return max(rounds)
-
-
-def _round_file_map(
-    *search_roots: Path,
-    filename_pattern: re.Pattern[str],
-    glob_pattern: str,
-) -> dict[int, Path]:
-    round_map: dict[int, Path] = {}
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-        for path in sorted(root.glob(glob_pattern)):
-            details = review_artifact_round(path, pattern=filename_pattern)
-            if details is None:
-                continue
-            round_number, _round_suffix = details
-            round_map.setdefault(round_number, path)
-    return round_map
 
 
 def _first_existing_path(*candidates: Path) -> Path | None:
@@ -555,39 +506,60 @@ def _review_artifact_state(
     referee_decision: Path | None,
     manuscript_entrypoint: Path | None,
     project_root: Path,
+    round_number: int,
 ) -> tuple[str, str, tuple[str, ...]]:
     missing: list[str] = []
+    ledger = None
+    decision = None
     if review_ledger is None:
         missing.append("review_ledger")
+    else:
+        try:
+            ledger = read_review_ledger(review_ledger)
+        except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+            return "invalid", f"review ledger could not be loaded: {exc}", ()
+
     if referee_decision is None:
         missing.append("referee_decision")
-    if missing:
-        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing)
+    else:
+        try:
+            decision = read_referee_decision(referee_decision)
+        except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+            return "invalid", f"referee decision could not be loaded: {exc}", ()
 
-    try:
-        ledger = read_review_ledger(review_ledger)
-    except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-        return "invalid", f"review ledger could not be loaded: {exc}", ()
-    try:
-        decision = read_referee_decision(referee_decision)
-    except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-        return "invalid", f"referee decision could not be loaded: {exc}", ()
+    if ledger is not None and ledger.round != round_number:
+        return (
+            "invalid",
+            f"review ledger round {ledger.round} does not match review artifact round {round_number}",
+            (),
+        )
 
     if manuscript_entrypoint is not None:
-        ledger_matches = manuscript_matches_review_artifact_path(
+        mismatched: list[str] = []
+        if ledger is not None and not manuscript_matches_review_artifact_path(
             ledger.manuscript_path,
             manuscript_entrypoint,
             cwd=project_root,
-        )
-        decision_matches = manuscript_matches_review_artifact_path(
+        ):
+            mismatched.append("review ledger")
+        if decision is not None and not manuscript_matches_review_artifact_path(
             decision.manuscript_path,
             manuscript_entrypoint,
             cwd=project_root,
-        )
-        if not ledger_matches or not decision_matches:
-            return "mismatched", "review ledger or referee decision does not match the resolved publication subject", ()
+        ):
+            mismatched.append("referee decision")
+        if mismatched:
+            return (
+                "mismatched",
+                " or ".join(mismatched) + " does not match the resolved publication subject",
+                (),
+            )
+
+    if missing:
+        return "partial", f"missing review artifact(s): {', '.join(missing)}", tuple(missing)
 
     return "complete", "latest review round is complete for the active manuscript", ()
+
 
 def _publication_lineage_roots_for_subject(
     project_root: Path,
@@ -616,36 +588,126 @@ def _coerce_publication_subject(
     return resolve_current_publication_subject(project_root, allow_markdown=True)
 
 
-def _review_round_matches_manuscript(
+def _metadata_round_value(metadata: dict[str, object]) -> int | None:
+    for field_name in ("round", "response_round", "review_round"):
+        value = metadata.get(field_name)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+    return None
+
+
+def _metadata_text(metadata: dict[str, object], *field_names: str) -> str:
+    for field_name in field_names:
+        value = metadata.get(field_name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _path_metadata_matches_project_path(value: str, expected_path: Path | None, *, project_root: Path) -> bool:
+    if expected_path is None:
+        return True
+    return manuscript_matches_review_artifact_path(value, expected_path, cwd=project_root)
+
+
+def _response_artifact_metadata_errors(
+    path: Path,
     *,
-    review_ledger: Path | None,
-    referee_decision: Path | None,
-    manuscript_entrypoint: Path,
     project_root: Path,
-) -> bool:
-    if review_ledger is not None:
-        try:
-            ledger = read_review_ledger(review_ledger)
-        except (OSError, json.JSONDecodeError, PydanticValidationError):
-            ledger = None
-        if ledger is not None and manuscript_matches_review_artifact_path(
-            ledger.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            return True
-    if referee_decision is not None:
-        try:
-            decision = read_referee_decision(referee_decision)
-        except (OSError, json.JSONDecodeError, PydanticValidationError):
-            decision = None
-        if decision is not None and manuscript_matches_review_artifact_path(
-            decision.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            return True
-    return False
+    manuscript_entrypoint: Path | None,
+    round_number: int,
+    round_suffix: str,
+    review_artifacts: PublicationReviewArtifacts | None,
+    binding_required: bool,
+) -> tuple[str, ...]:
+    try:
+        metadata, _body = extract_frontmatter(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, FrontmatterParseError) as exc:
+        return (f"{path.name} metadata could not be loaded: {exc}",)
+
+    if not metadata:
+        return (f"{path.name} has no response frontmatter binding",) if binding_required else ()
+
+    errors: list[str] = []
+    metadata_round = _metadata_round_value(metadata)
+    if metadata_round is None:
+        if binding_required:
+            errors.append(f"{path.name} response frontmatter is missing `round`")
+    elif metadata_round != round_number:
+        errors.append(f"{path.name} round {metadata_round} does not match active review round {round_number}")
+
+    manuscript_path = _metadata_text(metadata, "manuscript_path", "manuscript")
+    if manuscript_entrypoint is not None:
+        if not manuscript_path:
+            if binding_required:
+                errors.append(f"{path.name} response frontmatter is missing `manuscript_path`")
+        elif not manuscript_matches_review_artifact_path(manuscript_path, manuscript_entrypoint, cwd=project_root):
+            errors.append(f"{path.name} manuscript_path does not match the active manuscript")
+
+    response_to = _metadata_text(metadata, "response_to", "referee_report")
+    if response_to and Path(response_to).name != f"REFEREE-REPORT{round_suffix}.md":
+        errors.append(f"{path.name} response_to does not match round suffix {round_suffix or '(round 1)'}")
+
+    review_ledger = _metadata_text(metadata, "review_ledger")
+    if (
+        review_ledger
+        and review_artifacts is not None
+        and not _path_metadata_matches_project_path(
+            review_ledger,
+            review_artifacts.review_ledger,
+            project_root=project_root,
+        )
+    ):
+        errors.append(f"{path.name} review_ledger does not match the active review artifact")
+
+    referee_decision = _metadata_text(metadata, "referee_decision")
+    if (
+        referee_decision
+        and review_artifacts is not None
+        and not _path_metadata_matches_project_path(
+            referee_decision,
+            review_artifacts.referee_decision,
+            project_root=project_root,
+        )
+    ):
+        errors.append(f"{path.name} referee_decision does not match the active review artifact")
+
+    return tuple(errors)
+
+
+def _response_artifact_binding_state(
+    *,
+    project_root: Path,
+    author_response: Path,
+    referee_response: Path,
+    manuscript_entrypoint: Path | None,
+    round_number: int,
+    round_suffix: str,
+    review_artifacts: PublicationReviewArtifacts | None,
+    binding_required: bool,
+) -> tuple[str, str]:
+    errors: list[str] = []
+    for path in (author_response, referee_response):
+        errors.extend(
+            _response_artifact_metadata_errors(
+                path,
+                project_root=project_root,
+                manuscript_entrypoint=manuscript_entrypoint,
+                round_number=round_number,
+                round_suffix=round_suffix,
+                review_artifacts=review_artifacts,
+                binding_required=binding_required,
+            )
+        )
+    if not errors:
+        return "complete", "latest paired response artifacts are complete"
+    if all("no response frontmatter binding" in error or "missing `" in error for error in errors):
+        return "unbound", "; ".join(errors[:3])
+    return "mismatched", "; ".join(errors[:3])
 
 
 def resolve_latest_publication_review_artifacts(
@@ -675,27 +737,14 @@ def resolve_latest_publication_review_artifacts(
     if not review_dir.exists():
         return None
 
-    ledger_by_round = _round_file_map(
-        review_dir,
-        filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
-        glob_pattern="REVIEW-LEDGER*.json",
-    )
-    decision_by_round = _round_file_map(
-        review_dir,
-        filename_pattern=_REFEREE_DECISION_FILENAME_RE,
-        glob_pattern="REFEREE-DECISION*.json",
+    ledger_by_round, decision_by_round = publication_review_round_path_maps(
+        project_root,
+        manuscript=resolved_manuscript,
     )
     round_numbers = sorted({*ledger_by_round, *decision_by_round}, reverse=True)
     for round_number in round_numbers:
         review_ledger = ledger_by_round.get(round_number)
         referee_decision = decision_by_round.get(round_number)
-        if resolved_manuscript is not None and not _review_round_matches_manuscript(
-            review_ledger=review_ledger,
-            referee_decision=referee_decision,
-            manuscript_entrypoint=resolved_manuscript,
-            project_root=project_root,
-        ):
-            continue
         round_suffix = review_round_suffix(round_number)
         referee_report_md = _first_existing_path(
             publication_root / f"REFEREE-REPORT{round_suffix}.md",
@@ -712,6 +761,7 @@ def resolve_latest_publication_review_artifacts(
             referee_decision=referee_decision,
             manuscript_entrypoint=resolved_manuscript,
             project_root=project_root,
+            round_number=round_number,
         )
         if state == "mismatched":
             continue
@@ -745,30 +795,29 @@ def resolve_latest_publication_response_artifacts(
         manuscript_entrypoint=manuscript_entrypoint,
         publication_subject=publication_subject,
     )
+    resolved_manuscript = subject.manuscript_entrypoint if subject.resolved else manuscript_entrypoint
     if subject.resolved and subject.manuscript_entrypoint is not None:
-        publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
+        _publication_root, review_dir = _publication_lineage_roots_for_subject(project_root, subject)
     elif manuscript_entrypoint is not None:
         layout = ProjectLayout(project_root)
-        publication_root, review_dir = layout.gpd, layout.gpd / "review"
+        review_dir = layout.gpd / "review"
     else:
         return None
     if not review_dir.exists():
         return None
 
-    author_by_round = _round_file_map(
-        publication_root,
-        review_dir,
-        filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
-        glob_pattern="AUTHOR-RESPONSE*.md",
+    author_by_round, referee_by_round = publication_response_round_path_maps(
+        project_root,
+        manuscript=resolved_manuscript,
+        include_review_roots_for_author_response=True,
     )
-    referee_by_round = _round_file_map(
-        review_dir,
-        filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
-        glob_pattern="REFEREE_RESPONSE*.md",
-    )
-    round_number = review_artifacts.round_number if review_artifacts is not None else _latest_round_number(
-        author_by_round,
-        referee_by_round,
+    round_number = (
+        review_artifacts.round_number
+        if review_artifacts is not None
+        else latest_publication_round_number(
+            author_by_round,
+            referee_by_round,
+        )
     )
     if round_number is None:
         return None
@@ -791,13 +840,24 @@ def resolve_latest_publication_response_artifacts(
             missing_artifacts=tuple(missing),
         )
 
+    binding_required = subject.source == "explicit_target" and resolved_manuscript is not None
+    state, detail = _response_artifact_binding_state(
+        project_root=project_root,
+        author_response=author_response,
+        referee_response=referee_response,
+        manuscript_entrypoint=resolved_manuscript,
+        round_number=round_number,
+        round_suffix=round_suffix,
+        review_artifacts=review_artifacts,
+        binding_required=binding_required,
+    )
     return PublicationResponseArtifacts(
         round_number=round_number,
         round_suffix=round_suffix,
         author_response=author_response,
         referee_response=referee_response,
-        state="complete",
-        detail="latest paired response artifacts are complete",
+        state=state,
+        detail=detail,
     )
 
 
@@ -819,15 +879,41 @@ def resolve_publication_runtime_snapshot(
     target = _resolve_publication_runtime_target(project_root, target_subject)
     current_resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=True)
     current_artifacts = resolve_current_manuscript_artifacts(project_root, allow_markdown=True)
+    explicit_project_subject = None
+    if publication_subject is None and target.mode == "project_explicit_manuscript" and target.target_path is not None:
+        explicit_project_subject = resolve_explicit_publication_subject(
+            project_root,
+            target.target_path,
+            allow_markdown=True,
+        )
+
     if publication_subject is not None:
         resolved_subject = publication_subject
         manuscript_artifacts = publication_subject.as_manuscript_artifacts()
         manuscript_resolution = publication_subject.as_manuscript_resolution()
+    elif explicit_project_subject is not None and explicit_project_subject.resolved:
+        resolved_subject = explicit_project_subject
+        manuscript_artifacts = explicit_project_subject.as_manuscript_artifacts()
+        manuscript_resolution = explicit_project_subject.as_manuscript_resolution()
     else:
         manuscript_artifacts = _resolve_target_manuscript_artifacts(project_root, target, current_artifacts)
         manuscript_resolution = _resolve_target_manuscript_resolution(target, current_resolution, manuscript_artifacts)
         if _project_backed_target_mode(target):
             resolved_subject = resolve_current_publication_subject(project_root, allow_markdown=True)
+        elif manuscript_artifacts.manuscript_entrypoint is None:
+            resolved_subject = PublicationSubjectResolution(
+                project_root=project_root,
+                status=manuscript_resolution.status,
+                source="explicit_target",
+                detail=manuscript_resolution.detail,
+                target_path=target.target_path or target.subject_path,
+                manuscript_root=manuscript_artifacts.manuscript_root,
+                manuscript_entrypoint=None,
+                artifact_base=manuscript_artifacts.manuscript_root,
+                artifact_manifest=manuscript_artifacts.artifact_manifest,
+                bibliography_audit=manuscript_artifacts.bibliography_audit,
+                reproducibility_manifest=manuscript_artifacts.reproducibility_manifest,
+            )
         else:
             resolved_subject = _coerce_publication_subject(
                 project_root,
@@ -841,6 +927,7 @@ def resolve_publication_runtime_snapshot(
             project_root,
             manuscript_artifacts,
             allow_project_fallback=allow_project_fallback,
+            manuscript_resolution=manuscript_resolution,
         )
     )
     if manuscript_artifacts.manuscript_entrypoint is not None:

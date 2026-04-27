@@ -34,9 +34,12 @@ def test_literature_reviewer_shows_base_return_fields_and_one_shot_checkpointing
     assert "Use `gpd_return.status: completed` for a finished review." in agent
 
     completed_block = agent.split("Use `gpd_return.status: completed` for a finished review.", 1)[1]
-    status_idx = completed_block.index("  status: completed | checkpoint | blocked | failed")
-    files_idx = completed_block.index("  files_written: [GPD/literature/{slug}-REVIEW.md]")
-    issues_idx = completed_block.index("  issues: [most important unresolved issues or empty list]")
-    next_actions_idx = completed_block.index("  next_actions: [concrete commands or exact reading/review path]")
+    base_idx = completed_block.index(
+        "  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+    )
+    files_idx = completed_block.index(
+        "  # For completed reviews, files_written must include GPD/literature/{slug}-REVIEW.md."
+    )
+    papers_idx = completed_block.index("  papers_reviewed: {count}")
 
-    assert status_idx < files_idx < issues_idx < next_actions_idx
+    assert base_idx < files_idx < papers_idx

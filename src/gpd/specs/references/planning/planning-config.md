@@ -73,7 +73,7 @@ Configuration options for `GPD/` directory behavior in physics research projects
 **When `planning.commit_docs: true`:**
 
 - Keep `GPD/` tracked
-- Add `GPD/state.json.bak` to `.gitignore`; it is a crash-recovery backup, not a durable project artifact
+- Add `GPD/state.json.bak` and `GPD/state.json.lock` to `.gitignore`; they are local recovery/coordination files, not durable project artifacts
 
 **Using gpd CLI (preferred):**
 

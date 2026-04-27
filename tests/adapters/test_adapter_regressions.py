@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from gpd.adapters.install_utils import hook_python_interpreter
 from gpd.core.public_surface_contract import local_cli_bridge_commands
 from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
@@ -141,13 +142,14 @@ def test_managed_wolfram_projection_helpers_hide_api_key_and_preserve_endpoint(
 
     monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
     monkeypatch.setenv("GPD_WOLFRAM_MCP_ENDPOINT", "https://example.invalid/api/mcp")
+    monkeypatch.setenv("GPD_PYTHON", "/tmp/gpd-managed-python")
 
     servers = helper()
     wolfram = servers["gpd-wolfram"]
     payload = json.dumps(wolfram)
 
-    assert wolfram["command"] == "gpd-mcp-wolfram"
-    assert wolfram["args"] == []
+    assert wolfram["command"] == hook_python_interpreter()
+    assert wolfram["args"] == ["-m", "gpd.mcp.integrations.wolfram_bridge"]
     assert "super-secret-token" not in payload
     assert "GPD_WOLFRAM_MCP_API_KEY" not in payload
     assert "https://example.invalid/api/mcp" in payload

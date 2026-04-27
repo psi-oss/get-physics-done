@@ -6,8 +6,8 @@ The resolver keeps two concepts separate:
 - the resolved GPD project root used for project-scoped lookups
 
 Resolution prefers an explicit ``project_dir`` only when it can be verified by
-walking ancestors for a ``GPD/`` directory. If that verification fails, a
-verified workspace walk-up still wins over the explicit fallback.
+walking ancestors for a marker-backed ``GPD/`` directory. If that verification
+fails, a verified workspace walk-up still wins over the explicit fallback.
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ from enum import StrEnum
 from pathlib import Path
 
 from gpd.core.constants import (
+    OPTIONAL_PLANNING_FILES,
     REQUIRED_PLANNING_DIRS,
     REQUIRED_PLANNING_FILES,
-    STATE_JSON_BACKUP_FILENAME,
     ProjectLayout,
 )
 
@@ -71,7 +71,7 @@ class ProjectRootResolution:
 
     @property
     def verified(self) -> bool:
-        """Return whether the result was verified by locating a ``GPD/`` directory."""
+        """Return whether the result was verified by locating a marker-backed ``GPD/`` directory."""
         return self.has_project_layout
 
 
@@ -101,19 +101,30 @@ def _walk_project_root(
     candidate: Path | None,
     *,
     allow_ancestor_walk: bool = True,
-) -> tuple[Path | None, int]:
-    """Walk *candidate* and its ancestors until the best ``GPD/`` layout is found."""
+) -> tuple[Path | None, int, bool]:
+    """Walk *candidate* and its ancestors until the nearest marker-backed ``GPD/`` anchor is found."""
 
     if candidate is None:
-        return None, 0
+        return None, 0, False
 
-    best_verified: tuple[int, int, Path] | None = None
     best_bare: tuple[int, Path] | None = None
+
+    def _has_directory_content(path: Path) -> bool:
+        try:
+            return path.is_dir() and any(path.iterdir())
+        except OSError:
+            return False
+
+    def _is_vcs_boundary(path: Path) -> bool:
+        """Return whether walking above *path* would cross into a different checkout."""
+        return (path / ".git").exists() or (path / ".hg").exists()
 
     search_roots = (candidate, *candidate.parents) if allow_ancestor_walk else (candidate,)
     for steps, path in enumerate(search_roots):
         layout = ProjectLayout(path)
         if not layout.gpd.is_dir():
+            if allow_ancestor_walk and _is_vcs_boundary(path):
+                break
             continue
 
         marker_count = sum(
@@ -121,23 +132,33 @@ def _walk_project_root(
             for name in REQUIRED_PLANNING_FILES
             if (layout.gpd / name).exists()
         )
-        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if (layout.gpd / name).is_dir())
-        if (layout.gpd / STATE_JSON_BACKUP_FILENAME).exists():
-            marker_count += 1
-
+        marker_count += sum(1 for name in OPTIONAL_PLANNING_FILES if (layout.gpd / name).exists())
+        marker_count += 1 if layout.agent_id_file.exists() else 0
+        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
+        marker_count += sum(
+            1
+            for path in (
+                layout.research_map_dir,
+                layout.literature_dir,
+                layout.knowledge_dir,
+                layout.publication_dir,
+                layout.review_dir,
+                layout.milestones_dir,
+                layout.todos_dir,
+            )
+            if _has_directory_content(path)
+        )
         if marker_count > 0:
-            if best_verified is None or (marker_count, -steps) > (best_verified[0], -best_verified[1]):
-                best_verified = (marker_count, steps, path)
-            continue
+            return path, steps, True
 
         if best_bare is None or steps < best_bare[0]:
             best_bare = (steps, path)
+        if allow_ancestor_walk and _is_vcs_boundary(path):
+            break
 
-    if best_verified is not None:
-        return best_verified[2], best_verified[1]
     if best_bare is not None:
-        return best_bare[1], best_bare[0]
-    return None, 0
+        return best_bare[1], best_bare[0], False
+    return None, 0, False
 
 
 def resolve_project_roots(
@@ -167,8 +188,8 @@ def resolve_project_roots(
     workspace_root = normalize_workspace_hint(workspace)
     project_hint = normalize_workspace_hint(project_dir)
 
-    explicit_root, explicit_steps = _walk_project_root(project_hint)
-    if explicit_root is not None:
+    explicit_root, explicit_steps, explicit_verified = _walk_project_root(project_hint)
+    if explicit_root is not None and explicit_verified:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
@@ -180,20 +201,32 @@ def resolve_project_roots(
             walk_up_steps=explicit_steps,
         )
 
-    workspace_project_root, workspace_steps = _walk_project_root(
+    workspace_project_root, workspace_steps, workspace_verified = _walk_project_root(
         workspace_root,
         allow_ancestor_walk=policy != RootResolutionPolicy.WORKSPACE_LOCKED,
     )
-    if workspace_project_root is not None:
+    if workspace_project_root is not None and workspace_verified:
         return ProjectRootResolution(
             workspace_root=workspace_root,
             project_hint=project_hint,
             project_root=workspace_project_root,
             policy=policy,
             basis=RootResolutionBasis.WORKSPACE,
-            confidence=RootResolutionConfidence.HIGH,
-            has_project_layout=True,
+            confidence=RootResolutionConfidence.HIGH if workspace_verified else RootResolutionConfidence.LOW,
+            has_project_layout=workspace_verified,
             walk_up_steps=workspace_steps,
+        )
+
+    if explicit_root is not None:
+        return ProjectRootResolution(
+            workspace_root=workspace_root,
+            project_hint=project_hint,
+            project_root=explicit_root,
+            policy=policy,
+            basis=RootResolutionBasis.PROJECT_DIR,
+            confidence=RootResolutionConfidence.MEDIUM,
+            has_project_layout=False,
+            walk_up_steps=explicit_steps,
         )
 
     if project_hint is not None:
@@ -206,6 +239,18 @@ def resolve_project_roots(
             confidence=RootResolutionConfidence.MEDIUM,
             has_project_layout=False,
             walk_up_steps=0,
+        )
+
+    if workspace_project_root is not None:
+        return ProjectRootResolution(
+            workspace_root=workspace_root,
+            project_hint=project_hint,
+            project_root=workspace_project_root,
+            policy=policy,
+            basis=RootResolutionBasis.WORKSPACE,
+            confidence=RootResolutionConfidence.LOW,
+            has_project_layout=False,
+            walk_up_steps=workspace_steps,
         )
 
     if workspace_root is not None:

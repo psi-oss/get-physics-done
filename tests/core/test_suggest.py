@@ -277,7 +277,7 @@ def _write_managed_publication_submission_lane(
     )
 
     publication_root = workspace / "GPD" / "publication" / subject_slug
-    review_dir = (workspace / "GPD" / "review") if project_backed else (publication_root / "review")
+    review_dir = publication_root / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     manuscript_rel = entrypoint.relative_to(workspace).as_posix()
     manuscript_sha256 = compute_sha256(entrypoint)
@@ -369,7 +369,7 @@ def _write_managed_publication_submission_lane(
         ),
         encoding="utf-8",
     )
-    response_root = workspace / "GPD" if project_backed else publication_root
+    response_root = publication_root
     (response_root / "REFEREE-REPORT.md").write_text("Accepted after revision.\n", encoding="utf-8")
     (response_root / "AUTHOR-RESPONSE.md").write_text("Responses incorporated.\n", encoding="utf-8")
     (review_dir / "REFEREE_RESPONSE.md").write_text("Accepted.\n", encoding="utf-8")
@@ -1011,7 +1011,7 @@ def test_referee_report_in_canonical_gpd_root_suggests_response(tmp_path: Path) 
     assert "peer-review" not in actions
 
 
-def test_managed_publication_lane_global_referee_report_still_suggests_response(tmp_path: Path) -> None:
+def test_managed_publication_lane_ignores_global_referee_report(tmp_path: Path) -> None:
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     _write_active_manuscript_entrypoint(root, root_name="GPD/publication/ising-bootstrap/manuscript")
@@ -1020,8 +1020,8 @@ def test_managed_publication_lane_global_referee_report_still_suggests_response(
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
 
-    assert "respond-to-referees" in actions
-    assert "peer-review" not in actions
+    assert "respond-to-referees" not in actions
+    assert "peer-review" in actions
     assert "arxiv-submission" not in actions
 
 

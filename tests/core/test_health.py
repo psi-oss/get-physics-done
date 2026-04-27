@@ -85,6 +85,24 @@ def _latex_toolchain_check(**overrides: object) -> HealthCheck:
     )
 
 
+def test_workflow_preset_doctor_warning_recommends_paper_extra_for_pdf_review_only() -> None:
+    check = _doctor_check_workflow_presets(
+        latex_check=_latex_toolchain_check(pdf_review_ready=False),
+        base_ready=True,
+    )
+
+    warning = next(warning for warning in check.warnings if "without pypdf" in warning)
+    assert "get-physics-done[paper]" in warning
+    assert "get-physics-done[arxiv]" not in warning
+
+
+def test_check_state_validity_projectless_read_only_does_not_create_gpd_dir(tmp_path: Path) -> None:
+    check = check_state_validity(tmp_path)
+
+    assert check.status == CheckStatus.FAIL
+    assert not (tmp_path / "GPD").exists()
+
+
 def _draft_invalid_project_contract() -> dict[str, object]:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["references"] = ["missing-ref"]
@@ -109,6 +127,12 @@ def _expected_permissions_capability_fallback_payload(*, contract_source: str, c
         "supports_usage_tokens": False,
         "supports_cost_usd": False,
         "supports_context_meter": False,
+        "child_artifact_persistence_reliability": "unknown",
+        "supports_structured_child_results": False,
+        "continuation_surface": "unknown",
+        "checkpoint_stop_semantics": "unknown",
+        "supports_runtime_session_payload_attribution": False,
+        "supports_agent_payload_attribution": False,
     }
     if contract_error is not None:
         payload["contract_error"] = contract_error
@@ -708,6 +732,58 @@ class TestCheckProjectStructure:
         result = check_project_structure(tmp_path)
         assert result.status == CheckStatus.OK
 
+    def test_warns_for_legacy_gpd_project_markers_without_failing_canonical_structure(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        legacy = cwd / ".gpd"
+        legacy.mkdir()
+        (legacy / "state.json").write_text("{}\n", encoding="utf-8")
+        (legacy / "PROJECT.md").write_text("# Legacy Project\n", encoding="utf-8")
+
+        result = check_project_structure(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.issues == []
+        assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
+        assert any("Canonical project state lives in GPD/" in warning for warning in result.warnings)
+
+    def test_nested_workspace_warns_for_root_legacy_gpd_project_markers(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        nested = cwd / "scratch" / "notes"
+        nested.mkdir(parents=True)
+        legacy = cwd / ".gpd"
+        legacy.mkdir()
+        (legacy / "state.json").write_text("{}\n", encoding="utf-8")
+        (legacy / "PROJECT.md").write_text("# Legacy Project\n", encoding="utf-8")
+
+        result = check_project_structure(nested)
+
+        assert result.status == CheckStatus.WARN
+        assert result.issues == []
+        assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
+
+    def test_legacy_gpd_project_markers_do_not_satisfy_canonical_project_structure(self, tmp_path: Path) -> None:
+        legacy = tmp_path / ".gpd"
+        legacy.mkdir()
+        (legacy / "state.json").write_text("{}\n", encoding="utf-8")
+        (legacy / "PROJECT.md").write_text("# Legacy Project\n", encoding="utf-8")
+
+        result = check_project_structure(tmp_path)
+
+        assert result.status == CheckStatus.FAIL
+        assert "Required file missing: GPD/state.json" in result.issues
+        assert result.details["state.json"] == "missing"
+        assert result.details["legacy_gpd_project_markers"] == [".gpd/state.json", ".gpd/PROJECT.md"]
+
+    def test_benign_legacy_gpd_virtualenv_is_quiet(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        (cwd / ".gpd" / "venv" / "bin").mkdir(parents=True)
+
+        result = check_project_structure(cwd)
+
+        assert result.status == CheckStatus.OK
+        assert result.warnings == []
+        assert "legacy_gpd_project_markers" not in result.details
+
 
 class TestCheckKnowledgeInventory:
     def test_missing_knowledge_dir_is_ok(self, tmp_path: Path) -> None:
@@ -898,7 +974,7 @@ class TestCheckStoragePaths:
 
     def test_policy_owned_gpd_managed_output_is_not_reported_as_storage_warning(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        paper_output = cwd / "GPD" / "paper" / "main.tex"
+        paper_output = cwd / "GPD" / "publication" / "curvature-flow" / "manuscript" / "main.tex"
         paper_output.parent.mkdir(parents=True)
         paper_output.write_text("\\documentclass{article}\n", encoding="utf-8")
         scratch_file = cwd / "GPD" / "tmp" / "final.csv"
@@ -907,12 +983,12 @@ class TestCheckStoragePaths:
 
         result = check_storage_paths(
             cwd,
-            managed_output_policies=(ManagedOutputPolicy.gpd_subtree("paper"),),
+            managed_output_policies=(ManagedOutputPolicy.publication_manuscript_subtree("curvature-flow"),),
         )
 
         assert result.status == CheckStatus.WARN
         assert result.details["managed_output_policy_count"] == 1
-        assert not any("GPD/paper/main.tex" in warning for warning in result.warnings)
+        assert not any("GPD/publication/curvature-flow/manuscript/main.tex" in warning for warning in result.warnings)
         assert any("GPD/tmp/final.csv" in warning for warning in result.warnings)
 
     def test_repo_gitignore_does_not_hide_checkpoint_outputs_under_gpd(self, tmp_path: Path) -> None:
@@ -1096,7 +1172,12 @@ class TestCheckGitStatus:
 class TestCheckCheckpointTags:
     def test_non_git_dir(self, tmp_path: Path):
         completed = subprocess.CompletedProcess(
-            args=["git", "tag", "-l", "gpd-checkpoint-*"],
+            args=[
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)%00%(creatordate:unix)",
+                "refs/tags/gpd-checkpoint-*",
+            ],
             returncode=128,
             stdout="",
             stderr="fatal: not a git repository (or any of the parent directories): .git",
@@ -1110,11 +1191,17 @@ class TestCheckCheckpointTags:
         assert any("not a git repository" in warning for warning in result.warnings)
 
     def test_warns_on_stale_checkpoint_tags(self, tmp_path: Path):
+        calls: list[list[str]] = []
+
         def _run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-            if args[:3] == ["git", "tag", "-l"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\n", stderr="")
-            if args[:4] == ["git", "log", "-1", "--format=%ct"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
+            calls.append(args)
+            if args[:2] == ["git", "for-each-ref"]:
+                return subprocess.CompletedProcess(
+                    args=args,
+                    returncode=0,
+                    stdout="gpd-checkpoint-old\x000\n",
+                    stderr="",
+                )
             raise AssertionError(f"Unexpected args: {args}")
 
         with patch("gpd.core.health.subprocess.run", side_effect=_run):
@@ -1122,6 +1209,14 @@ class TestCheckCheckpointTags:
 
         assert result.status == CheckStatus.WARN
         assert result.details["stale_tags"] == ["gpd-checkpoint-old"]
+        assert calls == [
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)%00%(creatordate:unix)",
+                "refs/tags/gpd-checkpoint-*",
+            ]
+        ]
         assert any("older than" in warning for warning in result.warnings)
 
 
@@ -1297,6 +1392,43 @@ class TestCheckStateValidityProjectContract:
         assert not any(issue.startswith("project_contract: ") for issue in result.issues)
         assert not any(warning.startswith("project_contract: ") for warning in result.warnings)
 
+    def test_nested_workspace_state_validity_uses_resolved_project_root(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        nested = cwd / "scratch" / "notes"
+        nested.mkdir(parents=True)
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        artifact = cwd / "artifacts" / "benchmark" / "report.json"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text('{"status": "ok"}\n', encoding="utf-8")
+
+        contract["references"][0]["kind"] = "prior_artifact"
+        contract["references"][0]["locator"] = "artifacts/benchmark/report.json"
+        contract["references"][0]["role"] = "benchmark"
+        contract["references"][0]["must_surface"] = True
+        contract["references"][0]["applies_to"] = ["claim-benchmark"]
+        contract["references"][0]["required_actions"] = ["compare"]
+        contract["context_intake"] = {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+
+        state = default_state_dict()
+        state["project_contract"] = contract
+        save_state_json(cwd, state)
+        (cwd / "GPD" / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+        result = check_state_validity(nested)
+
+        assert result.details["has_json"] is True
+        assert result.details["has_md"] is True
+        assert not any(issue.startswith("state.json not found") for issue in result.issues)
+        assert not any(issue.startswith("project_contract: ") for issue in result.issues)
+        assert not any(warning.startswith("project_contract: ") for warning in result.warnings)
+
     def test_draft_invalid_project_contract_is_promoted_during_health_approval_checks(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         state = default_state_dict()
@@ -1405,6 +1537,52 @@ class TestRunHealth:
         assert state_check.details["state_source"] == "state.json"
         assert report.fixes_applied == ["Regenerated state.json from STATE.md"]
 
+    def test_fix_mode_regenerates_missing_state_md_from_state_json(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        layout = ProjectLayout(cwd)
+
+        state = default_state_dict()
+        state["position"]["status"] = "Executing"
+        state["position"]["current_phase"] = "12"
+        save_state_json(cwd, state)
+        layout.state_md.unlink()
+
+        report = run_health(cwd, fix=True)
+        state_check = next(check for check in report.checks if check.label == "State Validity")
+        structure_check = next(check for check in report.checks if check.label == "Project Structure")
+
+        assert layout.state_md.exists()
+        assert "**Current Phase:** 12" in layout.state_md.read_text(encoding="utf-8")
+        assert state_check.details["has_json"] is True
+        assert state_check.details["has_md"] is True
+        assert state_check.details["state_source"] == "state.json"
+        assert structure_check.details["STATE.md"] == "present"
+        assert report.fixes_applied == ["Regenerated STATE.md from state.json"]
+
+    def test_fix_mode_from_nested_workspace_repairs_project_root_without_creating_nested_gpd(
+        self, tmp_path: Path
+    ) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        nested = cwd / "scratch" / "notes"
+        nested.mkdir(parents=True)
+        layout = ProjectLayout(cwd)
+
+        state = default_state_dict()
+        state["position"]["status"] = "Executing"
+        state["position"]["current_phase"] = "12"
+        layout.state_md.write_text(generate_state_markdown(state), encoding="utf-8")
+        layout.state_json.unlink()
+        if layout.state_json_backup.exists():
+            layout.state_json_backup.unlink()
+
+        report = run_health(nested, fix=True)
+        state_check = next(check for check in report.checks if check.label == "State Validity")
+
+        assert layout.state_json.exists()
+        assert not (nested / "GPD").exists()
+        assert state_check.details["state_source"] == "state.json"
+        assert report.fixes_applied == ["Regenerated state.json from STATE.md"]
+
     def test_state_validity_phase_format_warning_uses_recovered_backup_state(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         layout = ProjectLayout(cwd)
@@ -1426,10 +1604,8 @@ class TestRunHealth:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
             if args[:3] == ["git", "check-ignore", "--quiet"]:
                 return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
-            if args[:3] == ["git", "tag", "-l"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\n", stderr="")
-            if args[:4] == ["git", "log", "-1", "--format=%ct"]:
-                return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
+            if args[:2] == ["git", "for-each-ref"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint-old\x000\n", stderr="")
             if args[:3] == ["git", "tag", "-d"]:
                 return subprocess.CompletedProcess(args=args, returncode=0, stdout="Deleted tag\n", stderr="")
             raise AssertionError(f"Unexpected args: {args}")
@@ -2245,6 +2421,61 @@ trigger:
         assert checks["Runtime Config Target"].issues == []
         assert checks["Runtime Config Target"].warnings == []
 
+    @pytest.mark.parametrize(
+        ("manifest_payload", "expected_manifest_state"),
+        [
+            ({"runtime": PRIMARY_RUNTIME}, "missing_install_scope"),
+            ({"runtime": PRIMARY_RUNTIME, "install_scope": "workspace"}, "malformed_install_scope"),
+        ],
+    )
+    def test_runtime_readiness_blocks_manifest_without_valid_install_scope(
+        self,
+        tmp_path: Path,
+        manifest_payload: dict[str, object],
+        expected_manifest_state: str,
+    ) -> None:
+        specs_dir = self._make_specs_dir(tmp_path)
+        target_dir = runtime_target_dir(tmp_path, PRIMARY_RUNTIME)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest_payload), encoding="utf-8")
+
+        with (
+            patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
+            patch("gpd.core.health._doctor_which", return_value=_PRIMARY_LAUNCHER_PATH),
+            patch("gpd.core.health.os.access", return_value=True),
+            patch(
+                "gpd.core.health._doctor_check_bootstrap_network_access",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Bootstrap Network Access"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_provider_auth",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Provider/Auth Guidance"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_latex_toolchain",
+                return_value=_latex_toolchain_check(),
+            ),
+        ):
+            report = run_doctor(
+                specs_dir=specs_dir,
+                version="0.1.0",
+                runtime=PRIMARY_RUNTIME,
+                install_scope="local",
+                target_dir=target_dir,
+                cwd=tmp_path,
+            )
+
+        checks = {check.label: check for check in report.checks}
+        target_check = checks["Runtime Config Target"]
+
+        assert report.target_assessment is not None
+        assert report.target_assessment.state == "untrusted_manifest"
+        assert report.target_assessment.manifest_state == expected_manifest_state
+        assert report.target_assessment.readiness_state == "blocked"
+        assert target_check.status == CheckStatus.FAIL
+        assert target_check.details["install_state"] == "untrusted_manifest"
+        assert target_check.details["target_assessment"]["manifest_state"] == expected_manifest_state
+
     def test_runtime_readiness_fails_for_non_clean_install_states(self, tmp_path: Path) -> None:
         cases = (
             (
@@ -2414,7 +2645,15 @@ def _init_git_repo(tmp_path: Path) -> Path:
 
 
 def _canonical_plan_frontmatter() -> str:
-    return (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+    content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+    return content.replace(
+        "    in_scope: [benchmark recovery]",
+        "    in_scope: [primary benchmark comparison]\n"
+        "    out_of_scope: [adjacent publication tasks]",
+    ).replace("depends_on: []", "depends_on: [GPD/STATE.md]").replace(
+        "files_modified: []",
+        "files_modified: [GPD/STATE.md]",
+    )
 
 
 class TestCheckLatestReturn:

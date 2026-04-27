@@ -808,7 +808,7 @@ Tag: v[X.Y]
 
 `gpd:new-milestone`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 ```

@@ -2,14 +2,36 @@
 
 from __future__ import annotations
 
+import importlib
 import re
+from dataclasses import dataclass
 from functools import lru_cache
+from types import ModuleType
 
 from gpd.adapters.runtime_catalog import RuntimeDescriptor
 
 CANONICAL_COMMAND_PREFIX = "gpd:"
 CANONICAL_SKILL_PREFIX = "gpd-"
 _PATHLIKE_CONTEXT_PREFIXES = ("/", ".", "@")
+
+
+@dataclass(frozen=True, slots=True)
+class CommandLabelParts:
+    """Parsed public command label with trailing inline arguments preserved."""
+
+    raw: str
+    command: str
+    prefix: str
+    slug: str
+    inline_args: str
+
+    @property
+    def canonical_command(self) -> str:
+        return f"{CANONICAL_COMMAND_PREFIX}{self.slug}" if self.slug else CANONICAL_COMMAND_PREFIX
+
+    @property
+    def canonical_skill(self) -> str:
+        return f"{CANONICAL_SKILL_PREFIX}{self.slug}" if self.slug else CANONICAL_SKILL_PREFIX
 
 
 def _prefix_variants(prefix: str) -> tuple[str, ...]:
@@ -75,31 +97,61 @@ def validated_public_command_prefix(descriptor: RuntimeDescriptor) -> str:
     return prefix
 
 
+def _load_content_registry() -> ModuleType:
+    return importlib.import_module("gpd.registry")
+
+
+def _registered_command_slugs() -> set[str]:
+    """Return live registry command slugs for public command-surface rewrites."""
+
+    try:
+        content_registry = _load_content_registry()
+    except ModuleNotFoundError as exc:
+        if exc.name != "gpd.registry":
+            raise
+        return set()
+    return set(content_registry.list_commands(name_format="slug"))
+
+
 def command_slug_from_label(label: str) -> str:
     """Return the shared command slug from a runtime-native or canonical label."""
 
+    return parse_command_label(label).slug
+
+
+def parse_command_label(label: str) -> CommandLabelParts:
+    """Split a command label into base command and preserved inline arguments."""
+
     normalized = label.strip()
     if not normalized:
-        return ""
+        return CommandLabelParts(raw=label, command="", prefix="", slug="", inline_args="")
+
+    split_label = normalized.split(maxsplit=1)
+    command = split_label[0]
+    inline_args = split_label[1].strip() if len(split_label) == 2 else ""
 
     for prefix in runtime_command_prefixes():
-        if normalized.startswith(prefix):
-            return normalized[len(prefix) :].strip()
-    return normalized
+        if command.startswith(prefix):
+            return CommandLabelParts(
+                raw=label,
+                command=command,
+                prefix=prefix,
+                slug=command[len(prefix) :].strip(),
+                inline_args=inline_args,
+            )
+    return CommandLabelParts(raw=label, command=command, prefix="", slug=command, inline_args=inline_args)
 
 
 def canonical_command_label(label: str) -> str:
     """Return the canonical ``gpd:`` command label for *label*."""
 
-    slug = command_slug_from_label(label)
-    return f"{CANONICAL_COMMAND_PREFIX}{slug}" if slug else CANONICAL_COMMAND_PREFIX
+    return parse_command_label(label).canonical_command
 
 
 def canonical_skill_label(label: str) -> str:
     """Return the canonical ``gpd-`` skill label for *label*."""
 
-    slug = command_slug_from_label(label)
-    return f"{CANONICAL_SKILL_PREFIX}{slug}" if slug else CANONICAL_SKILL_PREFIX
+    return parse_command_label(label).canonical_skill
 
 
 @lru_cache(maxsize=1)
@@ -108,7 +160,7 @@ def runtime_command_surface_pattern() -> re.Pattern[str]:
 
     escaped_prefixes = "|".join(re.escape(prefix) for prefix in runtime_command_prefixes())
     return re.compile(
-        rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?![A-Za-z0-9_-]|\.md\b)"
+        rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?![A-Za-z0-9_-]|\.[A-Za-z0-9]+\b)"
     )
 
 
@@ -128,9 +180,12 @@ def rewrite_runtime_command_surfaces(content: str, *, canonical: str = "skill") 
         raise ValueError(f"Unsupported canonical surface {canonical!r}")
 
     replacement_prefix = CANONICAL_COMMAND_PREFIX if canonical == "command" else CANONICAL_SKILL_PREFIX
+    command_slugs = _registered_command_slugs()
 
     def _replace(match: re.Match[str]) -> str:
         if runtime_command_surface_is_path_like_context(content, match):
+            return match.group(0)
+        if match.group("slug") not in command_slugs:
             return match.group(0)
         return f"{replacement_prefix}{match.group('slug')}"
 
@@ -140,9 +195,11 @@ def rewrite_runtime_command_surfaces(content: str, *, canonical: str = "skill") 
 __all__ = [
     "CANONICAL_COMMAND_PREFIX",
     "CANONICAL_SKILL_PREFIX",
+    "CommandLabelParts",
     "canonical_command_label",
     "canonical_skill_label",
     "command_slug_from_label",
+    "parse_command_label",
     "rewrite_runtime_command_surfaces",
     "runtime_command_prefixes",
     "runtime_command_surface_is_path_like_context",

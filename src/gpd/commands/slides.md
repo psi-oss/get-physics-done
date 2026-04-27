@@ -40,10 +40,7 @@ find . -maxdepth 2 \( -name "*.tex" -o -name "*.md" -o -name "*.ipynb" -o -name 
 ```
 
 If a GPD project exists, use it:
-
-@GPD/PROJECT.md
-@GPD/ROADMAP.md
-@GPD/STATE.md
+include the discovered project files as source material, but do not require a project for folder-backed decks.
 </context>
 
 <process>
@@ -67,7 +64,7 @@ Ask a compact set of high-leverage questions for any missing requirements, inclu
 
 ## 3. Execute the Slides Workflow
 
-Follow the slides workflow from `@{GPD_INSTALL_DIR}/workflows/slides.md` end-to-end.
+Follow the included slides workflow end-to-end.
 
 ## 4. Write Deliverables
 

@@ -31,6 +31,7 @@ from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
     COMMANDS_DIR_NAME,
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     GPD_INSTALL_DIR_NAME,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
@@ -56,7 +57,7 @@ from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
-from gpd.registry import AgentDef, load_agents_from_dir
+from gpd.registry import AgentDef, list_commands, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,6 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
     auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
 )
 _CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
@@ -161,6 +161,8 @@ _CODEX_ASK_USER_PLATFORM_NOTE_RE = re.compile(
     r"^\s*>\s+\*\*Platform note:\*\* If `ask_user` is not available,[^\n]*\n(?:\s*\n)?",
     re.IGNORECASE | re.MULTILINE,
 )
+_CODEX_SLASH_COMMAND_REFERENCE_RE = re.compile(r"(?<![A-Za-z0-9_.:/\\-])/gpd:([a-z0-9-]+)\b")
+_CODEX_BARE_COMMAND_REFERENCE_RE = re.compile(r"(?<![A-Za-z0-9_.:/\\$-])gpd:([a-z0-9-]+)\b")
 # ─── Directory helpers ──────────────────────────────────────────────────────
 
 
@@ -314,6 +316,14 @@ def _load_manifest_tracked_codex_skill_dirs(target_dir: Path) -> tuple[str, ...]
     return tuple(dict.fromkeys(names))
 
 
+def _load_manifest_codex_cleanup_skill_dirs(target_dir: Path) -> tuple[str, ...]:
+    """Return manifest-owned Codex skill dirs for reinstall cleanup."""
+    tracked_from_metadata = _load_manifest_codex_generated_skill_dirs(target_dir)
+    if tracked_from_metadata:
+        return tracked_from_metadata
+    return _load_manifest_tracked_codex_skill_dirs(target_dir)
+
+
 def _tracked_codex_generated_skill_dirs(
     target_dir: Path,
     *,
@@ -425,6 +435,20 @@ def _convert_codex_tool_name(tool_name: str) -> str | None:
     )
 
 
+def _rewrite_codex_command_references(content: str) -> str:
+    """Rewrite runnable GPD command references without touching URLs or paths."""
+    command_slugs = set(list_commands(name_format="slug"))
+
+    def _replace(match: re.Match[str]) -> str:
+        slug = match.group(1)
+        if slug not in command_slugs:
+            return match.group(0)
+        return f"$gpd-{slug}"
+
+    converted = _CODEX_SLASH_COMMAND_REFERENCE_RE.sub(_replace, content)
+    return _CODEX_BARE_COMMAND_REFERENCE_RE.sub(_replace, converted)
+
+
 def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     """Convert Claude Code markdown command/agent to Codex SKILL.md format.
 
@@ -434,9 +458,7 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     - allowed-tools: optional tool restrictions
     - color: removed (not supported by Codex CLI)
     """
-    # Replace /gpd: and gpd: references with the Codex skill syntax.
-    converted = content.replace("/gpd:", "$gpd-")
-    converted = re.sub(r"(?<![A-Za-z0-9_./$-])gpd:([a-z0-9-]+)\b", r"$gpd-\1", converted)
+    converted = _rewrite_codex_command_references(content)
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
     if not frontmatter:
@@ -445,12 +467,21 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     fm_lines = frontmatter.split("\n")
     new_lines: list[str] = []
     in_allowed_tools = False
+    skipping_unsupported_block = False
     tools: list[str] = []
     has_name = False
     has_description = False
 
     for line in fm_lines:
         trimmed = line.strip()
+        top_level_key_match = re.match(r"^([A-Za-z0-9_-]+):", line)
+
+        if skipping_unsupported_block:
+            if top_level_key_match is None:
+                continue
+            skipping_unsupported_block = False
+        if top_level_key_match is not None and not trimmed.startswith("allowed-tools:"):
+            in_allowed_tools = False
 
         # Convert name to hyphen-case for Codex
         if trimmed.startswith("name:"):
@@ -467,6 +498,14 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
         # Strip color field (not supported by Codex CLI)
         if trimmed.startswith("color:"):
             continue
+
+        # Strip command-only metadata after compile_markdown_for_runtime has
+        # rendered the model-visible Command Requirements / Review Contract body.
+        if top_level_key_match is not None:
+            key = top_level_key_match.group(1)
+            if key not in {"name", "description", "allowed-tools", "tools"}:
+                skipping_unsupported_block = True
+                continue
 
         # Convert allowed-tools YAML array
         if trimmed.startswith("allowed-tools:"):
@@ -549,12 +588,21 @@ def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
 
 
+def _render_codex_command_skill(content: str, *, skill_name: str, launcher: str) -> str:
+    """Render one canonical command markdown source into Codex SKILL.md content."""
+    content = _convert_to_codex_skill(content, skill_name)
+    content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+    content = _rewrite_codex_gpd_cli_invocations(content, launcher)
+    content = _normalize_codex_questioning(content)
+    return _inject_codex_command_runtime_note(content, launcher)
+
+
 def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
     """Rewrite shell-executable ``gpd`` calls to the shared runtime CLI bridge."""
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
         content,
         launcher,
-        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+        shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
 
 
@@ -646,6 +694,7 @@ class CodexAdapter(RuntimeAdapter):
         surface_kind: str,
         path_prefix: str,
         command_name: str | None = None,
+        bridge_command: str | None = None,
     ) -> str:
         del path_prefix
         if surface_kind != "command":
@@ -654,13 +703,16 @@ class CodexAdapter(RuntimeAdapter):
                 surface_kind=surface_kind,
                 path_prefix="",
                 command_name=command_name,
+                bridge_command=bridge_command,
             )
         if command_name is None:
             raise ValueError("command_name is required for projected command surfaces")
-        return _convert_to_codex_skill(content, f"gpd-{command_name}")
+        if bridge_command is None:
+            raise ValueError("bridge_command is required for projected Codex command surfaces")
+        return _render_codex_command_skill(content, skill_name=f"gpd-{command_name}", launcher=bridge_command)
 
     def translate_shared_command_references(self, content: str) -> str:
-        return content.replace("/gpd:", self.public_command_surface_prefix)
+        return _rewrite_codex_command_references(content)
 
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """Codex uses the runtime default commit attribution behavior."""
@@ -787,7 +839,8 @@ class CodexAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
-        managed_optional_mcp_servers = _build_managed_optional_mcp_servers(cwd=project_cwd)
+        python_path = hook_python_interpreter()
+        managed_optional_mcp_servers = _build_managed_optional_mcp_servers(cwd=project_cwd, python_path=python_path)
         _configure_config_toml(
             target_dir,
             is_global,
@@ -816,7 +869,7 @@ class CodexAdapter(RuntimeAdapter):
         # Wire MCP servers into config.toml.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        mcp_servers = build_mcp_servers_dict(python_path=python_path)
         mcp_servers.update(managed_optional_mcp_servers)
         mcp_count = 0
         if mcp_servers:
@@ -1101,7 +1154,7 @@ class CodexAdapter(RuntimeAdapter):
         tracked_skill_dirs = _tracked_codex_generated_skill_dirs(target_dir, skills_dir=skills_dir)
         try:
             has_gpd_skills = bool(tracked_skill_dirs) and skills_dir.is_dir() and all(
-                (skills_dir / name).is_dir() for name in tracked_skill_dirs
+                (skills_dir / name / "SKILL.md").is_file() for name in tracked_skill_dirs
             )
         except OSError:
             has_gpd_skills = False
@@ -1308,7 +1361,7 @@ def _copy_commands_as_skills(
     live_backup: Path | None = None
     generated_skill_dirs: set[str] = set()
     planned_skill_dirs = _planned_codex_skill_dirs(src_dir, prefix)
-    prior_install_skill_dirs = _load_manifest_codex_generated_skill_dirs(workflow_target_dir)
+    prior_install_skill_dirs = _load_manifest_codex_cleanup_skill_dirs(workflow_target_dir)
     try:
         if skills_dir.exists():
             for entry in sorted(skills_dir.iterdir()):
@@ -1420,11 +1473,7 @@ def _render_commands_as_skills(
                 workflow_target_dir=workflow_target_dir,
                 explicit_target=explicit_target,
             )
-            content = _convert_to_codex_skill(content, skill_name)
-            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-            content = _rewrite_codex_gpd_cli_invocations(content, launcher)
-            content = _normalize_codex_questioning(content)
-            content = _inject_codex_command_runtime_note(content, launcher)
+            content = _render_codex_command_skill(content, skill_name=skill_name, launcher=launcher)
 
             (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
     return generated_skill_dirs
@@ -1830,9 +1879,11 @@ def _build_managed_optional_mcp_servers(
     *,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Return optional managed MCP servers that are currently configured."""
-    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
+    python_path = python_path or hook_python_interpreter()
+    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd, python_path=python_path)
 
 
 def _managed_optional_mcp_server_keys() -> frozenset[str]:
@@ -2297,6 +2348,7 @@ def _install_gpd_notify_config(
     cleaned_lines: list[str] = []
     insert_at: int | None = None
     existing_notify: list[str] | None = None
+    original_notify_backup: str | None = None
     pending_managed_block = False
 
     past_first_section = False
@@ -2309,6 +2361,8 @@ def _install_gpd_notify_config(
         ):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
+            if stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
+                original_notify_backup = stripped[len(_GPD_NOTIFY_BACKUP_PREFIX) :].strip()
             pending_managed_block = True
             continue
         # Only match top-level notify (before any section header)
@@ -2326,11 +2380,20 @@ def _install_gpd_notify_config(
         pending_managed_block = False
         cleaned_lines.append(line)
 
+    if original_notify_backup is not None:
+        try:
+            parsed_backup = json.loads(original_notify_backup)
+        except json.JSONDecodeError:
+            parsed_backup = None
+        if isinstance(parsed_backup, list) and all(isinstance(item, str) for item in parsed_backup):
+            existing_notify = list(parsed_backup)
+
     notify_block: list[str]
     if existing_notify is not None:
+        backup_line = original_notify_backup if original_notify_backup is not None else json.dumps(existing_notify)
         notify_block = [
             _GPD_NOTIFY_COMMENT,
-            _GPD_NOTIFY_BACKUP_PREFIX + json.dumps(existing_notify),
+            _GPD_NOTIFY_BACKUP_PREFIX + backup_line,
             _build_notify_wrapper_line(existing_notify, desired_path),
         ]
     else:

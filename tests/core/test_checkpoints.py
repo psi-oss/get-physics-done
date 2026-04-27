@@ -255,6 +255,46 @@ def test_sync_phase_checkpoints_uses_latest_summary_and_keeps_earlier_notes(tmp_
     assert "Built the first draft." in phase_checkpoint
 
 
+def test_sync_phase_checkpoints_orders_summaries_by_frontmatter_plan_not_filename(
+    tmp_path: Path,
+) -> None:
+    cwd = _setup_project(tmp_path)
+    phase_dir = cwd / "GPD" / "phases" / "04-frontmatter-phase"
+    phase_dir.mkdir()
+    _write_summary(phase_dir / "99-SUMMARY.md", phase="04", plan="02", one_liner="Second by frontmatter")
+    _write_summary(phase_dir / "02-SUMMARY.md", phase="04", plan="10", one_liner="Tenth by frontmatter")
+
+    sync_phase_checkpoints(cwd)
+
+    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "04-frontmatter-phase.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Tenth by frontmatter" in phase_checkpoint
+    assert "Latest summary (02-SUMMARY.md)" in phase_checkpoint
+    assert "Plan 02 summary: [99-SUMMARY.md]" in phase_checkpoint
+    assert "Second by frontmatter." in phase_checkpoint
+
+
+def test_sync_phase_checkpoints_keeps_non_numeric_summary_identifiers_before_numeric_latest(
+    tmp_path: Path,
+) -> None:
+    cwd = _setup_project(tmp_path)
+    phase_dir = cwd / "GPD" / "phases" / "05-mixed-identifiers"
+    phase_dir.mkdir()
+    _write_summary(phase_dir / "notes-SUMMARY.md", phase="05", plan="notes", one_liner="Notes summary")
+    _write_summary(phase_dir / "10-SUMMARY.md", phase="05", plan="10", one_liner="Tenth summary")
+
+    sync_phase_checkpoints(cwd)
+
+    phase_checkpoint = (cwd / "GPD" / "phase-checkpoints" / "05-mixed-identifiers.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Tenth summary" in phase_checkpoint
+    assert "Latest summary (10-SUMMARY.md)" in phase_checkpoint
+    assert "Plan notes summary: [notes-SUMMARY.md]" in phase_checkpoint
+    assert "Notes summary." in phase_checkpoint
+
+
 def test_sync_phase_checkpoints_removes_stale_checkpoint_docs(tmp_path: Path) -> None:
     cwd = _setup_project(tmp_path)
     phase_dir = cwd / "GPD" / "phases" / "03-real-phase"

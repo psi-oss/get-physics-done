@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import os
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ import mcp.types as types
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.server.lowlevel import NotificationOptions, Server
+from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
@@ -19,6 +21,8 @@ from gpd.mcp import managed_integrations as _managed_integrations
 from gpd.version import __version__ as GPD_VERSION
 
 WOLFRAM_MANAGED_INTEGRATION = _managed_integrations.WOLFRAM_MANAGED_INTEGRATION
+WOLFRAM_MANAGED_SERVER_KEY = _managed_integrations.WOLFRAM_MANAGED_SERVER_KEY
+WOLFRAM_BRIDGE_MODULE = _managed_integrations.WOLFRAM_BRIDGE_MODULE
 WOLFRAM_MCP_API_KEY_ENV_VAR = _managed_integrations.WOLFRAM_MCP_API_KEY_ENV_VAR
 WOLFRAM_MCP_DEFAULT_ENDPOINT = _managed_integrations.WOLFRAM_MCP_DEFAULT_ENDPOINT
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = _managed_integrations.WOLFRAM_MCP_ENDPOINT_ENV_VAR
@@ -116,6 +120,21 @@ class WolframBridge:
         return await self.session.list_resource_templates(cursor)
 
 
+def _as_lowlevel_resource_content(content: object) -> ReadResourceContents:
+    """Convert remote MCP resource content into the low-level server helper shape."""
+    mime_type = getattr(content, "mimeType", None)
+    meta = getattr(content, "meta", None)
+    if isinstance(content, types.TextResourceContents):
+        return ReadResourceContents(content=content.text, mime_type=mime_type, meta=meta)
+    if isinstance(content, types.BlobResourceContents):
+        return ReadResourceContents(content=base64.b64decode(content.blob), mime_type=mime_type, meta=meta)
+    if hasattr(content, "text"):
+        return ReadResourceContents(content=str(content.text), mime_type=mime_type, meta=meta)
+    if hasattr(content, "blob"):
+        return ReadResourceContents(content=base64.b64decode(str(content.blob)), mime_type=mime_type, meta=meta)
+    raise RuntimeError(f"Unsupported Wolfram resource content type: {type(content).__name__}")
+
+
 def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
     """Build the local stdio MCP server that proxies the remote Wolfram service."""
     bridge = WolframBridge(config)
@@ -125,7 +144,7 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
         async with bridge.open():
             yield bridge
 
-    server = Server("gpd-wolfram", version=GPD_VERSION, lifespan=lifespan)
+    server = Server(WOLFRAM_MANAGED_SERVER_KEY, version=GPD_VERSION, lifespan=lifespan)
 
     @server.list_tools()
     async def _list_tools(request: types.ListToolsRequest) -> types.ListToolsResult:
@@ -143,7 +162,8 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
 
     @server.read_resource()
     async def _read_resource(uri: str):
-        return (await bridge.read_resource(uri)).contents
+        result = await bridge.read_resource(uri)
+        return [_as_lowlevel_resource_content(content) for content in result.contents]
 
     @server.list_prompts()
     async def _list_prompts(request: types.ListPromptsRequest) -> types.ListPromptsResult:
@@ -154,12 +174,16 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
     async def _get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
         return await bridge.get_prompt(name, arguments)
 
-    @server.list_resource_templates()
-    async def _list_resource_templates(
-        request: types.ListResourceTemplatesRequest,
-    ) -> types.ListResourceTemplatesResult:
+    async def _list_resource_templates(request: types.ListResourceTemplatesRequest) -> types.ListResourceTemplatesResult:
         cursor = getattr(request.params, "cursor", None)
         return await bridge.list_resource_templates(cursor)
+
+    async def _handle_list_resource_templates(
+        request: types.ListResourceTemplatesRequest,
+    ) -> types.ServerResult:
+        return types.ServerResult(await _list_resource_templates(request))
+
+    server.request_handlers[types.ListResourceTemplatesRequest] = _handle_list_resource_templates
 
     return server, bridge
 
@@ -172,7 +196,7 @@ async def _run() -> None:
             read_stream,
             write_stream,
             InitializationOptions(
-                server_name="gpd-wolfram",
+                server_name=WOLFRAM_MANAGED_SERVER_KEY,
                 server_version=GPD_VERSION,
                 capabilities=server.get_capabilities(NotificationOptions(), {}),
             ),
@@ -190,6 +214,8 @@ def main() -> None:
 __all__ = [
     "DEFAULT_WOLFRAM_MCP_ENDPOINT",
     "GPD_WOLFRAM_MCP_API_KEY_ENV",
+    "WOLFRAM_BRIDGE_MODULE",
+    "WOLFRAM_MANAGED_SERVER_KEY",
     "WolframBridge",
     "WolframBridgeConfig",
     "build_auth_headers",
@@ -199,3 +225,7 @@ __all__ = [
     "resolve_api_key",
     "resolve_endpoint",
 ]
+
+
+if __name__ == "__main__":
+    main()

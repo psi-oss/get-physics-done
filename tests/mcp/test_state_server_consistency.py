@@ -9,9 +9,10 @@ from types import SimpleNamespace
 import anyio
 import pytest
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.errors import GPDError
 from gpd.core.health import CheckStatus, HealthCheck, HealthReport, HealthSummary
-from gpd.core.state import default_state_dict
+from gpd.core.state import default_state_dict, generate_state_markdown
 from gpd.mcp.servers.state_server import (
     advance_plan,
     apply_return_updates,
@@ -67,6 +68,32 @@ def test_state_server_apply_return_updates_wraps_canonical_command(monkeypatch, 
     assert result["files_written"] == ["GPD/phases/01-foundations/01-foundations-01-SUMMARY.md"]
 
 
+def test_state_server_apply_return_updates_accepts_absolute_path_inside_project(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    absolute_return = tmp_path / "GPD" / "phases" / "01-foundations" / "return.yaml"
+    absolute_return.parent.mkdir(parents=True)
+    captured = {}
+    mock_result = SimpleNamespace(model_dump=lambda: {"passed": True, "status": "applied"})
+
+    def _apply(project_dir: Path, resolved_path: Path):
+        captured["project_dir"] = project_dir
+        captured["resolved_path"] = resolved_path
+        return mock_result
+
+    monkeypatch.setattr("gpd.mcp.servers.state_server.cmd_apply_return_updates", _apply)
+
+    result = apply_return_updates(str(tmp_path), absolute_return.as_posix())
+
+    assert result["schema_version"] == 1
+    assert result["passed"] is True
+    assert captured == {
+        "project_dir": tmp_path,
+        "resolved_path": absolute_return.resolve(strict=False),
+    }
+
+
 def test_state_server_apply_return_updates_rejects_relative_project_dir(monkeypatch) -> None:
     monkeypatch.setattr(
         "gpd.mcp.servers.state_server.cmd_apply_return_updates",
@@ -76,6 +103,65 @@ def test_state_server_apply_return_updates_rejects_relative_project_dir(monkeypa
     result = apply_return_updates("relative/project", "GPD/phases/01-foundations/01-foundations-01-SUMMARY.md")
 
     assert result == {"error": "project_dir must be an absolute path", "schema_version": 1}
+
+
+@pytest.mark.parametrize("file_path", ["../return.json", "GPD/../return.json", ""])
+def test_state_server_apply_return_updates_rejects_absolute_and_traversal_paths(
+    monkeypatch,
+    tmp_path: Path,
+    file_path: str,
+) -> None:
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.cmd_apply_return_updates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = apply_return_updates(str(tmp_path), file_path)
+
+    assert result == {
+        "error": "file_path must be a project-relative path without traversal",
+        "schema_version": 1,
+    }
+
+
+def test_state_server_apply_return_updates_rejects_absolute_path_outside_project(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    outside_return = tmp_path.parent / "return.json"
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.cmd_apply_return_updates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = apply_return_updates(str(tmp_path), outside_return.as_posix())
+
+    assert result == {
+        "error": "file_path must stay within project_dir after symlink resolution",
+        "schema_version": 1,
+    }
+
+
+def test_state_server_apply_return_updates_rejects_symlink_escape(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    project = tmp_path / "project"
+    outside.mkdir()
+    project.mkdir()
+    (project / "GPD").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.cmd_apply_return_updates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = apply_return_updates(str(project), "GPD/return.yaml")
+
+    assert result == {
+        "error": "file_path must stay within project_dir after symlink resolution",
+        "schema_version": 1,
+    }
 
 
 @pytest.mark.parametrize(
@@ -224,6 +310,45 @@ def test_load_state_json_uses_read_only_peek_without_locking(monkeypatch, tmp_pa
     assert seen["kwargs"]["recover_intent"] is False
     assert seen["kwargs"]["surface_blocked_project_contract"] is True
     assert seen["kwargs"]["acquire_lock"] is False
+
+
+def test_validate_state_uses_read_only_visible_state_path(monkeypatch, tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def _state_validate(*args, **kwargs):
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return SimpleNamespace(model_dump=lambda: {"valid": True, "issues": [], "warnings": []})
+
+    monkeypatch.setattr("gpd.mcp.servers.state_server.state_validate", _state_validate)
+
+    result = validate_state(str(tmp_path))
+
+    assert result["schema_version"] == 1
+    assert result["valid"] is True
+    assert seen["args"] == (tmp_path,)
+    assert seen["kwargs"]["recover_intent"] is False
+    assert seen["kwargs"]["surface_blocked_project_contract"] is True
+    assert seen["kwargs"]["acquire_lock"] is False
+
+
+def test_validate_state_surfaces_malformed_project_contract_without_mutating(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+    layout.gpd.mkdir(parents=True)
+    baseline = default_state_dict()
+    layout.state_md.write_text(generate_state_markdown(baseline), encoding="utf-8")
+    broken_state = dict(baseline)
+    broken_state["project_contract"] = "not-an-object"
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+    before = layout.state_json.read_text(encoding="utf-8")
+
+    result = validate_state(str(tmp_path))
+
+    assert result["schema_version"] == 1
+    assert result["project_contract_load_info"]["status"] == "blocked_type"
+    assert result["project_contract_gate"]["authoritative"] is False
+    assert any("project contract must be a JSON object" in warning for warning in result["warnings"])
+    assert layout.state_json.read_text(encoding="utf-8") == before
 
 
 def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path: Path) -> None:

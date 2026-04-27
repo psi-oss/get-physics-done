@@ -19,7 +19,7 @@ GPD's `runtime_permissions` integration (via `gpd permissions sync --runtime <ru
 | GPD Autonomy | Recommended Runtime Mode | Effect |
 |-------------|-------------------------|--------|
 | `supervised` | Default (prompts for each tool) | Maximum human oversight |
-| `balanced` | Default or plan mode | Normal workflow, prompts for destructive actions |
+| `balanced` | Plan mode where supported | Opt-in lighter checkpoint cadence, prompts for destructive actions |
 | `yolo` | Most permissive available | `gpd permissions sync --runtime <runtime> --autonomy yolo` applies the runtime-native setting |
 
 When `autonomy=yolo`, `gpd permissions sync --runtime <runtime> --autonomy yolo` writes the appropriate permissive-mode configuration for the active runtime. This takes effect on the next session launch where a restart is required, or immediately where the runtime supports hot reload.
@@ -69,7 +69,7 @@ When syncing a GPD project across machines (via git, cloud storage, etc.):
 - GPD requires Python 3.11+ and Node.js for installation
 - The managed venv uses approximately 200MB of disk for dependencies
 - The host runtime requires network access to its provider's API
-- If disk space is limited, use `{GPD_BOOTSTRAP_COMMAND} --skip-mcp` to skip MCP server installation (paper tools will be unavailable but core workflow commands work)
+- If disk space is limited, free space before installing so the managed environment and generated runtime config can be recreated cleanly
 - On ARM devices, ensure the Python interpreter matches the architecture
 
 ## Troubleshooting

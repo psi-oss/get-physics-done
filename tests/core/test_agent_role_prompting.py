@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from gpd import registry
+from gpd.core.model_visible_text import (
+    INTERNAL_AGENT_BOUNDARY_POINTER,
+    READ_ONLY_INTERNAL_AGENT_BOUNDARY_POINTER,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
@@ -48,9 +52,9 @@ def test_public_worker_prompts_identify_writable_production_surface() -> None:
     debugger = _read_agent("gpd-debugger")
     paper_writer = _read_agent("gpd-paper-writer")
 
-    assert "Agent surface: public writable production agent." in executor
-    assert "Agent surface: public writable production agent specialized for discrepancy investigation" in debugger
-    assert "Agent surface: public writable production agent for manuscript sections" in paper_writer
+    assert "Public production boundary: public writable production agent for bounded implementation work" in executor
+    assert "Public production boundary: public writable production agent specialized for discrepancy investigation" in debugger
+    assert "Public production boundary: public writable production agent for manuscript sections" in paper_writer
     assert (
         "On demand only: shared protocols, verification core, physics subfields, agent infrastructure, and cross-project patterns."
         in debugger
@@ -65,18 +69,25 @@ def test_internal_agents_explicitly_identify_internal_specialist_surface() -> No
         if agent.surface != "internal":
             continue
         content = _read_agent(name)
-        assert content.count("Agent surface: internal specialist subagent.") == 1, name
-        assert "Do not act as the default writable implementation agent" in content, name
+        expected = (
+            READ_ONLY_INTERNAL_AGENT_BOUNDARY_POINTER
+            if agent.artifact_write_authority == "read_only"
+            else INTERNAL_AGENT_BOUNDARY_POINTER
+        )
+        assert content.count(expected) == 1, name
+        assert f"surface: {agent.surface}" in agent.system_prompt, name
 
 
 def test_source_agent_surface_boilerplate_does_not_conflict_with_frontmatter() -> None:
     for name in registry.list_agents():
         agent = registry.get_agent(name)
         content = _read_agent(name)
+        assert "Agent surface:" not in content, name
         if agent.surface == "internal":
-            assert "Agent surface: public writable production agent" not in content, name
+            assert "Public production boundary:" not in content, name
         if agent.surface == "public":
-            assert "Agent surface: internal specialist subagent." not in content, name
+            assert INTERNAL_AGENT_BOUNDARY_POINTER not in content, name
+            assert READ_ONLY_INTERNAL_AGENT_BOUNDARY_POINTER not in content, name
 
 
 def test_consistency_checker_stays_one_shot_and_does_not_claim_resolution_work() -> None:
@@ -85,7 +96,7 @@ def test_consistency_checker_stays_one_shot_and_does_not_claim_resolution_work()
     assert "This is a one-shot handoff: inspect once, write once, return once." in source
     assert "gpd_return.status: checkpoint" in source
     assert "status: completed | checkpoint | blocked | failed" in source
-    assert "Do not act as the default writable implementation agent." in source
+    assert INTERNAL_AGENT_BOUNDARY_POINTER in source
     assert "Do not claim ownership of code fixes, commits, convention-authoring, or pattern-library updates." in source
     assert "Create it from the template" not in source
     assert "gpd pattern add" not in source
@@ -113,6 +124,15 @@ def test_roadmapper_shallow_mode_keeps_contract_identity_visible() -> None:
     assert "Phase 2+ stubs defer detailed success criteria" in source
     assert "Phases 2+ may defer contract-coverage detail" not in source
     assert "only their one-line Goal and phase title" not in source
+
+
+def test_public_agent_prompts_avoid_legacy_ai_assistant_role_labels() -> None:
+    for name in registry.list_agents():
+        agent = registry.get_agent(name)
+        if agent.surface != "public":
+            continue
+        content = _read_agent(name)
+        assert "AI assistant" not in content, name
 
 
 def test_planner_backtracks_guidance_is_capped_before_injection() -> None:

@@ -951,7 +951,7 @@ Key results to benchmark against: [list from SUMMARY.md]"]
 
 `gpd:plan-phase [X+1]`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 
@@ -998,7 +998,7 @@ Milestone {version} is 100% complete — all {N} phases finished!
 
 `gpd:complete-milestone {version}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>Start a fresh context window</sub>
 
 ---
 

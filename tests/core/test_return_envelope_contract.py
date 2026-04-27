@@ -20,8 +20,6 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
         "    update_progress: true\n"
         "  continuation_update:\n"
         "    handoff:\n"
-        "      recorded_at: 2026-04-08T12:00:00Z\n"
-        "      recorded_by: execute-plan\n"
         "      stopped_at: Completed phase 01\n"
         "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
         "    bounded_segment:\n"
@@ -38,7 +36,7 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
     assert result.passed is True
     assert result.fields["state_updates"]["advance_plan"] is True
     assert result.fields["state_updates"]["update_progress"] is True
-    assert result.fields["continuation_update"]["handoff"]["recorded_by"] == "execute-plan"
+    assert result.fields["continuation_update"]["handoff"]["stopped_at"] == "Completed phase 01"
     assert result.fields["continuation_update"]["bounded_segment"]["segment_id"] == "seg-01"
 
 
@@ -138,6 +136,25 @@ def test_rejects_transport_execution_segment_inside_durable_continuation_update(
 
     assert result.passed is False
     assert any("continuation_update" in error and "execution_segment" in error for error in result.errors)
+
+
+def test_rejects_applicator_owned_handoff_metadata_inside_child_return() -> None:
+    content = _wrap_return_block(
+        "  status: checkpoint\n"
+        "  files_written: [src/main.py]\n"
+        "  issues: []\n"
+        "  next_actions: [/gpd:resume-work]\n"
+        "  continuation_update:\n"
+        "    handoff:\n"
+        "      recorded_at: 2026-04-08T12:00:00Z\n"
+        "      recorded_by: execute-plan\n"
+        "      stopped_at: Completed phase 01\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("recorded_at" in error and "recorded_by" in error and "applicator-owned" in error for error in result.errors)
 
 
 def test_rejects_scalar_where_continuation_update_requires_mapping() -> None:

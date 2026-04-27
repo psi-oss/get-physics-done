@@ -21,7 +21,7 @@ Get Physics Done is an open-source agentic AI system for physics research from [
 
 https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
-[Start Here](#start-here) · [Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-in-runtime-commands) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
+[Start Here](#start-here) · [Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-gpd-paths) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
 
 ## Start Here
 
@@ -103,7 +103,7 @@ We welcome contributions and feedback via GitHub issues or pull requests; if GPD
 
 If you already know your runtime and are comfortable in a terminal, use this as the fast path. If not, go back to [Start Here](#start-here) and use the [Beginner Onboarding Hub](./docs/README.md) instead.
 
-Use this post-install order:
+Canonical post-install order, shown as command names without runtime prefixes:
 
 `help -> start -> tour -> new-project / map-research -> resume-work`
 
@@ -125,7 +125,8 @@ If the install worked, both of these should be true:
 
 Then choose the path that matches your starting point:
 
-Use the runtime syntax above for the command names below.
+The table below uses canonical command names without runtime prefixes. Apply the
+prefix for your runtime from [Supported Runtimes](#supported-runtimes).
 
 | Starting point | Use this |
 |----------------|----------|
@@ -185,9 +186,9 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 </details>
 
-Typical new-project workflow:
+Typical new-project workflow, shown as command names without runtime prefixes:
 
-`gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase 1 -> gpd:execute-phase 1 -> gpd:verify-work 1`
+`new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work 1`
 
 <details>
 <summary><strong>Install options</strong></summary>
@@ -199,13 +200,13 @@ Typical new-project workflow:
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
-| `--upgrade` | Upgrade `~/GPD/venv` from the latest GitHub `main` source. |
+| `--reinstall` | Reinstall `${GPD_HOME:-~/.gpd}/venv` from the PyPI pinned release first, with tagged GitHub release sources as fallback. |
+| `--upgrade` | Upgrade `${GPD_HOME:-~/.gpd}/venv` from the latest unreleased GitHub `main` source. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Ordinary installs stay pinned to the matching tagged release. Use `--upgrade` only when you intentionally want the latest unreleased `main` source.
+Ordinary installs and `--reinstall` use the PyPI pinned release first, then matching tagged GitHub release sources if PyPI is unavailable. Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` source.
 
 Install the unreleased GitHub `main` snapshot explicitly:
 
@@ -274,35 +275,35 @@ Phase numbers continue across the whole project, so a new milestone may start at
 <details>
 <summary><strong>Conformal bootstrap workflow</strong></summary>
 
-The example below uses Claude Code / Gemini CLI syntax.
+The example below uses canonical command names without runtime prefixes.
 
 Suppose you want to use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 
 ```text
-gpd:new-project
+new-project
 > Use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 ```
 
 GPD will:
 - ask clarifying questions about the correlator sector, conventions, target observables, numerical precision, and verification strategy
 - create `GPD/PROJECT.md`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, and `GPD/STATE.md`
-- sketch the milestone shape (phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds) with Phase 1 ready to execute; Phases 2+ stay as stubs that you flesh out on demand with `gpd:plan-phase N`
+- sketch the milestone shape (phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds) with Phase 1 ready to execute; Phases 2+ stay as stubs that you flesh out on demand with `plan-phase N`
 
 Then continue with:
 
 ```text
-gpd:plan-phase 1
-gpd:execute-phase 1
-gpd:verify-work 1
+plan-phase 1
+execute-phase 1
+verify-work 1
 ```
 
 Once the relevant phases are complete and verified, continue toward write-up with:
 
 ```text
-gpd:write-paper "3D Ising bootstrap bounds"
-gpd:peer-review
-gpd:respond-to-referees
-gpd:arxiv-submission
+write-paper
+peer-review
+respond-to-referees
+arxiv-submission
 ```
 
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
@@ -311,7 +312,7 @@ Typical artifacts include derivation notes, numerical scripts, convergence studi
 
 ## Key GPD Paths
 
-Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The examples below use Claude Code / Gemini CLI syntax when a runtime command is shown.
+Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The Core Runtime Paths table uses canonical command names unless a normal-terminal `gpd ...` command is shown.
 
 ### Core Runtime Paths
 
@@ -324,11 +325,11 @@ Most research actions run inside your installed AI runtime after GPD has been in
 | Write and review | `write-paper`, `peer-review`, `respond-to-referees`, `arxiv-submission` |
 | Configure or branch | `settings`, `set-profile`, `set-tier-models`, `tangent`, `branch-hypothesis` |
 
-Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase 1 -> gpd:execute-phase 1 -> gpd:verify-work -> repeat -> gpd:complete-milestone`
+Typical research loop: `new-project -> discuss-phase 1 -> plan-phase 1 -> execute-phase 1 -> verify-work -> repeat -> complete-milestone`
 
-Typical publication loop: `gpd:write-paper -> gpd:peer-review -> gpd:respond-to-referees -> gpd:arxiv-submission`
+Typical publication loop: `write-paper -> peer-review -> respond-to-referees -> arxiv-submission`
 
-Publication boundary: `gpd:write-paper` supports the current-project manuscript roots, the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit `.tex`, `.md`, `.txt`, `.pdf`, or manuscript-directory target, and serves as the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, `gpd:arxiv-submission` only packages a GPD-owned manuscript root, and embedded external staged-review parity remains deferred. Publication-root handling is partial by design.
+Publication boundary: `gpd:write-paper` supports current-project manuscripts plus one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only; it does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit manuscript/artifact path or paper directory target, and remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on the `GPD/` and `GPD/review/` paths. The later publication commands stay stricter: `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` only packages a GPD-owned manuscript root or `.tex` entrypoint. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots. See `gpd:help` Research Publishing for the full boundary.
 
 Leave / return path: `gpd:pause-work` before leaving mid-phase, `gpd:resume-work` when you return in-runtime, `gpd:suggest-next` when you only need the next action, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue inside that workspace with the runtime `resume-work` command.
 
@@ -340,7 +341,7 @@ Not every GPD command needs the same amount of project state.
 |--------------|---------|----------|
 | `Global` | Does not depend on the current workspace or project state | `gpd:help`, `gpd:update` |
 | `Projectless` | Can run before `GPD/PROJECT.md` exists | `gpd:start`, `gpd:tour`, `gpd:new-project`, `gpd:map-research`, `gpd:add-todo` |
-| `Project-aware` | Uses project context when present, but can also run from explicit current-workspace inputs without silently reentering another project | `gpd:compare-experiment predictions.csv data.csv`, `gpd:compare-results results/01-SUMMARY.md`, `gpd:discover "finite-temperature RG flow"`, `gpd:digest-knowledge 2401.12345v2`, `gpd:explain "Ward identity"`, `gpd:review-knowledge K-renormalization-group-fixed-points`, `gpd:literature-review "axion monodromy"`, `gpd:parameter-sweep results/mesh-study.py --param coupling --range 0:1:20`, `gpd:peer-review draft.pdf`, `gpd:write-paper --intake intake/paper-authoring-input.json` |
+| `Project-aware` | Uses project context when present, but can also run from explicit current-workspace inputs without silently reentering another project | `gpd:compare-experiment predictions.csv data.csv`, `gpd:compare-results results/01-SUMMARY.md`, `gpd:discover "finite-temperature RG flow"`, `gpd:digest-knowledge 2401.12345v2`, `gpd:explain "Ward identity"`, `gpd:review-knowledge K-renormalization-group-fixed-points`, `gpd:literature-review "axion monodromy"`, `gpd:parameter-sweep results/mesh-study.py --param coupling --range 0:1:20`, `gpd:peer-review draft.pdf`, `gpd:write-paper --intake intake/write-paper-authoring-input.json` |
 | `Project-required` | Requires initialized GPD project state | `gpd:progress`, `gpd:plan-phase`, `gpd:execute-phase` |
 
 Project-aware commands stay rooted in the current workspace: explicit inputs can define the subject, but GPD-authored outputs still land under that workspace's `GPD/` tree. Use the runtime help for the per-command target and output rules.
@@ -349,9 +350,7 @@ The relaxed technical-analysis lane lives here too: `gpd:derive-equation`, `gpd:
 
 For `gpd:peer-review`, an explicit paper directory or manuscript/artifact path can satisfy the standalone input requirement, so it can run outside an initialized GPD project. With no argument, it uses the current project manuscript when one exists and otherwise asks for one explicit manuscript target.
 
-`gpd:write-paper` is project-aware for one bounded external-authoring lane only: supply one explicit intake manifest, keep all GPD-authored durable outputs under `GPD/publication/{subject_slug}/...`, treat `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root, and reserve `GPD/publication/{subject_slug}/intake/` for intake/provenance state only. It does not mine arbitrary folders or infer publication-grade claim/evidence bindings from loose notes.
-
-The later publication commands stay stricter: `gpd:respond-to-referees` works from the active project's resolved manuscript root plus a referee report source, or from explicit external-manuscript continuation once GPD has anchored that subject under `GPD/publication/{subject_slug}`. `gpd:arxiv-submission` can take an optional GPD-owned manuscript-root target but still requires project state, `gpd paper-build`, and the latest staged review clearance for that manuscript; it is not a generic external-directory packager.
+For the compact publication-root boundary, see **Key GPD Paths** above. External-authoring starts with one explicit intake: `gpd:write-paper --intake intake/write-paper-authoring-input.json`. The later publication commands stay stricter: they continue from the resolved manuscript root; `gpd:arxiv-submission` is not a generic external-directory packager.
 
 The full in-runtime reference uses Claude Code / Gemini CLI syntax. Codex uses `$gpd-...` and OpenCode uses `/gpd-...`.
 
@@ -444,6 +443,11 @@ Per-project tier settings live in `GPD/config.json` under `model_overrides`:
       "tier-1": "<runtime-native-model-id>",
       "tier-2": "<runtime-native-model-id>",
       "tier-3": "<runtime-native-model-id>"
+    },
+    "opencode": {
+      "tier-1": "<runtime-native-model-id>",
+      "tier-2": "<runtime-native-model-id>",
+      "tier-3": "<runtime-native-model-id>"
     }
   }
 }
@@ -529,7 +533,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 - Node.js with `npm`/`npx` (see the `Need Node.js?` note above if Node.js is missing)
 - Python 3.11+ with the standard `venv` module (see the OS guides above for beginner setup steps on macOS, Linux, and Windows)
-- Network access to npm and GitHub for the bootstrap installer
+- Network access to npm and PyPI for ordinary bootstrap installs; GitHub is needed for tagged-source fallback and `--upgrade`
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 
@@ -539,9 +543,9 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 ## Uninstall
 
-Run the matching uninstall command from [Start Here](#start-here) for interactive uninstall. The equivalent subcommand form also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
+Run `npx -y get-physics-done --uninstall` for interactive uninstall. The equivalent subcommand form also works, and you can add the runtime and scope flags from [Quick Start](#quick-start) for a non-interactive uninstall.
 
-Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under `~/GPD`; remove `~/GPD/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
+Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under the resolved GPD home/data roots; remove `${GPD_HOME:-~/.gpd}` and, if configured separately, `GPD_DATA_DIR` for a full wipe after uninstalling from all runtimes.
 
 ## Inspiration
 

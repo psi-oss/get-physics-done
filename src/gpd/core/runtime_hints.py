@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.context import init_resume
-from gpd.core.costs import build_cost_summary, resolve_cost_advisory
+from gpd.core.costs import build_cost_summary, cost_advisory_requires_inspection, resolve_cost_advisory
 from gpd.core.observability import derive_execution_visibility, get_current_session_id
 from gpd.core.project_reentry import (
     project_reentry_candidate_summary,
@@ -120,7 +120,9 @@ def _selected_reentry_candidate(
     candidate_payload = _model_dump(selected_candidate)
     if candidate_payload is None and workspace_hint is not None:
         resolution = resolve_project_roots(workspace_hint)
-        if resolution is not None and resolution.has_project_layout:
+        if resolution is not None and (
+            resolution.has_project_layout or (resolution.walk_up_steps == 0 and (resolution.project_root / "GPD").is_dir())
+        ):
             project_root = resolution.project_root.resolve(strict=False)
             state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
             candidate_payload = {
@@ -474,8 +476,7 @@ def _workflow_next_actions(*, base_ready: bool) -> list[str]:
 
 
 def _cost_next_action(advisory: dict[str, object]) -> str | None:
-    state = str(advisory.get("state", "") or "").strip()
-    if state in {"at_or_over_budget", "near_budget", "mixed"}:
+    if cost_advisory_requires_inspection(advisory):
         return cost_inspect_action()
     return None
 
@@ -572,7 +573,8 @@ def build_runtime_hint_payload(
     if cost_advisory is not None:
         cost["advisory"] = cost_advisory
 
-    resolved_runtime = surface_runtime if surface_runtime is not None else cost_summary.active_runtime if cost_summary is not None else None
+    ambient_runtime = cost_summary.active_runtime if cost_summary is not None else None
+    resolved_runtime = surface_runtime if surface_runtime is not None else ambient_runtime
 
     recovery_advice = None
     if include_recovery and reentry is not None:
@@ -581,8 +583,16 @@ def build_runtime_hint_payload(
             data_root=data_root,
             recent_rows=recent_rows,
             resume_payload=resume_context,
-            continue_command=_runtime_command("resume-work", cwd=project_root, runtime_name=resolved_runtime),
-            fast_next_command=_runtime_command("suggest-next", cwd=project_root, runtime_name=resolved_runtime),
+            continue_command=(
+                _runtime_command("resume-work", cwd=project_root, runtime_name=surface_runtime)
+                if surface_runtime is not None
+                else None
+            ),
+            fast_next_command=(
+                _runtime_command("suggest-next", cwd=project_root, runtime_name=surface_runtime)
+                if surface_runtime is not None
+                else None
+            ),
         )
     recovery = (
         {

@@ -39,8 +39,8 @@ logger = configure_mcp_logging("gpd-patterns")
 
 mcp = FastMCP("gpd-patterns")
 
-# Default patterns library root — used when GPD_PATTERNS_ROOT / GPD_DATA_DIR
-# env vars are not set. Falls back to the global ~/.gpd data directory.
+# Explicit override for tests or embedded callers. When unset, resolve the root
+# for each request so env changes do not leak across long-lived server processes.
 _DEFAULT_PATTERNS_ROOT: Path | None = None
 
 _PATTERN_DOMAIN_VALUES = sorted(VALID_DOMAINS)
@@ -70,10 +70,9 @@ PatternSeverityInput = Annotated[
 
 
 def _get_patterns_root() -> Path:
-    global _DEFAULT_PATTERNS_ROOT
-    if _DEFAULT_PATTERNS_ROOT is None:
-        _DEFAULT_PATTERNS_ROOT = patterns_root()
-    return _DEFAULT_PATTERNS_ROOT
+    if _DEFAULT_PATTERNS_ROOT is not None:
+        return _DEFAULT_PATTERNS_ROOT
+    return patterns_root()
 
 
 @mcp.tool()

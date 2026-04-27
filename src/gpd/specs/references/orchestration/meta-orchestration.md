@@ -18,7 +18,7 @@ How GPD selects agents, allocates context budgets, and routes verification failu
 **Related files:**
 - `references/orchestration/agent-delegation.md` — task() call pattern, runtime alternatives
 - `references/orchestration/agent-infrastructure.md` — data boundary, tool failure, context pressure
-- `references/orchestration/context-budget.md` — per-workflow budget targets
+- `references/orchestration/context-budget.md` — canonical numeric budget targets, adaptation thresholds, and plan-count heuristic
 - `references/orchestration/context-pressure-thresholds.md` — GREEN/YELLOW/ORANGE/RED thresholds
 - `../research/research-modes.md` — explore/balanced/exploit/adaptive behavioral effects
 
@@ -93,28 +93,9 @@ writing:
 
 ## 2. Context Budget Allocation by Phase Type
 
-Different phase types have different context consumption patterns. The orchestrator should monitor these and segment work accordingly.
+Different phase types have different context consumption patterns. The orchestrator should monitor and segment work using `references/orchestration/context-budget.md` as the canonical numeric source for budget targets, adaptation thresholds, and the plan-count heuristic.
 
-### Budget Targets by Phase Type
-
-| Phase Type | Orchestrator Budget | Agent Budget (each) | Total per Phase | Notes |
-|---|---|---|---|---|
-| **literature** | 15% | researcher: 40%, bibliographer: 30% | ~85% max | Heavy file reads. Segment if > 10 papers. |
-| **formulation** | 20% | researcher: 25%, planner: 15%, executor: 30% | ~90% max | Moderate. Usually fits in one pass. |
-| **derivation** | 15% | planner: 10%, executor: 50%, verifier: 20% | ~95% max | Executor is context-heavy. Segment derivation into sub-steps if > 5 intermediate results. |
-| **numerical** | 10% | planner: 10%, executor: 40%, debugger: 20%, verifier: 15% | ~95% max | Executor consumes less context than derivation (code is compact). Budget debugger for iteration. |
-| **validation** | 10% | verifier: 50%, consistency-checker: 25% | ~85% max | Verifier does heavy cross-referencing. |
-| **writing** | 10% | paper-writer: 50%, bibliographer: 15%, referee: 15% | ~90% max | Paper-writer is context-heavy (reads all prior phases). |
-
-### Budget Adaptation Rules
-
-1. **Derivation exceeds 50% executor budget:** Split the plan into sub-plans. The executor should write intermediate results to a file, clear context, and continue from the checkpoint.
-
-2. **Literature exceeds 60% researcher budget:** The researcher should write a structured literature summary to a file and return. A second researcher invocation can process remaining papers.
-
-3. **Verification exceeds 50% verifier budget:** Split verifier work into multiple passes. Keep the contract-critical, anchor, and decisive-comparison checks in the current pass and queue optional depth for follow-up.
-
-4. **Numerical debugging exceeds 20% debugger budget:** Write a debugging report with hypotheses and return. The orchestrator should re-invoke the debugger with fresh context and the report.
+This document owns strategic routing; it does not restate the budget table.
 
 ---
 
@@ -251,11 +232,11 @@ Guidance for the orchestrator on how to handle agent-specific patterns.
 For standard derivation phases, this order minimizes wasted context:
 
 ```
-1. planner         (10% context, produces PLAN.md)
-2. plan-checker    (5% context, validates plan, fast)
-3. executor        (50% context, does the work)
-4. verifier        (20% context, validates results)
-5. consistency-checker (10% context, cross-phase check)
+1. planner
+2. plan-checker
+3. executor
+4. verifier
+5. consistency-checker
 ```
 
-If the executor must be re-invoked after verification failure, the total exceeds 100% of a single context window. This is expected — each agent runs in its own fresh context. The orchestrator's context only holds the coordination logic and summary results.
+If the executor must be re-invoked after verification failure, total agent work can exceed one context window. This is expected: each agent runs in its own fresh context, while the orchestrator holds coordination logic and summary results.

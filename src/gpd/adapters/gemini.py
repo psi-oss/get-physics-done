@@ -21,6 +21,7 @@ from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     _is_hook_command_for_script,
@@ -47,6 +48,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
+from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -105,10 +107,8 @@ _GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
     "mkdir -p GPD",
-    "mkdir -p GPD/research",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
     "Gemini shell compatibility:\n"
@@ -260,6 +260,31 @@ def _read_gemini_settings_state(settings_path: Path) -> tuple[dict[str, object] 
     return parsed, None
 
 
+def _validated_deferred_install_payload(
+    install_result: Mapping[str, object],
+) -> tuple[str | Path, dict[str, object], str, bool]:
+    """Return deferred settings payload or fail closed before finalization."""
+    settings_written = install_result.get("settingsWritten", False)
+    if type(settings_written) is not bool:
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+
+    settings_path = install_result.get("settingsPath")
+    settings = install_result.get("settings")
+    statusline_command = install_result.get("statuslineCommand")
+    should_install_statusline = install_result.get("shouldInstallStatusline", True)
+
+    if not isinstance(settings_path, (str, Path)):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if not isinstance(settings, dict):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if not isinstance(statusline_command, str):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if type(should_install_statusline) is not bool:
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+
+    return settings_path, settings, statusline_command, should_install_statusline
+
+
 def _gemini_policy_command_prefixes(bridge_command: str) -> tuple[str, ...]:
     """Return the narrow shell prefixes GPD auto-approves for Gemini."""
     return (
@@ -280,9 +305,11 @@ def _project_managed_mcp_servers(
     env: Mapping[str, str] | None = None,
     *,
     cwd: Path | None = None,
+    python_path: str | None = None,
 ) -> dict[str, dict[str, object]]:
     """Project shared optional integrations into Gemini's ``mcpServers`` shape."""
-    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
+    python_path = python_path or hook_python_interpreter()
+    return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd, python_path=python_path)
 
 
 def _managed_mcp_server_keys() -> frozenset[str]:
@@ -302,7 +329,7 @@ def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
     return rewrite_gpd_cli_invocations_to_runtime_bridge(
         content,
         bridge_command,
-        shell_fence_languages=_SHELL_FENCE_LANGUAGES,
+        shell_fence_languages=DEFAULT_RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES,
     )
 
 
@@ -316,6 +343,15 @@ def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> st
     if not frontmatter:
         return note + content
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
+
+
+def _render_gemini_command_prompt(content: str, *, bridge_command: str) -> str:
+    """Render one canonical command markdown source into Gemini prompt text."""
+    content = strip_sub_tags(content)
+    content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+    content = _rewrite_gemini_shell_workflow_guidance(content)
+    content = _rewrite_gpd_cli_invocations(content, bridge_command)
+    return _inject_gemini_command_runtime_note(content, bridge_command)
 
 
 def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
@@ -400,19 +436,6 @@ def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
 
 def _rewrite_gemini_capture_and_check_blocks(content: str) -> str:
     """Rewrite Gemini-hostile shell capture examples into direct command guidance."""
-    content = content.replace(
-        """```bash
-CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
-if [ $? -ne 0 ]; then
-  echo "WARNING: Convention verification failed — unit mismatches between theory and experiment are the #1 source of false discrepancies"
-  echo "$CONV_CHECK"
-fi
-```""",
-        """```bash
-# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
-gpd --raw convention check 2>/dev/null
-```""",
-    )
     content = content.replace(
         """```bash
 CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
@@ -728,7 +751,8 @@ def _managed_gemini_yolo_wrapper_path(target_dir: Path) -> Path:
 
 def _render_gemini_yolo_wrapper() -> str:
     """Render a small launcher that starts Gemini in yolo approval mode."""
-    return "#!/bin/sh\nexec gemini --approval-mode=yolo \"$@\"\n"
+    launcher = shlex.quote(get_runtime_descriptor("gemini").launch_command)
+    return f"#!/bin/sh\nexec {launcher} --approval-mode=yolo \"$@\"\n"
 
 
 def _render_gemini_policy_toml(bridge_command: str) -> str:
@@ -989,11 +1013,7 @@ def _copy_commands_recursive(
                 explicit_target=explicit_target,
             )
             content = process_attribution(content, attribution)
-            content = strip_sub_tags(content)
-            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-            content = _rewrite_gemini_shell_workflow_guidance(content)
-            content = _rewrite_gpd_cli_invocations(content, bridge_command)
-            content = _inject_gemini_command_runtime_note(content, bridge_command)
+            content = _render_gemini_command_prompt(content, bridge_command=bridge_command)
             toml_content = _convert_to_gemini_toml(content)
             toml_path = dest_dir / entry.with_suffix(".toml").name
             toml_path.write_text(toml_content, encoding="utf-8")
@@ -1025,6 +1045,7 @@ class GeminiAdapter(RuntimeAdapter):
         surface_kind: str,
         path_prefix: str,
         command_name: str | None = None,
+        bridge_command: str | None = None,
     ) -> str:
         del path_prefix, command_name
         if surface_kind != "command":
@@ -1032,8 +1053,12 @@ class GeminiAdapter(RuntimeAdapter):
                 content,
                 surface_kind=surface_kind,
                 path_prefix="",
+                bridge_command=bridge_command,
             )
-        prompt = tomllib.loads(_convert_to_gemini_toml(content)).get("prompt")
+        if bridge_command is None:
+            raise ValueError("bridge_command is required for projected Gemini command surfaces")
+        rendered = _render_gemini_command_prompt(content, bridge_command=bridge_command)
+        prompt = tomllib.loads(_convert_to_gemini_toml(rendered)).get("prompt")
         if not isinstance(prompt, str):
             raise ValueError("gemini projected command surface must expose a prompt string")
         return prompt
@@ -1166,6 +1191,8 @@ class GeminiAdapter(RuntimeAdapter):
         self._managed_enable_agents = not enable_agents_was_present
 
         # Build hook commands (Python hooks, same as Claude Code)
+        should_install_statusline = self._installed_hook_script_available(HOOK_SCRIPTS["statusline"])
+        should_install_update_hook = self._installed_hook_script_available(HOOK_SCRIPTS["check_update"])
         statusline_cmd = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["statusline"],
@@ -1180,12 +1207,15 @@ class GeminiAdapter(RuntimeAdapter):
             config_dir_name=self.config_dir_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
-        ensure_update_hook(
-            settings,
-            update_check_cmd,
-            target_dir=target_dir,
-            config_dir_name=self.config_dir_name,
-        )
+        if should_install_update_hook:
+            ensure_update_hook(
+                settings,
+                update_check_cmd,
+                target_dir=target_dir,
+                config_dir_name=self.config_dir_name,
+            )
+        else:
+            logger.warning("Skipping update check hook because hooks/check_update.py is not GPD-managed")
 
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
@@ -1207,9 +1237,10 @@ class GeminiAdapter(RuntimeAdapter):
         # Wire MCP servers into settings so they start automatically.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        python_path = hook_python_interpreter()
+        mcp_servers = build_mcp_servers_dict(python_path=python_path)
         project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
-        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd)
+        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd, python_path=python_path)
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
@@ -1225,6 +1256,7 @@ class GeminiAdapter(RuntimeAdapter):
             "settingsPath": str(settings_path),
             "settings": settings,
             "statuslineCommand": statusline_cmd,
+            "shouldInstallStatusline": should_install_statusline,
             "mcpServers": len(mcp_servers),
         }
 
@@ -1346,26 +1378,28 @@ class GeminiAdapter(RuntimeAdapter):
         force_statusline: bool = False,
     ) -> None:
         """Persist Gemini settings when install produced an in-memory config."""
-        if install_result.get("settingsWritten"):
+        settings_written = install_result.get("settingsWritten", False)
+        if type(settings_written) is not bool:
+            raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+        if settings_written:
             return
 
-        settings_path = install_result.get("settingsPath")
-        settings = install_result.get("settings")
-        statusline_command = install_result.get("statuslineCommand")
-        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
-            target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
-            _validate_existing_gemini_managed_state(target_dir)
-            _, settings_parse_error = _read_gemini_settings_state(Path(settings_path))
-            if settings_parse_error is not None:
-                raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during finalize.")
-            self.finish_install(
-                settings_path,
-                settings,
-                statusline_command,
-                True,
-                force_statusline=force_statusline,
-            )
-            install_result["settingsWritten"] = True
+        settings_path, settings, statusline_command, should_install_statusline = _validated_deferred_install_payload(
+            install_result
+        )
+        target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
+        _validate_existing_gemini_managed_state(target_dir)
+        _, settings_parse_error = _read_gemini_settings_state(Path(settings_path))
+        if settings_parse_error is not None:
+            raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during finalize.")
+        self.finish_install(
+            settings_path,
+            settings,
+            statusline_command,
+            should_install_statusline,
+            force_statusline=force_statusline,
+        )
+        install_result["settingsWritten"] = True
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from a Gemini CLI .gemini/ directory.

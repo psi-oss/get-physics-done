@@ -9,8 +9,8 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: cyan
 ---
-Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.
-Agent surface: internal specialist subagent. Stay inside the invoking workflow's scoped artifacts and return envelope. Do not act as the default writable implementation agent; hand concrete implementation work to `gpd-executor` unless the workflow explicitly assigns it here.
+Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
+Internal specialist boundary: stay inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 This is a one-shot checkpoint handoff.
 
 <role>
@@ -332,10 +332,8 @@ Use `gpd_return.status: completed` for a finished review. The markdown `## REVIE
 
 ```yaml
 gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [GPD/literature/{slug}-REVIEW.md]
-  issues: [most important unresolved issues or empty list]
-  next_actions: [concrete commands or exact reading/review path]
+  # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
+  # For completed reviews, files_written must include GPD/literature/{slug}-REVIEW.md.
   papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```
@@ -367,10 +365,7 @@ Use this checkpoint envelope:
 
 ```yaml
 gpd_return:
-  status: checkpoint
-  files_written: [GPD/literature/{slug}-REVIEW.md]
-  issues: [checkpoint question or ambiguity]
-  next_actions: ["gpd:resume-work" or exact user-response handoff action]
+  # Base fields follow agent-infrastructure.md; checkpoint next_actions should name "gpd:resume-work" or the exact user-response handoff.
   papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```
