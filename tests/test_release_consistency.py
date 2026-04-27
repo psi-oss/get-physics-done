@@ -275,6 +275,10 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
     packaged_files = set(package_json.get("files", []))
 
     assert package_json["name"] == "get-physics-done"
+    assert package_json["repository"] == {
+        "type": "git",
+        "url": "git+https://github.com/psi-oss/get-physics-done.git",
+    }
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
     assert "bin/" in packaged_files
     assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
@@ -428,12 +432,17 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
     assert "id-token: write" in workflow
+    assert "skip-existing: true" in workflow
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
+    assert 'node-version: "24"' in workflow
     assert "actions/upload-artifact@v7" in workflow
     assert "actions/download-artifact@v8" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" in workflow
+    assert "name: npm" in workflow
+    assert "NODE_AUTH_TOKEN" not in workflow
+    assert "NPM_TOKEN" not in workflow
     assert "npm publish" in workflow
     assert "gh release create" in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
@@ -783,3 +792,99 @@ def test_stamp_publish_date_rejects_full_datetime_release_inputs(tmp_path: Path)
 
     with pytest.raises(ReleaseError, match="YYYY-MM-DD"):
         stamp_publish_date(tmp_path, release_date="2026-03-15T12:34:56Z")
+
+
+# ---------------------------------------------------------------------------
+# Tests for PR: Harden npm release publishing
+# ---------------------------------------------------------------------------
+
+
+def test_package_json_repository_url_uses_git_plus_protocol_with_dot_git_suffix() -> None:
+    """Repository URL must use the git+ protocol prefix and .git suffix for npm compatibility."""
+    repo_root = _repo_root()
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    repo = package_json["repository"]
+
+    assert repo["type"] == "git"
+    assert repo["url"].startswith("git+"), "repository.url must start with 'git+'"
+    assert repo["url"].endswith(".git"), "repository.url must end with '.git'"
+    assert "github.com/psi-oss/get-physics-done" in repo["url"]
+
+
+def test_package_json_repository_url_is_not_plain_https() -> None:
+    """Repository URL must not use the old plain-https format (without git+ or .git)."""
+    repo_root = _repo_root()
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    repo_url = package_json["repository"]["url"]
+
+    # Old format was "https://github.com/psi-oss/get-physics-done" — no git+ prefix, no .git suffix.
+    assert repo_url != "https://github.com/psi-oss/get-physics-done"
+    assert not repo_url.startswith("https://"), (
+        "repository.url must not be a plain https URL; it should use the git+ prefix"
+    )
+
+
+def test_publish_release_workflow_npm_environment_block_has_npmjs_url() -> None:
+    """The npm publish job must declare a GitHub environment with the package's npm URL."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    assert "url: https://www.npmjs.com/package/get-physics-done" in workflow
+
+
+def test_publish_release_workflow_npm_job_has_id_token_and_contents_write() -> None:
+    """The npm/GitHub-release job must have both id-token: write (for OIDC) and contents: write (for gh release)."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    # id-token: write must appear — once for PyPI, once for npm trusted publishing.
+    assert workflow.count("id-token: write") >= 2
+    assert "contents: write" in workflow
+
+
+def test_publish_release_workflow_node_version_is_24_not_20() -> None:
+    """Node.js version must be 24 in the npm publish job; the old version 20 must not appear."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    assert 'node-version: "24"' in workflow
+    assert 'node-version: "20"' not in workflow
+
+
+def test_publish_release_workflow_pypi_skip_existing_is_set() -> None:
+    """PyPI publish action must have skip-existing: true to tolerate re-runs without failing on duplicate uploads."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    assert "skip-existing: true" in workflow
+    # Confirm it appears alongside the PyPI publish action (not some unrelated step).
+    assert "pypa/gh-action-pypi-publish@release/v1" in workflow
+
+
+def test_publish_release_workflow_does_not_require_npm_token_secret() -> None:
+    """npm publishing must use OIDC trusted publishing; no NPM_TOKEN or NODE_AUTH_TOKEN secrets."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    assert "NPM_TOKEN" not in workflow
+    assert "NODE_AUTH_TOKEN" not in workflow
+
+
+def test_publish_release_workflow_summary_attributes_npm_to_trusted_publishing() -> None:
+    """The publish summary step must credit npm publishing to trusted publishing, not a token secret."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    assert "npm: published via trusted publishing from environment" in workflow
+    # Old language that referenced the merged commit rather than trusted publishing must be gone.
+    assert "npm: published from the merged release commit" not in workflow
+
+
+def test_publish_release_workflow_npm_environment_name_is_npm() -> None:
+    """The npm publish job environment name must be exactly 'npm' (case-sensitive)."""
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+
+    # 'name: npm' must appear as an environment declaration (distinct from 'name: PyPI').
+    assert "name: npm" in workflow
+    assert "name: PyPI" in workflow  # both environments coexist
