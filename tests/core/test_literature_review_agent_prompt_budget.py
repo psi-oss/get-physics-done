@@ -19,7 +19,7 @@ def test_gpd_literature_reviewer_prompt_stays_within_expected_budget_and_keeps_t
     metrics = measure_prompt_surface(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
     expanded = expanded_prompt_text(path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
 
-    assert metrics.raw_include_count == 1
+    assert metrics.raw_include_count == 0
     assert metrics.expanded_line_count < 2_100
     assert metrics.expanded_char_count < 100_000
 

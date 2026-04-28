@@ -116,6 +116,42 @@ def test_resolve_project_roots_falls_back_to_explicit_project_dir_when_nothing_i
     assert resolution.walk_up_steps == 0
 
 
+def test_resolve_project_roots_ignores_unverified_bare_ancestor_gpd_for_explicit_fallback(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "parent" / "workspace"
+    project_hint = tmp_path / "maybe-project"
+    (tmp_path / "GPD").mkdir()
+    workspace.mkdir(parents=True)
+    project_hint.mkdir()
+
+    resolution = resolve_project_roots(workspace, project_dir=project_hint)
+
+    assert resolution is not None
+    assert resolution.project_root == project_hint.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.PROJECT_DIR
+    assert resolution.confidence == RootResolutionConfidence.MEDIUM
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+
+
+def test_resolve_project_roots_ignores_unverified_bare_ancestor_gpd_for_workspace_fallback(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "parent" / "workspace"
+    (tmp_path / "GPD").mkdir()
+    workspace.mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolution.walk_up_steps == 0
+
+
 def test_resolve_project_roots_prefers_explicit_fallback_over_empty_workspace_gpd(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     project_hint = tmp_path / "maybe-project"

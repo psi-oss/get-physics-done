@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from gpd.core.constants import ProjectLayout
-from gpd.core.root_resolution import resolve_project_root
+from gpd.core.root_resolution import resolve_project_roots
 
 WOLFRAM_INTEGRATION_ID = "wolfram"
 WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
@@ -31,9 +31,8 @@ INTEGRATIONS_CONFIG_FILENAME = "integrations.json"
 
 def _project_integrations_config_path(cwd: Path) -> Path:
     workspace_cwd = cwd.expanduser().resolve(strict=False)
-    project_root = resolve_project_root(workspace_cwd)
-    if project_root is None or not ProjectLayout(project_root).gpd.is_dir():
-        project_root = workspace_cwd
+    resolution = resolve_project_roots(workspace_cwd)
+    project_root = resolution.project_root if resolution is not None and resolution.verified else workspace_cwd
     return ProjectLayout(project_root).gpd / INTEGRATIONS_CONFIG_FILENAME
 
 

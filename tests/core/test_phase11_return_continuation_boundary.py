@@ -118,6 +118,64 @@ def test_failed_child_return_rolls_back_recent_project_projection(
     assert recent_projects.rows == []
 
 
+def test_failed_child_return_rolls_back_last_plan_advance_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gpd_dir = _write_project_state(tmp_path)
+    state_path = gpd_dir / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["position"]["current_phase"] = "02"
+    state["position"]["current_plan"] = "3"
+    state["position"]["total_plans_in_phase"] = 3
+    state["position"]["status"] = "Executing"
+    state["position"]["last_activity"] = "2026-03-01"
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    (gpd_dir / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+    resume_path = gpd_dir / "phases" / "02-analysis" / ".continue-here.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("resume\n", encoding="utf-8")
+
+    from gpd.core import child_return_application as applicator
+    from gpd.core.errors import StateError
+    from gpd.core.return_contract import GpdReturnEnvelope
+
+    envelope = GpdReturnEnvelope.model_validate(
+        {
+            "status": "completed",
+            "files_written": ["GPD/STATE.md"],
+            "issues": [],
+            "next_actions": ["gpd:verify-work"],
+            "state_updates": {"advance_plan": True},
+            "continuation_update": {
+                "bounded_segment": {
+                    "resume_file": "GPD/phases/02-analysis/.continue-here.md",
+                    "phase": "02",
+                    "plan": "03",
+                    "segment_id": "seg-last-plan-rollback",
+                    "segment_status": "paused",
+                },
+            },
+        }
+    )
+
+    def _fail_set_bounded_segment(*_args: object, **_kwargs: object):
+        raise StateError("simulated continuation failure")
+
+    monkeypatch.setattr(applicator, "state_set_continuation_bounded_segment", _fail_set_bounded_segment)
+
+    result = applicator.apply_child_return_updates(tmp_path, envelope)
+    stored_state_md = (gpd_dir / "STATE.md").read_text(encoding="utf-8")
+    stored_state = json.loads(state_path.read_text(encoding="utf-8"))
+
+    assert result.passed is False
+    assert any("set_bounded_segment: simulated continuation failure" in error for error in result.errors)
+    assert not any("rollback skipped because file(s) changed after child-return mutation" in error for error in result.errors)
+    assert "**Status:** Executing" in stored_state_md
+    assert "**Last Activity:** 2026-03-01" in stored_state_md
+    assert stored_state["position"]["status"] == "Executing"
+    assert stored_state["position"]["last_activity"] == "2026-03-01"
+
+
 def test_child_return_rejects_bounded_segment_with_unknown_last_result_id(tmp_path: Path) -> None:
     _write_project_state(tmp_path)
 

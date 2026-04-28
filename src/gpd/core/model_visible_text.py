@@ -116,29 +116,18 @@ def agent_visibility_note() -> str:
 def command_visibility_note() -> str:
     return render_model_visible_note(
         "Command YAML rules.",
-        "Strict booleans only. Empty optional fields may be omitted.",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper; "
-        f"its canonical frontmatter key is `{COMMAND_POLICY_FRONTMATTER_KEY}`;",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
-        "are lists of strings when present;",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.project_context_mode` and `context_mode` "
-        f"must be {_join_disjunction(VALID_CONTEXT_MODES)} when present;",
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes like `.tex` or `.md` when present;",
-        "Typed command policy is command-authoritative for command intake, supporting-context routing, and managed-output "
-        "surfaces when a command declares it.",
-        "`allowed_tools` is a list of tool names when present;",
-        "`requires` is a closed mapping when present; only `files` is supported.",
-        "`requires.files` is a string or list of strings.",
-        "`agent` when present must match a built-in canonical agent label exactly; use the active YAML value below.",
-        "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
+        "Strict booleans only; omit empty optional fields.",
+        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` is the typed additive command-policy wrapper "
+        f"(frontmatter `{COMMAND_POLICY_FRONTMATTER_KEY}`) with integer `schema_version: 1`.",
+        "Its list fields are string lists, suffix lists use dotted suffixes, and context modes use "
+        f"{_join_disjunction(VALID_CONTEXT_MODES)}.",
+        "When present, typed command policy controls intake, supporting-context routing, and managed outputs.",
+        "`allowed_tools` is a tool-name list.",
+        "`requires` supports only `files`, as a string or string list.",
+        "`agent` must match a built-in canonical agent label exactly.",
+        "`project_reentry_capable` is boolean and may be true only with `context_mode: project-required`.",
         "Any user-visible completion, checkpoint, blocked return, failed return, retry gate, or stop that expects later "
-        "action must end with a concrete `## > Next Up` section. Include copy-pasteable GPD "
-        "commands when they exist and `gpd:suggest-next` for project-backed recovery.",
+        "action must end with `## > Next Up`; include concrete GPD commands and `gpd:suggest-next` for project-backed recovery.",
     )
 
 

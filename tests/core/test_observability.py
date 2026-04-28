@@ -11,6 +11,7 @@ from pathlib import Path
 def _bootstrap_project(tmp_path: Path) -> Path:
     planning = tmp_path / "GPD"
     planning.mkdir()
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     return tmp_path
 
 

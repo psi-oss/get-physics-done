@@ -12,6 +12,7 @@ from gpd.adapters.runtime_catalog import (
     ManifestMetadataListPolicy,
     get_managed_install_surface_policy,
     get_manifest_metadata_list_policies,
+    get_runtime_descriptor,
     get_shared_install_metadata,
     list_runtime_names,
     normalize_runtime_name,
@@ -299,7 +300,51 @@ def _manifest_metadata_list_policy_is_satisfied(
     return True
 
 
-def _manifest_path_metadata_state(payload: dict[str, object]) -> str:
+def _manifest_scalar_path_metadata_key_suffixes(runtime: str) -> tuple[str, ...]:
+    try:
+        descriptor = get_runtime_descriptor(runtime)
+    except KeyError:
+        return ()
+
+    roots: list[str] = []
+    seen_roots: set[str] = set()
+    for prefix in descriptor.manifest_file_prefixes:
+        root = prefix.replace("\\", "/").strip("/").split("/", 1)[0]
+        if not root or root in seen_roots:
+            continue
+        seen_roots.add(root)
+        roots.append(root)
+    return tuple(f"_{root}_dir" for root in roots)
+
+
+def _manifest_scalar_path_is_within_install_owner(value: object, *, config_dir: Path) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+
+    owner_dir = config_dir.parent
+    raw_path = Path(value).expanduser()
+    candidate = raw_path if raw_path.is_absolute() else owner_dir / raw_path
+    try:
+        resolved_owner = owner_dir.resolve(strict=False)
+        resolved_candidate = candidate.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return resolved_candidate != resolved_owner and resolved_candidate.is_relative_to(resolved_owner)
+
+
+def _manifest_scalar_path_metadata_state(payload: dict[str, object], *, config_dir: Path, runtime: str) -> str:
+    scalar_path_key_suffixes = _manifest_scalar_path_metadata_key_suffixes(runtime)
+    if not scalar_path_key_suffixes:
+        return "ok"
+
+    for key, value in payload.items():
+        if any(key.endswith(suffix) for suffix in scalar_path_key_suffixes):
+            if not _manifest_scalar_path_is_within_install_owner(value, config_dir=config_dir):
+                return "malformed_scalar_path_metadata"
+    return "ok"
+
+
+def _manifest_path_metadata_state(payload: dict[str, object], *, config_dir: Path, runtime: str) -> str:
     raw_files = payload.get("files")
     if raw_files is not None:
         if not isinstance(raw_files, dict):
@@ -311,6 +356,10 @@ def _manifest_path_metadata_state(payload: dict[str, object]) -> str:
     for policy in get_manifest_metadata_list_policies():
         if not _manifest_metadata_list_policy_is_satisfied(payload, policy):
             return "malformed_path_metadata"
+
+    scalar_path_metadata_state = _manifest_scalar_path_metadata_state(payload, config_dir=config_dir, runtime=runtime)
+    if scalar_path_metadata_state != "ok":
+        return scalar_path_metadata_state
 
     return "ok"
 
@@ -339,7 +388,17 @@ def assess_install_target(
     missing_install_artifacts: tuple[str, ...] = ()
 
     if manifest_state == "ok" and manifest_runtime is not None:
-        path_metadata_state = _manifest_path_metadata_state(_payload)
+        explicit_target_state, _explicit_target_payload, _explicit_target = load_install_manifest_explicit_target_status(resolved)
+        if explicit_target_state not in {"ok", "missing_explicit_target"}:
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="untrusted_manifest",
+                manifest_state=explicit_target_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
+        path_metadata_state = _manifest_path_metadata_state(_payload, config_dir=resolved, runtime=manifest_runtime)
         if path_metadata_state != "ok":
             return InstallTargetAssessment(
                 config_dir=resolved,

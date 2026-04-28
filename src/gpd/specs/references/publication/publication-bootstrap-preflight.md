@@ -19,9 +19,9 @@ When a workflow does expose a bounded external-authoring lane, that lane must st
 
 ## Canonical Sources
 
-- `@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md`
-- `@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md`
-- `@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`
+- `{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md`
+- `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md`
+- `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`
 
 ## Rules
 

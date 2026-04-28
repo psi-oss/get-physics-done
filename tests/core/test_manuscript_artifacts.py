@@ -814,7 +814,7 @@ def test_resolve_current_manuscript_resolution_marks_root_mismatch_invalid(tmp_p
     assert "resolves to" in resolution.detail
 
 
-def test_resolve_current_manuscript_resolution_prefers_config_when_manifest_is_invalid(
+def test_resolve_current_manuscript_resolution_fails_closed_when_manifest_is_invalid(
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "paper" / "config-entry.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
@@ -858,14 +858,37 @@ def test_resolve_current_manuscript_resolution_prefers_config_when_manifest_is_i
 
     resolution = resolve_current_manuscript_resolution(tmp_path)
 
-    assert resolution.status == "resolved"
-    assert resolution.manuscript_entrypoint == tmp_path / "paper" / "config-entry.tex"
-    assert any(
-        root_resolution.status == "resolved"
-        and root_resolution.manuscript_entrypoint == tmp_path / "paper" / "config-entry.tex"
-        for root_resolution in resolution.root_resolutions
+    assert resolution.status == "invalid"
+    assert resolution.manuscript_entrypoint is None
+    assert any(root_resolution.status == "invalid" for root_resolution in resolution.root_resolutions)
+    assert "ARTIFACT-MANIFEST.json is invalid" in resolution.detail
+    assert "journal" in resolution.detail
+
+
+def test_resolve_current_manuscript_resolution_fails_closed_when_manifest_json_is_corrupt(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "config-entry.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(tmp_path / "paper" / "ARTIFACT-MANIFEST.json", "{not valid json")
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Config Entry",
+                "output_filename": "config-entry",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"heading": "Intro", "content": "Hello."}],
+            }
+        )
+        + "\n",
     )
-    assert "resolved from paper config" in resolution.detail
+
+    resolution = resolve_current_manuscript_resolution(tmp_path)
+
+    assert resolution.status == "invalid"
+    assert resolution.manuscript_entrypoint is None
+    assert "ARTIFACT-MANIFEST.json is invalid" in resolution.detail
 
 
 def test_resolve_current_manuscript_resolution_prefers_single_resolved_root_over_stale_invalid_sibling(
@@ -931,7 +954,7 @@ def test_resolve_current_manuscript_resolution_prefers_single_resolved_root_over
     assert "paper config" in resolution.detail
 
 
-def test_resolve_current_manuscript_resolution_ignores_invalid_manifest_entrypoints_without_valid_manifest(
+def test_resolve_current_manuscript_resolution_fails_closed_on_invalid_manifest_without_config(
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "paper" / "manifest-entry.tex", "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
@@ -961,9 +984,9 @@ def test_resolve_current_manuscript_resolution_ignores_invalid_manifest_entrypoi
 
     resolution = resolve_current_manuscript_resolution(tmp_path)
 
-    assert resolution.status == "missing"
+    assert resolution.status == "invalid"
     assert resolution.manuscript_entrypoint is None
-    assert "no manuscript entrypoint found" in resolution.detail
+    assert "ARTIFACT-MANIFEST.json is invalid" in resolution.detail
 
 
 def test_resolve_current_manuscript_resolution_marks_missing_when_no_manuscript_exists(tmp_path: Path) -> None:

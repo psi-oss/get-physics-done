@@ -159,7 +159,7 @@ def _walk_project_root(
         ):
             best_partial = (steps, path)
 
-        if best_bare is None or steps < best_bare[0]:
+        if steps == 0 and (best_bare is None or steps < best_bare[0]):
             best_bare = (steps, path)
         if allow_ancestor_walk and _is_vcs_boundary(path):
             break

@@ -38,6 +38,7 @@ _TEST_MODEL = "model-under-test"
 def _write_current_execution(workspace: Path, payload: dict[str, object]) -> None:
     observability = workspace / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
+    (workspace / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
 
 

@@ -93,10 +93,15 @@ def test_pytest_report_header_distinguishes_default_full_suite_from_targeted_arg
     default_config = SimpleNamespace(args=["tests"])
     targeted_config = SimpleNamespace(args=["tests/test_runtime_cli.py"])
     sharded_config = SimpleNamespace(args=["tests/test_runtime_cli.py::test_example"])
+    filtered_config = SimpleNamespace(
+        args=["tests"],
+        option=SimpleNamespace(keyword="runtime", markexpr="", lastfailed=False, failedfirst=False, collectonly=False),
+    )
 
     assert tests_conftest.pytest_report_header(default_config) == "test suite mode: full default suite"
     assert tests_conftest.pytest_report_header(targeted_config) == "test suite mode: targeted/sharded args"
     assert tests_conftest.pytest_report_header(sharded_config) == "test suite mode: targeted/sharded args"
+    assert tests_conftest.pytest_report_header(filtered_config) == "test suite mode: targeted/sharded args"
 
 
 def test_nested_test_conftests_do_not_hide_suites_via_collect_ignore() -> None:
@@ -135,6 +140,38 @@ def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
     assert tests_conftest.pytest_xdist_auto_num_workers(config) == 12
 
     config.args = ["tests/test_runtime_cli.py"]
+    assert tests_conftest.pytest_xdist_auto_num_workers(config) is None
+
+
+@pytest.mark.parametrize(
+    "option_overrides",
+    [
+        {"keyword": "runtime"},
+        {"markexpr": "not slow"},
+        {"lastfailed": True},
+        {"failedfirst": True},
+        {"collectonly": True},
+    ],
+)
+def test_root_conftest_keeps_filtered_default_suite_xdist_auto_worker_selection_unmodified(
+    monkeypatch: pytest.MonkeyPatch,
+    option_overrides: dict[str, object],
+) -> None:
+    option_values = {
+        "numprocesses": "auto",
+        "maxprocesses": None,
+        "keyword": "",
+        "markexpr": "",
+        "lastfailed": False,
+        "failedfirst": False,
+        "collectonly": False,
+        **option_overrides,
+    }
+    config = SimpleNamespace(args=["tests"], option=SimpleNamespace(**option_values))
+
+    monkeypatch.delenv("PYTEST_XDIST_AUTO_NUM_WORKERS", raising=False)
+    monkeypatch.setattr(tests_conftest.os, "cpu_count", lambda: 16)
+
     assert tests_conftest.pytest_xdist_auto_num_workers(config) is None
 
 

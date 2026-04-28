@@ -256,12 +256,11 @@ class TestExpandAtIncludes:
         assert "workflow body" in result
         assert "<!-- [included: workflow.md] -->" in result
 
-    def test_backticked_bullet_include_with_annotation_is_expanded(self, tmp_path: Path) -> None:
+    def test_backticked_bullet_include_with_annotation_is_metadata_only(self, tmp_path: Path) -> None:
         gpd_dir = self._make_src(tmp_path, {"reference.md": "reference body"})
         content = f"- `@{tmp_path}/get-physics-done/reference.md` -- Shared reference"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
-        assert "reference body" in result
-        assert "<!-- [included: reference.md] -->" in result
+        assert result == content
 
     def test_gpd_agents_dir_include_resolves_from_specs_root(self, tmp_path: Path) -> None:
         gpd_dir = self._make_src(

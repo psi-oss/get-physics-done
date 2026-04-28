@@ -346,6 +346,91 @@ def test_assess_install_target_rejects_runtime_manifest_without_valid_install_sc
     assert config_dir_has_complete_install(config_dir) is False
 
 
+def test_assess_install_target_rejects_malformed_explicit_target_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = iter_runtime_descriptors()[0]
+    config_dir = tmp_path / descriptor.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "runtime": descriptor.runtime_name,
+                "install_scope": "local",
+                "explicit_target": "false",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "gpd.hooks.install_metadata.get_adapter",
+        lambda runtime: (_ for _ in ()).throw(AssertionError("adapter should not be consulted")),
+    )
+
+    assessment = assess_install_target(config_dir, expected_runtime=descriptor.runtime_name)
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "malformed_explicit_target"
+    assert assessment.manifest_runtime == descriptor.runtime_name
+    assert assessment.readiness_state == "blocked"
+    assert config_dir_has_complete_install(config_dir) is False
+
+
+def test_assess_install_target_allows_missing_legacy_explicit_target_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = iter_runtime_descriptors()[0]
+    config_dir = tmp_path / descriptor.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"runtime": descriptor.runtime_name, "install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    class _FakeAdapter:
+        def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+            return ()
+
+    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", lambda runtime: _FakeAdapter())
+
+    assessment = assess_install_target(config_dir, expected_runtime=descriptor.runtime_name)
+
+    assert assessment.state == "owned_complete"
+    assert assessment.manifest_state == "ok"
+    assert assessment.manifest_runtime == descriptor.runtime_name
+    assert assessment.readiness_state == "ready"
+
+
+def test_assess_install_target_rejects_unsafe_external_scalar_path_metadata(tmp_path: Path) -> None:
+    descriptor = next(descriptor for descriptor in iter_runtime_descriptors() if descriptor.manifest_file_prefixes)
+    manifest_prefix = descriptor.manifest_file_prefixes[0]
+    external_root = manifest_prefix.replace("\\", "/").strip("/").split("/", 1)[0]
+    scalar_key = f"{descriptor.runtime_name.replace('-', '_')}_{external_root}_dir"
+    config_dir = tmp_path / descriptor.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "runtime": descriptor.runtime_name,
+                "install_scope": "local",
+                "explicit_target": False,
+                "files": {f"{manifest_prefix}gpd-help/SKILL.md": "hash"},
+                scalar_key: str(tmp_path.parent / "outside" / external_root),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assessment = assess_install_target(config_dir, expected_runtime=descriptor.runtime_name)
+
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "malformed_scalar_path_metadata"
+    assert assessment.manifest_runtime == descriptor.runtime_name
+    assert assessment.readiness_state == "blocked"
+
+
 @pytest.mark.parametrize(
     ("hook_filename",),
     [
@@ -620,5 +705,7 @@ def test_install_metadata_uses_catalog_manifest_metadata_policies() -> None:
     source = inspect.getsource(install_metadata)
 
     assert "get_manifest_metadata_list_policies" in source
+    assert "manifest_file_prefixes" in source
+    assert "codex_skills_dir" not in source
     assert "codex_generated_skill_dirs" not in source
     assert "opencode_generated_command_files" not in source

@@ -3316,8 +3316,6 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
     write_paper_workflow = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
     respond_workflow = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv_workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
-    respond_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "respond-to-referees.md")
-    arxiv_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "arxiv-submission.md")
     shared_preflight = (TEMPLATES_DIR / "paper" / "publication-manuscript-root-preflight.md").read_text(
         encoding="utf-8"
     )
@@ -3353,9 +3351,19 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in content
             assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in content
             assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in content
-    for content in (respond_workflow_expanded, arxiv_workflow_expanded):
-        assert "bibliography_audit_clean" in content
-        assert "reproducibility_ready" in content
+    arxiv_staging = registry.get_command("arxiv-submission").staged_loading
+    respond_staging = registry.get_command("respond-to-referees").staged_loading
+
+    assert arxiv_staging is not None
+    assert respond_staging is not None
+    assert (
+        "templates/paper/publication-manuscript-root-preflight.md"
+        in arxiv_staging.stage("manuscript_preflight").loaded_authorities
+    )
+    assert (
+        "references/publication/publication-bootstrap-preflight.md"
+        in respond_staging.stage("bootstrap").loaded_authorities
+    )
     assert (
         "For a resumed manuscript, strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and "
         "`reproducibility-manifest.json` from the resolved manuscript directory itself. Use `ARTIFACT-MANIFEST.json` "
@@ -3405,10 +3413,7 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     peer_review_workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
     respond_workflow = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv_workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
-    write_paper_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "write-paper.md")
     peer_review_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "peer-review.md")
-    respond_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "respond-to-referees.md")
-    arxiv_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "arxiv-submission.md")
     shared_preflight_include = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
     bootstrap_preflight_include = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
     response_handoff_include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
@@ -3440,8 +3445,10 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     assert bootstrap_preflight_include in write_paper_workflow
     assert response_handoff_include in write_paper_workflow
     assert round_artifacts_include in write_paper_workflow
-    assert "bibliography_audit_clean" in write_paper_workflow_expanded
-    assert "reproducibility_ready" in write_paper_workflow_expanded
+    assert (
+        "templates/paper/publication-manuscript-root-preflight.md"
+        in write_paper_staging.stage("paper_bootstrap").loaded_authorities
+    )
     assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE not in peer_review_workflow
     assert "{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" in peer_review_workflow
     assert "templates/paper/review-ledger-schema.md" in peer_review_workflow
@@ -3464,14 +3471,18 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     assert bootstrap_preflight_include in respond_workflow
     assert response_handoff_include in respond_workflow
     assert PUBLICATION_REVIEW_RELIABILITY_INLINE in respond_workflow
-    assert "bibliography_audit_clean" in respond_workflow_expanded
-    assert "reproducibility_ready" in respond_workflow_expanded
+    assert (
+        "references/publication/publication-bootstrap-preflight.md"
+        in registry.get_command("respond-to-referees").staged_loading.stage("bootstrap").loaded_authorities
+    )
     assert bootstrap_preflight_include in arxiv_workflow
     assert round_artifacts_include in arxiv_workflow
     assert response_handoff_include not in arxiv_workflow
     assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in arxiv_workflow
-    assert "bibliography_audit_clean" in arxiv_workflow_expanded
-    assert "reproducibility_ready" in arxiv_workflow_expanded
+    assert (
+        "templates/paper/publication-manuscript-root-preflight.md"
+        in registry.get_command("arxiv-submission").staged_loading.stage("manuscript_preflight").loaded_authorities
+    )
     assert (
         "references/shared/canonical-schema-discipline.md"
         in write_paper_staging.stage("figure_and_section_authoring").loaded_authorities
@@ -3769,9 +3780,9 @@ def test_verification_and_agent_reference_prompts_expand_or_stage_required_refer
     assert "templates/contract-results-schema.md" in interactive_validation.loaded_authorities
     assert "Verification Independence" in verify_phase
     assert "# Contract Results Schema" in verify_phase
-    assert "# Shared Protocols" in phase_researcher
-    assert "# Shared Research Philosophy and Protocols" in phase_researcher
-    assert "# Agent Infrastructure Protocols" in phase_researcher
+    assert "- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`" in phase_researcher
+    assert "# Shared Research Philosophy and Protocols" not in phase_researcher
+    assert "# Agent Infrastructure Protocols" not in phase_researcher
     assert "Shared Protocols" in planner
     assert "{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md" in planner
     assert "@ include not resolved:" not in verify_work.lower()

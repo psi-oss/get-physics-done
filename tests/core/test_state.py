@@ -1516,6 +1516,93 @@ def test_load_state_json_recovers_backup_continuation_when_primary_json_is_corru
     assert "session" not in persisted
 
 
+def test_load_state_json_accepts_newer_state_md_when_only_backup_bounded_segment_differs(
+    tmp_path: Path,
+) -> None:
+    primary_state = default_state_dict()
+    primary_state["continuation"]["handoff"]["recorded_at"] = "2026-03-29T12:00:00+00:00"
+    primary_state["continuation"]["handoff"]["stopped_at"] = "Phase 03 Plan 2"
+    backup_state = json.loads(json.dumps(primary_state))
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-json-only",
+        "segment_status": "paused",
+        "pre_fanout_review_pending": True,
+    }
+    layout = _write_backup_only_state(tmp_path, primary_state, backup_state=backup_state)
+    layout.state_json.write_text("{not-json", encoding="utf-8")
+    old_ns = 1_700_000_000_000_000_000
+    new_ns = old_ns + 1_000_000_000
+    os.utime(layout.state_json_backup, ns=(old_ns, old_ns))
+    os.utime(layout.state_md, ns=(new_ns, new_ns))
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-json-only"
+    assert loaded["continuation"]["bounded_segment"]["pre_fanout_review_pending"] is True
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["continuation"]["bounded_segment"][
+        "segment_id"
+    ] == "segment-json-only"
+
+
+def test_state_md_rebuild_preserves_stale_backup_json_only_bounded_segment(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+    layout.gpd.mkdir(parents=True, exist_ok=True)
+
+    backup_state = default_state_dict()
+    backup_state["position"]["current_phase"] = "03"
+    backup_state["position"]["status"] = "Executing"
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-preserved-from-stale-backup",
+        "segment_status": "paused",
+        "downstream_locked": True,
+        "updated_at": "2026-03-29T12:00:00+00:00",
+    }
+    backup_state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-20T12:00:00+00:00",
+            "stopped_at": "Old backup handoff",
+            "resume_file": "GPD/phases/03-analysis/old.md",
+        }
+    )
+    md_state = default_state_dict()
+    md_state["position"]["current_phase"] = "06"
+    md_state["position"]["status"] = "Paused"
+    md_state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-30T12:00:00+00:00",
+            "stopped_at": "New markdown handoff",
+            "resume_file": "GPD/phases/06-analysis/new.md",
+        }
+    )
+    layout.state_json.write_text("{not-json", encoding="utf-8")
+    layout.state_json_backup.write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
+    layout.state_md.write_text(generate_state_markdown(md_state), encoding="utf-8")
+    old_ns = 1_700_000_000_000_000_000
+    new_ns = old_ns + 1_000_000_000
+    os.utime(layout.state_json_backup, ns=(old_ns, old_ns))
+    os.utime(layout.state_md, ns=(new_ns, new_ns))
+
+    loaded, issues, state_source = peek_state_json(tmp_path, recover_intent=False)
+
+    assert loaded is not None
+    assert state_source == "STATE.md"
+    assert "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable" in issues
+    assert loaded["position"]["current_phase"] == "06"
+    assert loaded["position"]["status"] == "Paused"
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "New markdown handoff"
+    assert loaded["continuation"]["handoff"]["resume_file"] == "GPD/phases/06-analysis/new.md"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-preserved-from-stale-backup"
+    assert loaded["continuation"]["bounded_segment"]["downstream_locked"] is True
+
+
 def test_load_state_json_recovers_backup_continuation_when_primary_continuation_section_is_invalid(tmp_path: Path) -> None:
     primary_state = default_state_dict()
     primary_state["continuation"] = []
@@ -3699,6 +3786,7 @@ def test_advance_plan_advances_normally(tmp_path):
     )
     result = state_advance_plan(cwd)
     assert result.advanced is True
+    assert result.state_mutated is True
     assert result.previous_plan == 1
     assert result.current_plan == 2
 
@@ -3724,6 +3812,7 @@ def test_advance_plan_returns_error_when_fields_missing(tmp_path):
 
     result = state_advance_plan(tmp_path)
     assert result.advanced is False
+    assert result.state_mutated is False
     assert result.error is not None
     assert "Cannot parse" in result.error
 
@@ -3758,6 +3847,7 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
 
     result = state_advance_plan(tmp_path)
     assert result.advanced is False
+    assert result.state_mutated is True
     assert result.reason == "last_plan"
     assert result.status == "ready_for_verification"
 

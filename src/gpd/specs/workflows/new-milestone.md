@@ -483,7 +483,7 @@ Parse JSON for: `roadmapper_model`, `commit_docs`, `autonomy`, `current_mileston
 
 Use the bootstrap init for milestone identity and contract gating. Use this late-stage init for the final handoff and do not reuse stale roadmapping inputs from the survey/objective loop.
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+Apply the canonical runtime delegation convention already loaded above.
 
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -614,7 +614,7 @@ Success criteria:
 
 **If "Adjust":** Get notes, then respawn the roadmapper with a revision continuation handoff:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+Apply the canonical runtime delegation convention already loaded above.
 
   ```
   task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.

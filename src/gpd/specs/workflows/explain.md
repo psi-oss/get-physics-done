@@ -170,7 +170,7 @@ Resolve bibliographer model:
 BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+Apply the canonical runtime delegation convention already loaded above.
 
 > If subagent spawning is unavailable, perform the audit in the main context.
 

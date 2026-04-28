@@ -30,6 +30,7 @@ __all__ = [
     "RefereeDecisionInput",
     "RefereeDecisionReport",
     "evaluate_referee_decision",
+    "validate_referee_decision_ledger_consistency",
     "validate_stage_review_artifact_payload",
     "validate_stage_review_artifact_file",
     "validate_stage_review_artifact_alignment",
@@ -497,6 +498,15 @@ def _review_ledger_consistency_errors(data: RefereeDecisionInput, review_ledger:
         )
 
     return errors
+
+
+def validate_referee_decision_ledger_consistency(
+    data: RefereeDecisionInput,
+    review_ledger: ReviewLedger,
+) -> list[str]:
+    """Return ledger/decision semantic errors without applying recommendation policy."""
+
+    return _review_ledger_consistency_errors(data, review_ledger)
 
 
 def _strict_stage_artifact_consistency_errors(

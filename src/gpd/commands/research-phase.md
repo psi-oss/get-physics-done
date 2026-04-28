@@ -19,7 +19,6 @@ Orchestrator role: validate the phase input, then hand off to the workflow-owned
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/research-phase.md
-@{GPD_INSTALL_DIR}/references/orchestration/model-profile-resolution.md
 </execution_context>
 
 <context>

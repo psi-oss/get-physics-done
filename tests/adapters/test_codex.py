@@ -60,6 +60,14 @@ def _assert_no_manifestless_gpd_artifacts(target: Path, skills_dir: Path) -> Non
     assert not any(skills_dir.glob("gpd-*"))
 
 
+def _assert_no_new_codex_install_artifacts(target: Path, skills_dir: Path) -> None:
+    assert not (target / "gpd-file-manifest.json").exists()
+    assert not (target / "get-physics-done").exists()
+    assert not (target / "agents").exists()
+    assert not (target / "hooks").exists()
+    assert not any(skills_dir.glob("gpd-*"))
+
+
 def test_codex_command_runtime_note_injection_is_idempotent() -> None:
     content = (
         "---\n"
@@ -1173,7 +1181,7 @@ class TestRuntimePermissions:
             adapter.install(gpd_root, target, skills_dir=skills)
 
         assert config_path.read_text(encoding="utf-8") == before
-        assert not (target / "gpd-file-manifest.json").exists()
+        _assert_no_new_codex_install_artifacts(target, skills)
 
     @pytest.mark.parametrize("config_line", ('mcp_servers = "oops"\n', 'agents = "oops"\n'))
     def test_wrong_shaped_config_toml_fails_closed_during_install(
@@ -1195,7 +1203,7 @@ class TestRuntimePermissions:
             adapter.install(gpd_root, target, skills_dir=skills)
 
         assert config_path.read_text(encoding="utf-8") == before
-        assert not (target / "gpd-file-manifest.json").exists()
+        _assert_no_new_codex_install_artifacts(target, skills)
 
     def test_reinstall_rewrites_stale_managed_notify_interpreter(
         self,

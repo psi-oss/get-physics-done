@@ -185,7 +185,8 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
     assert "publication-manuscript-root-preflight.md" in bootstrap_preflight
     assert "publication-review-round-artifacts.md" in bootstrap_preflight
     assert "publication-response-artifacts.md" in bootstrap_preflight
-    assert PUBLICATION_PIPELINE_MODES_INCLUDE in publication_artifact_gates
+    assert PUBLICATION_PIPELINE_MODES_INLINE in publication_artifact_gates
+    assert PUBLICATION_PIPELINE_MODES_INCLUDE not in publication_artifact_gates
     assert "claim full publication-root migration" not in publication_artifact_gates.lower()
     assert "current global `gpd/` / `gpd/review/` round-artifact layout" not in publication_artifact_gates.lower()
 

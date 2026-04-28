@@ -4722,6 +4722,121 @@ class TestInitProgress:
         assert ctx["execution_resumable"] is True
         assert ctx["has_work_in_progress"] is True
 
+    def test_progress_derives_execution_flags_from_canonical_bounded_segment_without_live_snapshot(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        resume_file = "GPD/phases/02-analysis/.continue-here.md"
+        resume_path = tmp_path / resume_file
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        state = default_state_dict()
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": resume_file,
+            "phase": "02",
+            "plan": "01",
+            "segment_id": "seg-canonical-flags",
+            "segment_status": "waiting_review",
+            "blocked_reason": "human review required",
+            "waiting_for_review": True,
+            "pre_fanout_review_pending": True,
+            "skeptical_requestioning_required": True,
+            "downstream_locked": True,
+            "updated_at": "2026-03-11T08:00:00+00:00",
+        }
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["current_execution"] is None
+        assert ctx["has_live_execution"] is False
+        assert ctx["execution_review_pending"] is True
+        assert ctx["execution_pre_fanout_review_pending"] is True
+        assert ctx["execution_skeptical_requestioning_required"] is True
+        assert ctx["execution_downstream_locked"] is True
+        assert ctx["execution_blocked"] is True
+        assert ctx["execution_paused_at"] == "2026-03-11T08:00:00+00:00"
+        assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
+
+    def test_progress_does_not_surface_execution_flags_from_non_resumable_bounded_segment(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        state = default_state_dict()
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": "GPD/phases/02-analysis/missing.md",
+            "phase": "02",
+            "plan": "01",
+            "segment_id": "seg-missing-resume",
+            "segment_status": "waiting_review",
+            "blocked_reason": "human review required",
+            "waiting_for_review": True,
+            "pre_fanout_review_pending": True,
+            "skeptical_requestioning_required": True,
+            "downstream_locked": True,
+            "updated_at": "2026-03-11T08:00:00+00:00",
+        }
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["execution_resume_file"] is None
+        assert ctx["execution_resumable"] is False
+        assert ctx["execution_review_pending"] is False
+        assert ctx["execution_pre_fanout_review_pending"] is False
+        assert ctx["execution_skeptical_requestioning_required"] is False
+        assert ctx["execution_downstream_locked"] is False
+        assert ctx["execution_blocked"] is False
+        assert ctx["execution_paused_at"] is None
+
+    def test_progress_ors_live_snapshot_flags_with_canonical_bounded_segment(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        resume_file = "GPD/phases/02-analysis/.continue-here.md"
+        resume_path = tmp_path / resume_file
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        state = default_state_dict()
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": resume_file,
+            "phase": "02",
+            "plan": "01",
+            "segment_id": "seg-canonical-or",
+            "segment_status": "paused",
+            "blocked_reason": "manual checkpoint",
+            "pre_fanout_review_pending": True,
+            "downstream_locked": True,
+            "updated_at": "2026-03-11T08:00:00+00:00",
+        }
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-live",
+                "phase": "02",
+                "plan": "01",
+                "segment_id": "seg-live",
+                "segment_status": "active",
+                "resume_file": resume_file,
+                "updated_at": "2026-03-11T09:00:00+00:00",
+            },
+        )
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["has_live_execution"] is True
+        assert ctx["current_execution"]["segment_status"] == "active"
+        assert ctx["execution_review_pending"] is True
+        assert ctx["execution_pre_fanout_review_pending"] is True
+        assert ctx["execution_downstream_locked"] is True
+        assert ctx["execution_blocked"] is True
+        assert ctx["execution_paused_at"] == "2026-03-11T08:00:00+00:00"
+
     def test_progress_normalizes_absolute_live_execution_resume_file(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         resume_path = tmp_path / "GPD" / "phases" / "02-analysis" / ".continue-here.md"

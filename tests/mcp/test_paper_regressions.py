@@ -274,6 +274,121 @@ def test_artifact_manifest_models_reject_blank_titles_and_invalid_timestamps() -
         )
 
 
+@pytest.mark.parametrize("field_name", ["artifact_id", "path", "produced_by"])
+def test_artifact_manifest_models_reject_blank_critical_artifact_record_fields(field_name: str) -> None:
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    artifact = {
+        "artifact_id": "tex-paper",
+        "category": "tex",
+        "path": "paper.tex",
+        "sha256": "0" * 64,
+        "produced_by": "build_paper:render_tex",
+    }
+    artifact[field_name] = "   "
+
+    with pytest.raises(ValidationError, match=r"non-empty string"):
+        ArtifactManifest.model_validate(
+            {
+                "version": 1,
+                "paper_title": "Strict Manifest",
+                "journal": "prl",
+                "created_at": "2026-03-17T00:00:00+00:00",
+                "artifacts": [artifact],
+            }
+        )
+
+
+def test_artifact_manifest_models_reject_blank_source_paths() -> None:
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    with pytest.raises(ValidationError, match=r"sources\[\]\.path[\s\S]*non-empty string"):
+        ArtifactManifest.model_validate(
+            {
+                "version": 1,
+                "paper_title": "Strict Manifest",
+                "journal": "prl",
+                "created_at": "2026-03-17T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "figure-benchmark",
+                        "category": "figure",
+                        "path": "figures/benchmark.pdf",
+                        "sha256": "0" * 64,
+                        "produced_by": "build_paper:prepare_figures",
+                        "sources": [{"path": "   ", "role": "source-figure"}],
+                    }
+                ],
+            }
+        )
+
+
+def test_artifact_manifest_models_reject_duplicate_artifact_ids() -> None:
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    with pytest.raises(ValidationError, match=r"repeat artifact_id values: tex-paper"):
+        ArtifactManifest.model_validate(
+            {
+                "version": 1,
+                "paper_title": "Strict Manifest",
+                "journal": "prl",
+                "created_at": "2026-03-17T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "paper.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "build_paper:render_tex",
+                    },
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "paper-copy.tex",
+                        "sha256": "1" * 64,
+                        "produced_by": "build_paper:render_tex",
+                    },
+                ],
+            }
+        )
+
+
+def test_artifact_manifest_models_reject_duplicate_category_path_records() -> None:
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    with pytest.raises(ValidationError, match=r"same category\+path records: tex:paper.tex"):
+        ArtifactManifest.model_validate(
+            {
+                "version": 1,
+                "paper_title": "Strict Manifest",
+                "journal": "prl",
+                "created_at": "2026-03-17T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "paper.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "build_paper:render_tex",
+                    },
+                    {
+                        "artifact_id": "tex-paper-duplicate",
+                        "category": "tex",
+                        "path": "paper.tex",
+                        "sha256": "1" * 64,
+                        "produced_by": "build_paper:render_tex",
+                    },
+                ],
+            }
+        )
+
+
+def test_artifact_manifest_schema_documents_external_source_redaction() -> None:
+    schema_text = Path("src/gpd/specs/templates/paper/artifact-manifest-schema.md").read_text(encoding="utf-8")
+
+    assert "external:<name>" in schema_text
+
+
 def test_build_artifact_manifest_makes_output_local_absolute_source_paths_portable(tmp_path) -> None:
     from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
     from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section

@@ -13097,20 +13097,7 @@ def uninstall(
         target = (
             _resolve_cli_target_dir(target_dir) if target_dir else adapter.resolve_target_dir(is_global, _get_cwd())
         )
-        if not target.is_dir():
-            outcome = {
-                "runtime": rt,
-                "status": "skipped",
-                "target": str(target),
-                "reason": f"not installed at {_format_display_path(target)}",
-            }
-            if not _raw:
-                console.print(
-                    f"  [yellow]⊘[/] {adapter.display_name} — not installed at {_format_display_path(target)}",
-                    soft_wrap=True,
-                )
-            uninstall_results.append(outcome)
-            continue
+        target_missing_before = not target.is_dir()
         try:
             result = adapter.uninstall(target)
         except Exception as exc:
@@ -13134,11 +13121,18 @@ def uninstall(
             "status": status,
         }
         if not removed_items:
-            outcome["reason"] = "nothing to remove"
+            outcome["reason"] = (
+                f"not installed at {_format_display_path(target)}" if target_missing_before else "nothing to remove"
+            )
         if not _raw:
             if removed_items:
                 console.print(
                     f"  [green]✓[/] {adapter.display_name} — removed: {', '.join(str(r) for r in removed_items)}"
+                )
+            elif target_missing_before:
+                console.print(
+                    f"  [yellow]⊘[/] {adapter.display_name} — not installed at {_format_display_path(target)}",
+                    soft_wrap=True,
                 )
             else:
                 console.print(f"  [dim]⊘[/] {adapter.display_name} — nothing to remove")

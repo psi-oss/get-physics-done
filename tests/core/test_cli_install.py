@@ -615,6 +615,37 @@ def test_uninstall_nonexistent_target_skips(tmp_path: Path):
     assert result.exit_code == 0
 
 
+def test_uninstall_missing_codex_target_still_removes_marker_backed_skills(tmp_path: Path) -> None:
+    """Codex uninstall must delegate to the adapter even when .codex/ is gone."""
+    descriptor = next(
+        descriptor
+        for descriptor in _INSTALL_TEST_DESCRIPTORS
+        if any(prefix.rstrip("/") == "skills" for prefix in descriptor.manifest_file_prefixes)
+    )
+    workspace = tmp_path / "workspace"
+    target = workspace / descriptor.config_dir_name
+    skills_dir = workspace / ".agents" / "skills"
+    managed_skill = skills_dir / "gpd-help"
+    managed_skill.mkdir(parents=True)
+    (managed_skill / "SKILL.md").write_text(
+        "<!-- Managed by Get Physics Done (GPD). -->\n# Help\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "uninstall", descriptor.runtime_name, "--local", "--target-dir", str(target)],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    outcome = payload["uninstalled"][0]
+    assert outcome["runtime"] == descriptor.runtime_name
+    assert outcome["status"] == "removed"
+    assert any("GPD skills" in item for item in outcome["removed"])
+    assert not managed_skill.exists()
+
+
 def test_uninstall_all_continues_after_one_runtime_failure(tmp_path: Path) -> None:
     """A failure in one runtime uninstall must not stop later runtimes."""
 

@@ -208,7 +208,7 @@ Resolve referee model:
 ```bash
 REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+Apply the canonical runtime delegation convention already loaded above.
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

@@ -257,31 +257,19 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert "Omit empty optional fields." in note
     assert "strict booleans" in command_note.lower()
+    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` is the typed additive command-policy wrapper" in command_note
+    assert "integer `schema_version: 1`" in command_note
+    assert "list fields are string lists" in command_note
+    assert "`allowed_tools` is a tool-name list." in command_note
+    assert "`requires` supports only `files`, as a string or string list." in command_note
+    assert "omit empty optional fields" in command_note.lower()
     assert (
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}` when present is the typed additive command-policy wrapper"
-        in command_note
-    )
-    assert f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.schema_version` must be the integer `1`;" in command_note
-    assert (
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.explicit_input_kinds`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.supported_roots`, "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.required_file_patterns`, and "
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.supporting_context_policy.optional_file_patterns` "
-        "are lists of strings when present;"
-    ) in command_note
-    assert "`allowed_tools` is a list of tool names when present;" in command_note
-    assert "`requires` is a closed mapping when present; only `files` is supported." in command_note
-    assert "`requires.files` is a string or list of strings." in command_note
-    assert "Empty optional fields may be omitted." in command_note
-    assert (
-        "Typed command policy is command-authoritative for command intake, supporting-context routing, "
-        "and managed-output surfaces when a command declares it."
+        "typed command policy controls intake, supporting-context routing, and managed outputs"
         in command_note
     )
     assert "Typed command policy is runtime-authoritative" not in command_note
     assert (
-        f"`{COMMAND_POLICY_PROMPT_WRAPPER_KEY}.subject_policy.allowed_suffixes` must use dotted suffixes"
+        "suffix lists use dotted suffixes"
         in command_note
     )
     for value in VALID_CONTEXT_MODES:
@@ -295,7 +283,7 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert "`schema_version` must be the integer `1`" in note
     assert "context_mode" in command_note
     assert "project_reentry_capable" in command_note
-    assert "may be `true` only when `context_mode` is `project-required`" in command_note
+    assert "may be true only with `context_mode: project-required`" in command_note
 
     assert "wrapper key" in note
     assert "closed review-contract vocabularies" in note

@@ -320,6 +320,26 @@ def test_execute_phase_runtime_delegation_rules_are_single_sourced() -> None:
     assert execute_phase.count("Apply the canonical runtime delegation convention above.") >= 3
 
 
+def test_runtime_delegation_note_is_loaded_once_per_workflow() -> None:
+    include = "@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md"
+    repeated_reference = "Apply the canonical runtime delegation convention already loaded above."
+    workflows_using_short_references = {
+        "audit-milestone.md",
+        "explain.md",
+        "new-milestone.md",
+        "new-project.md",
+        "quick.md",
+        "write-paper.md",
+    }
+
+    for path in sorted(WORKFLOWS_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        assert text.count(include) <= 1, path.name
+        if path.name in workflows_using_short_references:
+            assert text.count(include) == 1, path.name
+            assert repeated_reference in text, path.name
+
+
 def test_experiment_designer_uses_external_ising_example_as_single_source() -> None:
     designer = (AGENTS_DIR / "gpd-experiment-designer.md").read_text(encoding="utf-8")
     example = (

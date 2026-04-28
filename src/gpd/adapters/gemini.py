@@ -290,6 +290,8 @@ def _validated_deferred_install_payload(
         raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
     if not isinstance(settings, dict):
         raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
+    if not _gemini_settings_shape_is_valid(settings):
+        raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
     if not isinstance(statusline_command, str):
         raise RuntimeError("Gemini deferred install result is malformed; refusing to finalize install.")
     if type(should_install_statusline) is not bool:
@@ -1440,6 +1442,43 @@ class GeminiAdapter(RuntimeAdapter):
             *self.install_detection_relpaths(),
             f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
         )
+
+    def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing or malformed Gemini-owned install artifacts."""
+        missing = list(super().missing_install_artifacts(target_dir))
+
+        def _append_once(label: str) -> None:
+            if label not in missing:
+                missing.append(label)
+
+        settings_path = target_dir / "settings.json"
+        if not settings_path.exists():
+            return tuple(missing)
+
+        settings, settings_parse_error = _read_gemini_settings_state(settings_path)
+        if settings_parse_error is not None:
+            _append_once("settings.json")
+            return tuple(missing)
+
+        settings = settings or {}
+        experimental = settings.get("experimental")
+        if not isinstance(experimental, dict) or experimental.get("enableAgents") is not True:
+            _append_once("settings.json experimental.enableAgents")
+
+        mcp_servers = settings.get("mcpServers")
+        if not isinstance(mcp_servers, dict) or not mcp_servers:
+            _append_once("settings.json mcpServers")
+
+        if (target_dir / "hooks" / HOOK_SCRIPTS["check_update"]).is_file():
+            hooks = settings.get("hooks")
+            session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+            if not isinstance(session_start, list) or not any(
+                _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+                for entry in session_start
+            ):
+                _append_once("settings.json update hook")
+
+        return tuple(missing)
 
     def finish_install(
         self,

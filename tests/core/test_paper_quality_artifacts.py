@@ -481,7 +481,7 @@ TODO finalize the nested conclusion.
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
-        json.dumps(_artifact_manifest_payload(manuscript, title="Recursive Manuscript", journal="generic")),
+        json.dumps(_artifact_manifest_payload(manuscript, title="Recursive Manuscript", journal="jhep")),
     )
     _write(
         tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
@@ -562,7 +562,7 @@ def test_build_paper_quality_input_blocks_commented_result_pending_markers(tmp_p
     assert result.completeness.placeholders_cleared.passed is False
 
 
-def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_is_unsupported(
+def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_hash_is_stale(
     tmp_path: Path,
 ) -> None:
     _write(
@@ -571,7 +571,7 @@ def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_m
     )
     _write(
         tmp_path / "paper" / "PAPER-CONFIG.json",
-        json.dumps(_paper_config_payload("Config Fallback Title", "jhep")),
+        json.dumps(_paper_config_payload("Config Fallback Title", "jhep", output_filename="config_fallback_title")),
     )
     _write(
         tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
@@ -579,7 +579,7 @@ def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_m
             {
                 "version": 1,
                 "paper_title": "Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "artifacts": [],
             }
@@ -770,7 +770,7 @@ def test_build_paper_quality_input_rejects_an_explicit_unresolved_publication_su
         build_paper_quality_input(tmp_path, publication_subject=subject)
 
 
-def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid(
+def test_build_paper_quality_input_rejects_invalid_manifest_even_with_valid_config(
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "paper" / "config-entry.tex", "\\documentclass{article}\\begin{document}Config.\\end{document}\n")
@@ -813,12 +813,11 @@ def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
+    with pytest.raises(GPDError, match="paper-quality artifact resolution requires an unambiguous manuscript root"):
+        build_paper_quality_input(tmp_path)
 
-    assert result.title == "Config Title"
 
-
-def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_entrypoint_is_active(
+def test_build_paper_quality_input_rejects_manifest_without_freshness_hash_even_with_valid_config(
     tmp_path: Path,
 ) -> None:
     _write(
@@ -835,13 +834,13 @@ def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_e
             {
                 "version": 1,
                 "paper_title": "Stale Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "artifacts": [
                     {
                         "artifact_id": "main-tex",
                         "category": "tex",
-                        "path": "missing-entry.tex",
+                        "path": "config-entry.tex",
                         "sha256": "b" * 64,
                         "produced_by": "paper-compiler",
                         "sources": [],
@@ -852,10 +851,8 @@ def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_e
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
-
-    assert result.title == "Config Title"
-    assert result.journal == "jhep"
+    with pytest.raises(GPDError, match="manifest is missing manuscript_sha256"):
+        build_paper_quality_input(tmp_path)
 
 
 def test_build_paper_quality_input_trusts_manifest_metadata_when_manuscript_hash_matches(
@@ -901,7 +898,7 @@ def test_build_paper_quality_input_trusts_manifest_metadata_when_manuscript_hash
     assert result.journal == "prl"
 
 
-def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_hash_is_stale(
+def test_build_paper_quality_input_rejects_manifest_metadata_when_manuscript_hash_is_stale(
     tmp_path: Path,
 ) -> None:
     manuscript = (
@@ -919,7 +916,7 @@ def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_has
             {
                 "version": 1,
                 "paper_title": "Stale Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "manuscript_sha256": "0" * 64,
                 "artifacts": [
@@ -937,10 +934,8 @@ def test_build_paper_quality_input_ignores_manifest_metadata_when_manuscript_has
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
-
-    assert result.title == "Config Title"
-    assert result.journal == "jhep"
+    with pytest.raises(GPDError, match="manuscript_sha256 does not match"):
+        build_paper_quality_input(tmp_path)
 
 
 def test_build_paper_quality_input_surfaces_convention_lock_and_derivation_assertion_coverage(
@@ -1032,7 +1027,7 @@ def test_build_paper_quality_input_counts_python_and_tex_derivation_artifacts(
     assert result.conventions.assert_convention_coverage.total == 3
 
 
-def test_build_paper_quality_input_ignores_invalid_artifact_manifest_and_falls_back_to_config(tmp_path: Path) -> None:
+def test_build_paper_quality_input_rejects_invalid_artifact_manifest_instead_of_falling_back(tmp_path: Path) -> None:
     _write(
         tmp_path / "paper" / "curvature_flow_bounds.tex",
         "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
@@ -1047,17 +1042,25 @@ def test_build_paper_quality_input_ignores_invalid_artifact_manifest_and_falls_b
             {
                 "version": 2,
                 "paper_title": "Broken Manifest Title",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-13T00:00:00+00:00",
-                "artifacts": [],
+                "artifacts": [
+                    {
+                        "artifact_id": "main-tex",
+                        "category": "tex",
+                        "path": "config_fallback_title.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "paper-compiler",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
             }
         ),
     )
 
-    result = build_paper_quality_input(tmp_path)
-
-    assert result.title == "Config Fallback Title"
-    assert result.journal == "jhep"
+    with pytest.raises(GPDError, match="paper-quality artifact resolution requires an unambiguous manuscript root"):
+        build_paper_quality_input(tmp_path)
 
 
 def test_build_paper_quality_input_ignores_invalid_bibliography_audit(tmp_path: Path) -> None:

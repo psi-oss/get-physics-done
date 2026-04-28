@@ -180,7 +180,7 @@ fi
 **Step 5: Spawn executor**
 
 Spawn gpd-executor with plan reference:
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+Apply the canonical runtime delegation convention already loaded above.
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

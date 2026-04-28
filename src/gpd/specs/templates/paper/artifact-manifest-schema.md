@@ -87,11 +87,11 @@ Record only artifacts the builder produced. Use this as the review/build handoff
 
 Required:
 
-- `artifact_id`: stable identifier such as `tex-paper`, `bib-references`, `audit-bibliography`, or `pdf-topic_stem`
+- `artifact_id`: non-empty stable identifier such as `tex-paper`, `bib-references`, `audit-bibliography`, or `pdf-topic_stem`
 - `category`: one of `tex`, `bib`, `figure`, `pdf`, `audit`
-- `path`: artifact path string
+- `path`: non-empty artifact path string
 - `sha256`: 64-character lowercase hex digest
-- `produced_by`: producer label such as `build_paper:render_tex`
+- `produced_by`: non-empty producer label such as `build_paper:render_tex`
 
 Optional:
 
@@ -102,14 +102,14 @@ Optional:
 
 Each `sources[]` entry may include:
 
-- `path`: upstream artifact path
+- `path`: non-empty upstream artifact path
 - `role`: short label such as `source-figure`, `compiled-from`, or `bibliography`
 
 ## Path Rules
 
 - For artifacts inside the manuscript root, keep `path` relative to `${PAPER_DIR}`.
-- Preserve external paths only when the artifact lives outside `${PAPER_DIR}`.
-- Keep `sources[].path` aligned with the original upstream input path instead of rewriting it into prose.
+- For external source paths outside `${PAPER_DIR}` and the current project working tree, redact to `external:<name>` using the basename only.
+- Keep `sources[].path` aligned with the original upstream input path when it is portable; otherwise use the builder redaction form above.
 
 ## Journal Rules
 
@@ -121,6 +121,8 @@ Do not write unsupported scoring-only journal labels such as `prd`, `prb`, `prc`
 
 - Keep `artifacts` as a JSON array.
 - Do not add undocumented top-level keys.
+- Do not repeat `artifact_id` values.
+- Do not emit ambiguous duplicate artifact records with the same `category` and `path`.
 - Keep every `sha256` exact.
 - If `manuscript_sha256` differs from the active manuscript digest, the manifest is stale and cannot drive manuscript resolution or publication preflight.
 - Treat `manuscript_mtime_ns` as diagnostic; regenerate with `gpd paper-build` after manuscript edits.

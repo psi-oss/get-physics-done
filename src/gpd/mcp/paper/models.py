@@ -497,6 +497,11 @@ class ArtifactSourceRef(BaseModel):
     path: str
     role: str = ""
 
+    @field_validator("path")
+    @classmethod
+    def _validate_source_path(cls, value: str) -> str:
+        return _require_nonempty_text(value, field_name="sources[].path")
+
 
 class ArtifactRecord(BaseModel):
     """Machine-readable record for an emitted paper artifact."""
@@ -510,6 +515,11 @@ class ArtifactRecord(BaseModel):
     produced_by: str
     sources: list[ArtifactSourceRef] = Field(default_factory=list)
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+    @field_validator("artifact_id", "path", "produced_by")
+    @classmethod
+    def _validate_required_record_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name or "artifact record field")
 
 
 class ArtifactManifest(BaseModel):
@@ -548,6 +558,25 @@ class ArtifactManifest(BaseModel):
         except ValueError as exc:
             raise ValueError("created_at must be an ISO 8601 timestamp") from exc
         return normalized
+
+    @model_validator(mode="after")
+    def _artifact_records_must_be_unambiguous(self) -> ArtifactManifest:
+        artifact_ids = [artifact.artifact_id for artifact in self.artifacts]
+        duplicate_artifact_ids = sorted(
+            artifact_id for artifact_id, count in Counter(artifact_ids).items() if count > 1
+        )
+        if duplicate_artifact_ids:
+            raise ValueError("artifacts must not repeat artifact_id values: " + ", ".join(duplicate_artifact_ids))
+
+        category_paths = [(artifact.category, artifact.path) for artifact in self.artifacts]
+        duplicate_category_paths = sorted(
+            f"{category}:{path}" for (category, path), count in Counter(category_paths).items() if count > 1
+        )
+        if duplicate_category_paths:
+            raise ValueError(
+                "artifacts must not repeat the same category+path records: " + ", ".join(duplicate_category_paths)
+            )
+        return self
 
 
 class ClaimType(StrEnum):

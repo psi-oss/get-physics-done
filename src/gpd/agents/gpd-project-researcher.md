@@ -686,6 +686,7 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 
 ```yaml
 gpd_return:
+  status: completed | checkpoint | blocked | failed
   # Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md.
   confidence: HIGH | MEDIUM | LOW
 ```

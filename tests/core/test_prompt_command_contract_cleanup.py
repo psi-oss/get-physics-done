@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from gpd.adapters.install_utils import parse_at_include_path
 from tests.core.test_spawn_contracts import _find_single_task
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -183,6 +184,23 @@ def test_inline_install_dir_paths_do_not_use_at_include_form() -> None:
                 if "`@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md`" in stripped:
                     continue
                 offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}:{line}")
+
+    assert offenders == []
+
+
+def test_backticked_install_dir_list_paths_are_references_not_includes() -> None:
+    roots = (COMMANDS_DIR, WORKFLOWS_DIR, REFERENCES_DIR, TEMPLATES_DIR)
+    backticked_list_path = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)`@\{GPD_INSTALL_DIR\}/")
+    offenders: list[str] = []
+
+    for root in roots:
+        for path in sorted(root.rglob("*.md")):
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                stripped = line.strip()
+                if not backticked_list_path.match(stripped):
+                    continue
+                if parse_at_include_path(stripped) is not None:
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}:{line}")
 
     assert offenders == []
 

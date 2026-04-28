@@ -356,10 +356,26 @@ def test_wolfram_descriptor_resolves_project_local_config_from_nested_workspace(
     nested_workspace.mkdir(parents=True)
     config_path = project_root / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
+    (project_root / "GPD" / "state.json").write_text("{}\n", encoding="utf-8")
+    (project_root / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
 
     assert descriptor.project_config_path(nested_workspace) == config_path
     assert descriptor.project_enabled(nested_workspace) is False
+
+
+def test_wolfram_descriptor_ignores_unverified_ancestor_integrations_config(tmp_path) -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    workspace = tmp_path / "scratch" / "work"
+    workspace.mkdir(parents=True)
+    ambient_config = tmp_path / "GPD" / "integrations.json"
+    ambient_config.parent.mkdir()
+    ambient_config.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+
+    assert descriptor.project_config_path(workspace) == workspace / "GPD" / "integrations.json"
+    assert descriptor.project_enabled(workspace) is True
 
 
 def test_wolfram_descriptor_rejects_empty_endpoint_env_override() -> None:

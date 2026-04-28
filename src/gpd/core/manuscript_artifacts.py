@@ -79,6 +79,15 @@ class _ManifestEntrypointResolution:
     manifest: ArtifactManifest | None
     entrypoints: tuple[Path, ...]
     stale_details: tuple[str, ...] = ()
+    invalid_detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _ArtifactManifestLoadResult:
+    """Loaded artifact manifest, or the reason a present manifest cannot be trusted."""
+
+    manifest: ArtifactManifest | None
+    invalid_detail: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,15 +233,19 @@ class PublicationBootstrapResolution:
         }
 
 
-def _load_artifact_manifest(manuscript_root: Path) -> ArtifactManifest | None:
+def _load_artifact_manifest(manuscript_root: Path) -> _ArtifactManifestLoadResult:
     manifest_path = manuscript_root / "ARTIFACT-MANIFEST.json"
     if not manifest_path.exists():
-        return None
+        return _ArtifactManifestLoadResult(manifest=None)
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return ArtifactManifest.model_validate(payload)
-    except (OSError, json.JSONDecodeError, PydanticValidationError):
-        return None
+        if payload == {}:
+            # Legacy bootstrap placeholders wrote `{}` before a real build manifest existed.
+            # Keep only that empty-object placeholder recoverable; all other invalid manifests fail closed.
+            return _ArtifactManifestLoadResult(manifest=None)
+        return _ArtifactManifestLoadResult(manifest=ArtifactManifest.model_validate(payload))
+    except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
+        return _ArtifactManifestLoadResult(manifest=None, invalid_detail=f"{manifest_path} is invalid: {exc}")
 
 
 def _manifest_entrypoint_resolution(
@@ -240,9 +253,14 @@ def _manifest_entrypoint_resolution(
     *,
     allow_markdown: bool,
 ) -> _ManifestEntrypointResolution:
-    manifest = _load_artifact_manifest(manuscript_root)
+    load_result = _load_artifact_manifest(manuscript_root)
+    manifest = load_result.manifest
     if manifest is None:
-        return _ManifestEntrypointResolution(manifest=None, entrypoints=())
+        return _ManifestEntrypointResolution(
+            manifest=None,
+            entrypoints=(),
+            invalid_detail=load_result.invalid_detail,
+        )
 
     allowed_suffixes = {".tex"}
     if allow_markdown:
@@ -268,10 +286,6 @@ def _manifest_entrypoint_resolution(
         entrypoints=tuple(dict.fromkeys(candidates)),
         stale_details=tuple(dict.fromkeys(stale_details)),
     )
-
-
-def _manifest_entrypoints(manuscript_root: Path, *, allow_markdown: bool) -> tuple[Path, ...]:
-    return _manifest_entrypoint_resolution(manuscript_root, allow_markdown=allow_markdown).entrypoints
 
 
 def _configured_entrypoints(manuscript_root: Path, *, allow_markdown: bool) -> tuple[Path, ...]:
@@ -417,6 +431,13 @@ def _resolve_manuscript_entrypoint_from_root_resolution(
     manifest_entrypoint = manifest_entrypoints[0] if len(manifest_entrypoints) == 1 else None
     configured_entrypoint = configured_entrypoints[0] if len(configured_entrypoints) == 1 else None
 
+    if manifest_resolution.invalid_detail is not None:
+        return ManuscriptRootResolution(
+            status="invalid",
+            manuscript_root=manuscript_root,
+            manuscript_entrypoint=None,
+            detail=manifest_resolution.invalid_detail,
+        )
     if manifest_resolution.stale_details:
         return ManuscriptRootResolution(
             status="invalid",

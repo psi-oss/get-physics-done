@@ -88,6 +88,8 @@ def _validated_deferred_install_payload(
         raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
     if not isinstance(settings, dict):
         raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
+    if not _claude_settings_shape_is_valid(settings):
+        raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
     if not isinstance(statusline_command, str):
         raise RuntimeError("Claude Code deferred install result is malformed; refusing to finalize install.")
     if type(should_install_statusline) is not bool:
@@ -239,6 +241,16 @@ class ClaudeCodeAdapter(RuntimeAdapter):
     def install_verification_relpaths(self) -> tuple[str, ...]:
         """Defer settings.json validation until finalize_install()."""
         return self.install_detection_relpaths()
+
+    def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing or malformed Claude-owned install artifacts."""
+        missing = list(super().missing_install_artifacts(target_dir))
+        settings_path = target_dir / "settings.json"
+        if settings_path.exists():
+            _, settings_parse_error = _read_claude_settings_state(settings_path)
+            if settings_parse_error is not None and "settings.json" not in missing:
+                missing.append("settings.json")
+        return tuple(missing)
 
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Fail before copying files when Claude-owned config is malformed."""

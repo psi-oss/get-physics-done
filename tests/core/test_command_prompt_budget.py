@@ -7,10 +7,12 @@ from pathlib import Path
 import pytest
 
 from gpd import registry
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from tests.prompt_metrics_support import (
     budget_from_baseline,
     expanded_include_markers,
     expanded_prompt_text,
+    measure_projected_prompt_surface,
     measure_prompt_surface,
 )
 
@@ -27,7 +29,7 @@ COMMAND_BASELINES = {
     "add-phase": (170, 4_382, 1),
     "add-todo": (221, 6_401, 1),
     "arxiv-submission": (661, 47_314, 1),
-    "audit-milestone": (539, 20_958, 1),
+    "audit-milestone": (518, 20_069, 1),
     "autonomous": (1_080, 37_060, 1),
     "branch-hypothesis": (383, 11_178, 1),
     "check-todos": (232, 6_214, 1),
@@ -46,7 +48,7 @@ COMMAND_BASELINES = {
     "error-patterns": (261, 6_377, 1),
     "error-propagation": (436, 18_598, 1),
     "execute-phase": (2_010, 103_014, 1),
-    "explain": (401, 16_723, 1),
+    "explain": (356, 13_192, 1),
     "export": (508, 13_232, 1),
     "export-logs": (248, 8_165, 1),
     "graph": (337, 10_521, 1),
@@ -58,8 +60,8 @@ COMMAND_BASELINES = {
     "literature-review": (594, 27_547, 1),
     "map-research": (614, 23_176, 1),
     "merge-phases": (387, 12_059, 1),
-    "new-milestone": (852, 41_088, 1),
-    "new-project": (2_406, 101_367, 1),
+    "new-milestone": (802, 38_778, 1),
+    "new-project": (2_087, 96_950, 1),
     "numerical-convergence": (570, 27_200, 1),
     "parameter-sweep": (840, 31_582, 1),
     "pause-work": (300, 13_612, 1),
@@ -67,13 +69,13 @@ COMMAND_BASELINES = {
     "plan-milestone-gaps": (357, 11_455, 1),
     "plan-phase": (1_067, 53_460, 1),
     "progress": (605, 19_549, 1),
-    "quick": (458, 19_574, 1),
+    "quick": (434, 18_919, 1),
     "reapply-patches": (155, 4_901, 1),
     "record-backtrack": (247, 10_276, 1),
     "record-insight": (161, 4_865, 1),
     "regression-check": (180, 6_710, 1),
     "remove-phase": (231, 6_102, 1),
-    "research-phase": (433, 18_247, 2),
+    "research-phase": (367, 15_316, 1),
     "respond-to-referees": (2_438, 117_818, 2),
     "resume-work": (633, 31_279, 1),
     "review-knowledge": (770, 26_193, 1),
@@ -94,7 +96,7 @@ COMMAND_BASELINES = {
     "update": (250, 6_145, 1),
     "validate-conventions": (267, 10_133, 1),
     "verify-work": (720, 35_132, 1),
-    "write-paper": (2_465, 127_530, 1),
+    "write-paper": (1_992, 105_637, 1),
 }
 WORST_COMMAND_HARD_CAPS = {
     "write-paper": (2_550, 134_000),
@@ -104,6 +106,14 @@ WORST_COMMAND_HARD_CAPS = {
     "help": (1_460, 76_000),
     "peer-review": (1_260, 75_000),
 }
+PROJECTED_COMMAND_HARD_CAPS = {
+    "execute-phase": (2_100, 116_000),
+    "new-project": (2_200, 106_000),
+    "research-phase": (430, 22_000),
+    "respond-to-referees": (1_000, 61_000),
+    "write-paper": (2_150, 117_000),
+}
+RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
 TOP_COMMAND_HARD_CAP_COUNT = 6
 BULKY_COMMAND_INCLUDE_FILES = (
     "peer-review-panel.md",
@@ -117,7 +127,7 @@ WORKFLOW_BASELINES = {
     "add-phase": (131, 3356, 0),
     "add-todo": (180, 5106, 0),
     "arxiv-submission": (551, 44012, 3),
-    "audit-milestone": (448, 16049, 2),
+    "audit-milestone": (430, 15206, 1),
     "autonomous": (1028, 35321, 0),
     "branch-hypothesis": (334, 9657, 0),
     "check-todos": (196, 5207, 0),
@@ -137,7 +147,7 @@ WORKFLOW_BASELINES = {
     "error-propagation": (387, 17168, 0),
     "execute-phase": (1974, 102408, 2),
     "execute-plan": (802, 51666, 0),
-    "explain": (287, 11438, 2),
+    "explain": (269, 10580, 1),
     "export": (432, 11274, 0),
     "export-logs": (165, 5397, 0),
     "graph": (258, 8104, 0),
@@ -148,8 +158,8 @@ WORKFLOW_BASELINES = {
     "literature-review": (528, 25198, 1),
     "map-research": (574, 21688, 1),
     "merge-phases": (348, 11234, 0),
-    "new-milestone": (763, 37715, 3),
-    "new-project": (1962, 90928, 5),
+    "new-milestone": (727, 35998, 1),
+    "new-project": (1949, 90360, 2),
     "numerical-convergence": (482, 23820, 0),
     "parameter-sweep": (748, 28648, 1),
     "pause-work": (273, 13060, 0),
@@ -157,7 +167,7 @@ WORKFLOW_BASELINES = {
     "plan-milestone-gaps": (290, 7888, 0),
     "plan-phase": (1018, 51961, 1),
     "progress": (574, 19223, 0),
-    "quick": (377, 16578, 3),
+    "quick": (348, 15685, 1),
     "reapply-patches": (114, 3750, 0),
     "record-backtrack": (208, 9259, 0),
     "record-insight": (122, 3969, 0),
@@ -185,7 +195,7 @@ WORKFLOW_BASELINES = {
     "validate-conventions": (225, 8911, 1),
     "verify-phase": (2650, 135785, 8),
     "verify-work": (647, 33242, 2),
-    "write-paper": (2360, 125155, 9),
+    "write-paper": (1844, 99703, 7),
 }
 WORST_WORKFLOW_HARD_CAPS = {
     "verify-phase": (2_700, 138_000),
@@ -233,6 +243,22 @@ def test_worst_expanded_command_prompts_stay_under_hard_caps(command_name: str) 
         COMMANDS_DIR / f"{command_name}.md",
         src_root=SOURCE_ROOT,
         path_prefix=PATH_PREFIX,
+    )
+
+    assert metrics.expanded_line_count <= max_lines
+    assert metrics.expanded_char_count <= max_chars
+
+
+@pytest.mark.parametrize("runtime", RUNTIME_NAMES)
+@pytest.mark.parametrize("command_name", sorted(PROJECTED_COMMAND_HARD_CAPS))
+def test_actual_runtime_projected_command_prompts_stay_under_hard_caps(command_name: str, runtime: str) -> None:
+    max_lines, max_chars = PROJECTED_COMMAND_HARD_CAPS[command_name]
+    metrics = measure_projected_prompt_surface(
+        COMMANDS_DIR / f"{command_name}.md",
+        runtime=runtime,
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+        command_name=command_name,
     )
 
     assert metrics.expanded_line_count <= max_lines

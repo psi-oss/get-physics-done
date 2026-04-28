@@ -176,38 +176,24 @@ def _uv_build_blocked_by_environment(stderr: str) -> bool:
 
 
 def _copy_checkout_for_release_test(repo_root: Path, destination: Path) -> None:
-    shutil.copytree(
-        repo_root,
-        destination,
-        ignore=shutil.ignore_patterns(
-            ".git",
-            ".coverage",
-            ".coverage.*",
-            ".mypy_cache",
-            ".nox",
-            ".npm-cache",
-            ".pytest_cache",
-            ".ruff_cache",
-            ".tox",
-            ".uv-cache",
-            ".venv",
-            "__pycache__",
-            "*.egg-info",
-            "*.prof",
-            "*.profdata",
-            "*.profraw",
-            "*.pyc",
-            "*.pyo",
-            "build",
-            "coverage.xml",
-            "dist",
-            "GPD*",
-            "htmlcov",
-            "junit.xml",
-            "pytest-report.xml",
-            "tmp",
-        ),
+    result = subprocess.run(
+        ["git", "ls-files", "--cached", "-z"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
     )
+    destination.mkdir(parents=True, exist_ok=True)
+    for path_text in result.stdout.split("\0"):
+        if not path_text:
+            continue
+        relative_path = Path(path_text)
+        assert not relative_path.is_absolute()
+        assert ".." not in relative_path.parts
+        source = repo_root / relative_path
+        target = destination / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target, follow_symlinks=False)
 
 
 def _copy_release_surfaces(repo_root: Path, out_dir: Path) -> None:
@@ -859,7 +845,7 @@ def test_model_visible_command_note_does_not_depend_on_live_registry(monkeypatch
 
     note = model_visible_text.command_visibility_note()
 
-    assert "`agent` when present must match a built-in canonical agent label exactly" in note
+    assert "`agent` must match a built-in canonical agent label exactly" in note
     assert "gpd-planner" not in note
 
 
@@ -1100,8 +1086,141 @@ def test_human_author_check_rejects_lowercase_codex_coauthor_in_range(tmp_path: 
     )
 
     assert result.returncode == 1
-    assert "non-human co-author lines found" in result.stderr
+    assert "non-human commit attribution found" in result.stderr
+    assert "co-author trailer: co-authored-by: Codex" in result.stderr
     assert "change" in result.stderr
+
+
+def test_human_author_check_rejects_nonhuman_author_and_committer_in_range(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
+
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    (tmp_path / "README.md").write_text("seed\nchange\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    env = os.environ.copy()
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "Codex Bot",
+            "GIT_AUTHOR_EMAIL": "codex@example.com",
+            "GIT_COMMITTER_NAME": "Copilot Bot",
+            "GIT_COMMITTER_EMAIL": "copilot@example.com",
+        }
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "ai attributed"],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    result = subprocess.run(
+        ["sh", str(hook_script), "--range", "HEAD~1..HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "author: Codex Bot <codex@example.com>" in result.stderr
+    assert "committer: Copilot Bot <copilot@example.com>" in result.stderr
+
+
+def test_human_author_check_allows_explicit_repository_automation_identities(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=tmp_path, check=True)
+
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    (tmp_path / "README.md").write_text("seed\nrelease\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    automation_env = os.environ.copy()
+    automation_env.update(
+        {
+            "GIT_AUTHOR_NAME": "github-actions[bot]",
+            "GIT_AUTHOR_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
+            "GIT_COMMITTER_NAME": "github-actions[bot]",
+            "GIT_COMMITTER_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
+        }
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "release: v9.9.9"],
+        cwd=tmp_path,
+        env=automation_env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    (tmp_path / "README.md").write_text("seed\nrelease\nmerge\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    github_merge_env = os.environ.copy()
+    github_merge_env.update(
+        {
+            "GIT_AUTHOR_NAME": "Human Author",
+            "GIT_AUTHOR_EMAIL": "human@example.com",
+            "GIT_COMMITTER_NAME": "GitHub",
+            "GIT_COMMITTER_EMAIL": "noreply@github.com",
+        }
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Merge pull request #999 from psi-oss/release/v9.9.9"],
+        cwd=tmp_path,
+        env=github_merge_env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    result = subprocess.run(
+        ["sh", str(hook_script), "--range", "HEAD~2..HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Human author attribution check passed" in result.stdout
+
+
+def test_human_author_commit_msg_hook_rejects_nonhuman_current_identity(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "codex@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Codex Bot"], cwd=tmp_path, check=True)
+    message_path = tmp_path / "COMMIT_EDITMSG"
+    message_path.write_text("change\n", encoding="utf-8")
+
+    result = subprocess.run(
+        ["sh", str(hook_script), str(message_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "non-human commit attribution detected" in result.stderr
+    assert "author: Codex Bot <codex@example.com>" in result.stderr
 
 
 def test_human_author_check_fails_closed_on_invalid_range(tmp_path: Path) -> None:
@@ -1126,6 +1245,38 @@ def test_human_author_check_fails_closed_on_invalid_range(tmp_path: Path) -> Non
 
     assert result.returncode == 1
     assert "invalid git range missing-base..HEAD" in result.stderr
+
+
+def test_release_test_checkout_fixture_copies_only_tracked_files(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    checkout_root = tmp_path / "checkout"
+    source_root.mkdir()
+
+    subprocess.run(["git", "init"], cwd=source_root, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "human@example.com"], cwd=source_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Human Author"], cwd=source_root, check=True)
+
+    (source_root / ".gitignore").write_text("ignored-artifact.txt\n", encoding="utf-8")
+    (source_root / "tracked.txt").write_text("tracked from working tree\n", encoding="utf-8")
+    (source_root / "nested").mkdir()
+    (source_root / "nested" / "tracked.py").write_text("print('tracked')\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", ".gitignore", "tracked.txt", "nested/tracked.py"],
+        cwd=source_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (source_root / "untracked-artifact.txt").write_text("untracked\n", encoding="utf-8")
+    (source_root / "ignored-artifact.txt").write_text("ignored\n", encoding="utf-8")
+
+    _copy_checkout_for_release_test(source_root, checkout_root)
+
+    assert (checkout_root / "tracked.txt").read_text(encoding="utf-8") == "tracked from working tree\n"
+    assert (checkout_root / "nested" / "tracked.py").is_file()
+    assert not (checkout_root / ".git").exists()
+    assert not (checkout_root / "untracked-artifact.txt").exists()
+    assert not (checkout_root / "ignored-artifact.txt").exists()
 
 
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:

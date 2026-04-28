@@ -323,6 +323,9 @@ def test_runtime_cli_classifies_bridge_failures_with_stable_kinds(
     manifest_scope_status, manifest_scope_payload, manifest_install_scope = runtime_cli.load_install_manifest_scope_status(
         config_dir
     )
+    manifest_explicit_target_status, _manifest_explicit_target_payload, _manifest_explicit_target = (
+        runtime_cli.load_install_manifest_explicit_target_status(config_dir)
+    )
     if manifest_scope_status == "ok":
         manifest_install_scope = manifest_scope_payload.get("install_scope")
         if not isinstance(manifest_install_scope, str):
@@ -338,6 +341,7 @@ def test_runtime_cli_classifies_bridge_failures_with_stable_kinds(
         manifest_runtime=manifest_runtime,
         manifest_scope_status=manifest_scope_status,
         manifest_install_scope=manifest_install_scope,
+        manifest_explicit_target_status=manifest_explicit_target_status,
         missing=artifact_override,
         has_managed_install_markers=runtime_cli.config_dir_has_managed_install_markers(config_dir),
     )

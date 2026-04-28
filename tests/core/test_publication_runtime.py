@@ -11,7 +11,15 @@ from gpd.core.publication_rounds import (
 from gpd.core.publication_runtime import publication_runtime_snapshot_context, resolve_publication_runtime_snapshot
 from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.core.reproducibility import compute_sha256
-from gpd.mcp.paper.models import ReviewConfidence, ReviewLedger, ReviewRecommendation
+from gpd.mcp.paper.models import (
+    ReviewConfidence,
+    ReviewIssue,
+    ReviewIssueSeverity,
+    ReviewIssueStatus,
+    ReviewLedger,
+    ReviewRecommendation,
+    ReviewStageKind,
+)
 from gpd.mcp.paper.review_artifacts import write_referee_decision, write_review_ledger
 
 
@@ -246,6 +254,146 @@ def test_publication_runtime_marks_review_round_invalid_when_ledger_content_roun
     assert "review ledger round 1 does not match review artifact round 2" in snapshot.latest_review_artifacts.detail
 
 
+def test_publication_runtime_rejects_complete_review_round_with_duplicate_ledger_issue_ids(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(
+            round=2,
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.reader,
+                    severity=ReviewIssueSeverity.minor,
+                    summary="First copy.",
+                    status=ReviewIssueStatus.resolved,
+                ),
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.minor,
+                    summary="Duplicate copy.",
+                    status=ReviewIssueStatus.resolved,
+                ),
+            ],
+        ),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.minor_revision,
+            final_confidence=ReviewConfidence.medium,
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "review ledger contains duplicate issue IDs: REF-001" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_rejects_complete_review_round_with_unknown_blocking_issue_ids(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(
+            round=2,
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.reader,
+                    severity=ReviewIssueSeverity.minor,
+                    summary="Resolved issue.",
+                    status=ReviewIssueStatus.resolved,
+                )
+            ],
+        ),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.major_revision,
+            final_confidence=ReviewConfidence.medium,
+            blocking_issue_ids=["REF-999"],
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "invalid"
+    assert "blocking_issue_ids not found in review ledger: REF-999" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_blocks_complete_review_round_with_unresolved_blocking_issues(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    review_dir = tmp_path / "GPD" / "review"
+    review_dir.mkdir(parents=True)
+    write_review_ledger(
+        ReviewLedger(
+            round=2,
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.major,
+                    blocking=True,
+                    summary="Central evidence is incomplete.",
+                    status=ReviewIssueStatus.open,
+                )
+            ],
+        ),
+        review_dir / "REVIEW-LEDGER-R2.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            final_recommendation=ReviewRecommendation.major_revision,
+            final_confidence=ReviewConfidence.medium,
+            unresolved_major_issues=1,
+            blocking_issue_ids=["REF-001"],
+        ),
+        review_dir / "REFEREE-DECISION-R2.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "blocked"
+    assert "unresolved blocking review-ledger issues remain: REF-001" in snapshot.latest_review_artifacts.detail
+
+
 def test_publication_runtime_requires_referee_reports_for_complete_review_round(
     tmp_path: Path,
 ) -> None:
@@ -316,6 +464,41 @@ def test_publication_runtime_does_not_fall_back_past_malformed_latest_review_rou
     assert snapshot.latest_review_artifacts.complete is False
     assert snapshot.latest_review_artifacts.state == "invalid"
     assert "review ledger could not be loaded" in snapshot.latest_review_artifacts.detail
+
+
+def test_publication_runtime_does_not_fall_back_past_mixed_active_latest_review_round(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "paper" / "main.tex", "\\documentclass{article}\\begin{document}Paper\\end{document}\n")
+    _write_artifact_manifest(tmp_path / "paper", "main.tex")
+    _write(tmp_path / "paper" / "other.tex", "\\documentclass{article}\\begin{document}Other\\end{document}\n")
+    review_dir = tmp_path / "GPD" / "review"
+    _write_review_round(review_dir, manuscript_path="paper/main.tex", round_number=2)
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.md", "# Referee Report R2\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R2.tex", "\\section*{Referee Report R2}\n")
+    write_review_ledger(
+        ReviewLedger(round=3, manuscript_path="paper/main.tex", issues=[]),
+        review_dir / "REVIEW-LEDGER-R3.json",
+    )
+    write_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/other.tex",
+            final_recommendation=ReviewRecommendation.minor_revision,
+            final_confidence=ReviewConfidence.medium,
+        ),
+        review_dir / "REFEREE-DECISION-R3.json",
+    )
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R3.md", "# Referee Report R3\n")
+    _write(tmp_path / "GPD" / "REFEREE-REPORT-R3.tex", "\\section*{Referee Report R3}\n")
+
+    subject = resolve_explicit_publication_subject(tmp_path, "paper/main.tex")
+    snapshot = resolve_publication_runtime_snapshot(tmp_path, publication_subject=subject)
+
+    assert snapshot.latest_review_artifacts is not None
+    assert snapshot.latest_review_artifacts.round_number == 3
+    assert snapshot.latest_review_artifacts.complete is False
+    assert snapshot.latest_review_artifacts.state == "mismatched"
+    assert "referee decision does not match the resolved publication subject" in snapshot.latest_review_artifacts.detail
 
 
 def test_publication_runtime_reference_status_uses_canonical_subject_fields_for_invalid_explicit_target(

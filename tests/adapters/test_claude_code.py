@@ -12,6 +12,7 @@ import pytest
 
 from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.install_utils import build_runtime_cli_bridge_command, hook_python_interpreter
+from gpd.hooks.install_metadata import assess_install_target
 from gpd.version import __version__, version_for_gpd_root
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -887,6 +888,9 @@ class TestRuntimePermissions:
             adapter.finalize_install(result)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        assessment = assess_install_target(target, expected_runtime=adapter.runtime_name)
+        assert assessment.state == "owned_incomplete"
+        assert "settings.json" in assessment.missing_install_artifacts
 
     @pytest.mark.parametrize("missing_field", ["settingsPath", "settings", "statuslineCommand"])
     def test_finalize_install_fails_closed_for_missing_deferred_payload_field(
@@ -911,6 +915,7 @@ class TestRuntimePermissions:
         [
             ("settingsPath", ["settings.json"]),
             ("settings", []),
+            ("settings", {"hooks": []}),
             ("statuslineCommand", 123),
             ("shouldInstallStatusline", "yes"),
         ],
@@ -951,6 +956,9 @@ class TestRuntimePermissions:
             adapter.finalize_install(result)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        assessment = assess_install_target(target, expected_runtime=adapter.runtime_name)
+        assert assessment.state == "owned_incomplete"
+        assert "settings.json" in assessment.missing_install_artifacts
 
 
 class TestUninstall:

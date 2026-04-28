@@ -563,6 +563,7 @@ class AdvancePlanResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     advanced: bool
+    state_mutated: bool = False
     error: str | None = None
     reason: str | None = None
     previous_plan: int | None = None
@@ -1185,6 +1186,23 @@ def _continuation_payload_has_values(payload: object) -> bool:
         return not ContinuationState.model_validate(_normalize_continuation_payload(payload)).is_empty
     except PydanticValidationError:
         return False
+
+
+def _bounded_segment_payload_from_continuation_payload(
+    payload: object,
+    *,
+    project_root: Path | None = None,
+) -> dict[str, object] | None:
+    """Return a normalized non-empty bounded segment from a continuation payload."""
+
+    try:
+        continuation = normalize_continuation(project_root, payload)
+    except PydanticValidationError:
+        return None
+    segment = continuation.bounded_segment
+    if segment is None or segment.is_empty:
+        return None
+    return segment.model_dump(mode="python")
 
 
 def _session_payload_has_recovery_values(payload: object) -> bool:
@@ -2952,6 +2970,12 @@ def _valid_intent_temp_path(cwd: Path, raw_path: str, *, expected: str) -> Path 
     return candidate
 
 
+def _markdown_comparable_continuation_payload(payload: object) -> dict[str, object]:
+    comparable = _normalize_continuation_payload(payload)
+    comparable["bounded_segment"] = None
+    return comparable
+
+
 def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
     """Return whether ``state.json.bak`` is older than the markdown state mirror."""
 
@@ -2989,11 +3013,14 @@ def _backup_is_stale_for_markdown(backup_path: Path, md_path: Path) -> bool:
         "approximations",
         "propagated_uncertainties",
         "pending_todos",
-        "continuation",
     )
     for field in comparable_fields:
         if field in md_payload and backup_normalized.get(field) != md_payload.get(field):
             return True
+    if "continuation" in md_payload and _markdown_comparable_continuation_payload(
+        backup_normalized.get("continuation")
+    ) != _markdown_comparable_continuation_payload(md_payload.get("continuation")):
+        return True
     if md_payload.get("convention_lock") and backup_normalized.get("convention_lock") != md_payload.get(
         "convention_lock"
     ):
@@ -3184,6 +3211,7 @@ def _build_state_from_markdown(
 
     existing = None
     primary_unreadable = False
+    stale_backup_bounded_segment: dict[str, object] | None = None
     try:
         existing = json.loads(json_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -3204,6 +3232,15 @@ def _build_state_from_markdown(
         backup_existing = _load_state_backup_payload(cwd, backup_path)
         if backup_existing is not None:
             existing = copy.deepcopy(backup_existing)
+        else:
+            stale_backup_existing = _load_state_backup_payload(cwd, backup_path, require_fresh=False)
+            if stale_backup_existing is not None:
+                stale_backup_bounded_segment = _bounded_segment_payload_from_continuation_payload(
+                    stale_backup_existing.get("continuation"),
+                    project_root=cwd,
+                )
+                if stale_backup_bounded_segment is not None:
+                    existing = {"continuation": {"bounded_segment": copy.deepcopy(stale_backup_bounded_segment)}}
 
     if existing and isinstance(existing, dict):
         if primary_unreadable and existing.get("project_contract") is not None:
@@ -3263,7 +3300,16 @@ def _build_state_from_markdown(
 
         existing_continuation = existing.get("continuation")
         parsed_continuation = parsed.get("continuation")
-        if _continuation_payload_has_values(existing_continuation):
+        if (
+            stale_backup_bounded_segment is not None
+            and allow_markdown_continuation
+            and _continuation_payload_has_values(parsed_continuation)
+        ):
+            merged_continuation = _normalize_continuation_payload(parsed_continuation, project_root=cwd)
+            if merged_continuation.get("bounded_segment") is None:
+                merged_continuation["bounded_segment"] = copy.deepcopy(stale_backup_bounded_segment)
+            merged["continuation"] = merged_continuation
+        elif _continuation_payload_has_values(existing_continuation):
             merged["continuation"] = copy.deepcopy(existing_continuation)
         elif allow_markdown_continuation and _continuation_payload_has_values(parsed_continuation):
             merged["continuation"] = copy.deepcopy(parsed_continuation)
@@ -4583,6 +4629,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
             _write_state_markdown_locked(cwd, content)
             return AdvancePlanResult(
                 advanced=False,
+                state_mutated=True,
                 reason="last_plan",
                 current_plan=current_plan,
                 total_plans_in_phase=total_plans,
@@ -4599,6 +4646,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
         _write_state_markdown_locked(cwd, content)
         return AdvancePlanResult(
             advanced=True,
+            state_mutated=True,
             previous_plan=current_plan,
             current_plan=new_plan,
             total_plans_in_phase=total_plans,

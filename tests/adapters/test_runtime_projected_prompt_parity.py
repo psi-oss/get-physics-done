@@ -14,10 +14,10 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, iter_runtime_descriptors
 from gpd.core.model_visible_text import (
     agent_visibility_note,
-    command_visibility_note,
     review_contract_visibility_note,
 )
 from gpd.registry import _frontmatter_parts, _load_frontmatter_mapping, _parse_spawn_contracts
+from tests.prompt_metrics_support import runtime_command_visibility_note
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -48,7 +48,7 @@ def _contract_bearing_command_surfaces() -> dict[str, tuple[str, ...]]:
     surfaces: dict[str, tuple[str, ...]] = {}
     for command_name in _command_names():
         meta = _command_frontmatter(command_name)
-        fragments = [command_visibility_note()]
+        fragments = []
         review_contract = meta.get("review-contract")
         if isinstance(review_contract, dict):
             fragments.append(review_contract_visibility_note())
@@ -160,6 +160,8 @@ def _extract_spawn_contracts(text: str) -> list[dict[str, object]]:
 def test_runtime_projected_commands_keep_model_visible_contract_wrappers(command_name: str, expected_fragments: tuple[str, ...], runtime: str) -> None:
     projected = _project_markdown(COMMANDS_DIR / f"{command_name}.md", runtime, is_agent=False)
 
+    assert projected.count("## Command Requirements") == 1
+    assert runtime_command_visibility_note(runtime) in projected
     for fragment in _runtime_expected_fragments(expected_fragments, runtime=runtime):
         assert fragment in projected, f"{runtime} {command_name} missing {fragment!r}"
 
@@ -330,3 +332,31 @@ def test_projected_command_surfaces_rewrite_fenced_cli_invocations_to_runtime_br
 
     assert f"{bridge} --raw init progress --include state,config" in projected
     assert "Inline `gpd --raw init progress` stays prose." in projected
+
+
+@pytest.mark.parametrize("runtime", RUNTIMES)
+def test_projected_command_surfaces_rewrite_tilde_fenced_cli_invocations_to_runtime_bridge(
+    runtime: str,
+    tmp_path: Path,
+) -> None:
+    descriptor = get_runtime_descriptor(runtime)
+    target_dir = tmp_path / descriptor.config_dir_name
+    bridge = _bridge_for_projection(runtime, target_dir)
+    source = (
+        "---\n"
+        "name: gpd:projection-probe\n"
+        "description: Projection probe\n"
+        "allowed-tools:\n"
+        "  - shell\n"
+        "---\n"
+        "Inline `gpd status` stays prose.\n"
+        "\n"
+        "~~~bash\n"
+        "gpd --raw init progress --include state,config\n"
+        "~~~\n"
+    )
+
+    projected = _project_fixture_command(source, runtime, target_dir)
+
+    assert f"{bridge} --raw init progress --include state,config" in projected
+    assert "Inline `gpd status` stays prose." in projected

@@ -955,7 +955,7 @@ Resolve bibliographer model:
 ```bash
 BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+Apply the canonical runtime delegation convention already loaded above.
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
@@ -1174,7 +1174,7 @@ When revising a paper in response to referee reports:
 
 3. **Produce paired response artifacts after the edits land:** Spawn a paper-writer agent to produce the structured author response and response letter that the gpd-referee expects for multi-round review:
 
-   @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
+   Apply the canonical runtime delegation convention already loaded above.
 
    > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

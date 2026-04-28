@@ -156,16 +156,17 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
             if state_updates.advance_plan:
                 current_operation = "advance_plan"
                 result = state_advance_plan(cwd)
-                _record_bool_result(
+                advance_mutated = bool(getattr(result, "state_mutated", result.advanced))
+                _record_advance_plan_result(
                     result.advanced,
+                    state_mutated=advance_mutated,
                     error=getattr(result, "error", None),
                     reason=getattr(result, "reason", None),
-                    operation="advance_plan",
                     errors=errors,
                     warnings=warnings,
                     applied=applied_state_operations,
                 )
-                if result.advanced:
+                if advance_mutated:
                     _refresh_mutation_expectations()
             if state_updates.update_progress:
                 current_operation = "update_progress"
@@ -569,6 +570,35 @@ def _record_bool_result(
         return
 
     errors.append(f"{operation}: {reason or 'operation failed'}")
+
+
+def _record_advance_plan_result(
+    advanced: bool,
+    *,
+    state_mutated: bool,
+    error: str | None,
+    reason: str | None,
+    errors: list[str],
+    warnings: list[str],
+    applied: list[str],
+) -> None:
+    if error:
+        errors.append(f"advance_plan: {error}")
+        return
+    if advanced:
+        applied.append("advance_plan")
+        return
+    if state_mutated:
+        applied.append("advance_plan:last_plan")
+        if reason:
+            warnings.append(f"advance_plan: {reason}")
+        return
+    if _is_noop_reason(reason):
+        applied.append("advance_plan:noop")
+        if reason:
+            warnings.append(f"advance_plan: {reason}")
+        return
+    errors.append(f"advance_plan: {reason or 'operation failed'}")
 
 
 def _record_state_update_result(

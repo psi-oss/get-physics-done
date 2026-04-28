@@ -25,6 +25,7 @@ from gpd.adapters.gemini import (
     _rewrite_gpd_cli_invocations,
 )
 from gpd.adapters.install_utils import build_runtime_cli_bridge_command, hook_python_interpreter
+from gpd.hooks.install_metadata import assess_install_target
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
     compile_review_contract_fixture_for_runtime,
@@ -1307,12 +1308,15 @@ class TestInstall:
             adapter.finalize_install(result)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        assessment = assess_install_target(target, expected_runtime=adapter.runtime_name)
+        assert assessment.state == "owned_incomplete"
+        assert "settings.json" in assessment.missing_install_artifacts
 
     @pytest.mark.parametrize(
-        ("settings_key", "expected_error"),
+        ("settings_key", "expected_error", "expected_missing"),
         [
-            ("hooks", "update hook not configured"),
-            ("mcpServers", "MCP servers are not configured"),
+            ("hooks", "update hook not configured", "settings.json update hook"),
+            ("mcpServers", "MCP servers are not configured", "settings.json mcpServers"),
         ],
     )
     def test_finalize_install_verifies_persisted_settings(
@@ -1322,6 +1326,7 @@ class TestInstall:
         tmp_path: Path,
         settings_key: str,
         expected_error: str,
+        expected_missing: str,
     ) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()
@@ -1333,6 +1338,9 @@ class TestInstall:
 
         assert (target / "settings.json").exists()
         assert result.get("settingsWritten") is not True
+        assessment = assess_install_target(target, expected_runtime=adapter.runtime_name)
+        assert assessment.state == "owned_incomplete"
+        assert expected_missing in assessment.missing_install_artifacts
 
     @pytest.mark.parametrize("missing_field", ["settingsPath", "settings", "statuslineCommand"])
     def test_finalize_install_fails_closed_for_missing_deferred_payload_field(
@@ -1357,6 +1365,7 @@ class TestInstall:
         [
             ("settingsPath", ["settings.json"]),
             ("settings", []),
+            ("settings", {"policyPaths": {}}),
             ("statuslineCommand", 123),
             ("shouldInstallStatusline", "yes"),
             ("settingsWritten", "yes"),
@@ -1398,6 +1407,9 @@ class TestInstall:
             adapter.finalize_install(result)
 
         assert settings_path.read_text(encoding="utf-8") == before
+        assessment = assess_install_target(target, expected_runtime=adapter.runtime_name)
+        assert assessment.state == "owned_incomplete"
+        assert "settings.json" in assessment.missing_install_artifacts
 
     def test_install_agents_at_includes_receive_runtime(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path

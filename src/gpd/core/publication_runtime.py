@@ -44,8 +44,10 @@ from gpd.core.publication_rounds import (
     publication_response_round_path_maps,
     publication_review_round_path_maps,
 )
+from gpd.core.referee_policy import validate_referee_decision_ledger_consistency
 from gpd.core.reference_ingestion import ManuscriptReferenceStatusIngestion, ingest_manuscript_reference_status
 from gpd.core.state import load_state_json
+from gpd.mcp.paper.models import ReviewIssueStatus
 from gpd.mcp.paper.review_artifacts import read_referee_decision, read_review_ledger
 
 __all__ = [
@@ -559,23 +561,58 @@ def _review_artifact_state(
         )
 
     if manuscript_entrypoint is not None:
+        matched: list[str] = []
         mismatched: list[str] = []
-        if ledger is not None and not manuscript_matches_review_artifact_path(
-            ledger.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            mismatched.append("review ledger")
-        if decision is not None and not manuscript_matches_review_artifact_path(
-            decision.manuscript_path,
-            manuscript_entrypoint,
-            cwd=project_root,
-        ):
-            mismatched.append("referee decision")
+        if ledger is not None:
+            if manuscript_matches_review_artifact_path(
+                ledger.manuscript_path,
+                manuscript_entrypoint,
+                cwd=project_root,
+            ):
+                matched.append("review ledger")
+            else:
+                mismatched.append("review ledger")
+        if decision is not None:
+            if manuscript_matches_review_artifact_path(
+                decision.manuscript_path,
+                manuscript_entrypoint,
+                cwd=project_root,
+            ):
+                matched.append("referee decision")
+            else:
+                mismatched.append("referee decision")
         if mismatched:
+            if not matched:
+                return (
+                    "unrelated",
+                    "review round does not match the resolved publication subject",
+                    (),
+                    proof_redteam_required,
+                )
             return (
                 "mismatched",
                 " or ".join(mismatched) + " does not match the resolved publication subject",
+                (),
+                proof_redteam_required,
+            )
+
+    if ledger is not None and decision is not None:
+        consistency_errors = validate_referee_decision_ledger_consistency(decision, ledger)
+        if consistency_errors:
+            return (
+                "invalid",
+                "review ledger/referee decision semantics failed: " + "; ".join(consistency_errors[:3]),
+                (),
+                proof_redteam_required,
+            )
+
+        unresolved_blocking_issue_ids = sorted(
+            issue.issue_id for issue in ledger.issues if issue.blocking and issue.status != ReviewIssueStatus.resolved
+        )
+        if unresolved_blocking_issue_ids:
+            return (
+                "blocked",
+                "unresolved blocking review-ledger issues remain: " + ", ".join(unresolved_blocking_issue_ids),
                 (),
                 proof_redteam_required,
             )
@@ -792,7 +829,7 @@ def resolve_latest_publication_review_artifacts(
             project_root=project_root,
             round_number=round_number,
         )
-        if state == "mismatched":
+        if state == "unrelated":
             continue
 
         return PublicationReviewArtifacts(

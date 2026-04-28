@@ -5561,8 +5561,8 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["artifact_manifest"]["passed"] is False
-        assert "could not parse artifact manifest" in checks["artifact_manifest"]["detail"]
+        assert checks["manuscript"]["passed"] is False
+        assert "ARTIFACT-MANIFEST.json is invalid" in checks["manuscript"]["detail"]
 
     def test_review_preflight_peer_review_strict_rejects_blank_artifact_manifest_title(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"
@@ -5579,9 +5579,9 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["artifact_manifest"]["passed"] is False
-        assert "artifact manifest is invalid" in checks["artifact_manifest"]["detail"]
-        assert "artifact_manifest.paper_title" in checks["artifact_manifest"]["detail"]
+        assert checks["manuscript"]["passed"] is False
+        assert "ARTIFACT-MANIFEST.json is invalid" in checks["manuscript"]["detail"]
+        assert "paper_title" in checks["manuscript"]["detail"]
 
     def test_review_preflight_peer_review_strict_rejects_stale_artifact_manifest_checksum(
         self,
@@ -8088,7 +8088,7 @@ class TestReviewValidationCommands:
                 {
                     "version": 1,
                     "paper_title": "Benchmark Paper",
-                    "journal": "prd",
+                    "journal": "jhep",
                     "created_at": "2026-03-13T00:00:00+00:00",
                     "artifacts": [],
                 }

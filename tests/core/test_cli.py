@@ -188,6 +188,13 @@ def _bootstrap_publication_project(project_root: Path) -> None:
     (planning / "CONVENTIONS.md").write_text("# Conventions\n", encoding="utf-8")
 
 
+def _mark_verified_project_root(project_root: Path) -> None:
+    planning = project_root / "GPD"
+    planning.mkdir(parents=True, exist_ok=True)
+    save_state_json(project_root, default_state_dict())
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+
+
 def _write_write_paper_authoring_input(
     workspace: Path,
     *,
@@ -469,8 +476,8 @@ def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp
     project_root = tmp_path / "project"
     nested_workspace = project_root / "notes" / "scratch"
     nested_workspace.mkdir(parents=True)
+    _mark_verified_project_root(project_root)
     config_path = project_root / "GPD" / "integrations.json"
-    config_path.parent.mkdir(parents=True)
     config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
 
     status_result = runner.invoke(app, ["--cwd", str(nested_workspace), "--raw", "integrations", "status", "wolfram"])
@@ -2771,7 +2778,7 @@ def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
     contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
@@ -3084,7 +3091,7 @@ def test_state_load(mock_load):
 def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     mock_result = MagicMock()
@@ -3244,7 +3251,7 @@ def test_state_set_project_contract_uses_ancestor_project_root_from_nested_cwd(
 ) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
     contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
@@ -3437,7 +3444,7 @@ def test_state_validate_does_not_recover_pending_state_intent(tmp_path: Path) ->
 def _nested_project_root(tmp_path: Path) -> tuple[Path, Path]:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "workspace" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     return project_root, nested_cwd
 
@@ -6255,7 +6262,7 @@ def test_cli_invocation_does_not_write_observability_files_without_explicit_even
 def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_path: Path, monkeypatch) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     mock_result = MagicMock()
@@ -6273,7 +6280,7 @@ def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_pa
 def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     nested_cwd.rmdir()
 
@@ -6291,7 +6298,7 @@ def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_p
 def test_suggest_forwards_limit_and_serializes_raw_output_from_nested_cwd(mock_suggest, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     nested_cwd = project_root / "work" / "nested"
-    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    _mark_verified_project_root(project_root)
     nested_cwd.mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -6603,7 +6610,7 @@ def test_init_respond_to_referees_stage_route_is_reachable(mock_init) -> None:
 def test_paper_build_uses_default_config_surface(tmp_path: Path):
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _mark_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -8117,7 +8124,7 @@ def test_paper_build_ignores_research_citation_sources_sidecar_when_literature_i
 ) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
-    (tmp_path / "GPD").mkdir()
+    _mark_verified_project_root(tmp_path)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(

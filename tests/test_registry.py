@@ -650,7 +650,7 @@ class TestParseCommandFile:
         )
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
-        assert "Strict booleans only." in cmd.content
+        assert "Strict booleans only" in cmd.content
         assert command_visibility_note() in cmd.content
         assert "GPD/ROADMAP.md" in cmd.content
         assert f"{COMMAND_POLICY_PROMPT_WRAPPER_KEY}:" in cmd.content
@@ -685,7 +685,7 @@ class TestParseCommandFile:
 
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
-        assert "Strict booleans only." in cmd.content
+        assert "Strict booleans only" in cmd.content
         assert cmd.content.index("## Review Contract") > cmd.content.index("## Command Requirements")
         assert cmd.content.endswith("Body.")
 

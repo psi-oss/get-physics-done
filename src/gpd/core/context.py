@@ -55,6 +55,7 @@ from gpd.core.continuation import (
     RESUMABLE_SEGMENT_STATUSES,
     ContinuationResumeSource,
     ContinuationSource,
+    normalize_continuation,
     normalize_continuation_reference,
     resolve_continuation,
 )
@@ -2428,7 +2429,17 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     continuation = getattr(resume_projection, "continuation", None)
     handoff = getattr(continuation, "handoff", None)
     recorded_machine = getattr(continuation, "machine", None)
+    canonical_continuation = normalize_continuation(
+        cwd,
+        state.get("continuation") if isinstance(state, dict) else None,
+    )
+    canonical_bounded_segment = canonical_continuation.bounded_segment
     has_active_resume_target = resume_projection.active_resume_source is not None
+    active_canonical_bounded_segment = (
+        canonical_bounded_segment
+        if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT
+        else None
+    )
     session_hostname = getattr(recorded_machine, "hostname", None) if has_active_resume_target else None
     session_platform = getattr(recorded_machine, "platform", None) if has_active_resume_target else None
     session_last_date = (
@@ -2448,11 +2459,61 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         execution_resume_file_source = "handoff_resume_file"
 
     segment_status = (snapshot.segment_status or "").strip().lower() if snapshot is not None else ""
+    bounded_segment_status = (
+        (active_canonical_bounded_segment.segment_status or "").strip().lower()
+        if active_canonical_bounded_segment is not None
+        else ""
+    )
+    snapshot_review_pending = bool(
+        snapshot
+        and (
+            snapshot.first_result_gate_pending
+            or snapshot.pre_fanout_review_pending
+            or snapshot.skeptical_requestioning_required
+            or snapshot.waiting_for_review
+            or segment_status == "waiting_review"
+        )
+    )
+    bounded_segment_review_pending = bool(
+        active_canonical_bounded_segment
+        and (
+            active_canonical_bounded_segment.first_result_gate_pending
+            or active_canonical_bounded_segment.pre_fanout_review_pending
+            or active_canonical_bounded_segment.skeptical_requestioning_required
+            or active_canonical_bounded_segment.waiting_for_review
+            or bounded_segment_status == "waiting_review"
+        )
+    )
+    snapshot_pre_fanout_review_pending = bool(snapshot and snapshot.pre_fanout_review_pending)
+    bounded_segment_pre_fanout_review_pending = bool(
+        active_canonical_bounded_segment and active_canonical_bounded_segment.pre_fanout_review_pending
+    )
+    snapshot_skeptical_requestioning_required = bool(snapshot and snapshot.skeptical_requestioning_required)
+    bounded_segment_skeptical_requestioning_required = bool(
+        active_canonical_bounded_segment and active_canonical_bounded_segment.skeptical_requestioning_required
+    )
+    snapshot_downstream_locked = bool(snapshot and snapshot.downstream_locked)
+    bounded_segment_downstream_locked = bool(
+        active_canonical_bounded_segment and active_canonical_bounded_segment.downstream_locked
+    )
+    snapshot_blocked = bool(snapshot and (snapshot.blocked_reason or segment_status == "blocked"))
+    bounded_segment_blocked = bool(
+        active_canonical_bounded_segment
+        and (active_canonical_bounded_segment.blocked_reason or bounded_segment_status == "blocked")
+    )
     is_resumable = bool(resume_projection.resumable)
+    snapshot_paused_at = (
+        snapshot.updated_at if snapshot is not None and segment_status in RESUMABLE_SEGMENT_STATUSES else None
+    )
+    bounded_segment_paused_at = (
+        active_canonical_bounded_segment.updated_at
+        if active_canonical_bounded_segment is not None and bounded_segment_status in RESUMABLE_SEGMENT_STATUSES
+        else None
+    )
     paused_at = (
-        snapshot.updated_at
-        if snapshot is not None and segment_status in RESUMABLE_SEGMENT_STATUSES
-        else (position.get("paused_at") if isinstance(position, dict) else None)
+        snapshot_paused_at
+        or bounded_segment_paused_at
+        or (position.get("paused_at") if isinstance(position, dict) else None)
     )
     resume_file = resume_projection.active_resume_file
     machine_change_detected = bool(
@@ -2474,19 +2535,15 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     return {
         "current_execution": current_execution_payload,
         "has_live_execution": snapshot is not None,
-        "execution_review_pending": bool(
-            snapshot
-            and (
-                snapshot.first_result_gate_pending
-                or snapshot.pre_fanout_review_pending
-                or snapshot.skeptical_requestioning_required
-                or snapshot.waiting_for_review
-            )
+        "execution_review_pending": snapshot_review_pending or bounded_segment_review_pending,
+        "execution_pre_fanout_review_pending": (
+            snapshot_pre_fanout_review_pending or bounded_segment_pre_fanout_review_pending
         ),
-        "execution_pre_fanout_review_pending": bool(snapshot and snapshot.pre_fanout_review_pending),
-        "execution_skeptical_requestioning_required": bool(snapshot and snapshot.skeptical_requestioning_required),
-        "execution_downstream_locked": bool(snapshot and snapshot.downstream_locked),
-        "execution_blocked": bool(snapshot and snapshot.blocked_reason),
+        "execution_skeptical_requestioning_required": (
+            snapshot_skeptical_requestioning_required or bounded_segment_skeptical_requestioning_required
+        ),
+        "execution_downstream_locked": snapshot_downstream_locked or bounded_segment_downstream_locked,
+        "execution_blocked": snapshot_blocked or bounded_segment_blocked,
         "execution_resumable": is_resumable,
         "execution_paused_at": paused_at,
         "current_execution_resume_file": current_execution_resume_file,

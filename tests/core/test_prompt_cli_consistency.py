@@ -845,8 +845,8 @@ def test_command_requirements_force_concrete_next_up_for_stops() -> None:
     note = command_visibility_note()
 
     assert "completion, checkpoint, blocked return, failed return, retry gate, or stop" in note
-    assert "must end with a concrete `## > Next Up` section" in note
-    assert "copy-pasteable GPD commands" in note
+    assert "must end with `## > Next Up`" in note
+    assert "concrete GPD commands" in note
     assert "`gpd:suggest-next`" in note
 
 

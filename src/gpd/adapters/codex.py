@@ -798,6 +798,10 @@ class CodexAdapter(RuntimeAdapter):
 
     def _preflight_runtime_config(self, target_dir: Path, is_global: bool) -> None:
         """Fail before copying files when project-owned integration config is malformed."""
+        config_path = target_dir / "config.toml"
+        _, config_error = _read_codex_runtime_config(config_path)
+        if config_error is not None:
+            raise RuntimeError("Codex config.toml is malformed; refusing to overwrite it during install.")
         self._preflight_project_integrations_config(target_dir, is_global)
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:

@@ -342,16 +342,23 @@ def rewrite_gpd_cli_invocations_to_runtime_bridge(
 ) -> str:
     """Rewrite fenced-shell command-position ``gpd`` calls to the runtime bridge."""
     rewritten: list[str] = []
+    active_fence_marker: str | None = None
     in_shell_fence = False
 
     for line in content.splitlines(keepends=True):
         stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in shell_fence_languages
+        fence_marker = _markdown_fence_marker(stripped)
+        if fence_marker is not None:
+            if active_fence_marker is not None:
+                if fence_marker == active_fence_marker:
+                    active_fence_marker = None
+                    in_shell_fence = False
+                rewritten.append(line)
+                continue
+
+            active_fence_marker = fence_marker
+            fence_language = _markdown_fence_language(stripped, fence_marker)
+            in_shell_fence = fence_language in shell_fence_languages
             rewritten.append(line)
             continue
 
@@ -573,7 +580,7 @@ _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9
 _MARKDOWN_FRONTMATTER_RE = re.compile(
     r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
 )
-_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?`?(@[^\s`]+)`?(?:\s+.*)?$")
+_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?(@[^\s`]+)(?:\s+.*)?$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -607,7 +614,8 @@ _TEXT_INSTALL_ARTIFACT_SUFFIXES = frozenset({".md", ".toml"})
 
 def parse_at_include_path(line: str) -> str | None:
     """Return the include path for one installer-recognized ``@`` include line."""
-    include_match = _AT_INCLUDE_LINE_RE.match(line.strip())
+    stripped = line.strip()
+    include_match = _AT_INCLUDE_LINE_RE.match(stripped)
     if include_match is None:
         return None
 
@@ -625,6 +633,23 @@ def parse_at_include_path(line: str) -> str | None:
     if include_path.startswith(("GPD/", "path/")):
         return None
     return include_path
+
+
+def _markdown_fence_marker(stripped_line: str) -> str | None:
+    """Return the markdown fence marker for a stripped line."""
+
+    if stripped_line.startswith("```"):
+        return "```"
+    if stripped_line.startswith("~~~"):
+        return "~~~"
+    return None
+
+
+def _markdown_fence_language(stripped_line: str, marker: str) -> str:
+    """Return the first language token after a markdown fence marker."""
+
+    remainder = stripped_line[len(marker) :].strip().lower()
+    return remainder.split(None, 1)[0] if remainder else ""
 
 
 def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
@@ -1394,17 +1419,20 @@ def expand_at_includes(
     src_root = Path(src_root)
     lines = content.split("\n")
     result: list[str] = []
-    in_code_fence = False
+    active_fence_marker: str | None = None
 
     for line in lines:
         trimmed = line.strip()
 
-        # Track code fences
-        if trimmed.startswith("```"):
-            in_code_fence = not in_code_fence
+        fence_marker = _markdown_fence_marker(trimmed)
+        if fence_marker is not None:
+            if active_fence_marker is None:
+                active_fence_marker = fence_marker
+            elif fence_marker == active_fence_marker:
+                active_fence_marker = None
             result.append(line)
             continue
-        if in_code_fence:
+        if active_fence_marker is not None:
             result.append(line)
             continue
 
