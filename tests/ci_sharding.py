@@ -15,7 +15,7 @@ CI_CATEGORY_SHARD_COUNTS = {
     "mcp": 2,
     "core": 5,
 }
-CI_FAST_SUITE_BUDGET_SECONDS = 180
+CI_FULL_SUITE_SHARD_BUDGET_SECONDS = 180
 CI_PYTEST_SHARD_RESOLUTION_TIMEOUT_MINUTES = 3
 CI_PYTEST_SHARD_TIMEOUT_MINUTES = 10
 CI_SHARD_WEIGHT_SPREAD_TOLERANCE = 0.2
@@ -224,19 +224,21 @@ def assert_ci_workflow_pytest_shard_policy(workflow: dict[str, object], *, pypro
     assert "in {elapsed_seconds:.2f}s" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert pytest_steps[-1]["timeout-minutes"] == CI_PYTEST_SHARD_TIMEOUT_MINUTES
-    assert pytest_steps[-1]["env"]["GPD_FAST_SUITE_BUDGET_SECONDS"] == str(CI_FAST_SUITE_BUDGET_SECONDS)
-    assert "Fast suite advisory target" not in pytest_shard_command
+    assert pytest_steps[-1]["env"]["GPD_FULL_SUITE_SHARD_BUDGET_SECONDS"] == str(
+        CI_FULL_SUITE_SHARD_BUDGET_SECONDS
+    )
     assert (
-        f"Fast suite budget: ${{GPD_FAST_SUITE_BUDGET_SECONDS}}s enforced per pytest shard; "
+        f"Full-suite shard budget: ${{GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}}s enforced per pytest shard; "
         f"job timeout: {CI_PYTEST_SHARD_TIMEOUT_MINUTES} minutes"
     ) in pytest_shard_command
     assert (
-        'timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" '
+        'timeout "${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s" '
         'uv run pytest -q --durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"'
     ) in pytest_shard_command
     assert 'if [ "$pytest_status" -eq 124 ]; then' in pytest_shard_command
     assert (
-        'echo "::error::pytest shard exceeded enforced ${GPD_FAST_SUITE_BUDGET_SECONDS}s fast-suite budget"'
+        'echo "::error::pytest shard exceeded enforced ${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s '
+        'full-suite shard budget"'
     ) in pytest_shard_command
     assert 'exit "$pytest_status"' in pytest_shard_command
     assert '--durations=20 --durations-min=1.0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
@@ -257,7 +259,7 @@ def assert_tests_readme_documents_ci_shard_policy(tests_readme: str) -> None:
     assert "Both inherit `-n auto --dist=worksteal` from `pyproject.toml`" in tests_readme
     assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
     assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
-    assert "The 180 second fast-suite budget is enforced per CI pytest shard" in tests_readme
+    assert "The 180 second full-suite shard budget is enforced per CI pytest shard" in tests_readme
     assert "10 minute job timeout remains the outer failure boundary" in tests_readme
     assert "Shard target resolution has its own 3 minute timeout and logs elapsed seconds" in tests_readme
     assert "Shard target resolution collects only the requested category" in tests_readme

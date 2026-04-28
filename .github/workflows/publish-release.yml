@@ -149,21 +149,55 @@ jobs:
     environment:
       name: PyPI
       url: https://pypi.org/p/get-physics-done
+    outputs:
+      status: ${{ steps.pypi_status.outputs.status }}
     permissions:
+      contents: read
       id-token: write
 
     steps:
+      - name: Check out release helper
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.build-release.outputs.release_sha }}
+          fetch-depth: 1
+
       - name: Download Python distributions
         uses: actions/download-artifact@v8
         with:
           name: python-dists
           path: dist
 
+      - name: Check whether PyPI version already exists
+        id: pypi_preflight
+        env:
+          VERSION: ${{ needs.build-release.outputs.version }}
+        run: |
+          python3 scripts/release_workflow.py pypi-preflight \
+            --version "$VERSION" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Publish package distributions to PyPI
+        id: pypi_publish
+        if: ${{ steps.pypi_preflight.outputs.status != 'already-published' }}
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
           skip-existing: true
+
+      - name: Record PyPI publish status
+        id: pypi_status
+        env:
+          VERSION: ${{ needs.build-release.outputs.version }}
+          PRE_PUBLISH_STATUS: ${{ steps.pypi_preflight.outputs.status }}
+          PYPI_PUBLISH_OUTCOME: ${{ steps.pypi_publish.outcome }}
+        run: |
+          python3 scripts/release_workflow.py pypi-publish-status \
+            --version "$VERSION" \
+            --pre-publish-status "$PRE_PUBLISH_STATUS" \
+            --publish-outcome "$PYPI_PUBLISH_OUTCOME" \
+            --github-output "$GITHUB_OUTPUT"
 
   publish-npm-and-github-release:
     name: publish npm and create GitHub release
@@ -410,6 +444,7 @@ jobs:
       - name: Write publish summary
         env:
           RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
+          PYPI_PUBLISH_STATUS: ${{ needs.publish-pypi.outputs.status }}
           NPM_PUBLISH_STATUS: ${{ steps.npm_publish.outputs.status }}
           METADATA_PR_URL: ${{ steps.metadata_pr.outputs.pr_url }}
           GPD_WEB_REBUILD_STATUS: ${{ steps.gpd_web_rebuild.outputs.status }}
@@ -424,7 +459,13 @@ jobs:
             echo "- Version: \`v${VERSION}\`"
             echo "- Commit: \`${RELEASE_SHA}\`"
             echo "- Publish date: \`${RELEASE_DATE}\`"
-            echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
+            if [ "${PYPI_PUBLISH_STATUS}" = "already-published" ]; then
+              echo "- PyPI: already published; skipped trusted-publishing rerun"
+            elif [ "${PYPI_PUBLISH_STATUS}" = "recovered" ]; then
+              echo "- PyPI: publish recovery completed; version is present on PyPI"
+            else
+              echo "- PyPI: published via trusted publishing from environment \`PyPI\`"
+            fi
             if [ "${NPM_PUBLISH_STATUS}" = "already-published" ]; then
               echo "- npm: already published; skipped trusted-publishing rerun"
             else

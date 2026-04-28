@@ -8,6 +8,7 @@ Supports cross-platform LaTeX detection including Windows (MiKTeX, TeX Live).
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import platform
@@ -402,12 +403,39 @@ def _path_is_under(path: Path, root: Path) -> bool:
     return resolved_path == resolved_root or resolved_path.is_relative_to(resolved_root)
 
 
-def _reject_external_manifest_sidecar(path: Path, output_dir: Path, *, label: str) -> None:
+def _validate_manifest_sidecar_location(path: Path, output_dir: Path, *, label: str, is_directory: bool) -> None:
     if not _path_is_under(path, output_dir):
         raise ValueError(
             f"{label} must stay inside output_dir when emitting ARTIFACT-MANIFEST.json; "
             "external sidecars would make the portable manifest reference paths outside the paper package"
         )
+
+    resolved_path = path.resolve(strict=False)
+    resolved_output_dir = output_dir.resolve(strict=False)
+    relative_path = resolved_path.relative_to(resolved_output_dir)
+    metadata_parts = relative_path.parts if is_directory else relative_path.parent.parts
+    if not metadata_parts or metadata_parts[0].startswith("."):
+        return
+    if is_directory:
+        expected_location = "output_dir or under a hidden metadata directory inside output_dir"
+    else:
+        expected_location = "a direct child of output_dir or under a hidden metadata directory inside output_dir"
+    raise ValueError(
+        f"{label} must be {expected_location}; non-hidden nested sidecars are not discoverable"
+    )
+
+
+def _callable_accepts_keyword(callback: object, keyword: str) -> bool:
+    side_effect = getattr(callback, "side_effect", None)
+    if callable(side_effect):
+        callback = side_effect
+    try:
+        signature = inspect.signature(callback)
+    except (TypeError, ValueError):
+        return True
+    return any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values()) or (
+        keyword in signature.parameters
+    )
 
 
 def _remove_failed_build_output(path: Path | None, output_dir: Path) -> None:
@@ -644,6 +672,7 @@ async def compile_paper(
     compiler: str = "pdflatex",
     *,
     prefer_tectonic: bool = True,
+    apply_latex_autofix: bool = False,
 ) -> CompilationResult:
     """Compile a .tex file to PDF.
 
@@ -658,6 +687,9 @@ async def compile_paper(
             available (``"pdflatex"`` or ``"xelatex"``).
         prefer_tectonic: When ``True``, route through Tectonic if it is found
             on the system PATH (or in well-known install locations on Windows).
+        apply_latex_autofix: When ``True``, validated manual-multipass autofix
+            content may be written back to ``tex_path``. Defaults to ``False``
+            so direct compiler calls never mutate manuscript source.
 
     Uses :func:`find_latex_compiler` for cross-platform compiler detection,
     including Windows MiKTeX and TeX Live installations that may not be on
@@ -684,6 +716,13 @@ async def compile_paper(
     latexmk_path = find_latex_compiler("latexmk")
     if latexmk_path:
         return await _compile_with_latexmk(tex_path, output_dir, compiler, latexmk_path=latexmk_path)
+    if apply_latex_autofix:
+        return await _compile_manual_multipass(
+            tex_path,
+            output_dir,
+            compiler,
+            apply_latex_autofix=True,
+        )
     return await _compile_manual_multipass(tex_path, output_dir, compiler)
 
 
@@ -747,9 +786,9 @@ async def _compile_with_tectonic(
             if process.returncode == 0:
                 return CompilationResult(success=True, pdf_path=pdf_path)
             return CompilationResult(
-                success=True,
+                success=False,
                 pdf_path=pdf_path,
-                warning=f"tectonic exited with code {process.returncode} — PDF was produced but check the log for issues",
+                error=f"tectonic exited with code {process.returncode}",
                 log=log_content[-5000:],
             )
 
@@ -853,7 +892,13 @@ async def _compile_with_latexmk(
         return CompilationResult(success=False, error=_launch_failure_error("latexmk", exc))
 
 
-async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: str) -> CompilationResult:
+async def _compile_manual_multipass(
+    tex_path: Path,
+    output_dir: Path,
+    compiler: str,
+    *,
+    apply_latex_autofix: bool = False,
+) -> CompilationResult:
     """Manual multi-pass: pdflatex -> bibtex -> pdflatex -> pdflatex."""
     compiler_path = find_latex_compiler(compiler)
     if not compiler_path:
@@ -995,6 +1040,10 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         if fresh_pdf_was_generated(initial_pdf_signature) and returncode == 0 and not fatal_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
 
+        if not apply_latex_autofix:
+            error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"
+            return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
+
         # Try autofix
         from gpd.utils.latex import try_autofix
 
@@ -1083,6 +1132,8 @@ async def build_paper(
     bibliography_audit_output_path: Path | None = None,
     emit_artifact_manifest: bool = True,
     emit_bibliography_audit: bool = True,
+    prefer_tectonic: bool = True,
+    apply_latex_autofix: bool = True,
 ) -> PaperOutput:
     """Orchestrate the full paper build pipeline.
 
@@ -1094,26 +1145,31 @@ async def build_paper(
 
     Sidecar files (ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json) are written
     to ``sidecar_root`` when provided, otherwise to ``output_dir`` alongside
-    the manuscript. ``emit_artifact_manifest`` and ``emit_bibliography_audit``
-    can be set to ``False`` to suppress those files entirely (minimal mode).
-    File-specific output paths override the shared sidecar root so callers can
-    promote one sidecar without moving the other.
+    the manuscript. Nested sidecars must live under a hidden metadata directory
+    so manuscript discovery can find them. ``emit_artifact_manifest`` and
+    ``emit_bibliography_audit`` can be set to ``False`` to suppress those files
+    entirely (minimal mode). File-specific output paths override the shared
+    sidecar root so callers can promote one sidecar without moving the other.
+    Generated TeX builds opt into validated LaTeX autofix by default; preserved
+    manual TeX is not autofixed.
     """
+    if sidecar_root is not None and (emit_artifact_manifest or emit_bibliography_audit):
+        _validate_manifest_sidecar_location(sidecar_root, output_dir, label="sidecar_root", is_directory=True)
     if emit_artifact_manifest:
-        if sidecar_root is not None:
-            _reject_external_manifest_sidecar(sidecar_root, output_dir, label="sidecar_root")
         if artifact_manifest_output_path is not None:
-            _reject_external_manifest_sidecar(
+            _validate_manifest_sidecar_location(
                 artifact_manifest_output_path,
                 output_dir,
                 label="artifact_manifest_output_path",
+                is_directory=False,
             )
-        if emit_bibliography_audit and bibliography_audit_output_path is not None:
-            _reject_external_manifest_sidecar(
-                bibliography_audit_output_path,
-                output_dir,
-                label="bibliography_audit_output_path",
-            )
+    if emit_bibliography_audit and bibliography_audit_output_path is not None:
+        _validate_manifest_sidecar_location(
+            bibliography_audit_output_path,
+            output_dir,
+            label="bibliography_audit_output_path",
+            is_directory=False,
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     if sidecar_root is not None:
@@ -1242,7 +1298,11 @@ async def build_paper(
 
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
-    dependencies_available, dependency_errors = await asyncio.to_thread(check_journal_dependencies, spec)
+    tectonic_will_handle_resources = prefer_tectonic and find_tectonic() is not None
+    if tectonic_will_handle_resources:
+        dependencies_available, dependency_errors = True, []
+    else:
+        dependencies_available, dependency_errors = await asyncio.to_thread(check_journal_dependencies, spec)
     if not dependencies_available:
         errors.extend(dependency_errors)
         await asyncio.to_thread(_remove_failed_build_output, output_dir / f"{output_stem}.pdf", output_dir)
@@ -1277,7 +1337,11 @@ async def build_paper(
         )
 
     # 5. Compile
-    result = await compile_paper(tex_path, output_dir, compiler=spec.compiler)
+    compile_kwargs = {} if prefer_tectonic else {"prefer_tectonic": False}
+    effective_apply_latex_autofix = apply_latex_autofix and not preserved_tex_differs_from_config
+    if effective_apply_latex_autofix and _callable_accepts_keyword(compile_paper, "apply_latex_autofix"):
+        compile_kwargs["apply_latex_autofix"] = True
+    result = await compile_paper(tex_path, output_dir, compiler=spec.compiler, **compile_kwargs)
 
     if not result.success and result.error:
         errors.append(result.error)

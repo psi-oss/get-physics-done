@@ -456,6 +456,7 @@ QUICK_INIT_FIELDS = frozenset(
 LITERATURE_REVIEW_INIT_FIELDS = frozenset(
     {
         "commit_docs",
+        "project_root",
         "state_exists",
         "project_exists",
         "roadmap_exists",
@@ -797,10 +798,12 @@ _DEFAULT_ALLOWED_TOOLS_BY_WORKFLOW = {
 WRITE_PAPER_INIT_FIELDS = frozenset(
     {
         "commit_docs",
+        "project_root",
         "state_exists",
         "project_exists",
         "autonomy",
         "research_mode",
+        "write_paper_argument_input",
         "project_contract",
         "project_contract_gate",
         "project_contract_load_info",
@@ -863,10 +866,12 @@ WRITE_PAPER_INIT_FIELDS = frozenset(
 PEER_REVIEW_INIT_FIELDS = frozenset(
     {
         "project_exists",
+        "project_root",
         "state_exists",
         "commit_docs",
         "autonomy",
         "research_mode",
+        "response_intake_input",
         "review_target_input",
         "review_target_mode",
         "review_target_mode_reason",
@@ -929,6 +934,8 @@ PEER_REVIEW_INIT_FIELDS = frozenset(
 ARXIV_SUBMISSION_BOOTSTRAP_FIELDS = frozenset(
     {
         "commit_docs",
+        "arxiv_submission_argument_input",
+        "project_root",
         "state_exists",
         "project_exists",
         "autonomy",
@@ -994,6 +1001,7 @@ _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW = {
     "research-phase": RESEARCH_PHASE_INIT_FIELDS,
     "map-research": MAP_RESEARCH_INIT_FIELDS,
     "peer-review": PEER_REVIEW_INIT_FIELDS,
+    "respond-to-referees": PEER_REVIEW_INIT_FIELDS,
     "arxiv-submission": ARXIV_SUBMISSION_INIT_FIELDS,
     "plan-phase": PLAN_PHASE_INIT_FIELDS,
     "quick": QUICK_INIT_FIELDS,
@@ -1097,6 +1105,7 @@ class WorkflowStage:
             "workflow_id": workflow_id,
             "stage_id": self.id,
             "order": self.order,
+            "required_init_fields": list(self.required_init_fields),
             "mode_paths": list(self.mode_paths),
             "loaded_authorities": list(self.loaded_authorities),
             "eager_authorities": list(self.eager_authorities()),
@@ -1104,6 +1113,7 @@ class WorkflowStage:
             "must_not_eager_load": list(self.must_not_eager_load),
             "allowed_tools": list(self.allowed_tools),
             "writes_allowed": list(self.writes_allowed),
+            "produced_state": list(self.produced_state),
             "next_stages": list(self.next_stages),
             "checkpoints": list(self.checkpoints),
         }

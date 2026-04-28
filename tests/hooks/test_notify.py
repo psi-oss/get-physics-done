@@ -539,6 +539,7 @@ def test_notify_home_update_cache_falls_back_to_runtime_neutral_update_command(t
 
     stderr = io.StringIO()
     with (
+        patch.dict("os.environ", {"GPD_DATA_DIR": ""}),
         patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
         patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),

@@ -38,6 +38,17 @@ def test_normalize_continuation_reference_normalizes_project_local_absolute_path
     assert normalized == "GPD/phases/03-analysis/.continue-here.md"
 
 
+def test_normalize_continuation_reference_canonicalizes_relative_path_after_resolution(tmp_path: Path) -> None:
+    _write_resume(tmp_path, "GPD/phases/03-analysis/.continue-here.md")
+
+    normalized = normalize_continuation_reference(
+        tmp_path,
+        "GPD/phases/03-analysis/../03-analysis/./.continue-here.md",
+    )
+
+    assert normalized == "GPD/phases/03-analysis/.continue-here.md"
+
+
 def test_normalize_continuation_reference_rejects_external_absolute_path(tmp_path: Path) -> None:
     external_root = tmp_path.parent / f"{tmp_path.name}-external"
     external_resume = external_root / ".continue-here.md"

@@ -19,6 +19,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
+    has_global_config_env_override,
     list_runtime_names,
     resolve_global_config_dir,
     resolve_global_config_dir_candidates,
@@ -26,7 +27,7 @@ from gpd.adapters.runtime_catalog import (
 from gpd.adapters.runtime_catalog import (
     normalize_runtime_name as _normalize_runtime_name,
 )
-from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, HOME_DATA_DIR_NAME, TODOS_DIR_NAME
+from gpd.core.constants import ENV_DATA_DIR, ENV_GPD_ACTIVE_RUNTIME, HOME_DATA_DIR_NAME, TODOS_DIR_NAME
 from gpd.hooks.install_metadata import (
     assess_install_target,
     install_scope_from_manifest,
@@ -125,14 +126,7 @@ def _env_override_runtime_dirs(runtime: str, *, home: Path | None = None) -> tup
         descriptor = get_runtime_descriptor(runtime)
     except KeyError:
         raise KeyError(runtime) from None
-    policy = descriptor.global_config
-    env_is_set = bool(
-        (policy.env_var and os.environ.get(policy.env_var))
-        or (policy.env_dir_var and os.environ.get(policy.env_dir_var))
-        or (policy.env_file_var and os.environ.get(policy.env_file_var))
-        or (policy.xdg_subdir and os.environ.get("XDG_CONFIG_HOME"))
-    )
-    if not env_is_set:
+    if not has_global_config_env_override(descriptor):
         return ()
     return (resolve_global_config_dir(descriptor, home=home),)
 
@@ -649,8 +643,14 @@ def get_cache_dirs(*, cwd: Path | None = None, home: Path | None = None) -> list
 
 def home_update_cache_file(*, home: Path | None = None) -> Path:
     """Return the canonical home-scoped update-cache file path."""
-    resolved_home = Path.home() if home is None else Path(home).expanduser().resolve(strict=False)
-    return resolved_home / HOME_DATA_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
+    data_dir = os.environ.get(ENV_DATA_DIR, "").strip()
+    if data_dir and (home is None or Path(home).expanduser().resolve(strict=False) == Path.home().resolve(strict=False)):
+        data_root = Path(data_dir).expanduser()
+    elif home is not None:
+        data_root = Path(home).expanduser().resolve(strict=False) / HOME_DATA_DIR_NAME
+    else:
+        data_root = Path.home() / HOME_DATA_DIR_NAME
+    return data_root / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
 
 
 def get_update_cache_files(
@@ -674,6 +674,7 @@ def get_update_cache_candidates(
 ) -> list[UpdateCacheCandidate]:
     """Return candidate update-cache files with runtime/scope attribution."""
     resolved_cwd = cwd or Path.cwd()
+    explicit_home = home is not None
     resolved_home = home or Path.home()
     prioritized_runtime = _resolved_priority_runtime(preferred_runtime, cwd=resolved_cwd, home=resolved_home)
     runtime_names = supported_runtime_names()
@@ -710,7 +711,7 @@ def get_update_cache_candidates(
                     scope=SCOPE_GLOBAL,
                 )
             )
-    candidates.append(UpdateCacheCandidate(home_update_cache_file(home=resolved_home)))
+    candidates.append(UpdateCacheCandidate(home_update_cache_file(home=resolved_home if explicit_home else None)))
     return _unique_update_cache_candidates(candidates)
 
 

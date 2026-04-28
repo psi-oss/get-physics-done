@@ -655,7 +655,7 @@ def test_resolve_current_manuscript_artifacts_ignores_uppercase_reproducibility_
     assert artifacts.reproducibility_manifest == tmp_path / "manuscript" / "reproducibility-manifest.json"
 
 
-def test_resolve_current_manuscript_entrypoint_ignores_manifest_paths_outside_root(tmp_path: Path) -> None:
+def test_resolve_current_manuscript_entrypoint_rejects_manifest_paths_outside_root(tmp_path: Path) -> None:
     _write(
         tmp_path / "submission" / "curvature_flow_bounds.tex",
         "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
@@ -686,10 +686,39 @@ def test_resolve_current_manuscript_entrypoint_ignores_manifest_paths_outside_ro
 
     resolution = resolve_current_manuscript_resolution(tmp_path)
 
-    assert resolution.status == "missing"
+    assert resolution.status == "invalid"
     assert resolution.manuscript_root is None
     assert resolution.manuscript_entrypoint is None
+    assert "ARTIFACT-MANIFEST.json is invalid" in resolution.detail
+    assert "artifact path must stay inside PAPER_DIR" in resolution.detail
     assert resolve_current_manuscript_entrypoint(tmp_path) is None
+
+
+def test_resolve_current_manuscript_entrypoint_rejects_absolute_manifest_path_inside_root(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "curvature_flow_bounds.tex"
+    _write(
+        manuscript,
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        _artifact_manifest_json(manuscript, artifact_path=manuscript.as_posix(), journal="prl"),
+    )
+
+    resolution = resolve_current_manuscript_resolution(tmp_path)
+
+    assert resolution.status == "invalid"
+    assert resolution.manuscript_entrypoint is None
+    assert "ARTIFACT-MANIFEST.json is invalid" in resolution.detail
+    assert "artifact path must be relative to PAPER_DIR" in resolution.detail
+
+
+def test_locate_publication_artifact_fails_closed_when_root_and_hidden_sidecars_exist(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    _write(paper_dir / "ARTIFACT-MANIFEST.json", "{}\n")
+    _write(paper_dir / ".paper-meta" / "ARTIFACT-MANIFEST.json", "{}\n")
+
+    assert locate_publication_artifact(paper_dir, "ARTIFACT-MANIFEST.json") is None
 
 
 def test_resolve_current_manuscript_entrypoint_fails_closed_when_multiple_roots_resolve(
@@ -1145,6 +1174,45 @@ def test_locate_publication_artifact_accepts_named_entrypoint_path(tmp_path: Pat
         locate_publication_artifact(manuscript, "ARTIFACT-MANIFEST.json")
         == tmp_path / "draft" / "ARTIFACT-MANIFEST.json"
     )
+
+
+def test_resolve_current_manuscript_artifacts_discovers_nested_manifest_sidecar(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "scalar_gap_bounds.tex"
+    _write(manuscript, "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    manifest_path = tmp_path / "paper" / ".paper-meta" / "ARTIFACT-MANIFEST.json"
+    _write(manifest_path, _artifact_manifest_json(manuscript, artifact_id="tex-paper"))
+
+    artifacts = resolve_current_manuscript_artifacts(tmp_path)
+
+    assert artifacts.manuscript_entrypoint == manuscript
+    assert artifacts.artifact_manifest == manifest_path
+    assert locate_publication_artifact(tmp_path / "paper", "ARTIFACT-MANIFEST.json") == manifest_path
+
+
+def test_resolve_current_manuscript_artifacts_fails_closed_on_ambiguous_nested_manifest_sidecars(
+    tmp_path: Path,
+) -> None:
+    manuscript = tmp_path / "paper" / "scalar_gap_bounds.tex"
+    _write(manuscript, "\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    _write(tmp_path / "paper" / ".paper-meta" / "ARTIFACT-MANIFEST.json", _artifact_manifest_json(manuscript))
+    _write(tmp_path / "paper" / ".other-meta" / "ARTIFACT-MANIFEST.json", _artifact_manifest_json(manuscript))
+
+    resolution = resolve_current_manuscript_resolution(tmp_path)
+
+    assert resolution.status == "invalid"
+    assert resolution.manuscript_entrypoint is None
+    assert "ARTIFACT-MANIFEST.json is ambiguous under" in resolution.detail
+    assert locate_publication_artifact(tmp_path / "paper", "ARTIFACT-MANIFEST.json") is None
+
+
+def test_locate_publication_artifact_does_not_attach_sibling_manuscript_roots_to_standalone_file(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external-review.txt"
+    _write(external, "Standalone review surface.\n")
+    _write(tmp_path / "paper" / "ARTIFACT-MANIFEST.json", "{}\n")
+
+    assert locate_publication_artifact(external, "ARTIFACT-MANIFEST.json") is None
 
 
 def test_resolve_current_manuscript_artifacts_does_not_fall_back_to_legacy_main_entrypoint(

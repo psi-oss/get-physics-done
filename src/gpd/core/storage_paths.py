@@ -7,6 +7,7 @@ callers can route outputs consistently.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import tempfile
@@ -292,6 +293,7 @@ _SUSPICIOUS_DURABLE_SUFFIXES: frozenset[str] = frozenset(
 )
 _SCRATCH_TEMP_SUFFIXES: frozenset[str] = frozenset({".tmp", ".lock", ".bak"})
 _PROJECT_SCRATCH_SEGMENTS: frozenset[str] = frozenset({"tmp", "temp", "scratch"})
+_CANONICAL_TEMP_ROOT_ALIASES: tuple[Path, ...] = (Path("/tmp"), Path("/private/tmp"), Path("/var/tmp"))
 _STORAGE_AUDIT_PRUNED_DIR_NAMES: frozenset[str] = frozenset(
     {
         ".cache",
@@ -344,12 +346,46 @@ def _dedupe_paths(paths: list[Path]) -> tuple[Path, ...]:
 
 
 @lru_cache(maxsize=1)
-def _runtime_config_dir_names() -> tuple[str, ...]:
+def _runtime_config_dir_lookup() -> tuple[tuple[str, ...], str | None]:
     try:
         from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-        return tuple(descriptor.config_dir_name for descriptor in iter_runtime_descriptors())
-    except Exception:
-        return ()
+
+        return tuple(descriptor.config_dir_name for descriptor in iter_runtime_descriptors()), None
+    except Exception as exc:
+        fallback_names, fallback_error = _runtime_config_dir_names_from_catalog_json()
+        lookup_error = f"{type(exc).__name__}: {exc}"
+        if fallback_error is not None:
+            return fallback_names, f"{lookup_error}; catalog JSON fallback failed: {fallback_error}"
+        return fallback_names, f"{lookup_error}; used catalog JSON fallback"
+
+
+def _runtime_config_dir_names_from_catalog_json() -> tuple[tuple[str, ...], str | None]:
+    catalog_path = Path(__file__).resolve().parents[1] / "adapters" / "runtime_catalog.json"
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return (), f"{type(exc).__name__}: {exc}"
+    if not isinstance(payload, list):
+        return (), "runtime catalog JSON root is not a list"
+
+    names: list[str] = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        config_dir_name = entry.get("config_dir_name")
+        if isinstance(config_dir_name, str) and config_dir_name.strip():
+            names.append(config_dir_name.strip())
+    return tuple(dict.fromkeys(names)), None
+
+
+def _runtime_config_dir_names() -> tuple[str, ...]:
+    names, _error = _runtime_config_dir_lookup()
+    return names
+
+
+def _runtime_config_dir_lookup_error() -> str | None:
+    _names, error = _runtime_config_dir_lookup()
+    return error
 
 
 def _iter_storage_audit_files(root: Path, *, skip_roots: tuple[Path, ...] = ()) -> tuple[Path, ...]:
@@ -543,6 +579,7 @@ class ProjectStorageLayout:
             if not raw.is_absolute():
                 continue
             candidates.append(raw.resolve(strict=False))
+        candidates.extend(path.resolve(strict=False) for path in _CANONICAL_TEMP_ROOT_ALIASES)
         return _dedupe_paths(candidates)
 
     def project_root_is_temporary(self) -> bool:
@@ -764,6 +801,12 @@ class ProjectStorageLayout:
         warnings: list[str] = []
         if self.project_root_is_temporary():
             warnings.append(f"Project root is under a temporary directory: {self.root.as_posix()}")
+        runtime_config_dir_lookup_error = _runtime_config_dir_lookup_error()
+        if runtime_config_dir_lookup_error is not None:
+            warnings.append(
+                "Runtime config directory pruning used fallback names because runtime catalog lookup failed: "
+                f"{runtime_config_dir_lookup_error}"
+            )
 
         if self.gpd.exists():
             for path in _iter_storage_audit_files(self.gpd):

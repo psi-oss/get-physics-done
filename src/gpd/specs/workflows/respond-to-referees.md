@@ -22,10 +22,18 @@ Responding to referees is not adversarial -- it is collaborative improvement. Ev
 **Initialize the response-round bootstrap context and locate paper:**
 
 ```bash
-INIT=$(gpd --raw init respond-to-referees --stage bootstrap)
+if [ -n "${ARGUMENTS:-}" ]; then
+  INIT=$(gpd --raw init respond-to-referees --stage bootstrap -- "$ARGUMENTS")
+else
+  INIT=$(gpd --raw init respond-to-referees --stage bootstrap)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP -- display the error to the user and do not proceed.
+fi
+PROJECT_ROOT=$(echo "$INIT" | gpd json get .project_root --default "")
+if [ -n "$PROJECT_ROOT" ]; then
+  cd "$PROJECT_ROOT" || { echo "ERROR: could not enter resolved project root: $PROJECT_ROOT"; exit 1; }
 fi
 ```
 
@@ -158,12 +166,7 @@ fi
 ```
 
 If matching round-specific files exist, load them as structured context, but keep the shared handoff below as the canonical source for active-round selection and paired response-artifact discovery.
-Read `{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` here for the canonical failure-recovery, round-suffix, and latest-round artifact conventions that keep this workflow fail-closed.
-Apply the shared publication response-writer handoff exactly:
-
-@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
-
-Use that shared handoff for `round_suffix`, sibling-artifact discovery, and the canonical response-artifact pair for the active round. `${RESPONSE_PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` remains the canonical issue-ID source, and `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` still identify blocking issues, unsupported-claim findings, recommendation floors, and the referee's stated rationale. Keep `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible together when drafting the response letter; treat the contract as approved scope only when `project_contract_gate.authoritative` is true.
+Use the staged report-triage references below for `round_suffix`, sibling-artifact discovery, and the canonical response-artifact pair for the active round. `${RESPONSE_PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md` remains the canonical issue-ID source, and `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` still identify blocking issues, unsupported-claim findings, recommendation floors, and the referee's stated rationale. Keep `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible together when drafting the response letter; treat the contract as approved scope only when `project_contract_gate.authoritative` is true.
 </step>
 
 <step name="load_specialized_revision_context">
@@ -180,12 +183,22 @@ Use `protocol_bundle_context` from init JSON as additive revision guidance.
 Load the report-triage stage before parsing referee reports or latest-round artifacts:
 
 ```bash
-REPORT_TRIAGE_INIT=$(gpd --raw init respond-to-referees --stage report_triage)
+if [ -n "${PREFLIGHT_ARGUMENTS:-}" ]; then
+  REPORT_TRIAGE_INIT=$(gpd --raw init respond-to-referees --stage report_triage -- "$PREFLIGHT_ARGUMENTS")
+elif [ -n "${ARGUMENTS:-}" ]; then
+  REPORT_TRIAGE_INIT=$(gpd --raw init respond-to-referees --stage report_triage -- "$ARGUMENTS")
+else
+  REPORT_TRIAGE_INIT=$(gpd --raw init respond-to-referees --stage report_triage)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: respond-to-referees report-triage init failed: $REPORT_TRIAGE_INIT"
   # STOP -- display the error to the user and do not proceed.
 fi
 ```
+
+Read `{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` from this stage for failure recovery, round suffixes, and latest-round artifact conventions.
+Apply `{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md` from this stage exactly.
+Use that shared handoff for `round_suffix`, sibling-artifact discovery, and the canonical response-artifact pair for the active round.
 
 **Obtain referee reports from the user:**
 
@@ -249,7 +262,13 @@ Confirm parsing is correct, or paste corrections.
 Load the revision-planning stage before response authoring so comment classification and response artifacts use the same staged authority order:
 
 ```bash
-REVISION_PLANNING_INIT=$(gpd --raw init respond-to-referees --stage revision_planning)
+if [ -n "${PREFLIGHT_ARGUMENTS:-}" ]; then
+  REVISION_PLANNING_INIT=$(gpd --raw init respond-to-referees --stage revision_planning -- "$PREFLIGHT_ARGUMENTS")
+elif [ -n "${ARGUMENTS:-}" ]; then
+  REVISION_PLANNING_INIT=$(gpd --raw init respond-to-referees --stage revision_planning -- "$ARGUMENTS")
+else
+  REVISION_PLANNING_INIT=$(gpd --raw init respond-to-referees --stage revision_planning)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: respond-to-referees revision-planning init failed: $REVISION_PLANNING_INIT"
   # STOP -- display the error to the user and do not proceed.
@@ -259,7 +278,13 @@ fi
 Load the response-authoring stage before writing response artifacts or applying manuscript edits:
 
 ```bash
-RESPONSE_AUTHORING_INIT=$(gpd --raw init respond-to-referees --stage response_authoring)
+if [ -n "${PREFLIGHT_ARGUMENTS:-}" ]; then
+  RESPONSE_AUTHORING_INIT=$(gpd --raw init respond-to-referees --stage response_authoring -- "$PREFLIGHT_ARGUMENTS")
+elif [ -n "${ARGUMENTS:-}" ]; then
+  RESPONSE_AUTHORING_INIT=$(gpd --raw init respond-to-referees --stage response_authoring -- "$ARGUMENTS")
+else
+  RESPONSE_AUTHORING_INIT=$(gpd --raw init respond-to-referees --stage response_authoring)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: respond-to-referees response-authoring init failed: $RESPONSE_AUTHORING_INIT"
   # STOP -- display the error to the user and do not proceed.
@@ -583,7 +608,13 @@ raised. Below we provide point-by-point responses.
 Load the finalize stage before closeout checks and next-command routing:
 
 ```bash
-FINALIZE_INIT=$(gpd --raw init respond-to-referees --stage finalize)
+if [ -n "${PREFLIGHT_ARGUMENTS:-}" ]; then
+  FINALIZE_INIT=$(gpd --raw init respond-to-referees --stage finalize -- "$PREFLIGHT_ARGUMENTS")
+elif [ -n "${ARGUMENTS:-}" ]; then
+  FINALIZE_INIT=$(gpd --raw init respond-to-referees --stage finalize -- "$ARGUMENTS")
+else
+  FINALIZE_INIT=$(gpd --raw init respond-to-referees --stage finalize)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: respond-to-referees finalize init failed: $FINALIZE_INIT"
   # STOP -- display the error to the user and do not proceed.

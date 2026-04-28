@@ -48,11 +48,17 @@ def test_arxiv_submission_workflow_resolves_manifest_based_manuscript_root_witho
     workflow = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
     assert "gpd --raw init arxiv-submission --stage bootstrap" in workflow
+    assert 'gpd --raw init arxiv-submission --stage bootstrap -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage manuscript_preflight -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage review_gate -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage package -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage finalize -- "$ARGUMENTS"' in workflow
     assert "metadata-only" not in workflow
     assert "Use the shared publication bootstrap reference as the source of truth" in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md" in workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" in workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" in workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" not in workflow
+    assert "staged `peer-review-reliability.md` reference" in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" not in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" not in workflow
     assert "ARTIFACT-MANIFEST.json" in workflow
@@ -100,6 +106,8 @@ def test_arxiv_submission_stage_manifest_path_is_resolved_and_loadable() -> None
         "package",
         "finalize",
     )
+    for stage_id in manifest.stage_ids():
+        assert "arxiv_submission_argument_input" in manifest.stage(stage_id).required_init_fields
     assert "references/publication/publication-bootstrap-preflight.md" in manifest.stage("bootstrap").loaded_authorities
     assert "managed publication output root state" in manifest.stage("bootstrap").produced_state
     assert (

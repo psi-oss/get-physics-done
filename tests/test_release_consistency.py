@@ -18,6 +18,7 @@ import yaml
 
 from gpd._python_compat import MIN_SUPPORTED_PYTHON_LABEL, PREFERRED_PYTHON_VERSIONS
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from scripts import release_workflow as release_workflow_module
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -175,6 +176,33 @@ def _uv_build_blocked_by_environment(stderr: str) -> bool:
     )
 
 
+class _FakePypiResponse:
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+    def __enter__(self) -> _FakePypiResponse:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+
+def _mock_pypi_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    result: _FakePypiResponse | BaseException,
+) -> list[tuple[str, float]]:
+    calls: list[tuple[str, float]] = []
+
+    def _fake_urlopen(url: str, *, timeout: float) -> _FakePypiResponse:
+        calls.append((url, timeout))
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+    monkeypatch.setattr(release_workflow_module.urllib.request, "urlopen", _fake_urlopen)
+    return calls
+
+
 def _copy_checkout_for_release_test(repo_root: Path, destination: Path) -> None:
     result = subprocess.run(
         ["git", "ls-files", "--cached", "-z"],
@@ -191,6 +219,7 @@ def _copy_checkout_for_release_test(repo_root: Path, destination: Path) -> None:
         assert not relative_path.is_absolute()
         assert ".." not in relative_path.parts
         source = repo_root / relative_path
+        assert source.exists(), f"tracked source path is missing from release copy fixture: {relative_path}"
         target = destination / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target, follow_symlinks=False)
@@ -608,6 +637,138 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "gh release create" not in workflow
 
 
+def test_pypi_preflight_helper_records_already_published_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    github_output = tmp_path / "github-output.txt"
+    calls = _mock_pypi_probe(monkeypatch, _FakePypiResponse(200))
+
+    status = release_workflow_module.record_pypi_preflight_status(
+        "get-physics-done",
+        "1.2.3",
+        github_output=github_output,
+    )
+
+    assert status == "already-published"
+    assert github_output.read_text(encoding="utf-8") == "status=already-published\n"
+    assert calls == [("https://pypi.org/pypi/get-physics-done/1.2.3/json", 20.0)]
+    assert "get-physics-done 1.2.3 is already published on PyPI; skipping PyPI publish." in capsys.readouterr().out
+
+
+def test_pypi_preflight_helper_attempts_publish_when_probe_is_inconclusive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    github_output = tmp_path / "github-output.txt"
+    _mock_pypi_probe(monkeypatch, OSError("temporary network failure"))
+
+    status = release_workflow_module.record_pypi_preflight_status(
+        "get-physics-done",
+        "1.2.3",
+        github_output=github_output,
+    )
+
+    captured = capsys.readouterr()
+    assert status == "not-published"
+    assert github_output.read_text(encoding="utf-8") == "status=not-published\n"
+    assert "Could not determine whether get-physics-done 1.2.3 is already on PyPI" in captured.out
+    assert "PyPI version check failed: temporary network failure" in captured.err
+
+
+def test_pypi_publish_status_helper_reuses_preflight_already_published_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github_output = tmp_path / "github-output.txt"
+
+    def _unexpected_urlopen(*_: object, **__: object) -> None:
+        raise AssertionError("preflight already-published status should not probe PyPI again")
+
+    monkeypatch.setattr(release_workflow_module.urllib.request, "urlopen", _unexpected_urlopen)
+
+    status = release_workflow_module.record_pypi_publish_status(
+        "get-physics-done",
+        "1.2.3",
+        pre_publish_status="already-published",
+        publish_outcome="skipped",
+        github_output=github_output,
+    )
+
+    assert status == "already-published"
+    assert github_output.read_text(encoding="utf-8") == "status=already-published\n"
+
+
+def test_pypi_publish_status_helper_records_success_after_preflight_not_published(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github_output = tmp_path / "github-output.txt"
+
+    def _unexpected_urlopen(*_: object, **__: object) -> None:
+        raise AssertionError("successful publish should not probe PyPI again")
+
+    monkeypatch.setattr(release_workflow_module.urllib.request, "urlopen", _unexpected_urlopen)
+
+    status = release_workflow_module.record_pypi_publish_status(
+        "get-physics-done",
+        "1.2.3",
+        pre_publish_status="not-published",
+        publish_outcome="success",
+        github_output=github_output,
+    )
+
+    assert status == "published"
+    assert github_output.read_text(encoding="utf-8") == "status=published\n"
+
+
+def test_pypi_publish_status_helper_recovers_when_failed_publish_is_visible_on_pypi(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    github_output = tmp_path / "github-output.txt"
+    _mock_pypi_probe(monkeypatch, _FakePypiResponse(200))
+
+    status = release_workflow_module.record_pypi_publish_status(
+        "get-physics-done",
+        "1.2.3",
+        pre_publish_status="not-published",
+        publish_outcome="failure",
+        github_output=github_output,
+    )
+
+    assert status == "recovered"
+    assert github_output.read_text(encoding="utf-8") == "status=recovered\n"
+    assert "PyPI publish failed, but get-physics-done 1.2.3 is now published; continuing." in capsys.readouterr().out
+
+
+def test_pypi_publish_status_helper_fails_when_publish_and_recovery_probe_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = release_workflow_module.urllib.error.HTTPError(
+        "https://pypi.org/pypi/get-physics-done/1.2.3/json",
+        404,
+        "Not Found",
+        hdrs=None,
+        fp=None,
+    )
+    _mock_pypi_probe(monkeypatch, error)
+
+    with pytest.raises(
+        ReleaseError,
+        match="PyPI publish did not complete and get-physics-done 1.2.3 is not published.",
+    ):
+        release_workflow_module.record_pypi_publish_status(
+            "get-physics-done",
+            "1.2.3",
+            pre_publish_status="not-published",
+            publish_outcome="failure",
+        )
+
+
 def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_commit() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
@@ -630,7 +791,27 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "Tag v${VERSION} already exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}." in workflow
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
+    assert re.search(
+        r"  publish-pypi:\n(?:.*\n)*?    permissions:\n      contents: read\n      id-token: write",
+        workflow,
+    )
     assert "id-token: write" in workflow
+    assert "status: ${{ steps.pypi_status.outputs.status }}" in workflow
+    assert "Check out release helper" in workflow
+    assert "id: pypi_preflight" in workflow
+    assert "id: pypi_publish" in workflow
+    assert "continue-on-error: true" in workflow
+    assert "id: pypi_status" in workflow
+    assert workflow.count("python3 scripts/release_workflow.py pypi-preflight") == 1
+    assert workflow.count("python3 scripts/release_workflow.py pypi-publish-status") == 1
+    assert '--github-output "$GITHUB_OUTPUT"' in workflow
+    assert '--pre-publish-status "$PRE_PUBLISH_STATUS"' in workflow
+    assert '--publish-outcome "$PYPI_PUBLISH_OUTCOME"' in workflow
+    assert "PYPI_CHECK_STATUS=0" not in workflow
+    assert "pypi_version_is_published()" not in workflow
+    assert "urllib.request" not in workflow
+    assert "https://pypi.org/pypi/get-physics-done" not in workflow
+    assert "PYPI_PUBLISH_OUTCOME: ${{ steps.pypi_publish.outcome }}" in workflow
     assert "skip-existing: true" in workflow
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
@@ -665,7 +846,9 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "verify_followup_branch_matches_fresh_stamp()" in workflow
     assert "refreshing stamped metadata before returning its URL" in workflow
     assert 'git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}"' in workflow
-    assert 'git fetch --no-tags origin "refs/heads/${FOLLOWUP_BRANCH}:refs/remotes/origin/${FOLLOWUP_BRANCH}"' in workflow
+    assert (
+        'git fetch --no-tags origin "refs/heads/${FOLLOWUP_BRANCH}:refs/remotes/origin/${FOLLOWUP_BRANCH}"' in workflow
+    )
     assert "does not match freshly stamped publish-date metadata" in workflow
     assert workflow.index("refreshing stamped metadata before returning its URL") < workflow.index(
         'echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"'
@@ -696,6 +879,12 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "GPD_WEB_DISPATCH_TOKEN not configured" in workflow
     assert 'echo "status=skipped" >> "$GITHUB_OUTPUT"' in workflow
     assert 'echo "status=dispatched" >> "$GITHUB_OUTPUT"' in workflow
+    assert "PYPI_PUBLISH_STATUS: ${{ needs.publish-pypi.outputs.status }}" in workflow
+    assert 'if [ "${PYPI_PUBLISH_STATUS}" = "already-published" ]; then' in workflow
+    assert 'echo "- PyPI: already published; skipped trusted-publishing rerun"' in workflow
+    assert 'elif [ "${PYPI_PUBLISH_STATUS}" = "recovered" ]; then' in workflow
+    assert 'echo "- PyPI: publish recovery completed; version is present on PyPI"' in workflow
+    assert 'echo "- PyPI: published via trusted publishing from environment \\`PyPI\\`"' in workflow
     assert "NPM_PUBLISH_STATUS: ${{ steps.npm_publish.outputs.status }}" in workflow
     assert 'if [ "${NPM_PUBLISH_STATUS}" = "already-published" ]; then' in workflow
     assert 'echo "- npm: already published; skipped trusted-publishing rerun"' in workflow
@@ -752,7 +941,9 @@ def test_publish_release_followup_recreates_or_fails_when_branch_exists_without_
     no_pr_refresh_index = branch_exists_block.rindex("refresh_followup_branch")
     assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < open_pr_refresh_index
     assert open_pr_refresh_index < branch_exists_block.index('echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"')
-    assert branch_exists_block.index("restamping and updating the branch before recreating the PR") < no_pr_refresh_index
+    assert (
+        branch_exists_block.index("restamping and updating the branch before recreating the PR") < no_pr_refresh_index
+    )
     assert (
         no_pr_refresh_index
         < branch_exists_block.index('gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"')

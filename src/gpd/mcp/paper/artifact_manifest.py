@@ -9,7 +9,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from gpd.mcp.paper.bibliography import BibliographyAudit
-from gpd.mcp.paper.models import ArtifactManifest, ArtifactRecord, ArtifactSourceRef, FigureRef, PaperConfig
+from gpd.mcp.paper.models import (
+    ArtifactManifest,
+    ArtifactRecord,
+    ArtifactSourceRef,
+    FigureRef,
+    PaperConfig,
+    normalize_manifest_artifact_path,
+)
 
 
 def _sha256(path: Path) -> str:
@@ -28,6 +35,14 @@ class ArtifactManifestFreshness:
     detail: str
     actual_sha256: str | None = None
     actual_mtime_ns: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactManifestIntegrity:
+    """Integrity check result for manifest-contained artifact records."""
+
+    passed: bool
+    detail: str
 
 
 def validate_artifact_manifest_freshness(
@@ -89,11 +104,135 @@ def validate_artifact_manifest_freshness(
     )
 
 
+def _manifest_artifact_roots(
+    artifact_root: Path,
+    selected_manuscript_path: Path | None,
+) -> tuple[Path, ...]:
+    roots = [Path(artifact_root)]
+    if selected_manuscript_path is None:
+        return tuple(roots)
+
+    selected_resolved = Path(selected_manuscript_path).resolve(strict=False)
+    selected_parent = selected_resolved.parent
+    resolved_root = Path(artifact_root).resolve(strict=False)
+    for sidecar_root in (resolved_root, *resolved_root.parents):
+        if not sidecar_root.name.startswith("."):
+            continue
+        sidecar_parent = sidecar_root.parent
+        if selected_resolved == sidecar_parent or selected_resolved.is_relative_to(sidecar_parent):
+            roots.insert(0, sidecar_parent)
+            break
+    if resolved_root != selected_parent and resolved_root.is_relative_to(selected_parent):
+        roots.insert(0, selected_parent)
+    return tuple(dict.fromkeys(roots))
+
+
+def _resolve_contained_manifest_artifact_path(path: str, artifact_roots: tuple[Path, ...]) -> Path | None:
+    try:
+        portable_path = normalize_manifest_artifact_path(path)
+    except ValueError:
+        return None
+    candidate = Path(portable_path)
+    for artifact_root in artifact_roots:
+        root_candidate = artifact_root / candidate
+        resolved_candidate = root_candidate.resolve(strict=False)
+        resolved_root = artifact_root.resolve(strict=False)
+        if resolved_candidate == resolved_root or resolved_candidate.is_relative_to(resolved_root):
+            return root_candidate
+    return None
+
+
+def validate_artifact_manifest_integrity(
+    manifest: ArtifactManifest,
+    artifact_root: Path,
+    *,
+    selected_manuscript_path: Path | None = None,
+    hash_categories: frozenset[str] = frozenset({"tex", "bib", "audit", "figure", "pdf"}),
+) -> ArtifactManifestIntegrity:
+    """Validate manifest artifact paths and recorded artifact digests.
+
+    Manifest artifact paths are portable paths relative to the paper artifact
+    root. Review preflight relies on the TeX/BibTeX/audit/PDF records, so those
+    records must remain contained in the paper package and their sha256 values
+    must match the current file bytes.
+    """
+
+    root = Path(artifact_root)
+    artifact_roots = _manifest_artifact_roots(root, selected_manuscript_path)
+    selected_resolved = (
+        Path(selected_manuscript_path).resolve(strict=False) if selected_manuscript_path is not None else None
+    )
+
+    if selected_resolved is not None:
+        tex_artifacts = [artifact for artifact in manifest.artifacts if artifact.category == "tex"]
+        if not tex_artifacts:
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail="artifact manifest has no tex artifact for the selected manuscript",
+            )
+        if len(tex_artifacts) != 1:
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail=f"artifact manifest must contain exactly one tex artifact; found {len(tex_artifacts)}",
+            )
+        mismatched_tex_paths: list[str] = []
+        matching_tex_paths = 0
+        for artifact in tex_artifacts:
+            candidate = _resolve_contained_manifest_artifact_path(artifact.path, artifact_roots)
+            if candidate is None or candidate.resolve(strict=False) != selected_resolved:
+                mismatched_tex_paths.append(artifact.path)
+            else:
+                matching_tex_paths += 1
+        if mismatched_tex_paths or matching_tex_paths == 0:
+            preview = ", ".join(mismatched_tex_paths[:3])
+            suffix = f" (+{len(mismatched_tex_paths) - 3} more)" if len(mismatched_tex_paths) > 3 else ""
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail=(
+                    "artifact manifest tex artifact path does not resolve to the selected manuscript"
+                    + (f": {preview}{suffix}" if preview else "")
+                ),
+            )
+
+    for artifact in manifest.artifacts:
+        if artifact.category not in hash_categories:
+            continue
+        candidate = _resolve_contained_manifest_artifact_path(artifact.path, artifact_roots)
+        if candidate is None:
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail=f"artifact manifest {artifact.category} artifact {artifact.artifact_id} path escapes artifact root: {artifact.path}",
+            )
+        if not candidate.exists():
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail=f"artifact manifest {artifact.category} artifact {artifact.artifact_id} path does not exist: {artifact.path}",
+            )
+        try:
+            actual_sha256 = _sha256(candidate)
+        except OSError as exc:
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail=f"could not hash artifact manifest {artifact.category} artifact {artifact.artifact_id}: {exc}",
+            )
+        if actual_sha256 != artifact.sha256:
+            return ArtifactManifestIntegrity(
+                passed=False,
+                detail=(
+                    f"artifact manifest sha256 mismatch for {artifact.category} artifact "
+                    f"{artifact.artifact_id}: {artifact.path}"
+                ),
+            )
+
+    return ArtifactManifestIntegrity(passed=True, detail="artifact manifest artifact paths and sha256 values match")
+
+
 def _display_path(path: Path, output_dir: Path) -> str:
     try:
-        return path.relative_to(output_dir).as_posix()
+        relative_path = path.resolve(strict=False).relative_to(output_dir.resolve(strict=False))
     except ValueError:
-        return path.as_posix()
+        raise ValueError(f"artifact path must stay inside output_dir: {path}") from None
+    return normalize_manifest_artifact_path(relative_path.as_posix())
 
 
 def _portable_source_ref(path: Path, output_dir: Path, *, role: str) -> ArtifactSourceRef:

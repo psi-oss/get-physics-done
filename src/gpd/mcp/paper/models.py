@@ -27,6 +27,7 @@ _RESERVED_LABEL_PREFIXES = ("sec:", "fig:", "app:")
 _LATEX_BARE_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SUBJECT_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:")
 _WINDOWS_RESERVED_DEVICE_STEMS = frozenset(
     {
         "con",
@@ -118,6 +119,20 @@ def _normalize_required_manuscript_path(value: str) -> str:
     if not normalized:
         raise ValueError("manuscript_path must be non-empty")
     return normalized
+
+
+def normalize_manifest_artifact_path(value: str) -> str:
+    """Normalize a PAPER_DIR-relative manifest artifact path."""
+
+    normalized = _require_nonempty_text(value, field_name="artifact path")
+    if "\\" in normalized:
+        raise ValueError("artifact path must use POSIX '/' separators, not backslashes")
+    if posixpath.isabs(normalized) or _WINDOWS_DRIVE_PATH_RE.match(normalized):
+        raise ValueError("artifact path must be relative to PAPER_DIR")
+    compact = posixpath.normpath(normalized)
+    if compact in {"", "."} or compact == ".." or compact.startswith("../"):
+        raise ValueError("artifact path must stay inside PAPER_DIR")
+    return compact
 
 
 def _display_publication_path(project_root: Path, path: Path | None) -> str:
@@ -516,10 +531,15 @@ class ArtifactRecord(BaseModel):
     sources: list[ArtifactSourceRef] = Field(default_factory=list)
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
-    @field_validator("artifact_id", "path", "produced_by")
+    @field_validator("artifact_id", "produced_by")
     @classmethod
     def _validate_required_record_text(cls, value: str, info: ValidationInfo) -> str:
         return _require_nonempty_text(value, field_name=info.field_name or "artifact record field")
+
+    @field_validator("path")
+    @classmethod
+    def _validate_portable_artifact_path(cls, value: str) -> str:
+        return normalize_manifest_artifact_path(value)
 
 
 class ArtifactManifest(BaseModel):

@@ -18,6 +18,7 @@ from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_runtime_help_example_runtime,
     get_shared_install_metadata,
+    has_global_config_env_override,
     iter_runtime_descriptors,
     list_runtime_names,
     normalize_runtime_name,
@@ -25,7 +26,9 @@ from gpd.adapters.runtime_catalog import (
 )
 
 _RUNTIME_CATALOG_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.json"
-_RUNTIME_CATALOG_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog_schema.json"
+_RUNTIME_CATALOG_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog_schema.json"
+)
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
 
 
@@ -80,8 +83,12 @@ def _iter_runtime_descriptors_from_schema(
         "_RUNTIME_ENTRY_ALLOWED_KEYS",
         schema_shape["entry_required_keys"] | schema_shape["entry_optional_keys"],
     )
-    monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_STRATEGIES", frozenset(schema_shape["global_config_keys"].keys()))
-    monkeypatch.setattr(runtime_catalog, "_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES", schema_shape["install_help_example_scopes"])
+    monkeypatch.setattr(
+        runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_STRATEGIES", frozenset(schema_shape["global_config_keys"].keys())
+    )
+    monkeypatch.setattr(
+        runtime_catalog, "_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES", schema_shape["install_help_example_scopes"]
+    )
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_ENUMS", schema_shape["capability_enums"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_KEYS", schema_shape["global_config_keys"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
@@ -221,10 +228,60 @@ def test_resolve_global_config_dir_xdg_home_normalizes_relative_base(
     assert resolved.is_absolute()
 
 
+def test_has_global_config_env_override_is_catalog_owned() -> None:
+    env_or_home_descriptor = next(
+        descriptor for descriptor in iter_runtime_descriptors() if descriptor.global_config.strategy == "env_or_home"
+    )
+    xdg_descriptor = next(
+        descriptor for descriptor in iter_runtime_descriptors() if descriptor.global_config.strategy == "xdg_app"
+    )
+
+    assert has_global_config_env_override(env_or_home_descriptor, environ={}) is False
+    assert (
+        has_global_config_env_override(
+            env_or_home_descriptor,
+            environ={env_or_home_descriptor.global_config.env_var: "/tmp/runtime-config"},
+        )
+        is True
+    )
+    assert (
+        has_global_config_env_override(
+            env_or_home_descriptor,
+            environ={"XDG_CONFIG_HOME": "/tmp/xdg"},
+        )
+        is False
+    )
+
+    assert has_global_config_env_override(xdg_descriptor, environ={}) is False
+    assert (
+        has_global_config_env_override(
+            xdg_descriptor,
+            environ={xdg_descriptor.global_config.env_dir_var: "/tmp/runtime-config"},
+        )
+        is True
+    )
+    assert (
+        has_global_config_env_override(
+            xdg_descriptor,
+            environ={xdg_descriptor.global_config.env_file_var: "/tmp/runtime/config.json"},
+        )
+        is True
+    )
+    assert (
+        has_global_config_env_override(
+            xdg_descriptor,
+            environ={"XDG_CONFIG_HOME": "/tmp/xdg"},
+        )
+        is True
+    )
+
+
 def test_runtime_catalog_explicit_priority_order() -> None:
     descriptors = iter_runtime_descriptors()
     assert [descriptor.runtime_name for descriptor in descriptors] == list_runtime_names()
-    assert [descriptor.priority for descriptor in descriptors] == sorted(descriptor.priority for descriptor in descriptors)
+    assert [descriptor.priority for descriptor in descriptors] == sorted(
+        descriptor.priority for descriptor in descriptors
+    )
 
 
 def test_runtime_catalog_priority_order_is_intentional() -> None:
@@ -247,6 +304,8 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     }
     assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
     assert schema["capability_defaults"] == asdict(runtime_catalog.RuntimeCapabilityPolicy())
+    assert set(schema["capability_enum_required_keys"]) <= set(schema["capability_keys"])
+    assert set(schema["capability_enum_required_keys"]) <= set(schema["capability_enums"])
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
     assert {key: tuple(value) for key, value in schema["hook_payload_defaults"].items()} == asdict(
         runtime_catalog.HookPayloadPolicy()
@@ -362,7 +421,9 @@ def test_runtime_catalog_rejects_duplicate_local_install_help_example_scope(
 
 
 def test_runtime_catalog_declares_one_explicit_installer_help_example_per_scope() -> None:
-    examples = [descriptor.runtime_name for descriptor in iter_runtime_descriptors() if descriptor.installer_help_example_scope]
+    examples = [
+        descriptor.runtime_name for descriptor in iter_runtime_descriptors() if descriptor.installer_help_example_scope
+    ]
 
     assert examples == ["claude-code", "codex"]
     assert get_runtime_descriptor("claude-code").installer_help_example_scope == "global"
@@ -548,6 +609,33 @@ def test_runtime_catalog_rejects_missing_required_capability_enum_schema_key(
     with pytest.raises(
         ValueError,
         match=r"runtime catalog schema\.capability_enums is missing required key\(s\): permissions_surface",
+    ):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_required_capability_enum_keys_are_schema_owned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["capability_enum_required_keys"].remove("permissions_surface")
+    del schema["capability_enums"]["permissions_surface"]
+
+    descriptors = _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert descriptors
+
+
+def test_runtime_catalog_rejects_unknown_required_capability_enum_schema_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["capability_enum_required_keys"].append("legacy_surface")
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog schema\.capability_enum_required_keys contains unknown key\(s\): legacy_surface",
     ):
         _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
@@ -1154,7 +1242,9 @@ def test_runtime_catalog_accepts_catalog_declared_launch_wrapper_special_values(
         "future.json:launchWrapper",
     ]
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
-    _catalog_entry_by_runtime_name(payload, "gemini")["capabilities"]["permission_surface_kind"] = "future.json:launchWrapper"
+    _catalog_entry_by_runtime_name(payload, "gemini")["capabilities"]["permission_surface_kind"] = (
+        "future.json:launchWrapper"
+    )
 
     catalog_path = tmp_path / "runtime_catalog.json"
     catalog_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -1175,7 +1265,9 @@ def test_runtime_catalog_rejects_config_file_use_of_catalog_declared_launch_wrap
         "future.json:launchWrapper",
     ]
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
-    _catalog_entry_by_runtime_name(payload, "codex")["capabilities"]["permission_surface_kind"] = "future.json:launchWrapper"
+    _catalog_entry_by_runtime_name(payload, "codex")["capabilities"]["permission_surface_kind"] = (
+        "future.json:launchWrapper"
+    )
     catalog_path = tmp_path / "runtime_catalog.json"
     catalog_path.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)

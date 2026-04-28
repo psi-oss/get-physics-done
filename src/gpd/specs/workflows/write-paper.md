@@ -46,12 +46,24 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 This workflow uses the staged write-paper init surface at stage boundaries. Load the matching `--stage` payload before relying on fields or authority documents introduced by that stage.
 
 ```bash
-PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap)
+WRITE_PAPER_ARGUMENTS="${ARGUMENTS:-}"
+if [ -n "$WRITE_PAPER_ARGUMENTS" ]; then
+  PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap -- "$WRITE_PAPER_ARGUMENTS")
+else
+  PAPER_BOOTSTRAP_INIT=$(gpd --raw init write-paper --stage paper_bootstrap)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $PAPER_BOOTSTRAP_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 INIT="$PAPER_BOOTSTRAP_INIT"
+PROJECT_ROOT=$(echo "$INIT" | gpd json get .project_root --default "")
+if [ -n "$PROJECT_ROOT" ]; then
+  cd "$PROJECT_ROOT" || {
+    echo "ERROR: could not enter resolved project root: $PROJECT_ROOT"
+    exit 1
+  }
+fi
 ```
 
 Parse bootstrap JSON using the manifest-owned `paper_bootstrap.required_init_fields` in `write-paper-stage-manifest.json`. Keep `project_contract_gate` visible before authoritative-use decisions; do not duplicate the manifest's required-field list in prose. When later steps need publication routing, manuscript artifact paths, protocol bundle fields, active references, or derived manuscript review statuses, read them from the staged payload by their manifest names.
@@ -70,7 +82,7 @@ Mode effects on the write-paper pipeline:
 - **Balanced autonomy**: Auto-generate the outline from the research digest, draft all sections, and continue automatically unless the outline, a draft section, or referee feedback exposes a genuine ambiguity, missing evidence path, claim-level decision, or major structural change. Do not force a routine outline-approval pause in balanced mode.
 - **YOLO autonomy**: Draft all sections, run referee, and present the final result with only hard-stop interruptions.
 
-For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`.
+The full mode matrix is loaded by `outline_and_scaffold`; until then, use the compact mode effects below.
 
 Normalize the launch into one of two lanes before preflight:
 
@@ -89,7 +101,6 @@ If the normalized write-paper argument payload begins with `--`, pass it to the 
 Run centralized context preflight before continuing:
 
 ```bash
-WRITE_PAPER_ARGUMENTS="$ARGUMENTS"
 CONTEXT=$(gpd --raw validate command-context write-paper -- "$WRITE_PAPER_ARGUMENTS")
 if [ $? -ne 0 ]; then
   echo "$CONTEXT"
@@ -554,13 +565,15 @@ Generate a detailed outline tailored to the journal format.
 Load the staged outline/scaffold payload before using outline-time publication scaffolding fields or paper schema authorities:
 
 ```bash
-OUTLINE_INIT=$(gpd --raw init write-paper --stage outline_and_scaffold)
+OUTLINE_INIT=$(gpd --raw init write-paper --stage outline_and_scaffold -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper outline/scaffold init failed: $OUTLINE_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 INIT="$OUTLINE_INIT"
 ```
+
+Apply `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` from this staged payload before outline-level mode decisions, including bibliographer search breadth, referee strictness, and paper-writer style by mode.
 
 For each section:
 
@@ -638,11 +651,9 @@ When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 - do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
 - do not reuse `${PAPER_DIR}/PAPER-CONFIG.json` as the external-authoring intake contract; it is a manuscript-root builder artifact only
 
-Canonical schema for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`:
-@{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md
+Canonical schema for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`: `{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md`
 
-Canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`:
-@{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md
+The canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` is loaded by `consistency_and_references`.
 
 Treat both emitted JSON artifacts as strict review inputs. If they need to be recreated or repaired, match those schema surfaces exactly instead of inventing keys from prose memory.
 
@@ -657,7 +668,7 @@ Treat both emitted JSON artifacts as strict review inputs. If they need to be re
 Load the staged figure/section authoring payload before generating figures or spawning paper-writer section agents:
 
 ```bash
-AUTHORING_INIT=$(gpd --raw init write-paper --stage figure_and_section_authoring)
+AUTHORING_INIT=$(gpd --raw init write-paper --stage figure_and_section_authoring -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper authoring init failed: $AUTHORING_INIT"
   # STOP — display the error to the user and do not proceed.
@@ -843,13 +854,15 @@ After all sections are drafted, verify internal consistency:
 Load the staged consistency/reference payload before notation checks, bibliography verification, or reproducibility manifest work:
 
 ```bash
-CONSISTENCY_INIT=$(gpd --raw init write-paper --stage consistency_and_references)
+CONSISTENCY_INIT=$(gpd --raw init write-paper --stage consistency_and_references -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper consistency/reference init failed: $CONSISTENCY_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 INIT="$CONSISTENCY_INIT"
 ```
+
+Canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`: `{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md`
 
 **Notation audit:**
 
@@ -1021,12 +1034,7 @@ Treat `${PAPER_DIR}/CITATION-AUDIT.md`, the refreshed `${PAPER_DIR}/BIBLIOGRAPHY
 <step name="reproducibility_manifest">
 Before strict review, create or refresh the reproducibility manifest the publication review contract expects.
 
-Use the canonical schema:
-
-- `{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md`
-
-Canonical schema for `${PAPER_DIR}/reproducibility-manifest.json`:
-@{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md
+Canonical schema for `${PAPER_DIR}/reproducibility-manifest.json`: `{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md`
 
 Create or update:
 
@@ -1047,12 +1055,6 @@ Validate it before entering strict review:
 gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
 ```
 
-For the current fresh-bootstrap path, the validation command is:
-
-```bash
-gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict
-```
-
 If validation fails, stop and fix the manifest now. Do not enter `pre_submission_review` with a missing or non-review-ready reproducibility manifest, because strict review preflight will block on it.
 </step>
 
@@ -1062,7 +1064,7 @@ Branch by write-paper lane before finalizing:
 Load the staged publication-review payload before running the embedded peer-review panel or evaluating review-round artifacts:
 
 ```bash
-PUBLICATION_REVIEW_INIT=$(gpd --raw init write-paper --stage publication_review)
+PUBLICATION_REVIEW_INIT=$(gpd --raw init write-paper --stage publication_review -- "${WRITE_PAPER_ARGUMENTS:-}")
 if [ $? -ne 0 ]; then
   echo "ERROR: write-paper publication-review init failed: $PUBLICATION_REVIEW_INIT"
   # STOP — display the error to the user and do not proceed.
@@ -1083,9 +1085,7 @@ For theorem-style or `proof_obligation` claims, this stage also carries the mand
 5. `gpd-review-significance`
 6. `gpd-referee` as final adjudicator
 
-Apply the shared publication round contract exactly:
-
-@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
+Apply the shared publication round contract at `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md` exactly.
 
 Then follow `{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the resolved `${PAPER_DIR}/{topic_specific_stem}.tex` target recorded in `ARTIFACT-MANIFEST.json` as the review target. Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; the contract remains authoritative only when `project_contract_gate.authoritative` is true.
 
@@ -1199,10 +1199,6 @@ When revising a paper in response to referee reports:
      description="Author response: round {N}"
    )
    ```
-
-   Apply the shared publication response-writer handoff exactly:
-
-   @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
    **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md` and `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
    Treat `${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md`, `${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.

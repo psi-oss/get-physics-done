@@ -14,14 +14,17 @@ Everywhere else, shared code should stay runtime-agnostic.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 
-from gpd.adapters import iter_adapters
+from gpd.adapters import get_adapter, iter_adapters
+from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.runtime_catalog import (
+    ManagedInstallSurfacePolicy,
     get_hook_payload_policy,
     get_shared_install_metadata,
     iter_runtime_descriptors,
@@ -131,6 +134,7 @@ def _runtime_owned_path_patterns() -> list[str]:
             patterns.add(rf"{escaped_base}/command")
     return sorted(patterns)
 
+
 _RUNTIME_PATTERN = (
     "("
     + "|".join(
@@ -146,7 +150,11 @@ _RUNTIME_PATTERN = (
 _DOC_SUFFIXES = {".md"}
 _RUNTIME_OWNED_PREFIXES = (
     *(f"{descriptor.config_dir_name}/" for descriptor in _RUNTIME_DESCRIPTORS),
-    *(f"{descriptor.global_config.home_subpath}/" for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.home_subpath),
+    *(
+        f"{descriptor.global_config.home_subpath}/"
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.global_config.home_subpath
+    ),
     "src/gpd/adapters/",
 )
 _ALLOWED_RUNTIME_FILES = {
@@ -195,9 +203,7 @@ _RUNTIME_INSTALL_ARTIFACT_PATTERN = re.compile(
     + ")"
 )
 _SHARED_COMMAND_SURFACE_PATTERN = _runtime_public_command_surface_pattern()
-_SHARED_BOOTSTRAP_COMMAND_PATTERN = re.compile(
-    r"(\bnpx\b|\bnpm\b|\buvx\b|\bpip\b|\bpipx\b|\bbunx\b|get-physics-done)"
-)
+_SHARED_BOOTSTRAP_COMMAND_PATTERN = re.compile(r"(\bnpx\b|\bnpm\b|\buvx\b|\bpip\b|\bpipx\b|\bbunx\b|get-physics-done)")
 _SHARED_RUNTIME_AGNOSTIC_PATHS = (
     REPO_ROOT / "src/gpd/agents",
     REPO_ROOT / "src/gpd/commands",
@@ -241,19 +247,21 @@ _ROOT_RUNTIME_SURFACE_TEST_NAME_TOKENS = ("runtime", "install", "registry", "upd
 _EXPLICIT_ROOT_RUNTIME_SURFACE_TESTS = {
     "tests/test_cli_integration.py",
 }
-_STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST = {
-    "tests/test_install_utils_edge.py",
-}
+_STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST: frozenset[str] = frozenset()
 
 
 def _is_root_runtime_surface_test(path: Path) -> bool:
     rel_path = path.relative_to(REPO_ROOT)
     if len(rel_path.parts) != 2 or rel_path.parts[0] != "tests" or not rel_path.name.startswith("test_"):
         return False
-    return (
-        rel_path.as_posix() in _EXPLICIT_ROOT_RUNTIME_SURFACE_TESTS
-        or any(token in rel_path.name for token in _ROOT_RUNTIME_SURFACE_TEST_NAME_TOKENS)
+    return rel_path.as_posix() in _EXPLICIT_ROOT_RUNTIME_SURFACE_TESTS or any(
+        token in rel_path.name for token in _ROOT_RUNTIME_SURFACE_TEST_NAME_TOKENS
     )
+
+
+def _is_root_shared_test_helper(path: Path) -> bool:
+    rel_path = path.relative_to(REPO_ROOT)
+    return len(rel_path.parts) == 2 and rel_path.parts[0] == "tests" and not rel_path.name.startswith("test_")
 
 
 _BOOTSTRAP_INSTALLER_TEST_PATH = REPO_ROOT / "tests/test_bootstrap_installer.py"
@@ -261,6 +269,7 @@ _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = tuple(
     path
     for path in _SHARED_TEST_RUNTIME_SURFACE_PATHS
     if path.relative_to(REPO_ROOT).parts[:2] in {("tests", "core"), ("tests", "mcp")}
+    or _is_root_shared_test_helper(path)
     or (
         _is_root_runtime_surface_test(path)
         and path.relative_to(REPO_ROOT).as_posix() not in _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST
@@ -291,8 +300,7 @@ _SHARED_HOOK_PAYLOAD_POLICY_CONSUMER_PATHS = (
     REPO_ROOT / "tests/hooks/test_statusline.py",
 )
 _RUNTIME_ADAPTER_IMPLEMENTATION_PATHS = tuple(
-    REPO_ROOT / f"src/gpd/adapters/{adapter.__class__.__module__.rsplit('.', 1)[-1]}.py"
-    for adapter in iter_adapters()
+    REPO_ROOT / f"src/gpd/adapters/{adapter.__class__.__module__.rsplit('.', 1)[-1]}.py" for adapter in iter_adapters()
 )
 _RUNTIME_BRIDGE_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
@@ -320,11 +328,16 @@ def _is_doc(rel_path: Path) -> bool:
 
 
 def _is_installed_shared_markdown(rel_path: Path) -> bool:
-    return rel_path.parts[:3] == ("src", "gpd", "commands") or rel_path.parts[:3] == (
-        "src",
-        "gpd",
-        "agents",
-    ) or rel_path.parts[:3] == ("src", "gpd", "specs")
+    return (
+        rel_path.parts[:3] == ("src", "gpd", "commands")
+        or rel_path.parts[:3]
+        == (
+            "src",
+            "gpd",
+            "agents",
+        )
+        or rel_path.parts[:3] == ("src", "gpd", "specs")
+    )
 
 
 def _is_test(rel_path: Path) -> bool:
@@ -356,7 +369,9 @@ def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -
             candidates = [path]
         else:
             candidates = sorted(
-                candidate for candidate in path.rglob("*") if candidate.is_file() and candidate.suffix in _TEXT_SURFACE_SUFFIXES
+                candidate
+                for candidate in path.rglob("*")
+                if candidate.is_file() and candidate.suffix in _TEXT_SURFACE_SUFFIXES
             )
         for candidate in candidates:
             if candidate.suffix not in _TEXT_SURFACE_SUFFIXES:
@@ -422,11 +437,7 @@ def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2)
         if block in seen_blocks:
             continue
         seen_blocks.add(block)
-        matched_values = {
-            value
-            for value in fixture_values
-            if re.search(rf'["\']{re.escape(value)}["\']', block)
-        }
+        matched_values = {value for value in fixture_values if re.search(rf'["\']{re.escape(value)}["\']', block)}
         if len(matched_values) >= minimum_matches:
             findings.append(block.replace("\n", " "))
     return findings
@@ -663,10 +674,7 @@ def test_loaded_runtime_descriptors_keep_public_command_surfaces_descriptor_owne
 
     assert all(public_prefixes)
     assert all(command_prefixes)
-    assert all(
-        descriptor.public_command_surface_prefix
-        for descriptor in _RUNTIME_DESCRIPTORS
-    )
+    assert all(descriptor.public_command_surface_prefix for descriptor in _RUNTIME_DESCRIPTORS)
 
 
 def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypatch) -> None:
@@ -694,7 +702,7 @@ def test_strict_runtime_literal_guard_covers_root_level_runtime_facing_tests() -
         if _is_root_runtime_surface_test(path)
     }
 
-    assert _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST == {"tests/test_install_utils_edge.py"}
+    assert _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST == frozenset()
     assert expected_root_relpaths - _STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST <= strict_relpaths
     assert not (_STRICT_ROOT_RUNTIME_LITERAL_ALLOWLIST & strict_relpaths)
     assert {
@@ -728,8 +736,7 @@ def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> Non
     ]
 
     assert leaks == [], (
-        "Runtime-specific hardcoding leaked outside adapter/runtime boundary files:\n"
-        f"{_format_failures(leaks)}"
+        f"Runtime-specific hardcoding leaked outside adapter/runtime boundary files:\n{_format_failures(leaks)}"
     )
 
 
@@ -757,8 +764,7 @@ def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> N
     ]
 
     assert leaks == [], (
-        "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
-        f"{_format_failures(leaks)}"
+        f"Shared adapter infrastructure should not hardcode runtime-specific terms:\n{_format_failures(leaks)}"
     )
 
 
@@ -766,13 +772,11 @@ def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
     leaks = [
         (path, line_no, snippet)
         for path, line_no, snippet in _git_grep(_SHARED_ADAPTER_RUNTIME_BRANCH_PATTERN)
-        if path.parts[:3] == ("src", "gpd", "adapters")
-        and path.as_posix() not in _ALLOWED_RUNTIME_ADAPTER_FILES
+        if path.parts[:3] == ("src", "gpd", "adapters") and path.as_posix() not in _ALLOWED_RUNTIME_ADAPTER_FILES
     ]
 
     assert leaks == [], (
-        "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
-        f"{_format_failures(leaks)}"
+        f"Shared adapter infrastructure should not hardcode runtime-specific terms:\n{_format_failures(leaks)}"
     )
 
 
@@ -962,9 +966,7 @@ def test_bootstrap_installer_does_not_hardcode_runtime_name_or_display_name_lite
         )
     )
     runtime_literal_pattern = re.compile(
-        r'(?<![A-Za-z0-9_.-])(?:'
-        + "|".join(re.escape(value) for value in runtime_literals)
-        + r')(?![A-Za-z0-9_.-])'
+        r"(?<![A-Za-z0-9_.-])(?:" + "|".join(re.escape(value) for value in runtime_literals) + r")(?![A-Za-z0-9_.-])"
     )
 
     leaks = [
@@ -1013,6 +1015,38 @@ def test_readme_optional_terminal_reference_uses_runtime_placeholders() -> None:
     assert "--runtime <runtime>" in block
 
 
+def test_base_uninstall_removes_shared_surfaces_from_catalog_globs(tmp_path: Path, monkeypatch) -> None:
+    adapter = get_adapter(_RUNTIME_DESCRIPTORS[0].runtime_name)
+    target = tmp_path / "runtime-config"
+    nested_command = target / "slash-commands" / "gpd" / "help.md"
+    flat_command = target / "shortcut" / "gpd-help.md"
+    managed_agent = target / "roles" / "gpd-worker.txt"
+    user_agent = target / "roles" / "custom.txt"
+    for path in (nested_command, flat_command, managed_agent, user_agent):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("content\n", encoding="utf-8")
+    (target / _SHARED_INSTALL.manifest_name).write_text(
+        json.dumps({"runtime": adapter.runtime_name, "install_scope": "local"}),
+        encoding="utf-8",
+    )
+    policy = ManagedInstallSurfacePolicy(
+        nested_command_globs=("slash-commands/gpd/**/*",),
+        flat_command_globs=("shortcut/gpd-*.md",),
+        managed_agent_globs=("roles/gpd-*.txt",),
+    )
+    monkeypatch.setattr("gpd.adapters.base.get_managed_install_surface_policy", lambda runtime=None: policy)
+
+    result = RuntimeAdapter.uninstall(adapter, target)
+
+    assert "slash-commands/gpd/" in result["removed"]
+    assert "1 flat GPD commands" in result["removed"]
+    assert "1 GPD agents" in result["removed"]
+    assert not nested_command.exists()
+    assert not flat_command.exists()
+    assert not managed_agent.exists()
+    assert user_agent.exists()
+
+
 def test_user_facing_runtime_command_hints_use_runtime_placeholder() -> None:
     leaks = _scan_paths_for_pattern(
         (
@@ -1024,6 +1058,5 @@ def test_user_facing_runtime_command_hints_use_runtime_placeholder() -> None:
     )
 
     assert leaks == [], (
-        "User-facing runtime command hints should use the canonical <runtime> placeholder:\n"
-        f"{_format_failures(leaks)}"
+        f"User-facing runtime command hints should use the canonical <runtime> placeholder:\n{_format_failures(leaks)}"
     )

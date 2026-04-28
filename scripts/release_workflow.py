@@ -15,6 +15,9 @@ import argparse
 import json
 import re
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,6 +41,20 @@ class PublishDateMetadata:
     release_date: str
     release_year: str
     changed_files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PypiProbeResult:
+    status: str
+    message: str | None = None
+
+
+DEFAULT_PYPI_PACKAGE_NAME = "get-physics-done"
+PYPI_VERSION_PUBLISHED = "published"
+PYPI_VERSION_NOT_PUBLISHED = "not-published"
+PYPI_VERSION_UNKNOWN = "unknown"
+PYPI_STATUS_ALREADY_PUBLISHED = "already-published"
+PYPI_STATUS_RECOVERED = "recovered"
 
 
 def _read_text(path: Path) -> str:
@@ -74,6 +91,92 @@ def _validate_release_date(release_date: str) -> str:
     except ValueError as exc:
         raise ReleaseError("Release date must use ISO format YYYY-MM-DD.") from exc
     return release_date
+
+
+def _append_github_outputs(github_output: Path | None, outputs: dict[str, str]) -> None:
+    if github_output is None:
+        return
+    with github_output.open("a", encoding="utf-8") as fh:
+        for key, value in outputs.items():
+            fh.write(f"{key}={value}\n")
+
+
+def _pypi_version_json_url(package_name: str, version: str) -> str:
+    encoded_package = urllib.parse.quote(package_name, safe="")
+    encoded_version = urllib.parse.quote(version, safe="")
+    return f"https://pypi.org/pypi/{encoded_package}/{encoded_version}/json"
+
+
+def probe_pypi_version(package_name: str, version: str, *, timeout: float = 20.0) -> PypiProbeResult:
+    """Return whether a specific PyPI project version is visible."""
+
+    url = _pypi_version_json_url(package_name, version)
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            if response.status == 200:
+                return PypiProbeResult(PYPI_VERSION_PUBLISHED)
+            return PypiProbeResult(
+                PYPI_VERSION_UNKNOWN,
+                f"PyPI version check returned HTTP {response.status}",
+            )
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return PypiProbeResult(PYPI_VERSION_NOT_PUBLISHED)
+        return PypiProbeResult(PYPI_VERSION_UNKNOWN, f"PyPI version check returned HTTP {exc.code}")
+    except Exception as exc:
+        return PypiProbeResult(PYPI_VERSION_UNKNOWN, f"PyPI version check failed: {exc}")
+
+
+def record_pypi_preflight_status(
+    package_name: str,
+    version: str,
+    *,
+    github_output: Path | None = None,
+) -> str:
+    probe = probe_pypi_version(package_name, version)
+    if probe.status == PYPI_VERSION_PUBLISHED:
+        status = PYPI_STATUS_ALREADY_PUBLISHED
+        print(f"::notice::{package_name} {version} is already published on PyPI; skipping PyPI publish.")
+    else:
+        status = PYPI_VERSION_NOT_PUBLISHED
+        if probe.status == PYPI_VERSION_UNKNOWN:
+            if probe.message:
+                print(probe.message, file=sys.stderr)
+            print(
+                f"::warning::Could not determine whether {package_name} {version} is already on PyPI; "
+                "attempting trusted publish."
+            )
+
+    _append_github_outputs(github_output, {"status": status})
+    return status
+
+
+def record_pypi_publish_status(
+    package_name: str,
+    version: str,
+    *,
+    pre_publish_status: str,
+    publish_outcome: str,
+    github_output: Path | None = None,
+) -> str:
+    if pre_publish_status == PYPI_STATUS_ALREADY_PUBLISHED:
+        status = PYPI_STATUS_ALREADY_PUBLISHED
+    elif pre_publish_status != PYPI_VERSION_NOT_PUBLISHED:
+        raise ReleaseError(f"Unsupported PyPI pre-publish status: {pre_publish_status!r}.")
+    elif publish_outcome == "success":
+        status = PYPI_VERSION_PUBLISHED
+    else:
+        probe = probe_pypi_version(package_name, version)
+        if probe.status == PYPI_VERSION_PUBLISHED:
+            print(f"::warning::PyPI publish failed, but {package_name} {version} is now published; continuing.")
+            status = PYPI_STATUS_RECOVERED
+        else:
+            if probe.message:
+                print(probe.message, file=sys.stderr)
+            raise ReleaseError(f"PyPI publish did not complete and {package_name} {version} is not published.")
+
+    _append_github_outputs(github_output, {"status": status})
+    return status
 
 
 def parse_current_version(pyproject_text: str) -> str:
@@ -301,13 +404,31 @@ def _build_parser() -> argparse.ArgumentParser:
     release_notes_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
     release_notes_parser.add_argument("--version", required=True, help="Version heading to extract.")
 
+    pypi_preflight_parser = subparsers.add_parser(
+        "pypi-preflight",
+        help="Record whether the release version already exists on PyPI before publishing.",
+    )
+    pypi_preflight_parser.add_argument("--package", default=DEFAULT_PYPI_PACKAGE_NAME, help="PyPI project name.")
+    pypi_preflight_parser.add_argument("--version", required=True, help="Release version to probe.")
+    pypi_preflight_parser.add_argument("--github-output", type=Path, help="Path to the GitHub Actions output file.")
+
+    pypi_status_parser = subparsers.add_parser(
+        "pypi-publish-status",
+        help="Record the final PyPI publish status after the trusted publishing step.",
+    )
+    pypi_status_parser.add_argument("--package", default=DEFAULT_PYPI_PACKAGE_NAME, help="PyPI project name.")
+    pypi_status_parser.add_argument("--version", required=True, help="Release version to verify.")
+    pypi_status_parser.add_argument("--pre-publish-status", required=True, help="Status from pypi-preflight.")
+    pypi_status_parser.add_argument("--publish-outcome", required=True, help="GitHub Actions outcome for publish step.")
+    pypi_status_parser.add_argument("--github-output", type=Path, help="Path to the GitHub Actions output file.")
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    repo_root = args.repo.resolve()
+    repo_root = getattr(args, "repo", Path(".")).resolve()
 
     try:
         if args.command == "prepare":
@@ -332,6 +453,22 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(release_notes)
             if not release_notes.endswith("\n"):
                 sys.stdout.write("\n")
+            return 0
+
+        if args.command == "pypi-preflight":
+            status = record_pypi_preflight_status(args.package, args.version, github_output=args.github_output)
+            sys.stdout.write(f"{status}\n")
+            return 0
+
+        if args.command == "pypi-publish-status":
+            status = record_pypi_publish_status(
+                args.package,
+                args.version,
+                pre_publish_status=args.pre_publish_status,
+                publish_outcome=args.publish_outcome,
+                github_output=args.github_output,
+            )
+            sys.stdout.write(f"{status}\n")
             return 0
     except ReleaseError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

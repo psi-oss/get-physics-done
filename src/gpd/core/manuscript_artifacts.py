@@ -78,6 +78,7 @@ class _ManifestEntrypointResolution:
 
     manifest: ArtifactManifest | None
     entrypoints: tuple[Path, ...]
+    manifest_path: Path | None = None
     stale_details: tuple[str, ...] = ()
     invalid_detail: str | None = None
 
@@ -87,6 +88,7 @@ class _ArtifactManifestLoadResult:
     """Loaded artifact manifest, or the reason a present manifest cannot be trusted."""
 
     manifest: ArtifactManifest | None
+    manifest_path: Path | None = None
     invalid_detail: str | None = None
 
 
@@ -233,19 +235,85 @@ class PublicationBootstrapResolution:
         }
 
 
+def _publication_artifact_candidate_paths(manuscript_root: Path, filename: str) -> tuple[Path, ...]:
+    """Return root-level then nested sidecar candidates under one manuscript base."""
+
+    base_dir = _normalize_manuscript_base(manuscript_root)
+    candidates: list[Path] = []
+    direct_candidate = base_dir / filename
+    direct_resolved = direct_candidate.resolve(strict=False)
+    if direct_candidate.exists() and direct_candidate.is_file():
+        candidates.append(direct_candidate)
+
+    if not base_dir.exists() or not base_dir.is_dir():
+        return tuple(candidates)
+
+    try:
+        nested_candidates = sorted(
+            (
+                path
+                for path in base_dir.rglob(filename)
+                if path.is_file()
+                and path.resolve(strict=False) != direct_resolved
+                and path.relative_to(base_dir).parts[0].startswith(".")
+            ),
+            key=lambda path: path.relative_to(base_dir).as_posix(),
+        )
+    except OSError:
+        nested_candidates = []
+    candidates.extend(nested_candidates)
+    return tuple(dict.fromkeys(candidates))
+
+
+def _resolve_single_publication_artifact_path(
+    manuscript_root: Path,
+    filename: str,
+) -> tuple[Path | None, str | None]:
+    """Resolve one sidecar path, failing closed on ambiguous nested copies."""
+
+    candidates = _publication_artifact_candidate_paths(manuscript_root, filename)
+    if not candidates:
+        return None, None
+
+    base_dir = _normalize_manuscript_base(manuscript_root)
+    if len(candidates) == 1:
+        return candidates[0], None
+
+    preview_paths = []
+    for path in candidates[:3]:
+        try:
+            preview_paths.append(path.relative_to(base_dir).as_posix())
+        except ValueError:
+            preview_paths.append(path.as_posix())
+    suffix = f" (+{len(candidates) - 3} more)" if len(candidates) > 3 else ""
+    return None, f"{filename} is ambiguous under {base_dir}: {', '.join(preview_paths)}{suffix}"
+
+
 def _load_artifact_manifest(manuscript_root: Path) -> _ArtifactManifestLoadResult:
-    manifest_path = manuscript_root / "ARTIFACT-MANIFEST.json"
-    if not manifest_path.exists():
+    manifest_path, ambiguous_detail = _resolve_single_publication_artifact_path(
+        manuscript_root,
+        "ARTIFACT-MANIFEST.json",
+    )
+    if ambiguous_detail is not None:
+        return _ArtifactManifestLoadResult(manifest=None, invalid_detail=ambiguous_detail)
+    if manifest_path is None:
         return _ArtifactManifestLoadResult(manifest=None)
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
         if payload == {}:
             # Legacy bootstrap placeholders wrote `{}` before a real build manifest existed.
             # Keep only that empty-object placeholder recoverable; all other invalid manifests fail closed.
-            return _ArtifactManifestLoadResult(manifest=None)
-        return _ArtifactManifestLoadResult(manifest=ArtifactManifest.model_validate(payload))
+            return _ArtifactManifestLoadResult(manifest=None, manifest_path=manifest_path)
+        return _ArtifactManifestLoadResult(
+            manifest=ArtifactManifest.model_validate(payload),
+            manifest_path=manifest_path,
+        )
     except (OSError, json.JSONDecodeError, PydanticValidationError) as exc:
-        return _ArtifactManifestLoadResult(manifest=None, invalid_detail=f"{manifest_path} is invalid: {exc}")
+        return _ArtifactManifestLoadResult(
+            manifest=None,
+            manifest_path=manifest_path,
+            invalid_detail=f"{manifest_path} is invalid: {exc}",
+        )
 
 
 def _manifest_entrypoint_resolution(
@@ -259,6 +327,7 @@ def _manifest_entrypoint_resolution(
         return _ManifestEntrypointResolution(
             manifest=None,
             entrypoints=(),
+            manifest_path=load_result.manifest_path,
             invalid_detail=load_result.invalid_detail,
         )
 
@@ -284,6 +353,7 @@ def _manifest_entrypoint_resolution(
     return _ManifestEntrypointResolution(
         manifest=manifest,
         entrypoints=tuple(dict.fromkeys(candidates)),
+        manifest_path=load_result.manifest_path,
         stale_details=tuple(dict.fromkeys(stale_details)),
     )
 
@@ -422,11 +492,11 @@ def _resolve_manuscript_entrypoint_from_root_resolution(
     manifest_resolution = _manifest_entrypoint_resolution(manuscript_root, allow_markdown=allow_markdown)
     manifest_entrypoints = manifest_resolution.entrypoints
     configured_entrypoints = _configured_entrypoints(manuscript_root, allow_markdown=allow_markdown)
-    manifest_path = manuscript_root / "ARTIFACT-MANIFEST.json"
+    manifest_path = manifest_resolution.manifest_path or manuscript_root / "ARTIFACT-MANIFEST.json"
     config_path = manuscript_root / "PAPER-CONFIG.json"
 
     manifest_valid = manifest_resolution.manifest is not None
-    manifest_present = manifest_path.exists()
+    manifest_present = manifest_resolution.manifest_path is not None and manifest_path.exists()
     config_present = config_path.exists()
     manifest_entrypoint = manifest_entrypoints[0] if len(manifest_entrypoints) == 1 else None
     configured_entrypoint = configured_entrypoints[0] if len(configured_entrypoints) == 1 else None
@@ -1211,10 +1281,11 @@ def resolve_publication_bootstrap_resolution(
 def locate_publication_artifact(manuscript_root: Path, *filenames: str) -> Path | None:
     """Return the first publication artifact found beside a manuscript root."""
 
-    base_dir = _normalize_manuscript_base(manuscript_root)
     for filename in filenames:
-        candidate = base_dir / filename
-        if candidate.exists():
+        candidate, ambiguous_detail = _resolve_single_publication_artifact_path(manuscript_root, filename)
+        if ambiguous_detail is not None:
+            return None
+        if candidate is not None:
             return candidate
     return None
 

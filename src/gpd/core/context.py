@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -379,11 +380,13 @@ _WRITE_PAPER_STAGE_ALLOWED_TOOLS = frozenset(
 _WRITE_PAPER_BASE_INIT_FIELDS = frozenset(
     {
         "commit_docs",
+        "project_root",
         "state_exists",
         "project_exists",
         "autonomy",
         "research_mode",
         "platform",
+        "write_paper_argument_input",
     }
 )
 _WRITE_PAPER_CONTRACT_GATE_FIELDS = frozenset(
@@ -2126,6 +2129,50 @@ def _build_publication_bootstrap_runtime_context(
     }
 
 
+def _extract_flag_value(argument_payload: str | None, flag: str) -> str | None:
+    """Return the value for a launch flag carried through staged init."""
+
+    if not isinstance(argument_payload, str) or not argument_payload.strip():
+        return None
+    try:
+        tokens = shlex.split(argument_payload)
+    except ValueError:
+        tokens = argument_payload.split()
+    for index, token in enumerate(tokens):
+        if token == flag and index + 1 < len(tokens):
+            return tokens[index + 1]
+        prefix = f"{flag}="
+        if token.startswith(prefix):
+            return token[len(prefix) :]
+    return None
+
+
+def _write_paper_subject_from_launch_arguments(argument_payload: str | None) -> str | None:
+    """Keep staged write-paper init from interpreting intake flags as manuscript paths."""
+
+    if not isinstance(argument_payload, str):
+        return None
+    stripped = argument_payload.strip()
+    if not stripped:
+        return None
+    try:
+        tokens = shlex.split(stripped)
+    except ValueError:
+        tokens = stripped.split()
+    if not tokens or tokens[0].startswith("--"):
+        return None
+    return stripped
+
+
+def _respond_to_referees_subject_from_launch_arguments(argument_payload: str | None) -> str | None:
+    """Resolve only the manuscript side of response-round launch arguments."""
+
+    manuscript = _extract_flag_value(argument_payload, "--manuscript")
+    if manuscript:
+        return manuscript
+    return None
+
+
 def _selected_publication_stage_roots(
     *,
     publication_subject_slug: str | None,
@@ -2248,6 +2295,7 @@ def _build_peer_review_runtime_context(
     *,
     launch_cwd: Path | None = None,
     persist_manuscript_proof_review_manifest: bool = False,
+    preserve_standalone_publication_roots: bool = False,
 ) -> dict[str, object]:
     """Build the shared publication runtime payload for peer-review init and staging."""
 
@@ -2289,6 +2337,17 @@ def _build_peer_review_runtime_context(
         }
     )
     if resolved_mode == PEER_REVIEW_STANDALONE_MODE:
+        standalone_publication_overrides: dict[str, object] = {}
+        if not preserve_standalone_publication_roots:
+            standalone_publication_overrides = {
+                "publication_bootstrap": None,
+                "publication_bootstrap_mode": None,
+                "publication_bootstrap_root": None,
+                "publication_bootstrap_detail": None,
+                "publication_intake_root": None,
+                "selected_publication_root": PLANNING_DIR_NAME,
+                "selected_review_root": f"{PLANNING_DIR_NAME}/review",
+            }
         gate = {
             "status": "standalone_explicit_artifact",
             "visible": False,
@@ -2347,13 +2406,7 @@ def _build_peer_review_runtime_context(
                 "citation_source_warnings": [],
                 "derived_citation_sources": [],
                 "derived_citation_source_count": 0,
-                "publication_bootstrap": None,
-                "publication_bootstrap_mode": None,
-                "publication_bootstrap_root": None,
-                "publication_bootstrap_detail": None,
-                "publication_intake_root": None,
-                "selected_publication_root": PLANNING_DIR_NAME,
-                "selected_review_root": f"{PLANNING_DIR_NAME}/review",
+                **standalone_publication_overrides,
             }
         )
     return result
@@ -2905,6 +2958,14 @@ def _promote_auto_selected_recent_bounded_segment(
     resume_file = _mapping_text(selected_candidate, "resume_file")
     if resume_file is None:
         return continuation_state, False
+    project_root = _mapping_text(reentry_metadata, "project_root") or _mapping_text(selected_candidate, "project_root")
+    if project_root is None:
+        return continuation_state, False
+    normalized_resume_file = normalize_continuation_reference(project_root, resume_file, require_exists=True)
+    if normalized_resume_file is None:
+        return continuation_state, False
+    resume_file = normalized_resume_file
+
     last_result_id = _mapping_text(selected_candidate, "last_result_id")
     if last_result_id is not None and last_result_id not in result_lookup_by_id:
         last_result_id = None
@@ -4301,21 +4362,27 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
     return staged_payload
 
 
-def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
+def init_write_paper(cwd: Path, subject: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for manuscript authoring and publication review."""
-    config = load_config(cwd)
+    effective_cwd = _resolve_project_scoped_cwd(cwd)
+    launch_subject = _write_paper_subject_from_launch_arguments(subject)
+    config = load_config(effective_cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
-        "state_exists": _state_exists(cwd),
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "project_root": effective_cwd.as_posix(),
+        "state_exists": _state_exists(effective_cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_publication_bootstrap_runtime_context(cwd))
-        result.update(_build_publication_runtime_snapshot_context(cwd))
+        result.update(_build_publication_bootstrap_runtime_context(effective_cwd))
+        result.update(_build_publication_runtime_snapshot_context(effective_cwd))
+        result["write_paper_argument_input"] = subject.strip() if isinstance(subject, str) else ""
+        if launch_subject:
+            result["write_paper_launch_subject"] = launch_subject
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4340,24 +4407,28 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     needs_publication_bootstrap_context = bool(required_fields & _WRITE_PAPER_PUBLICATION_BOOTSTRAP_FIELDS)
 
     if needs_full_reference_context:
-        staged_source.update(_build_reference_runtime_context(cwd))
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
     elif needs_bootstrap_reference_context or needs_contract_gate_context or needs_publication_bootstrap_context:
-        staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
+        staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
     if needs_full_reference_context and needs_publication_bootstrap_context:
-        staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
+        staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
 
     if required_fields & _WRITE_PAPER_STATE_MEMORY_FIELDS:
-        staged_source.update(_build_state_memory_runtime_context(cwd))
+        staged_source.update(_build_state_memory_runtime_context(effective_cwd))
 
     if required_fields & _WRITE_PAPER_FILE_CONTENT_FIELDS:
         staged_source.update(
             _build_publication_file_context(
-                cwd,
+                effective_cwd,
                 include_state="state_content" in required_fields,
                 include_roadmap="roadmap_content" in required_fields,
                 include_requirements="requirements_content" in required_fields,
             )
         )
+
+    staged_source["write_paper_argument_input"] = subject.strip() if isinstance(subject, str) else ""
+    if launch_subject:
+        staged_source["write_paper_launch_subject"] = launch_subject
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
@@ -4375,6 +4446,7 @@ def init_peer_review(cwd: Path, subject: str | None = None, stage: str | None = 
     config = load_config(effective_cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
+        "project_root": effective_cwd.as_posix(),
         "state_exists": _state_exists(effective_cwd),
         "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "autonomy": config["autonomy"],
@@ -4416,9 +4488,11 @@ def init_respond_to_referees(cwd: Path, subject: str | None = None, stage: str |
     """Assemble context for staged referee-response revision work."""
     launch_cwd = cwd.expanduser().resolve(strict=False)
     effective_cwd = _resolve_project_scoped_cwd(launch_cwd)
+    manuscript_subject = _respond_to_referees_subject_from_launch_arguments(subject)
     config = load_config(effective_cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
+        "project_root": effective_cwd.as_posix(),
         "state_exists": _state_exists(effective_cwd),
         "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "autonomy": config["autonomy"],
@@ -4427,7 +4501,15 @@ def init_respond_to_referees(cwd: Path, subject: str | None = None, stage: str |
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_peer_review_runtime_context(effective_cwd, subject, launch_cwd=launch_cwd))
+        result.update(
+            _build_peer_review_runtime_context(
+                effective_cwd,
+                manuscript_subject,
+                launch_cwd=launch_cwd,
+                preserve_standalone_publication_roots=True,
+            )
+        )
+        result["response_intake_input"] = subject.strip() if isinstance(subject, str) else ""
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4444,7 +4526,15 @@ def init_respond_to_referees(cwd: Path, subject: str | None = None, stage: str |
         ) from exc
 
     staged_source = dict(base_result)
-    staged_source.update(_build_peer_review_runtime_context(effective_cwd, subject, launch_cwd=launch_cwd))
+    staged_source.update(
+        _build_peer_review_runtime_context(
+            effective_cwd,
+            manuscript_subject,
+            launch_cwd=launch_cwd,
+            preserve_standalone_publication_roots=True,
+        )
+    )
+    staged_source["response_intake_input"] = subject.strip() if isinstance(subject, str) else ""
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
@@ -4457,21 +4547,27 @@ def init_respond_to_referees(cwd: Path, subject: str | None = None, stage: str |
     return staged_payload
 
 
-def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
+def init_arxiv_submission(cwd: Path, subject: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for arXiv submission packaging."""
-    config = load_config(cwd)
+    launch_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(launch_cwd)
+    subject_input = subject.strip() if isinstance(subject, str) else ""
+    resolved_subject = _explicit_subject_from_launch_cwd(subject_input, launch_cwd) if subject_input else None
+    config = load_config(effective_cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
-        "state_exists": _state_exists(cwd),
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "arxiv_submission_argument_input": subject_input,
+        "project_root": effective_cwd.as_posix(),
+        "state_exists": _state_exists(effective_cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_publication_bootstrap_runtime_context(cwd))
-        result.update(_build_publication_runtime_snapshot_context(cwd))
+        result.update(_build_publication_bootstrap_runtime_context(effective_cwd))
+        result.update(_build_publication_runtime_snapshot_context(effective_cwd, subject=resolved_subject))
         return result
 
     manifest = load_arxiv_submission_stage_contract()
@@ -4486,9 +4582,9 @@ def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
     staged_source = dict(base_result)
 
     if required_fields & ARXIV_SUBMISSION_BOOTSTRAP_FIELDS:
-        staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
+        staged_source.update(_build_publication_bootstrap_runtime_context(effective_cwd))
     if required_fields & ARXIV_SUBMISSION_SNAPSHOT_FIELDS:
-        staged_source.update(_build_publication_runtime_snapshot_context(cwd))
+        staged_source.update(_build_publication_runtime_snapshot_context(effective_cwd, subject=resolved_subject))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:

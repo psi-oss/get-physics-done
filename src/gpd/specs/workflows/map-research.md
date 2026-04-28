@@ -82,7 +82,7 @@ RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default b
 - Preserve stable anchor identity when you rewrite or merge references: every durable anchor in `REFERENCES.md` should carry a reusable `Anchor ID` and a concrete `Source / Locator`.
 - Keep workflow carry-forward scope separate from canonical contract subject linkage. `Carry Forward To` names workflow stages; if exact claim/deliverable IDs are known, record them in a dedicated `Contract Subject IDs` field instead of overloading the stage field.
 - Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. If the gate is blocked, keep the contract visible as context but do not treat it as approved mapping truth.
-- If `map_focus_provided` is true, keep `map_focus` visible and bias each slice without losing contract-critical coverage.
+- If `map_focus_provided` is true, keep `map_focus` visible and bias each slice without losing contract-critical coverage. Map focus: {map_focus}
 Each mapper agent is a one-shot file-producing handoff. Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run.
 </step>
 
@@ -159,47 +159,27 @@ Use task tool with `subagent_type="gpd-research-mapper"`, `model="{mapper_model}
 
 **CRITICAL:** Use the dedicated `gpd-research-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
 
+Each mapper prompt must carry the staged intake fields, active reference context, reference excerpts, contract load/validation status, and the project contract. Contract IDs are preferred only when `project_contract_gate.authoritative` is true; otherwise the contract stays context-only.
+
 **Agent 1: Theory Focus**
 
 task(
-task tool parameters:
+  subagent_type="gpd-research-mapper",
+  model="{mapper_model}",
+  readonly=false,
+  run_in_background=true,
+  description="Map research project theoretical content",
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
-```
-subagent_type="gpd-research-mapper"
-model: "{mapper_model}"
-readonly=false
-run_in_background: true
-description: "Map research project theoretical content"
-```
+Focus: theory. Bias toward {map_focus} when provided without dropping contract-critical anchors.
+Analyze theoretical content and literature foundations.
 
-Prompt:
-
-```
-First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
-
-Focus: theory
-Map focus: {map_focus} (if provided, bias this theory slice toward it without dropping contract-critical anchors).
-
-Analyze this research project for theoretical content and literature foundations.
-Treat the machine-readable intake below as binding carry-forward context:
-{effective_reference_intake}
-
-Keep this active reference context visible while mapping:
-{active_reference_context}
-
-Existing reference artifact excerpts:
-{reference_artifacts_content}
-
-Project contract load info:
-{project_contract_load_info}
-
-Project contract validation:
-{project_contract_validation}
-
-If `project_contract` is present and `project_contract_gate.authoritative` is true, use its existing IDs as the preferred canonical names for anchors and contract subject references:
-{project_contract}
-
-If the contract is blocked or not approved, keep it visible as context only and do not treat its IDs as authoritative mapping truth.
+Staged context: {effective_reference_intake}
+Active references: {active_reference_context}
+Reference excerpts: {reference_artifacts_content}
+Contract load/validation: {project_contract_load_info} / {project_contract_validation}
+Project contract for gated IDs/context: {project_contract}
+Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
 Write these documents to GPD/research-map/:
 - FORMALISM.md - Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes, effective theories, governing PDEs/ODEs, boundary conditions, conservation laws
@@ -220,48 +200,31 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return a typed `gpd_return` envelope. Treat `gpd_return.status: completed` as provisional until both files exist on disk and appear in `gpd_return.files_written`.
+Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`.
 
-Explore thoroughly: read LaTeX files, markdown notes, code comments, docstrings, README files, BibTeX databases, and any documentation. Write documents directly using templates. Return confirmation only.
-```
+Read LaTeX, markdown notes, comments/docstrings, README files, BibTeX, and docs. Write documents directly from templates; return confirmation only.
+"
 )
 
 **Agent 2: Computation Focus**
 
 task(
-task tool parameters:
+  subagent_type="gpd-research-mapper",
+  model="{mapper_model}",
+  readonly=false,
+  run_in_background=true,
+  description="Map research project computational methods",
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
-```
-subagent_type="gpd-research-mapper"
-model: "{mapper_model}"
-readonly=false
-run_in_background: true
-description: "Map research project computational methods"
-```
+Focus: computation. Bias toward {map_focus} when provided without dropping contract-critical anchors.
+Analyze computational methods, solvers, and project structure.
 
-Prompt:
-
-```
-First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
-
-Focus: computation
-Map focus: {map_focus} (if provided, bias this computation slice toward it without dropping contract-critical anchors).
-
-Analyze this research project for computational methods, solvers, and project structure.
-Treat the machine-readable intake below as binding carry-forward context:
-{effective_reference_intake}
-
-Keep this active reference context visible while mapping:
-{active_reference_context}
-
-Existing reference artifact excerpts:
-{reference_artifacts_content}
-
-Project contract load info:
-{project_contract_load_info}
-
-Project contract validation:
-{project_contract_validation}
+Staged context: {effective_reference_intake}
+Active references: {active_reference_context}
+Reference excerpts: {reference_artifacts_content}
+Contract load/validation: {project_contract_load_info} / {project_contract_validation}
+Project contract for gated IDs/context: {project_contract}
+Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
 Write these documents to GPD/research-map/:
 - ARCHITECTURE.md - Computational pipeline, solver choices (ODE/PDE/linear algebra), algorithm design, parallelization strategy, key libraries used (NumPy, SciPy, PETSc, etc.), MCP simulation servers, data flow from input to output, performance bottlenecks
@@ -282,48 +245,31 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return a typed `gpd_return` envelope. Treat `gpd_return.status: completed` as provisional until both files exist on disk and appear in `gpd_return.files_written`.
+Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`.
 
-Explore thoroughly: read Python/Julia/C++/Fortran files, Jupyter notebooks, Makefiles, configuration files, requirements/pyproject files. Write documents directly using templates. Return confirmation only.
-```
+Read Python/Julia/C++/Fortran, notebooks, Makefiles, configs, requirements/pyproject files. Write documents directly from templates; return confirmation only.
+"
 )
 
 **Agent 3: Methodology Focus**
 
 task(
-task tool parameters:
+  subagent_type="gpd-research-mapper",
+  model="{mapper_model}",
+  readonly=false,
+  run_in_background=true,
+  description="Map research project conventions and validation",
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
-```
-subagent_type="gpd-research-mapper"
-model: "{mapper_model}"
-readonly=false
-run_in_background: true
-description: "Map research project conventions and validation"
-```
+Focus: methodology. Bias toward {map_focus} when provided without dropping contract-critical anchors.
+Analyze notation conventions, unit systems, and validation practices.
 
-Prompt:
-
-```
-First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
-
-Focus: methodology
-Map focus: {map_focus} (if provided, bias this methodology slice toward it without dropping contract-critical anchors).
-
-Analyze this research project for notation conventions, unit systems, and validation practices.
-Treat the machine-readable intake below as binding carry-forward context:
-{effective_reference_intake}
-
-Keep this active reference context visible while mapping:
-{active_reference_context}
-
-Existing reference artifact excerpts:
-{reference_artifacts_content}
-
-Project contract load info:
-{project_contract_load_info}
-
-Project contract validation:
-{project_contract_validation}
+Staged context: {effective_reference_intake}
+Active references: {active_reference_context}
+Reference excerpts: {reference_artifacts_content}
+Contract load/validation: {project_contract_load_info} / {project_contract_validation}
+Project contract for gated IDs/context: {project_contract}
+Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
 Write these documents to GPD/research-map/:
 - CONVENTIONS.md - Notation system, sign conventions (metric signature, Fourier transforms), unit system (natural/SI/CGS), index placement conventions (Einstein summation), coordinate labeling, variable naming in code vs equations, coupling constant definitions, Wick rotation conventions
@@ -344,48 +290,31 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return a typed `gpd_return` envelope. Treat `gpd_return.status: completed` as provisional until both files exist on disk and appear in `gpd_return.files_written`.
+Return typed `gpd_return`; `completed` is provisional until both files exist and appear in `files_written`.
 
-Explore thoroughly: read LaTeX preambles for notation macros, code variable naming, test files, validation scripts, comparison notebooks. Write documents directly using templates. Return confirmation only.
-```
+Read LaTeX preambles, code variable naming, tests, validation scripts, comparison notebooks. Write documents directly from templates; return confirmation only.
+"
 )
 
 **Agent 4: Status Focus**
 
 task(
-task tool parameters:
+  subagent_type="gpd-research-mapper",
+  model="{mapper_model}",
+  readonly=false,
+  run_in_background=true,
+  description="Map research project concerns and open questions",
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
-```
-subagent_type="gpd-research-mapper"
-model: "{mapper_model}"
-readonly=false
-run_in_background: true
-description: "Map research project concerns and open questions"
-```
+Focus: status. Bias toward {map_focus} when provided without dropping contract-critical anchors.
+Analyze open questions, known issues, and concerns.
 
-Prompt:
-
-```
-First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
-
-Focus: status
-Map focus: {map_focus} (if provided, bias this status slice toward it without dropping contract-critical anchors).
-
-Analyze this research project for open questions, known issues, and areas of concern.
-Treat the machine-readable intake below as binding carry-forward context:
-{effective_reference_intake}
-
-Keep this active reference context visible while mapping:
-{active_reference_context}
-
-Existing reference artifact excerpts:
-{reference_artifacts_content}
-
-Project contract load info:
-{project_contract_load_info}
-
-Project contract validation:
-{project_contract_validation}
+Staged context: {effective_reference_intake}
+Active references: {active_reference_context}
+Reference excerpts: {reference_artifacts_content}
+Contract load/validation: {project_contract_load_info} / {project_contract_validation}
+Project contract for gated IDs/context: {project_contract}
+Use contract IDs only when the gate is authoritative; otherwise treat the contract as context.
 
 Write this document to GPD/research-map/:
 - CONCERNS.md - Known issues (unresolved divergences, numerical instabilities, sign ambiguities), theoretical gaps (missing diagrams, uncontrolled approximations, gauge artifacts), TODO items found in code and notes, fragile areas (code that breaks easily, calculations sensitive to parameter choices), missing validation (untested regimes, unchecked limits), computational bottlenecks, stale or abandoned branches of investigation
@@ -402,10 +331,10 @@ expected_artifacts:
 shared_state_policy: return_only
 </spawn_contract>
 
-Return a typed `gpd_return` envelope. Treat `gpd_return.status: completed` as provisional until the file exists on disk and appears in `gpd_return.files_written`.
+Return typed `gpd_return`; `completed` is provisional until the file exists and appears in `files_written`.
 
-Explore thoroughly: search for TODO/FIXME/HACK/XXX comments, read issue trackers, check for commented-out code, look for notebooks with error outputs. Write document directly using template. Return confirmation only.
-```
+Search TODO/FIXME/HACK/XXX, issue trackers, commented-out code, notebooks with errors. Write document directly from template; return confirmation only.
+"
 )
 
 **If any mapper agent fails to spawn or returns an error:** Continue with remaining agents. After all agents complete, report which focus areas failed. For each failed agent, offer: 1) Retry that focus area, 2) Skip it (the research map will be incomplete but usable for the covered areas). A partial research map is still valuable — do not abort the entire mapping operation for individual agent failures.

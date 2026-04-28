@@ -442,10 +442,6 @@ def _command_preflight_cwd(
             return _read_only_project_scoped_cwd(workspace_cwd)
         return _status_command_cwd(workspace_cwd)
 
-    command_name = str(getattr(command, "name", "") or "")
-    if command_name == "gpd:write-paper":
-        return _workspace_locked_cwd(workspace_cwd)
-
     return _project_scoped_cwd(workspace_cwd)
 
 
@@ -5190,6 +5186,10 @@ def init_new_milestone(
 
 @init_app.command("write-paper")
 def init_write_paper(
+    subject: list[str] = typer.Argument(
+        None,
+        help="Optional normalized write-paper launch payload.",
+    ),
     stage: str | None = typer.Option(
         None,
         "--stage",
@@ -5199,8 +5199,9 @@ def init_write_paper(
     """Assemble context for manuscript authoring."""
     from gpd.core.context import init_write_paper
 
+    subject_text = " ".join(subject) if subject else None
     try:
-        payload = init_write_paper(_get_cwd(), stage=stage)
+        payload = init_write_paper(_get_cwd(), subject=subject_text, stage=stage)
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
@@ -5253,6 +5254,10 @@ def init_respond_to_referees(
 
 @init_app.command("arxiv-submission")
 def init_arxiv_submission(
+    subject: list[str] = typer.Argument(
+        None,
+        help="Optional explicit manuscript root or .tex entrypoint for staged submission context.",
+    ),
     stage: str | None = typer.Option(
         None,
         "--stage",
@@ -5262,8 +5267,12 @@ def init_arxiv_submission(
     """Assemble context for arXiv submission packaging."""
     from gpd.core.context import init_arxiv_submission
 
+    subject_text = " ".join(subject) if subject else None
     try:
-        payload = init_arxiv_submission(_get_cwd(), stage=stage)
+        kwargs: dict[str, object] = {"stage": stage}
+        if subject_text is not None:
+            kwargs["subject"] = subject_text
+        payload = init_arxiv_submission(_get_cwd(), **kwargs)
     except ValueError as exc:
         _error(str(exc))
     _output(payload)
@@ -6412,6 +6421,17 @@ def _resolve_subject_path(subject: str | None, *, base: Path) -> Path | None:
     return target.resolve(strict=False)
 
 
+def _resolve_launch_or_project_relative_path(subject: str | None, *, launch_cwd: Path, project_cwd: Path) -> Path | None:
+    """Resolve a launch argument relative to launch cwd first, then project root."""
+    launch_candidate = _resolve_subject_path(subject, base=launch_cwd)
+    if launch_candidate is None or launch_candidate.exists() or Path(str(subject or "")).is_absolute():
+        return launch_candidate
+    project_candidate = _resolve_subject_path(subject, base=project_cwd)
+    if project_candidate is not None and project_candidate.exists():
+        return project_candidate
+    return launch_candidate
+
+
 def _subject_is_relative_to(target: Path, base: Path) -> bool:
     """Return whether *target* stays under *base* after normalization."""
     try:
@@ -6815,7 +6835,10 @@ def _validate_artifact_manifest_semantics(
     require_freshness: bool = True,
 ) -> tuple[bool, str]:
     """Validate artifact-manifest structure and manuscript freshness."""
-    from gpd.mcp.paper.artifact_manifest import validate_artifact_manifest_freshness
+    from gpd.mcp.paper.artifact_manifest import (
+        validate_artifact_manifest_freshness,
+        validate_artifact_manifest_integrity,
+    )
     from gpd.mcp.paper.models import ArtifactManifest
 
     detail = f"{_format_display_path(artifact_manifest)} present"
@@ -6838,6 +6861,14 @@ def _validate_artifact_manifest_semantics(
             )
             if not artifact_manifest_freshness.fresh:
                 return False, "artifact manifest is stale: " + artifact_manifest_freshness.detail
+        selected_manifest_manuscript = manuscript if manuscript.suffix.lower() in {".tex", ".md"} else None
+        artifact_manifest_integrity = validate_artifact_manifest_integrity(
+            artifact_manifest_model,
+            artifact_manifest.parent,
+            selected_manuscript_path=selected_manifest_manuscript,
+        )
+        if not artifact_manifest_integrity.passed:
+            return False, "artifact manifest integrity failed: " + artifact_manifest_integrity.detail
     except OSError as exc:
         return False, f"could not read artifact manifest: {exc}"
     except UnicodeDecodeError as exc:
@@ -10365,7 +10396,10 @@ def _build_review_preflight(
         report_arguments = _command_referee_report_arguments(command, subject)
         if report_arguments:
             report_paths = tuple(
-                (_resolve_subject_path(report, base=project_cwd) or (project_cwd / report).resolve(strict=False))
+                (
+                    _resolve_launch_or_project_relative_path(report, launch_cwd=cwd, project_cwd=project_cwd)
+                    or (cwd / report).resolve(strict=False)
+                )
                 for report in report_arguments
             )
             add_check(
@@ -10564,10 +10598,11 @@ def _build_review_preflight(
                     response_round_requires_fresh_review = False
                     if latest_response_round is not None and (
                         required_review_round is None
-                        or latest_response_round.round_number > required_review_round.round_number
+                        or latest_response_round.round_number >= required_review_round.round_number
                     ):
+                        next_review_round = latest_response_round.round_number + 1
                         required_review_round = _publication_review_round_artifacts(
-                            latest_response_round.round_number,
+                            next_review_round,
                             review_ledger_by_round=review_ledger_by_round,
                             referee_decision_by_round=referee_decision_by_round,
                         )
@@ -10598,11 +10633,17 @@ def _build_review_preflight(
                             if required_review_round.round_number > 1
                             else "round 1"
                         )
-                        response_round_detail = (
-                            f"; latest response artifacts already reached {round_label}"
-                            if response_round_requires_fresh_review
-                            else ""
-                        )
+                        response_round_detail = ""
+                        if response_round_requires_fresh_review and latest_response_round is not None:
+                            response_round_label = (
+                                f"round {latest_response_round.round_number}"
+                                if latest_response_round.round_number > 1
+                                else "round 1"
+                            )
+                            response_round_detail = (
+                                f"; latest response artifacts already reached {response_round_label}; "
+                                f"requires newer staged review clearance in {round_label}"
+                            )
                         if "review_ledger" in review_checks_requested:
                             add_check(
                                 "review_ledger",
@@ -12186,6 +12227,11 @@ _INSTALL_LOGO_COLOR = "#F3F0E8"
 _INSTALL_TITLE_COLOR = "#F7F4ED"
 _INSTALL_META_COLOR = "#9E988C"
 _INSTALL_ACCENT_COLOR = "#D8C7A3"
+_INSTALL_TARGET_DIR_HELP = (
+    "Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's "
+    "canonical global config dir"
+)
+_ENV_BOOTSTRAP_EMBEDDED_INSTALL = "GPD_BOOTSTRAP_EMBEDDED_INSTALL"
 
 
 def _format_install_header_lines(version: str) -> tuple[str, str]:
@@ -12362,7 +12408,11 @@ def _install_single_runtime(
     return result
 
 
-def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None:
+def _print_install_summary(
+    results: list[tuple[str, dict[str, object]]],
+    *,
+    include_next_steps: bool = True,
+) -> None:
     """Print a rich summary table of install results."""
     console.print()
     table = Table(
@@ -12389,7 +12439,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
     console.print(table)
 
     # Post-install next steps
-    if results:
+    if results and include_next_steps:
         next_step_entries: list[tuple[str, str, str, str, str, str, str, str]] = []
         seen_runtime_names: set[str] = set()
         for runtime_name, _result in results:
@@ -12411,15 +12461,8 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             )
 
         console.print()
-        console.print("[bold]Startup checklist[/]")
-        console.print(
-            f"Beginner Onboarding Hub: {beginner_onboarding_hub_url()}",
-            soft_wrap=True,
-        )
-        console.print(
-            f"First-run order: {beginner_startup_ladder_text()}",
-            soft_wrap=True,
-        )
+        console.print("[bold]After install[/]")
+        console.print(f"Beginner path: {beginner_onboarding_hub_url()}", soft_wrap=True)
         if len(next_step_entries) == 1:
             single_runtime_name, _ = results[0]
             (
@@ -12442,44 +12485,27 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 "pause-work"
             )
             console.print(
-                f"1. Open [bold]{display_name}[/] from your system terminal "
-                f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]).",
+                "Runtime surface: Run "
+                f"[{_INSTALL_ACCENT_COLOR} bold]{help_command}[/] for the command list. "
+                f"First-run order is {beginner_startup_ladder_text()}.",
                 soft_wrap=True,
             )
             console.print(
-                f"2. Run [{_INSTALL_ACCENT_COLOR} bold]{help_command}[/] for the command list.",
+                f"Selected runtime: [bold]{display_name}[/] ([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]); "
+                f"help [{_INSTALL_ACCENT_COLOR} bold]{help_command}[/]; "
+                f"start [{_INSTALL_ACCENT_COLOR} bold]{start_command}[/]; "
+                f"tour [{_INSTALL_ACCENT_COLOR} bold]{tour_command}[/]; "
+                f"new work [{_INSTALL_ACCENT_COLOR} bold]{new_project_command}[/]; "
+                f"existing work [{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/].",
                 soft_wrap=True,
             )
             console.print(
-                "3. Run "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{start_command}[/] if you're not sure what fits this folder yet. "
-                "Run "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{tour_command}[/] if you want a read-only overview of the broader command surface first.",
-                soft_wrap=True,
-            )
-            console.print(
-                "4. Then use "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{new_project_command}[/] for a new project "
-                "or "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/] for existing work.",
-                soft_wrap=True,
-            )
-            console.print(
-                "5. Fast bootstrap: use "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{new_project_command} --minimal[/] "
-                "for the shortest onboarding path.",
-                soft_wrap=True,
-            )
-            console.print(
-                "6. When you return later, use "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/] after reopening the right workspace. "
+                f"Fast bootstrap: [{_INSTALL_ACCENT_COLOR} bold]{new_project_command} --minimal[/]; "
+                f"return later with [{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/]. "
                 f"{recovery_ladder_note(resume_work_phrase=f'`{resume_work_command}`', suggest_next_phrase=f'`{suggest_next_command}`', pause_work_phrase=f'`{pause_work_command}`')}",
                 soft_wrap=True,
             )
-            console.print(
-                f"7. {_install_summary_local_cli_bridge_line()}",
-                soft_wrap=True,
-            )
+            console.print(_install_summary_local_cli_bridge_line(), soft_wrap=True)
         else:
             runtime_lines: list[str] = []
             for (
@@ -12498,13 +12524,14 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 runtime_lines.append(
                     f"- {display_name} "
                     f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]): "
-                    f"[{_INSTALL_ACCENT_COLOR} bold]{help_command}[/], then "
-                    f"[{_INSTALL_ACCENT_COLOR} bold]{start_command}[/], then "
-                    f"[{_INSTALL_ACCENT_COLOR} bold]{tour_command}[/], then "
-                    f"[{_INSTALL_ACCENT_COLOR} bold]{new_project_command}[/] for new work or "
-                    f"[{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/] for existing work, then "
-                    f"[{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/] when you return later."
+                    f"help [{_INSTALL_ACCENT_COLOR} bold]{help_command}[/]; "
+                    f"start [{_INSTALL_ACCENT_COLOR} bold]{start_command}[/]; "
+                    f"tour [{_INSTALL_ACCENT_COLOR} bold]{tour_command}[/]; "
+                    f"new work [{_INSTALL_ACCENT_COLOR} bold]{new_project_command}[/]; "
+                    f"existing work [{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/]; "
+                    f"return later [{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/]."
                 )
+            console.print(f"Runtime surface: first-run order is {beginner_startup_ladder_text()}.", soft_wrap=True)
             for line in runtime_lines:
                 console.print(line, soft_wrap=True)
             console.print(
@@ -12828,7 +12855,7 @@ def install(
     install_all: bool = typer.Option(False, "--all", help="Install for all supported runtimes"),
     local_install: bool = typer.Option(False, "--local", help="Install into the local runtime config dir"),
     global_install: bool = typer.Option(False, "--global", help="Install into the global runtime config dir"),
-    target_dir: str | None = typer.Option(None, "--target-dir", help="Override target config directory"),
+    target_dir: str | None = typer.Option(None, "--target-dir", help=_INSTALL_TARGET_DIR_HELP),
     force_statusline: bool = typer.Option(False, "--force-statusline", help="Overwrite existing statusline config"),
     skip_readiness_check: bool = typer.Option(
         False, "--skip-readiness-check", help="Skip runtime readiness preflight (for embedded/sidecar use)"
@@ -12845,7 +12872,9 @@ def install(
         return  # unreachable
     _validate_all_runtime_selection("install", runtimes, install_all)
 
-    if not _raw:
+    embedded_bootstrap_install = os.environ.get(_ENV_BOOTSTRAP_EMBEDDED_INSTALL) == "1"
+
+    if not _raw and not embedded_bootstrap_install:
         _print_install_header(resolve_active_version(_get_cwd()))
 
     # Resolve which runtimes to install
@@ -12924,7 +12953,7 @@ def install(
             )
         raise typer.Exit(code=1)
 
-    if not _raw:
+    if not _raw and not (skip_readiness_check and embedded_bootstrap_install):
         console.print(f"\n[bold]Runtime readiness preflight for: {_format_runtime_list(selected)}[/]")
         if skip_readiness_check:
             for runtime_name in selected:
@@ -12973,7 +13002,7 @@ def install(
             }
         )
     else:
-        _print_install_summary(results)
+        _print_install_summary(results, include_next_steps=not failures)
 
     if failures:
         if not _raw:
@@ -13002,7 +13031,7 @@ def uninstall(
     uninstall_all: bool = typer.Option(False, "--all", help="Uninstall from all runtimes"),
     local_uninstall: bool = typer.Option(False, "--local", help="Uninstall from local config"),
     global_uninstall: bool = typer.Option(False, "--global", help="Uninstall from global config"),
-    target_dir: str | None = typer.Option(None, "--target-dir", help="Override target directory (testing)"),
+    target_dir: str | None = typer.Option(None, "--target-dir", help=_INSTALL_TARGET_DIR_HELP),
     assume_yes: bool = typer.Option(
         False,
         "--yes",

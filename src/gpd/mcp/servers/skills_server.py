@@ -134,7 +134,7 @@ def _markdown_reference_re() -> re.Pattern[str]:
         for prefix in (*[spec.raw_prefix for spec in _REFERENCE_PREFIX_SPECS], *_RELATIVE_REFERENCE_PREFIXES)
     )
     return re.compile(
-        r"(?P<path>(?:@\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
+        r"(?<![A-Za-z0-9_}/.-])(?P<path>(?:@?\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
         rf"(?:{relative_prefixes}|GPD/|src/gpd/))[^\s`\"')]+?\.md)"
     )
 
@@ -571,25 +571,35 @@ def _extract_referenced_files(
     transitive_seen: set[str] = set()
     visited_docs: set[str] = set()
 
-    def _record(entry_list: list[dict[str, object]], seen: set[str], *, path: str, depth: int | None) -> None:
+    def _record(
+        entry_list: list[dict[str, object]],
+        seen: set[str],
+        *,
+        path: str,
+        raw_path: str,
+        depth: int | None,
+    ) -> None:
         if path in seen:
             return
         seen.add(path)
         entry: dict[str, object] = {"path": path, "kind": _reference_kind(path)}
+        if raw_path.startswith("@{GPD_"):
+            entry["eager"] = True
         if depth is not None:
             entry["depth"] = depth
         entry_list.append(entry)
 
     def _collect(markdown: str, *, current_path: Path | None, depth: int) -> None:
         for match in _markdown_reference_re().finditer(_markdown_without_fenced_code_blocks(markdown)):
-            normalized = _portable_reference_path(match.group("path"), base_path=current_path)
+            raw_path = match.group("path")
+            normalized = _portable_reference_path(raw_path, base_path=current_path)
             if normalized is None:
                 continue
             path, referenced_path = normalized
             if depth == 0:
-                _record(direct_references, direct_seen, path=path, depth=None)
+                _record(direct_references, direct_seen, path=path, raw_path=raw_path, depth=None)
             else:
-                _record(transitive_references, transitive_seen, path=path, depth=depth)
+                _record(transitive_references, transitive_seen, path=path, raw_path=raw_path, depth=depth)
             if path in visited_docs:
                 continue
             visited_docs.add(path)
@@ -700,11 +710,12 @@ def _expanded_reference_documents(
     include_bodies: bool = True,
 ) -> tuple[list[str], list[dict[str, object]]]:
     selected = [entry for entry in referenced_files if predicate(entry["path"])]
+    body_selected = [entry for entry in selected if entry.get("eager") is True]
     return (
         [entry["path"] for entry in selected],
         [
             _load_reference_document(entry["path"], kind=entry["kind"], include_body=include_bodies)
-            for entry in selected
+            for entry in body_selected
         ],
     )
 

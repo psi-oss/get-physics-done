@@ -6,7 +6,7 @@ The repository graph below is checked in because graph guardrail tests read it d
 
 Default `uv run pytest` runs the full checked-in suite, and `uv run pytest -q` does the same with quieter output. Both inherit `-n auto --dist=worksteal` from `pyproject.toml`. For local full-suite runs, `tests/conftest.py` raises xdist auto-worker selection toward the current CI shard fanout without changing collection. For serial debugging, override that default explicitly with `uv run pytest -n 0`.
 
-The 180 second fast-suite budget is enforced per CI pytest shard; the 10 minute job timeout remains the outer failure boundary. Shard target resolution has its own 3 minute timeout and logs elapsed seconds before pytest starts. Shard target resolution collects only the requested category. In-process repeated resolutions reuse the same immutable collection result, while CI matrix jobs stay isolated and do not share collection state across jobs. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`.
+The 180 second full-suite shard budget is enforced per CI pytest shard; the 10 minute job timeout remains the outer failure boundary. Shard target resolution has its own 3 minute timeout and logs elapsed seconds before pytest starts. Shard target resolution collects only the requested category. In-process repeated resolutions reuse the same immutable collection result, while CI matrix jobs stay isolated and do not share collection state across jobs. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`.
 
 The GitHub Actions workflow runs that same full suite as category-named runtime-informed shards: `root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp 1/2` through `mcp 2/2`, and `core 1/5` through `core 5/5`. `tests/ci_sharding.py` weights files by collected test counts, boosts root modules that have been slow on GitHub Actions, splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, `tests/hooks/test_runtime_detect.py`, and `tests/mcp/test_verification_contract_server_regressions.py`, and greedily rebalances those work units inside each category while pytest keeps the default work-stealing parallelism policy.
 
@@ -330,12 +330,12 @@ flowchart TD
 - `src/gpd/cli.py -> src/gpd/core/patterns.py -> {GPD_PATTERNS_ROOT, GPD_DATA_DIR, ~/.gpd/learned-patterns}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{sessions/*.jsonl,sessions/*.json,current-session.json,current-execution.json}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/GPD/observability/{sessions/*.jsonl,sessions/*.json,current-session.json,current-execution.json}`
   `ordering-contract`
-  `events.jsonl` is preferred before falling back to per-session event streams and session metadata.
+  Per-session event streams are authoritative; session metadata and current execution snapshots provide the latest pointers.
 
 - `src/gpd/cli.py -> explicit --target-dir over adapter-derived local/global runtime roots during install/uninstall`
   `selector-input`
@@ -459,9 +459,9 @@ flowchart TD
 - `src/gpd/core/observability.py -> src/gpd/mcp/servers/*.py`
   `span-context`
 
-- `src/gpd/core/observability.py -> <cwd>/GPD/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+- `src/gpd/core/observability.py -> <cwd>/GPD/observability/{sessions/*.jsonl,sessions/*.json,current-session.json,current-execution.json}`
   `generated-output`
-  Observability writes and rereads the project-wide event stream, per-session event streams, and session metadata from this tree.
+  Observability writes and rereads per-session event streams, session metadata, and flat current-execution snapshots from this tree.
 
 - `src/gpd/core/context.py -> import-time platform snapshot _PLATFORM`
   `selector-input`

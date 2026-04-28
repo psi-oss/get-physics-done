@@ -54,11 +54,11 @@ FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
 PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
 PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
-PUBLICATION_ROUND_ARTIFACTS_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
+PUBLICATION_ROUND_ARTIFACTS_INCLUDE = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 PUBLICATION_ROUND_ARTIFACTS_PATH = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
-PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 
 
@@ -73,7 +73,10 @@ def _assert_workflow_calls_staged_init_for_manifest_stages(workflow_id: str, wor
     assert staged_loading is not None
     for stage_id in staged_loading.stage_ids():
         pattern = rf"gpd --raw init {re.escape(workflow_id)}(?: \"\$[A-Z_]+\")? --stage {re.escape(stage_id)}"
-        assert re.search(pattern, workflow_text), f"missing staged init call for {workflow_id}:{stage_id}"
+        helper_call = f"load_{workflow_id.replace('-', '_')}_stage {stage_id}"
+        assert re.search(pattern, workflow_text) or helper_call in workflow_text, (
+            f"missing staged init call for {workflow_id}:{stage_id}"
+        )
 
 
 COMMAND_SPAWN_TOKENS = {
@@ -1460,6 +1463,7 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     )
     if "research_file_samples" in manifest.stage("scope_intake").required_init_fields:
         assert "`research_file_samples`" in parse_line
+    assert "SCOPE_APPROVAL_INIT=$(gpd --raw init new-project --stage scope_approval)" in workflow_text
     assert "POST_SCOPE_INIT=$(gpd --raw init new-project --stage post_scope)" in workflow_text
     assert "roadmapper_model" in workflow_text
     _assert_contains_fragments(
@@ -2612,8 +2616,12 @@ def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_o
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
 
     assert "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)" in execute_workflow
+    assert "PHASE_CLASSIFICATION_INIT=$(load_execute_phase_stage phase_classification)" in execute_workflow
     assert "WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)" in execute_workflow
+    assert "CHECKPOINT_RESUME_INIT=$(load_execute_phase_stage checkpoint_resume)" in execute_workflow
     assert "WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)" in execute_workflow
+    assert "AGGREGATE_VERIFY_INIT=$(load_execute_phase_stage aggregate_and_verify)" in execute_workflow
+    assert "CLOSEOUT_INIT=$(load_execute_phase_stage closeout)" in execute_workflow
     assert 'gpd --raw init execute-phase "${phase}" --include state,config' not in execute_plan
     assert 'gpd --raw init execute-phase "${phase}" --stage phase_bootstrap' in execute_plan
     assert 'gpd --raw init execute-phase "${phase}" --stage phase_classification' in execute_plan
@@ -3350,7 +3358,8 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in content
             assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in content
-            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in content
+            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in content
+            assert "staged `peer-review-reliability.md` reference" in content
     arxiv_staging = registry.get_command("arxiv-submission").staged_loading
     respond_staging = registry.get_command("respond-to-referees").staged_loading
 
@@ -3416,8 +3425,8 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     peer_review_workflow_expanded = _expand_prompt_surface(WORKFLOWS_DIR / "peer-review.md")
     shared_preflight_include = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
     bootstrap_preflight_include = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
-    response_handoff_include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
-    round_artifacts_include = "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
+    response_handoff_include = "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    round_artifacts_include = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
     write_paper_staging = registry.get_command("write-paper").staged_loading
 
     assert write_paper_staging is not None
@@ -3478,7 +3487,8 @@ def test_publication_command_contexts_surface_schema_docs_before_generation() ->
     assert bootstrap_preflight_include in arxiv_workflow
     assert round_artifacts_include in arxiv_workflow
     assert response_handoff_include not in arxiv_workflow
-    assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in arxiv_workflow
+    assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in arxiv_workflow
+    assert "staged `peer-review-reliability.md` reference" in arxiv_workflow
     assert (
         "templates/paper/publication-manuscript-root-preflight.md"
         in registry.get_command("arxiv-submission").staged_loading.stage("manuscript_preflight").loaded_authorities
@@ -3505,6 +3515,9 @@ def test_staged_publication_and_quick_workflow_prompts_match_executable_init_pat
     _assert_workflow_calls_staged_init_for_manifest_stages("write-paper", write_paper_workflow)
     _assert_workflow_calls_staged_init_for_manifest_stages("peer-review", peer_review_workflow)
     _assert_workflow_calls_staged_init_for_manifest_stages("quick", quick_workflow)
+    execute_phase_workflow = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    _assert_workflow_calls_staged_init_for_manifest_stages("execute-phase", execute_phase_workflow)
+    _assert_workflow_calls_staged_init_for_manifest_stages("arxiv-submission", arxiv_workflow)
 
     assert arxiv_staging is not None
     assert arxiv_staging.stage_ids() == (
@@ -3638,7 +3651,7 @@ def test_skill_surface_exposes_contract_references_for_paper_and_review_workflow
     assert "error" not in peer_review
     assert "error" not in arxiv_submission
     assert "error" not in respond_to_referees
-    assert any(path.endswith("paper-config-schema.md") for path in write_paper["schema_references"])
+    assert any(path.endswith("paper-config-schema.md") for path in write_paper_stage_authorities)
     assert any(path.endswith("artifact-manifest-schema.md") for path in write_paper_stage_authorities)
     assert any(path.endswith("bibliography-audit-schema.md") for path in write_paper_stage_authorities)
     assert any(path.endswith("review-ledger-schema.md") for path in write_paper_stage_authorities)
@@ -3648,6 +3661,8 @@ def test_skill_surface_exposes_contract_references_for_paper_and_review_workflow
     assert any(path.endswith("review-ledger-schema.md") for path in peer_review_stage_authorities)
     assert any(path.endswith("referee-decision-schema.md") for path in peer_review_stage_authorities)
     assert any(path.endswith("publication-review-round-artifacts.md") for path in peer_review_stage_authorities)
+    assert any(path.endswith("peer-review-panel.md") for path in peer_review_stage_authorities)
+    assert any(path.endswith("peer-review-reliability.md") for path in peer_review_stage_authorities)
     arxiv_stage_authorities = {
         authority
         for stage in arxiv_submission.get("staged_loading", {}).get("stages", [])
@@ -3655,21 +3670,15 @@ def test_skill_surface_exposes_contract_references_for_paper_and_review_workflow
     }
     assert any(path.endswith("publication-bootstrap-preflight.md") for path in arxiv_stage_authorities)
     assert any(path.endswith("publication-review-round-artifacts.md") for path in arxiv_stage_authorities)
-    assert any(path.endswith("author-response.md") for path in respond_to_referees["schema_references"])
     assert any(path.endswith("reproducibility-manifest.md") for path in write_paper_stage_authorities)
     assert any(path.endswith("peer-review-panel.md") for path in write_paper_stage_authorities)
-    assert any(path.endswith("peer-review-panel.md") for path in peer_review["contract_references"])
-    assert any(path.endswith("peer-review-reliability.md") for path in peer_review["contract_references"])
-    assert "Paper Config Schema" in write_paper_schema_documents["paper-config-schema.md"]["body"]
-    assert "Reproducibility Manifest Template" in write_paper_schema_documents["reproducibility-manifest.md"]["body"]
-    assert "Peer Review Panel Protocol" in peer_review_contract_documents["peer-review-panel.md"]["body"]
-    assert "Peer Review Phase Reliability" in peer_review_contract_documents["peer-review-reliability.md"]["body"]
+    assert write_paper_schema_documents == {}
+    assert peer_review_contract_documents == {}
     assert arxiv_contract_documents == {}
-    assert set(respond_contract_documents) == {"peer-review-reliability.md"}
-    assert any(path.endswith("peer-review-reliability.md") for path in respond_to_referees["contract_references"])
-    assert "Peer Review Phase Reliability" in respond_contract_documents["peer-review-reliability.md"]["body"]
+    assert respond_contract_documents == {}
     assert "Treat `content` as the wrapper/context surface." in write_paper["loading_hint"]
-    assert "Load `schema_documents` and `contract_documents` too when present" in write_paper["loading_hint"]
+    assert "See `referenced_files` for external markdown dependencies" in write_paper["loading_hint"]
+    assert "Load `schema_documents` and `contract_documents` too when present" not in write_paper["loading_hint"]
     assert "transitive_schema_documents" not in write_paper["loading_hint"]
     assert "transitive_contract_documents" not in write_paper["loading_hint"]
 
@@ -3778,8 +3787,13 @@ def test_verification_and_agent_reference_prompts_expand_or_stage_required_refer
     assert "# Contract Results Schema" not in verify_work
     assert "references/verification/meta/verification-independence.md" in inventory_build.loaded_authorities
     assert "templates/contract-results-schema.md" in interactive_validation.loaded_authorities
-    assert "Verification Independence" in verify_phase
-    assert "# Contract Results Schema" in verify_phase
+    assert "Verification Independence" not in verify_phase
+    assert "# Contract Results Schema" not in verify_phase
+    assert "Do not raw-include the verification reference library at workflow load." in verify_phase
+    assert "{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md" in verify_phase
+    assert "{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in verify_phase
+    assert "@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md" not in verify_phase
+    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" not in verify_phase
     assert "- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`" in phase_researcher
     assert "# Shared Research Philosophy and Protocols" not in phase_researcher
     assert "# Agent Infrastructure Protocols" not in phase_researcher
@@ -3878,7 +3892,8 @@ def test_sync_state_defers_state_schema_while_write_paper_expands_required_schem
     assert "# state.json Schema" not in sync_state
     assert "Authoritative vs Derived" not in sync_state
     assert "`convention_lock`" in sync_state
-    assert "Reproducibility Manifest Template" in write_paper
+    assert "templates/paper/reproducibility-manifest.md" in write_paper
+    assert "Reproducibility Manifest Template" not in write_paper
     assert "bibliographer search breadth" in write_paper
     assert "paper-writer style by mode" in write_paper
     assert (
@@ -3888,9 +3903,9 @@ def test_sync_state_defers_state_schema_while_write_paper_expands_required_schem
     assert "GPD/publication/{subject_slug}/intake/" in write_paper
     assert "Do not mine arbitrary folders or infer claim/evidence bindings from loose notes." in write_paper
     assert "Do not infer widened `gpd:arxiv-submission` scope" in write_paper
-    assert '"execution_steps"' in write_paper
-    assert "random_seeds[].computation" in write_paper
-    assert "resource_requirements[].step" in write_paper
+    assert '"execution_steps"' not in write_paper
+    assert "random_seeds[].computation" not in write_paper
+    assert "resource_requirements[].step" not in write_paper
 
 
 def test_non_adapter_sources_do_not_hardcode_runtime_names() -> None:
@@ -4955,9 +4970,16 @@ def test_peer_review_and_arxiv_use_subject_aware_publication_roots() -> None:
     )
 
     assert "REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission" in arxiv_submission
+    assert 'gpd --raw init arxiv-submission --stage bootstrap -- "${ARGUMENTS}"' not in arxiv_submission
+    assert "BOOTSTRAP_INIT=$(gpd --raw init arxiv-submission --stage bootstrap)" in arxiv_submission
+    assert 'gpd --raw validate command-context arxiv-submission -- "${ARGUMENTS}"' in arxiv_submission
+    assert (
+        'gpd --raw validate review-preflight arxiv-submission --strict -- "${ARGUMENTS}"' in arxiv_submission
+    )
     assert "Set `subject_slug` from `publication_subject_slug`" in arxiv_submission
-    assert 'PUBLICATION_ROOT="${selected_publication_root:-GPD/publication/${subject_slug}}"' in arxiv_submission
+    assert 'PUBLICATION_ROOT="GPD/publication/${subject_slug}"' in arxiv_submission
     assert 'PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"' in arxiv_submission
+    assert 'PUBLICATION_ROOT="${selected_publication_root:-GPD/publication/${subject_slug}}"' not in arxiv_submission
     assert "Derive a stable ASCII `subject_slug`" not in arxiv_submission
 
 

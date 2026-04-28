@@ -23,15 +23,15 @@ PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 )
 PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 )
 PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md"
 )
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
-PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 OWNED_COMMANDS = (
     COMMANDS_DIR / "debug.md",
@@ -242,7 +242,8 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in text, path
         if path.name == "arxiv-submission.md":
-            assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) >= 1, path
+            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in text, path
+            assert "staged `peer-review-reliability.md` reference" in text, path
         elif path.name in {"peer-review.md", "respond-to-referees.md"}:
             assert text.count(PUBLICATION_REVIEW_RELIABILITY_INLINE) >= 1, path
         else:
@@ -310,7 +311,8 @@ def test_write_paper_command_defers_the_route_list_to_the_workflow() -> None:
     assert "@{GPD_INSTALL_DIR}/workflows/write-paper.md" in write_paper
     assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in write_paper_workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper_workflow
-    assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" in write_paper_workflow
+    assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" not in write_paper_workflow
+    assert "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" in write_paper_workflow
 
 
 def test_debug_workflow_path_note_is_not_self_contradictory() -> None:

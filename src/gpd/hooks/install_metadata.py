@@ -353,7 +353,13 @@ def _manifest_path_metadata_state(payload: dict[str, object], *, config_dir: Pat
             if _safe_manifest_relpath(rel_path) is None or not isinstance(original_hash, str):
                 return "malformed_files"
 
-    for policy in get_manifest_metadata_list_policies():
+    runtime_policies = get_manifest_metadata_list_policies(runtime)
+    runtime_policy_keys = {policy.key for policy in runtime_policies}
+    known_policy_keys = {policy.key for policy in get_manifest_metadata_list_policies()}
+    if any(key in payload and key not in runtime_policy_keys for key in known_policy_keys):
+        return "malformed_path_metadata"
+
+    for policy in runtime_policies:
         if not _manifest_metadata_list_policy_is_satisfied(payload, policy):
             return "malformed_path_metadata"
 

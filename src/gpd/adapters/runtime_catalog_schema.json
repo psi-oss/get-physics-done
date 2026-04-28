@@ -125,6 +125,16 @@
       "stop"
     ]
   },
+  "capability_enum_required_keys": [
+    "permissions_surface",
+    "statusline_surface",
+    "notify_surface",
+    "telemetry_source",
+    "telemetry_completeness",
+    "child_artifact_persistence_reliability",
+    "continuation_surface",
+    "checkpoint_stop_semantics"
+  ],
   "hook_payload_keys": [
     "notify_event_types",
     "workspace_keys",

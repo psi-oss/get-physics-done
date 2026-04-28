@@ -557,6 +557,10 @@ class TestApplyReturnUpdates:
                 "    - waiting on approval\n"
                 "  contract_updates:\n"
                 "    project_contract: retained\n"
+                "  continuation_update:\n"
+                "    bounded_segment:\n"
+                "      resume_file: GPD/STATE.md\n"
+                "      segment_status: paused\n"
             ),
         )
 
@@ -567,7 +571,7 @@ class TestApplyReturnUpdates:
         assert result.applied_decisions == 1
         assert result.applied_blockers == 1
         assert result.applied_state_operations == []
-        assert result.applied_continuation_operations == []
+        assert result.applied_continuation_operations == ["set_bounded_segment"]
         assert result.contract_updates == {"project_contract": "retained"}
         assert state_path.read_text(encoding="utf-8") != before
         updated_state = state_path.read_text(encoding="utf-8")
@@ -706,6 +710,9 @@ class TestApplyReturnUpdates:
             "    handoff:\n"
             "      stopped_at: Retry now valid\n"
             "      resume_file: null\n"
+            "    bounded_segment:\n"
+            "      resume_file: GPD/STATE.md\n"
+            "      segment_status: paused\n"
             "```\n",
             encoding="utf-8",
         )

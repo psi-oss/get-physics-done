@@ -276,7 +276,14 @@ def _load_manuscript_config(manuscript_dir: Path) -> dict[str, object]:
     try:
         return PaperConfig.model_validate(payload).model_dump(mode="python")
     except PydanticValidationError:
-        return payload
+        fallback: dict[str, object] = {}
+        title = payload.get("title")
+        if isinstance(title, str) and title.strip():
+            fallback["title"] = title
+        journal = payload.get("journal")
+        if is_supported_paper_journal(journal):
+            fallback["journal"] = str(journal)
+        return fallback
 
 
 def _derivation_artifacts(project_root: Path) -> list[Path]:
@@ -965,9 +972,6 @@ def build_paper_quality_input(
     )
 
     journal_extra_checks: dict[str, bool] = {}
-    raw_journal_extra_checks = paper_config.get("journal_extra_checks")
-    if isinstance(raw_journal_extra_checks, dict):
-        journal_extra_checks.update(raw_journal_extra_checks)
     journal_extra_checks["figure_tracker_parse_ok"] = figure_tracker_parse_ok
     journal_extra_checks["manuscript_reference_status_present"] = bool(manuscript_reference_status)
     journal_extra_checks["manuscript_reference_bridge_complete"] = manuscript_reference_bridge_complete

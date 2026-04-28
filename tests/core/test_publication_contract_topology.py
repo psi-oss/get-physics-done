@@ -91,7 +91,7 @@ def test_publication_workflow_prompt_surfaces_surface_the_shared_manuscript_root
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
     arxiv = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
     bootstrap_include = "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
-    handoff_include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    handoff_include = "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 
     assert bootstrap_include in write_paper
     assert bootstrap_include in respond

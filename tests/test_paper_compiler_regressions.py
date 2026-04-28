@@ -2,22 +2,34 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 from pybtex.database import BibliographyData, Entry
+from pydantic import ValidationError as PydanticValidationError
 
+from gpd.core.manuscript_artifacts import locate_publication_artifact
+from gpd.mcp.paper.artifact_manifest import validate_artifact_manifest_integrity
 from gpd.mcp.paper.bibliography import BibliographyAudit, CitationAuditRecord
 from gpd.mcp.paper.compiler import (
     CompilationResult,
     _compile_manual_multipass,
     _compile_with_latexmk,
+    _compile_with_tectonic,
     _reference_bibtex_keys_from_audit,
     build_paper,
     compile_paper,
 )
-from gpd.mcp.paper.models import Author, PaperConfig, Section, derive_output_filename
+from gpd.mcp.paper.models import (
+    ArtifactManifest,
+    ArtifactRecord,
+    Author,
+    PaperConfig,
+    Section,
+    derive_output_filename,
+)
 from gpd.utils.latex import AutoFixResult
 
 
@@ -97,6 +109,16 @@ class _FakeProcess:
         return self._stdout, self._stderr
 
 
+class _PdfWritingFakeProcess(_FakeProcess):
+    def __init__(self, returncode: int, pdf_path: Path, stdout: bytes = b"", stderr: bytes = b"") -> None:
+        super().__init__(returncode=returncode, stdout=stdout, stderr=stderr)
+        self._pdf_path = pdf_path
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        self._pdf_path.write_bytes(b"%PDF-fresh")
+        return await super().communicate()
+
+
 class _TimeoutProcess:
     def __init__(self) -> None:
         self.returncode = None
@@ -131,6 +153,26 @@ async def test_latexmk_rejects_pdf_when_exit_code_is_nonzero(tmp_path, monkeypat
     assert result.error == "latexmk exited with code 2"
     assert result.log is not None
     assert "latexmk stdout" in result.log
+
+
+@pytest.mark.asyncio
+async def test_tectonic_rejects_pdf_when_exit_code_is_nonzero(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text(r"\documentclass{article}\begin{document}test\end{document}", encoding="utf-8")
+    pdf_path = tmp_path / "paper.pdf"
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        return _PdfWritingFakeProcess(returncode=2, pdf_path=pdf_path, stdout=b"tectonic stdout", stderr=b"tectonic stderr")
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+
+    result = await _compile_with_tectonic(tex_path, tmp_path, tectonic_path="/usr/bin/tectonic")
+
+    assert result.success is False
+    assert result.pdf_path == pdf_path
+    assert result.error == "tectonic exited with code 2"
+    assert result.log is not None
+    assert "tectonic stdout" in result.log
 
 
 @pytest.mark.asyncio
@@ -276,7 +318,7 @@ async def test_manual_multipass_rejects_missing_bibtex_even_after_autofix(
         ),
     )
 
-    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex", apply_latex_autofix=True)
 
     assert result.success is False
     assert result.pdf_path is None
@@ -342,7 +384,51 @@ async def test_manual_multipass_fails_when_last_pass_nonzero_and_no_pdf(
 
 
 @pytest.mark.asyncio
-async def test_manual_multipass_applies_autofix_even_after_compile_errors(
+async def test_manual_multipass_does_not_apply_autofix_by_default(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("broken content", encoding="utf-8")
+    call_count = 0
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count > 3:
+            input_tex_path = Path(args[-1])
+            (tmp_path / f"{input_tex_path.stem}.pdf").write_bytes(b"%PDF-fake")
+            return _FakeProcess(returncode=0, stdout=b"autofix ok", stderr=b"")
+        return _FakeProcess(returncode=1 if call_count == 1 else 0, stdout=b"Missing $ inserted", stderr=b"")
+
+    def fake_which(binary: str) -> str | None:
+        if binary == "pdflatex":
+            return "/usr/bin/pdflatex"
+        return None
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_which)
+    monkeypatch.setattr(
+        "gpd.utils.latex.try_autofix",
+        lambda tex, log: AutoFixResult(
+            fixed_content=r"\documentclass{article}\begin{document}fixed\end{document}",
+            fixes_applied=("fixed",),
+            was_modified=True,
+        ),
+    )
+
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+
+    assert result.success is False
+    assert result.pdf_path is None
+    assert result.error == "pdflatex pass 1 exited with code 1"
+    assert tex_path.read_text(encoding="utf-8") == "broken content"
+    assert list(tmp_path.glob(".paper-gpd-autofix-*.tex")) == []
+    assert call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_manual_multipass_applies_autofix_when_explicitly_enabled(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -376,7 +462,7 @@ async def test_manual_multipass_applies_autofix_even_after_compile_errors(
         ),
     )
 
-    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex", apply_latex_autofix=True)
 
     assert result.success is True
     assert result.pdf_path == pdf_path
@@ -419,7 +505,7 @@ async def test_manual_multipass_autofix_requires_fresh_pdf_after_fix(
         ),
     )
 
-    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex", apply_latex_autofix=True)
 
     assert result.success is False
     assert result.pdf_path is None
@@ -459,7 +545,7 @@ async def test_manual_multipass_cleans_autofix_scratch_after_timeout(
         ),
     )
 
-    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex", apply_latex_autofix=True)
 
     assert result.success is False
     assert result.error == "Compilation timed out"
@@ -519,6 +605,172 @@ async def test_build_paper_routes_sidecars_to_independent_output_paths(
 
 
 @pytest.mark.asyncio
+async def test_build_paper_writes_discoverable_manifest_in_nested_sidecar_root(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    hidden_sidecar_dir = output_dir / ".paper-meta"
+    config = PaperConfig(
+        title="Nested Sidecar Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+    pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
+    captured_compile_kwargs: dict[str, object] = {}
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex", **kwargs):
+        captured_compile_kwargs.update(kwargs)
+        pdf_path.write_bytes(b"%PDF-fake")
+        return CompilationResult(success=True, pdf_path=pdf_path)
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_tectonic", lambda: None)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir, sidecar_root=hidden_sidecar_dir)
+
+    assert result.success is True
+    assert captured_compile_kwargs.get("apply_latex_autofix") is True
+    assert result.manifest_path == hidden_sidecar_dir / "ARTIFACT-MANIFEST.json"
+    assert result.manifest is not None
+    assert result.manifest_path.is_file()
+    assert locate_publication_artifact(output_dir, "ARTIFACT-MANIFEST.json") == result.manifest_path
+    integrity = validate_artifact_manifest_integrity(
+        result.manifest,
+        result.manifest_path.parent,
+        selected_manuscript_path=result.tex_path,
+    )
+    assert integrity.passed is True
+
+
+def test_artifact_manifest_integrity_accepts_hidden_sidecar_for_nested_entrypoint(tmp_path) -> None:
+    output_dir = tmp_path / "paper"
+    manuscript = output_dir / "sections" / "main.tex"
+    manuscript.parent.mkdir(parents=True)
+    manuscript_text = "\\documentclass{article}\\begin{document}Nested\\end{document}\n"
+    manuscript.write_text(manuscript_text, encoding="utf-8")
+    digest = hashlib.sha256(manuscript_text.encode("utf-8")).hexdigest()
+    manifest = ArtifactManifest.model_validate(
+        {
+            "version": 1,
+            "paper_title": "Nested Sidecar Paper",
+            "journal": "jhep",
+            "created_at": "2026-04-28T00:00:00+00:00",
+            "manuscript_sha256": digest,
+            "artifacts": [
+                {
+                    "artifact_id": "tex-paper",
+                    "category": "tex",
+                    "path": "sections/main.tex",
+                    "sha256": digest,
+                    "produced_by": "test",
+                }
+            ],
+        }
+    )
+
+    integrity = validate_artifact_manifest_integrity(
+        manifest,
+        output_dir / ".paper-meta" / "build",
+        selected_manuscript_path=manuscript,
+    )
+
+    assert integrity.passed is True
+
+
+def test_artifact_manifest_rejects_non_portable_artifact_paths(tmp_path) -> None:
+    output_dir = tmp_path / "paper"
+    manuscript = output_dir / "main.tex"
+    manuscript.parent.mkdir(parents=True)
+    manuscript_text = "\\documentclass{article}\\begin{document}Main\\end{document}\n"
+    manuscript.write_text(manuscript_text, encoding="utf-8")
+    digest = hashlib.sha256(manuscript_text.encode("utf-8")).hexdigest()
+
+    base_payload = {
+        "version": 1,
+        "paper_title": "Portable Paths",
+        "journal": "jhep",
+        "created_at": "2026-04-28T00:00:00+00:00",
+        "manuscript_sha256": digest,
+        "artifacts": [
+            {
+                "artifact_id": "tex-paper",
+                "category": "tex",
+                "path": "main.tex",
+                "sha256": digest,
+                "produced_by": "test",
+            }
+        ],
+    }
+    invalid_paths = [
+        manuscript.as_posix(),
+        "../paper/main.tex",
+        r"sections\main.tex",
+        "C:/paper/main.tex",
+    ]
+
+    for invalid_path in invalid_paths:
+        payload = json.loads(json.dumps(base_payload))
+        payload["artifacts"][0]["path"] = invalid_path
+        with pytest.raises(PydanticValidationError):
+            ArtifactManifest.model_validate(payload)
+
+
+def test_artifact_manifest_integrity_rejects_absolute_in_root_artifact_path(tmp_path) -> None:
+    output_dir = tmp_path / "paper"
+    manuscript = output_dir / "main.tex"
+    manuscript.parent.mkdir(parents=True)
+    manuscript_text = "\\documentclass{article}\\begin{document}Main\\end{document}\n"
+    manuscript.write_text(manuscript_text, encoding="utf-8")
+    digest = hashlib.sha256(manuscript_text.encode("utf-8")).hexdigest()
+    manifest = ArtifactManifest.model_construct(
+        paper_title="Absolute Path",
+        journal="jhep",
+        created_at="2026-04-28T00:00:00+00:00",
+        manuscript_sha256=digest,
+        artifacts=[
+            ArtifactRecord.model_construct(
+                artifact_id="tex-paper",
+                category="tex",
+                path=manuscript.as_posix(),
+                sha256=digest,
+                produced_by="test",
+                sources=[],
+                metadata={},
+            )
+        ],
+    )
+
+    integrity = validate_artifact_manifest_integrity(
+        manifest,
+        output_dir,
+        selected_manuscript_path=manuscript,
+    )
+
+    assert integrity.passed is False
+    assert "tex artifact path does not resolve to the selected manuscript" in integrity.detail
+
+
+@pytest.mark.asyncio
+async def test_build_paper_rejects_non_hidden_nested_sidecar_root(tmp_path) -> None:
+    config = PaperConfig(
+        title="Non Hidden Sidecar",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+    )
+    output_dir = tmp_path / "paper"
+    non_hidden_sidecar_root = output_dir / "meta"
+
+    with pytest.raises(ValueError, match="non-hidden nested sidecars are not discoverable"):
+        await build_paper(config, output_dir, sidecar_root=non_hidden_sidecar_root)
+
+    assert not non_hidden_sidecar_root.exists()
+
+
+@pytest.mark.asyncio
 async def test_build_paper_marks_manifest_after_dependency_failure(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -557,6 +809,68 @@ async def test_build_paper_marks_manifest_after_dependency_failure(
     assert failure_artifact["metadata"]["build_success"] is False
     assert failure_artifact["metadata"]["failure_stage"] == "dependency"
     assert "missing revtex4-2.cls" in failure_artifact["metadata"]["errors"]
+
+
+@pytest.mark.asyncio
+async def test_build_paper_lets_tectonic_handle_missing_local_journal_dependencies(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    config = PaperConfig(
+        title="Tectonic Resource Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+        journal="jhep",
+    )
+    pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
+
+    def fail_if_checked(_spec):
+        raise AssertionError("Tectonic builds should not preflight-block on kpsewhich resources")
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+        pdf_path.write_bytes(b"%PDF-fake")
+        return CompilationResult(success=True, pdf_path=pdf_path)
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_tectonic", lambda: "/usr/bin/tectonic")
+    monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", fail_if_checked)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir)
+
+    assert result.success is True
+    assert result.pdf_path == pdf_path
+
+
+@pytest.mark.asyncio
+async def test_build_paper_still_blocks_on_local_dependencies_when_tectonic_not_preferred(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "paper"
+    config = PaperConfig(
+        title="Local Resource Paper",
+        authors=[Author(name="A. Researcher")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="No citations here.")],
+        journal="jhep",
+    )
+
+    async def fake_compile(*_args, **_kwargs):
+        raise AssertionError("compile_paper should not run after dependency preflight failure")
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_tectonic", lambda: "/usr/bin/tectonic")
+    monkeypatch.setattr(
+        "gpd.mcp.paper.compiler.check_journal_dependencies",
+        lambda _spec: (False, ["missing jheppub.sty"]),
+    )
+    monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", fake_compile)
+
+    result = await build_paper(config, output_dir, prefer_tectonic=False)
+
+    assert result.success is False
+    assert result.errors == ["missing jheppub.sty"]
 
 
 @pytest.mark.asyncio
@@ -626,7 +940,10 @@ async def test_build_paper_does_not_refresh_manifest_for_preserved_stale_tex(
     manifest_path.write_text(json.dumps(existing_manifest, indent=2) + "\n", encoding="utf-8")
     pdf_path = output_dir / f"{derive_output_filename(config)}.pdf"
 
-    async def fake_compile(tex_path, output_dir, compiler="pdflatex"):
+    captured_compile_kwargs: dict[str, object] = {}
+
+    async def fake_compile(tex_path, output_dir, compiler="pdflatex", **kwargs):
+        captured_compile_kwargs.update(kwargs)
         pdf_path.write_bytes(b"%PDF-fake")
         return CompilationResult(success=True, pdf_path=pdf_path)
 
@@ -640,6 +957,7 @@ async def test_build_paper_does_not_refresh_manifest_for_preserved_stale_tex(
     assert result.manifest is None
     assert json.loads(manifest_path.read_text(encoding="utf-8")) == existing_manifest
     assert any("ARTIFACT-MANIFEST.json was not refreshed" in error for error in result.errors)
+    assert captured_compile_kwargs.get("apply_latex_autofix") is None
 
 
 @pytest.mark.asyncio

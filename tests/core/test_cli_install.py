@@ -213,23 +213,19 @@ def _assert_single_runtime_next_steps(
     suggest_next_command = adapter.format_command("suggest-next")
     pause_work_command = adapter.format_command("pause-work")
     ordered_patterns = (
-        re.escape("Startup checklist"),
-        re.escape(f"Beginner Onboarding Hub: {beginner_onboarding_hub_url()}"),
-        re.escape("First-run order: `help -> start -> tour -> new-project / map-research -> resume-work`"),
-        re.escape(f"1. Open {descriptor.display_name} from your system terminal ({adapter.launch_command})."),
-        re.escape(f"2. Run {adapter.help_command} for the command list."),
+        re.escape("After install"),
+        re.escape(f"Beginner path: {beginner_onboarding_hub_url()}"),
         re.escape(
-            "3. Run "
-            f"{adapter.format_command('start')} if you're not sure what fits this folder yet. "
-            "Run "
-            f"{adapter.format_command('tour')} if you want a read-only overview of the broader command surface first."
+            f"Runtime surface: Run {adapter.help_command} for the command list. "
+            f"First-run order is {beginner_startup_ladder_text()}."
         ),
-        re.escape(
-            f"4. Then use {adapter.new_project_command} for a new project or "
-            f"{adapter.map_research_command} for existing work."
-        ),
-        re.escape(f"Fast bootstrap: use {adapter.new_project_command} --minimal for the shortest onboarding path."),
-        re.escape(f"6. When you return later, use {resume_work_command} after reopening the right workspace. "),
+        re.escape(f"Selected runtime: {descriptor.display_name} ({adapter.launch_command});"),
+        re.escape(f"help {adapter.help_command};"),
+        re.escape(f"start {adapter.format_command('start')};"),
+        re.escape(f"tour {adapter.format_command('tour')};"),
+        re.escape(f"new work {adapter.new_project_command};"),
+        re.escape(f"existing work {adapter.map_research_command}."),
+        re.escape(f"Fast bootstrap: {adapter.new_project_command} --minimal; return later with {resume_work_command}. "),
         re.escape(
             recovery_ladder_note(
                 resume_work_phrase=f"`{resume_work_command}`",
@@ -237,7 +233,7 @@ def _assert_single_runtime_next_steps(
                 pause_work_phrase=f"`{pause_work_command}`",
             )
         ),
-        re.escape("7. Use gpd --help for local diagnostics and later setup."),
+        re.escape("Use gpd --help for local diagnostics and later setup."),
     )
     cursor = 0
     for pattern in ordered_patterns:
@@ -262,11 +258,11 @@ def _assert_multi_runtime_next_step_line(output: str, descriptor) -> None:
         rf"{re.escape(adapter.format_command('tour'))}.*?"
         rf"{re.escape(adapter.new_project_command)}.*?"
         rf"{re.escape(adapter.map_research_command)}.*?"
-        rf"{re.escape(adapter.format_command('resume-work'))}.*?"
-        rf"Fast bootstrap: use .*? --minimal",
+        rf"{re.escape(adapter.format_command('resume-work'))}",
         re.S,
     )
     assert pattern.search(output), output
+    assert re.search(r"Fast bootstrap: use .*? --minimal", output, re.S), output
 
 
 def _assert_install_summary_recovery_contract(
@@ -407,6 +403,11 @@ def test_install_all_continues_on_failure(tmp_path: Path):
 
     # Should exit with code 1 because some runtimes failed
     assert result.exit_code == 1
+    assert "Install Summary" in result.output
+    assert "Install failures:" in result.output
+    assert "After install" not in result.output
+    assert "Beginner path:" not in result.output
+    assert "Use gpd --help for local diagnostics and later setup." not in result.output
 
 
 def test_install_all_success_exits_0(tmp_path: Path):
@@ -551,7 +552,7 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
         result = runner.invoke(app, ["install", *(descriptor.runtime_name for descriptor in descriptors), "--local"])
 
     assert result.exit_code == 0
-    assert "Startup checklist" in result.output
+    assert "After install" in result.output
     assert beginner_startup_ladder_text() in result.output
     for descriptor in descriptors:
         _assert_multi_runtime_next_step_line(result.output, descriptor)
@@ -574,6 +575,24 @@ def test_install_help_surfaces_interactive_batch_and_targeting_guidance() -> Non
     assert "--local" in normalized_output
     assert "--global" in normalized_output
     assert "--target-dir" in normalized_output
+    assert "Override the runtime config directory;" in normalized_output
+    assert "defaults" in normalized_output
+    assert "local scope" in normalized_output
+    assert "runtime's canonical" in normalized_output
+    assert "global config dir" in normalized_output
+
+
+def test_uninstall_help_aligns_target_dir_wording() -> None:
+    result = runner.invoke(app, ["uninstall", "--help"])
+    normalized_output = _normalize_cli_output(result.output)
+
+    assert result.exit_code == 0
+    assert "--target-dir" in normalized_output
+    assert "Override the runtime config directory;" in normalized_output
+    assert "defaults" in normalized_output
+    assert "local scope" in normalized_output
+    assert "runtime's canonical" in normalized_output
+    assert "global config dir" in normalized_output
 
 
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────

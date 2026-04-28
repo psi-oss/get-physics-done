@@ -23,30 +23,30 @@ MIN_LINE_MARGIN = 20
 MIN_CHAR_MARGIN = 1_000
 
 AGENT_BASELINES = {
-    "gpd-bibliographer": (141, 6_953),
-    "gpd-check-proof": (79, 5_020),
-    "gpd-consistency-checker": (65, 4_113),
-    "gpd-debugger": (247, 9_614),
+    "gpd-bibliographer": (132, 6_015),
+    "gpd-check-proof": (78, 4_900),
+    "gpd-consistency-checker": (64, 3_993),
+    "gpd-debugger": (246, 9_494),
     "gpd-executor": (3_017, 202_501),
     "gpd-experiment-designer": (807, 45_329),
-    "gpd-explainer": (1_620, 86_979),
-    "gpd-literature-reviewer": (1_500, 75_351),
-    "gpd-notation-coordinator": (1_753, 97_445),
-    "gpd-paper-writer": (1_280, 62_652),
-    "gpd-phase-researcher": (1_942, 96_904),
-    "gpd-plan-checker": (1_897, 84_081),
-    "gpd-planner": (5_580, 274_185),
-    "gpd-project-researcher": (2_106, 107_323),
-    "gpd-referee": (1_144, 54_226),
-    "gpd-research-mapper": (2_805, 126_745),
-    "gpd-research-synthesizer": (2_159, 110_649),
-    "gpd-review-literature": (54, 2_707),
-    "gpd-review-math": (55, 3_459),
-    "gpd-review-physics": (54, 2_720),
-    "gpd-review-reader": (53, 3_274),
-    "gpd-review-significance": (55, 2_906),
-    "gpd-roadmapper": (2_592, 119_760),
-    "gpd-verifier": (1_451, 79_380),
+    "gpd-explainer": (241, 9_508),
+    "gpd-literature-reviewer": (372, 14_339),
+    "gpd-notation-coordinator": (629, 36_452),
+    "gpd-paper-writer": (672, 36_231),
+    "gpd-phase-researcher": (581, 21_151),
+    "gpd-plan-checker": (1_387, 61_934),
+    "gpd-planner": (2_410, 119_091),
+    "gpd-project-researcher": (1_446, 78_107),
+    "gpd-referee": (1_108, 53_790),
+    "gpd-research-mapper": (743, 37_100),
+    "gpd-research-synthesizer": (1_498, 81_391),
+    "gpd-review-literature": (53, 2_591),
+    "gpd-review-math": (54, 3_343),
+    "gpd-review-physics": (53, 2_604),
+    "gpd-review-reader": (52, 3_166),
+    "gpd-review-significance": (54, 2_790),
+    "gpd-roadmapper": (1_927, 90_581),
+    "gpd-verifier": (717, 49_656),
 }
 
 PEER_REVIEW_SPECIALIST_AGENTS = (
@@ -69,19 +69,37 @@ MODE_TABLE_ALLOWLIST = {
     "gpd-project-researcher",
 }
 WORST_AGENT_HARD_CAPS = {
-    "gpd-planner": (5_300, 265_000),
+    "gpd-planner": (2_500, 123_000),
     "gpd-executor": (3_100, 210_000),
-    "gpd-research-mapper": (2_850, 132_000),
-    "gpd-roadmapper": (2_650, 124_000),
-    "gpd-project-researcher": (2_170, 111_000),
-    "gpd-experiment-designer": (1_710, 88_500),
-    "gpd-research-synthesizer": (2_200, 114_500),
+    "gpd-research-mapper": (800, 39_000),
+    "gpd-roadmapper": (2_000, 94_000),
+    "gpd-project-researcher": (1_500, 81_000),
+    "gpd-experiment-designer": (850, 47_000),
+    "gpd-research-synthesizer": (1_560, 85_000),
+    "gpd-plan-checker": (1_450, 65_000),
 }
 TOP_AGENT_HARD_CAP_COUNT = 6
 BULKY_REFERENCE_INCLUDE_FILES = (
     "peer-review-panel.md",
     "contradiction-resolution-example.md",
 )
+
+
+def _assert_prompt_baseline_is_current(
+    *,
+    baseline_lines: int,
+    baseline_chars: int,
+    measured_lines: int,
+    measured_chars: int,
+) -> None:
+    assert baseline_lines <= budget_from_baseline(
+        measured_lines,
+        minimum_margin=MIN_LINE_MARGIN,
+    )
+    assert baseline_chars <= budget_from_baseline(
+        measured_chars,
+        minimum_margin=MIN_CHAR_MARGIN,
+    )
 
 
 def test_agent_prompt_budget_table_covers_registered_agents() -> None:
@@ -120,6 +138,12 @@ def test_expanded_agent_prompt_stays_under_budget(agent_name: str) -> None:
         path_prefix=PATH_PREFIX,
     )
 
+    _assert_prompt_baseline_is_current(
+        baseline_lines=baseline_lines,
+        baseline_chars=baseline_chars,
+        measured_lines=metrics.expanded_line_count,
+        measured_chars=metrics.expanded_char_count,
+    )
     assert metrics.expanded_line_count <= budget_from_baseline(
         baseline_lines,
         minimum_margin=MIN_LINE_MARGIN,

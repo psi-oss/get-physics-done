@@ -168,12 +168,52 @@ def test_resolve_update_cache_inputs_uses_explicit_or_inferred_preference(tmp_pa
             assert preferred_runtime == expected_preference
 
 
-def test_primary_update_cache_file_falls_back_to_home_data_root_cache(tmp_path: Path) -> None:
+def test_primary_update_cache_file_falls_back_to_home_data_root_cache(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("GPD_DATA_DIR", raising=False)
     home = tmp_path / "home"
 
     cache_file = primary_update_cache_file([], home=home)
 
     assert cache_file == home / ".gpd" / "cache" / "gpd-update-check.json"
+
+
+def test_primary_update_cache_file_honors_gpd_data_dir_for_home_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    data_root = tmp_path / "gpd-data"
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+    cache_file = primary_update_cache_file([])
+    candidates = runtime_detect_module.get_update_cache_candidates(cwd=tmp_path)
+
+    assert cache_file == data_root / "cache" / "gpd-update-check.json"
+    assert candidates[-1].path == cache_file
+    assert candidates[-1].runtime is None
+    assert candidates[-1].scope is None
+
+
+def test_ordered_update_cache_candidates_honor_gpd_data_dir_for_default_home(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "home"
+    data_root = tmp_path / "gpd-data"
+    workspace = tmp_path / "workspace"
+    home.mkdir()
+    workspace.mkdir()
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+    with patch.object(runtime_detect_module.Path, "home", return_value=home):
+        candidates = ordered_update_cache_candidates(cwd=workspace, home=home)
+        primary = primary_update_cache_file(candidates, home=home)
+
+    expected = data_root / "cache" / "gpd-update-check.json"
+    assert candidates[-1].path == expected
+    assert primary == expected
 
 
 def test_home_update_cache_path_comes_from_one_helper_for_lookup_and_write_paths(tmp_path: Path) -> None:

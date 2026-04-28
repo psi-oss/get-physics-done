@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.core import constants
 from gpd.core import storage_paths as storage_paths_module
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.storage_paths import (
@@ -16,6 +18,8 @@ from gpd.core.storage_paths import (
     StorageClass,
     StoragePathError,
 )
+
+_RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST = iter_runtime_descriptors()[0].config_dir_name
 
 
 def _make_layout(tmp_path: Path, root_name: str = "project") -> ProjectStorageLayout:
@@ -180,6 +184,20 @@ def test_temp_roots_uses_environment_overrides_and_deduplicates(
     assert roots[0] == Path(tempfile.gettempdir()).resolve(strict=False)
 
 
+@pytest.mark.parametrize(
+    "project_root",
+    [
+        Path("/tmp/gpd-storage-policy-regression"),
+        Path("/private/tmp/gpd-storage-policy-regression"),
+        Path("/var/tmp/gpd-storage-policy-regression"),
+    ],
+)
+def test_project_root_is_temporary_detects_canonical_temp_aliases(project_root: Path) -> None:
+    layout = ProjectStorageLayout(project_root)
+
+    assert layout.project_root_is_temporary() is True
+
+
 def test_project_root_is_temporary_detects_temp_projects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     temp_root = tmp_path / "runtime-temp"
     temp_root.mkdir()
@@ -199,6 +217,11 @@ def test_project_root_is_temporary_detects_temp_projects(tmp_path: Path, monkeyp
 
     assert temp_layout.project_root_is_temporary() is True
     assert normal_layout.project_root_is_temporary() is False
+
+
+def test_observability_pointer_constants_are_public_exports() -> None:
+    assert "OBSERVABILITY_CURRENT_EXECUTION_FILENAME" in constants.__all__
+    assert "OBSERVABILITY_LAST_NOTIFY_FILENAME" in constants.__all__
 
 
 def test_validate_internal_output_accepts_internal_paths_and_rejects_non_internal(tmp_path: Path) -> None:
@@ -491,6 +514,27 @@ def test_audit_storage_warnings_prunes_runtime_ignored_and_cache_dirs(
     warnings = layout.audit_storage_warnings()
 
     assert warnings == ()
+
+
+def test_audit_storage_warnings_prunes_runtime_dirs_when_catalog_lookup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    monkeypatch.setattr(
+        storage_paths_module,
+        "_runtime_config_dir_lookup",
+        lambda: ((_RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST,), "RuntimeError: catalog offline"),
+    )
+    layout = _make_layout(tmp_path)
+    runtime_output = layout.root / _RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST / "tmp" / "final.csv"
+    runtime_output.parent.mkdir(parents=True, exist_ok=True)
+    runtime_output.write_text("x,y\n", encoding="utf-8")
+
+    warnings = layout.audit_storage_warnings()
+
+    assert any("runtime catalog lookup failed" in warning for warning in warnings)
+    assert not any(f"{_RUNTIME_CONFIG_DIR_FOR_STORAGE_TEST}/tmp/final.csv" in warning for warning in warnings)
 
 
 def test_audit_storage_warnings_flags_user_authored_generic_root_outputs(

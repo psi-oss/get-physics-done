@@ -1274,6 +1274,7 @@ def compile_markdown_for_runtime(
     workflow_target_dir: Path | None = None,
     explicit_target: bool = False,
     protect_agent_prompt_body: bool = False,
+    inject_skeptical_rigor_guardrails: bool = True,
 ) -> str:
     """Compile canonical markdown into a runtime-specific installed form.
 
@@ -1317,7 +1318,9 @@ def compile_markdown_for_runtime(
         )
 
     content = _inject_command_visibility_sections_from_frontmatter(content)
-    return _inject_skeptical_rigor_guardrails_section(content)
+    if inject_skeptical_rigor_guardrails:
+        content = _inject_skeptical_rigor_guardrails_section(content)
+    return content
 
 
 def project_markdown_for_runtime(
@@ -1332,6 +1335,7 @@ def project_markdown_for_runtime(
     explicit_target: bool = False,
     protect_agent_prompt_body: bool = False,
     command_name: str | None = None,
+    inject_skeptical_rigor_guardrails: bool = True,
 ) -> str:
     """Return the final runtime-visible prompt surface for one markdown source.
 
@@ -1349,6 +1353,7 @@ def project_markdown_for_runtime(
         workflow_target_dir=workflow_target_dir,
         explicit_target=explicit_target,
         protect_agent_prompt_body=protect_agent_prompt_body,
+        inject_skeptical_rigor_guardrails=inject_skeptical_rigor_guardrails,
     )
 
     if surface_kind not in {"agent", "command"}:
@@ -1552,6 +1557,7 @@ def copy_with_path_replacement(
     workflow_paths: bool = False,
     workflow_target_dir: Path | None = None,
     explicit_target: bool = False,
+    inject_skeptical_rigor_guardrails: bool | None = None,
 ) -> None:
     """Safely copy *src_dir* to *dest_dir* with path replacement in ``.md`` files.
 
@@ -1570,6 +1576,8 @@ def copy_with_path_replacement(
     src_dir = Path(src_dir)
     if not src_dir.is_dir():
         raise FileNotFoundError(f"Source directory does not exist: {src_dir}")
+    if inject_skeptical_rigor_guardrails is None:
+        inject_skeptical_rigor_guardrails = src_dir.name in {COMMANDS_DIR_NAME, AGENTS_DIR_NAME}
     dest_dir = Path(dest_dir)
     pid = os.getpid()
     tmp_dir = dest_dir.with_name(f"{dest_dir.name}.tmp.{pid}")
@@ -1593,6 +1601,7 @@ def copy_with_path_replacement(
             workflow_paths=workflow_paths,
             workflow_target_dir=workflow_target_dir,
             explicit_target=explicit_target,
+            inject_skeptical_rigor_guardrails=inject_skeptical_rigor_guardrails,
         )
 
         # Swap into place
@@ -1630,6 +1639,7 @@ def _copy_dir_contents(
     workflow_paths: bool = False,
     workflow_target_dir: Path | None = None,
     explicit_target: bool = False,
+    inject_skeptical_rigor_guardrails: bool = True,
 ) -> None:
     """Recursively copy directory contents with runtime translation in .md files.
 
@@ -1653,6 +1663,7 @@ def _copy_dir_contents(
                 workflow_paths=workflow_paths,
                 workflow_target_dir=workflow_target_dir,
                 explicit_target=explicit_target,
+                inject_skeptical_rigor_guardrails=inject_skeptical_rigor_guardrails,
             )
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
@@ -1667,7 +1678,8 @@ def _copy_dir_contents(
                     explicit_target=explicit_target,
                 )
             content = _inject_command_visibility_sections_from_frontmatter(content)
-            content = _inject_skeptical_rigor_guardrails_section(content)
+            if inject_skeptical_rigor_guardrails:
+                content = _inject_skeptical_rigor_guardrails_section(content)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy
@@ -1964,25 +1976,23 @@ def _managed_install_paths(
     """Return the current managed install paths when a manifest cannot be trusted."""
     managed_paths: list[str] = []
 
-    gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
-    for rel in generate_manifest(gpd_dir).keys():
-        managed_paths.append(f"{GPD_INSTALL_DIR_NAME}/{rel}")
+    try:
+        managed_surface = get_managed_install_surface_policy()
+    except KeyError:
+        managed_surface = None
 
-    commands_dir = config_dir / "commands" / "gpd"
-    for rel in generate_manifest(commands_dir).keys():
-        managed_paths.append(f"commands/gpd/{rel}")
-
-    command_dir = config_dir / "command"
-    if command_dir.exists():
-        for entry in sorted(command_dir.iterdir()):
-            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
-                managed_paths.append(f"command/{entry.name}")
-
-    agents_dir = config_dir / "agents"
-    if agents_dir.exists():
-        for entry in sorted(agents_dir.iterdir()):
-            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix in {".md", ".toml"}:
-                managed_paths.append(f"agents/{entry.name}")
+    if managed_surface is not None:
+        catalog_globs = (
+            *managed_surface.gpd_content_globs,
+            *managed_surface.nested_command_globs,
+            *managed_surface.flat_command_globs,
+            *managed_surface.managed_agent_globs,
+        )
+        managed_paths.extend(_manifest_entries_for_catalog_globs(config_dir, catalog_globs).keys())
+    else:
+        gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
+        for rel in generate_manifest(gpd_dir).keys():
+            managed_paths.append(f"{GPD_INSTALL_DIR_NAME}/{rel}")
 
     hooks_dir = config_dir / "hooks"
     for rel in generate_manifest(hooks_dir).keys():
@@ -2240,6 +2250,7 @@ def install_gpd_content(
                 workflow_paths=subdir_name == "workflows",
                 workflow_target_dir=target_dir,
                 explicit_target=explicit_target,
+                inject_skeptical_rigor_guardrails=False,
             )
 
     if verify_installed(gpd_dest):

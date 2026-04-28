@@ -177,16 +177,7 @@ const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.insta
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
   RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
 );
-const RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS = new Set([
-  "permissions_surface",
-  "statusline_surface",
-  "notify_surface",
-  "telemetry_source",
-  "telemetry_completeness",
-  "child_artifact_persistence_reliability",
-  "continuation_surface",
-  "checkpoint_stop_semantics",
-]);
+const RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS = new Set(RUNTIME_CATALOG_SCHEMA.capability_enum_required_keys);
 const PUBLIC_SURFACE_CONTRACT_SHAPE = loadSharedPublicSurfaceShape(PUBLIC_SURFACE_CONTRACT);
 const PUBLIC_SURFACE_CONTRACT_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.topLevelKeys];
 const PUBLIC_SURFACE_CONTRACT_ALLOWED_KEYS = new Set(PUBLIC_SURFACE_CONTRACT_KEYS);
@@ -204,6 +195,23 @@ const RUNTIME_ENV_VAR_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const MANIFEST_METADATA_KEY_RE = /^[a-z][a-z0-9_]*$/;
 const PYTHON_MODULE_RE = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 const PYTHON_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const RUNTIME_CAPABILITY_BOOL_FIELDS = new Set([
+  "supports_runtime_permission_sync",
+  "supports_prompt_free_mode",
+  "prompt_free_requires_relaunch",
+  "supports_usage_tokens",
+  "supports_cost_usd",
+  "supports_context_meter",
+  "supports_structured_child_results",
+  "supports_runtime_session_payload_attribution",
+  "supports_agent_payload_attribution",
+]);
+const RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS = new Set([
+  "permission_surface_kind",
+  "statusline_config_surface",
+  "notify_config_surface",
+]);
+const RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS = new Set(["prompt_free_mode_value"]);
 
 function formatQuotedDisjunction(values) {
   const normalized = [...values].sort();
@@ -529,93 +537,29 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
     }
     throw new Error(`${label} is missing required key(s): ${fieldName}`);
   };
-  const optionalPromptFreeModeValue = capabilityValue("prompt_free_mode_value");
-
-  const validated = {
-    permissions_surface: requireStrictEnumString(
-      capabilityValue("permissions_surface"),
-      `${label}.permissions_surface`,
-      capabilityEnums.permissions_surface
-    ),
-    permission_surface_kind: requireRuntimeSurfaceLabel(
-      capabilityValue("permission_surface_kind"),
-      `${label}.permission_surface_kind`,
-      { allowSpecialValues: launchWrapperPermissionSurfaceKinds }
-    ),
-    prompt_free_mode_value: optionalPromptFreeModeValue === null
-      ? null
-      : requireStrictString(optionalPromptFreeModeValue, `${label}.prompt_free_mode_value`),
-    supports_runtime_permission_sync: requireStrictBoolean(
-      capabilityValue("supports_runtime_permission_sync"),
-      `${label}.supports_runtime_permission_sync`
-    ),
-    supports_prompt_free_mode: requireStrictBoolean(
-      capabilityValue("supports_prompt_free_mode"),
-      `${label}.supports_prompt_free_mode`
-    ),
-    prompt_free_requires_relaunch: requireStrictBoolean(
-      capabilityValue("prompt_free_requires_relaunch"),
-      `${label}.prompt_free_requires_relaunch`
-    ),
-    statusline_surface: requireStrictEnumString(
-      capabilityValue("statusline_surface"),
-      `${label}.statusline_surface`,
-      capabilityEnums.statusline_surface
-    ),
-    statusline_config_surface: requireRuntimeSurfaceLabel(
-      capabilityValue("statusline_config_surface"),
-      `${label}.statusline_config_surface`
-    ),
-    notify_surface: requireStrictEnumString(
-      capabilityValue("notify_surface"),
-      `${label}.notify_surface`,
-      capabilityEnums.notify_surface
-    ),
-    notify_config_surface: requireRuntimeSurfaceLabel(
-      capabilityValue("notify_config_surface"),
-      `${label}.notify_config_surface`
-    ),
-    telemetry_source: requireStrictEnumString(
-      capabilityValue("telemetry_source"),
-      `${label}.telemetry_source`,
-      capabilityEnums.telemetry_source
-    ),
-    telemetry_completeness: requireStrictEnumString(
-      capabilityValue("telemetry_completeness"),
-      `${label}.telemetry_completeness`,
-      capabilityEnums.telemetry_completeness
-    ),
-    supports_usage_tokens: requireStrictBoolean(capabilityValue("supports_usage_tokens"), `${label}.supports_usage_tokens`),
-    supports_cost_usd: requireStrictBoolean(capabilityValue("supports_cost_usd"), `${label}.supports_cost_usd`),
-    supports_context_meter: requireStrictBoolean(capabilityValue("supports_context_meter"), `${label}.supports_context_meter`),
-    child_artifact_persistence_reliability: requireStrictEnumString(
-      capabilityValue("child_artifact_persistence_reliability"),
-      `${label}.child_artifact_persistence_reliability`,
-      capabilityEnums.child_artifact_persistence_reliability
-    ),
-    supports_structured_child_results: requireStrictBoolean(
-      capabilityValue("supports_structured_child_results"),
-      `${label}.supports_structured_child_results`
-    ),
-    continuation_surface: requireStrictEnumString(
-      capabilityValue("continuation_surface"),
-      `${label}.continuation_surface`,
-      capabilityEnums.continuation_surface
-    ),
-    checkpoint_stop_semantics: requireStrictEnumString(
-      capabilityValue("checkpoint_stop_semantics"),
-      `${label}.checkpoint_stop_semantics`,
-      capabilityEnums.checkpoint_stop_semantics
-    ),
-    supports_runtime_session_payload_attribution: requireStrictBoolean(
-      capabilityValue("supports_runtime_session_payload_attribution"),
-      `${label}.supports_runtime_session_payload_attribution`
-    ),
-    supports_agent_payload_attribution: requireStrictBoolean(
-      capabilityValue("supports_agent_payload_attribution"),
-      `${label}.supports_agent_payload_attribution`
-    ),
-  };
+  const validated = {};
+  for (const [fieldName, enumValues] of Object.entries(capabilityEnums)) {
+    validated[fieldName] = requireStrictEnumString(
+      capabilityValue(fieldName),
+      `${label}.${fieldName}`,
+      enumValues
+    );
+  }
+  for (const fieldName of [...RUNTIME_CAPABILITY_RUNTIME_SURFACE_LABEL_FIELDS].sort()) {
+    const specialValues = fieldName === "permission_surface_kind" ? launchWrapperPermissionSurfaceKinds : new Set();
+    validated[fieldName] = requireRuntimeSurfaceLabel(
+      capabilityValue(fieldName),
+      `${label}.${fieldName}`,
+      { allowSpecialValues: specialValues }
+    );
+  }
+  for (const fieldName of [...RUNTIME_CAPABILITY_BOOL_FIELDS].sort()) {
+    validated[fieldName] = requireStrictBoolean(capabilityValue(fieldName), `${label}.${fieldName}`);
+  }
+  for (const fieldName of [...RUNTIME_CAPABILITY_OPTIONAL_STRING_FIELDS].sort()) {
+    const rawValue = capabilityValue(fieldName);
+    validated[fieldName] = rawValue === null ? null : requireStrictString(rawValue, `${label}.${fieldName}`);
+  }
   const validatedFields = new Set(Object.keys(validated));
   for (const fieldName of [...capabilityKeys].sort()) {
     if (!validatedFields.has(fieldName)) {
@@ -697,10 +641,15 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
   return validated;
 }
 
-function validateRuntimeCatalogCapabilityEnums(capabilityEnumsPayload, capabilityKeys, label) {
+function validateRuntimeCatalogCapabilityEnums(
+  capabilityEnumsPayload,
+  capabilityKeys,
+  label,
+  requiredCapabilityEnumFields = RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS
+) {
   const payload = requireJsonObject(capabilityEnumsPayload, label);
   requireKnownKeys(payload, capabilityKeys, label);
-  requirePresentKeys(payload, [...RUNTIME_CATALOG_REQUIRED_CAPABILITY_ENUM_FIELDS], label);
+  requirePresentKeys(payload, [...requiredCapabilityEnumFields], label);
   const validated = {};
   for (const [fieldName, rawValues] of Object.entries(payload)) {
     if (typeof fieldName !== "string" || !fieldName.trim() || fieldName.trim() !== fieldName) {
@@ -721,6 +670,7 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
     "capability_keys",
     "capability_defaults",
     "capability_enums",
+    "capability_enum_required_keys",
     "hook_payload_keys",
     "hook_payload_defaults",
     "managed_install_surface_keys",
@@ -737,13 +687,25 @@ function validateRuntimeCatalogSchemaShape(schemaPayload = RUNTIME_CATALOG_SCHEM
 
   const capabilityKeys = requireStrictStringList(schema.capability_keys, "runtime catalog schema.capability_keys");
   const capabilityKeySet = new Set(capabilityKeys);
+  const capabilityEnumRequiredKeys = requireStrictStringList(
+    schema.capability_enum_required_keys,
+    "runtime catalog schema.capability_enum_required_keys"
+  );
+  const unknownRequiredCapabilityEnumKeys = capabilityEnumRequiredKeys.filter((key) => !capabilityKeySet.has(key));
+  if (unknownRequiredCapabilityEnumKeys.length > 0) {
+    throw new Error(
+      "runtime catalog schema.capability_enum_required_keys contains unknown key(s): "
+      + unknownRequiredCapabilityEnumKeys.join(", ")
+    );
+  }
   const capabilityDefaults = requireJsonObject(schema.capability_defaults, "runtime catalog schema.capability_defaults");
   requireKnownKeys(capabilityDefaults, capabilityKeySet, "runtime catalog schema.capability_defaults");
   requirePresentKeys(capabilityDefaults, capabilityKeys, "runtime catalog schema.capability_defaults");
   const capabilityEnums = validateRuntimeCatalogCapabilityEnums(
     schema.capability_enums,
     capabilityKeySet,
-    "runtime catalog schema.capability_enums"
+    "runtime catalog schema.capability_enums",
+    new Set(capabilityEnumRequiredKeys)
   );
   const launchWrapperPermissionSurfaceKinds = new Set(requireStrictStringList(
     schema.launch_wrapper_permission_surface_kinds,
@@ -1466,14 +1428,6 @@ function sharedPermissionsSyncCommand() {
   return SHARED_PUBLIC_SURFACE_TEXT.localCliBridge.permissionsSyncCommand;
 }
 
-function sharedResumeCommand() {
-  return SHARED_PUBLIC_SURFACE_TEXT.recoveryLadder.localSnapshotCommand;
-}
-
-function sharedRecentRecoveryCommand() {
-  return SHARED_PUBLIC_SURFACE_TEXT.recoveryLadder.crossWorkspaceCommand;
-}
-
 function joinBacktickedCommands(commands) {
   const rendered = commands.map((command) => `\`${command}\``);
   if (rendered.length <= 1) {
@@ -1497,21 +1451,6 @@ function localCliDiagnosticsFollowUpLine() {
   return (
     `Use \`${sharedLocalCliHelpCommand()}\` for local install, readiness, validation, permissions, observability, and diagnostics. `
     + `Local CLI bridge: ${localCliBridgeNote()}`
-  );
-}
-
-function localCliInstallSummaryBridgeLine() {
-  return `Use \`${sharedLocalCliHelpCommand()}\` for local diagnostics and later setup.`;
-}
-
-function recoveryLadderNote({ resumeWorkPhrase, suggestNextPhrase, pauseWorkPhrase }) {
-  const recovery = SHARED_PUBLIC_SURFACE_TEXT.recoveryLadder;
-  return (
-    `${recovery.title}: use \`${recovery.localSnapshotCommand}\` for ${recovery.localSnapshotPhrase}. `
-    + `If that is the wrong workspace, use \`${recovery.crossWorkspaceCommand}\` to ${recovery.crossWorkspacePhrase}, `
-    + `then ${recovery.resumePhrase} with ${resumeWorkPhrase}. After resuming, `
-    + `${suggestNextPhrase} is ${recovery.nextPhrase}. Before stepping away mid-phase, `
-    + `run ${pauseWorkPhrase} so that ladder has ${recovery.pausePhrase}.`
   );
 }
 
@@ -2130,8 +2069,8 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
 }
 
 function runManagedCliCommand(python, cliArgs, options = {}) {
-  const { captureOutput = false } = options;
-  const spawnOptions = { env: process.env };
+  const { captureOutput = false, env = {} } = options;
+  const spawnOptions = { env: { ...process.env, ...env } };
   if (captureOutput) {
     spawnOptions.encoding = "utf-8";
   } else {
@@ -2468,6 +2407,7 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
   console.log("");
 
   const blockers = [];
+  const advisoriesByRuntime = [];
 
   for (const runtime of runtimes) {
     const displayName = runtimeDisplayName(runtime);
@@ -2490,8 +2430,10 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
     }
 
     const advisories = [...collectDoctorAdvisories(report), ...repairableMessages];
-    success(`${displayName}: launcher/target preflight passed${advisories.length > 0 ? " with advisories" : ""}.`);
-    [...new Set(advisories)].forEach((message) => warn(`${displayName}: ${message}`));
+    const uniqueAdvisories = [...new Set(advisories)];
+    if (uniqueAdvisories.length > 0) {
+      advisoriesByRuntime.push([displayName, uniqueAdvisories]);
+    }
   }
 
   if (blockers.length > 0) {
@@ -2505,88 +2447,13 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
 
   console.log("");
   success(`Runtime launcher/target preflight passed for ${formatRuntimeList(runtimes)}.`);
+  for (const [displayName, advisories] of advisoriesByRuntime) {
+    advisories.forEach((message) => warn(`${displayName}: ${message}`));
+  }
   const doctorHints = runtimes.map((runtime) => `\`${runtimeDoctorHint(runtime, scope, targetDir)}\``).join(", ");
-  log(`For the full runtime-target doctor report after install, use ${doctorHints}.`);
-  log(
-    `Use \`${sharedDoctorCommand()}\` for install and runtime-local readiness, `
-    + `\`${sharedUnattendedReadinessCommand()}\` `
-    + `for the unattended or overnight verdict, \`${sharedPermissionsStatusCommand()}\` `
-    + "for the read-only runtime-owned permission snapshot, and "
-    + `\`${sharedPermissionsSyncCommand()}\` when runtime-owned permission alignment needs a write/sync.`
-  );
-  log(
-    "Workflow presets: if you plan paper/manuscript workflows, rerun "
-    + `${doctorHints} after install and check whether \`Workflow Presets\` is \`ready\` or \`degraded\`. `
-    + "Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`, but `paper-build` and "
-    + "`arxiv-submission` require the `LaTeX Toolchain`."
-  );
+  log(`Inspect runtime readiness later with ${doctorHints}.`);
   console.log("");
   return true;
-}
-
-function printUnattendedConfigurationReminder(runtimes, targetDir = null) {
-  console.log("");
-  console.log(` ${bold}${brandTitle}Startup checklist${reset}`);
-  console.log("");
-  log(`Beginner Onboarding Hub: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}`);
-  log(`First-run order: ${beginnerStartupLadderText()}`);
-  if (runtimes.length === 1) {
-    const runtime = runtimes[0];
-    log(
-      `1. Open ${runtimeDisplayName(runtime)} from your system terminal `
-      + `(${runtimeLaunchCommand(runtime)}).`
-    );
-    log(`2. Run \`${runtimeSurfaceCommand(runtime, "help")}\` for the command list.`);
-    log(
-      `3. Run \`${runtimeSurfaceCommand(runtime, "start")}\` if you're not sure what fits this folder yet. `
-      + `Run \`${runtimeSurfaceCommand(runtime, "tour")}\` if you want a read-only overview of the broader command surface first.`
-    );
-    log(
-      `4. Then use \`${runtimeSurfaceCommand(runtime, "new-project")}\` for a new project or `
-      + `\`${runtimeSurfaceCommand(runtime, "map-research")}\` for existing work.`
-    );
-    log(
-      `5. Fast bootstrap: use \`${runtimeSurfaceCommand(runtime, "new-project")} --minimal\` `
-      + "for the shortest onboarding path."
-    );
-    const resumeWorkCommand = runtimeSurfaceCommand(runtime, "resume-work");
-    const suggestNextCommand = runtimeSurfaceCommand(runtime, "suggest-next");
-    const pauseWorkCommand = runtimeSurfaceCommand(runtime, "pause-work");
-    log(
-      `6. When you return later, use \`${resumeWorkCommand}\` after reopening the right workspace. `
-      + recoveryLadderNote({
-        resumeWorkPhrase: `\`${resumeWorkCommand}\``,
-        suggestNextPhrase: `\`${suggestNextCommand}\``,
-        pauseWorkPhrase: `\`${pauseWorkCommand}\``,
-      })
-    );
-    log(`7. ${localCliInstallSummaryBridgeLine()}`);
-  } else {
-    log("For multiple runtimes, follow the same order in each one.");
-    for (const runtime of runtimes) {
-      log(
-        `- ${runtimeDisplayName(runtime)} (${runtimeLaunchCommand(runtime)}): `
-        + `\`${runtimeSurfaceCommand(runtime, "help")}\`, then `
-        + `\`${runtimeSurfaceCommand(runtime, "start")}\`, then `
-        + `\`${runtimeSurfaceCommand(runtime, "tour")}\`, then `
-        + `\`${runtimeSurfaceCommand(runtime, "new-project")}\` for new work or `
-        + `\`${runtimeSurfaceCommand(runtime, "map-research")}\` for existing work, then `
-        + `\`${runtimeSurfaceCommand(runtime, "resume-work")}\` when you return later.`
-      );
-    }
-    log(
-      `Fast bootstrap: use \`${runtimeSurfaceCommand(runtimes[0], "new-project")} --minimal\` for the shortest onboarding path.`
-    );
-    log(
-      recoveryLadderNote({
-        resumeWorkPhrase: "your runtime-specific `resume-work` command",
-        suggestNextPhrase: "your runtime-specific `suggest-next` command",
-        pauseWorkPhrase: "your runtime-specific `pause-work` command",
-      })
-    );
-    log(localCliInstallSummaryBridgeLine());
-  }
-  console.log("");
 }
 
 function formatMenuOption(index, label, details = [], options = {}) {
@@ -2645,7 +2512,7 @@ function printHelp() {
     console.log(` ${cyan}${flags}${reset}${padding}Select ${runtimeDisplayName(runtime)} only`);
   }
   console.log(` ${cyan}--all${reset}                  Select all supported runtimes`);
-  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (defaults to local scope unless it resolves to the runtime's canonical global config dir)`);
+  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir`);
   console.log(` ${cyan}--force-statusline${reset}     Replace an existing runtime statusline`);
   console.log(` ${cyan}-h, --help${reset}              Show this help message`);
   console.log("");
@@ -2962,6 +2829,9 @@ function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, opt
   if (targetDir) {
     cliArgs.push("--target-dir", targetDir);
   }
+  if (command === "uninstall") {
+    cliArgs.push("--yes");
+  }
   if (forceStatusline && command === "install") {
     cliArgs.push("--force-statusline");
   }
@@ -3088,12 +2958,13 @@ async function main() {
   }
 
   // Run the installer/uninstaller through the managed Python interpreter.
-  const result = runManagedCliCommand(managedEnv.python, cliArgs);
+  const result = runManagedCliCommand(
+    managedEnv.python,
+    cliArgs,
+    isUninstall ? {} : { env: { GPD_BOOTSTRAP_EMBEDDED_INSTALL: "1" } }
+  );
 
   if (result.status === 0) {
-    if (!isUninstall) {
-      printUnattendedConfigurationReminder(selectedRuntimes, targetDir);
-    }
     return;
   } else {
     error(`${isUninstall ? "Uninstall" : "Installation"} failed. Check the output above for details.`);

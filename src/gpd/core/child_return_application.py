@@ -22,6 +22,8 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.constants import ProjectLayout
 from gpd.core.continuation import (
+    RESUMABLE_SEGMENT_STATUSES,
+    ContinuationBoundedSegment,
     normalize_continuation_bounded_segment_with_issues,
     normalize_continuation_reference,
 )
@@ -58,6 +60,9 @@ __all__ = [
 SUPPORTED_STATE_UPDATE_FIELDS: tuple[str, ...] = ("advance_plan", "update_progress", "record_metric")
 SUPPORTED_CONTINUATION_UPDATE_FIELDS: tuple[str, ...] = ("handoff", "bounded_segment")
 _CHILD_RETURN_BOUNDED_SEGMENT_RECORDED_BY = "apply_child_return_updates"
+_CHECKPOINT_BOUNDED_SEGMENT_RESUME_FILE_REQUIRED_ERROR = (
+    "set_bounded_segment: checkpoint returns must include continuation_update.bounded_segment.resume_file"
+)
 
 
 @dataclass(frozen=True)
@@ -128,7 +133,7 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
     decisions = _validate_decisions(envelope.decisions, errors)
     blockers = _validate_blockers(envelope.blockers, errors)
     continuation_update = _validate_continuation_update(envelope.continuation_update, errors)
-    _validate_continuation_update_semantics(cwd, continuation_update, errors)
+    _validate_continuation_update_semantics(cwd, envelope.status, continuation_update, errors)
     contract_updates = dict(envelope.contract_updates or {})
 
     if errors:
@@ -404,10 +409,13 @@ def _with_applicator_owned_bounded_segment_metadata(
 
 def _validate_continuation_update_semantics(
     cwd: Path,
+    status: str,
     continuation_update: GpdReturnContinuationUpdate | None,
     errors: list[str],
 ) -> None:
     if continuation_update is None:
+        if status == "checkpoint":
+            errors.append(_CHECKPOINT_BOUNDED_SEGMENT_RESUME_FILE_REQUIRED_ERROR)
         return
 
     if continuation_update.handoff is not None:
@@ -425,10 +433,14 @@ def _validate_continuation_update_semantics(
                 )
 
     if "bounded_segment" not in continuation_update.model_fields_set:
+        if status == "checkpoint":
+            errors.append(_CHECKPOINT_BOUNDED_SEGMENT_RESUME_FILE_REQUIRED_ERROR)
         return
 
     bounded_segment = continuation_update.bounded_segment
     if bounded_segment is None:
+        if status == "checkpoint":
+            errors.append(_CHECKPOINT_BOUNDED_SEGMENT_RESUME_FILE_REQUIRED_ERROR)
         return
 
     normalized_segment, normalization_issues = normalize_continuation_bounded_segment_with_issues(
@@ -445,7 +457,10 @@ def _validate_continuation_update_semantics(
             "set_bounded_segment: Invalid continuation bounded_segment schema: "
             "bounded_segment must include at least one non-empty field"
         )
-    elif normalized_segment.last_result_id is not None:
+    elif status == "checkpoint":
+        _validate_checkpoint_bounded_segment_resume(cwd, normalized_segment, errors)
+
+    if normalized_segment is not None and normalized_segment.last_result_id is not None:
         state_obj = load_state_json_readonly(cwd)
         if not isinstance(state_obj, dict):
             errors.append("set_bounded_segment: State not found")
@@ -454,6 +469,29 @@ def _validate_continuation_update_semantics(
                 f'set_bounded_segment: last_result_id "{normalized_segment.last_result_id}" does not match any '
                 "canonical result in intermediate_results"
             )
+
+
+def _validate_checkpoint_bounded_segment_resume(
+    cwd: Path,
+    bounded_segment: ContinuationBoundedSegment,
+    errors: list[str],
+) -> None:
+    resume_file = bounded_segment.resume_file
+    if resume_file is None:
+        errors.append(_CHECKPOINT_BOUNDED_SEGMENT_RESUME_FILE_REQUIRED_ERROR)
+        return
+
+    if normalize_continuation_reference(cwd, resume_file, require_exists=True) is None:
+        errors.append(
+            "set_bounded_segment: checkpoint bounded_segment.resume_file must point to an existing "
+            "repo-relative file inside the project root"
+        )
+
+    if not bounded_segment.is_resumable_status:
+        errors.append(
+            "set_bounded_segment: checkpoint bounded_segment.segment_status must be one of: "
+            + ", ".join(sorted(RESUMABLE_SEGMENT_STATUSES))
+        )
 
 
 def _capture_state_mutation_snapshot(cwd: Path) -> tuple[_FileSnapshot, ...]:

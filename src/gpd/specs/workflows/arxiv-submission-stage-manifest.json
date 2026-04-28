@@ -12,6 +12,8 @@
       ],
       "required_init_fields": [
         "commit_docs",
+        "arxiv_submission_argument_input",
+        "project_root",
         "state_exists",
         "project_exists",
         "autonomy",
@@ -83,6 +85,7 @@
       ],
       "required_init_fields": [
         "commit_docs",
+        "arxiv_submission_argument_input",
         "state_exists",
         "project_exists",
         "autonomy",
@@ -151,6 +154,7 @@
       ],
       "required_init_fields": [
         "commit_docs",
+        "arxiv_submission_argument_input",
         "state_exists",
         "project_exists",
         "autonomy",
@@ -215,6 +219,7 @@
       ],
       "required_init_fields": [
         "commit_docs",
+        "arxiv_submission_argument_input",
         "state_exists",
         "project_exists",
         "autonomy",
@@ -282,6 +287,7 @@
       ],
       "required_init_fields": [
         "commit_docs",
+        "arxiv_submission_argument_input",
         "state_exists",
         "project_exists",
         "autonomy",

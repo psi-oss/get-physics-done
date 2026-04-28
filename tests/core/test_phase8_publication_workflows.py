@@ -18,7 +18,15 @@ def test_write_paper_balanced_mode_keeps_outline_as_working_draft_and_threads_mo
     assert "selected_publication_root" not in bootstrap_parse_line
     assert "selected_review_root" not in bootstrap_parse_line
     assert "Do not force a routine outline-approval pause in balanced mode." in workflow
-    assert 'WRITE_PAPER_ARGUMENTS="$ARGUMENTS"' in workflow
+    assert 'WRITE_PAPER_ARGUMENTS="${ARGUMENTS:-}"' in workflow
+    assert 'gpd --raw init write-paper --stage paper_bootstrap -- "$WRITE_PAPER_ARGUMENTS"' in workflow
+    for stage in (
+        "outline_and_scaffold",
+        "figure_and_section_authoring",
+        "consistency_and_references",
+        "publication_review",
+    ):
+        assert f'gpd --raw init write-paper --stage {stage} -- "${{WRITE_PAPER_ARGUMENTS:-}}"' in workflow
     assert "explicit `--intake path/to/write-paper-authoring-input.json`" in workflow
     assert "For `external_authoring_intake`, use the strict command preflight's managed subject handoff" in workflow
     assert (

@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 SPECS_DIR = REPO_ROOT / "src/gpd/specs"
 PROOF_GATE_REF = "@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md"
+PROOF_GATE_PATH = "{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md"
 REPEATED_PROOF_CHECKPOINT_LINES = (
     "If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.",
     "If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.",
@@ -51,13 +52,14 @@ def test_verification_workflows_fail_closed_on_missing_proof_coverage() -> None:
     verify_work = _expanded("verify-work.md")
     derive_equation = _expanded("derive-equation.md")
 
-    assert PROOF_GATE_REF in verify_phase_raw
+    assert PROOF_GATE_REF not in verify_phase_raw
+    assert PROOF_GATE_PATH in verify_phase_raw
     assert PROOF_GATE_REF in verify_work_raw
     assert PROOF_GATE_REF in derive_equation_raw
 
     assert "theorem-to-proof audit plus an adversarial special-case" in verify_phase
     assert '<step name="proof_obligation_gate">' in verify_phase
-    assert "fail the target if a named parameter or hypothesis disappears from the proof" in verify_phase
+    assert "Missing artifact, missing theorem inventory, or `status != passed` is a blocking gap" in verify_phase
     assert "spawn `gpd-check-proof` once to repair that gap" in verify_phase
     assert "wait for user confirmation" not in verify_phase
     assert "ask the user then continue" not in verify_phase

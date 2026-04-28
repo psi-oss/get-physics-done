@@ -25,17 +25,33 @@ Also read the shared publication bootstrap reference before resolving the manusc
 Load the staged bootstrap payload before resolving the manuscript target:
 
 ```bash
-BOOTSTRAP_INIT=$(gpd --raw init arxiv-submission --stage bootstrap)
+if [ -n "${ARGUMENTS:-}" ]; then
+  BOOTSTRAP_INIT=$(gpd --raw init arxiv-submission --stage bootstrap -- "$ARGUMENTS")
+else
+  BOOTSTRAP_INIT=$(gpd --raw init arxiv-submission --stage bootstrap)
+fi
 if [ $? -ne 0 ]; then
   echo "ERROR: arxiv-submission bootstrap init failed: $BOOTSTRAP_INIT"
-  # STOP -- display the error to the user and do not proceed.
+  exit 1
+fi
+INIT="$BOOTSTRAP_INIT"
+PROJECT_ROOT=$(echo "$INIT" | gpd json get .project_root --default "")
+if [ -n "$PROJECT_ROOT" ]; then
+  cd "$PROJECT_ROOT" || {
+    echo "ERROR: could not enter resolved project root: $PROJECT_ROOT"
+    exit 1
+  }
 fi
 ```
 
 Run centralized context preflight before continuing:
 
 ```bash
-CONTEXT=$(gpd --raw validate command-context arxiv-submission "$ARGUMENTS")
+if [ -n "${ARGUMENTS:-}" ]; then
+  CONTEXT=$(gpd --raw validate command-context arxiv-submission -- "${ARGUMENTS}")
+else
+  CONTEXT=$(gpd --raw validate command-context arxiv-submission)
+fi
 if [ $? -ne 0 ]; then
   echo "$CONTEXT"
   exit 1
@@ -45,8 +61,8 @@ fi
 Run the centralized review preflight before continuing and keep its raw routing fields:
 
 ```bash
-if [ -n "$ARGUMENTS" ]; then
-  REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission "$ARGUMENTS" --strict)
+if [ -n "${ARGUMENTS:-}" ]; then
+  REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission --strict -- "${ARGUMENTS}")
 else
   REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission --strict)
 fi
@@ -73,7 +89,7 @@ Resolve the manuscript target from raw preflight plus `$ARGUMENTS`:
 7. Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots.
 
 Then run the centralized publication preflight and review preflight checks. If the latest review artifacts are missing, incomplete, stale, or blocked, or if the manuscript-root gates fail, stop before any packaging work starts.
-Set `subject_slug` from `publication_subject_slug`. If it is missing, STOP and repair preflight routing instead of deriving a new slug. Keep all GPD-authored package outputs rooted at `${selected_publication_root}/arxiv/` when present, otherwise `GPD/publication/${subject_slug}/arxiv/`. Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself.
+Set `subject_slug` from `publication_subject_slug`. If it is missing, STOP and repair preflight routing instead of deriving a new slug. Package outputs are always rooted at `GPD/publication/${subject_slug}/arxiv/`; treat `selected_publication_root` as validation context only. Do not write proof-review manifests, package staging trees, or tarballs beside the manuscript root itself.
 
 Set:
 
@@ -82,7 +98,7 @@ PAPER_DIR="${resolved_dir}"
 MAIN_SOURCE="${resolved_main_tex}"
 MAIN_BASENAME="$(basename "${MAIN_SOURCE}")"
 MAIN_STEM="${MAIN_BASENAME%.*}"
-PUBLICATION_ROOT="${selected_publication_root:-GPD/publication/${subject_slug}}"
+PUBLICATION_ROOT="GPD/publication/${subject_slug}"
 REVIEW_ROOT="${selected_review_root:-GPD/review}"
 PACKAGE_ROOT="${PUBLICATION_ROOT}/arxiv"
 SUBMISSION_DIR="${PACKAGE_ROOT}/submission"
@@ -92,6 +108,18 @@ PACKAGE_TARBALL="${PACKAGE_ROOT}/arxiv-submission.tar.gz"
 
 <step name="manuscript_preflight">
 **Refresh the manuscript-root build contract before packaging.**
+
+```bash
+if [ -n "${ARGUMENTS:-}" ]; then
+  MANUSCRIPT_PREFLIGHT_INIT=$(gpd --raw init arxiv-submission --stage manuscript_preflight -- "$ARGUMENTS")
+else
+  MANUSCRIPT_PREFLIGHT_INIT=$(gpd --raw init arxiv-submission --stage manuscript_preflight)
+fi
+if [ $? -ne 0 ]; then
+  echo "ERROR: arxiv-submission manuscript_preflight init failed: $MANUSCRIPT_PREFLIGHT_INIT"
+  exit 1
+fi
+```
 
 Treat `gpd paper-build` as authoritative for `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json`. If `${PAPER_DIR}/PAPER-CONFIG.json` exists, refresh the manuscript before packaging:
 
@@ -111,10 +139,19 @@ If `pdflatex` is available, run a local smoke check after the refreshed manuscri
 <step name="review_gate">
 **Require the latest review-round evidence before submission packaging.**
 
-Load the shared latest-round publication contract:
+```bash
+if [ -n "${ARGUMENTS:-}" ]; then
+  REVIEW_GATE_INIT=$(gpd --raw init arxiv-submission --stage review_gate -- "$ARGUMENTS")
+else
+  REVIEW_GATE_INIT=$(gpd --raw init arxiv-submission --stage review_gate)
+fi
+if [ $? -ne 0 ]; then
+  echo "ERROR: arxiv-submission review_gate init failed: $REVIEW_GATE_INIT"
+  exit 1
+fi
+```
 
-@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
-@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md
+Load the shared latest-round publication contract from `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md` and the staged `peer-review-reliability.md` reference at this stage.
 
 Require the latest staged `REVIEW-LEDGER*.json` and `REFEREE-DECISION*.json` pair for the active manuscript. Packaging may continue only when the latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues.
 Strict preflight also requires the latest round-specific staged `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` pair as authoritative submission-gate input.
@@ -127,6 +164,18 @@ Do not mix round suffixes across review artifacts, response artifacts, or manusc
 
 <step name="package">
 **Create the arXiv submission tree.**
+
+```bash
+if [ -n "${ARGUMENTS:-}" ]; then
+  PACKAGE_INIT=$(gpd --raw init arxiv-submission --stage package -- "$ARGUMENTS")
+else
+  PACKAGE_INIT=$(gpd --raw init arxiv-submission --stage package)
+fi
+if [ $? -ne 0 ]; then
+  echo "ERROR: arxiv-submission package init failed: $PACKAGE_INIT"
+  exit 1
+fi
+```
 
 Keep the packaging rules arXiv-specific and deterministic:
 
@@ -156,6 +205,18 @@ If the manuscript root is not already `paper/`, stage the package in a temporary
 
 <step name="finalize">
 **Create the tarball and present the submission checklist.**
+
+```bash
+if [ -n "${ARGUMENTS:-}" ]; then
+  FINALIZE_INIT=$(gpd --raw init arxiv-submission --stage finalize -- "$ARGUMENTS")
+else
+  FINALIZE_INIT=$(gpd --raw init arxiv-submission --stage finalize)
+fi
+if [ $? -ne 0 ]; then
+  echo "ERROR: arxiv-submission finalize init failed: $FINALIZE_INIT"
+  exit 1
+fi
+```
 
 Create `${PACKAGE_TARBALL}` (filename `arxiv-submission.tar.gz`), verify that the main manuscript file is at the tarball root, and present a final checklist with:
 

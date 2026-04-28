@@ -114,6 +114,7 @@ All subsequent commits go to this branch. User handles merging.
 Classify the phase type to drive agent selection and context budget decisions. Scan the phase goal and plan objectives for indicator keywords.
 
 ```bash
+PHASE_CLASSIFICATION_INIT=$(load_execute_phase_stage phase_classification) || { echo "ERROR: phase_classification init failed"; exit 1; }
 PHASE_GOAL=$(gpd --raw roadmap get-phase "${phase_number}" | gpd json get .goal --default "")
 PLAN_OBJECTIVES=""
 for plan in "$phase_dir"/*-PLAN.md; do
@@ -160,17 +161,7 @@ FORCE_SEQUENTIAL=false
 YOLO_RESTRICTIONS=()
 ```
 
-**Per-class overrides (applied cumulatively for multi-class phases):**
-
-| Class | Parameter Overrides |
-|---|---|
-| **derivation** | `CONVENTION_LOCK_REQUIRED=true` — refuse to start if conventions unlocked. `INTER_WAVE_CHECKS+=("identity_scan")` — check for unverified identities between waves. `EXECUTOR_CONTEXT_HINT="derivation-heavy"` — hint executors to allocate 70% of context to step-by-step work. `WAVE_TIMEOUT_FACTOR=1.5` — derivations run longer. `YOLO_RESTRICTIONS+=("no_skip_verification")` — even in yolo mode, do NOT skip verification for derivation phases (sign errors cost more than the verification). |
-| **numerical** | `INTER_WAVE_CHECKS+=("convergence_spot_check")` — between waves, scan SUMMARY for convergence metrics and flag regressions. `EXECUTOR_CONTEXT_HINT="code-heavy"` — hint executors to reserve context for code output and numerical tables. `PRE_EXECUTION_SPECIALISTS+=("experiment-designer")` — route to `gpd-experiment-designer` before wave 1 when parameter validation is needed. |
-| **literature** | `FORCE_SEQUENTIAL=true` — literature plans build on each other's findings; parallel risks redundant searches. `EXECUTOR_CONTEXT_HINT="reading-heavy"` — hint executors to budget for large literature ingestion. `INTER_WAVE_CHECKS=("convention")` — skip dimensional checks (no equations). |
-| **paper-writing** | `PRE_EXECUTION_SPECIALISTS+=("notation-coordinator")` — route to `gpd-notation-coordinator` before drafting when the notation glossary must be refreshed. `INTER_WAVE_CHECKS+=("latex_compile")` — compile after each wave to catch LaTeX errors early. `EXECUTOR_CONTEXT_HINT="prose-heavy"` — hint executors to balance equation density with exposition. |
-| **formalism** | `CONVENTION_LOCK_REQUIRED=true`. `PRE_EXECUTION_SPECIALISTS+=("notation-coordinator")` — route to `gpd-notation-coordinator` before framework setup when conventions need to be locked. `INTER_WAVE_CHECKS+=("identity_scan")`. |
-| **analysis** | `INTER_WAVE_CHECKS+=("plausibility_scan")` — between waves, scan results for physically implausible values (NaN, sign changes, order-of-magnitude jumps). |
-| **validation** | `YOLO_RESTRICTIONS+=("no_skip_verification" "no_skip_inter_wave")` — validation phases must run all checks regardless of autonomy mode. `INTER_WAVE_CHECKS+=("identity_scan" "convergence_spot_check" "plausibility_scan")` — run all inter-wave checks. |
+**Per-class overrides:** Apply the case block below cumulatively for multi-class phases. It is the executable source of truth for convention locks, specialist routing, inter-wave checks, executor context hints, timeout factors, sequential forcing, and yolo restrictions.
 
 **Apply overrides:**
 
@@ -187,7 +178,7 @@ for CLASS in "${PHASE_CLASSES[@]}"; do
     numerical)
       INTER_WAVE_CHECKS+=("convergence_spot_check")
       EXECUTOR_CONTEXT_HINT="code-heavy"
-      PRE_EXECUTION_SPECIALISTS+=("experiment-designer")
+      PRE_EXECUTION_SPECIALISTS+=("experiment-designer")  # gpd-experiment-designer
       ;;
     literature)
       FORCE_SEQUENTIAL=true
@@ -1174,20 +1165,15 @@ done
 <step name="checkpoint_handling">
 Plans with `interactive: true` require user interaction.
 
+```bash
+CHECKPOINT_RESUME_INIT=$(load_execute_phase_stage checkpoint_resume) || { echo "ERROR: checkpoint_resume init failed"; exit 1; }
+```
+
 **Flow:**
 
 1. Spawn agent for checkpoint plan
 2. Agent runs until checkpoint task or validation gate -> returns structured state
-3. Agent return includes: completed tasks table, current task + blocker, checkpoint type/details, what's awaited, and the bounded execution segment envelope
-   - For first-result or pre-fanout pauses, the bounded segment envelope must also carry:
-     - `checkpoint_reason`
-     - `first_result_gate_pending` or `pre_fanout_review_pending`
-     - `pre_fanout_review_cleared` when review was accepted but downstream unlock is still outstanding
-     - `skeptical_requestioning_required`
-     - `skeptical_requestioning_summary`
-     - `weakest_unchecked_anchor`
-     - `disconfirming_observation`
-     - `downstream_locked`
+3. Agent return includes completed tasks, current blocker, awaited item, and bounded execution segment; first-result/pre-fanout pauses add gate flags, skeptical re-questioning fields, and `downstream_locked`.
 4. **Present to user:**
 
    ```
@@ -1251,6 +1237,10 @@ done
 
 <step name="aggregate_results">
 After all waves:
+
+```bash
+AGGREGATE_VERIFY_INIT=$(load_execute_phase_stage aggregate_and_verify) || { echo "ERROR: aggregate_and_verify init failed"; exit 1; }
+```
 
 ```markdown
 ## Phase {X}: {Name} Execution Complete
@@ -1492,16 +1482,54 @@ gpd commit \
 
 Verify phase achieved its GOAL, not just completed tasks.
 
-**Phase-class-aware verification:** Pass the phase classification (from `classify_phase` step) to the verifier so it can prioritize checks:
-- **Derivation phases:** Promote `5.1` dimensional analysis, `5.2` numerical spot-checks, `5.3` limiting cases, and any domain-specific identity or symmetry checks surfaced by the loaded verifier checklist.
-- **Numerical phases:** Promote `5.5` numerical convergence, `5.14` statistical validation, `5.2` numerical spot-checks, and benchmark reproduction when the contract names a decisive anchor.
-- **Formalism phases:** Promote `5.1` dimensional analysis, `5.3` limiting cases, `5.9` Ward identities / sum rules when applicable, and literature cross-checks for the defining equations.
-- **Validation phases:** Run the full relevant universal registry plus every required contract-aware check. Validation IS the purpose of the phase.
-- **Analysis phases:** Promote `5.7` order-of-magnitude checks, `5.8` physical plausibility, `5.6` literature cross-checks, and any contract-aware fit or estimator checks needed by the claim.
+**Phase-class-aware verification:** Pass the phase classification from `classify_phase` so the verifier prioritizes checks: derivation -> dimensional/numerical spot/limit/identity checks; numerical -> convergence, statistical validation, spot checks, decisive benchmarks; formalism -> dimensional, limiting, Ward/sum-rule, literature checks; validation -> full relevant universal registry plus contract-aware checks; analysis -> order-of-magnitude, plausibility, literature, and fit/estimator checks.
 
 Include in the verifier spawn prompt: `<phase_class>{PHASE_CLASSES}</phase_class>` so the verifier can adjust its check prioritization.
 
-Follow the verification workflow. Read `{GPD_INSTALL_DIR}/workflows/verify-phase.md` using the file_read tool.
+Spawn `gpd-verifier` in a fresh context; the child reads `{GPD_INSTALL_DIR}/workflows/verify-phase.md`.
+
+> Apply the canonical runtime delegation convention above.
+
+```
+task(
+  subagent_type="gpd-verifier",
+  model="{verifier_model}",
+  readonly=false,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-verifier.md for your role and instructions.
+
+Verify Phase {PHASE_NUMBER} against its phase goal and plan contracts.
+
+<phase_class>{PHASE_CLASSES}</phase_class>
+
+Load before verdict:
+- {GPD_INSTALL_DIR}/workflows/verify-phase.md
+- {GPD_INSTALL_DIR}/templates/verification-report.md
+- {GPD_INSTALL_DIR}/templates/contract-results-schema.md
+
+<files_to_read>
+- Phase plans and summaries: {phase_dir}
+- Roadmap: GPD/ROADMAP.md
+- State: GPD/STATE.md and GPD/state.json
+</files_to_read>
+
+Run `gpd --raw init phase-op {PHASE_NUMBER}` and keep the project contract, reference/protocol context, and `phase_proof_review_status` visible. Stable knowledge docs surfaced there are background only.
+
+Write to: {phase_dir}/{phase_number}-VERIFICATION.md
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - {phase_dir}/{phase_number}-VERIFICATION.md
+expected_artifacts:
+  - {phase_dir}/{phase_number}-VERIFICATION.md
+shared_state_policy: return_only
+</spawn_contract>
+
+Return one typed `gpd_return` envelope with `status`, `files_written`, and canonical `verification_status` (`passed | gaps_found | expert_needed | human_needed`).",
+  description="Verify Phase {PHASE_NUMBER} goal"
+)
+```
 
 Read status after verification completes through the typed child-return contract:
 
@@ -1798,14 +1826,18 @@ gpd state add-decision \
 
 <step name="orchestrator_self_check">
 
-**Orchestrator Self-Accountability Checkpoint** — before marking phase complete, verify that the VERIFICATION.md lists specific attack vectors, independent limiting cases, and literature cross-references — not just confirmations. If all checks passed on first attempt with zero issues, run one additional targeted check on the most load-bearing result.
+Before marking complete, verify VERIFICATION.md lists attack vectors, limiting cases, and literature cross-references. If no issues appeared, run one targeted check on the most load-bearing result.
 
 </step>
 
 <step name="update_roadmap">
 Mark phase complete in ROADMAP.md (date, status).
 
-Follow the full transition protocol. Read `{GPD_INSTALL_DIR}/workflows/transition.md` using the file_read tool for PROJECT.md evolution, DECISIONS.md updates, and parallel phase detection.
+```bash
+CLOSEOUT_INIT=$(load_execute_phase_stage closeout) || { echo "ERROR: closeout init failed"; exit 1; }
+```
+
+Follow `{GPD_INSTALL_DIR}/workflows/transition.md` for PROJECT.md, DECISIONS.md, and parallel phase detection.
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files GPD/ROADMAP.md GPD/STATE.md "${phase_dir}"/*-VERIFICATION.md GPD/REQUIREMENTS.md 2>&1) || true

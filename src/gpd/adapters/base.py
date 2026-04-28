@@ -75,6 +75,16 @@ def _catalog_command_surface_label(pattern: str) -> str:
     return normalized
 
 
+def _catalog_static_glob_root(pattern: str) -> str:
+    """Return the non-glob parent/root portion of a managed catalog pattern."""
+    parts: list[str] = []
+    for part in pattern.replace("\\", "/").strip("/").split("/"):
+        if not part or any(char in part for char in "*?["):
+            break
+        parts.append(part)
+    return "/".join(parts)
+
+
 def _catalog_globs_have_files(target_dir: Path, patterns: tuple[str, ...]) -> bool:
     """Return whether any catalog glob selects an installed file."""
     try:
@@ -89,24 +99,41 @@ def _catalog_globs_have_files(target_dir: Path, patterns: tuple[str, ...]) -> bo
     return False
 
 
-def _remove_gpd_flat_command_residue(target_dir: Path, patterns: tuple[str, ...], *, stop_at: Path) -> int:
-    """Remove catalog-owned flat command files and prune empty command directories."""
+def _remove_catalog_owned_files(target_dir: Path, patterns: tuple[str, ...], *, stop_at: Path) -> int:
+    """Remove files selected by catalog globs and prune emptied managed roots."""
     removed = 0
     parents: set[Path] = set()
+    roots: set[Path] = set()
     for pattern in patterns:
+        static_root = _catalog_static_glob_root(pattern)
+        if static_root:
+            roots.add(target_dir / static_root)
         try:
             entries = list(target_dir.glob(pattern))
         except OSError:
             continue
         for entry in entries:
-            if not entry.is_file():
-                continue
-            entry.unlink()
-            removed += 1
-            parents.add(entry.parent)
-    for parent in sorted(parents, key=lambda path: len(path.parts), reverse=True):
+            selected_files = (entry,) if entry.is_file() else tuple(path for path in entry.rglob("*") if path.is_file())
+            for selected_file in selected_files:
+                try:
+                    selected_file.unlink()
+                except FileNotFoundError:
+                    continue
+                removed += 1
+                parents.add(selected_file.parent)
+            if entry.is_dir():
+                parents.add(entry)
+    for parent in sorted(parents | roots, key=lambda path: len(path.parts), reverse=True):
         prune_empty_ancestors(parent, stop_at=stop_at)
     return removed
+
+
+def _prune_catalog_roots(target_dir: Path, patterns: tuple[str, ...], *, stop_at: Path) -> None:
+    """Prune empty static roots for catalog-owned managed-surface globs."""
+    for pattern in patterns:
+        static_root = _catalog_static_glob_root(pattern)
+        if static_root:
+            prune_empty_ancestors(target_dir / static_root, stop_at=stop_at)
 
 
 def _has_only_agent_residue(target_dir: Path) -> bool:
@@ -803,42 +830,58 @@ class RuntimeAdapter(abc.ABC):
             self._validate_target_runtime(target_dir, action="uninstall from")
             removed: list[str] = []
 
-            # Remove nested commands/gpd/ directory
-            gpd_commands = target_dir / COMMANDS_DIR_NAME / "gpd"
-            if gpd_commands.is_dir():
-                shutil.rmtree(gpd_commands)
-                removed.append(f"{COMMANDS_DIR_NAME}/gpd/")
-
-            # Remove flat command/ directory used by some runtimes.
             try:
-                flat_command_globs = get_managed_install_surface_policy(self.runtime_name).flat_command_globs
+                managed_surface = get_managed_install_surface_policy(self.runtime_name)
             except KeyError:
-                flat_command_globs = ()
-            if flat_command_globs:
-                removed_flat_commands = _remove_gpd_flat_command_residue(
-                    target_dir,
-                    flat_command_globs,
-                    stop_at=target_dir,
+                managed_surface = get_managed_install_surface_policy()
+
+            removed_nested_commands = _remove_catalog_owned_files(
+                target_dir,
+                managed_surface.nested_command_globs,
+                stop_at=target_dir,
+            )
+            if removed_nested_commands:
+                nested_labels = tuple(
+                    label
+                    for pattern in managed_surface.nested_command_globs
+                    if (label := _catalog_command_surface_label(pattern))
                 )
-                if removed_flat_commands:
-                    removed.append(f"{removed_flat_commands} flat GPD commands")
+                if len(nested_labels) == 1:
+                    removed.append(f"{nested_labels[0]}/")
+                else:
+                    removed.append(f"{removed_nested_commands} nested GPD commands")
+
+            removed_flat_commands = _remove_catalog_owned_files(
+                target_dir,
+                managed_surface.flat_command_globs,
+                stop_at=target_dir,
+            )
+            if removed_flat_commands:
+                removed.append(f"{removed_flat_commands} flat GPD commands")
+
+            removed_managed_agents = _remove_catalog_owned_files(
+                target_dir,
+                managed_surface.managed_agent_globs,
+                stop_at=target_dir,
+            )
+            if removed_managed_agents:
+                removed.append(f"{removed_managed_agents} GPD agents")
+
+            _prune_catalog_roots(
+                target_dir,
+                (
+                    *managed_surface.nested_command_globs,
+                    *managed_surface.flat_command_globs,
+                    *managed_surface.managed_agent_globs,
+                ),
+                stop_at=target_dir,
+            )
 
             # Remove the shared GPD install root.
             gpd_dir = target_dir / GPD_INSTALL_DIR_NAME
             if gpd_dir.is_dir():
                 shutil.rmtree(gpd_dir)
                 removed.append(f"{GPD_INSTALL_DIR_NAME}/")
-
-            # Remove managed gpd-* agent files shared by markdown and TOML runtimes.
-            agents_dir = target_dir / AGENTS_DIR_NAME
-            if agents_dir.is_dir():
-                agent_count = 0
-                for f in agents_dir.iterdir():
-                    if f.name.startswith("gpd-") and f.suffix in {".md", ".toml"}:
-                        f.unlink()
-                        agent_count += 1
-                if agent_count:
-                    removed.append(f"{agent_count} GPD agents")
 
             # Remove GPD hooks
             hooks_dir = target_dir / HOOKS_DIR_NAME

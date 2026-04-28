@@ -30,6 +30,7 @@ from gpd.adapters.install_utils import (
     generate_manifest,
     get_global_dir,
     hook_python_interpreter,
+    install_gpd_content,
     normalize_manifest_relpath,
     parse_jsonc,
     pre_install_cleanup,
@@ -42,11 +43,34 @@ from gpd.adapters.install_utils import (
     write_manifest,
     write_settings,
 )
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    ManagedInstallSurfacePolicy,
+    get_runtime_descriptor,
+    get_runtime_help_example_runtime,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+)
 from gpd.core.constants import HOME_DATA_DIR_NAME
+from gpd.core.model_visible_text import SKEPTICAL_RIGOR_GUARDRAILS_HEADING
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 _SHARED_INSTALL = get_shared_install_metadata()
+_LOCAL_EXAMPLE_RUNTIME = get_runtime_help_example_runtime("local") or _RUNTIME_DESCRIPTORS[0].runtime_name
+_GLOBAL_EXAMPLE_RUNTIME = get_runtime_help_example_runtime("global") or _RUNTIME_DESCRIPTORS[0].runtime_name
+_LOCAL_EXAMPLE_DESCRIPTOR = get_runtime_descriptor(_LOCAL_EXAMPLE_RUNTIME)
+_GLOBAL_EXAMPLE_DESCRIPTOR = get_runtime_descriptor(_GLOBAL_EXAMPLE_RUNTIME)
+_DOLLAR_COMMAND_DESCRIPTOR = next(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.public_command_surface_prefix.startswith("$")
+)
+_DOLLAR_TEMPLATE_DESCRIPTOR = next(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.agent_prompt_uses_dollar_templates
+)
+_FLAT_COMMAND_DESCRIPTOR = next(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.managed_install_surface.flat_command_globs
+)
+_XDG_CONFIG_DESCRIPTOR = next(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.strategy == "xdg_app"
+)
 _DOLLAR_TEMPLATE_RUNTIMES = tuple(
     descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.agent_prompt_uses_dollar_templates
 )
@@ -89,7 +113,7 @@ def test_replace_placeholders_materializes_shared_install_metadata_placeholders(
         "{GPD_PATCHES_DIR_NAME}\n"
     )
 
-    replaced = replace_placeholders(content, "/custom/", "codex", "--local")
+    replaced = replace_placeholders(content, "/custom/", _LOCAL_EXAMPLE_RUNTIME, "--local")
 
     assert _SHARED_INSTALL.bootstrap_command in replaced
     assert _SHARED_INSTALL.latest_release_url in replaced
@@ -224,7 +248,7 @@ class TestExpandAtIncludes:
             {"paths.md": "dir={GPD_INSTALL_DIR} config={GPD_CONFIG_DIR}/foo"},
         )
         content = f"@{tmp_path}/get-physics-done/paths.md"
-        result = expand_at_includes(content, str(gpd_dir), "/custom/", runtime="claude-code")
+        result = expand_at_includes(content, str(gpd_dir), "/custom/", runtime=_GLOBAL_EXAMPLE_RUNTIME)
         assert "dir=/custom/get-physics-done" in result
         assert "config=/custom/foo" in result
 
@@ -274,7 +298,7 @@ class TestExpandAtIncludes:
             "@{GPD_AGENTS_DIR}/gpd-shared.md",
             gpd_dir / "specs",
             "/custom/",
-            runtime="gemini",
+            runtime=_DOLLAR_TEMPLATE_DESCRIPTOR.runtime_name,
         )
 
         assert "Shared agent body" in result
@@ -293,7 +317,7 @@ class TestExpandAtIncludes:
             f"@{tmp_path}/runtime/get-physics-done/workflows/verify.md",
             gpd_dir,
             f"{tmp_path}/runtime/",
-            runtime="codex",
+            runtime=_LOCAL_EXAMPLE_RUNTIME,
         )
 
         assert "Canonical schema body" in result
@@ -565,8 +589,8 @@ class TestCommandVisibilityInjection:
         with pytest.raises(ValueError, match="schema_version(?: .*?)? must be the integer 1"):
             compile_markdown_for_runtime(
                 content,
-                runtime="codex",
-                path_prefix="/tmp/.codex/",
+                runtime=_LOCAL_EXAMPLE_RUNTIME,
+                path_prefix=f"/tmp/{_LOCAL_EXAMPLE_DESCRIPTOR.config_dir_name}/",
             )
 
 
@@ -925,7 +949,8 @@ class TestEnsureUpdateHook:
     """Tests for managed update-hook repair and deduplication."""
 
     def test_runtime_context_requires_exact_managed_hook_path_match(self, tmp_path: Path) -> None:
-        target_dir = tmp_path / ".claude"
+        config_dir_name = _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
+        target_dir = tmp_path / config_dir_name
         managed_hook = target_dir / "hooks" / "check_update.py"
         managed_hook.parent.mkdir(parents=True)
 
@@ -934,7 +959,7 @@ class TestEnsureUpdateHook:
                 f"python3 {managed_hook}",
                 "check_update.py",
                 target_dir=target_dir,
-                config_dir_name=".claude",
+                config_dir_name=config_dir_name,
             )
             is True
         )
@@ -943,7 +968,7 @@ class TestEnsureUpdateHook:
                 "python3 check_update.py",
                 "check_update.py",
                 target_dir=target_dir,
-                config_dir_name=".claude",
+                config_dir_name=config_dir_name,
             )
             is False
         )
@@ -952,52 +977,58 @@ class TestEnsureUpdateHook:
                 "python3 /tmp/third-party/hooks/check_update.py",
                 "check_update.py",
                 target_dir=target_dir,
-                config_dir_name=".claude",
+                config_dir_name=config_dir_name,
             )
             is False
         )
 
     def test_rewrites_stale_managed_command_and_preserves_other_hooks(self) -> None:
+        config_dir_name = _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
+        stale_command = f"python3 {config_dir_name}/hooks/check_update.py"
+        updated_command = f"/custom/venv/bin/python {config_dir_name}/hooks/check_update.py"
         settings = {
             "hooks": {
                 "SessionStart": [
                     {
                         "matcher": "startup",
                         "hooks": [
-                            {"type": "command", "command": "python3 .claude/hooks/check_update.py"},
+                            {"type": "command", "command": stale_command},
                             {"type": "command", "command": "echo keep-me"},
                         ],
                     },
                     {
                         "hooks": [
-                            {"type": "command", "command": "python3 .claude/hooks/check_update.py"},
+                            {"type": "command", "command": stale_command},
                         ]
                     },
                 ]
             }
         }
 
-        ensure_update_hook(settings, "/custom/venv/bin/python .claude/hooks/check_update.py")
+        ensure_update_hook(settings, updated_command)
 
         session_start = settings["hooks"]["SessionStart"]
         assert len(session_start) == 1
         assert session_start[0]["matcher"] == "startup"
         commands = [hook["command"] for hook in session_start[0]["hooks"] if isinstance(hook, dict)]
         assert commands == [
-            "/custom/venv/bin/python .claude/hooks/check_update.py",
+            updated_command,
             "echo keep-me",
         ]
 
     def test_preserves_third_party_hook_paths_when_runtime_context_is_known(self, tmp_path: Path) -> None:
-        target_dir = tmp_path / ".claude"
+        config_dir_name = _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
+        target_dir = tmp_path / config_dir_name
         target_dir.mkdir(parents=True)
+        stale_command = f"python3 {config_dir_name}/hooks/check_update.py"
+        updated_command = f"/custom/venv/bin/python {config_dir_name}/hooks/check_update.py"
         settings = {
             "hooks": {
                 "SessionStart": [
                     {
                         "hooks": [
                             {"type": "command", "command": "python3 /tmp/third-party/hooks/check_update.py"},
-                            {"type": "command", "command": "python3 .claude/hooks/check_update.py"},
+                            {"type": "command", "command": stale_command},
                         ]
                     }
                 ]
@@ -1006,9 +1037,9 @@ class TestEnsureUpdateHook:
 
         ensure_update_hook(
             settings,
-            "/custom/venv/bin/python .claude/hooks/check_update.py",
+            updated_command,
             target_dir=target_dir,
-            config_dir_name=".claude",
+            config_dir_name=config_dir_name,
         )
 
         session_start = settings["hooks"]["SessionStart"]
@@ -1021,7 +1052,7 @@ class TestEnsureUpdateHook:
         ]
         assert commands == [
             "python3 /tmp/third-party/hooks/check_update.py",
-            "/custom/venv/bin/python .claude/hooks/check_update.py",
+            updated_command,
         ]
 
 
@@ -1183,7 +1214,7 @@ class TestCopyWithPathReplacement:
     def test_basic_copy(self, tmp_path: Path) -> None:
         src = self._make_src(tmp_path)
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/custom/", "claude-code")
+        copy_with_path_replacement(src, dest, "/custom/", _GLOBAL_EXAMPLE_RUNTIME)
 
         assert dest.exists()
         md_content = (dest / "readme.md").read_text(encoding="utf-8")
@@ -1195,16 +1226,16 @@ class TestCopyWithPathReplacement:
         assert "echo ok" in sh_content
 
     def test_codex_slash_command_conversion(self, tmp_path: Path) -> None:
-        """Codex runtime should convert /gpd: to $gpd-."""
+        """Dollar-command runtimes should convert slash commands to their public prefix."""
         src = tmp_path / "src"
         src.mkdir()
         (src / "commands.md").write_text("Use /gpd:execute-phase to run.", encoding="utf-8")
 
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/custom/", "codex")
+        copy_with_path_replacement(src, dest, "/custom/", _DOLLAR_COMMAND_DESCRIPTOR.runtime_name)
 
         content = (dest / "commands.md").read_text(encoding="utf-8")
-        assert "$gpd-execute-phase" in content
+        assert f"{_DOLLAR_COMMAND_DESCRIPTOR.public_command_surface_prefix}execute-phase" in content
         assert "/gpd:" not in content
 
     def test_function_style_tool_invocations_are_rewritten(self) -> None:
@@ -1220,7 +1251,7 @@ class TestCopyWithPathReplacement:
         assert 'Use AskUserQuestion([{"label": "Yes"}])' in result
 
     def test_opencode_runtime_translates_shared_markdown_content(self, tmp_path: Path) -> None:
-        """Shared content copied for OpenCode should adapt commands and tool names."""
+        """Shared content copied for flat-command runtimes should adapt commands and tool names."""
         src = tmp_path / "src"
         src.mkdir()
         (src / "workflow.md").write_text(
@@ -1232,7 +1263,7 @@ class TestCopyWithPathReplacement:
         )
 
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/custom/", "opencode")
+        copy_with_path_replacement(src, dest, "/custom/", _FLAT_COMMAND_DESCRIPTOR.runtime_name)
 
         content = (dest / "workflow.md").read_text(encoding="utf-8")
         assert 'question([{"label": "Yes"}])' in content
@@ -1250,7 +1281,7 @@ class TestCopyWithPathReplacement:
         dest.mkdir()
         (dest / "old_file.txt").write_text("old", encoding="utf-8")
 
-        copy_with_path_replacement(src, dest, "/custom/", "claude-code")
+        copy_with_path_replacement(src, dest, "/custom/", _GLOBAL_EXAMPLE_RUNTIME)
 
         assert not (dest / "old_file.txt").exists()
         assert (dest / "readme.md").exists()
@@ -1268,7 +1299,7 @@ class TestCopyWithPathReplacement:
             side_effect=OSError("disk full"),
         ):
             with pytest.raises(OSError, match="disk full"):
-                copy_with_path_replacement(src, dest, "/custom/", "claude-code")
+                copy_with_path_replacement(src, dest, "/custom/", _GLOBAL_EXAMPLE_RUNTIME)
 
         # Original dest should be intact
         assert (dest / "important.txt").exists()
@@ -1278,7 +1309,7 @@ class TestCopyWithPathReplacement:
         """After successful copy, no .tmp or .old dirs should remain."""
         src = self._make_src(tmp_path)
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/custom/", "claude-code")
+        copy_with_path_replacement(src, dest, "/custom/", _GLOBAL_EXAMPLE_RUNTIME)
 
         pid = os.getpid()
         assert not (tmp_path / f"dest.tmp.{pid}").exists()
@@ -1293,12 +1324,70 @@ class TestCopyWithPathReplacement:
         (src / "top.md").write_text("top level", encoding="utf-8")
 
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/x/", "claude-code")
+        copy_with_path_replacement(src, dest, "/x/", _GLOBAL_EXAMPLE_RUNTIME)
 
         assert (dest / "top.md").exists()
         assert (dest / "sub" / "deep" / "nested.md").exists()
         content = (dest / "sub" / "deep" / "nested.md").read_text(encoding="utf-8")
         assert "/x/test" in content
+
+    def test_shared_installed_content_skips_prompt_guardrails_while_prompt_surfaces_keep_them(
+        self, tmp_path: Path
+    ) -> None:
+        specs = tmp_path / "specs"
+        for rel in ("references", "templates", "workflows"):
+            (specs / rel).mkdir(parents=True)
+        shared_source = "---\ntitle: Shared content\n---\nBody.\n"
+        (specs / "references" / "reference.md").write_text(shared_source, encoding="utf-8")
+        (specs / "templates" / "template.md").write_text(shared_source, encoding="utf-8")
+        (specs / "workflows" / "workflow.md").write_text(shared_source, encoding="utf-8")
+
+        target = tmp_path / "runtime"
+
+        assert install_gpd_content(specs, target, "/runtime/", _LOCAL_EXAMPLE_RUNTIME) == []
+
+        guardrail_heading = f"## {SKEPTICAL_RIGOR_GUARDRAILS_HEADING}"
+        for rel in (
+            "get-physics-done/references/reference.md",
+            "get-physics-done/templates/template.md",
+            "get-physics-done/workflows/workflow.md",
+        ):
+            assert guardrail_heading not in (target / rel).read_text(encoding="utf-8")
+
+        command_surface = compile_markdown_for_runtime(
+            "---\nname: gpd:test\ndescription: Test command\n---\nCommand body.\n",
+            runtime=_LOCAL_EXAMPLE_RUNTIME,
+            path_prefix="/runtime/",
+        )
+        agent_surface = compile_markdown_for_runtime(
+            "---\nname: gpd-test-agent\ntools:\n  - file_read\n---\nAgent body.\n",
+            runtime=_LOCAL_EXAMPLE_RUNTIME,
+            path_prefix="/runtime/",
+            protect_agent_prompt_body=True,
+        )
+
+        assert guardrail_heading in command_surface
+        assert guardrail_heading in agent_surface
+
+    def test_shared_copy_can_explicitly_opt_into_prompt_guardrails(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "schema.md").write_text("---\ntitle: Schema\n---\nBody.\n", encoding="utf-8")
+        guardrail_heading = f"## {SKEPTICAL_RIGOR_GUARDRAILS_HEADING}"
+
+        default_dest = tmp_path / "default"
+        copy_with_path_replacement(src, default_dest, "/runtime/", _LOCAL_EXAMPLE_RUNTIME)
+        assert guardrail_heading not in (default_dest / "schema.md").read_text(encoding="utf-8")
+
+        opted_in_dest = tmp_path / "opted-in"
+        copy_with_path_replacement(
+            src,
+            opted_in_dest,
+            "/runtime/",
+            _LOCAL_EXAMPLE_RUNTIME,
+            inject_skeptical_rigor_guardrails=True,
+        )
+        assert guardrail_heading in (opted_in_dest / "schema.md").read_text(encoding="utf-8")
 
     def test_rollback_on_rename_failure(self, tmp_path: Path) -> None:
         """If the final rename from tmp to dest fails, old dest should be restored."""
@@ -1320,7 +1409,7 @@ class TestCopyWithPathReplacement:
 
         with patch.object(Path, "rename", patched_rename):
             with pytest.raises(OSError, match="rename failed"):
-                copy_with_path_replacement(src, dest, "/custom/", "claude-code")
+                copy_with_path_replacement(src, dest, "/custom/", _GLOBAL_EXAMPLE_RUNTIME)
 
         # dest should be restored (old_dir renamed back)
         assert dest.exists()
@@ -1348,7 +1437,7 @@ class TestInstallBackupSafety:
         assert normalize_manifest_relpath("hooks/statusline.py") == "hooks/statusline.py"
 
     def test_write_manifest_tracks_hooks(self, tmp_path: Path) -> None:
-        config_dir = tmp_path / ".claude"
+        config_dir = tmp_path / _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
         (config_dir / "get-physics-done").mkdir(parents=True)
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
@@ -1373,7 +1462,7 @@ class TestInstallBackupSafety:
     def test_write_manifest_rejects_metadata_that_overrides_reserved_contract_fields(
         self, tmp_path: Path, reserved_key: str
     ) -> None:
-        config_dir = tmp_path / ".claude"
+        config_dir = tmp_path / _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
         (config_dir / "get-physics-done").mkdir(parents=True)
 
         with pytest.raises(ValueError, match=f"reserved keys: {reserved_key}"):
@@ -1382,7 +1471,7 @@ class TestInstallBackupSafety:
         assert not (config_dir / _SHARED_INSTALL.manifest_name).exists()
 
     def test_write_manifest_persists_allowed_adapter_metadata(self, tmp_path: Path) -> None:
-        config_dir = tmp_path / ".codex"
+        config_dir = tmp_path / _LOCAL_EXAMPLE_DESCRIPTOR.config_dir_name
         (config_dir / "get-physics-done").mkdir(parents=True)
         version_file = config_dir / "get-physics-done" / "VERSION"
         version_file.write_text("1.0.0", encoding="utf-8")
@@ -1395,7 +1484,7 @@ class TestInstallBackupSafety:
         manifest = write_manifest(
             config_dir,
             "1.0.0",
-            runtime="codex",
+            runtime=_LOCAL_EXAMPLE_RUNTIME,
             install_scope="local",
             explicit_target=False,
             metadata=metadata,
@@ -1403,7 +1492,7 @@ class TestInstallBackupSafety:
         persisted = json.loads((config_dir / _SHARED_INSTALL.manifest_name).read_text(encoding="utf-8"))
 
         assert manifest["version"] == "1.0.0"
-        assert manifest["runtime"] == "codex"
+        assert manifest["runtime"] == _LOCAL_EXAMPLE_RUNTIME
         assert manifest["install_scope"] == "local"
         assert manifest["explicit_target"] is False
         assert manifest["managed_config"] == {"experimental.enableAgents": True}
@@ -1412,7 +1501,7 @@ class TestInstallBackupSafety:
         assert "get-physics-done/VERSION" in persisted["files"]
 
     def test_manifest_hook_tracking_skips_untrusted_relpaths(self, tmp_path: Path) -> None:
-        config_dir = tmp_path / ".claude"
+        config_dir = tmp_path / _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
         config_dir.mkdir()
         (config_dir / "gpd-file-manifest.json").write_text(
             json.dumps(
@@ -1430,7 +1519,7 @@ class TestInstallBackupSafety:
         assert tracked_hook_paths_from_manifest(config_dir) == {"hooks/statusline.py"}
 
     def test_pre_install_cleanup_backs_up_modified_hook_files(self, tmp_path: Path) -> None:
-        config_dir = tmp_path / ".claude"
+        config_dir = tmp_path / _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
         (config_dir / "get-physics-done").mkdir(parents=True)
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
@@ -1449,7 +1538,7 @@ class TestInstallBackupSafety:
 
     def test_pre_install_cleanup_does_not_follow_forged_manifest_relpath_outside_target(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
-        config_dir = workspace / ".claude"
+        config_dir = workspace / _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
         config_dir.mkdir(parents=True)
         outside = tmp_path / "outside-secret.txt"
         outside.write_text("do not copy or overwrite\n", encoding="utf-8")
@@ -1458,7 +1547,7 @@ class TestInstallBackupSafety:
         (config_dir / "gpd-file-manifest.json").write_text(
             json.dumps(
                 {
-                    "runtime": "claude-code",
+                    "runtime": _GLOBAL_EXAMPLE_RUNTIME,
                     "install_scope": "local",
                     "files": {
                         "../../outside-secret.txt": "forged-hash",
@@ -1479,7 +1568,7 @@ class TestInstallBackupSafety:
     def test_opencode_manifest_does_not_claim_uninstalled_hook_files(self, tmp_path: Path) -> None:
         from gpd.adapters.opencode import write_manifest as write_opencode_manifest
 
-        config_dir = tmp_path / ".opencode"
+        config_dir = tmp_path / _XDG_CONFIG_DESCRIPTOR.config_dir_name
         (config_dir / "get-physics-done").mkdir(parents=True)
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
@@ -1493,7 +1582,7 @@ class TestInstallBackupSafety:
     def test_pre_install_cleanup_replaces_existing_patches_with_fallback_snapshot_when_manifest_is_malformed(
         self, tmp_path: Path
     ) -> None:
-        config_dir = tmp_path / ".claude"
+        config_dir = tmp_path / _GLOBAL_EXAMPLE_DESCRIPTOR.config_dir_name
         (config_dir / "get-physics-done").mkdir(parents=True)
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
@@ -1512,6 +1601,48 @@ class TestInstallBackupSafety:
         assert backup_path.exists()
         assert backup_path.read_text(encoding="utf-8") == _bundled_hook_text("statusline.py")
         assert not (config_dir / "hooks" / "statusline.py").exists()
+
+    def test_pre_install_cleanup_fallback_snapshot_uses_catalog_managed_surface_policy(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config_dir = tmp_path / "runtime-config"
+        managed_files = (
+            config_dir / "runtime-payload" / "VERSION",
+            config_dir / "slash" / "gpd" / "help.md",
+            config_dir / "shortcuts" / "gpd-help.txt",
+            config_dir / "roles" / "gpd-worker.agent",
+        )
+        legacy_hardcoded_files = (
+            config_dir / "commands" / "gpd" / "help.md",
+            config_dir / "command" / "gpd-help.md",
+            config_dir / "agents" / "gpd-worker.md",
+        )
+        for path in (*managed_files, *legacy_hardcoded_files):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"{path.name}\n", encoding="utf-8")
+        (config_dir / "gpd-file-manifest.json").write_text("{not-json", encoding="utf-8")
+        policy = ManagedInstallSurfacePolicy(
+            gpd_content_globs=("runtime-payload/**/*",),
+            nested_command_globs=("slash/gpd/**/*",),
+            flat_command_globs=("shortcuts/gpd-*.txt",),
+            managed_agent_globs=("roles/gpd-*.agent",),
+        )
+        monkeypatch.setattr(
+            "gpd.adapters.install_utils.get_managed_install_surface_policy",
+            lambda runtime=None: policy,
+        )
+
+        pre_install_cleanup(config_dir)
+
+        patches_dir = config_dir / "gpd-local-patches"
+        assert '"backup_mode": "fallback-snapshot"' in (patches_dir / "backup-meta.json").read_text(
+            encoding="utf-8"
+        )
+        for path in managed_files:
+            backup_path = patches_dir / path.relative_to(config_dir)
+            assert backup_path.read_text(encoding="utf-8") == path.read_text(encoding="utf-8")
+        for path in legacy_hardcoded_files:
+            assert not (patches_dir / path.relative_to(config_dir)).exists()
 
 
 def test_verify_installed_rejects_unresolved_include_markers(tmp_path: Path) -> None:

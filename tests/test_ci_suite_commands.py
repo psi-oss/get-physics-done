@@ -183,7 +183,7 @@ def test_ci_collection_cache_is_repo_and_category_scoped(tmp_path, monkeypatch) 
     ]
 
 
-def test_ci_represents_documented_default_fast_suite_without_duplicate_full_suite_lane() -> None:
+def test_ci_represents_documented_default_full_suite_without_duplicate_full_suite_lane() -> None:
     workflow = _workflow_data()
     jobs = workflow["jobs"]
     pytest_job = jobs["pytest"]
@@ -192,9 +192,9 @@ def test_ci_represents_documented_default_fast_suite_without_duplicate_full_suit
     env = run_pytest_shard["env"]
     run_command = run_pytest_shard["run"]
 
-    assert env["GPD_DEFAULT_FAST_SUITE_COMMAND"] == "uv run pytest tests/ -q"
-    assert int(env["GPD_FAST_SUITE_BUDGET_SECONDS"]) <= 180
-    assert 'timeout "${GPD_FAST_SUITE_BUDGET_SECONDS}s" uv run pytest -q' in run_command
+    assert env["GPD_DEFAULT_FULL_SUITE_COMMAND"] == "uv run pytest tests/ -q"
+    assert int(env["GPD_FULL_SUITE_SHARD_BUDGET_SECONDS"]) <= 180
+    assert 'timeout "${GPD_FULL_SUITE_SHARD_BUDGET_SECONDS}s" uv run pytest -q' in run_command
     assert "${PYTEST_TARGETS[@]}" in run_command
 
     direct_default_suite_pattern = re.compile(r"(?m)^\s*(?:timeout\s+[^\n]+\s+)?uv run pytest tests/ -q\b")

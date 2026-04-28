@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
 
+from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import expand_at_includes, parse_at_include_path, project_markdown_for_runtime
 from gpd.core.model_visible_text import command_visibility_note
 
@@ -58,12 +59,7 @@ def budget_from_baseline(
 def runtime_command_visibility_note(runtime: str) -> str:
     """Return the canonical command wrapper note after runtime command translation."""
 
-    note = command_visibility_note()
-    if runtime == "codex":
-        return note.replace("`gpd:suggest-next`", "`$gpd-suggest-next`")
-    if runtime == "opencode":
-        return re.sub(r"(?<![A-Za-z0-9_./:$-])gpd:([a-z][a-z0-9-]*)\b", r"gpd-\1", note)
-    return note
+    return get_adapter(runtime).translate_shared_command_references(command_visibility_note())
 
 
 def expanded_prompt_text(

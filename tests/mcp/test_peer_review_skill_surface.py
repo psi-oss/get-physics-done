@@ -11,9 +11,8 @@ def test_peer_review_skill_surfaces_reliability_reference_as_contract_document()
 
     assert "error" not in result
     assert result["context_mode"] == "project-aware"
-    assert "peer-review-panel.md" in contract_documents
-    assert "peer-review-reliability.md" in contract_documents
-    assert "Peer Review Phase Reliability" in contract_documents["peer-review-reliability.md"]["body"]
+    assert contract_documents == {}
+    assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
     assert any(path.endswith("peer-review-reliability.md") for path in result["contract_references"])
     assert result["review_contract"]["required_evidence"] == [
         "existing manuscript or explicit external artifact target",

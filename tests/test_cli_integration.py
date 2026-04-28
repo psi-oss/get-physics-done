@@ -2649,7 +2649,11 @@ class TestValidateReturn:
             "  blockers:\n"
             "    - waiting on approval\n"
             "  contract_updates:\n"
-            "    project_contract: retained\n```\n",
+            "    project_contract: retained\n"
+            "  continuation_update:\n"
+            "    bounded_segment:\n"
+            "      resume_file: GPD/STATE.md\n"
+            "      segment_status: paused\n```\n",
             encoding="utf-8",
         )
 
@@ -2659,6 +2663,7 @@ class TestValidateReturn:
         assert parsed["status"] == "checkpoint"
         assert parsed["applied_decisions"] == 1
         assert parsed["applied_blockers"] == 1
+        assert parsed["applied_continuation_operations"] == ["set_bounded_segment"]
         assert parsed["contract_updates"] == {"project_contract": "retained"}
         assert state_path.read_text(encoding="utf-8") != before
         updated_state = state_path.read_text(encoding="utf-8")

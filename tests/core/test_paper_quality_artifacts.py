@@ -898,6 +898,24 @@ def test_build_paper_quality_input_trusts_manifest_metadata_when_manuscript_hash
     assert result.journal == "prl"
 
 
+def test_build_paper_quality_input_discovers_nested_artifact_manifest(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper" / "nested_sidecar_entry.tex"
+    _write(
+        manuscript,
+        "\\documentclass{article}\\begin{document}\\begin{abstract}A.\\end{abstract}"
+        "\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / ".paper-meta" / "ARTIFACT-MANIFEST.json",
+        json.dumps(_artifact_manifest_payload(manuscript, title="Nested Manifest Title", journal="prl")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Nested Manifest Title"
+    assert result.journal == "prl"
+
+
 def test_build_paper_quality_input_rejects_manifest_metadata_when_manuscript_hash_is_stale(
     tmp_path: Path,
 ) -> None:
@@ -1263,6 +1281,41 @@ Done.
     assert result.journal == "jhep"
     assert result.citations.citation_keys_resolve.satisfied == 1
     assert result.citations.citation_keys_resolve.total == 1
+
+
+def test_build_paper_quality_input_does_not_consume_extra_keys_from_invalid_config(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "config_title.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Invalid config extra-key test.
+\end{abstract}
+\section{Introduction}
+Intro.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(
+            {
+                "title": "Config Title",
+                "journal": "jhep",
+                "journal_extra_checks": {"abstract_broad_significance": True},
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Config Title"
+    assert result.journal == "jhep"
+    assert "abstract_broad_significance" not in result.journal_extra_checks
 
 
 def test_build_paper_quality_input_accepts_an_explicit_publication_subject(tmp_path: Path) -> None:

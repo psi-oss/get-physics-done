@@ -38,13 +38,14 @@ For most research targets that means actual computation. For proof-bearing or `p
 </core_principle>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
-@{GPD_INSTALL_DIR}/references/verification/core/verification-numerical.md
-@{GPD_INSTALL_DIR}/references/verification/core/verification-child-return-contract.md
-@{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md
-@{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md
-@{GPD_INSTALL_DIR}/templates/verification-report.md
-@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
+Do not raw-include the verification reference library at workflow load. Load only at the consuming step:
+
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -> universal decisive-check rules in `verify_contract_targets`
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-numerical.md` -> numerical/statistical checks in `physics_specific_verification`
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-child-return-contract.md` -> verifier return envelope routing
+- `{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md` -> context include/exclude choices
+- `{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md` -> uncertainty or propagation targets
+- `{GPD_INSTALL_DIR}/templates/verification-report.md` and `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` -> immediately before writing `VERIFICATION.md`
 </required_reading>
 
 <process>
@@ -159,7 +160,7 @@ Detect whether any verification target is proof-bearing.
 
 Use the shared verification child-return contract for the generic handoff mechanics; keep the proof-redteam requirements below authoritative.
 
-@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
+Load `{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md` now if any target is proof-bearing.
 
 For each proof-bearing plan or claim, require the sibling `*-PROOF-REDTEAM.md` artifact. Read it and verify that it follows the shared gate above.
 

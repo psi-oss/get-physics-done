@@ -9,12 +9,12 @@ PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
 )
 PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
 PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
+    "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 )
-PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 PUBLICATION_REVIEW_RELIABILITY_INLINE = "{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 
 
@@ -76,6 +76,11 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
     assert 'gpd validate review-preflight respond-to-referees --strict -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert "gpd validate review-preflight respond-to-referees --strict" in workflow
+    assert 'cd "$PROJECT_ROOT"' in workflow
+    assert 'gpd --raw init respond-to-referees --stage report_triage -- "$PREFLIGHT_ARGUMENTS"' in workflow
+    assert 'gpd --raw init respond-to-referees --stage revision_planning -- "$PREFLIGHT_ARGUMENTS"' in workflow
+    assert 'gpd --raw init respond-to-referees --stage response_authoring -- "$PREFLIGHT_ARGUMENTS"' in workflow
+    assert 'gpd --raw init respond-to-referees --stage finalize -- "$PREFLIGHT_ARGUMENTS"' in workflow
     assert "Treat a bare positional path as a referee-report source only." in workflow
     assert "the end-of-options marker is mandatory in both validator calls" in workflow
     assert "missing referee report source when provided as a path" in workflow
@@ -108,11 +113,17 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
         REPO_ROOT / "src/gpd/specs/templates/paper/publication-manuscript-root-preflight.md"
     ).read_text(encoding="utf-8")
 
-    assert 'gpd --raw validate review-preflight arxiv-submission "$ARGUMENTS" --strict' in workflow
+    assert 'gpd --raw validate review-preflight arxiv-submission --strict -- "${ARGUMENTS}"' in workflow
     assert "gpd --raw validate review-preflight arxiv-submission --strict" in workflow
+    assert 'gpd --raw init arxiv-submission --stage bootstrap -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage manuscript_preflight -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage review_gate -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage package -- "$ARGUMENTS"' in workflow
+    assert 'gpd --raw init arxiv-submission --stage finalize -- "$ARGUMENTS"' in workflow
     assert "Use the shared publication bootstrap reference as the source of truth" in workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md" in workflow
-    assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow
+    assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in workflow
+    assert "staged `peer-review-reliability.md` reference" in workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow
     assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in workflow
     assert (
@@ -165,7 +176,8 @@ def test_publication_review_workflows_reference_shared_manuscript_root_contract(
         else:
             assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in workflow_text
             assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow_text
-            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow_text
+            assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in workflow_text
+            assert "staged `peer-review-reliability.md` reference" in workflow_text
 
 
 def test_verify_work_workflow_runs_centralized_review_preflight() -> None:

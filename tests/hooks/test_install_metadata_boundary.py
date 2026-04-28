@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.runtime_catalog import get_managed_install_surface_policy, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    ManifestMetadataListPolicy,
+    get_managed_install_surface_policy,
+    iter_runtime_descriptors,
+)
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.install_metadata import (
     assess_install_target,
@@ -51,6 +55,17 @@ def _seed_anonymous_install_tree(config_dir: Path, *, hook_filename: str) -> Pat
     hook_path.parent.mkdir(parents=True, exist_ok=True)
     hook_path.write_text("# hook\n", encoding="utf-8")
     return hook_path
+
+
+def _valid_value_for_manifest_metadata_policy(policy: ManifestMetadataListPolicy) -> str:
+    if policy.value_kind == "relpath":
+        return "managed/gpd-probe.md"
+    value = "gpd-probe"
+    if policy.item_prefix is not None and not value.startswith(policy.item_prefix):
+        value = f"{policy.item_prefix}{value}"
+    if policy.item_suffix is not None and not value.endswith(policy.item_suffix):
+        value = f"{value}{policy.item_suffix}"
+    return value
 
 
 @pytest.mark.parametrize(
@@ -401,6 +416,77 @@ def test_assess_install_target_allows_missing_legacy_explicit_target_metadata(
     assert assessment.manifest_state == "ok"
     assert assessment.manifest_runtime == descriptor.runtime_name
     assert assessment.readiness_state == "ready"
+
+
+def test_assess_install_target_preserves_runtime_owned_manifest_list_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = next(descriptor for descriptor in iter_runtime_descriptors() if descriptor.manifest_metadata_list_policies)
+    policy = descriptor.manifest_metadata_list_policies[0]
+    config_dir = tmp_path / descriptor.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "runtime": descriptor.runtime_name,
+                "install_scope": "local",
+                policy.key: [_valid_value_for_manifest_metadata_policy(policy)],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeAdapter:
+        def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+            return ()
+
+    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", lambda runtime: _FakeAdapter())
+
+    assessment = assess_install_target(config_dir, expected_runtime=descriptor.runtime_name)
+
+    assert assessment.state == "owned_complete"
+    assert assessment.manifest_state == "ok"
+    assert assessment.manifest_runtime == descriptor.runtime_name
+
+
+def test_assess_install_target_rejects_manifest_list_metadata_owned_by_another_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy_entries = [
+        (descriptor, policy)
+        for descriptor in iter_runtime_descriptors()
+        for policy in descriptor.manifest_metadata_list_policies
+    ]
+    owner_descriptor, _owner_policy = policy_entries[0]
+    foreign_descriptor, foreign_policy = next(
+        (descriptor, policy) for descriptor, policy in policy_entries if policy.key != _owner_policy.key
+    )
+    config_dir = tmp_path / owner_descriptor.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "runtime": owner_descriptor.runtime_name,
+                "install_scope": "local",
+                foreign_policy.key: [_valid_value_for_manifest_metadata_policy(foreign_policy)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "gpd.hooks.install_metadata.get_adapter",
+        lambda runtime: (_ for _ in ()).throw(AssertionError("foreign metadata should fail before adapter lookup")),
+    )
+
+    assessment = assess_install_target(config_dir, expected_runtime=owner_descriptor.runtime_name)
+
+    assert foreign_descriptor.runtime_name != owner_descriptor.runtime_name
+    assert assessment.state == "untrusted_manifest"
+    assert assessment.manifest_state == "malformed_path_metadata"
+    assert assessment.manifest_runtime == owner_descriptor.runtime_name
+    assert assessment.readiness_state == "blocked"
 
 
 def test_assess_install_target_rejects_unsafe_external_scalar_path_metadata(tmp_path: Path) -> None:

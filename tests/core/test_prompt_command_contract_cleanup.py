@@ -154,11 +154,22 @@ def test_execute_phase_routes_convention_repair_to_validate_conventions_not_inli
 
 def test_response_writer_handoff_is_included_once_in_respond_to_referees() -> None:
     workflow = _read(WORKFLOWS_DIR / "respond-to-referees.md")
-    include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    raw_include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    literal_reference = "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 
-    assert workflow.count(include) == 1
+    assert raw_include not in workflow
+    assert literal_reference in workflow
     assert "Use the publication response-writer handoff already loaded during initialization" in workflow
     assert "Apply the already-loaded shared publication response-writer handoff" in workflow
+
+
+def test_write_paper_response_writer_handoff_stays_deferred_to_stage_authority() -> None:
+    workflow = _read(WORKFLOWS_DIR / "write-paper.md")
+    raw_include = "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+    literal_reference = "{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+
+    assert raw_include not in workflow
+    assert literal_reference in workflow
 
 
 def test_inline_install_dir_paths_do_not_use_at_include_form() -> None:

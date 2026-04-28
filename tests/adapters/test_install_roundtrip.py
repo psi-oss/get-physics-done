@@ -356,12 +356,12 @@ def _assert_installed_contract_visibility(
     assert "`uncertainty_markers`" in new_project
     assert "`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists." in new_project
     assert "review_mode: publication" in write_paper
-    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in write_paper
-    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in write_paper
-    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in write_paper
-    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in write_paper
-    assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper
-    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in write_paper
+    assert "${selected_publication_root}/AUTHOR-RESPONSE{round_suffix}.md" in write_paper
+    assert "${selected_review_root}/REFEREE_RESPONSE{round_suffix}.md" in write_paper
+    assert "${selected_review_root}/REVIEW-LEDGER{round_suffix}.json" in write_paper
+    assert "${selected_review_root}/REFEREE-DECISION{round_suffix}.json" in write_paper
+    assert "${selected_publication_root}/REFEREE-REPORT{round_suffix}.md" in write_paper
+    assert "references/publication/publication-review-round-artifacts.md" in write_paper
 
     assert "Canonical contract schema and hard validation rules" in plan_phase
     assert (

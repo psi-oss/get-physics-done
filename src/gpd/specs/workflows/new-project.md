@@ -116,6 +116,16 @@ Wait for response. From the single response, extract:
 
 #### M1.5. Synthesize And Approve The Scoping Contract
 
+Load the approval-stage payload before schema-governed contract authoring:
+
+```bash
+SCOPE_APPROVAL_INIT=$(gpd --raw init new-project --stage scope_approval)
+if [ $? -ne 0 ]; then
+  echo "ERROR: scope-approval init failed: $SCOPE_APPROVAL_INIT"
+  # STOP -- display the error to the user and do not proceed.
+fi
+```
+
 Build a canonical scoping contract from the extracted input.
 Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
 

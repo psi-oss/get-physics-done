@@ -3539,6 +3539,42 @@ class TestReviewValidationCommands:
         assert payload["resolved_review_target"] == str(manuscript)
         assert payload["resolved_review_root"] == str(manuscript.parent)
 
+    def test_init_respond_to_referees_stage_preserves_external_subject_response_roots(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        external_manuscript = gpd_project / "external-response-manuscript.tex"
+        external_manuscript.write_text(
+            "\\documentclass{article}\n\\begin{document}\nExternal response target.\n\\end{document}\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(gpd_project),
+                "init",
+                "respond-to-referees",
+                "--stage",
+                "report_triage",
+                "--",
+                "--manuscript",
+                external_manuscript.name,
+                "--report",
+                "reports/referee-report.md",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["publication_lane_kind"] == "external_artifact"
+        assert payload["managed_publication_root"] == f"GPD/publication/{payload['publication_subject_slug']}"
+        assert payload["selected_publication_root"] == payload["managed_publication_root"]
+        assert payload["selected_review_root"] == f"{payload['managed_publication_root']}/review"
+
     def test_init_peer_review_proof_review_detail_uses_active_manuscript_wording_without_final_review_artifacts(
         self,
         gpd_project: Path,
@@ -4586,7 +4622,7 @@ class TestReviewValidationCommands:
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["reproducibility_ready"]["passed"] is True
 
-    def test_review_preflight_write_paper_fails_closed_from_nested_workspace_without_intake(
+    def test_review_preflight_write_paper_resolves_ancestor_project_from_nested_workspace(
         self,
         gpd_project: Path,
     ) -> None:
@@ -4599,16 +4635,17 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["command"] == "gpd:write-paper"
-        assert payload["passed"] is False
-        assert checks["command_context"]["passed"] is False
-        assert checks["project_state"]["passed"] is False
-        assert checks["manuscript"]["passed"] is False
-        assert payload["resolved_subject"]["status"] == "missing"
-        assert payload["resolved_subject"]["ancestor_walked_up"] is False
+        assert payload["passed"] is True
+        assert checks["command_context"]["passed"] is True
+        assert checks["project_state"]["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert payload["resolved_subject"]["status"] == "resolved"
+        assert payload["resolved_subject"]["resolved_project_root"] == gpd_project.resolve().as_posix()
+        assert payload["resolved_subject"]["ancestor_walked_up"] is True
 
     def test_review_preflight_write_paper_bootstraps_manuscript_proof_review_manifest(
         self,
@@ -5036,6 +5073,9 @@ class TestReviewValidationCommands:
             (resume_dir / artifact_name).write_text(
                 (paper_dir / artifact_name).read_text(encoding="utf-8"), encoding="utf-8"
             )
+        (resume_dir / _CANONICAL_MANUSCRIPT_PDF_BASENAME).write_bytes(
+            (paper_dir / _CANONICAL_MANUSCRIPT_PDF_BASENAME).read_bytes()
+        )
         manifest = json.loads((resume_dir / "ARTIFACT-MANIFEST.json").read_text(encoding="utf-8"))
         manifest["manuscript_sha256"] = compute_sha256(resume_manuscript)
         manifest["manuscript_mtime_ns"] = resume_manuscript.stat().st_mtime_ns
@@ -5418,6 +5458,64 @@ class TestReviewValidationCommands:
         assert "artifact_manifest" not in checks
         assert "bibliography_audit" not in checks
 
+    def test_review_preflight_respond_to_referees_resolves_positional_report_from_nested_launch_cwd(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        nested = gpd_project / "workspace" / "nested-review"
+        nested.mkdir(parents=True)
+        (nested / "local-referee-report.md").write_text("# Local Report\n\nClarify the proof.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested),
+                "validate",
+                "review-preflight",
+                "respond-to-referees",
+                "local-referee-report.md",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["referee_report_source"]["passed"] is True
+        assert "./local-referee-report.md present" in checks["referee_report_source"]["detail"]
+
+    def test_review_preflight_respond_to_referees_resolves_flagged_report_from_nested_launch_cwd(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        nested = gpd_project / "workspace" / "flagged-review"
+        nested.mkdir(parents=True)
+        (nested / "flagged-referee-report.md").write_text("# Flagged Report\n\nClarify notation.\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested),
+                "validate",
+                "review-preflight",
+                "respond-to-referees",
+                "--",
+                "--report",
+                "flagged-referee-report.md",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["referee_report_source"]["passed"] is True
+        assert "./flagged-referee-report.md present" in checks["referee_report_source"]["detail"]
+
     def test_review_preflight_respond_to_referees_accepts_markdown_manuscript(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"
         (paper_dir / _CANONICAL_MANUSCRIPT_BASENAME).unlink()
@@ -5618,6 +5716,106 @@ class TestReviewValidationCommands:
         assert "artifact manifest is stale" in detail
         assert "manifest is missing manuscript_sha256" in detail
 
+    def test_review_preflight_peer_review_strict_rejects_manifest_tex_path_mismatch(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        manuscript = canonical_manuscript_path(gpd_project)
+        alternate_manuscript = paper_dir / "alternate-manuscript.tex"
+        alternate_manuscript.write_text(manuscript.read_text(encoding="utf-8"), encoding="utf-8")
+        manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        tex_artifact = next(artifact for artifact in manifest["artifacts"] if artifact["category"] == "tex")
+        tex_artifact["path"] = alternate_manuscript.name
+        tex_artifact["sha256"] = compute_sha256(alternate_manuscript)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        passed, detail = cli_module._validate_artifact_manifest_semantics(manifest_path, manuscript)
+
+        assert passed is False
+        assert "artifact manifest integrity failed" in detail
+        assert "tex artifact path does not resolve to the selected manuscript" in detail
+
+    def test_review_preflight_peer_review_strict_rejects_duplicate_tex_artifacts(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        manuscript = canonical_manuscript_path(gpd_project)
+        alternate_manuscript = paper_dir / "alternate-manuscript.tex"
+        alternate_manuscript.write_text(manuscript.read_text(encoding="utf-8"), encoding="utf-8")
+        manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        tex_artifact = next(artifact for artifact in manifest["artifacts"] if artifact["category"] == "tex")
+        manifest["artifacts"].append(
+            dict(
+                tex_artifact,
+                artifact_id="tex-duplicate",
+                path=alternate_manuscript.name,
+                sha256=compute_sha256(alternate_manuscript),
+            )
+        )
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        passed, detail = cli_module._validate_artifact_manifest_semantics(manifest_path, manuscript)
+
+        assert passed is False
+        assert "artifact manifest integrity failed" in detail
+        assert "must contain exactly one tex artifact" in detail
+
+    @pytest.mark.parametrize(
+        ("category", "artifact_path"),
+        [
+            ("tex", _CANONICAL_MANUSCRIPT_BASENAME),
+            ("bib", "references.bib"),
+            ("audit", "BIBLIOGRAPHY-AUDIT.json"),
+            ("figure", "figures/test-figure.png"),
+            ("pdf", _CANONICAL_MANUSCRIPT_PDF_BASENAME),
+        ],
+    )
+    def test_review_preflight_peer_review_strict_rejects_manifest_artifact_sha256_mismatch(
+        self,
+        gpd_project: Path,
+        category: str,
+        artifact_path: str,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        manuscript = canonical_manuscript_path(gpd_project)
+        manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        artifact_file = paper_dir / artifact_path
+        artifact_file.parent.mkdir(parents=True, exist_ok=True)
+        if category == "bib":
+            artifact_file.write_text(
+                "@article{ref2026,\n  title={Reference},\n  author={Doe, Jane},\n  year={2026}\n}\n",
+                encoding="utf-8",
+            )
+        elif category == "figure":
+            artifact_file.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+        artifact = next(
+            (record for record in manifest["artifacts"] if record["category"] == category),
+            None,
+        )
+        if artifact is None:
+            artifact = {
+                "artifact_id": f"{category}-test",
+                "category": category,
+                "path": artifact_path,
+                "produced_by": "tests.test_cli_commands",
+                "sources": [],
+                "metadata": {},
+            }
+            manifest["artifacts"].append(artifact)
+        artifact["path"] = artifact_path
+        artifact["sha256"] = "0" * 64
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        passed, detail = cli_module._validate_artifact_manifest_semantics(manifest_path, manuscript)
+
+        assert passed is False
+        assert f"sha256 mismatch for {category} artifact" in detail
+
     def test_review_preflight_peer_review_strict_rejects_failed_build_manifest(
         self,
         gpd_project: Path,
@@ -5660,12 +5858,7 @@ class TestReviewValidationCommands:
             "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
             encoding="utf-8",
         )
-        for artifact_name in (
-            "PAPER-CONFIG.json",
-            "ARTIFACT-MANIFEST.json",
-            "BIBLIOGRAPHY-AUDIT.json",
-            "reproducibility-manifest.json",
-        ):
+        for artifact_name in ("PAPER-CONFIG.json",):
             (review_dir / artifact_name).write_text(
                 (paper_dir / artifact_name).read_text(encoding="utf-8"), encoding="utf-8"
             )
@@ -6548,6 +6741,33 @@ class TestReviewValidationCommands:
         assert checks["review_ledger"]["passed"] is False
         assert "round 2" in checks["review_ledger"]["detail"]
 
+    def test_review_preflight_arxiv_submission_strict_requires_new_review_after_same_round_response(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(gpd_project, final_recommendation="accept", round_number=1)
+        (gpd_project / "GPD" / "AUTHOR-RESPONSE.md").write_text("# Author Response\n", encoding="utf-8")
+        (gpd_project / "GPD" / "review" / "REFEREE_RESPONSE.md").write_text(
+            "# Referee Response\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger"]["passed"] is False
+        assert "REVIEW-LEDGER-R2.json" in checks["review_ledger"]["detail"]
+        assert "latest response artifacts already reached round 1" in checks["review_ledger"]["detail"]
+        assert "requires newer staged review clearance in round 2" in checks["review_ledger"]["detail"]
+        assert checks["referee_decision"]["passed"] is False
+        assert "REFEREE-DECISION-R2.json" in checks["referee_decision"]["detail"]
+
     def test_review_preflight_arxiv_submission_strict_requires_fresh_review_after_newer_managed_lane_response_round(
         self,
         gpd_project: Path,
@@ -6587,10 +6807,11 @@ class TestReviewValidationCommands:
         assert checks["manuscript"]["passed"] is True
         assert checks["manuscript"]["detail"] == f"{cli_module._format_display_path(manuscript)} present"
         assert checks["review_ledger"]["passed"] is False
-        assert "REVIEW-LEDGER-R2.json" in checks["review_ledger"]["detail"]
+        assert "REVIEW-LEDGER-R3.json" in checks["review_ledger"]["detail"]
         assert "latest response artifacts already reached round 2" in checks["review_ledger"]["detail"]
+        assert "requires newer staged review clearance in round 3" in checks["review_ledger"]["detail"]
         assert checks["referee_decision"]["passed"] is False
-        assert "REFEREE-DECISION-R2.json" in checks["referee_decision"]["detail"]
+        assert "REFEREE-DECISION-R3.json" in checks["referee_decision"]["detail"]
 
     def test_review_preflight_arxiv_submission_strict_rejects_stale_review_artifact_manuscript_paths(
         self,
@@ -6982,7 +7203,7 @@ class TestReviewValidationCommands:
         self,
         tmp_path: Path,
     ) -> None:
-        workspace = tmp_path / "standalone-write-paper"
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-write-paper"
         workspace.mkdir()
 
         result = runner.invoke(
@@ -7022,20 +7243,20 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["command"] == "gpd:write-paper"
-        assert checks["project_exists"]["passed"] is False
-        assert checks["explicit_inputs"]["passed"] is False
-        assert payload["resolved_subject"]["status"] == "missing"
+        assert checks["project_exists"]["passed"] is True
+        assert payload["resolved_subject"]["status"] == "resolved"
+        assert payload["resolved_subject"]["resolved_project_root"] == gpd_project.resolve().as_posix()
         assert not (nested / "GPD").exists()
 
     def test_command_context_write_paper_accepts_valid_external_authoring_intake(
         self,
         tmp_path: Path,
     ) -> None:
-        workspace = tmp_path / "standalone-write-paper-intake"
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-write-paper-intake"
         workspace.mkdir()
         intake_path = _write_write_paper_authoring_input(workspace)
 
@@ -7075,7 +7296,7 @@ class TestReviewValidationCommands:
         self,
         tmp_path: Path,
     ) -> None:
-        workspace = tmp_path / "standalone-write-paper-invalid-intake"
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-write-paper-invalid-intake"
         workspace.mkdir()
         intake_path = workspace / "write-paper-authoring-input.json"
         intake_path.write_text(
@@ -7173,7 +7394,7 @@ class TestReviewValidationCommands:
         self,
         tmp_path: Path,
     ) -> None:
-        workspace = tmp_path / "standalone-write-paper-preflight"
+        workspace = tmp_path.parent / f"{tmp_path.name}-standalone-write-paper-preflight"
         workspace.mkdir()
         intake_path = _write_write_paper_authoring_input(workspace)
 

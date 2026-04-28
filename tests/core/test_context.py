@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.core import context as context_module
 from gpd.core.constants import ProjectLayout
 from gpd.core.context import (
     _WRITE_PAPER_INIT_FIELDS,
@@ -36,6 +37,7 @@ from gpd.core.context import (
     init_progress,
     init_quick,
     init_research_phase,
+    init_respond_to_referees,
     init_resume,
     init_sync_state,
     init_todos,
@@ -2715,6 +2717,36 @@ class TestInitNewProject:
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
 
+    def test_write_paper_resolves_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nNested paper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Nested draft.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
+            encoding="utf-8",
+        )
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        full_ctx = init_write_paper(nested)
+        staged_ctx = init_write_paper(nested, stage="paper_bootstrap")
+
+        assert full_ctx["state_exists"] is True
+        assert full_ctx["project_exists"] is True
+        assert full_ctx["publication_subject_status"] == "resolved"
+        assert full_ctx["publication_bootstrap_root"] == "paper"
+        assert staged_ctx["project_exists"] is True
+        assert staged_ctx["publication_subject_status"] == "resolved"
+        assert staged_ctx["publication_bootstrap_root"] == "paper"
+        assert not (nested / "GPD").exists()
+
     def test_write_paper_stage_paper_bootstrap_filters_payload(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
@@ -2738,6 +2770,19 @@ class TestInitNewProject:
         assert ctx["publication_intake_root"] is None
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
+
+    def test_write_paper_stage_bootstrap_preserves_explicit_intake_payload(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_write_paper(
+            tmp_path,
+            subject="--intake intake/write-paper-authoring-input.json",
+            stage="paper_bootstrap",
+        )
+
+        assert ctx["write_paper_argument_input"] == "--intake intake/write-paper-authoring-input.json"
+        assert "write_paper_launch_subject" not in ctx
 
     def test_write_paper_stage_outline_and_scaffold_loads_deferred_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2919,6 +2964,62 @@ class TestInitNewProject:
         assert ctx["selected_publication_root"] == "GPD"
         assert ctx["selected_review_root"] == "GPD/review"
 
+    def test_respond_to_referees_stage_bootstrap_routes_explicit_manuscript_intake(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
+            encoding="utf-8",
+        )
+        reports = tmp_path / "reviews"
+        reports.mkdir()
+        (reports / "referee-1.md").write_text("# Referee 1\n", encoding="utf-8")
+        intake = "--manuscript paper/main.tex --report reviews/referee-1.md"
+
+        ctx = init_respond_to_referees(tmp_path, subject=intake, stage="bootstrap")
+
+        assert ctx["response_intake_input"] == intake
+        assert ctx["review_target_input"] == "paper/main.tex"
+        assert ctx["resolved_review_target"] == str(manuscript)
+        assert ctx["resolved_review_root"] == str(manuscript_dir)
+
+    def test_respond_to_referees_stage_bootstrap_treats_bare_path_as_report_source(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "paper"
+        manuscript_dir.mkdir()
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Draft manuscript.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(_artifact_manifest_payload(manuscript)) + "\n",
+            encoding="utf-8",
+        )
+        reports = tmp_path / "reviews"
+        reports.mkdir()
+        report = reports / "referee-1.md"
+        report.write_text("# Referee 1\n", encoding="utf-8")
+
+        ctx = init_respond_to_referees(tmp_path, subject="reviews/referee-1.md", stage="bootstrap")
+
+        assert ctx["response_intake_input"] == "reviews/referee-1.md"
+        assert ctx["review_target_input"] != "reviews/referee-1.md"
+        assert ctx["resolved_review_target"] == str(manuscript)
+        assert ctx["resolved_review_root"] == str(manuscript_dir)
+
     def test_peer_review_stage_bootstrap_resolves_project_context_from_nested_cwd_and_launch_relative_target(
         self, tmp_path: Path
     ) -> None:
@@ -3015,6 +3116,35 @@ class TestInitNewProject:
         assert ctx["managed_publication_root"] == "GPD/publication/curvature-flow-bounds"
         assert ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
         assert ctx["selected_review_root"] == "GPD/publication/curvature-flow-bounds/review"
+
+    def test_arxiv_submission_resolves_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nNested submission target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        manuscript_dir = tmp_path / "GPD" / "publication" / "curvature-flow-bounds" / "manuscript"
+        manuscript_dir.mkdir(parents=True)
+        manuscript = manuscript_dir / "main.tex"
+        manuscript.write_text(
+            "\\documentclass{article}\\begin{document}Nested submission draft.\\end{document}\n",
+            encoding="utf-8",
+        )
+        (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(_artifact_manifest_payload(manuscript, title="Curvature Flow Bounds")) + "\n",
+            encoding="utf-8",
+        )
+        nested = tmp_path / "workspace" / "notes"
+        nested.mkdir(parents=True)
+
+        full_ctx = init_arxiv_submission(nested)
+        staged_ctx = init_arxiv_submission(nested, stage="bootstrap")
+
+        assert full_ctx["state_exists"] is True
+        assert full_ctx["project_exists"] is True
+        assert full_ctx["publication_subject_slug"] == "curvature-flow-bounds"
+        assert staged_ctx["project_exists"] is True
+        assert staged_ctx["publication_subject_slug"] == "curvature-flow-bounds"
+        assert staged_ctx["selected_publication_root"] == "GPD/publication/curvature-flow-bounds"
+        assert not (nested / "GPD").exists()
 
 
 # ─── init_new_milestone ───────────────────────────────────────────────────────
@@ -3596,6 +3726,39 @@ class TestInitResume:
         assert ctx["derived_execution_head"]["segment_id"] == "seg-local"
         assert ctx["active_resume_kind"] is None
         assert ctx["resume_candidates"] == []
+
+    def test_recent_bounded_segment_promotion_revalidates_stale_resume_file(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        continuation_state = {
+            "active_bounded_segment": None,
+            "active_resume_kind": None,
+            "active_resume_origin": None,
+            "active_resume_pointer": None,
+            "resume_candidates": [],
+        }
+        reentry_metadata = {
+            "project_root": tmp_path.resolve(strict=False).as_posix(),
+            "project_root_auto_selected": True,
+            "project_reentry_selected_candidate": {
+                "source": "recent_project",
+                "project_root": tmp_path.resolve(strict=False).as_posix(),
+                "resume_target_kind": "bounded_segment",
+                "resume_file": "GPD/phases/01-analysis/.continue-here.md",
+                "resumable": True,
+                "source_segment_id": "seg-stale",
+                "recovery_phase": "01",
+                "recovery_plan": "01",
+            },
+        }
+
+        promoted, was_promoted = context_module._promote_auto_selected_recent_bounded_segment(
+            continuation_state,
+            reentry_metadata=reentry_metadata,
+            result_lookup_by_id={},
+        )
+
+        assert was_promoted is False
+        assert promoted == continuation_state
 
     def test_handoff_resume_file_no_longer_hydrates_resume_authority(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

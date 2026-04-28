@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from gpd.core import context as context_module
-from gpd.core.context import init_resume, init_sync_state, init_write_paper
+from gpd.core.context import (
+    init_arxiv_submission,
+    init_respond_to_referees,
+    init_resume,
+    init_sync_state,
+    init_write_paper,
+)
 from gpd.core.workflow_staging import (
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
     LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
@@ -320,6 +326,8 @@ def test_staged_loading_payload_exposes_eager_authority_metadata() -> None:
         "workflows/verify-work.md",
         "references/verification/meta/verification-independence.md",
     ]
+    assert payload["required_init_fields"] == list(stage.required_init_fields)
+    assert payload["produced_state"] == list(stage.produced_state)
 
 
 def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifest_workflow_id(
@@ -561,6 +569,7 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
 
     assert known_init_fields is not None
     assert "commit_docs" in known_init_fields
+    assert "project_root" in known_init_fields
     assert "project_contract_gate" in known_init_fields
     assert "project_contract_load_info" in known_init_fields
     assert "project_contract_validation" in known_init_fields
@@ -583,6 +592,40 @@ def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publicat
     assert "reference_artifacts_content" in known_init_fields
     assert "state_content" in known_init_fields
     assert "requirements_content" in known_init_fields
+
+
+def test_publication_workflow_bootstrap_manifests_keep_project_root_in_required_fields() -> None:
+    write_paper_manifest = load_workflow_stage_manifest("write-paper")
+    respond_manifest = load_workflow_stage_manifest("respond-to-referees")
+    arxiv_manifest = load_workflow_stage_manifest("arxiv-submission")
+
+    assert "project_root" in write_paper_manifest.stage("paper_bootstrap").required_init_fields
+    assert "project_root" in write_paper_manifest.stage("outline_and_scaffold").required_init_fields
+    assert "project_root" in respond_manifest.stage("bootstrap").required_init_fields
+    assert "project_root" in arxiv_manifest.stage("bootstrap").required_init_fields
+
+
+def test_publication_staged_init_preserves_explicit_launch_arguments(tmp_path: Path) -> None:
+    gpd_dir = tmp_path / "GPD"
+    gpd_dir.mkdir()
+    (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
+    (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
+    intake = "--manuscript paper/main.tex --report reviews/referee-1.md"
+
+    respond_manifest = load_workflow_stage_manifest("respond-to-referees")
+    for stage_id in respond_manifest.stage_ids():
+        payload = init_respond_to_referees(tmp_path, subject=intake, stage=stage_id)
+        assert payload["response_intake_input"] == intake
+
+    arxiv_manifest = load_workflow_stage_manifest("arxiv-submission")
+    for stage_id in arxiv_manifest.stage_ids():
+        payload = init_arxiv_submission(tmp_path, subject="paper/main.tex", stage=stage_id)
+        assert payload["arxiv_submission_argument_input"] == "paper/main.tex"
+
+    write_paper_manifest = load_workflow_stage_manifest("write-paper")
+    for stage_id in write_paper_manifest.stage_ids():
+        payload = init_write_paper(tmp_path, subject="--intake intake/write-paper-authoring-input.json", stage=stage_id)
+        assert payload["write_paper_argument_input"] == "--intake intake/write-paper-authoring-input.json"
 
 
 def test_known_init_fields_for_quick_cover_task_bootstrap_and_reference_context() -> None:
@@ -1108,6 +1151,7 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
     known_init_fields = known_init_fields_for_workflow("arxiv-submission")
 
     assert known_init_fields is not None
+    assert "project_root" in known_init_fields
     assert "publication_subject_slug" in known_init_fields
     assert "publication_lane_kind" in known_init_fields
     assert "publication_lane_owner" in known_init_fields
