@@ -93,7 +93,7 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
             state_obj = load_state_json(cwd)
             if state_obj is None:
                 return stable_mcp_error(
-                    "No project state found. Run 'gpd init new-project' to initialize a GPD project state."
+                    "No project state found. Run the active runtime's new-project command to initialize a GPD project state."
                 )
             return stable_mcp_response(state_obj)
         except (GPDError, OSError, ValueError, TimeoutError) as exc:

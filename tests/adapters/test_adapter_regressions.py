@@ -35,6 +35,21 @@ def test_write_settings_mkdir_errors_reference_settings_directory(tmp_path: Path
             write_settings(settings_path, {"key": "value"})
 
 
+def test_copy_with_path_replacement_rejects_unknown_runtime_without_partial_dest(tmp_path: Path) -> None:
+    from gpd.adapters.install_utils import copy_with_path_replacement
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "probe.md").write_text("Path: {GPD_INSTALL_DIR}\n", encoding="utf-8")
+    dest = tmp_path / "dest"
+
+    with pytest.raises(KeyError, match=r"Unknown runtime 'not-a-runtime'"):
+        copy_with_path_replacement(src, dest, "/runtime/", "not-a-runtime")
+
+    assert not dest.exists()
+    assert not list(tmp_path.glob("dest.tmp.*"))
+
+
 def test_convert_tool_references_uses_literal_replacements() -> None:
     from gpd.adapters.install_utils import convert_tool_references_in_body
 

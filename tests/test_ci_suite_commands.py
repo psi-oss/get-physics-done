@@ -7,6 +7,7 @@ from tests.helpers.github_actions import load_github_actions_workflow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
+EXPECTED_UV_SETUP_VERSION = "0.9.12"
 
 
 def _workflow_paths() -> list[Path]:
@@ -114,6 +115,7 @@ def test_ci_workflow_runs_lightweight_python_compatibility_matrix() -> None:
     assert step_by_name["Set up Node.js"]["uses"] == "actions/setup-node@v6"
     assert step_by_name["Set up Node.js"]["with"]["node-version"] == "20"
     assert step_by_name["Set up uv"]["uses"] == "astral-sh/setup-uv@v7"
+    assert step_by_name["Set up uv"]["with"] == {"version": EXPECTED_UV_SETUP_VERSION}
     assert step_by_name["Install dependencies"]["run"] == "uv sync --dev --frozen"
 
     import_smoke = step_by_name["Import package surfaces"]["run"]
@@ -146,6 +148,24 @@ def test_ci_workflow_uses_current_action_versions() -> None:
     assert "actions/setup-node@v6" in action_uses
     assert "actions/checkout@v5" not in action_uses
     assert "actions/setup-node@v5" not in action_uses
+
+
+def test_github_workflows_pin_setup_uv_tool_version() -> None:
+    setup_uv_step_count = 0
+    for path in _workflow_paths():
+        workflow = load_github_actions_workflow(path)
+        setup_uv_steps = [
+            step
+            for job in workflow["jobs"].values()
+            for step in job.get("steps", [])
+            if step.get("uses") == "astral-sh/setup-uv@v7"
+        ]
+        setup_uv_step_count += len(setup_uv_steps)
+
+        for step in setup_uv_steps:
+            assert step.get("with") == {"version": EXPECTED_UV_SETUP_VERSION}, path.name
+
+    assert setup_uv_step_count > 0
 
 
 def test_ci_workflow_installs_dev_dependencies_from_frozen_lockfile() -> None:

@@ -852,6 +852,7 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
     install_flags: dict[str, str] = {}
     selection_flags: dict[str, str] = {}
     selection_tokens: dict[str, str] = {}
+    manifest_metadata_list_policies: dict[str, tuple[str, ManifestMetadataListPolicy]] = {}
 
     for descriptor in descriptors:
         if descriptor.runtime_name in runtime_names:
@@ -892,6 +893,18 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
                     f"{existing_token_runtime!r} and {descriptor.runtime_name!r}"
                 )
             selection_tokens[normalized_token] = descriptor.runtime_name
+
+        for policy in descriptor.manifest_metadata_list_policies:
+            existing = manifest_metadata_list_policies.get(policy.key)
+            if existing is not None:
+                existing_runtime, existing_policy = existing
+                if existing_policy != policy:
+                    raise ValueError(
+                        f"runtime catalog contains conflicting manifest_metadata_list_policies.key {policy.key!r} "
+                        f"for {existing_runtime!r} and {descriptor.runtime_name!r}"
+                    )
+                continue
+            manifest_metadata_list_policies[policy.key] = (descriptor.runtime_name, policy)
 
 
 def _validate_runtime_catalog_help_example_scopes(descriptors: list[RuntimeDescriptor]) -> None:

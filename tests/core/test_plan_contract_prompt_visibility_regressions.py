@@ -18,7 +18,7 @@ def _expanded_template(name: str) -> str:
 
 
 def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_constraints() -> None:
-    plan_schema = _read_template("plan-contract-schema.md")
+    plan_schema = _expanded_template("plan-contract-schema.md")
 
     assert "observables[].kind" in plan_schema
     assert "deliverables[].kind" in plan_schema
@@ -175,8 +175,8 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
 
 
 def test_contract_schema_docs_make_lowercase_closed_vocab_rule_model_visible() -> None:
-    plan_schema = _read_template("plan-contract-schema.md")
-    project_schema = _read_template("project-contract-schema.md")
+    plan_schema = _expanded_template("plan-contract-schema.md")
+    project_schema = _expanded_template("project-contract-schema.md")
     state_schema = _expanded_template("state-json-schema.md")
 
     expected = "Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation."

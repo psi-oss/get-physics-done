@@ -741,6 +741,28 @@ _EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS = frozenset(
         "has_continuity_handoff",
     }
 )
+_STAGED_REFERENCE_SUMMARY_FIELDS = frozenset(
+    {
+        "contract_intake",
+        "effective_reference_intake",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_verifier_extensions",
+        "protocol_bundle_context",
+        "active_reference_context",
+        "active_references",
+        "active_reference_count",
+    }
+)
+_STAGED_FULL_REFERENCE_RUNTIME_FIELDS = _EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS - _STAGED_REFERENCE_SUMMARY_FIELDS
+_STAGED_REFERENCE_ARTIFACT_CONTENT_FIELDS = frozenset({"reference_artifacts_content"})
+_RESEARCH_PHASE_FILE_CONTENT_FIELDS = frozenset(
+    {
+        "state_content",
+        "config_content",
+        "roadmap_content",
+    }
+)
 # Directories to skip when scanning for research files.
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)")
 
@@ -1886,6 +1908,108 @@ def _build_new_project_contract_runtime_context(cwd: Path) -> dict[str, object]:
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
     }
+
+
+def _build_contract_reference_runtime_context(cwd: Path) -> dict[str, object]:
+    """Build contract-derived reference context without scanning durable reference artifacts."""
+    contract, project_contract_load_info = _load_project_contract(cwd)
+    contract_references = _serialize_active_references(contract)
+    effective_reference_intake = _merge_reference_intake(contract, {}, contract_references)
+    visible_contract, canonicalization_warnings = _canonicalize_project_contract(
+        contract,
+        active_references=contract_references,
+        effective_reference_intake=effective_reference_intake,
+    )
+    if canonicalization_warnings:
+        project_contract_load_info = {
+            **project_contract_load_info,
+            "warnings": [*list(project_contract_load_info.get("warnings") or []), *canonicalization_warnings],
+        }
+    project_contract_load_info, project_contract_validation, project_contract_gate = _finalize_project_contract_gate(
+        cwd,
+        visible_contract,
+        project_contract_load_info,
+        state_obj=None,
+    )
+
+    visible_context_contract = None
+    if project_contract_gate.get("visible"):
+        visible_context_contract = visible_contract if project_contract_gate.get("authoritative") else contract
+    surfaced_contract_intake = None
+    if project_contract_gate.get("visible") and visible_contract is not None:
+        surfaced_contract_intake = visible_contract.context_intake.model_dump(mode="json")
+    authoritative_contract = visible_contract if project_contract_gate.get("authoritative") else None
+    carry_forward_reference_contract = (
+        visible_contract
+        if authoritative_contract is not None or project_contract_gate.get("approval_blocked")
+        else None
+    )
+    surfaced_active_references = _merge_active_references(
+        _serialize_active_references(carry_forward_reference_contract),
+        [],
+    )
+    surfaced_effective_reference_intake = _merge_reference_intake(
+        carry_forward_reference_contract,
+        {},
+        surfaced_active_references,
+    )
+    project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
+    selected_protocol_bundles = select_protocol_bundles(project_text, authoritative_contract)
+    bundle_verifier_extensions: list[dict[str, object]] = []
+    for bundle in selected_protocol_bundles:
+        for extension in bundle.verifier_extensions:
+            bundle_verifier_extensions.append(
+                {
+                    "bundle_id": bundle.bundle_id,
+                    "bundle_title": bundle.title,
+                    **extension.model_dump(mode="json"),
+                }
+            )
+
+    return {
+        "project_contract": visible_context_contract.model_dump(mode="json")
+        if visible_context_contract is not None
+        else None,
+        "project_contract_validation": project_contract_validation,
+        "project_contract_load_info": project_contract_load_info,
+        "project_contract_gate": project_contract_gate,
+        "contract_intake": surfaced_contract_intake,
+        "effective_reference_intake": surfaced_effective_reference_intake,
+        "active_references": surfaced_active_references,
+        "active_reference_count": len(surfaced_active_references),
+        "selected_protocol_bundle_ids": [bundle.bundle_id for bundle in selected_protocol_bundles],
+        "protocol_bundle_count": len(selected_protocol_bundles),
+        "protocol_bundle_verifier_extensions": bundle_verifier_extensions,
+        "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles),
+        "active_reference_context": _render_active_reference_context(
+            surfaced_active_references,
+            surfaced_effective_reference_intake,
+            [],
+            {},
+            [],
+            [],
+            project_contract_validation,
+            project_contract_load_info,
+        ),
+    }
+
+
+def _build_staged_reference_runtime_context(
+    cwd: Path,
+    reference_fields: set[str] | frozenset[str],
+    *,
+    persist_manuscript_proof_review_manifest: bool = False,
+) -> dict[str, object]:
+    """Build the smallest reference context tier needed by a staged init payload."""
+    if not reference_fields:
+        return {}
+    if reference_fields <= _STAGED_REFERENCE_SUMMARY_FIELDS:
+        return _build_contract_reference_runtime_context(cwd)
+    return _build_reference_runtime_context(
+        cwd,
+        include_artifact_content=bool(reference_fields & _STAGED_REFERENCE_ARTIFACT_CONTENT_FIELDS),
+        persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
+    )
 
 
 def _build_publication_bootstrap_runtime_context(
@@ -3070,8 +3194,9 @@ def init_execute_phase(
     if required_fields & _EXECUTE_PHASE_CONTRACT_GATE_FIELDS:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
-    if required_fields & _EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS:
-        staged_source.update(_build_reference_runtime_context(cwd))
+    reference_fields = required_fields & _EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS
+    if reference_fields:
+        staged_source.update(_build_staged_reference_runtime_context(cwd, reference_fields))
 
     if required_fields & _EXECUTE_PHASE_STRUCTURED_STATE_FIELDS:
         staged_source.update(_build_structured_state_runtime_context(cwd))
@@ -3912,11 +4037,11 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    needs_full_reference_context = bool(required_fields & _RESUME_REFERENCE_RUNTIME_FIELDS)
+    reference_fields = required_fields & _RESUME_REFERENCE_RUNTIME_FIELDS
     needs_contract_gate_context = bool(required_fields & _RESUME_CONTRACT_GATE_FIELDS)
 
-    if needs_full_reference_context:
-        staged_source.update(_build_reference_runtime_context(effective_cwd))
+    if reference_fields:
+        staged_source.update(_build_staged_reference_runtime_context(effective_cwd, reference_fields))
     elif needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
@@ -4079,11 +4204,11 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    needs_full_reference_context = bool(required_fields & _VERIFY_WORK_REFERENCE_RUNTIME_FIELDS)
+    reference_fields = required_fields & _VERIFY_WORK_REFERENCE_RUNTIME_FIELDS
     needs_contract_gate_context = bool(required_fields & _VERIFY_WORK_CONTRACT_GATE_FIELDS)
 
-    if needs_full_reference_context:
-        staged_source.update(_build_reference_runtime_context(cwd))
+    if reference_fields:
+        staged_source.update(_build_staged_reference_runtime_context(cwd, reference_fields))
     elif needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
@@ -4311,20 +4436,20 @@ def init_phase_op(
         # Platform
         "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(effective_cwd))
-    result.update(_build_state_memory_runtime_context(effective_cwd))
-    result.update(_build_execution_runtime_context(effective_cwd))
-
-    planning = effective_cwd / PLANNING_DIR_NAME
-    if "state" in includes:
-        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
-        result.update(_build_structured_state_runtime_context(effective_cwd))
-    if "config" in includes:
-        result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
-    if "roadmap" in includes:
-        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
-
     if stage is None:
+        result.update(_build_reference_runtime_context(effective_cwd))
+        result.update(_build_state_memory_runtime_context(effective_cwd))
+        result.update(_build_execution_runtime_context(effective_cwd))
+
+        planning = effective_cwd / PLANNING_DIR_NAME
+        if "state" in includes:
+            result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+            result.update(_build_structured_state_runtime_context(effective_cwd))
+        if "config" in includes:
+            result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
+        if "roadmap" in includes:
+            result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
+
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4337,13 +4462,44 @@ def init_phase_op(
             f"Unknown research-phase stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
         ) from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+    needs_full_reference_context = bool(required_fields & _STAGED_FULL_REFERENCE_RUNTIME_FIELDS)
+    needs_reference_summary_context = bool(required_fields & _STAGED_REFERENCE_SUMMARY_FIELDS)
+    needs_contract_gate_context = bool(required_fields & _EXECUTE_PHASE_CONTRACT_GATE_FIELDS)
+
+    if needs_full_reference_context:
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
+    elif needs_reference_summary_context:
+        staged_source.update(_build_contract_reference_runtime_context(effective_cwd))
+    elif needs_contract_gate_context:
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
+
+    if required_fields & _EXECUTE_PHASE_STRUCTURED_STATE_FIELDS:
+        staged_source.update(_build_structured_state_runtime_context(effective_cwd))
+
+    if required_fields & _EXECUTE_PHASE_STATE_MEMORY_FIELDS:
+        staged_source.update(_build_state_memory_runtime_context(effective_cwd))
+
+    if required_fields & _EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS:
+        staged_source.update(_build_execution_runtime_context(effective_cwd))
+
+    if required_fields & _RESEARCH_PHASE_FILE_CONTENT_FIELDS:
+        planning = effective_cwd / PLANNING_DIR_NAME
+        if "state_content" in required_fields:
+            staged_source["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        if "config_content" in required_fields:
+            staged_source["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
+        if "roadmap_content" in required_fields:
+            staged_source["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(
             f"research-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
         )
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 
@@ -4384,9 +4540,8 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
         "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(effective_cwd))
-
     if stage is None:
+        result.update(_build_reference_runtime_context(effective_cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4399,13 +4554,26 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
             f"Unknown literature-review stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
         ) from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+    needs_full_reference_context = bool(required_fields & _STAGED_FULL_REFERENCE_RUNTIME_FIELDS)
+    needs_reference_summary_context = bool(required_fields & _STAGED_REFERENCE_SUMMARY_FIELDS)
+    needs_contract_gate_context = bool(required_fields & _EXECUTE_PHASE_CONTRACT_GATE_FIELDS)
+
+    if needs_full_reference_context:
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
+    elif needs_reference_summary_context:
+        staged_source.update(_build_contract_reference_runtime_context(effective_cwd))
+    elif needs_contract_gate_context:
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(
             f"literature-review stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
         )
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 
@@ -4558,9 +4726,8 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
         # Platform
         "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(effective_cwd))
-
     if stage is None:
+        result.update(_build_reference_runtime_context(effective_cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4571,11 +4738,24 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
     except KeyError as exc:
         raise ValueError(f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}.") from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+    needs_full_reference_context = bool(required_fields & _STAGED_FULL_REFERENCE_RUNTIME_FIELDS)
+    needs_reference_summary_context = bool(required_fields & _STAGED_REFERENCE_SUMMARY_FIELDS)
+    needs_contract_gate_context = bool(required_fields & _EXECUTE_PHASE_CONTRACT_GATE_FIELDS)
+
+    if needs_full_reference_context:
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
+    elif needs_reference_summary_context:
+        staged_source.update(_build_contract_reference_runtime_context(effective_cwd))
+    elif needs_contract_gate_context:
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 

@@ -779,6 +779,12 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "`must_surface` must stay boolean" in reference_item["description"]
     assert "`applies_to` and `required_actions` must both be non-empty lists" in reference_item["description"]
     assert "`carry_forward_to` names workflow scope labels" in reference_item["description"]
+    reference_surface_rule = reference_item["allOf"][0]
+    assert reference_surface_rule["if"]["required"] == ["must_surface"]
+    assert reference_surface_rule["if"]["properties"]["must_surface"]["const"] is True
+    assert reference_surface_rule["then"]["required"] == ["applies_to", "required_actions"]
+    assert reference_surface_rule["then"]["properties"]["applies_to"]["minItems"] == 1
+    assert reference_surface_rule["then"]["properties"]["required_actions"]["minItems"] == 1
 
     contract_schema = _schema_anyof_object(run_request["properties"]["contract"])
     _assert_contract_schema_sections_closed(contract_schema)
@@ -854,6 +860,26 @@ def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_pre
 
     assert verification["status"] == "pass"
     assert "observed.uncovered_conclusion_clause_ids" not in verification["missing_inputs"]
+
+
+def test_claim_alignment_accepts_empty_uncovered_clause_audit_for_explicit_clauses() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    verification = run_contract_check(
+        {
+            "check_key": "contract.claim_to_proof_alignment",
+            "contract": _proof_contract_fixture(),
+            "metadata": {"conclusion_clause_ids": ["conclusion-main"]},
+            "observed": {
+                "uncovered_conclusion_clause_ids": [],
+                "scope_status": "matched",
+            },
+        }
+    )
+
+    assert verification["status"] == "pass"
+    assert verification["missing_inputs"] == []
+    assert verification["metrics"]["uncovered_conclusion_clause_ids"] == []
 
 
 def test_patterns_tools_expose_domain_category_and_severity_enums() -> None:

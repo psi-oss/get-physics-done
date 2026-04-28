@@ -564,6 +564,24 @@ class CompilationResult:
     warning: str | None = None
 
 
+class _CompilationLaunchFailure(Exception):
+    """Internal signal that a subprocess could not be started."""
+
+    def __init__(self, command_label: str, original: OSError) -> None:
+        super().__init__(str(original))
+        self.command_label = command_label
+        self.original = original
+
+
+def _command_label(command: str) -> str:
+    label = Path(command).name
+    return label or command
+
+
+def _launch_failure_error(command_label: str, exc: OSError) -> str:
+    return f"failed to launch {command_label}: {exc}"
+
+
 async def compile_paper(
     tex_path: Path,
     output_dir: Path,
@@ -686,6 +704,8 @@ async def _compile_with_tectonic(
         return CompilationResult(success=False, error=error, log=log_content[-5000:])
     except FileNotFoundError:
         return CompilationResult(success=False, error="tectonic not found")
+    except OSError as exc:
+        return CompilationResult(success=False, error=_launch_failure_error("tectonic", exc))
 
 
 async def _compile_with_latexmk(
@@ -773,6 +793,8 @@ async def _compile_with_latexmk(
         return CompilationResult(success=False, error=error, log=log_content[-5000:])
     except FileNotFoundError:
         return CompilationResult(success=False, error="latexmk not found")
+    except OSError as exc:
+        return CompilationResult(success=False, error=_launch_failure_error("latexmk", exc))
 
 
 async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: str) -> CompilationResult:
@@ -782,12 +804,15 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         return CompilationResult(success=False, error=f"Compiler '{compiler}' not found")
 
     async def run_cmd(cmd: list[str], cwd: str) -> tuple[int, str]:
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+        except OSError as exc:
+            raise _CompilationLaunchFailure(_command_label(cmd[0]), exc) from exc
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
         except TimeoutError:
@@ -972,6 +997,19 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
                 autofix_scratch_pdf_path,
             )
         return CompilationResult(success=False, error="Compilation timed out")
+    except _CompilationLaunchFailure as exc:
+        if autofix_scratch_tex_path is not None:
+            await asyncio.to_thread(
+                cleanup_autofix_scratch,
+                autofix_scratch_tex_path,
+                autofix_scratch_pdf_path,
+            )
+        if isinstance(exc.original, FileNotFoundError):
+            error = f"{exc.command_label} not found"
+        else:
+            error = _launch_failure_error(exc.command_label, exc.original)
+        log = "".join(combined_log_parts)[-5000:] or None
+        return CompilationResult(success=False, error=error, log=log)
 
 
 # ---- Full pipeline ----
@@ -1159,6 +1197,9 @@ async def build_paper(
     if not result.success and result.error:
         errors.append(result.error)
 
+    final_success = result.success and figures_prepared_successfully and not errors
+    published_pdf_path = result.pdf_path if final_success else None
+
     manifest = build_artifact_manifest(
         config,
         output_dir,
@@ -1168,19 +1209,17 @@ async def build_paper(
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         figure_source_pairs=figure_source_pairs,
-        pdf_path=result.pdf_path,
+        pdf_path=published_pdf_path,
     )
     if emit_artifact_manifest and manifest_path is not None:
         await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
-
-    final_success = result.success and figures_prepared_successfully and not errors
 
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
         tex_path=tex_path,
         figures_dir=figures_dir,
-        pdf_path=result.pdf_path,
+        pdf_path=published_pdf_path,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         reference_bibtex_keys=reference_bibtex_keys,

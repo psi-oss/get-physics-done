@@ -240,7 +240,10 @@ def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path:
     result = get_state(str(tmp_path))
 
     assert result == {
-        "error": "No project state found. Run 'gpd init new-project' to initialize a GPD project state.",
+        "error": (
+            "No project state found. Run the active runtime's new-project command "
+            "to initialize a GPD project state."
+        ),
         "schema_version": 1,
     }
 

@@ -32,6 +32,7 @@ from gpd.command_labels import (
 from gpd.core.errors import GPDError
 from gpd.core.observability import gpd_span
 from gpd.core.review_contract_prompt import review_contract_payload
+from gpd.mcp.descriptor_text import SKILL_BEHAVIORAL_GUARDRAIL_HINT
 from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_with_error,
@@ -138,13 +139,6 @@ def _markdown_reference_re() -> re.Pattern[str]:
     )
 
 
-_SKILL_BEHAVIORAL_GUARDRAIL_HINT = (
-    "Use scientific skepticism and critical thinking without treating the user as an adversary. Treat missing "
-    "evidence or artifacts as missing, blocked, failed, or inconclusive, and never fabricate references, results, "
-    "files, or completion state."
-)
-
-
 def _load_skill_index() -> list[content_registry.SkillDef]:
     """Load the canonical registry/MCP skill index from shared commands and agents."""
     return [content_registry.get_skill(name) for name in content_registry.list_skills()]
@@ -214,14 +208,14 @@ def _skill_loading_hint(
     if source_kind == "command":
         return (
             f"{dependency_hint} It already embeds the model-visible `Command Requirements` section. "
-            f"{_SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+            f"{SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
         )
     if source_kind == "agent":
         return (
             f"{dependency_hint} It already embeds the model-visible `Agent Requirements` section. "
-            f"{_SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+            f"{SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
         )
-    return f"{dependency_hint} {_SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
+    return f"{dependency_hint} {SKILL_BEHAVIORAL_GUARDRAIL_HINT}"
 
 
 def _skill_review_contract_payload(
@@ -1119,7 +1113,7 @@ def get_skill_index() -> dict:
                         "has_interactive_spawn_contracts": bool(command.interactive_spawn_contracts),
                     }
 
-            lines = ["# Available GPD Skills", "", _SKILL_BEHAVIORAL_GUARDRAIL_HINT, ""]
+            lines = ["# Available GPD Skills", "", SKILL_BEHAVIORAL_GUARDRAIL_HINT, ""]
             for cat in sorted(by_category):
                 lines.append(f"## {cat.title()}")
                 for name in sorted(by_category[cat]):

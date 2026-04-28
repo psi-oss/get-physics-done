@@ -15,6 +15,7 @@ import subprocess
 import sys
 from copy import deepcopy
 
+from gpd.mcp.descriptor_text import SKILLS_SERVER_DESCRIPTION
 from gpd.mcp.verification_contract_policy import verification_server_description
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ _PUBLIC_PYTHON_PLACEHOLDER = "${GPD_PYTHON}"
 _PYTHON_LAUNCH_NOTES = (
     f"Replace `{_PUBLIC_PYTHON_PLACEHOLDER}` with a Python >=3.11 interpreter that has GPD installed."
 )
+_OPTIONAL_MODULE_CHECK_TIMEOUT_SECONDS = 5
 
 # Canonical definition of all GPD built-in MCP servers.
 # Mirrors infra/*.json but lives inside the package so it ships with the wheel.
@@ -95,6 +97,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_conventions",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "subfield_defaults",
             "input": {"domain": "qft"},
             "expect": "contains metric_signature",
@@ -114,6 +117,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_errors",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_error_classes",
             "input": {},
             "expect": "count >= 100 error classes loaded",
@@ -133,6 +137,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_patterns",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_domains",
             "input": {},
             "expect": "contains qft",
@@ -152,17 +157,14 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_protocols",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_protocols",
             "input": {},
             "expect": "count >= 40 protocols loaded",
         },
     },
     "gpd-skills": {
-        "description": (
-            "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, "
-            "and indexing GPD workflow skills for runtime context assembly. Treat missing evidence or artifacts as "
-            "missing, blocked, failed, or inconclusive; never fabricate fallback outputs."
-        ),
+        "description": SKILLS_SERVER_DESCRIPTION,
         "capabilities": [
             "list_skills",
             "get_skill",
@@ -171,6 +173,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_skills",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "list_skills",
             "input": {},
             "expect": "contains gpd-execute-phase and gpd-research-phase",
@@ -192,6 +195,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_state",
         "health_check": {
+            "probe_kind": "expected_error",
             "tool": "get_state",
             "input": {},
             "expect": "returns a stable validation error envelope for missing required project_dir",
@@ -212,6 +216,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_verification",
         "health_check": {
+            "probe_kind": "schema_valid",
             "tool": "get_checklist",
             "input": {"domain": "qft"},
             "expect": "contains Ward identities",
@@ -232,6 +237,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         ],
         "registry_prefix": "gpd_arxiv",
         "health_check": {
+            "probe_kind": "network_required",
             "tool": "search_papers",
             "input": {"query": "quantum field theory", "max_results": 1},
             "expect": "contains paper",
@@ -275,8 +281,9 @@ def _is_module_available(module_name: str, *, python_path: str | None = None) ->
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            timeout=_OPTIONAL_MODULE_CHECK_TIMEOUT_SECONDS,
         ).returncode == 0
-    except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError):
+    except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError, subprocess.TimeoutExpired):
         return False
 
 

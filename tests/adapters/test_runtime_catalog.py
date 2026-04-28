@@ -895,6 +895,71 @@ def test_runtime_catalog_rejects_manifest_metadata_policy_affix_on_relpaths(
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+def _catalog_manifest_policy_entries(
+    payload: list[dict[str, object]],
+) -> list[tuple[int, dict[str, object], dict[str, object]]]:
+    entries: list[tuple[int, dict[str, object], dict[str, object]]] = []
+    for index, entry in enumerate(payload):
+        policies = entry.get("manifest_metadata_list_policies")
+        if isinstance(policies, list) and policies:
+            policy = policies[0]
+            assert isinstance(policy, dict)
+            entries.append((index, entry, policy))
+    return entries
+
+
+def _conflicting_manifest_metadata_policy(policy: dict[str, object]) -> dict[str, object]:
+    conflict = deepcopy(policy)
+    if conflict.get("value_kind") == "relpath":
+        conflict["value_kind"] = "path_segment"
+        conflict["item_prefix"] = "managed-"
+        conflict.pop("item_suffix", None)
+        return conflict
+
+    conflict["item_prefix"] = "alternate-" if conflict.get("item_prefix") != "alternate-" else "managed-"
+    return conflict
+
+
+def test_runtime_catalog_allows_identical_cross_runtime_manifest_metadata_policy_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    policy_entries = _catalog_manifest_policy_entries(payload)
+    assert len(policy_entries) >= 2
+    _, _source_entry, source_policy = policy_entries[0]
+    _target_index, target_entry, _target_policy = policy_entries[1]
+    target_entry["manifest_metadata_list_policies"] = [deepcopy(source_policy)]
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    policy_owners = [
+        descriptor.runtime_name
+        for descriptor in descriptors
+        if descriptor.manifest_metadata_list_policies
+        and descriptor.manifest_metadata_list_policies[0].key == source_policy["key"]
+    ]
+
+    assert len(policy_owners) == 2
+
+
+def test_runtime_catalog_rejects_conflicting_cross_runtime_manifest_metadata_policy_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    policy_entries = _catalog_manifest_policy_entries(payload)
+    assert len(policy_entries) >= 2
+    _, _source_entry, source_policy = policy_entries[0]
+    _target_index, target_entry, _target_policy = policy_entries[1]
+    target_entry["manifest_metadata_list_policies"] = [_conflicting_manifest_metadata_policy(source_policy)]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog contains conflicting manifest_metadata_list_policies\.key",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 @pytest.mark.parametrize(
     ("field_name", "bad_value", "match"),
     [

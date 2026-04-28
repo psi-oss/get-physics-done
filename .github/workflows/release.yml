@@ -68,6 +68,8 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.12"
 
       - name: Install development dependencies
         run: |

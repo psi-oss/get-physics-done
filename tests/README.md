@@ -35,10 +35,11 @@ It covers:
 - `src/gpd/commands/*.md`: `71`
 - `src/gpd/agents/*.md`: `24`
 - `src/gpd/specs/workflows/*.md`: `72`
-- `src/gpd/specs/templates/**/*.md`: `80`
-- `src/gpd/specs/references/**/*.md`: `180`
+- `src/gpd/specs/templates/**/*.md`: `81`
+- `src/gpd/specs/references/**/*.md`: `183`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
+- `src/gpd/mcp/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 
@@ -1228,11 +1229,19 @@ They explicitly preserve:
 - `src/gpd/mcp/builtin_servers.py -> infra/gpd-{conventions,errors,patterns,protocols,skills,state,verification,arxiv}.json`
   `authority`
 
+- `src/gpd/mcp/builtin_servers.py -> src/gpd/mcp/descriptor_text.py`
+  `hard-import`
+  Shared public descriptor copy keeps generated MCP descriptors and runtime skill discovery aligned.
+
 - `src/gpd/mcp/builtin_servers.py -> external binary {python}`
   `external-binary`
 
 - `src/gpd/mcp/builtin_servers.py -> src/gpd/mcp/servers/arxiv_bridge.py`
   `hard-import`
+
+- `src/gpd/mcp/servers/skills_server.py -> src/gpd/mcp/descriptor_text.py`
+  `hard-import`
+  Shared skill-server guardrail copy keeps listed, routed, and retrieved skill payloads aligned with descriptor text.
 
 - `src/gpd/mcp/servers/arxiv_bridge.py -> external Python package {arxiv_mcp_server}`
   `external-package`

@@ -49,7 +49,6 @@ TEMPLATES_DIR = SPECS_DIR / "templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 
 PLAN_QUANTIFIER_VISIBILITY_PHRASES = (
-    "Keep `quantifiers[]` visible when an explicit quantifier or domain obligation exists.",
     "Quantifiers are visible when explicit quantifier or domain obligations exist; unquantified proof-bearing claims "
     "do not need a non-empty quantifier list.",
 )
@@ -173,8 +172,10 @@ def _choice_line(field_name: str, values: tuple[str, ...]) -> str:
 
 
 def test_plan_contract_schema_surfaces_canonical_research_contract_fields() -> None:
-    plan_schema = _read(TEMPLATES_DIR / "plan-contract-schema.md")
+    raw_plan_schema = _read(TEMPLATES_DIR / "plan-contract-schema.md")
+    plan_schema = _expanded(TEMPLATES_DIR / "plan-contract-schema.md")
 
+    assert "@{GPD_INSTALL_DIR}/templates/contract-proof-obligation-rules.md" in raw_plan_schema
     _assert_tokens_visible(plan_schema, _field_tokens(*PLAN_MODELS), label="plan-contract-schema.md")
     assert "scalar|curve|map|classification|proof_obligation|other" in plan_schema
     assert "do not count as grounding" in plan_schema
@@ -257,6 +258,7 @@ def test_state_json_schema_references_project_contract_schema_as_single_raw_sour
     expanded_state_schema = _expanded(TEMPLATES_DIR / "state-json-schema.md")
 
     assert raw_state_schema.count("@{GPD_INSTALL_DIR}/templates/project-contract-schema.md") == 1
+    assert raw_state_schema.count("@{GPD_INSTALL_DIR}/templates/contract-proof-obligation-rules.md") == 0
     assert "# Project Contract Schema" not in raw_state_schema
     assert '"claim-main"' not in raw_state_schema
     assert "This state schema intentionally includes that template instead of restating" in raw_state_schema
@@ -264,6 +266,7 @@ def test_state_json_schema_references_project_contract_schema_as_single_raw_sour
     assert "# Project Contract Schema" in expanded_state_schema
     assert '"claim-main"' in expanded_state_schema
     assert "Project Contract ID Linkage Rules" in expanded_state_schema
+    assert expanded_state_schema.count("Use these rules for both PLAN frontmatter contracts") == 1
 
 
 def test_project_and_state_contract_schemas_surface_full_closed_research_vocabularies() -> None:

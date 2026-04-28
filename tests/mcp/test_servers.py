@@ -342,11 +342,24 @@ class TestBuiltinServerDescriptors:
 
         assert health_check["tool"] == "get_state"
         assert health_check["input"] == {}
+        assert health_check["probe_kind"] == "expected_error"
         assert "missing required project_dir" in str(health_check["expect"])
         assert "/tmp/test" not in json.dumps(health_check)
         assert result["schema_version"] == 1
         assert "error" in result
         assert "project_dir" in result["error"]
+
+    def test_public_descriptor_health_checks_classify_probe_requirements(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+
+        descriptors = build_public_descriptors()
+
+        assert descriptors["gpd-state"]["health_check"]["probe_kind"] == "expected_error"
+        assert descriptors["gpd-arxiv"]["health_check"]["probe_kind"] == "network_required"
+        schema_valid_servers = set(descriptors) - {"gpd-state", "gpd-arxiv"}
+        assert schema_valid_servers
+        for server_name in schema_valid_servers:
+            assert descriptors[server_name]["health_check"]["probe_kind"] == "schema_valid"
 
     def test_build_mcp_servers_dict_checks_optional_modules_in_target_interpreter(self, monkeypatch):
         from gpd.mcp import builtin_servers
@@ -355,11 +368,12 @@ class TestBuiltinServerDescriptors:
         current_python = "/usr/bin/python3.9"
         observed: dict[str, object] = {}
 
-        def fake_run(command, *, check, stdout, stderr):
+        def fake_run(command, *, check, stdout, stderr, timeout):
             observed["command"] = command
             observed["check"] = check
             observed["stdout"] = stdout
             observed["stderr"] = stderr
+            observed["timeout"] = timeout
             return SimpleNamespace(returncode=0 if command[0] == target_python else 1)
 
         monkeypatch.setattr(builtin_servers.sys, "executable", current_python)
@@ -372,6 +386,19 @@ class TestBuiltinServerDescriptors:
         assert observed["command"][2].startswith("import importlib.util")
         assert observed["command"][3] == "arxiv_mcp_server"
         assert observed["check"] is False
+        assert observed["timeout"] == 5
+
+    def test_build_mcp_servers_dict_skips_optional_modules_when_detection_times_out(self, monkeypatch):
+        from gpd.mcp import builtin_servers
+
+        def fake_run(command, *, check, stdout, stderr, timeout):
+            raise builtin_servers.subprocess.TimeoutExpired(command, timeout)
+
+        monkeypatch.setattr(builtin_servers.subprocess, "run", fake_run)
+
+        servers = builtin_servers.build_mcp_servers_dict(python_path="/opt/gpd/python3.11")
+
+        assert "gpd-arxiv" not in servers
 
     def test_public_infra_descriptors_match_builtin_descriptor_builder(self):
         from gpd.mcp.builtin_servers import build_public_descriptors
@@ -384,6 +411,14 @@ class TestBuiltinServerDescriptors:
         }
 
         assert committed == expected
+
+    def test_skills_public_descriptor_uses_shared_descriptor_text(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+        from gpd.mcp.descriptor_text import SKILLS_SERVER_DESCRIPTION
+
+        descriptor = build_public_descriptors()["gpd-skills"]
+
+        assert descriptor["description"] == SKILLS_SERVER_DESCRIPTION
 
 
 class TestMcpServerRunner:

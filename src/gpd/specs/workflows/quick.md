@@ -9,21 +9,17 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 **Step 1: Get task description**
 
-Prompt user interactively for the task description:
+Ask for the task description as a single freeform prompt. Do not use the shared structured-choice fallback here; there are no fixed option labels to preserve.
 
-```
-> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
+Ask ONE question inline (freeform, NOT ask_user):
 
-ask_user(
-  header: "Quick Task",
-  question: "What do you want to do? Examples:
+```text
+What quick task do you want to do? Examples:
   - Quick derivation of the equation of motion from the Lagrangian
   - Dimensional check on the cross-section formula in eq. (3.14)
   - Order-of-magnitude estimate for the tunneling rate
   - Verify the non-relativistic limiting case of the dispersion relation
-  - Look up the original reference for the Mermin-Wagner theorem",
-  followUp: null
-)
+  - Look up the original reference for the Mermin-Wagner theorem
 ```
 
 Store response as `$DESCRIPTION`.
@@ -59,7 +55,7 @@ Before the planner handoff, reload the `task_authoring` staged init payload and 
 Quick tasks can run mid-phase and do NOT require ROADMAP.md. They still require an initialized project workspace with `GPD/PROJECT.md` and the `GPD/` directory.
 Quick mode still inherits the approved `project_contract` only when `project_contract_gate.authoritative` is true, and it still inherits the active reference ledger. Do not bypass required anchors, baselines, or forbidden-proxy constraints just because the task is small.
 
-**Proof-obligation command block:** If the description or inherited contract indicates theorem-style work (`proof_obligation`, `theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `prove`, `show that`, `existence`, `uniqueness`), STOP instead of using quick mode. Do not bypass this by asking for a "quick sketch", "light proof", or "just the main idea". Route explicitly to:
+**Proof-obligation command block:** If the description or inherited contract indicates theorem-style or contract-backed proof work (`proof_obligation`, `claim_kind: theorem`, `claim_kind: lemma`, `claim_kind: corollary`, `claim_kind: proposition`, ProjectContract `claim_kind: claim`, `proof`, `prove`, `we prove`, theorem metadata, proof fields, or a formal `show that` / existence / uniqueness target with named hypotheses, parameters, quantifiers, domains, or conclusion clauses), STOP instead of using quick mode. A generic manuscript or task "claim" is not enough by itself. Do not bypass this by asking for a "quick sketch", "light proof", or "just the main idea". Route explicitly to:
 
 - `gpd:plan-phase <phase>` when this belongs in planned phase work
 - `gpd:derive-equation "<goal>"` when you need a derivation/proof draft

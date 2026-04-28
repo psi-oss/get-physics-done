@@ -30,6 +30,7 @@ GRAPH_SCOPE_LABELS = (
     "`src/gpd/specs/references/**/*.md`",
     "`src/gpd/adapters/*.py`",
     "`src/gpd/hooks/*.py`",
+    "`src/gpd/mcp/*.py`",
     "`src/gpd/mcp/servers/*.py`",
     "`infra/gpd-*.json`",
 )
@@ -176,6 +177,7 @@ def _is_graph_scope_path(path: Path) -> bool:
         or (_is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md")
         or (_has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py")
         or (_has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "mcp") and path.suffix == ".py")
         or (_has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py")
         or (_has_parent(path, "infra") and path.suffix == ".json" and path.name.startswith("gpd-"))
     )
@@ -257,6 +259,9 @@ def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
         ),
         "`src/gpd/hooks/*.py`": sum(
             1 for path in repo_files if _has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py"
+        ),
+        "`src/gpd/mcp/*.py`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp") and path.suffix == ".py"
         ),
         "`src/gpd/mcp/servers/*.py`": sum(
             1

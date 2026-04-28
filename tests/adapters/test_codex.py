@@ -69,6 +69,8 @@ def test_codex_command_runtime_note_injection_is_idempotent() -> None:
     assert once == twice
     assert twice.count("<codex_runtime_notes>") == 1
     assert twice.count("Codex shell compatibility:") == 1
+    assert twice.count("When shell steps call the GPD CLI") == 1
+    assert "The bridge already pins Codex" not in twice
 
 
 def _make_checkout(tmp_path: Path, version: str) -> Path:
@@ -552,7 +554,7 @@ class TestInstall:
 
         assert "Codex shell compatibility:" in skill
         assert f"When shell steps call the GPD CLI, use {expected_bridge}" in skill
-        assert "validates the install contract" in skill
+        assert "The bridge already pins Codex" not in skill
         assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" not in skill
         assert expected_bridge + " config ensure-section" in skill
         assert expected_bridge + ' config set model_profile "$ARGUMENTS.profile"' in skill

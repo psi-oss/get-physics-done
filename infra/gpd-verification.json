@@ -23,6 +23,7 @@
     "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
+    "probe_kind": "schema_valid",
     "tool": "get_checklist",
     "input": {
       "domain": "qft"

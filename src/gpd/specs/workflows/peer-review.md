@@ -230,13 +230,7 @@ mkdir -p ${REVIEW_ROOT}
 <step name="detect_proof_bearing_manuscript">
 Classify whether the manuscript contains theorem-style or `proof_obligation` claims before the staged panel proceeds.
 
-Treat the review target as proof-bearing when any of the following are true:
-
-- the approved project contract includes a claim or observable with kind `proof_obligation`
-- the manuscript text uses theorem-style language (`theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `we prove`, `show that`)
-- a core claim depends on a formal derivation whose validity turns on named hypotheses, parameters, or quantifiers
-
-If ambiguous, default to proof-bearing.
+@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
 
 When proof-bearing review is active:
 

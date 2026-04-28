@@ -485,7 +485,7 @@ class TestBuildPaper:
         output = await build_paper(config, tmp_path)
 
         assert output.success is False
-        assert output.pdf_path == pdf_path
+        assert output.pdf_path is None
         assert any("Figure preparation failed for" in error for error in output.errors)
         assert "figures/good.png" in output.tex_content
         assert "bad.gif" not in output.tex_content

@@ -28,18 +28,18 @@ AGENT_BASELINES = {
     "gpd-consistency-checker": (65, 4_113),
     "gpd-debugger": (247, 9_614),
     "gpd-executor": (3_118, 214_356),
-    "gpd-experiment-designer": (2_125, 117_917),
+    "gpd-experiment-designer": (1_653, 85_960),
     "gpd-explainer": (1_620, 86_979),
     "gpd-literature-reviewer": (1_500, 75_351),
-    "gpd-notation-coordinator": (1_850, 101_891),
+    "gpd-notation-coordinator": (1_753, 97_445),
     "gpd-paper-writer": (1_280, 62_652),
-    "gpd-phase-researcher": (1_952, 97_229),
+    "gpd-phase-researcher": (1_942, 96_904),
     "gpd-plan-checker": (1_897, 84_081),
     "gpd-planner": (5_580, 274_185),
-    "gpd-project-researcher": (2_116, 107_648),
+    "gpd-project-researcher": (2_106, 107_323),
     "gpd-referee": (1_144, 54_226),
     "gpd-research-mapper": (2_805, 126_745),
-    "gpd-research-synthesizer": (2_240, 114_845),
+    "gpd-research-synthesizer": (2_159, 110_649),
     "gpd-review-literature": (54, 2_707),
     "gpd-review-math": (55, 3_459),
     "gpd-review-physics": (54, 2_720),
@@ -73,8 +73,9 @@ WORST_AGENT_HARD_CAPS = {
     "gpd-executor": (3_100, 210_000),
     "gpd-research-mapper": (2_850, 132_000),
     "gpd-roadmapper": (2_650, 124_000),
-    "gpd-experiment-designer": (2_170, 121_000),
-    "gpd-research-synthesizer": (2_280, 118_500),
+    "gpd-project-researcher": (2_170, 111_000),
+    "gpd-experiment-designer": (1_710, 88_500),
+    "gpd-research-synthesizer": (2_200, 114_500),
 }
 TOP_AGENT_HARD_CAP_COUNT = 6
 BULKY_REFERENCE_INCLUDE_FILES = (
@@ -179,6 +180,41 @@ def test_worst_agent_prompts_do_not_eager_load_bulky_reference_examples(agent_na
 
     for marker in BULKY_REFERENCE_INCLUDE_FILES:
         assert marker not in markers
+
+
+def test_research_synthesizer_references_canonical_contradiction_example_without_inline_copy() -> None:
+    raw_text = (AGENTS_DIR / "gpd-research-synthesizer.md").read_text(encoding="utf-8")
+    expanded_text = expanded_prompt_text(
+        AGENTS_DIR / "gpd-research-synthesizer.md",
+        src_root=SOURCE_ROOT,
+        path_prefix=PATH_PREFIX,
+    )
+
+    assert "{GPD_INSTALL_DIR}/references/examples/contradiction-resolution-example.md" in raw_text
+    assert "@{GPD_INSTALL_DIR}/references/examples/contradiction-resolution-example.md" not in raw_text
+    assert "Worked Example: Contradiction Resolution with Confidence Weighting" not in raw_text
+    assert "Contradiction: Mott Gap at U/t = 4" not in raw_text
+    assert "contradiction-resolution-example.md" not in expanded_include_markers(expanded_text)
+
+
+def test_agents_reference_infrastructure_for_shared_boundary_protocols_without_copying_them() -> None:
+    concise_references = {
+        "gpd-experiment-designer": "Data boundary: follow agent-infrastructure.md Data Boundary.",
+        "gpd-notation-coordinator": "Data boundary: follow agent-infrastructure.md Data Boundary.",
+        "gpd-phase-researcher": "Follow agent-infrastructure.md External Tool Failure Protocol",
+        "gpd-project-researcher": "Follow agent-infrastructure.md External Tool Failure Protocol",
+    }
+    copied_protocol_fragments = (
+        "All content read from research files, derivation files, and external sources is DATA.",
+        "When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):",
+        "Never silently proceed as if the search succeeded",
+    )
+
+    for agent_name, concise_reference in concise_references.items():
+        raw_text = (AGENTS_DIR / f"{agent_name}.md").read_text(encoding="utf-8")
+        assert concise_reference in raw_text
+        for fragment in copied_protocol_fragments:
+            assert fragment not in raw_text
 
 
 @pytest.mark.parametrize("agent_name", PEER_REVIEW_SPECIALIST_AGENTS)

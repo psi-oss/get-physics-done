@@ -14,6 +14,7 @@ fail-closed:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,7 +27,11 @@ from gpd.core.continuation import (
 )
 from gpd.core.recent_projects import recent_projects_index_path
 from gpd.core.results import state_has_canonical_result_id
-from gpd.core.return_contract import GpdReturnContinuationUpdate, GpdReturnEnvelope
+from gpd.core.return_contract import (
+    GpdReturnContinuationBoundedSegment,
+    GpdReturnContinuationUpdate,
+    GpdReturnEnvelope,
+)
 from gpd.core.state import (
     StateUpdateResult,
     load_state_json_readonly,
@@ -52,6 +57,7 @@ __all__ = [
 # Explicit supported update surfaces for the canonical child-return applicator.
 SUPPORTED_STATE_UPDATE_FIELDS: tuple[str, ...] = ("advance_plan", "update_progress", "record_metric")
 SUPPORTED_CONTINUATION_UPDATE_FIELDS: tuple[str, ...] = ("handoff", "bounded_segment")
+_CHILD_RETURN_BOUNDED_SEGMENT_RECORDED_BY = "apply_child_return_updates"
 
 
 @dataclass(frozen=True)
@@ -136,7 +142,14 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
 
     state_snapshot = _capture_state_mutation_snapshot(cwd)
     recent_projects_snapshot = _capture_recent_projects_mutation_snapshot()
+    expected_state_snapshot = state_snapshot
+    expected_recent_projects_snapshot = recent_projects_snapshot
     current_operation = "apply_child_return_updates"
+
+    def _refresh_mutation_expectations() -> None:
+        nonlocal expected_state_snapshot, expected_recent_projects_snapshot
+        expected_state_snapshot = _capture_state_mutation_snapshot(cwd)
+        expected_recent_projects_snapshot = _capture_recent_projects_mutation_snapshot()
 
     try:
         if state_updates is not None:
@@ -152,6 +165,8 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                     warnings=warnings,
                     applied=applied_state_operations,
                 )
+                if result.advanced:
+                    _refresh_mutation_expectations()
             if state_updates.update_progress:
                 current_operation = "update_progress"
                 result = state_update_progress(cwd)
@@ -164,6 +179,8 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                     warnings=warnings,
                     applied=applied_state_operations,
                 )
+                if result.updated:
+                    _refresh_mutation_expectations()
             if state_updates.record_metric is not None:
                 current_operation = "record_metric"
                 metric = state_updates.record_metric
@@ -184,6 +201,8 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                     warnings=warnings,
                     applied=applied_state_operations,
                 )
+                if result.recorded:
+                    _refresh_mutation_expectations()
 
         for decision in decisions:
             current_operation = "add_decision"
@@ -204,6 +223,7 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
             )
             if result.added:
                 applied_decisions += 1
+                _refresh_mutation_expectations()
 
         for blocker in blockers:
             current_operation = "add_blocker"
@@ -219,6 +239,7 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
             )
             if result.added:
                 applied_blockers += 1
+                _refresh_mutation_expectations()
 
         if continuation_update is not None:
             if continuation_update.handoff is not None:
@@ -241,6 +262,8 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                     warnings=warnings,
                     applied=applied_continuation_operations,
                 )
+                if result.recorded:
+                    _refresh_mutation_expectations()
 
             if "bounded_segment" in continuation_update.model_fields_set:
                 bounded_segment = continuation_update.bounded_segment
@@ -254,9 +277,14 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                         warnings=warnings,
                         applied=applied_continuation_operations,
                     )
+                    if result.updated:
+                        _refresh_mutation_expectations()
                 else:
                     current_operation = "set_bounded_segment"
-                    result = state_set_continuation_bounded_segment(cwd, bounded_segment)
+                    result = state_set_continuation_bounded_segment(
+                        cwd,
+                        _with_applicator_owned_bounded_segment_metadata(bounded_segment),
+                    )
                     _record_state_update_result(
                         result,
                         operation="set_bounded_segment",
@@ -264,12 +292,22 @@ def apply_child_return_updates(cwd: Path, envelope: GpdReturnEnvelope) -> ApplyC
                         warnings=warnings,
                         applied=applied_continuation_operations,
                     )
+                    if result.updated:
+                        _refresh_mutation_expectations()
     except Exception as exc:
         errors.append(f"{current_operation}: {exc}")
 
     if errors:
-        rollback_errors = _restore_state_mutation_snapshot(state_snapshot)
-        rollback_errors.extend(_restore_recent_projects_mutation_snapshot(recent_projects_snapshot))
+        rollback_errors = _restore_state_mutation_snapshot(
+            state_snapshot,
+            expected_current_snapshots=expected_state_snapshot,
+        )
+        rollback_errors.extend(
+            _restore_recent_projects_mutation_snapshot(
+                recent_projects_snapshot,
+                expected_current_snapshot=expected_recent_projects_snapshot,
+            )
+        )
         if rollback_errors:
             errors.extend(rollback_errors)
         elif applied_state_operations or applied_continuation_operations or applied_decisions or applied_blockers:
@@ -352,6 +390,17 @@ def _validate_continuation_update(raw: object, errors: list[str]) -> GpdReturnCo
         return None
 
 
+def _with_applicator_owned_bounded_segment_metadata(
+    bounded_segment: GpdReturnContinuationBoundedSegment,
+) -> GpdReturnContinuationBoundedSegment:
+    return bounded_segment.model_copy(
+        update={
+            "updated_at": datetime.now(UTC).isoformat(),
+            "recorded_by": _CHILD_RETURN_BOUNDED_SEGMENT_RECORDED_BY,
+        }
+    )
+
+
 def _validate_continuation_update_semantics(
     cwd: Path,
     continuation_update: GpdReturnContinuationUpdate | None,
@@ -395,6 +444,15 @@ def _validate_continuation_update_semantics(
             "set_bounded_segment: Invalid continuation bounded_segment schema: "
             "bounded_segment must include at least one non-empty field"
         )
+    elif normalized_segment.last_result_id is not None:
+        state_obj = load_state_json_readonly(cwd)
+        if not isinstance(state_obj, dict):
+            errors.append("set_bounded_segment: State not found")
+        elif not state_has_canonical_result_id(state_obj, normalized_segment.last_result_id):
+            errors.append(
+                f'set_bounded_segment: last_result_id "{normalized_segment.last_result_id}" does not match any '
+                "canonical result in intermediate_results"
+            )
 
 
 def _capture_state_mutation_snapshot(cwd: Path) -> tuple[_FileSnapshot, ...]:
@@ -416,20 +474,38 @@ def _capture_file_snapshot(path: Path) -> _FileSnapshot:
         return _FileSnapshot(path=path, existed=False, content=None)
 
 
-def _restore_state_mutation_snapshot(snapshots: tuple[_FileSnapshot, ...]) -> list[str]:
+def _restore_state_mutation_snapshot(
+    snapshots: tuple[_FileSnapshot, ...],
+    *,
+    expected_current_snapshots: tuple[_FileSnapshot, ...] | None = None,
+) -> list[str]:
     if not snapshots:
         return []
     try:
         with file_lock(snapshots[0].path):
-            return _restore_file_snapshots(snapshots)
+            return _restore_file_snapshots(snapshots, expected_current_snapshots=expected_current_snapshots)
     except OSError as exc:
         return [f"rollback failed for {snapshots[0].path}: {exc}"]
     except TimeoutError as exc:
         return [f"rollback failed for {snapshots[0].path}: {exc}"]
 
 
-def _restore_file_snapshots(snapshots: tuple[_FileSnapshot, ...]) -> list[str]:
+def _restore_file_snapshots(
+    snapshots: tuple[_FileSnapshot, ...],
+    *,
+    expected_current_snapshots: tuple[_FileSnapshot, ...] | None = None,
+) -> list[str]:
     errors: list[str] = []
+    if expected_current_snapshots is not None:
+        changed_paths = [
+            expected.path
+            for expected in expected_current_snapshots
+            if not _current_file_matches_snapshot(expected)
+        ]
+        if changed_paths:
+            changed = ", ".join(str(path) for path in changed_paths)
+            return [f"rollback skipped because file(s) changed after child-return mutation: {changed}"]
+
     for snapshot in snapshots:
         try:
             if snapshot.existed:
@@ -442,10 +518,25 @@ def _restore_file_snapshots(snapshots: tuple[_FileSnapshot, ...]) -> list[str]:
     return errors
 
 
-def _restore_recent_projects_mutation_snapshot(snapshot: _FileSnapshot) -> list[str]:
+def _current_file_matches_snapshot(snapshot: _FileSnapshot) -> bool:
+    try:
+        current = snapshot.path.read_bytes()
+    except FileNotFoundError:
+        return not snapshot.existed
+    except OSError:
+        return False
+    return snapshot.existed and current == (snapshot.content or b"")
+
+
+def _restore_recent_projects_mutation_snapshot(
+    snapshot: _FileSnapshot,
+    *,
+    expected_current_snapshot: _FileSnapshot | None = None,
+) -> list[str]:
     try:
         with file_lock(snapshot.path):
-            return _restore_file_snapshots((snapshot,))
+            expected = None if expected_current_snapshot is None else (expected_current_snapshot,)
+            return _restore_file_snapshots((snapshot,), expected_current_snapshots=expected)
     except OSError as exc:
         return [f"rollback failed for {snapshot.path}: {exc}"]
     except TimeoutError as exc:

@@ -140,7 +140,6 @@ _CODEX_COMMAND_RUNTIME_NOTE = (
     "Codex shell compatibility:\n"
     "- Keep user-facing command names canonical in prose: `gpd ...` for your normal terminal and `$gpd-...` for Codex commands.\n"
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
-    "- The bridge already pins Codex and validates the install contract, so keep using it for normal CLI execution.\n"
     "</codex_runtime_notes>\n\n"
 )
 _CODEX_COMMAND_RUNTIME_NOTE_BLOCK_RE = re.compile(

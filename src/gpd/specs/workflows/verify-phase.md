@@ -159,21 +159,9 @@ Detect whether any verification target is proof-bearing.
 
 Use the shared verification child-return contract for the generic handoff mechanics; keep the proof-redteam requirements below authoritative.
 
-Treat a target as proof-bearing when:
+@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
 
-- the contract includes an observable or claim with kind `proof_obligation`
-- a claim, deliverable, or acceptance test is theorem-style (`theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `prove`, `show that`)
-- the result is a formal derivation whose truth depends on all named hypotheses, parameters, or quantifiers being used correctly
-
-If ambiguous, default to proof-bearing.
-
-For each proof-bearing plan or claim, require the sibling `*-PROOF-REDTEAM.md` artifact. Read it and verify that it contains:
-
-1. the theorem or claim text being audited
-2. the inventory of named parameters, hypotheses, quantifier/domain obligations, and conclusion clauses
-3. explicit coverage notes showing where each obligation is used in the proof
-4. at least one adversarial special-case or counterexample probe
-5. canonical `status: passed | gaps_found | human_needed`
+For each proof-bearing plan or claim, require the sibling `*-PROOF-REDTEAM.md` artifact. Read it and verify that it follows the shared gate above.
 
 Missing artifact, missing theorem inventory, or `status != passed` is a blocking gap. Do not allow the phase verification report to finish at `status: passed` while any required proof-redteam artifact is missing or open.
 When runtime delegation is available and a required audit is missing, malformed, or stale, spawn `gpd-check-proof` once to repair that gap before finalizing the verdict. If the proof critic cannot produce a passed audit, keep the target blocked rather than inferring theorem-proof alignment from the main verifier context.

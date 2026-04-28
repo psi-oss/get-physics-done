@@ -106,6 +106,8 @@ Read all PLAN.md files in ${phase_dir}/ using the file_read tool.
 <step name="proof_readiness_gate">
 Detect whether the phase is proof-bearing before any verifier handoff.
 
+@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
+
 Load proof/bootstrap before using proof freshness or proof-repair routing:
 
 ```bash

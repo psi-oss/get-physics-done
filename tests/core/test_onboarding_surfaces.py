@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from gpd.adapters import iter_runtime_descriptors
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.command_labels import validated_public_command_prefix
 from gpd.core import onboarding_surfaces as onboarding_surfaces_module
 from gpd.core import public_surface_contract as public_surface_contract_module
@@ -794,22 +795,64 @@ def test_doc_surface_contract_payload_cache_clear_refreshes_after_source_swap(
     assert doc_surface_contracts_module.beginner_preflight_requirements() == ("Second preflight",)
 
 
-def test_onboarding_framing_sentence_appears_on_primary_surfaces() -> None:
+def test_onboarding_boundary_reference_stays_internal_to_start_and_tour() -> None:
     from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[2]
     fragment = "scalpel, not an autopilot"
-    primary_surfaces = (
-        "README.md",
-        "docs/README.md",
+
+    assert fragment in (repo_root / "README.md").read_text(encoding="utf-8")
+
+    internal_workflows = (
         "src/gpd/specs/workflows/start.md",
         "src/gpd/specs/workflows/tour.md",
+    )
+    for rel in internal_workflows:
+        raw = (repo_root / rel).read_text(encoding="utf-8")
+        expanded = expand_at_includes(raw, repo_root / "src/gpd", "/runtime/")
+        assert "@{GPD_INSTALL_DIR}/references/shared/onboarding-command-boundaries.md" in raw
+        assert fragment in expanded
+        if rel.endswith("tour.md"):
+            assert expanded.count("help -> start -> tour") == 1
+
+    public_workflows = (
         "src/gpd/specs/workflows/help.md",
         "src/gpd/specs/workflows/settings.md",
     )
+    for rel in public_workflows:
+        raw = (repo_root / rel).read_text(encoding="utf-8")
+        expanded = expand_at_includes(raw, repo_root / "src/gpd", "/runtime/")
+        assert "@{GPD_INSTALL_DIR}/references/shared/onboarding-command-boundaries.md" not in raw
+        assert "Keep the beginner boundaries stable" not in expanded
+        assert "`start` is the chooser/router" not in expanded
+        assert "`settings` belongs after first successful startup" not in expanded
 
-    missing = [
-        rel for rel in primary_surfaces
-        if fragment not in (repo_root / rel).read_text(encoding="utf-8")
-    ]
-    assert missing == [], f"framing fragment missing from: {missing}"
+
+def test_workflow_interactive_choice_fallback_is_single_sourced() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    fallback_ref = "@{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md"
+    workflow_surfaces = (
+        "src/gpd/specs/workflows/start.md",
+        "src/gpd/specs/workflows/new-project.md",
+        "src/gpd/specs/workflows/settings.md",
+    )
+
+    for rel in workflow_surfaces:
+        raw = (repo_root / rel).read_text(encoding="utf-8")
+        expanded = expand_at_includes(raw, repo_root / "src/gpd", "/runtime/")
+        assert fallback_ref in raw
+        assert "Use `ask_user` for structured choices when the runtime supports it." in expanded
+        assert "Platform note" not in raw
+        assert "If `ask_user` is available" not in raw
+        assert "If `ask_user` is not available" not in raw
+
+
+def test_quick_workflow_uses_freeform_prompt_without_choice_fallback() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    raw = (repo_root / "src/gpd/specs/workflows/quick.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md" not in raw
+    assert "Ask ONE question inline (freeform, NOT ask_user):" in raw
+    assert "there are no fixed option labels to preserve" in raw
+    assert "ask_user(" not in raw
+    assert "If `ask_user` is not available" not in raw

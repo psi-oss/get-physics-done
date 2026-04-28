@@ -51,7 +51,7 @@ If advanced terms appear in the summary, explain them once in parentheses and th
 <step name="frame_autonomy_posture">
 Before offering choices, set expectations for supervision:
 
-GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+@{GPD_INSTALL_DIR}/references/shared/onboarding-command-boundaries.md
 
 Do not write config.json from this workflow. If the researcher wants to change autonomy, point them at `gpd:settings`.
 </step>
@@ -59,9 +59,9 @@ Do not write config.json from this workflow. If the researcher wants to change a
 <step name="offer_relevant_choices">
 Offer only the choices that fit the detected state.
 
-If `ask_user` is available, present the choices as normal selectable options.
+@{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md
 
-If `ask_user` is not available, show the same choices as numbered options and wait for the user to reply with a number or short phrase. Say explicitly: `Reply with the number or the option name.`
+For the plain-text fallback from the shared rule, say explicitly: `Reply with the number or the option name.`
 
 Before listing choices, add one short line in plain English such as:
 

@@ -123,6 +123,49 @@ def test_parameter_sweep_command_wrapper_delegates_mechanics_to_workflow() -> No
     assert "Grid Type" not in text
 
 
+def test_thin_command_wrappers_do_not_duplicate_workflow_owned_mechanics() -> None:
+    explain = (COMMANDS_DIR / "explain.md").read_text(encoding="utf-8")
+    assert (
+        explain.count(
+            "GPD-authored explanation artifacts stay under `GPD/explanations/` rooted at the current workspace."
+        )
+        == 1
+    )
+    assert "Keep any GPD-authored explanation artifacts under `GPD/explanations/`" not in explain
+
+    workflow_owned_fragments = {
+        "explain.md": (
+            "Check for prior explanation artifacts:",
+            "Show the explanation summary",
+        ),
+        "limiting-cases.md": (
+            "Interpretation:",
+            "Known Limiting Cases",
+            "Every new result must reduce to known results",
+            "For comprehensive verification",
+        ),
+        "parameter-sweep.md": (
+            "Accepted targets:",
+            "one explicit current-workspace computation anchor",
+            "Preserve its workspace-locked bootstrap",
+            "Phase-backed outputs and standalone/current-workspace",
+        ),
+        "reapply-patches.md": (
+            "All backed-up patches processed",
+            "User modifications merged into new version",
+            "Physics-specific content (conventions, signs, units)",
+            "Conflicts resolved with user input",
+        ),
+    }
+
+    for filename, stale_fragments in workflow_owned_fragments.items():
+        text = (COMMANDS_DIR / filename).read_text(encoding="utf-8")
+        assert f"@{{GPD_INSTALL_DIR}}/workflows/{filename}" in text
+        assert "workflow-owned implementation" in text or "same-named workflow owns" in text
+        for fragment in stale_fragments:
+            assert fragment not in text, f"{filename} still duplicates workflow mechanics: {fragment}"
+
+
 def test_digest_knowledge_command_wrapper_delegates_mechanics_to_workflow() -> None:
     text = (COMMANDS_DIR / "digest-knowledge.md").read_text(encoding="utf-8")
 

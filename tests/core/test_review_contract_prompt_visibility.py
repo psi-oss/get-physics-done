@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from gpd import registry
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
 )
@@ -1680,7 +1681,11 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
 
 
 def test_prompt_visible_contracts_surface_literal_boolean_requirements() -> None:
-    plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    plan_schema = expand_at_includes(
+        (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd/specs",
+        "/runtime/",
+    )
     review_reader = (AGENTS_DIR / "gpd-review-reader.md").read_text(encoding="utf-8")
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
 

@@ -68,6 +68,40 @@ def test_get_skill_command_allowed_tools_are_defensive_copies() -> None:
     assert command.allowed_tools == ["file_read", "shell", "shell"]
 
 
+def test_get_skill_loading_hint_uses_shared_behavioral_guardrail_text() -> None:
+    from gpd.mcp.descriptor_text import SKILL_BEHAVIORAL_GUARDRAIL_HINT
+    from gpd.mcp.servers.skills_server import get_skill
+
+    command = CommandDef(
+        name="gpd:help",
+        description="Help.",
+        argument_hint="",
+        agent=None,
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path="/tmp/gpd-help.md",
+        source="commands",
+    )
+    skill = SkillDef(
+        name="gpd-help",
+        description="Help.",
+        content="Command body.",
+        category="help",
+        path="/tmp/gpd-help.md",
+        source_kind="command",
+        registry_name="help",
+    )
+
+    with (
+        patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+        patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+    ):
+        result = get_skill("gpd-help")
+
+    assert SKILL_BEHAVIORAL_GUARDRAIL_HINT in result["loading_hint"]
+
+
 def test_get_skill_command_surfaces_agent_metadata() -> None:
     from gpd.mcp.servers.skills_server import get_skill
 

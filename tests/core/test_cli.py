@@ -6431,6 +6431,14 @@ def test_init_resume(mock_init):
     mock_init.assert_called_once()
 
 
+def test_init_resume_work_alias_is_not_available() -> None:
+    result = runner.invoke(app, ["init", "resume-work"])
+
+    assert result.exit_code != 0
+    assert "resume-work" in result.output
+    assert "No such command" in result.output
+
+
 def test_paper_build_uses_default_config_surface(tmp_path: Path):
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()

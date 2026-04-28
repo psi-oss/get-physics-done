@@ -868,16 +868,7 @@ def _default_markdown_transform(runtime: str) -> Callable[[str, str, str | None]
     """Resolve the adapter-owned shared-markdown transform for *runtime*."""
     from gpd.adapters import get_adapter
 
-    try:
-        adapter = get_adapter(runtime)
-    except KeyError:
-        return lambda content, path_prefix, install_scope: replace_placeholders(
-            content,
-            path_prefix,
-            runtime,
-            install_scope,
-        )
-    return adapter.translate_shared_markdown
+    return get_adapter(runtime).translate_shared_markdown
 
 
 def _shell_var_placeholder(match: re.Match[str]) -> str:

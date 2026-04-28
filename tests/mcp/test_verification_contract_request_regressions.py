@@ -212,7 +212,7 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert alignment_metadata_branch["properties"]["conclusion_clause_ids"]["items"]["type"] == "string"
     assert alignment_metadata_branch["properties"]["conclusion_clause_ids"]["items"]["minLength"] == 1
     assert alignment_observed_branch["required"] == ["uncovered_conclusion_clause_ids"]
-    assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["minItems"] == 1
+    assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"].get("minItems", 0) == 0
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["items"]["type"] == "string"
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["items"]["minLength"] == 1
     assert "check_id" not in json.dumps(run_schema)

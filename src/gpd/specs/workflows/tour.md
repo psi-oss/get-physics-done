@@ -32,12 +32,7 @@ When you first use an official GPD term such as `runtime`, `read-only`, or
 Close the opening with one sentence that says this tour explains the common
 commands without executing them.
 
-Also add one short sentence near the opening that frames a common first pass
-without turning it into a rigid startup ladder, for example:
-
-`A common first pass is help -> start -> tour, then the path that fits the folder.`
-
-GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+@{GPD_INSTALL_DIR}/references/shared/onboarding-command-boundaries.md
 </step>
 
 <step name="explain_the_core_paths">

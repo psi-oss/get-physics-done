@@ -925,6 +925,43 @@ class TestInstall:
         assert settings["tools"]["allowed"] == ["write_file"]
         assert settings["mcpServers"]["gpd-state"]["trust"] is False
 
+    def test_install_reads_commit_attribution_from_target_settings_not_policy_toml(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps({"attribution": {"commit": "Target Local <target@example.com>"}}),
+            encoding="utf-8",
+        )
+        policy_dir = target / "policies"
+        policy_dir.mkdir()
+        (policy_dir / "gpd-auto-edit.toml").write_text(
+            json.dumps({"attribution": {"commit": "Wrong Policy <wrong@example.com>"}}),
+            encoding="utf-8",
+        )
+        for relpath in ("commands/help.md", "agents/gpd-verifier.md"):
+            source_path = gpd_root / relpath
+            source_path.write_text(
+                source_path.read_text(encoding="utf-8")
+                + "\nCo-Authored-By: AI Runtime <ai@example.com>\n",
+                encoding="utf-8",
+            )
+
+        assert adapter.commit_attribution_config_path(explicit_config_dir=str(target)) == target / "settings.json"
+
+        adapter.install(gpd_root, target)
+
+        command = (target / "commands" / "gpd" / "help.toml").read_text(encoding="utf-8")
+        agent = (target / "agents" / "gpd-verifier.md").read_text(encoding="utf-8")
+        assert "Co-Authored-By: Target Local <target@example.com>" in command
+        assert "Co-Authored-By: Target Local <target@example.com>" in agent
+        assert "Wrong Policy <wrong@example.com>" not in command
+        assert "Wrong Policy <wrong@example.com>" not in agent
+
     def test_install_writes_manifest(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()

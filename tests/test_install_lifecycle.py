@@ -9,7 +9,7 @@ import pytest
 
 from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import ManifestMetadataListPolicy, iter_runtime_descriptors
 from gpd.hooks.install_metadata import assess_install_target
 
 
@@ -44,6 +44,54 @@ _MARKDOWN_COMMAND_RUNTIME = next(
 _EXTERNAL_SKILLS_RUNTIME = next(
     descriptor for descriptor in _INSTALL_LIFECYCLE_DESCRIPTORS if "skills/" in descriptor.manifest_file_prefixes
 )
+_EXTERNAL_SKILLS_MANIFEST_METADATA_POLICY = next(
+    policy
+    for policy in _EXTERNAL_SKILLS_RUNTIME.manifest_metadata_list_policies
+    if policy.value_kind == "path_segment" and policy.item_prefix is not None
+)
+
+
+def _manifest_metadata_list_values(
+    manifest: dict[str, object],
+    policy: ManifestMetadataListPolicy,
+) -> list[str]:
+    raw_values = manifest[policy.key]
+    assert isinstance(raw_values, list)
+    values = []
+    for value in raw_values:
+        assert isinstance(value, str)
+        values.append(value)
+    return values
+
+
+def _assert_manifest_metadata_values_match_policy(
+    values: list[str],
+    policy: ManifestMetadataListPolicy,
+) -> None:
+    if policy.item_prefix is not None:
+        assert all(value.startswith(policy.item_prefix) for value in values)
+    if policy.item_suffix is not None:
+        assert all(value.endswith(policy.item_suffix) for value in values)
+
+
+def _unsafe_manifest_metadata_updates() -> list[dict[str, object]]:
+    updates: list[dict[str, object]] = []
+    for descriptor in _INSTALL_LIFECYCLE_DESCRIPTORS:
+        for policy in descriptor.manifest_metadata_list_policies:
+            if policy.value_kind == "relpath":
+                updates.append({policy.key: ["policies/../escape.toml"]})
+                continue
+            if policy.value_kind == "path_segment":
+                prefix = policy.item_prefix or ""
+                suffix = policy.item_suffix or ""
+                updates.append({policy.key: [f"{prefix}../escape{suffix}"]})
+                if policy.item_prefix is not None:
+                    updates.append({policy.key: [f"unexpected-prefix{suffix}"]})
+                if policy.item_suffix is not None:
+                    updates.append({policy.key: [f"{prefix}missing-suffix"]})
+                continue
+            raise AssertionError(f"Unhandled manifest metadata value kind: {policy.value_kind}")
+    return updates
 
 
 def test_markdown_command_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
@@ -111,8 +159,9 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     assert "notify" in config_toml
     assert "multi_agent = true" in config_toml
     manifest = _assert_manifest_present(target)
-    assert manifest["codex_generated_skill_dirs"]
-    assert all(name.startswith("gpd-") for name in manifest["codex_generated_skill_dirs"])
+    generated_skill_dirs = _manifest_metadata_list_values(manifest, _EXTERNAL_SKILLS_MANIFEST_METADATA_POLICY)
+    assert generated_skill_dirs
+    _assert_manifest_metadata_values_match_policy(generated_skill_dirs, _EXTERNAL_SKILLS_MANIFEST_METADATA_POLICY)
 
     suggest_next = (skills_dir / "gpd-suggest-next" / "SKILL.md").read_text(encoding="utf-8")
     bridge_command = build_runtime_cli_bridge_command(
@@ -131,7 +180,7 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     uninstall_result = adapter.uninstall(target, skills_dir=skills_dir)
     assert uninstall_result["skills"] > 0
     assert (preserved_skill / "SKILL.md").exists()
-    assert not any((skills_dir / name).exists() for name in manifest["codex_generated_skill_dirs"])
+    assert not any((skills_dir / name).exists() for name in generated_skill_dirs)
     assert not (target / "get-physics-done").exists()
     assert not (target / MANIFEST_NAME).exists()
 
@@ -162,10 +211,7 @@ def test_install_readiness_treats_same_runtime_incomplete_install_as_repairable(
         {"files": {"../escape": "hash"}},
         {"files": {"hooks//statusline.py": "hash"}},
         {"files": {"hooks\\..\\escape.py": "hash"}},
-        {"codex_generated_skill_dirs": ["../escape"]},
-        {"codex_generated_skill_dirs": ["user-skill"]},
-        {"opencode_generated_command_files": ["gpd-../../escape.md"]},
-        {"managed_runtime_files": ["policies/../escape.toml"]},
+        *_unsafe_manifest_metadata_updates(),
     ],
 )
 def test_install_readiness_treats_unsafe_manifest_path_metadata_as_untrusted(

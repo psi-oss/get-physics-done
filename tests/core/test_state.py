@@ -1856,6 +1856,8 @@ def test_state_snapshot_does_not_recover_intent_marker_and_keeps_state_unchanged
     snapshot = state_snapshot(tmp_path)
 
     assert snapshot.current_phase == "01"
+    assert "session" not in type(snapshot).model_fields
+    assert "session" not in snapshot.model_dump(mode="json")
     assert layout.state_json.read_text(encoding="utf-8") == before_state
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["position"]["current_phase"] == "01"
     assert layout.state_intent.exists()
@@ -2093,6 +2095,23 @@ def test_save_state_markdown_recovers_pending_intent_before_merging_existing_sta
     assert stored["position"]["current_phase"] == "06"
     assert stored["project_contract"]["scope"]["question"] == "recovered contract"
     assert not layout.state_intent.exists()
+
+
+def test_state_load_project_contract_diagnostics_use_recovered_intent_state(tmp_path: Path) -> None:
+    stale_state = default_state_dict()
+    stale_state["project_contract"] = _draft_invalid_project_contract()
+
+    recovered_state = default_state_dict()
+    recovered_state["project_contract"] = _project_contract_with_question("recovered contract")
+
+    _write_intent_recovery_state(tmp_path, stale_state=stale_state, recovered_state=recovered_state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.state["project_contract"]["scope"]["question"] == "recovered contract"
+    assert loaded.project_contract_load_info["status"] == "loaded"
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["authoritative"] is True
 
 
 def test_state_load_persists_state_md_recovery_to_backup_and_recent_projects(
@@ -3260,6 +3279,35 @@ def test_state_set_continuation_bounded_segment_rejects_salvageable_drift(
 
     after = load_state_json(cwd)
     assert after == before
+
+
+def test_state_set_continuation_bounded_segment_rejects_unknown_last_result_id(
+    tmp_path: Path,
+    state_project_factory,
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    resume_path = cwd / "GPD" / "phases" / "03-analysis" / "resume.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("resume\n", encoding="utf-8")
+
+    before = load_state_json(cwd)
+    assert before is not None
+
+    result = state_set_continuation_bounded_segment(
+        cwd,
+        {
+            "resume_file": str(resume_path),
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "segment-03-02",
+            "segment_status": "paused",
+            "last_result_id": "missing-result",
+        },
+    )
+
+    assert result.updated is False
+    assert 'last_result_id "missing-result" does not match any canonical result' in (result.reason or "")
+    assert load_state_json(cwd) == before
 
 
 def test_state_set_continuation_bounded_segment_persists_strict_valid_payload(

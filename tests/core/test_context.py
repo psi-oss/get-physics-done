@@ -319,6 +319,13 @@ def _install_fake_stage_manifest(
     return manifest
 
 
+def _fail_if_context_builder_runs(name: str):
+    def fail(*args: object, **kwargs: object) -> dict[str, object]:
+        pytest.fail(f"{name} should not run for this staged init")
+
+    return fail
+
+
 def _write_state_intent_recovery_files(project_root: Path) -> ProjectLayout:
     from gpd.core.state import default_state_dict
 
@@ -1497,6 +1504,26 @@ class TestInitExecutePhaseStagedWiring:
         assert "protocol_bundle_context" not in ctx
         assert "current_execution" not in ctx
 
+    def test_stage_phase_classification_skips_reference_artifact_payload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_project_contract_state(tmp_path)
+        calls: list[bool] = []
+
+        def _record_artifact_payload(*_args: object, include_content: bool = True, **_kwargs: object) -> dict[str, object]:
+            calls.append(include_content)
+            raise AssertionError("phase_classification should not scan reference artifacts")
+
+        monkeypatch.setattr("gpd.core.context._reference_artifact_payload", _record_artifact_payload)
+
+        ctx = init_execute_phase(tmp_path, "1", stage="phase_classification")
+
+        assert ctx["staged_loading"]["stage_id"] == "phase_classification"
+        assert "active_reference_context" in ctx
+        assert calls == []
+
     def test_stage_rejects_unknown_execute_phase_stage(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-setup")
@@ -2570,6 +2597,25 @@ class TestInitNewProject:
         assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
         assert ctx["project_contract_gate"]["visible"] is True
         assert "reference_artifacts_content" not in ctx
+
+    def test_resume_work_stage_state_restore_skips_reference_artifact_payload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        calls: list[bool] = []
+
+        def _record_artifact_payload(*_args: object, include_content: bool = True, **_kwargs: object) -> dict[str, object]:
+            calls.append(include_content)
+            raise AssertionError("state_restore should not scan reference artifacts")
+
+        monkeypatch.setattr("gpd.core.context._reference_artifact_payload", _record_artifact_payload)
+
+        ctx = init_resume(tmp_path, stage="state_restore")
+
+        assert ctx["staged_loading"]["stage_id"] == "state_restore"
+        assert "active_reference_context" in ctx
+        assert calls == []
 
     def test_sync_state_stage_sync_bootstrap_filters_payload(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3766,6 +3812,45 @@ class TestInitVerifyWork:
         assert ctx["derived_convention_lock"]["metric_signature"] == "(-,+,+,+)"
         assert "reference_artifacts_content" not in ctx
 
+    def test_stage_inventory_build_uses_reference_metadata_without_artifact_content(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_stat_mech_project(tmp_path)
+        _write_bundle_ready_contract_state(tmp_path)
+        _write_structured_state_payload(tmp_path)
+        calls: list[bool] = []
+
+        def _record_artifact_payload(
+            _cwd: Path,
+            *,
+            include_content: bool = True,
+        ) -> dict[str, object]:
+            calls.append(include_content)
+            return {
+                "literature_review_files": [],
+                "literature_review_count": 0,
+                "research_map_reference_files": ["GPD/research-map/REFERENCES.md"],
+                "research_map_reference_count": 1,
+                "knowledge_doc_files": [],
+                "knowledge_doc_count": 0,
+                "stable_knowledge_doc_files": [],
+                "stable_knowledge_doc_count": 0,
+                "knowledge_doc_status_counts": {},
+                "reference_artifact_files": ["GPD/research-map/REFERENCES.md"],
+                "reference_artifacts_content": "should not surface" if include_content else None,
+            }
+
+        monkeypatch.setattr("gpd.core.context._reference_artifact_payload", _record_artifact_payload)
+
+        ctx = init_verify_work(tmp_path, "1", stage="inventory_build")
+
+        assert ctx["staged_loading"]["stage_id"] == "inventory_build"
+        assert "research_map_reference_files" not in ctx
+        assert "reference_artifacts_content" not in ctx
+        assert calls == [False]
+
     def test_stage_interactive_validation_defers_reference_artifact_content(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-setup")
@@ -4251,6 +4336,24 @@ class TestInitMapResearch:
         assert ctx["map_focus_provided"] is True
         assert ctx["staged_loading"]["stage_id"] == "map_bootstrap"
 
+    def test_stage_map_bootstrap_defers_full_reference_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        monkeypatch.setattr(
+            "gpd.core.context._build_reference_runtime_context",
+            _fail_if_context_builder_runs("_build_reference_runtime_context"),
+        )
+
+        ctx = init_map_research(tmp_path, stage="map_bootstrap")
+
+        assert ctx["staged_loading"]["stage_id"] == "map_bootstrap"
+        assert "active_reference_context" not in ctx
+        assert "reference_artifacts_content" not in ctx
+        assert ctx["project_contract_gate"]["visible"] is True
+
 
 class TestInitLiteratureReview:
     def test_resolves_ancestor_project_root_from_nested_workspace(self, tmp_path: Path) -> None:
@@ -4316,6 +4419,25 @@ class TestInitLiteratureReview:
             "reference_artifacts_content",
             "staged_loading",
         }
+
+    def test_stage_review_bootstrap_defers_full_reference_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        monkeypatch.setattr(
+            "gpd.core.context._build_reference_runtime_context",
+            _fail_if_context_builder_runs("_build_reference_runtime_context"),
+        )
+
+        ctx = init_literature_review(tmp_path, topic="Curvature flow bounds", stage="review_bootstrap")
+
+        assert ctx["staged_loading"]["stage_id"] == "review_bootstrap"
+        assert "active_reference_context" in ctx
+        assert "reference_artifacts_content" not in ctx
+        assert "Benchmark Ref 2024" not in ctx["active_reference_context"]
+        assert ctx["project_contract_gate"]["visible"] is True
 
 
 # ─── init_progress ────────────────────────────────────────────────────────────
@@ -5082,6 +5204,80 @@ class TestInitPhaseOp:
             "staged_loading",
         }
 
+    def test_stage_phase_bootstrap_defers_heavy_context_builders(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-test")
+        _write_project_contract_state(tmp_path)
+        monkeypatch.setattr(
+            "gpd.core.context._build_reference_runtime_context",
+            _fail_if_context_builder_runs("_build_reference_runtime_context"),
+        )
+        monkeypatch.setattr(
+            "gpd.core.context._build_state_memory_runtime_context",
+            _fail_if_context_builder_runs("_build_state_memory_runtime_context"),
+        )
+        monkeypatch.setattr(
+            "gpd.core.context._build_execution_runtime_context",
+            _fail_if_context_builder_runs("_build_execution_runtime_context"),
+        )
+
+        result = init_phase_op(tmp_path, phase="1", stage="phase_bootstrap")
+
+        assert result["staged_loading"]["stage_id"] == "phase_bootstrap"
+        assert "active_reference_context" not in result
+        assert "derived_convention_lock" not in result
+        assert "current_execution" not in result
+        assert result["project_contract_gate"]["visible"] is True
+
+    def test_stage_builds_heavy_contexts_when_manifest_requires_them(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-test")
+        calls: list[str] = []
+
+        def reference_context(cwd: Path) -> dict[str, object]:
+            calls.append("reference")
+            return {
+                "active_reference_context": "reference context",
+                "reference_artifacts_content": "reference artifacts",
+            }
+
+        def state_memory_context(cwd: Path) -> dict[str, object]:
+            calls.append("state_memory")
+            return {"derived_convention_lock": {"metric_signature": "mostly-plus"}}
+
+        def execution_context(cwd: Path) -> dict[str, object]:
+            calls.append("execution")
+            return {"current_execution": {"phase": "01", "segment_status": "running"}}
+
+        monkeypatch.setattr("gpd.core.context._build_reference_runtime_context", reference_context)
+        monkeypatch.setattr("gpd.core.context._build_state_memory_runtime_context", state_memory_context)
+        monkeypatch.setattr("gpd.core.context._build_execution_runtime_context", execution_context)
+        _install_fake_stage_manifest(
+            monkeypatch,
+            workflow_id="research-phase",
+            stages={
+                "research_handoff": [
+                    "phase_found",
+                    "active_reference_context",
+                    "reference_artifacts_content",
+                    "derived_convention_lock",
+                    "current_execution",
+                ]
+            },
+        )
+
+        result = init_phase_op(tmp_path, phase="1", stage="research_handoff")
+
+        assert calls == ["reference", "state_memory", "execution"]
+        assert result["active_reference_context"] == "reference context"
+        assert result["reference_artifacts_content"] == "reference artifacts"
+        assert result["derived_convention_lock"] == {"metric_signature": "mostly-plus"}
+        assert result["current_execution"] == {"phase": "01", "segment_status": "running"}
+
     def test_init_research_phase_alias_uses_the_same_stage_manifest_contract(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -5160,14 +5356,35 @@ class TestInitPhaseOp:
             },
         )
 
-        with pytest.raises(
-            ValueError,
-            match=(
-                r"research-phase stage 'research_handoff' requires unavailable init field\(s\): "
-                r"config_content, state_content, roadmap_content"
-            ),
-        ):
-            init_research_phase(tmp_path, phase="1", stage="research_handoff")
+        result = init_research_phase(tmp_path, phase="1", stage="research_handoff")
+
+        assert result["staged_loading"]["workflow_id"] == "research-phase"
+        assert result["staged_loading"]["stage_id"] == "research_handoff"
+        assert set(result) == {
+            "commit_docs",
+            "autonomy",
+            "review_cadence",
+            "research_mode",
+            "phase_found",
+            "phase_dir",
+            "phase_number",
+            "phase_name",
+            "phase_slug",
+            "padded_phase",
+            "contract_intake",
+            "effective_reference_intake",
+            "active_reference_context",
+            "reference_artifact_files",
+            "reference_artifacts_content",
+            "selected_protocol_bundle_ids",
+            "protocol_bundle_context",
+            "protocol_bundle_verifier_extensions",
+            "current_execution",
+            "config_content",
+            "state_content",
+            "roadmap_content",
+            "staged_loading",
+        }
 
 
 # ─── contract_alignment surfacing on gate dicts ───────────────────────────────

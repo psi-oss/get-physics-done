@@ -20,10 +20,11 @@
     "`src/gpd/commands/*.md`": 71,
     "`src/gpd/agents/*.md`": 24,
     "`src/gpd/specs/workflows/*.md`": 72,
-    "`src/gpd/specs/templates/**/*.md`": 80,
-    "`src/gpd/specs/references/**/*.md`": 180,
+    "`src/gpd/specs/templates/**/*.md`": 81,
+    "`src/gpd/specs/references/**/*.md`": 183,
     "`src/gpd/adapters/*.py`": 9,
     "`src/gpd/hooks/*.py`": 11,
+    "`src/gpd/mcp/*.py`": 5,
     "`src/gpd/mcp/servers/*.py`": 9,
     "`infra/gpd-*.json`": 8
   }

@@ -5276,18 +5276,6 @@ def init_resume(
     _emit_init_resume(stage)
 
 
-@init_app.command("resume-work", hidden=True)
-def init_resume_work(
-    stage: str | None = typer.Option(
-        None,
-        "--stage",
-        help="Load the staged resume-work context for a specific stage id.",
-    ),
-) -> None:
-    """Compatibility alias for staged resume-work init payloads."""
-    _emit_init_resume(stage)
-
-
 @init_app.command("sync-state")
 def init_sync_state(
     prefer: str | None = typer.Option(

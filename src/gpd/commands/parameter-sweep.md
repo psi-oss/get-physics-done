@@ -47,18 +47,10 @@ This wrapper owns command-context validation and output-root boundaries only. Th
 <context>
 Request: $ARGUMENTS
 
-Accepted targets:
-
-- authoritative current-workspace phase context
-- one explicit current-workspace computation anchor, such as a script, notebook, results file, or concrete computation description
-
 Output boundaries:
 
-- Authoritative phase-backed runs may write sibling phase docs and may persist project state.
-- All durable sweep artifacts stay under the invoking workspace's `GPD/sweeps/` tree.
-- Standalone/current-workspace runs keep both docs and durable artifacts under `GPD/sweeps/{sweep-slug}/`.
-- Do not invent `GPD/phases/XX-sweep` for standalone/current-workspace runs.
-- Do not write durable sweep datasets to `artifacts/`.
+- Durable sweep artifacts stay under the invoking workspace's `GPD/sweeps/` tree.
+- Do not invent standalone `GPD/phases/XX-sweep` directories or `artifacts/` sweep dataset roots.
 </context>
 
 <process>
@@ -75,13 +67,11 @@ fi
 ## 2. Delegate To Workflow
 
 Execute the included parameter-sweep workflow end-to-end.
-Preserve its workspace-locked bootstrap, explicit current-workspace target resolution, and the split between authoritative phase-backed docs and current-workspace-only sweep roots.
 </process>
 
 <success_criteria>
 
 - [ ] Command context validated
 - [ ] Parameter-sweep workflow executed as the authority for mechanics
-- [ ] Phase-backed outputs and standalone/current-workspace `GPD/sweeps/` outputs kept distinct
-- [ ] No standalone/current-workspace phase directory or `artifacts/` sweep dataset root invented
+- [ ] Output-root boundaries preserved
 </success_criteria>

@@ -60,6 +60,8 @@ _EXPECTED_OPTIONAL_DEPENDENCY_EXTRAS = {
     "cairosvg": {"arxiv", "paper"},
     "pypdf": {"arxiv", "paper"},
 }
+_EXPECTED_BUILD_BACKEND_REQUIREMENT = "hatchling==1.29.0"
+_EXPECTED_SETUP_UV_VERSION = "0.9.12"
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -357,6 +359,15 @@ def test_uv_lock_matches_release_version() -> None:
     assert _uv_lock_project_version(repo_root) == _python_release_version(repo_root)
 
 
+def test_python_build_backend_is_pinned_for_reproducible_release_builds() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    build_system = pyproject["build-system"]
+
+    assert build_system["build-backend"] == "hatchling.build"
+    assert build_system["requires"] == [_EXPECTED_BUILD_BACKEND_REQUIREMENT]
+
+
 def test_installed_prompt_sources_do_not_pin_release_version_literals() -> None:
     repo_root = _repo_root()
     version = _python_release_version(repo_root)
@@ -565,6 +576,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_floor() -> None:
     assert "uv run gpd --version" in workflow
     assert "uv build --wheel --out-dir dist/compat-${{ matrix.python-version }}" in workflow
     assert "astral-sh/setup-uv@v7" in workflow
+    assert f'version: "{_EXPECTED_SETUP_UV_VERSION}"' in workflow
     assert "Check repo graph generated artifacts" in workflow
     assert "python scripts/sync_repo_graph_contract.py --check" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
@@ -592,6 +604,7 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
     assert "astral-sh/setup-uv@v7" in workflow
+    assert f'version: "{_EXPECTED_SETUP_UV_VERSION}"' in workflow
     assert "uv sync --dev --frozen" in workflow
     assert "scripts/release_workflow.py prepare" in workflow
     assert "uv lock" in workflow
@@ -623,6 +636,8 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "git merge-base --is-ancestor HEAD" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
+    assert "astral-sh/setup-uv@v7" in workflow
+    assert workflow.count(f'version: "{_EXPECTED_SETUP_UV_VERSION}"') == workflow.count("astral-sh/setup-uv@v7")
     assert "Check existing release tag safety" in workflow
     assert 'TAG_SHA="$(git rev-list -n 1 "v${VERSION}")"' in workflow
     assert "Tag v${VERSION} already points at release commit ${RELEASE_SHA}; continuing publish recovery." in workflow
@@ -659,6 +674,19 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     )
     assert "Tag v${VERSION} exists at ${TAG_SHA}, not release commit ${RELEASE_SHA}." in workflow
     assert "post-release/v${VERSION}-publish-date" in workflow
+    assert "remote_followup_branch_sha()" in workflow
+    assert "refresh_followup_branch()" in workflow
+    assert "verify_followup_branch_matches_fresh_stamp()" in workflow
+    assert "refreshing stamped metadata before returning its URL" in workflow
+    assert 'git push --force-with-lease="refs/heads/${FOLLOWUP_BRANCH}:${EXISTING_BRANCH_SHA}"' in workflow
+    assert 'git fetch --no-tags origin "refs/heads/${FOLLOWUP_BRANCH}:refs/remotes/origin/${FOLLOWUP_BRANCH}"' in workflow
+    assert "does not match freshly stamped publish-date metadata" in workflow
+    assert workflow.index("refreshing stamped metadata before returning its URL") < workflow.index(
+        'echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"'
+    )
+    assert workflow.index("refresh_followup_branch") < workflow.index(
+        'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"'
+    )
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
     assert "Run stamped release validation" in workflow
     assert workflow.index("Stamp actual publish date in release checkout") < workflow.index(
@@ -716,26 +744,31 @@ def test_publish_release_followup_recreates_or_fails_when_branch_exists_without_
         )
     ]
 
+    assert "remote_followup_branch_sha()" in workflow
+    assert "refresh_followup_branch()" in workflow
+    assert force_with_lease_push in workflow
     assert 'if [ -n "$PR_URL" ]; then' in branch_exists_block
     assert "--jq '.[0].url // \"\"'" in branch_exists_block
-    assert 'EXISTING_BRANCH_SHA="$(git ls-remote --heads origin "$FOLLOWUP_BRANCH" | awk' in branch_exists_block
+    assert "refreshing stamped metadata before returning its URL" in branch_exists_block
+    assert "refresh_followup_branch" in branch_exists_block
     assert (
         'echo "::warning::Follow-up branch ${FOLLOWUP_BRANCH} already exists, but no open PR was found'
         in branch_exists_block
     )
     assert "restamping and updating the branch before recreating the PR" in branch_exists_block
-    assert "prepare_followup_branch" in branch_exists_block
-    assert force_with_lease_push in branch_exists_block
     assert 'gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"' in branch_exists_block
     assert 'if [ -z "$PR_URL" ]; then' in branch_exists_block
     assert (
         'echo "::error::Follow-up branch ${FOLLOWUP_BRANCH} exists, but no open PR URL could be found'
         in branch_exists_block
     )
-    assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < branch_exists_block.index("prepare_followup_branch")
-    assert branch_exists_block.index("prepare_followup_branch") < branch_exists_block.index(force_with_lease_push)
+    open_pr_refresh_index = branch_exists_block.index("refreshing stamped metadata before returning its URL")
+    no_pr_refresh_index = branch_exists_block.rindex("refresh_followup_branch")
+    assert branch_exists_block.index('if [ -n "$PR_URL" ]; then') < open_pr_refresh_index
+    assert open_pr_refresh_index < branch_exists_block.index('echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"')
+    assert branch_exists_block.index("restamping and updating the branch before recreating the PR") < no_pr_refresh_index
     assert (
-        branch_exists_block.index(force_with_lease_push)
+        no_pr_refresh_index
         < branch_exists_block.index('gh pr create --base "$DEFAULT_BRANCH" --head "$FOLLOWUP_BRANCH"')
         < branch_exists_block.index('if [ -z "$PR_URL" ]; then')
     )

@@ -1201,7 +1201,7 @@ GPD/
 
 ## Workflow Modes
 
-GPD is a scalpel, not an autopilot. Treat each agent turn like a graduate student's work: trust the execution, but stay in the loop to verify and redirect. Supervised mode gives you the frequent checkpoints that match that advisor role; graduate to Balanced once you trust GPD's boundary on your specific research.
+GPD keeps you in the loop. Use Supervised for frequent checkpoints, Balanced for fewer routine pauses after you trust the workflow, and YOLO only after runtime permissions are ready.
 
 Set during `gpd:new-project` or changed later with `gpd:settings`:
 

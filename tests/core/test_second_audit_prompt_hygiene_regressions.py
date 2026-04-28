@@ -125,9 +125,15 @@ def test_research_project_templates_point_existing_artifact_analysis_to_map_rese
     for path in sorted((TEMPLATES_DIR / "research-project").glob("*.md")):
         content = path.read_text(encoding="utf-8")
         assert "templates/analysis/" not in content, path.name
+        assert "GPD/research/" not in content, path.name
+        assert f"`GPD/literature/{path.name}`" in content, path.name
         assert "use `map-research`" in content, path.name
         assert "`GPD/research-map/`" in content, path.name
         assert "`references/templates/research-mapper/`" in content, path.name
+
+    shared_protocols = (REFERENCES_DIR / "shared" / "shared-protocols.md").read_text(encoding="utf-8")
+    assert "GPD/research/ (5 files)" not in shared_protocols
+    assert "GPD/literature/ (5 files)" in shared_protocols
 
 
 def test_knowledge_schema_uses_existing_knowledge_review_workflow_id() -> None:

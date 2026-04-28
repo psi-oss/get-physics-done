@@ -17,6 +17,7 @@
     "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
+    "probe_kind": "network_required",
     "tool": "search_papers",
     "input": {
       "query": "quantum field theory",
@@ -24,9 +25,6 @@
     },
     "expect": "contains paper"
   },
-  "optional": true,
-  "availability": "conditional",
-  "availability_condition": "Available only when the optional Python module 'arxiv_mcp_server' is installed.",
   "alternatives": {
     "python_module": {
       "command": "${GPD_PYTHON}",
@@ -36,5 +34,8 @@
       ],
       "notes": "Replace `${GPD_PYTHON}` with a Python >=3.11 interpreter that has GPD installed."
     }
-  }
+  },
+  "optional": true,
+  "availability": "conditional",
+  "availability_condition": "Available only when the optional Python module 'arxiv_mcp_server' is installed."
 }

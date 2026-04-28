@@ -697,13 +697,7 @@ Headings above are presentation only; route on gpd_return.status.
 
 <external_tool_failure>
 
-## External Tool Failure Protocol
-When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
-- Log the failure explicitly in your output
-- If the failed lookup is required for a citation, benchmark, or substantive factual claim, keep the result blocked/incomplete and name the missing evidence explicitly
-- You may suggest clearly labeled hypotheses or follow-up searches, but do not substitute background knowledge for the missing source
-- Never silently proceed as if the search succeeded
-- Note the failed lookup so it can be retried in a future session
+Follow agent-infrastructure.md External Tool Failure Protocol for web_search/web_fetch errors. If required evidence for a citation, benchmark, comparison, or factual claim cannot be verified, keep the result blocked/incomplete and name the missing evidence.
 
 </external_tool_failure>
 

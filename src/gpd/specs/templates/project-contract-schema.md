@@ -202,31 +202,7 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
 
-In `ProjectContract` (`project_contract.claims[]` / `ContractClaim`), treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
-
-Do not import the staged peer-review Paper `ClaimRecord` meaning of `claim_kind: claim` here: in `ProjectContract`, `claim_kind: claim` is proof-bearing contract vocabulary, while Paper `ClaimRecord.claim_kind: claim` is only a generic manuscript claim unless theorem metadata or theorem-like statement text makes a proof obligation explicit.
-
-When that applies, require:
-
-- proof-bearing claims must keep `parameters`, `hypotheses`, `conclusion_clauses`, and `proof_deliverables` visible, and must keep `quantifiers` visible when an explicit quantifier or domain obligation exists.
-- Do not collapse proof obligations into a generic claim statement.
-- `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
-- Closed semantic enum fields use these exact lowercase literals:
-  - `claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`
-  - `observables[].kind: scalar | curve | map | classification | proof_obligation | other`
-  - `deliverables[].kind: figure | table | dataset | data | derivation | code | note | report | other`
-  - `acceptance_tests[].kind: existence | schema | benchmark | consistency | cross_method | limiting_case | symmetry | dimensional_analysis | convergence | oracle | proxy | reproducibility | proof_hypothesis_coverage | proof_parameter_coverage | proof_quantifier_domain | claim_to_proof_alignment | lemma_dependency_closure | counterexample_search | human_review | other`
-  - `acceptance_tests[].automation: automated | hybrid | human`
-  - `references[].kind: paper | dataset | prior_artifact | spec | user_anchor | other`
-  - `references[].role: definition | benchmark | method | must_consider | background | other`
-  - `required_actions[]: read | use | compare | cite | avoid`
-  - `links[].relation: supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`
-- Closed-vocabulary enum fields use the exact lowercase literals shown here. Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
-- `claims[].proof_deliverables[]` must be non-empty and contain only `deliverables[].id` values.
-- `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
-- `claims[].acceptance_tests[]` must include at least one proof-specific test kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).
-- include an acceptance test with `kind: claim_to_proof_alignment` when the proof artifact must map a theorem-like claim to named hypotheses, parameters, and conclusion clauses.
-- `claims[].quantifiers[]` is optional for unquantified proof-bearing claims, but explicit quantifier or domain obligations must stay visible there as a list (not a scalar string).
+@{GPD_INSTALL_DIR}/templates/contract-proof-obligation-rules.md
 
 ### Shared Grounding And Linkage Rules
 

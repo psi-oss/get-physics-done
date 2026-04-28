@@ -1502,6 +1502,15 @@ def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str) ->
     return tuple(sorted(normalized)) if normalized is not None else None
 
 
+def _infer_known_init_fields_cache_key_from_payload(raw: object) -> tuple[str, ...] | None:
+    if not isinstance(raw, dict):
+        return None
+    raw_workflow_id = raw.get("workflow_id")
+    if not isinstance(raw_workflow_id, str):
+        return None
+    return _cache_key_init_fields(None, workflow_id=_normalize_workflow_id(raw_workflow_id))
+
+
 @cache
 def _load_workflow_stage_manifest_cached(
     manifest_path: str,
@@ -1514,11 +1523,14 @@ def _load_workflow_stage_manifest_cached(
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Failed to read workflow stage manifest {path}: {exc}") from exc
+    known_init_fields_for_validation = known_init_fields_key
+    if expected_workflow_id is None and known_init_fields_for_validation is None:
+        known_init_fields_for_validation = _infer_known_init_fields_cache_key_from_payload(payload)
     return validate_workflow_stage_manifest_payload(
         payload,
         expected_workflow_id=expected_workflow_id,
         allowed_tools=allowed_tools_key,
-        known_init_fields=known_init_fields_key,
+        known_init_fields=known_init_fields_for_validation,
     )
 
 

@@ -73,7 +73,7 @@ Repository = "https://github.com/psi-oss/get-physics-done"
 Issues = "https://github.com/psi-oss/get-physics-done/issues"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.29.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

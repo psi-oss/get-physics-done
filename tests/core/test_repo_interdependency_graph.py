@@ -133,6 +133,13 @@ def test_graph_captures_current_ci_action_and_shard_edges() -> None:
     assert not graph_has_edge(".github/workflows/test.yml", "actions/setup-node@v5", graph)
 
 
+def test_graph_captures_shared_mcp_descriptor_text_edges() -> None:
+    graph = read_graph_text()
+
+    assert graph_has_edge("src/gpd/mcp/builtin_servers.py", "src/gpd/mcp/descriptor_text.py", graph)
+    assert graph_has_edge("src/gpd/mcp/servers/skills_server.py", "src/gpd/mcp/descriptor_text.py", graph)
+
+
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
     graph = read_graph_text()
     assert graph_has_edge("src/gpd/hooks/statusline.py", "src/gpd/hooks/runtime_detect.py", graph)

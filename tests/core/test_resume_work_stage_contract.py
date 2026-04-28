@@ -126,8 +126,7 @@ def test_resume_work_transition_reference_uses_installed_workflow_path() -> None
     assert "- **Transition** -> ./transition.md" not in text
 
 
-@pytest.mark.parametrize("init_alias", ["resume", "resume-work"])
-def test_init_resume_aliases_invoke_resume_context(monkeypatch: pytest.MonkeyPatch, init_alias: str) -> None:
+def test_init_resume_invokes_resume_context(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str | None] = []
 
     def fake_init_resume(cwd: Path, *, stage: str | None = None) -> dict[str, object]:
@@ -136,8 +135,15 @@ def test_init_resume_aliases_invoke_resume_context(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr("gpd.core.context.init_resume", fake_init_resume)
 
-    result = RUNNER.invoke(app, ["--raw", "init", init_alias, "--stage", "resume_bootstrap"])
+    result = RUNNER.invoke(app, ["--raw", "init", "resume", "--stage", "resume_bootstrap"])
 
     assert result.exit_code == 0
     assert calls == ["resume_bootstrap"]
     assert json.loads(result.output)["stage"] == "resume_bootstrap"
+
+
+def test_init_resume_work_hidden_compatibility_alias_is_removed() -> None:
+    result = RUNNER.invoke(app, ["--raw", "init", "resume-work", "--stage", "resume_bootstrap"])
+
+    assert result.exit_code != 0
+    assert "No such command" in result.output

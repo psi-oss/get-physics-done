@@ -1127,6 +1127,15 @@ function validateRuntimeCatalogHelpExampleScopes(entries) {
   }
 }
 
+function sameManifestMetadataListPolicy(left, right) {
+  return (
+    left.key === right.key
+    && left.value_kind === right.value_kind
+    && left.item_prefix === right.item_prefix
+    && left.item_suffix === right.item_suffix
+  );
+}
+
 function validateRuntimeCatalog(catalogPayload) {
   const payload = requireJsonArray(catalogPayload, "runtime catalog");
   const entries = payload.map((entry, index) => validateRuntimeCatalogEntry(entry, index));
@@ -1141,6 +1150,7 @@ function validateRuntimeCatalog(catalogPayload) {
   const installFlags = new Map();
   const selectionFlags = new Map();
   const selectionTokens = new Map();
+  const manifestMetadataListPolicies = new Map();
   for (const entry of entries) {
     if (runtimeNames.has(entry.runtime_name)) {
       throw new Error(
@@ -1184,6 +1194,20 @@ function validateRuntimeCatalog(catalogPayload) {
         );
       }
       selectionTokens.set(normalizedToken, entry.runtime_name);
+    }
+
+    for (const policy of entry.manifest_metadata_list_policies) {
+      const existing = manifestMetadataListPolicies.get(policy.key);
+      if (existing) {
+        if (!sameManifestMetadataListPolicy(existing.policy, policy)) {
+          throw new Error(
+            `runtime catalog contains conflicting manifest_metadata_list_policies.key ${JSON.stringify(policy.key)} `
+            + `for ${JSON.stringify(existing.runtimeName)} and ${JSON.stringify(entry.runtime_name)}`
+          );
+        }
+        continue;
+      }
+      manifestMetadataListPolicies.set(policy.key, { runtimeName: entry.runtime_name, policy });
     }
   }
 
@@ -2660,36 +2684,12 @@ function printHelp() {
   console.log(` ${installCommand} uninstall ${primaryRuntime} --local`);
   console.log("");
   console.log(` ${yellow}After install:${reset}`);
-  console.log(` ${dim}# Beginner startup checklist${reset}`);
-  console.log(" Bootstrap preflight checks runtime launcher/target blockers only; do the first successful startup before changing unattended behavior.");
-  console.log(` Beginner Onboarding Hub: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}`);
-  console.log(` First-run order: ${beginnerStartupLadderText()}`);
-  console.log(" Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, and use `tour` if you want a read-only overview of the broader command surface before choosing.");
+  console.log(` Beginner path: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}`);
+  console.log(` Runtime surface: run the selected runtime's help command; first-run order is ${beginnerStartupLadderText()}.`);
   console.log(
-    " Then use your runtime's `new-project` command for new work or `map-research` for existing work. When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or `gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`."
+    ` Terminal surface: use \`${sharedLocalCliHelpCommand()}\`, \`${sharedDoctorCommand()}\`, `
+    + `and \`${sharedUnattendedReadinessCommand()}\`.`
   );
-  console.log(` ${SHARED_PUBLIC_SURFACE_TEXT.settingsCommandSentence}`);
-  console.log(
-    " Supervised autonomy (`supervised`) is the default. "
-    + "Opt into Balanced autonomy (`balanced`) later through `settings` once you trust GPD's boundary. "
-    + SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence
-  );
-  console.log(
-    ` ${recoveryLadderNote({
-      resumeWorkPhrase: "your runtime-specific `resume-work` command",
-      suggestNextPhrase: "your runtime-specific `suggest-next` command",
-      pauseWorkPhrase: "your runtime-specific `pause-work` command",
-    })}`
-  );
-  console.log(` ${localCliDiagnosticsFollowUpLine()}`);
-  console.log(
-    ` Workflow presets: if you plan paper/manuscript workflows, rerun \`${sharedDoctorCommand()} --runtime <runtime> --local|--global\` `
-    + "and check whether `Workflow Presets` is `ready` or `degraded`. Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`, "
-    + "but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`."
-  );
-  console.log(` Then run \`${sharedUnattendedReadinessCommand()}\`.`);
-  console.log(` If it reports \`not-ready\`, run \`${sharedPermissionsSyncCommand()}\`.`);
-  console.log(" If it reports `relaunch-required`, exit and relaunch the runtime before unattended use.");
   console.log("");
 }
 
@@ -2801,6 +2801,26 @@ function parseSelectedRuntimes(args) {
   }
 
   return selected;
+}
+
+function explicitRuntimeSelectionFlags(args) {
+  const selectedFlags = [];
+  for (const runtime of ALL_RUNTIMES) {
+    const flags = runtimeSelectionFlagList(runtime);
+    for (const flag of flags) {
+      if (args.includes(flag)) {
+        selectedFlags.push(flag);
+      }
+    }
+  }
+  return selectedFlags;
+}
+
+function validateAllRuntimeSelection(args, action) {
+  if (args.includes("--all") && explicitRuntimeSelectionFlags(args).length > 0) {
+    error(`Cannot combine explicit runtimes with --all for ${action}`);
+    process.exit(1);
+  }
 }
 
 function runtimeSelectionMenuEntries({ allowAll = true } = {}) {
@@ -2979,6 +2999,8 @@ async function main() {
     error("Cannot specify both --global and --local.");
     process.exit(1);
   }
+  const action = isUninstall ? "uninstall" : "install";
+  validateAllRuntimeSelection(args, action);
   if (isUninstall && reinstallManagedPackage) {
     error("Cannot combine --uninstall with --reinstall.");
     process.exit(1);
@@ -3000,7 +3022,6 @@ async function main() {
     process.exit(1);
   }
 
-  const action = isUninstall ? "uninstall" : "install";
   const selectedRuntimes = await selectRuntimes(args, action, { requireSingleRuntime: Boolean(targetDir) });
   if (targetDir && selectedRuntimes.length !== 1) {
     error("Cannot combine --target-dir with --all or multiple runtimes. Select exactly one runtime.");

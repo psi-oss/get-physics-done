@@ -564,7 +564,18 @@ def _object_schema(
     return schema
 
 
-def _strict_required_schema_fragment(schema_fragment: dict[str, object]) -> dict[str, object]:
+_REQUIRED_FIELD_ALLOW_EMPTY_ARRAY: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("observed", "uncovered_conclusion_clause_ids"),
+    }
+)
+
+
+def _strict_required_schema_fragment(
+    schema_fragment: dict[str, object],
+    *,
+    allow_empty_array: bool = False,
+) -> dict[str, object]:
     schema = copy.deepcopy(schema_fragment)
     any_of = schema.get("anyOf")
     if isinstance(any_of, list):
@@ -575,11 +586,20 @@ def _strict_required_schema_fragment(schema_fragment: dict[str, object]) -> dict
                 continue
             if branch.get("type") == "null":
                 continue
-            strict_branches.append(_strict_required_schema_fragment(branch))
+            strict_branches.append(
+                _strict_required_schema_fragment(
+                    branch,
+                    allow_empty_array=allow_empty_array,
+                )
+            )
         if len(strict_branches) == 1 and isinstance(strict_branches[0], dict):
             return strict_branches[0]
         schema["anyOf"] = strict_branches
-    if schema.get("type") == "array" and (not isinstance(schema.get("minItems"), int) or int(schema["minItems"]) < 1):
+    if (
+        not allow_empty_array
+        and schema.get("type") == "array"
+        and (not isinstance(schema.get("minItems"), int) or int(schema["minItems"]) < 1)
+    ):
         schema["minItems"] = 1
     return schema
 
@@ -991,6 +1011,24 @@ _CONTRACT_REFERENCE_INPUT_SCHEMA["description"] = (
     "`applies_to` and `required_actions` must both be non-empty lists. "
     "`carry_forward_to` names workflow scope labels, never contract ids."
 )
+_CONTRACT_REFERENCE_INPUT_SCHEMA["allOf"] = [
+    {
+        "if": {
+            "required": ["must_surface"],
+            "properties": {"must_surface": {"const": True}},
+        },
+        "then": {
+            "required": ["applies_to", "required_actions"],
+            "properties": {
+                "applies_to": _contract_string_list_schema(min_items=1),
+                "required_actions": _contract_enum_string_list_schema(
+                    CONTRACT_REFERENCE_ACTION_VALUES,
+                    min_items=1,
+                ),
+            },
+        },
+    }
+]
 _CONTRACT_FORBIDDEN_PROXY_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "id": _non_empty_string_schema(),
@@ -1140,7 +1178,10 @@ def _request_section_required_schema(
         for field_name in required_list:
             field_schema = source_properties.get(field_name)
             if isinstance(field_schema, dict):
-                strict_properties[field_name] = _strict_required_schema_fragment(field_schema)
+                strict_properties[field_name] = _strict_required_schema_fragment(
+                    field_schema,
+                    allow_empty_array=(section_name, field_name) in _REQUIRED_FIELD_ALLOW_EMPTY_ARRAY,
+                )
         if strict_properties:
             schema["properties"] = strict_properties
     return schema
@@ -4434,7 +4475,6 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 uncovered_conclusion_clause_ids, error_message = _validate_optional_string_list(
                     observed.get("uncovered_conclusion_clause_ids"),
                     field_name="observed.uncovered_conclusion_clause_ids",
-                    min_items=1,
                 )
                 if error_message is not None:
                     return _error_result(error_message)

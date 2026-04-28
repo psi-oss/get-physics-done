@@ -46,9 +46,6 @@ __all__ = [
 VALID_RETURN_STATUSES: frozenset[str] = frozenset({"completed", "checkpoint", "blocked", "failed"})
 """Allowed values for ``gpd_return.status``."""
 
-REQUIRED_RETURN_FIELDS: tuple[str, ...] = ("status", "files_written", "issues", "next_actions")
-"""Fields that must be present in every ``gpd_return`` envelope."""
-
 ALLOWED_RETURN_EXTENSION_FIELDS: frozenset[str] = frozenset(
     {
         "affected_quantities",
@@ -108,7 +105,6 @@ GPD_RETURN_BLOCK_RE = re.compile(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```")
 class GpdReturnStatusContract:
     """Status-specific top-level contract shape."""
 
-    required_fields: tuple[str, ...]
     structured_fields: tuple[str, ...]
 
 
@@ -133,6 +129,18 @@ class GpdReturnContinuationBoundedSegment(ContinuationBoundedSegment):
 
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_applicator_owned_metadata(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            forbidden = sorted({"recorded_by", "updated_at"}.intersection(value))
+            if forbidden:
+                fields = ", ".join(forbidden)
+                raise ValueError(
+                    f"{fields} are applicator-owned bounded_segment fields; omit them from child returns"
+                )
+        return value
+
 
 class GpdReturnContinuationUpdate(BaseModel):
     """Typed durable continuation update nested inside ``gpd_return``."""
@@ -145,7 +153,6 @@ class GpdReturnContinuationUpdate(BaseModel):
 
 RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
     "completed": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=(
             "state_updates",
             "contract_updates",
@@ -158,7 +165,6 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
         ),
     ),
     "checkpoint": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=(
             "state_updates",
             "contract_updates",
@@ -171,11 +177,9 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
         ),
     ),
     "blocked": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update"),
     ),
     "failed": GpdReturnStatusContract(
-        required_fields=REQUIRED_RETURN_FIELDS,
         structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update"),
     ),
 }
@@ -304,6 +308,12 @@ class GpdReturnEnvelope(BaseModel):
             fields = ", ".join(disallowed_fields)
             raise ValueError(f"status '{self.status}' does not allow gpd_return field(s): {fields}")
         return self
+
+
+REQUIRED_RETURN_FIELDS: tuple[str, ...] = tuple(
+    field_name for field_name, field_info in GpdReturnEnvelope.model_fields.items() if field_info.is_required()
+)
+"""Fields that must be present in every ``gpd_return`` envelope."""
 
 
 class GpdReturnValidationResult(BaseModel):

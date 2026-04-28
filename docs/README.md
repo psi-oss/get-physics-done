@@ -71,7 +71,7 @@ You will use two different places:
 - **`--local`**: install GPD for just this project or folder.
 - **`gpd resume`**: the terminal-side recovery step.
 - **`resume-work`**: the in-runtime command you use after reopening the right workspace.
-- **`settings`**: the guided runtime command for changing autonomy, workflow defaults, and model-cost posture after your first successful start or later. GPD is a scalpel, not an autopilot. Supervised mode is the default and gives you the frequent checkpoints that match the advisor/graduate-student role. Graduate to Balanced once you trust GPD's boundary on your specific research.
+- **`settings`**: after your first successful start or later, use the runtime `settings` command to review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides. The safest model-cost starting point is `review` plus runtime defaults.
 - **`set-tier-models`**: the direct runtime command for pinning concrete `tier-1`, `tier-2`, and `tier-3` model ids.
 
 </details>

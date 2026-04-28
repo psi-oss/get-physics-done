@@ -491,7 +491,7 @@ If no prior artifacts are detected, continue directly to Step 3 / Step 4 as appr
 
 **If `needs_research_map` is true** (from init — existing research artifacts detected but no research map):
 
-> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
+@{GPD_INSTALL_DIR}/references/shared/interactive-choice-fallback.md
 
 Use ask_user:
 

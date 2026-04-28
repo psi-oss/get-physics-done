@@ -256,22 +256,9 @@ Report: "Found {plan_count} plans in {phase_dir} ({incomplete_count} incomplete)
 <step name="detect_proof_obligation_work">
 Classify whether any selected plan is proof-bearing before execution and before honoring verifier-disabled or sparse-review settings.
 
-Treat a plan as proof-bearing when any of the following are true:
+@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-workflow-gate.md
 
-- the approved contract or plan contract names an observable or claim with kind `proof_obligation`
-- the phase goal, plan objective, or task text mentions `theorem`, `lemma`, `corollary`, `proposition`, `claim`, `proof`, `prove`, `show that`, `existence`, or `uniqueness`
-- the result is a formal derivation whose acceptance depends on named hypotheses, parameters, quantifiers, or conclusion clauses being covered explicitly
-
-If classification is ambiguous, default to proof-bearing.
-
-For each proof-bearing plan, require a sibling proof audit artifact named `{plan_id}-PROOF-REDTEAM.md`. This audit is mandatory and fail-closed. It must:
-
-1. inventory the theorem or claim text being established
-2. enumerate named parameters, hypotheses, quantifier/domain obligations, and conclusion clauses
-3. map those obligations to concrete proof locations or proof-step references
-4. flag any missing parameter or hypothesis coverage immediately
-5. attempt an adversarial special-case or counterexample probe so a proof of a narrower case is not mistaken for the full claim
-6. set canonical audit `status: passed | gaps_found | human_needed`
+For each proof-bearing plan, require a sibling `{plan_id}-PROOF-REDTEAM.md` artifact that follows the shared gate above.
 
 Never treat a clean `SUMMARY.md`, correct algebra in a subset of cases, or "human will inspect later" as a substitute for this artifact.
 When runtime delegation is available, `gpd-check-proof` is the canonical owner of this sibling artifact. The executor may draft the proof and theorem inventory, but it must not self-certify theorem-proof alignment as its own independent redteam.

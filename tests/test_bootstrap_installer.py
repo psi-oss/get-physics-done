@@ -763,6 +763,32 @@ def _iter_runtime_descriptors_from_payload(
         runtime_catalog_module._load_catalog.cache_clear()
 
 
+def _first_two_manifest_metadata_policy_entries(
+    payload: list[dict[str, object]],
+) -> tuple[tuple[dict[str, object], dict[str, object]], tuple[dict[str, object], dict[str, object]]]:
+    entries: list[tuple[dict[str, object], dict[str, object]]] = []
+    for entry in payload:
+        policies = entry.get("manifest_metadata_list_policies")
+        if isinstance(policies, list) and policies:
+            policy = policies[0]
+            assert isinstance(policy, dict)
+            entries.append((entry, policy))
+    assert len(entries) >= 2
+    return entries[0], entries[1]
+
+
+def _conflicting_manifest_metadata_policy(policy: dict[str, object]) -> dict[str, object]:
+    conflict = dict(policy)
+    if conflict.get("value_kind") == "relpath":
+        conflict["value_kind"] = "path_segment"
+        conflict["item_prefix"] = "managed-"
+        conflict.pop("item_suffix", None)
+        return conflict
+
+    conflict["item_prefix"] = "alternate-" if conflict.get("item_prefix") != "alternate-" else "managed-"
+    return conflict
+
+
 def test_bootstrap_public_surface_contract_validator_rejects_additive_keys_and_missing_required_fields() -> None:
     result = _run_node_contract_validation(
         r"""
@@ -1105,13 +1131,7 @@ const helpExampleRuntimes = catalog.filter((runtime) => runtime.installer_help_e
 assert.ok(helpExampleRuntimes.length >= 2);
 for (const runtime of helpExampleRuntimes) {
   assert.ok(installHelpExampleScopes.has(runtime.installer_help_example_scope));
-  if (runtime.installer_help_example_scope === "global") {
-    assert.equal(runtime.validated_command_surface, "public_runtime_slash_command");
-    continue;
-  }
-  if (runtime.installer_help_example_scope === "local") {
-    assert.equal(runtime.validated_command_surface, "public_runtime_dollar_command");
-  }
+  assert.ok(runtime.validated_command_surface.startsWith("public_runtime_"));
 }
 if (installHelpExampleScopes.has("global")) {
   assert.ok(helpExampleRuntimes.some((runtime) => runtime.installer_help_example_scope === "global"));
@@ -1685,6 +1705,45 @@ assert.throws(
   /runtime catalog entry 0\.manifest_metadata_list_policies\[1\]\.key duplicates manifest metadata key/
 );
 
+function catalogManifestPolicyEntries(payload) {
+  return payload
+    .map((runtime, index) => ({
+      index,
+      policy: (runtime.manifest_metadata_list_policies || [])[0],
+    }))
+    .filter((entry) => entry.policy);
+}
+
+function conflictingManifestMetadataPolicy(policy) {
+  const conflict = JSON.parse(JSON.stringify(policy));
+  if (conflict.value_kind === "relpath") {
+    conflict.value_kind = "path_segment";
+    conflict.item_prefix = "managed-";
+    delete conflict.item_suffix;
+    return conflict;
+  }
+  conflict.item_prefix = conflict.item_prefix === "alternate-" ? "managed-" : "alternate-";
+  return conflict;
+}
+
+const policyEntries = catalogManifestPolicyEntries(catalog);
+assert.ok(policyEntries.length >= 2);
+const sourcePolicy = policyEntries[0].policy;
+const targetIndex = policyEntries[1].index;
+
+const exactCrossRuntimeDuplicate = JSON.parse(JSON.stringify(catalog));
+exactCrossRuntimeDuplicate[targetIndex].manifest_metadata_list_policies = [JSON.parse(JSON.stringify(sourcePolicy))];
+assert.doesNotThrow(() => validateRuntimeCatalog(exactCrossRuntimeDuplicate));
+
+const conflictingCrossRuntimeDuplicate = JSON.parse(JSON.stringify(catalog));
+conflictingCrossRuntimeDuplicate[targetIndex].manifest_metadata_list_policies = [
+  conflictingManifestMetadataPolicy(sourcePolicy),
+];
+assert.throws(
+  () => validateRuntimeCatalog(conflictingCrossRuntimeDuplicate),
+  /runtime catalog contains conflicting manifest_metadata_list_policies\.key/
+);
+
 const badAffixKind = JSON.parse(JSON.stringify(catalog));
 badAffixKind[0].manifest_metadata_list_policies = [
   { key: "managed_files", value_kind: "relpath", item_prefix: "gpd-" },
@@ -1761,6 +1820,31 @@ assert.throws(() => validateRuntimeCatalog(catalog), /runtime catalog contains d
     )
     assert duplicate_result.returncode == 0, f"{duplicate_result.stdout}\n{duplicate_result.stderr}"
 
+    conflicting_manifest_payload = json.loads(
+        (REPO_ROOT / "src" / "gpd" / "adapters" / "runtime_catalog.json").read_text(encoding="utf-8")
+    )
+    (source_entry, source_policy), (target_entry, _target_policy) = _first_two_manifest_metadata_policy_entries(
+        conflicting_manifest_payload
+    )
+    target_entry["manifest_metadata_list_policies"] = [_conflicting_manifest_metadata_policy(source_policy)]
+    assert source_entry["runtime_name"] != target_entry["runtime_name"]
+    with pytest.raises(ValueError, match=r"runtime catalog contains conflicting manifest_metadata_list_policies\.key"):
+        _iter_runtime_descriptors_from_payload(conflicting_manifest_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    conflicting_manifest_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateRuntimeCatalog }} = require("./bin/install.js");
+const catalog = {json.dumps(conflicting_manifest_payload)};
+assert.throws(
+  () => validateRuntimeCatalog(catalog),
+  /runtime catalog contains conflicting manifest_metadata_list_policies\\.key/
+);
+"""
+    )
+    assert conflicting_manifest_result.returncode == 0, (
+        f"{conflicting_manifest_result.stdout}\n{conflicting_manifest_result.stderr}"
+    )
+
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_target_dir_selection_menu_requires_one_runtime() -> None:
@@ -1785,6 +1869,32 @@ assert.deepEqual(
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_rejects_all_with_explicit_runtime_flag_before_python(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--all", _CODEX_INSTALL_FLAG, "--local"],
+    )
+
+    assert result.returncode == 1
+    assert "Cannot combine explicit runtimes with --all for install" in result.stderr
+    assert not log_path.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_rejects_all_with_explicit_runtime_token_before_python(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["uninstall", "all", _CODEX_RUNTIME_NAME, "--local"],
+    )
+
+    assert result.returncode == 1
+    assert "Cannot combine explicit runtimes with --all for uninstall" in result.stderr
+    assert not log_path.exists()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1814,8 +1924,15 @@ def test_bootstrap_help_uses_catalog_driven_example_runtimes() -> None:
             "latest unreleased GitHub main source",
         ),
     )
-    assert "Supervised autonomy (`supervised`) is the default" in result.stdout
-    assert "Opt into Balanced autonomy (`balanced`)" in result.stdout
+    assert f"Beginner path: {_BEGINNER_ONBOARDING_HUB_URL}" in result.stdout
+    assert "Runtime surface: run the selected runtime's help command" in result.stdout
+    assert "First-run order:" not in result.stdout
+    assert "first-run order is `help -> start -> tour -> new-project / map-research -> resume-work`" in result.stdout
+    assert "`gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>`" in result.stdout
+    assert "Open your runtime, run its help command first" not in result.stdout
+    assert "Supervised autonomy (`supervised`) is the default" not in result.stdout
+    assert "Opt into Balanced autonomy (`balanced`)" not in result.stdout
+    assert "Workflow presets:" not in result.stdout
     assert "Recommended unattended default: Balanced" not in result.stdout
     assert "matching tagged GitHub source" not in result.stdout
     assert "startsWith(\"$\")" not in result.stdout

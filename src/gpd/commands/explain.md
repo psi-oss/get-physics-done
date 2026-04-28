@@ -36,15 +36,11 @@ allowed-tools:
 
 
 <objective>
-Produce a rigorous, well-scoped explanation of a concept, method, notation, result, or paper in the context of the user's current research workflow.
+Route a request for a rigorous explanation into the workflow-owned implementation.
 
-Keep any GPD-authored explanation artifacts under `GPD/explanations/` rooted at the current workspace. In project-backed runs that means the resolved project root's `GPD/explanations/`; in standalone runs it means `./GPD/explanations/` in the invoking workspace.
+This wrapper owns command-context validation and the public output-root boundary only. The same-named workflow owns scope clarification, context gathering, explainer delegation, citation audit, result lookup, and reporting.
 
-**Orchestrator role:** Clarify scope when necessary, gather local project/process context, spawn a `gpd-explainer` agent, optionally run `gpd-bibliographer` to verify cited papers, and present the finished explanation plus reading path.
-
-**Why subagent:** The explanation needs local state, notation, nearby derivations, and literature context. Fresh context keeps it rigorous.
-When available, the explainer should also use the derived citation-source catalog so literature guides can prefer stable `reference_id` anchors and openable URLs instead of reconstructing papers from prose.
-If the topic is already represented in `intermediate_results`, follow `{GPD_INSTALL_DIR}/references/results/result-lookup-policy.md` before explaining it so the explanation anchors to stored equation, phase, verification, dependency, and impact context instead of reconstructing that context from prose.
+**Why subagent:** Fresh context lets `gpd-explainer` handle the explanation and `gpd-bibliographer` audit citations without bloating the orchestrator.
 </objective>
 
 <execution_context>
@@ -52,13 +48,11 @@ If the topic is already represented in `intermediate_results`, follow `{GPD_INST
 </execution_context>
 
 <context>
-Concept or topic: $ARGUMENTS
+Concept, result, method, notation, or paper: $ARGUMENTS
 
-Check for prior explanation artifacts:
-
-```bash
-ls GPD/explanations/*.md 2>/dev/null | head -10
-```
+GPD-authored explanation artifacts stay under `GPD/explanations/` rooted at the current workspace.
+Use `@{GPD_INSTALL_DIR}/references/results/result-lookup-policy.md` for upstream result dependencies.
+If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic.
 
 </context>
 
@@ -76,33 +70,14 @@ fi
 
 ## 1. Parse Request
 
-Extract the target concept from `$ARGUMENTS`.
-
-- If `$ARGUMENTS` is empty in project-context mode, ask one focused question to identify the concept, result, method, notation, or paper to explain.
-- If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic; standalone preflight should already have rejected the empty launch.
-- If the request is non-empty but materially ambiguous and the active project does not disambiguate it, ask one focused clarification question.
-- Otherwise infer the intended scope from the current phase, manuscript work, notation, and nearby project files.
-- If the concept looks like a derived equation or stored quantity, apply `{GPD_INSTALL_DIR}/references/results/result-lookup-policy.md` before falling back to prose-only context.
-
-## 2. Gather Context
-
-If a GPD project exists, load project state and current-process context before spawning the explainer.
-
-## 3. Execute the Explain Workflow
+Let the included workflow handle target clarification, project/standalone mode, result-registry lookup, explainer delegation, citation auditing, and final reporting.
 
 Follow the included explain workflow end-to-end.
-
-## 4. Return Results
-
-Show the explanation summary, report path, citation-audit status, and the best papers to open next. If derived citation-source context is available, prefer it when naming follow-up papers or links.
 </process>
 
 <success_criteria>
 
 - [ ] Standalone or project context validated
-- [ ] Relevant local files and active-process context gathered when available
-- [ ] `gpd-explainer` spawned with a scoped objective
-- [ ] Explanation written with clear structure, project grounding, and literature guide
-- [ ] Citations verified by `gpd-bibliographer` or uncertainty explicitly flagged
-- [ ] User receives report path plus recommended follow-up papers/questions
-      </success_criteria>
+- [ ] Explain workflow executed as the authority for mechanics
+- [ ] Explanation artifacts kept under the current workspace's `GPD/explanations/`
+</success_criteria>

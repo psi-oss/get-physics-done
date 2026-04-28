@@ -2,11 +2,28 @@
 
 from __future__ import annotations
 
-from gpd.core.return_contract import validate_gpd_return_markdown
+from dataclasses import fields
+
+from gpd.core.return_contract import (
+    REQUIRED_RETURN_FIELDS,
+    GpdReturnEnvelope,
+    GpdReturnStatusContract,
+    validate_gpd_return_markdown,
+)
 
 
 def _wrap_return_block(yaml_body: str) -> str:
     return f"```yaml\ngpd_return:\n{yaml_body}```\n"
+
+
+def test_status_contract_does_not_carry_dead_required_fields() -> None:
+    assert [field.name for field in fields(GpdReturnStatusContract)] == ["structured_fields"]
+
+
+def test_required_return_fields_derive_from_envelope_model() -> None:
+    assert REQUIRED_RETURN_FIELDS == tuple(
+        field_name for field_name, field_info in GpdReturnEnvelope.model_fields.items() if field_info.is_required()
+    )
 
 
 def test_accepts_nested_state_and_continuation_payloads() -> None:
@@ -186,6 +203,29 @@ def test_rejects_applicator_owned_handoff_metadata_inside_child_return() -> None
 
     assert result.passed is False
     assert any("recorded_at" in error and "recorded_by" in error and "applicator-owned" in error for error in result.errors)
+
+
+def test_rejects_applicator_owned_bounded_segment_metadata_inside_child_return() -> None:
+    content = _wrap_return_block(
+        "  status: checkpoint\n"
+        "  files_written: [src/main.py]\n"
+        "  issues: []\n"
+        "  next_actions: [/gpd:resume-work]\n"
+        "  continuation_update:\n"
+        "    bounded_segment:\n"
+        "      resume_file: GPD/phases/01-test-phase/.continue-here.md\n"
+        "      phase: 01\n"
+        "      plan: 01\n"
+        "      segment_id: seg-01\n"
+        "      segment_status: paused\n"
+        "      updated_at: 2026-04-08T12:00:00Z\n"
+        "      recorded_by: execute-plan\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("updated_at" in error and "recorded_by" in error and "applicator-owned" in error for error in result.errors)
 
 
 def test_rejects_scalar_where_continuation_update_requires_mapping() -> None:

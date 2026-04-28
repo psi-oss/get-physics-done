@@ -32,7 +32,7 @@ def test_new_project_minimal_contract_guidance_surfaces_contract_enum_vocabulary
     assert '`acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`' in project_contract_schema_text
     assert '`references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface": true|false, "required_actions[]" }`' in project_contract_schema_text
     assert '`links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`' in project_contract_schema_text
-    assert "`claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`." in project_contract_schema_text
+    assert "`claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`" in project_contract_schema_text
     assert "`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`." in project_contract_schema_text
     assert (
         "if `references[].must_surface` is `true`, both `references[].applies_to[]` and "

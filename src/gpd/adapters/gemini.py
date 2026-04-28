@@ -1137,6 +1137,11 @@ class GeminiAdapter(RuntimeAdapter):
             *self._runtime_bridge_only_relpaths(),
         )
 
+    def commit_attribution_config_path(self, *, explicit_config_dir: str | None = None) -> Path | None:
+        """Gemini stores commit attribution in settings.json, not policy TOML."""
+        config_dir = Path(explicit_config_dir).expanduser() if explicit_config_dir else self.resolve_global_config_dir()
+        return config_dir / "settings.json"
+
     def install(
         self,
         gpd_root: Path,
@@ -1175,7 +1180,7 @@ class GeminiAdapter(RuntimeAdapter):
             path_prefix,
             target_dir,
             gpd_root / "specs",
-            attribution=self.get_commit_attribution(),
+            attribution=self.get_commit_attribution(explicit_config_dir=str(target_dir)),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
             explicit_target=getattr(self, "_install_explicit_target", False),
@@ -1195,7 +1200,7 @@ class GeminiAdapter(RuntimeAdapter):
             agents_dest,
             path_prefix,
             gpd_root / "specs",
-            attribution=self.get_commit_attribution(),
+            attribution=self.get_commit_attribution(explicit_config_dir=str(target_dir)),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
         )

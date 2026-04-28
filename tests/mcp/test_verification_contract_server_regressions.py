@@ -172,6 +172,46 @@ def test_contract_check_schemas_require_non_empty_scope_in_scope() -> None:
     )
 
 
+def test_contract_check_schemas_require_must_surface_reference_surface_fields() -> None:
+    contract = _load_project_contract_fixture()
+    reference = contract["references"][0]
+    assert isinstance(reference, dict)
+    reference.pop("applies_to")
+    reference["required_actions"] = []
+
+    request = {
+        "request": {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    }
+
+    run_errors = _schema_errors_with_context(_run_contract_check_input_schema(), request)
+    suggest_errors = _schema_errors_with_context(_suggest_contract_checks_input_schema(), {"contract": contract})
+
+    for schema_errors in (run_errors, suggest_errors):
+        assert any(
+            list(error.absolute_path)[-2:] == ["references", 0]
+            and "'applies_to' is a required property" in error.message
+            for error in schema_errors
+        )
+        assert any(
+            list(error.absolute_path)[-3:] == ["references", 0, "required_actions"]
+            and "non-empty" in error.message
+            for error in schema_errors
+        )
+
+    result = _call_verification_tool("run_contract_check", request)
+
+    assert result["contract_error_details"] == [
+        "reference ref-benchmark is must_surface but missing applies_to",
+        "reference ref-benchmark is must_surface but missing required_actions",
+    ]
+
+
 def test_contract_tools_reject_empty_scope_in_scope() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 

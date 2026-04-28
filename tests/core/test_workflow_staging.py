@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from gpd.core import context as context_module
-from gpd.core.context import init_write_paper
+from gpd.core.context import init_resume, init_sync_state, init_write_paper
 from gpd.core.workflow_staging import (
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
     LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
@@ -341,6 +341,21 @@ def test_load_workflow_stage_manifest_from_path_without_expected_id_uses_manifes
     assert manifest.stage_ids()[0] == "phase_bootstrap"
 
 
+def test_load_workflow_stage_manifest_from_path_validates_inferred_workflow_init_fields(
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload("execute-phase")
+    payload["stages"][0]["required_init_fields"] = [
+        *payload["stages"][0]["required_init_fields"],
+        "not_an_execute_phase_field",
+    ]
+    manifest_path = tmp_path / "custom-stage-manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown field name"):
+        load_workflow_stage_manifest_from_path(manifest_path)
+
+
 def test_load_verify_work_manifest_from_path_uses_workflow_mcp_tool_defaults(tmp_path: Path) -> None:
     payload = _workflow_payload("verify-work")
     manifest_path = tmp_path / "verify-work-stage-manifest.json"
@@ -367,10 +382,22 @@ def test_known_init_fields_for_verify_work_include_proof_gate_and_artifact_conte
     assert "reference_artifacts_content" in known_init_fields
 
 
-def test_write_paper_staged_init_fields_match_manifest_required_fields(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("workflow_id", "initializer"),
+    [
+        ("resume-work", init_resume),
+        ("sync-state", init_sync_state),
+        ("write-paper", init_write_paper),
+    ],
+)
+def test_staged_init_fields_match_manifest_required_fields_for_resume_sync_and_write_paper(
+    tmp_path: Path,
+    workflow_id: str,
+    initializer,
+) -> None:
     manifest = validate_workflow_stage_manifest_payload(
-        _workflow_payload("write-paper"),
-        expected_workflow_id="write-paper",
+        _workflow_payload(workflow_id),
+        expected_workflow_id=workflow_id,
     )
 
     gpd_dir = tmp_path / "GPD"
@@ -379,13 +406,13 @@ def test_write_paper_staged_init_fields_match_manifest_required_fields(tmp_path:
     (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
 
     for stage_id in manifest.stage_ids():
-        payload = init_write_paper(tmp_path, stage=stage_id)
+        payload = initializer(tmp_path, stage=stage_id)
         stage = manifest.stage(stage_id)
 
         assert "staged_loading" in payload
         assert tuple(field for field in payload if field != "staged_loading") == stage.required_init_fields
         assert set(payload) == set(stage.required_init_fields) | {"staged_loading"}
-        assert payload["staged_loading"]["workflow_id"] == "write-paper"
+        assert payload["staged_loading"]["workflow_id"] == workflow_id
         assert payload["staged_loading"]["stage_id"] == stage_id
 
 

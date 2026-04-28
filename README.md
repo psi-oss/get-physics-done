@@ -159,7 +159,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 - Choose `--local` or `--global` explicitly if you do not want the installer's default path selection
 - Runtime permissions are runtime-owned permission alignment only; use the guided checks after startup to decide whether the runtime is ready.
-- Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Supervised (`supervised`) is the default; graduate to Balanced (`balanced`) once you trust GPD's boundary on your specific research.
+- Use your runtime-specific `settings` command after the first successful launch to review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides. Safest model-cost start: `review` plus runtime defaults.
 - For the broader terminal-side diagnostics, readiness, recovery, visibility, cost, and preset surface, start with `gpd --help` from your normal terminal.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` when you want a terminal-side unattended or overnight verdict. Use `supervised` unless you intentionally selected a different autonomy mode.
 - If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
@@ -471,7 +471,7 @@ Typed command metadata is not review-only. `gpd validate command-context` expose
 | `gpd validate consistency` | Run cross-phase consistency and project health checks for the current workspace |
 | `gpd validate command-context <command> [arguments]` | Show the shared typed command context policy: whether a command is global, projectless, project-aware, or project-required in the current workspace |
 | `gpd validate unattended-readiness --runtime <runtime> [--autonomy <mode>]` | Return the unattended or overnight verdict for runtime permission alignment without replacing `gpd doctor` or plan preflight |
-| `gpd validate project-contract <file.json or -> [--mode approved|draft]` | Validate a project-scoping contract before downstream artifact generation |
+| `gpd validate project-contract <file.json|-> [--mode approved|draft]` | Validate a project-scoping contract before downstream artifact generation |
 | `gpd validate review-contract <command>` | Show the specialized typed review/publication contract for commands that expose one |
 | `gpd validate review-preflight <command> [subject] --strict` | Run the specialized review/publication preflight for commands that expose a typed review contract against a resolved subject |
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |

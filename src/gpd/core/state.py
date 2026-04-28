@@ -681,7 +681,6 @@ class StateSnapshotResult(BaseModel):
     decisions: list[dict] | None = None
     blockers: list[str | dict] | None = None
     paused_at: str | None = None
-    session: dict | None = None
     error: str | None = None
 
 
@@ -4079,6 +4078,8 @@ def save_state_markdown(cwd: Path, md_content: str) -> dict:
 @instrument_gpd_function("state.load")
 def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     """Load full state with config and file-existence metadata."""
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
     preloaded_project_contract, preloaded_project_contract_load_info = _load_project_contract_for_runtime_context(cwd)
     state_obj, load_integrity_issues, state_source = _load_state_json_with_integrity_issues(
         cwd,
@@ -4423,6 +4424,18 @@ def state_set_continuation_bounded_segment(
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
         state_obj = _load_state_snapshot_for_mutation(cwd, recover_intent=False)
+        normalized_last_result_id = _optional_state_text(normalized_segment.last_result_id)
+        if normalized_last_result_id is not None and not state_has_canonical_result_id(
+            state_obj,
+            normalized_last_result_id,
+        ):
+            return StateUpdateResult(
+                updated=False,
+                reason=(
+                    f'last_result_id "{normalized_last_result_id}" does not match any canonical result in '
+                    "intermediate_results"
+                ),
+            )
         current_continuation = normalize_continuation(cwd, state_obj.get("continuation")).model_dump(mode="python")
         desired_continuation = normalize_continuation(
             cwd,
@@ -5182,7 +5195,6 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
         decisions=state_obj.get("decisions"),
         blockers=state_obj.get("blockers"),
         paused_at=pos.get("paused_at"),
-        session=None,
     )
 
 

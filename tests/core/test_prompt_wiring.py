@@ -1215,7 +1215,7 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
 
 
 def test_proof_contract_prompts_surface_explicit_theorem_fields_and_review_bindings() -> None:
-    plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    plan_schema = _expand_prompt_surface(TEMPLATES_DIR / "plan-contract-schema.md")
     proof_schema = (TEMPLATES_DIR / "proof-redteam-schema.md").read_text(encoding="utf-8")
     proof_protocol = (REFERENCES_DIR / "verification" / "core" / "proof-redteam-protocol.md").read_text(
         encoding="utf-8"
@@ -2959,7 +2959,7 @@ def test_explain_surfaces_keep_workspace_rooted_outputs_and_honest_standalone_ta
     explain_workflow = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
 
     assert "standalone question with an explicit topic" in explain_command
-    assert "Keep any GPD-authored explanation artifacts under `GPD/explanations/` rooted at the current workspace." in explain_command
+    assert "GPD-authored explanation artifacts stay under `GPD/explanations/` rooted at the current workspace." in explain_command
     assert "If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic" in explain_command
     assert "standalone explanations only when the standalone request already names an explicit target" in explain_workflow
     assert "Do not promise that an empty standalone launch can be clarified later" in explain_workflow
@@ -3881,7 +3881,7 @@ def test_non_adapter_sources_do_not_hardcode_runtime_names() -> None:
 
 
 def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalization_rules() -> None:
-    plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    plan_schema = _expand_prompt_surface(TEMPLATES_DIR / "plan-contract-schema.md")
 
     assert "schema_version: 1" in plan_schema
     assert "scope:" in plan_schema
