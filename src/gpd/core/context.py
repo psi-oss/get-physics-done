@@ -815,6 +815,7 @@ __all__ = [
     "init_plan_phase",
     "init_progress",
     "init_quick",
+    "init_respond_to_referees",
     "init_resume",
     "init_todos",
     "init_verify_work",
@@ -948,7 +949,9 @@ def _explicit_workspace_layout_context(cwd: Path) -> tuple[Path, dict[str, objec
         return None
 
     state_exists, roadmap_exists, project_exists = recoverable_project_context(project_root)
-    recoverable = state_exists or roadmap_exists or project_exists or has_execution_resume_surface or has_local_config_surface
+    recoverable = (
+        state_exists or roadmap_exists or project_exists or has_execution_resume_surface or has_local_config_surface
+    )
     if resolution.walk_up_steps > 0:
         reason = "workspace resolved to ancestor project root"
     elif has_execution_resume_surface and not (state_exists or roadmap_exists or project_exists):
@@ -1047,9 +1050,7 @@ def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str | None = 
     return None
 
 
-def _find_phase_artifact_path(
-    phase_dir: Path, suffix: str, standalone: str | None = None
-) -> Path | None:
+def _find_phase_artifact_path(phase_dir: Path, suffix: str, standalone: str | None = None) -> Path | None:
     """Return the full path to the first file in ``phase_dir`` matching ``suffix``
     or ``standalone``, or ``None``. Mirrors :func:`_find_phase_artifact` but
     returns a :class:`Path` for callers that need full content (not truncated).
@@ -4351,6 +4352,51 @@ def init_peer_review(cwd: Path, subject: str | None = None, stage: str | None = 
     return staged_payload
 
 
+def init_respond_to_referees(cwd: Path, subject: str | None = None, stage: str | None = None) -> dict:
+    """Assemble context for staged referee-response revision work."""
+    launch_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd = _resolve_project_scoped_cwd(launch_cwd)
+    config = load_config(effective_cwd)
+    base_result: dict[str, object] = {
+        "commit_docs": config["commit_docs"],
+        "state_exists": _state_exists(effective_cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "autonomy": config["autonomy"],
+        "research_mode": config["research_mode"],
+        "platform": _detect_platform(effective_cwd),
+    }
+    if stage is None:
+        result = dict(base_result)
+        result.update(_build_peer_review_runtime_context(effective_cwd, subject, launch_cwd=launch_cwd))
+        return result
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest(
+        "respond-to-referees",
+        known_init_fields=PEER_REVIEW_INIT_FIELDS,
+    )
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown respond-to-referees stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    staged_source = dict(base_result)
+    staged_source.update(_build_peer_review_runtime_context(effective_cwd, subject, launch_cwd=launch_cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
+    if missing_fields:
+        raise ValueError(
+            f"respond-to-referees stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
+
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
+
+
 def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for arXiv submission packaging."""
     config = load_config(cwd)
@@ -4749,7 +4795,9 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
-        raise ValueError(f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}.") from exc
+        raise ValueError(
+            f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(result)
@@ -4766,7 +4814,9 @@ def init_map_research(cwd: Path, focus: str | None = None, stage: str | None = N
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
+        raise ValueError(
+            f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)

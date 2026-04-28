@@ -45,6 +45,7 @@ def test_resolve_project_roots_uses_verified_explicit_project_dir_walkup(tmp_pat
     other_workspace = tmp_path / "workspace"
     (project / "GPD").mkdir(parents=True)
     (project / "GPD" / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (project / "GPD" / "state.json").write_text("{}\n", encoding="utf-8")
     nested_hint.mkdir(parents=True)
     other_workspace.mkdir()
 
@@ -219,6 +220,7 @@ def test_resolve_project_roots_prefers_nearest_verified_nested_project_over_mark
     nested_gpd = nested_project / "GPD"
     nested_gpd.mkdir()
     (nested_gpd / "PROJECT.md").write_text("# Nested Project\n", encoding="utf-8")
+    (nested_gpd / "state.json").write_text("{}\n", encoding="utf-8")
 
     resolution = resolve_project_roots(workspace)
 
@@ -254,6 +256,23 @@ def test_resolve_project_root_require_layout_accepts_marker_backed_gpd(tmp_path:
     gpd_dir = workspace / "GPD"
     gpd_dir.mkdir(parents=True)
     (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (gpd_dir / "state.json").write_text("{}\n", encoding="utf-8")
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolve_project_root(workspace, require_layout=True) == workspace.resolve(strict=False)
+
+
+def test_resolve_project_root_accepts_gpd_state_with_root_identity_docs(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    gpd_dir = workspace / "GPD"
+    gpd_dir.mkdir(parents=True)
+    (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (workspace / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
 
     resolution = resolve_project_roots(workspace)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd import registry
 from tests.prompt_metrics_support import expanded_prompt_text, measure_prompt_surface
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,9 +28,12 @@ def test_gpd_project_researcher_prompt_stays_within_expected_budget_and_keeps_on
     assert "The orchestrator presents the checkpoint and spawns a fresh continuation after the response." in source
     assert "Do not wait inside the same spawned run." in source
     assert "Structured return provided to orchestrator" in source
-    assert "Authority: use the frontmatter-derived Agent Requirements block" in source
-    assert "artifact_write_authority: scoped_write" in source
-    assert "shared_state_authority: return_only" in source
+    assert "Authority: use the frontmatter-derived Agent Requirements block" not in source
+
+    generated_prompt = registry.get_agent("gpd-project-researcher").system_prompt
+    assert generated_prompt.count("## Agent Requirements") == 1
+    assert "artifact_write_authority: scoped_write" in generated_prompt
+    assert "shared_state_authority: return_only" in generated_prompt
 
     for phrase in (
         "wait for user confirmation",

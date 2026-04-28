@@ -433,7 +433,12 @@ def _command_preflight_cwd(
 
     if _command_supports_project_reentry(command):
         reentry_policy = _command_effective_project_reentry_mode(command).casefold()
-        if reentry_policy in {"current-workspace", "current_workspace", "current-workspace-only", "current_workspace_only"}:
+        if reentry_policy in {
+            "current-workspace",
+            "current_workspace",
+            "current-workspace-only",
+            "current_workspace_only",
+        }:
             return _read_only_project_scoped_cwd(workspace_cwd)
         return _status_command_cwd(workspace_cwd)
 
@@ -5223,6 +5228,47 @@ def init_peer_review(
     _output(payload)
 
 
+@init_app.command("respond-to-referees")
+def init_respond_to_referees(
+    subject: list[str] = typer.Argument(
+        None,
+        help="Optional normalized manuscript/report intake string for response-round context resolution.",
+    ),
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged respond-to-referees context for a specific stage id.",
+    ),
+) -> None:
+    """Assemble context for responding to referee reports."""
+    from gpd.core.context import init_respond_to_referees
+
+    subject_text = " ".join(subject) if subject else None
+    try:
+        payload = init_respond_to_referees(_get_cwd(), subject=subject_text, stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
+
+
+@init_app.command("arxiv-submission")
+def init_arxiv_submission(
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged arxiv-submission context for a specific stage id.",
+    ),
+) -> None:
+    """Assemble context for arXiv submission packaging."""
+    from gpd.core.context import init_arxiv_submission
+
+    try:
+        payload = init_arxiv_submission(_get_cwd(), stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
+
+
 @init_app.command("quick")
 def init_quick(
     description: list[str] = typer.Argument(None, help="Task description"),
@@ -5282,6 +5328,18 @@ def init_resume(
     ),
 ) -> None:
     """Assemble context for resuming previous work."""
+    _emit_init_resume(stage)
+
+
+@init_app.command("resume-work")
+def init_resume_work(
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged resume-work context for a specific stage id.",
+    ),
+) -> None:
+    """Alias for gpd init resume."""
     _emit_init_resume(stage)
 
 

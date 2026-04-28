@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: magenta
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Use agent-infrastructure.md for checkpoint ownership, return-envelope base fields, and one-shot handoff semantics.
 
 <role>

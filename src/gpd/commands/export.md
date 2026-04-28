@@ -39,34 +39,14 @@ Format: $ARGUMENTS (optional -- if not provided, ask user)
 
 <process>
 Execute the included export workflow end-to-end.
-
-## Step 1: Load Project Context
-
-Read PROJECT.md, ROADMAP.md, and all SUMMARY.md files from completed phases.
-
-## Step 2: Determine Format
-
-Parse --format from $ARGUMENTS. If not specified, ask user.
-
-## Step 3: Generate Export
-
-Route to appropriate generator (html, latex, zip, or all).
-
-## Step 4: Write Output
-
+The workflow owns project loading, format resolution, export generation, file writing, and reporting.
 Write files to `exports/`.
-
-## Step 5: Report
-
-Display file locations, sizes, and instructions for each format.
+Files written to exports/ are reported by the workflow.
 </process>
 
 <success_criteria>
 
-- [ ] Project context loaded (PROJECT.md, ROADMAP.md, all SUMMARYs)
-- [ ] Format determined (from args or user choice)
-- [ ] Export generated in requested format(s)
-- [ ] Key results and equations included
-- [ ] Files written to exports/
-- [ ] File locations reported to user
-      </success_criteria>
+- [ ] Export workflow executed as the authority for export mechanics
+- [ ] Requested format from `$ARGUMENTS` handed to workflow-owned resolution
+- [ ] Workflow-owned output and reporting contract preserved
+</success_criteria>

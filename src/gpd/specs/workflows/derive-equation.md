@@ -498,7 +498,7 @@ task(
 Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Operate in proof-redteam mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
+Follow the proof-redteam protocol's one-shot return semantics.
 
 Write to:
 - `${phase_dir}/DERIVATION-{slug}-PROOF-REDTEAM.md` when authoritative phase context is phase-scoped

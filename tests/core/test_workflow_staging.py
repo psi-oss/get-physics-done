@@ -52,6 +52,7 @@ def _workflow_payload(workflow_id: str) -> dict[str, object]:
         ("verify-work", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "verify-work-stage-manifest.json"),
         ("write-paper", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "write-paper-stage-manifest.json"),
         ("peer-review", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "peer-review-stage-manifest.json"),
+        ("respond-to-referees", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "respond-to-referees-stage-manifest.json"),
         ("arxiv-submission", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "arxiv-submission-stage-manifest.json"),
         ("execute-phase", EXECUTE_PHASE_STAGE_MANIFEST_PATH),
     ],
@@ -160,9 +161,10 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
     )
     assert execute_phase_manifest.stage("pre_execution_specialists").next_stages == ("wave_dispatch",)
     assert "templates/summary.md" in execute_phase_manifest.stage("aggregate_and_verify").loaded_authorities
-    assert "templates/contract-results-schema.md" in execute_phase_manifest.stage(
-        "aggregate_and_verify"
-    ).loaded_authorities
+    assert (
+        "templates/contract-results-schema.md"
+        in execute_phase_manifest.stage("aggregate_and_verify").loaded_authorities
+    )
     assert "templates/calculation-log.md" in execute_phase_manifest.stage("aggregate_and_verify").loaded_authorities
 
 
@@ -731,9 +733,9 @@ def test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest(
         "workflows/research-phase.md",
         "references/orchestration/model-profile-resolution.md",
     )
-    assert "references/orchestration/runtime-delegation-note.md" in manifest.stage(
-        "phase_bootstrap"
-    ).must_not_eager_load
+    assert (
+        "references/orchestration/runtime-delegation-note.md" in manifest.stage("phase_bootstrap").must_not_eager_load
+    )
     assert "reference_artifacts_content" not in manifest.stage("phase_bootstrap").required_init_fields
     assert manifest.stage("research_handoff").loaded_authorities == (
         "workflows/research-phase.md",
@@ -891,10 +893,7 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert "review_target_mode" in final_adjudication.required_init_fields
     assert "resolved_review_target" in final_adjudication.required_init_fields
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
-    assert (
-        "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json"
-        in final_adjudication.writes_allowed
-    )
+    assert "GPD/publication/{subject_slug}/review/REVIEW-LEDGER{round_suffix}.json" in final_adjudication.writes_allowed
     assert "GPD/publication/{subject_slug}/REFEREE-REPORT{round_suffix}.md" in final_adjudication.writes_allowed
     assert "selected_review_root" in finalize.required_init_fields
 
@@ -1129,16 +1128,24 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
 @pytest.mark.parametrize(
     ("mutator", "message"),
     [
-        (lambda payload: payload["stages"][0].__setitem__("loaded_authorities", ["/absolute/path.md"]), "normalized relative POSIX"),
+        (
+            lambda payload: payload["stages"][0].__setitem__("loaded_authorities", ["/absolute/path.md"]),
+            "normalized relative POSIX",
+        ),
         (
             lambda payload: payload["stages"][0].__setitem__(
                 "must_not_eager_load", ["references/research/does-not-exist.md"]
             ),
             "existing markdown file",
         ),
-        (lambda payload: payload["stages"][0].__setitem__("allowed_tools", ["file_read", "not-a-tool"]), "unknown tool"),
         (
-            lambda payload: payload["stages"][0].__setitem__("required_init_fields", ["researcher_model", "not-a-field"]),
+            lambda payload: payload["stages"][0].__setitem__("allowed_tools", ["file_read", "not-a-tool"]),
+            "unknown tool",
+        ),
+        (
+            lambda payload: payload["stages"][0].__setitem__(
+                "required_init_fields", ["researcher_model", "not-a-field"]
+            ),
             "unknown field",
         ),
         (
@@ -1155,7 +1162,10 @@ def test_known_init_fields_for_arxiv_submission_include_publication_routing() ->
             ),
             "overlap with must_not_eager_load",
         ),
-        (lambda payload: payload["stages"][1].__setitem__("writes_allowed", ["../escape.txt"]), "normalized relative POSIX path"),
+        (
+            lambda payload: payload["stages"][1].__setitem__("writes_allowed", ["../escape.txt"]),
+            "normalized relative POSIX path",
+        ),
     ],
 )
 def test_validate_workflow_stage_manifest_payload_rejects_bad_entries(

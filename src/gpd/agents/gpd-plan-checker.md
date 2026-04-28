@@ -9,7 +9,6 @@ artifact_write_authority: read_only
 shared_state_authority: return_only
 color: green
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Internal specialist boundary: stay read-only inside assigned scoped artifacts and the return envelope; do not act as the default writable implementation agent.
 
 <role>

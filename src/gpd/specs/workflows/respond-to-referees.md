@@ -19,17 +19,18 @@ Responding to referees is not adversarial -- it is collaborative improvement. Ev
 <process>
 
 <step name="init">
-**Initialize context and locate paper:**
+**Initialize the response-round bootstrap context and locate paper:**
 
 ```bash
-INIT=$(gpd --raw init phase-op --include config)
+INIT=$(gpd --raw init respond-to-referees --stage bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
-  # STOP — display the error to the user and do not proceed.
+  # STOP -- display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `publication_subject_slug`, `selected_publication_root`, `selected_review_root`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Use `INIT.staged_loading.required_init_fields` as the bootstrap contract. Do not recreate the canonical field list here; the `respond-to-referees-stage-manifest.json` sidecar owns stage-local init fields, authorities, allowed tools, and writes.
+Parse JSON for: `project_contract_gate`, manuscript routing, publication/review roots, latest review artifacts, latest response artifacts, autonomy, and research_mode.
 
 **Read mode settings:**
 
@@ -176,6 +177,16 @@ Use `protocol_bundle_context` from init JSON as additive revision guidance.
 </step>
 
 <step name="parse_referee_reports">
+Load the report-triage stage before parsing referee reports or latest-round artifacts:
+
+```bash
+REPORT_TRIAGE_INIT=$(gpd --raw init respond-to-referees --stage report_triage)
+if [ $? -ne 0 ]; then
+  echo "ERROR: respond-to-referees report-triage init failed: $REPORT_TRIAGE_INIT"
+  # STOP -- display the error to the user and do not proceed.
+fi
+```
+
 **Obtain referee reports from the user:**
 
 Accepted report sources: explicit `--report PATH` inputs, pasted text, canonical `${RESPONSE_PUBLICATION_ROOT}/REFEREE-REPORT{round_suffix}.md`, or one positional report path only when the manuscript subject resolves from the current GPD project.
@@ -235,6 +246,26 @@ Confirm parsing is correct, or paste corrections.
 </step>
 
 <step name="create_response_file">
+Load the revision-planning stage before response authoring so comment classification and response artifacts use the same staged authority order:
+
+```bash
+REVISION_PLANNING_INIT=$(gpd --raw init respond-to-referees --stage revision_planning)
+if [ $? -ne 0 ]; then
+  echo "ERROR: respond-to-referees revision-planning init failed: $REVISION_PLANNING_INIT"
+  # STOP -- display the error to the user and do not proceed.
+fi
+```
+
+Load the response-authoring stage before writing response artifacts or applying manuscript edits:
+
+```bash
+RESPONSE_AUTHORING_INIT=$(gpd --raw init respond-to-referees --stage response_authoring)
+if [ $? -ne 0 ]; then
+  echo "ERROR: respond-to-referees response-authoring init failed: $RESPONSE_AUTHORING_INIT"
+  # STOP -- display the error to the user and do not proceed.
+fi
+```
+
 **Create the structured referee response document:**
 
 Read the canonical templates. Use the publication response-writer handoff already loaded during initialization:
@@ -275,6 +306,8 @@ Treat `${RESPONSE_AUTHOR_PATH}` and `${RESPONSE_REFEREE_PATH}` as the response s
 </step>
 
 <step name="triage_comments">
+Use the already loaded revision-planning stage before assigning comments to response-only, manuscript-revision, or new-calculation work.
+
 **Triage comments into actionable categories:**
 
 Sort all comments into three groups:
@@ -547,6 +580,16 @@ raised. Below we provide point-by-point responses.
 </step>
 
 <step name="commit_and_present">
+Load the finalize stage before closeout checks and next-command routing:
+
+```bash
+FINALIZE_INIT=$(gpd --raw init respond-to-referees --stage finalize)
+if [ $? -ne 0 ]; then
+  echo "ERROR: respond-to-referees finalize init failed: $FINALIZE_INIT"
+  # STOP -- display the error to the user and do not proceed.
+fi
+```
+
 **Commit all revision artifacts:**
 
 ```bash

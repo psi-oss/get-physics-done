@@ -1,17 +1,11 @@
 <purpose>
 Prepare a completed paper for arXiv submission.
 
-This workflow is staged:
+Stages: `bootstrap` -> `manuscript_preflight` -> `review_gate` -> `package` -> `finalize`.
 
-1. `bootstrap`
-2. `manuscript_preflight`
-3. `review_gate`
-4. `package`
-5. `finalize`
+The `arxiv-submission-stage-manifest.json` sidecar is executable through `gpd --raw init arxiv-submission --stage <stage_id>`. Executable stages: `gpd --raw init arxiv-submission --stage bootstrap`, `manuscript_preflight`, `review_gate`, `package`, `finalize`. Load the active stage payload before stage-specific authority; keep centralized command-context and strict review-preflight validators as the manuscript gate.
 
-The `arxiv-submission-stage-manifest.json` sidecar is metadata-only for the prompt path today (`prompt_usage: metadata_only`): it documents staged authority loading and registry contracts, but there is no public staged init CLI command to call from this workflow. Use the executable `gpd --raw validate command-context arxiv-submission ...` and `gpd --raw validate review-preflight arxiv-submission ... --strict` surfaces below as the prompt's runtime entrypoints until a public staged init command exists.
-
-Keep only arXiv-specific rules inline. Use the shared publication bootstrap reference for manuscript-root resolution, latest-review/latest-response gating, and fail-closed paired artifact handling.
+Keep arXiv-only rules inline; shared bootstrap owns manuscript and review gates.
 
 Output: a submission-ready `arxiv-submission.tar.gz` under `GPD/publication/<subject_slug>/arxiv/` and a manual submission checklist.
 </purpose>
@@ -27,6 +21,16 @@ Also read the shared publication bootstrap reference before resolving the manusc
 
 <step name="bootstrap" priority="first">
 **Resolve the manuscript target and publication bootstrap context.**
+
+Load the staged bootstrap payload before resolving the manuscript target:
+
+```bash
+BOOTSTRAP_INIT=$(gpd --raw init arxiv-submission --stage bootstrap)
+if [ $? -ne 0 ]; then
+  echo "ERROR: arxiv-submission bootstrap init failed: $BOOTSTRAP_INIT"
+  # STOP -- display the error to the user and do not proceed.
+fi
+```
 
 Run centralized context preflight before continuing:
 

@@ -96,11 +96,22 @@ def _display_path(path: Path, output_dir: Path) -> str:
         return path.as_posix()
 
 
-def _portable_source_path(path: Path, output_dir: Path) -> str:
-    """Return the original source path exactly as supplied by the caller."""
+def _portable_source_ref(path: Path, output_dir: Path, *, role: str) -> ArtifactSourceRef:
+    """Return a portable source reference without leaking local absolute paths."""
 
-    del output_dir
-    return str(path)
+    if not path.is_absolute():
+        return ArtifactSourceRef(path=path.as_posix(), role=role)
+
+    resolved_path = path.resolve(strict=False)
+    resolved_output_dir = output_dir.resolve(strict=False)
+    if resolved_path == resolved_output_dir or resolved_path.is_relative_to(resolved_output_dir):
+        return ArtifactSourceRef(path=resolved_path.relative_to(resolved_output_dir).as_posix(), role=role)
+
+    cwd = Path.cwd().resolve(strict=False)
+    if resolved_path == cwd or resolved_path.is_relative_to(cwd):
+        return ArtifactSourceRef(path=resolved_path.relative_to(cwd).as_posix(), role=role)
+
+    return ArtifactSourceRef(path=f"external:{path.name}", role=f"external-{role}")
 
 
 def _resolve_output_path(path: Path, output_dir: Path) -> Path:
@@ -198,9 +209,7 @@ def build_artifact_manifest(
                 path=_display_path(prepared_path, output_dir),
                 sha256=_sha256(prepared_path),
                 produced_by="build_paper:prepare_figures",
-                sources=[
-                    ArtifactSourceRef(path=_portable_source_path(original.path, output_dir), role="source-figure")
-                ],
+                sources=[_portable_source_ref(original.path, output_dir, role="source-figure")],
                 metadata={
                     "label": prepared.label,
                     "caption_length": len(prepared.caption),

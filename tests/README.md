@@ -40,6 +40,7 @@ It covers:
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
 - `src/gpd/mcp/*.py`: `5`
+- `src/gpd/mcp/integrations/*.py`: `2`
 - `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 
@@ -183,9 +184,13 @@ flowchart TD
   `authority`
   Python console-script authority for `gpd`.
 
-- `pyproject.toml -> src/gpd/mcp/servers/{conventions_server,verification_server,protocols_server,errors_mcp,patterns_server,state_server,skills_server}.py`
+- `pyproject.toml -> src/gpd/mcp/servers/{arxiv_bridge,conventions_server,verification_server,protocols_server,errors_mcp,patterns_server,state_server,skills_server}.py`
   `authority`
-  Console-script authority for `gpd-mcp-*` entrypoints.
+  Console-script authority for shipped `gpd-mcp-*` server entrypoints.
+
+- `pyproject.toml -> src/gpd/mcp/integrations/wolfram_bridge.py`
+  `authority`
+  Console-script authority for the shipped `gpd-mcp-wolfram` integration entrypoint.
 
 - `src/gpd/version.py -> pyproject.toml`
   `authority`

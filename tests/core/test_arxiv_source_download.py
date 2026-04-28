@@ -19,6 +19,13 @@ from gpd.core.arxiv_source_download import (
 from gpd.version import resolve_active_version
 
 
+def test_arxiv_default_storage_path_constant_is_not_exported() -> None:
+    import gpd.core.arxiv_source_download as module
+
+    assert not hasattr(module, "ARXIV_DEFAULT_STORAGE_PATH")
+    assert "ARXIV_DEFAULT_STORAGE_PATH" not in module.__all__
+
+
 class _FakeResponse:
     def __init__(self, payload: bytes, *, headers: dict[str, str]) -> None:
         self._buffer = io.BytesIO(payload)

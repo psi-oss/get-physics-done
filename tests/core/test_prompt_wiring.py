@@ -137,7 +137,7 @@ AGENT_REFERENCE_TOKENS = {
         "Public production boundary: public writable production agent specialized for discrepancy investigation and bounded repair work.",
         "On demand only: shared protocols, verification core, physics subfields, agent infrastructure, and cross-project patterns.",
         "Keep work in `gpd-debugger` while the task is root-cause isolation, validation, or a bounded repair tied to that investigation.",
-        "Do not update `session_status` to \"diagnosed\" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts.",
+        'Do not update `session_status` to "diagnosed" in `GPD/debug/{slug}.md`; that field belongs to verification artifacts.',
         "goal: find_root_cause_only",
         "goal: find_and_correct",
     ],
@@ -490,11 +490,11 @@ def test_return_only_planner_and_executor_do_not_commit_shared_state_files_by_de
     assert executor_commit_blocks
     assert all("GPD/STATE.md" not in block and "GPD/ROADMAP.md" not in block for block in planner_commit_blocks)
     assert all("GPD/STATE.md" not in block for block in executor_commit_blocks)
-    assert "Authority: use the frontmatter-derived Agent Requirements block" in planner
-    assert "shared_state_authority: return_only" in planner
+    assert "Authority: use the frontmatter-derived Agent Requirements block" not in planner
+    assert "shared_state_authority: return_only" in registry.get_agent("gpd-planner").system_prompt
     assert "roadmap_updates" in planner
-    assert "Authority: use the frontmatter-derived Agent Requirements block" in executor
-    assert "shared_state_authority: return_only" in executor
+    assert "Authority: use the frontmatter-derived Agent Requirements block" not in executor
+    assert "shared_state_authority: return_only" in registry.get_agent("gpd-executor").system_prompt
 
 
 def test_read_only_plan_checker_and_research_mapper_tool_policy_are_contract_aligned() -> None:
@@ -604,8 +604,8 @@ def test_consistency_checker_prompt_keeps_the_canonical_contract_and_stays_least
     assert "files_written: [GPD/phases/{scope}/CONSISTENCY-CHECK.md]" in source
     assert "GPD/CONSISTENCY-CHECK.md" in source
     assert "@{GPD_INSTALL_DIR}" not in source
-    assert "Authority: use the frontmatter-derived Agent Requirements block" in source
-    assert "shared_state_authority: return_only" in source
+    assert "Authority: use the frontmatter-derived Agent Requirements block" not in source
+    assert "shared_state_authority: return_only" in registry.get_agent("gpd-consistency-checker").system_prompt
     assert "Do not claim ownership of code fixes, commits, convention-authoring, or pattern-library updates." in source
     assert "Create it from the template" not in source
     assert "gpd pattern add" not in source
@@ -749,7 +749,7 @@ def test_review_commands_expose_typed_contracts() -> None:
             "preflight_checks": [],
             "blocking_preflight_checks": [],
             "stage_artifacts": ["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
-        }
+        },
     ]
 
     assert arxiv_submission.review_contract is not None
@@ -868,7 +868,7 @@ def test_conditional_review_contract_requirements_do_not_hide_runtime_blockers()
             when="theorem-bearing claims are present",
             required_outputs=["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
             stage_artifacts=["${REVIEW_ROOT}/PROOF-REDTEAM{round_suffix}.md"],
-        )
+        ),
     ]
     assert arxiv_submission.conditional_requirements == [
         registry.ReviewContractConditionalRequirement(
@@ -1001,11 +1001,11 @@ def test_current_workspace_project_aware_workflows_disable_recent_project_reentr
     explain = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
     review_knowledge = (WORKFLOWS_DIR / "review-knowledge.md").read_text(encoding="utf-8")
 
-    assert 'INIT=$(gpd --raw init progress --include state,protocols --no-project-reentry)' in compare_experiment
-    assert 'INIT=$(gpd --raw init progress --include state --no-project-reentry)' in compare_results
-    assert 'INIT=$(gpd --raw init progress --include state,config,references --no-project-reentry)' in digest_knowledge
-    assert 'INIT=$(gpd --raw init progress --include project,state,roadmap,config --no-project-reentry)' in explain
-    assert 'INIT=$(gpd --raw init progress --include state,config --no-project-reentry)' in review_knowledge
+    assert "INIT=$(gpd --raw init progress --include state,protocols --no-project-reentry)" in compare_experiment
+    assert "INIT=$(gpd --raw init progress --include state --no-project-reentry)" in compare_results
+    assert "INIT=$(gpd --raw init progress --include state,config,references --no-project-reentry)" in digest_knowledge
+    assert "INIT=$(gpd --raw init progress --include project,state,roadmap,config --no-project-reentry)" in explain
+    assert "INIT=$(gpd --raw init progress --include state,config --no-project-reentry)" in review_knowledge
 
 
 def test_compare_commands_expose_typed_policy_for_interactive_intake_and_gpd_outputs() -> None:
@@ -1075,7 +1075,7 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     workflow_text = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     writer_text = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
 
-    assert "argument-hint: \"[--manuscript PATH] (--report PATH [--report PATH...] | paste)\"" in command_text
+    assert 'argument-hint: "[--manuscript PATH] (--report PATH [--report PATH...] | paste)"' in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-wrapper-guidance.md" in command_text
     assert "Referee report source: $ARGUMENTS (file path or `paste`)." in command_text
     assert "subject-owned publication root at `GPD/publication/{subject_slug}`" in command_text
@@ -1119,10 +1119,7 @@ def test_publication_review_round_detection_prompts_are_shell_safe_and_pair_resp
         "The pipeline increments the round number only when the prior report and the canonical paired "
         "response artifacts are present" in reliability
     )
-    assert (
-        "`GPD/AUTHOR-RESPONSE{round_suffix}.md` plus `GPD/review/REFEREE_RESPONSE{round_suffix}.md`"
-        in reliability
-    )
+    assert "`GPD/AUTHOR-RESPONSE{round_suffix}.md` plus `GPD/review/REFEREE_RESPONSE{round_suffix}.md`" in reliability
 
     assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]REFEREE_RESPONSE\*\.md['\"]", respond)
     assert re.search(r"\bfind\b[\s\S]{0,160}-name ['\"]AUTHOR-RESPONSE\*\.md['\"]", respond)
@@ -1158,7 +1155,9 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
     assert "templates/paper/author-response.md" in respond
     assert "needs-calculation" in respond
     assert "selected_publication_root` / `selected_review_root" in respond
-    assert "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in respond
+    assert (
+        "Do not duplicate the pair into both the subject-owned root and the global project root in one run." in respond
+    )
 
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper
     assert "REVIEW-LEDGER{round_suffix}.json" in write_paper_expanded
@@ -1210,7 +1209,10 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     assert "latest peer-review review ledger" in arxiv
     assert "latest peer-review referee decision" in arxiv
     assert "missing latest staged peer-review decision evidence" in arxiv
-    assert "The resolved manuscript root and its build, reproducibility, and staged-review artifacts satisfied the workflow gates" in arxiv
+    assert (
+        "The resolved manuscript root and its build, reproducibility, and staged-review artifacts satisfied the workflow gates"
+        in arxiv
+    )
     assert "Keep the wrapper thin and let the workflow own validation, packaging, and submission-gate details." in arxiv
     assert 'find . -name "main.tex"' not in arxiv
     assert 'find . -name "*.tex"' not in write_paper
@@ -1281,8 +1283,7 @@ def test_peer_review_prompt_surfaces_generic_claim_kind_as_non_theorem_bearing_b
     assert (
         "Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty "
         "`theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like "
-        "statement text still require proof audits even when extraction is incomplete."
-        not in panel
+        "statement text still require proof audits even when extraction is incomplete." not in panel
     )
 
     _assert_contains_fragments(
@@ -1297,8 +1298,7 @@ def test_peer_review_prompt_surfaces_generic_claim_kind_as_non_theorem_bearing_b
     assert (
         "Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty "
         "`theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like "
-        "statement text still require proof audits even when extraction is incomplete."
-        not in referee
+        "statement text still require proof audits even when extraction is incomplete." not in referee
     )
 
 
@@ -1692,8 +1692,7 @@ def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> No
 
     assert "{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_prompt
     assert (
-        "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source."
-        in planner_prompt
+        "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source." in planner_prompt
     )
     assert "Treat `approach_policy` as execution policy only." in planner_prompt
     assert "Light mode changes body verbosity only." in planner_prompt
@@ -1820,7 +1819,10 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "Contract coverage" in roadmapper_agent
     assert "Machine-Readable Return Envelope" in roadmapper_agent
     assert "gpd_return:" in roadmapper_agent
-    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in roadmapper_agent
+    assert (
+        "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+        in roadmapper_agent
+    )
     assert "# files_written must name ROADMAP.md and any state/requirements files actually written." in roadmapper_agent
     assert "phases_created: {count}" in roadmapper_agent
     assert "gpd_return.files_written" in new_project_roadmapper
@@ -2244,7 +2246,10 @@ def test_phase_researcher_prompt_keeps_the_one_shot_handoff_and_return_contract_
     assert "## RESEARCH COMPLETE" in phase_researcher
     assert "## RESEARCH BLOCKED" in phase_researcher
     assert "gpd_return:" in phase_researcher
-    assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in phase_researcher
+    assert (
+        "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+        in phase_researcher
+    )
     assert "This is a one-shot handoff" in research_workflow
     assert "return a checkpoint rather than wait in place" in research_workflow
     assert "expected_artifacts" in research_workflow
@@ -2307,8 +2312,7 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "contract_results (required" not in summary_template
     assert "comparison_verdicts (required" not in summary_template
     assert (
-        "reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing"
-        in summary_template
+        "reload `{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing" in summary_template
     )
     assert "uncertainty_markers" in summary_template
 
@@ -2598,8 +2602,7 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "gpd contract context-fingerprint" in alignment_step
     assert "gpd contract alignment-summary" in alignment_step
     assert (
-        'gpd contract record-alignment --contract-hash "$CONTRACT_HASH" '
-        '--context-hash "$CONTEXT_HASH"'
+        'gpd contract record-alignment --contract-hash "$CONTRACT_HASH" --context-hash "$CONTEXT_HASH"'
     ) in alignment_step
     assert "claim_deliverable_alignment_check: skipped (already confirmed this session)" in alignment_step
 
@@ -2629,7 +2632,10 @@ def test_execute_phase_and_execute_plan_surface_required_reference_and_state_own
         "substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`"
     ) in execute_plan
     assert "state updates, and resumption" in execute_command
-    assert "The orchestrator applies them through `gpd apply-return-updates` after each agent completes." in execute_workflow
+    assert (
+        "The orchestrator applies them through `gpd apply-return-updates` after each agent completes."
+        in execute_workflow
+    )
     assert "STATE.md is updated after each wave completes" not in execute_command
     assert "By the time the wave-complete report is emitted" in execute_workflow
     assert "continuation_update" in execute_plan
@@ -2963,11 +2969,22 @@ def test_explain_surfaces_keep_workspace_rooted_outputs_and_honest_standalone_ta
     explain_workflow = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
 
     assert "standalone question with an explicit topic" in explain_command
-    assert "GPD-authored explanation artifacts stay under `GPD/explanations/` rooted at the current workspace." in explain_command
-    assert "If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic" in explain_command
-    assert "standalone explanations only when the standalone request already names an explicit target" in explain_workflow
+    assert (
+        "GPD-authored explanation artifacts stay under `GPD/explanations/` rooted at the current workspace."
+        in explain_command
+    )
+    assert (
+        "If `$ARGUMENTS` is empty in standalone mode, stop and ask the user to rerun with an explicit concept/topic"
+        in explain_command
+    )
+    assert (
+        "standalone explanations only when the standalone request already names an explicit target" in explain_workflow
+    )
     assert "Do not promise that an empty standalone launch can be clarified later" in explain_workflow
-    assert "Keep all GPD-authored explanation artifacts rooted under `GPD/explanations/` in the current workspace." in explain_workflow
+    assert (
+        "Keep all GPD-authored explanation artifacts rooted under `GPD/explanations/` in the current workspace."
+        in explain_workflow
+    )
 
 
 def test_publication_workflows_describe_recursive_manuscript_tree_inputs() -> None:
@@ -3269,7 +3286,10 @@ def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:
         in peer_review
     )
     assert "before trusting any final recommendation" in peer_review
-    assert "Treat blank `manuscript_path` values in either `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`" in peer_review
+    assert (
+        "Treat blank `manuscript_path` values in either `${REVIEW_ROOT}/REVIEW-LEDGER{round_suffix}.json`"
+        in peer_review
+    )
     assert "Do not fall back to standalone review" in referee
     assert "fall back to direct standalone review" not in referee
     assert "passes `gpd validate referee-decision ... --strict --ledger ...`" in reliability
@@ -3483,9 +3503,10 @@ def test_staged_publication_and_quick_workflow_prompts_match_executable_init_pat
         "package",
         "finalize",
     )
-    assert "metadata-only for the prompt path today" in arxiv_workflow
-    assert "no public staged init CLI command" in arxiv_workflow
-    assert "gpd --raw init arxiv-submission" not in arxiv_workflow
+    assert "executable through `gpd --raw init arxiv-submission --stage <stage_id>`" in arxiv_workflow
+    assert "metadata-only for the prompt path today" not in arxiv_workflow
+    assert "no public staged init CLI command" not in arxiv_workflow
+    assert "gpd --raw init arxiv-submission --stage bootstrap" in arxiv_workflow
     assert "gpd --raw validate command-context arxiv-submission" in arxiv_workflow
     assert "gpd --raw validate review-preflight arxiv-submission" in arxiv_workflow
 
@@ -3663,7 +3684,7 @@ def test_peer_review_workflow_and_generated_skill_surface_keep_lifecycle_cleanup
 def test_peer_review_spawned_stage_prompts_require_typed_child_returns() -> None:
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "<step name=\"child_return_contract\">" in peer_review
+    assert '<step name="child_return_contract">' in peer_review
     assert "Human-readable completion labels are presentation only" in peer_review
     assert "status: completed | checkpoint | blocked | failed" in peer_review
     for stage_name in (
@@ -3832,8 +3853,7 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "Every claim must declare a stable `id`." in phase_prompt
     assert (
         "Do not reuse the same ID across `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, "
-        "`references[]`, `forbidden_proxies[]`, or `links[]`"
-        in phase_prompt
+        "`references[]`, `forbidden_proxies[]`, or `links[]`" in phase_prompt
     )
     assert "contract-results-schema.md" in summary_template
     assert "single detailed rule source" in summary_template
@@ -3850,7 +3870,10 @@ def test_sync_state_defers_state_schema_while_write_paper_expands_required_schem
     assert "Reproducibility Manifest Template" in write_paper
     assert "bibliographer search breadth" in write_paper
     assert "paper-writer style by mode" in write_paper
-    assert "When a workflow exposes the bounded external-authoring lane, accept one explicit intake manifest only." in write_paper
+    assert (
+        "When a workflow exposes the bounded external-authoring lane, accept one explicit intake manifest only."
+        in write_paper
+    )
     assert "GPD/publication/{subject_slug}/intake/" in write_paper
     assert "Do not mine arbitrary folders or infer claim/evidence bindings from loose notes." in write_paper
     assert "Do not infer widened `gpd:arxiv-submission` scope" in write_paper
@@ -4791,17 +4814,33 @@ def test_help_surfaces_use_projectless_examples_that_satisfy_command_context_pre
         in help_workflow
     )
 
+
 def test_help_surfaces_frame_relaxed_technical_analysis_lane_honestly() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
     assert "Project-aware technical-analysis lane:" in help_workflow
     assert "GPD/analysis/" in help_workflow
     assert "GPD/sweeps/" in help_workflow
-    assert "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane." in help_workflow
-    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit derivation target" in help_workflow
-    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path" in help_workflow
-    assert "Current-workspace durable outputs stay under `GPD/sweeps/`; outside a project, rerun with one explicit computation anchor plus `--param` and `--range`" in help_workflow
-    assert "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with explicit `--target` and `--params`" in help_workflow
+    assert (
+        "`gpd:graph` and `gpd:error-propagation` are separate commands and are not part of this relaxed current-workspace lane."
+        in help_workflow
+    )
+    assert (
+        "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit derivation target"
+        in help_workflow
+    )
+    assert (
+        "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with an explicit file path"
+        in help_workflow
+    )
+    assert (
+        "Current-workspace durable outputs stay under `GPD/sweeps/`; outside a project, rerun with one explicit computation anchor plus `--param` and `--range`"
+        in help_workflow
+    )
+    assert (
+        "Current-workspace durable outputs stay under `GPD/analysis/`; outside a project, rerun with explicit `--target` and `--params`"
+        in help_workflow
+    )
 
 
 def test_expanded_artifact_intake_surfaces_use_cli_text_extraction_helper() -> None:
@@ -4900,7 +4939,9 @@ def test_peer_review_and_arxiv_use_subject_aware_publication_roots() -> None:
     assert "- `REVIEW_ROOT` = `selected_review_root`" in peer_review
     assert "${REVIEW_ROOT}/STAGE-reader{round_suffix}.json" in peer_review
     assert "GPD/review/STAGE-reader{round_suffix}.json" not in peer_review
-    assert 'gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt' in peer_review
+    assert (
+        'gpd validate artifact-text "$RESOLVED_MANUSCRIPT" --output ${REVIEW_ROOT}/MANUSCRIPT-TEXT.txt' in peer_review
+    )
 
     assert "REVIEW_PREFLIGHT=$(gpd --raw validate review-preflight arxiv-submission" in arxiv_submission
     assert "Set `subject_slug` from `publication_subject_slug`" in arxiv_submission
@@ -4964,7 +5005,7 @@ def test_new_milestone_keeps_full_roadmap_detail_shallow_mode_false() -> None:
 def test_new_project_next_up_recommends_plan_phase_1_primary() -> None:
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     # The standard-mode Next Up block is the final occurrence; the first is the --minimal path.
-    next_up_block = new_project[new_project.rindex("## > Next Up"):]
+    next_up_block = new_project[new_project.rindex("## > Next Up") :]
     # plan-phase 1 should appear before discuss-phase 1 in that block.
     plan_idx = next_up_block.index("`gpd:plan-phase 1`")
     discuss_idx = next_up_block.index("`gpd:discuss-phase 1`")
@@ -5018,7 +5059,7 @@ def test_undo_backtrack_hook_collects_complete_backtrack_row_fields() -> None:
     record_workflow = (WORKFLOWS_DIR / "record-backtrack.md").read_text(encoding="utf-8")
     record_command = (COMMANDS_DIR / "record-backtrack.md").read_text(encoding="utf-8")
 
-    assert '--phase=<NN-slug>' in record_command
+    assert "--phase=<NN-slug>" in record_command
 
     record_parse_step = _extract_between(
         record_workflow,
@@ -5036,12 +5077,11 @@ def test_undo_backtrack_hook_collects_complete_backtrack_row_fields() -> None:
         "</step>",
     )
 
-    assert '--phase=<NN-slug>' in record_parse_step
+    assert "--phase=<NN-slug>" in record_parse_step
     assert "Dedupe by exact normalized matching of finalized" in record_dedupe_step
     assert "`phase` + `trigger` + `why_wrong`" in record_dedupe_step
     assert (
-        "structured arguments `{reverted_commit: TARGET_HASH, trigger: TARGET_MSG, "
-        "phase: INFERRED_PHASE_OR_NULL}`"
+        "structured arguments `{reverted_commit: TARGET_HASH, trigger: TARGET_MSG, phase: INFERRED_PHASE_OR_NULL}`"
     ) in undo_backtrack_step
     assert "not a shell-shaped string" in undo_backtrack_step
     assert "do not interpolate it into shell-shaped args" in undo_backtrack_step

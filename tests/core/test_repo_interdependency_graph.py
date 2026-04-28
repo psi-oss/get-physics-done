@@ -49,9 +49,7 @@ def _tracked_prompt_stems() -> tuple[set[str], set[str]]:
     )
     tracked_paths = [Path(path) for path in tracked.stdout.decode("utf-8").split("\0") if path]
     command_stems = {
-        path.stem
-        for path in tracked_paths
-        if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
+        path.stem for path in tracked_paths if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
     }
     workflow_stems = {
         path.stem
@@ -79,9 +77,7 @@ def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
     )
     tracked_paths = [Path(path) for path in tracked.stdout.decode("utf-8").split("\0") if path]
     command_stems = {
-        path.stem
-        for path in tracked_paths
-        if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
+        path.stem for path in tracked_paths if path.parts[:-1] == ("src", "gpd", "commands") and path.suffix == ".md"
     }
     workflow_stems = {
         path.stem
@@ -157,6 +153,24 @@ def test_graph_captures_shared_mcp_descriptor_text_edges() -> None:
     assert graph_has_edge("src/gpd/mcp/servers/skills_server.py", "src/gpd/mcp/descriptor_text.py", graph)
 
 
+def test_graph_captures_shipped_mcp_console_script_edges() -> None:
+    graph = read_graph_text()
+
+    assert graph_has_edge(
+        "pyproject.toml",
+        (
+            "src/gpd/mcp/servers/{arxiv_bridge,conventions_server,verification_server,protocols_server,"
+            "errors_mcp,patterns_server,state_server,skills_server}.py"
+        ),
+        graph,
+    )
+    assert graph_has_edge(
+        "pyproject.toml",
+        "src/gpd/mcp/integrations/wolfram_bridge.py",
+        graph,
+    )
+
+
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
     graph = read_graph_text()
     assert graph_has_edge("src/gpd/hooks/statusline.py", "src/gpd/hooks/runtime_detect.py", graph)
@@ -169,10 +183,14 @@ def test_graph_captures_hook_runtime_wiring_edges() -> None:
 
 def test_graph_captures_checkpoint_feature_edges() -> None:
     graph = read_graph_text()
-    assert graph_has_edge("src/gpd/cli.py::sync_phase_checkpoints", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph)
+    assert graph_has_edge(
+        "src/gpd/cli.py::sync_phase_checkpoints", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph
+    )
     assert graph_has_edge("src/gpd/core/phases.py", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph)
     assert graph_has_edge("src/gpd/core/state.py", "<cwd>/GPD/.state-write-intent", graph)
-    assert graph_has_edge("src/gpd/core/checkpoints.py", "generated outputs {GPD/CHECKPOINTS.md, GPD/phase-checkpoints/*.md}", graph)
+    assert graph_has_edge(
+        "src/gpd/core/checkpoints.py", "generated outputs {GPD/CHECKPOINTS.md, GPD/phase-checkpoints/*.md}", graph
+    )
     assert graph_has_edge("src/gpd/core/checkpoints.py", "<cwd>/GPD/CHECKPOINTS.md", graph)
     assert graph_has_edge("src/gpd/core/checkpoints.py", "<cwd>/GPD/phase-checkpoints/*.md", graph)
     assert not graph_has_edge("src/gpd/core/state.py", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph)
@@ -248,7 +266,6 @@ def test_graph_captures_staged_review_panel_wiring() -> None:
     )
 
 
-
 def test_graph_contract_scope_counts_match_live_inventory() -> None:
     expected = expected_scope_counts()
 
@@ -275,9 +292,7 @@ def test_graph_check_detects_stale_generated_contract_without_mutation(tmp_path:
     contract_path = tmp_path / "repo_graph_contract.json"
     contract = load_contract()
     stale_contract = dict(contract)
-    stale_contract["scope_counts"] = {
-        label: int(value) + 1 for label, value in contract["scope_counts"].items()
-    }
+    stale_contract["scope_counts"] = {label: int(value) + 1 for label, value in contract["scope_counts"].items()}
     graph_path.write_text(read_graph_text(), encoding="utf-8")
     contract_path.write_text(json.dumps(stale_contract, indent=2) + "\n", encoding="utf-8")
 
@@ -333,8 +348,7 @@ def test_graph_check_detects_untracked_scope_files_without_mutation(tmp_path: Pa
 
     assert untracked_graph_scope_files(tmp_root) == (Path("src/gpd/commands/untracked.md"),)
     assert any(
-        "Untracked repo graph scoped files" in diff and "src/gpd/commands/untracked.md" in diff
-        for diff in diffs
+        "Untracked repo graph scoped files" in diff and "src/gpd/commands/untracked.md" in diff for diff in diffs
     )
     assert graph_path.read_text(encoding="utf-8") == before_graph
     assert contract_path.read_text(encoding="utf-8") == before_contract
@@ -344,9 +358,7 @@ def test_graph_sync_repairs_stale_marked_blocks() -> None:
     original = read_graph_text()
     contract = load_contract()
     stale_contract = dict(contract)
-    stale_contract["scope_counts"] = {
-        label: int(value) + 1 for label, value in contract["scope_counts"].items()
-    }
+    stale_contract["scope_counts"] = {label: int(value) + 1 for label, value in contract["scope_counts"].items()}
 
     stale = replace_marked_block(
         original,
@@ -430,11 +442,7 @@ def test_graph_exclusions_apply_only_at_repo_root() -> None:
 
 def test_graph_test_file_references_exist() -> None:
     missing = sorted(
-        {
-            ref
-            for ref in re.findall(r"tests/[A-Za-z0-9_./-]+\.py", read_graph_text())
-            if not (REPO_ROOT / ref).is_file()
-        }
+        {ref for ref in re.findall(r"tests/[A-Za-z0-9_./-]+\.py", read_graph_text()) if not (REPO_ROOT / ref).is_file()}
     )
 
     assert missing == []
@@ -442,11 +450,7 @@ def test_graph_test_file_references_exist() -> None:
 
 def test_graph_docs_file_references_exist() -> None:
     missing = sorted(
-        {
-            ref
-            for ref in re.findall(r"docs/[A-Za-z0-9_./-]+\.md", read_graph_text())
-            if not (REPO_ROOT / ref).is_file()
-        }
+        {ref for ref in re.findall(r"docs/[A-Za-z0-9_./-]+\.md", read_graph_text()) if not (REPO_ROOT / ref).is_file()}
     )
 
     assert missing == []

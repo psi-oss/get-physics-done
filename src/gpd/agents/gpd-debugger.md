@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: orange
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Public production boundary: public writable production agent specialized for discrepancy investigation and bounded repair work.
 
 <role>

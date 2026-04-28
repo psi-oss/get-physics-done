@@ -726,7 +726,7 @@ Usage: `gpd:error-propagation --phase-range 1:5`
 
 ### Research Publishing
 
-Publication lane boundary: `gpd:write-paper` keeps the current-project manuscript roots and the managed project manuscript lane at `GPD/publication/{subject_slug}/manuscript`, and supports one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`; the subject-owned publication root at `GPD/publication/{subject_slug}` keeps `GPD/publication/{subject_slug}/manuscript` as the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` for intake and provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` is the project-aware intake step and can review the current project manuscript or one explicit subject allowed by its command policy (manuscript root/path or publication-artifact path); it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root, and `gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint. Publication-root handling stays bounded to these resolved manuscript, intake, review, response, and package roots.
+Publication lane boundary: `gpd:write-paper` supports current-project manuscripts plus one bounded external-authoring lane driven by an explicit intake manifest only. In that lane, GPD-authored outputs live under `GPD/publication/{subject_slug}/...`, the subject-owned publication root at `GPD/publication/{subject_slug}`; `GPD/publication/{subject_slug}/manuscript` is the only manuscript/build root, and `GPD/publication/{subject_slug}/intake/` keeps intake/provenance state only. It does not mine arbitrary folders or infer claim/evidence bindings from loose notes. `gpd:peer-review` can review the current project manuscript or one explicit subject allowed by its command policy; it remains the standalone follow-on command when the bounded external-authoring lane needs review. Project-backed review/response/package outputs stay on their current `GPD/` and `GPD/review/` paths. `gpd:respond-to-referees` stays tied to the resolved manuscript root; `gpd:arxiv-submission` packages only a GPD-owned manuscript root or `.tex` entrypoint. This is not a full publication-root migration.
 
 **`gpd:write-paper [--intake path/to/write-paper-authoring-input.json]`**
 Structure and write a physics paper from current project research results or one bounded explicit external-authoring intake manifest.
@@ -735,10 +735,8 @@ Structure and write a physics paper from current project research results or one
 - Runs paper-readiness audit (conventions, verification, figures, citations)
 - Spawns gpd-paper-writer agents for each section (Results first, Abstract last)
 - Drafts the manuscript and uses `gpd paper-build` for the canonical scaffold/build contract
-- Uses the current project's GPD-owned manuscript root by default: `paper/`, `manuscript/`, and `draft/` roots remain valid, and resolved publication subjects use the project-managed manuscript lane at `GPD/publication/{subject_slug}/manuscript`
-- Supports one bounded external-authoring lane through an explicit intake manifest only
-- In that bounded lane, all GPD-authored durable outputs live under `GPD/publication/{subject_slug}/...`; `GPD/publication/{subject_slug}/manuscript` is the only manuscript/build root and `GPD/publication/{subject_slug}/intake/` keeps intake/provenance state
-- Does not mine arbitrary folders or infer claim/evidence bindings from loose notes
+- Uses the current project's GPD-owned manuscript root by default: `paper/`, `manuscript/`, `draft/`, or the managed lane resolved by preflight
+- Supports the bounded external-authoring lane described above
 - Keeps project-backed auxiliary review/response/package artifacts on the workflow-owned `GPD/` paths
 - Routes bounded external-authoring review follow-up to `gpd:peer-review`; embedded external staged-review parity is out of scope
 - Spawns gpd-bibliographer to verify all references

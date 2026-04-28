@@ -184,14 +184,13 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
 Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
-Operate in proof-redteam repair mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.
+Operate in proof-redteam repair mode with a fresh context and follow the shared verification child-return contract.
 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
 Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.
-Return `status: checkpoint` if the runtime needs user input instead of waiting inside the spawned run.",
+Return through the typed proof-redteam handoff contract.",
   description="Repair proof redteam artifact for phase {phase_number}"
 )
 ```

@@ -194,7 +194,7 @@ Write to:
 - `${PHASE_DIR_ABS}/${phase_number}-PROOF-REDTEAM.md`
 
 Read the phase proof artifacts, the relevant PLAN contract slice, and any current verification artifact before auditing.
-Return `status: checkpoint` instead of waiting for user input inside this run.",
+Return through the typed proof-redteam handoff contract.",
   description="Repair proof audit for phase {phase_number}"
 )
 ```

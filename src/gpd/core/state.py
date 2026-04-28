@@ -4360,17 +4360,18 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
             warning_messages.append(warning)
 
     contract_payload = parsed.model_dump()
-    if _raw_persisted_project_contract(cwd) == contract_payload:
-        return StateUpdateResult(
-            updated=False,
-            unchanged=True,
-            reason="Project contract already matches requested value",
-            warnings=warning_messages,
-        )
 
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
+        raw_project_contract = _raw_persisted_project_contract(cwd)
         state_obj = _load_state_snapshot_for_mutation(cwd, recover_intent=False)
+        if raw_project_contract == contract_payload:
+            return StateUpdateResult(
+                updated=False,
+                unchanged=True,
+                reason="Project contract already matches requested value",
+                warnings=warning_messages,
+            )
 
         state_obj["project_contract"] = contract_payload
 
@@ -5207,11 +5208,15 @@ def state_validate(
     cwd: Path,
     integrity_mode: str = "standard",
     *,
-    recover_intent: bool = True,
-    acquire_lock: bool = True,
+    recover_intent: bool = False,
+    acquire_lock: bool = False,
     surface_blocked_project_contract: bool = False,
 ) -> StateValidateResult:
-    """Validate state consistency between state.json and STATE.md."""
+    """Validate state consistency between state.json and STATE.md.
+
+    The default path is read-only: callers that want crash-intent recovery must
+    opt in with ``recover_intent=True`` and usually ``acquire_lock=True``.
+    """
     from gpd.core.contract_validation import validate_project_contract
 
     md_path = _state_md_path(cwd)

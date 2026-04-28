@@ -221,6 +221,7 @@ PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES: tuple[str, ...] = (
     "narrowed_claim",
 )
 
+
 def _normalize_optional_str(value: object) -> object:
     if isinstance(value, str):
         stripped = value.strip()
@@ -256,7 +257,9 @@ def _has_non_empty_list(value: object) -> bool:
     return isinstance(value, list) and bool(value)
 
 
-def _has_explanatory_contract_entry_content(*, summary: object = None, notes: object = None, evidence: object = None) -> bool:
+def _has_explanatory_contract_entry_content(
+    *, summary: object = None, notes: object = None, evidence: object = None
+) -> bool:
     return _has_explanatory_text(summary) or _has_explanatory_text(notes) or _has_non_empty_list(evidence)
 
 
@@ -391,7 +394,9 @@ _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS: tuple[re.Pattern[str], ...] = (
     # nlin, stat) are whitelisted explicitly; all other archives require a
     # separator (hep-th, cond-mat, math.DG, etc.). econ and eess are included
     # defensively (created post-2007, never had old-style IDs).
-    re.compile(r"^(?:(?:math|physics|cs|nlin|stat|econ|eess)|[a-z][a-z0-9]*(?:[-.][a-z][a-z0-9]*)+)/\d{2}(?:0[1-9]|1[0-2])\d{3}(?:v\d+)?$"),
+    re.compile(
+        r"^(?:(?:math|physics|cs|nlin|stat|econ|eess)|[a-z][a-z0-9]*(?:[-.][a-z][a-z0-9]*)+)/\d{2}(?:0[1-9]|1[0-2])\d{3}(?:v\d+)?$"
+    ),
     re.compile(r"^10\.\d{4,9}/\S+$"),
 )
 _PLAN_GROUNDING_TEXT_DIRECT_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -459,10 +464,7 @@ def _looks_like_project_artifact_path(value: str) -> bool:
     candidate = value.strip()
     if not candidate:
         return False
-    return bool(
-        re.search(r"[\\/]+", candidate)
-        or re.search(r"^(?:\.{1,2}|~)(?:[\\/]|$)", candidate)
-    )
+    return bool(re.search(r"[\\/]+", candidate) or re.search(r"^(?:\.{1,2}|~)(?:[\\/]|$)", candidate))
 
 
 def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
@@ -511,10 +513,7 @@ def _is_citation_like_locator(value: str) -> bool:
     if len(parts) >= 3:
         return any(" " in part for part in parts[:-1])
     if len(parts) == 2:
-        return bool(
-            re.search(r"\(\s*(?:18|19|20)\d{2}\s*\)", parts[1])
-            and (" " in parts[0] or " " in parts[1])
-        )
+        return bool(re.search(r"\(\s*(?:18|19|20)\d{2}\s*\)", parts[1]) and (" " in parts[0] or " " in parts[1]))
     return False
 
 
@@ -580,9 +579,8 @@ def _is_concrete_text_grounding(value: str, *, project_root: Path | None = None)
         return True
     if any(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_DIRECT_PATTERNS):
         return False
-    if (
-        all(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_QUESTION_PATTERNS)
-        and any(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_SELECTION_PATTERNS)
+    if all(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_QUESTION_PATTERNS) and any(
+        pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_SELECTION_PATTERNS
     ):
         return False
     if any(pattern.search(lowered) for pattern in _PLAN_REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS):
@@ -644,10 +642,7 @@ def _has_concrete_grounding_entries(
         if require_existing_project_artifacts:
             if project_root is None:
                 return False
-            return any(
-                _is_project_artifact_path(value, project_root=project_root)
-                for value in values
-            )
+            return any(_is_project_artifact_path(value, project_root=project_root) for value in values)
         return any(_is_project_artifact_path(value, project_root=project_root) for value in values)
     if field_name in {"user_asserted_anchors", "known_good_baselines"}:
         return any(
@@ -775,9 +770,10 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
         for index, item in enumerate(raw_collection):
             if isinstance(item, dict):
                 _check_mapping_lists(item, path_prefix=f"{collection_name}.{index}", field_names=field_names)
-                for (parent_collection_name, nested_collection_name), nested_field_names in (
-                    PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
-                ):
+                for (
+                    parent_collection_name,
+                    nested_collection_name,
+                ), nested_field_names in PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items():
                     if collection_name != parent_collection_name:
                         continue
                     nested_collection = item.get(nested_collection_name)
@@ -788,8 +784,7 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
                             continue
                         for nested_field_name in nested_field_names:
                             path = (
-                                f"{collection_name}.{index}."
-                                f"{nested_collection_name}.{nested_index}.{nested_field_name}"
+                                f"{collection_name}.{index}.{nested_collection_name}.{nested_index}.{nested_field_name}"
                             )
                             if isinstance(nested_item.get(nested_field_name), str):
                                 if not _blank_string(nested_item[nested_field_name]):
@@ -819,9 +814,10 @@ def _collect_strict_nested_proof_list_scalar_drift_errors(data: object) -> list[
     for claim_index, claim in enumerate(claims):
         if not isinstance(claim, dict):
             continue
-        for (parent_collection_name, nested_collection_name), field_names in (
-            PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items()
-        ):
+        for (
+            parent_collection_name,
+            nested_collection_name,
+        ), field_names in PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS.items():
             if parent_collection_name != "claims":
                 continue
             nested_collection = claim.get(nested_collection_name)
@@ -833,7 +829,9 @@ def _collect_strict_nested_proof_list_scalar_drift_errors(data: object) -> list[
                 for field_name in field_names:
                     value = nested_item.get(field_name)
                     if isinstance(value, str) and not value.strip():
-                        errors.append(f"claims.{claim_index}.{nested_collection_name}.{nested_index}.{field_name} must be a list, not str")
+                        errors.append(
+                            f"claims.{claim_index}.{nested_collection_name}.{nested_index}.{field_name} must be a list, not str"
+                        )
 
     return errors
 
@@ -1023,9 +1021,7 @@ def _collect_strict_contract_results_errors(value: _StrictContractResultsInput) 
             continue
         for entry_id, entry in section.items():
             if isinstance(entry, dict) and "status" not in entry:
-                errors.append(
-                    f"{section_name}.{entry_id}.status must be explicit in contract-backed contract_results"
-                )
+                errors.append(f"{section_name}.{entry_id}.status must be explicit in contract-backed contract_results")
             if isinstance(entry, dict):
                 _check_evidence_items(entry.get("evidence"), path_prefix=f"{section_name}.{entry_id}.evidence")
                 if section_name in {"claims", "deliverables", "acceptance_tests"}:
@@ -1053,25 +1049,19 @@ def _collect_strict_contract_results_errors(value: _StrictContractResultsInput) 
                         notes=entry.get("notes"),
                         evidence=entry.get("evidence"),
                     ):
-                        errors.append(
-                            f"{section_name}.{entry_id}.{_contract_result_gap_message(str(status))}"
-                        )
+                        errors.append(f"{section_name}.{entry_id}.{_contract_result_gap_message(str(status))}")
                 elif section_name == "references" and status == "missing":
                     if not _has_explanatory_contract_entry_content(
                         summary=entry.get("summary"),
                         evidence=entry.get("evidence"),
                     ):
-                        errors.append(
-                            f"{section_name}.{entry_id}.{_contract_reference_gap_message(str(status))}"
-                        )
+                        errors.append(f"{section_name}.{entry_id}.{_contract_reference_gap_message(str(status))}")
                 elif section_name == "forbidden_proxies" and status in {"violated", "unresolved"}:
                     if not _has_explanatory_contract_entry_content(
                         notes=entry.get("notes"),
                         evidence=entry.get("evidence"),
                     ):
-                        errors.append(
-                            f"{section_name}.{entry_id}.{_contract_forbidden_proxy_gap_message(str(status))}"
-                        )
+                        errors.append(f"{section_name}.{entry_id}.{_contract_forbidden_proxy_gap_message(str(status))}")
 
     for section_name, field_names in _STRICT_CONTRACT_RESULTS_STRING_LIST_FIELDS.items():
         section = value.get(section_name)
@@ -1123,9 +1113,7 @@ def _collect_strict_contract_results_errors(value: _StrictContractResultsInput) 
                 path=f"uncertainty_markers.{field_name}",
             )
         if not markers.get("weakest_anchors"):
-            errors.append(
-                "uncertainty_markers.weakest_anchors must be non-empty in contract-backed contract_results"
-            )
+            errors.append("uncertainty_markers.weakest_anchors must be non-empty in contract-backed contract_results")
         if not markers.get("disconfirming_observations"):
             errors.append(
                 "uncertainty_markers.disconfirming_observations must be non-empty in contract-backed contract_results"
@@ -1283,7 +1271,7 @@ class ContractProofParameter(BaseModel):
     def _normalize_domain_or_type(cls, value: object) -> object:
         return _normalize_optional_str(value)
 
-    @field_validator("aliases", mode="before")
+    @field_validator(*PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS[("claims", "parameters")], mode="before")
     @classmethod
     def _normalize_aliases(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -1315,7 +1303,7 @@ class ContractProofHypothesis(BaseModel):
     def _normalize_required_fields(cls, value: object) -> object:
         return _normalize_required_str(value)
 
-    @field_validator("symbols", mode="before")
+    @field_validator(*PROJECT_CONTRACT_NESTED_COLLECTION_LIST_FIELDS[("claims", "hypotheses")], mode="before")
     @classmethod
     def _normalize_symbols(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -1572,9 +1560,7 @@ class ContractReferenceUsage(BaseModel):
         overlap = sorted(completed.intersection(missing))
 
         if overlap:
-            raise ValueError(
-                "completed_actions and missing_actions must not overlap: " + ", ".join(overlap)
-            )
+            raise ValueError("completed_actions and missing_actions must not overlap: " + ", ".join(overlap))
         if self.status == "completed":
             if not self.completed_actions:
                 raise ValueError("status=completed requires completed_actions")
@@ -1842,7 +1828,7 @@ class ContractScope(BaseModel):
     def _normalize_question(cls, value: object) -> object:
         return _normalize_required_str(value)
 
-    @field_validator("in_scope", "out_of_scope", "unresolved_questions", mode="before")
+    @field_validator(*PROJECT_CONTRACT_MAPPING_LIST_FIELDS["scope"], mode="before")
     @classmethod
     def _normalize_scope_lists(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -1861,12 +1847,7 @@ class ContractContextIntake(BaseModel):
     crucial_inputs: list[str] = Field(default_factory=list)
 
     @field_validator(
-        "must_read_refs",
-        "must_include_prior_outputs",
-        "user_asserted_anchors",
-        "known_good_baselines",
-        "context_gaps",
-        "crucial_inputs",
+        *PROJECT_CONTRACT_MAPPING_LIST_FIELDS["context_intake"],
         mode="before",
     )
     @classmethod
@@ -1887,12 +1868,7 @@ class ContractApproachPolicy(BaseModel):
     stop_and_rethink_conditions: list[str] = Field(default_factory=list)
 
     @field_validator(
-        "formulations",
-        "allowed_estimator_families",
-        "forbidden_estimator_families",
-        "allowed_fit_families",
-        "forbidden_fit_families",
-        "stop_and_rethink_conditions",
+        *PROJECT_CONTRACT_MAPPING_LIST_FIELDS["approach_policy"],
         mode="before",
     )
     @classmethod
@@ -1952,12 +1928,7 @@ class ContractClaim(BaseModel):
         return _normalize_required_str(value)
 
     @field_validator(
-        "observables",
-        "deliverables",
-        "acceptance_tests",
-        "references",
-        "quantifiers",
-        "proof_deliverables",
+        *PROJECT_CONTRACT_COLLECTION_LIST_FIELDS["claims"],
         mode="before",
     )
     @classmethod
@@ -1996,7 +1967,7 @@ class ContractDeliverable(BaseModel):
     def _normalize_optional_path(cls, value: object) -> object:
         return _normalize_optional_str(value)
 
-    @field_validator("must_contain", mode="before")
+    @field_validator(*PROJECT_CONTRACT_COLLECTION_LIST_FIELDS["deliverables"], mode="before")
     @classmethod
     def _normalize_must_contain(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -2030,7 +2001,7 @@ class ContractAcceptanceTest(BaseModel):
     def _normalize_automation(cls, value: object) -> object:
         return _normalize_literal_choice(_normalize_required_str(value), CONTRACT_ACCEPTANCE_AUTOMATION_VALUES)
 
-    @field_validator("evidence_required", mode="before")
+    @field_validator(*PROJECT_CONTRACT_COLLECTION_LIST_FIELDS["acceptance_tests"], mode="before")
     @classmethod
     def _normalize_evidence_required(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -2065,7 +2036,10 @@ class ContractReference(BaseModel):
             return _normalize_literal_choice(normalized, CONTRACT_REFERENCE_KIND_VALUES)
         return _normalize_literal_choice(normalized, CONTRACT_REFERENCE_ROLE_VALUES)
 
-    @field_validator("aliases", "applies_to", "carry_forward_to", mode="before")
+    @field_validator(
+        *(field for field in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS["references"] if field != "required_actions"),
+        mode="before",
+    )
     @classmethod
     def _normalize_reference_lists(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -2118,7 +2092,7 @@ class ContractLink(BaseModel):
     def _normalize_relation(cls, value: object) -> object:
         return _normalize_literal_choice(_normalize_required_str(value), CONTRACT_LINK_RELATION_VALUES)
 
-    @field_validator("verified_by", mode="before")
+    @field_validator(*PROJECT_CONTRACT_COLLECTION_LIST_FIELDS["links"], mode="before")
     @classmethod
     def _normalize_verified_by(cls, value: object) -> object:
         return _normalize_string_list(value)
@@ -2135,10 +2109,7 @@ class ContractUncertaintyMarkers(BaseModel):
     disconfirming_observations: list[str] = Field(default_factory=list)
 
     @field_validator(
-        "weakest_anchors",
-        "unvalidated_assumptions",
-        "competing_explanations",
-        "disconfirming_observations",
+        *PROJECT_CONTRACT_MAPPING_LIST_FIELDS["uncertainty_markers"],
         mode="before",
     )
     @classmethod
@@ -2187,10 +2158,7 @@ _AMBIGUOUS_TARGET_ID_KINDS: tuple[str, ...] = _LINK_ENDPOINT_ID_KINDS
 
 
 def _contract_ids_by_kind(contract: ResearchContract) -> dict[str, set[str]]:
-    return {
-        kind: {item.id for item in getattr(contract, field_name)}
-        for kind, field_name in _CONTRACT_ID_GROUPS
-    }
+    return {kind: {item.id for item in getattr(contract, field_name)} for kind, field_name in _CONTRACT_ID_GROUPS}
 
 
 def claim_requires_proof_audit(claim: ContractClaim, observable_kind_by_id: dict[str, str]) -> bool:
@@ -2268,16 +2236,16 @@ def collect_proof_audit_alignment_errors(
     if audit.claim_statement_sha256:
         statement_sha256 = hashlib.sha256(claim.statement.encode("utf-8")).hexdigest()
         if audit.claim_statement_sha256 != statement_sha256:
-            errors.append(f"claim {claim.id} proof_audit.claim_statement_sha256 does not match the current claim statement")
+            errors.append(
+                f"claim {claim.id} proof_audit.claim_statement_sha256 does not match the current claim statement"
+            )
 
     if audit.reviewer and audit.reviewer != PROOF_AUDIT_REVIEWER:
         errors.append(f"claim {claim.id} proof_audit.reviewer must be {PROOF_AUDIT_REVIEWER}")
 
     if deliverable_path_by_id:
         allowed_paths = {
-            path
-            for deliverable_id in claim.proof_deliverables
-            if (path := deliverable_path_by_id.get(deliverable_id))
+            path for deliverable_id in claim.proof_deliverables if (path := deliverable_path_by_id.get(deliverable_id))
         }
         if audit.proof_artifact_path and allowed_paths and audit.proof_artifact_path not in allowed_paths:
             errors.append(
@@ -2285,9 +2253,7 @@ def collect_proof_audit_alignment_errors(
             )
 
     if audit.audit_artifact_path and "proof-redteam" not in Path(audit.audit_artifact_path).name.lower():
-        errors.append(
-            f"claim {claim.id} proof_audit.audit_artifact_path must point to a proof-redteam artifact"
-        )
+        errors.append(f"claim {claim.id} proof_audit.audit_artifact_path must point to a proof-redteam artifact")
 
     return errors
 
@@ -2321,11 +2287,7 @@ def collect_contract_integrity_errors(contract: ResearchContract) -> list[str]:
         kinds_text = ", ".join(unique_kinds)
         errors.append(f"contract id {item_id} is reused across {kinds_text}; target resolution is ambiguous")
 
-    declared_contract_ids = {
-        item_id
-        for ids in ids_by_kind.values()
-        for item_id in ids
-    }
+    declared_contract_ids = {item_id for ids in ids_by_kind.values() for item_id in ids}
     for reference in contract.references:
         for target in reference.carry_forward_to:
             if target in declared_contract_ids:
@@ -2363,8 +2325,7 @@ def collect_proof_bearing_claim_integrity_errors(contract: ResearchContract) -> 
         if not claim.conclusion_clauses:
             issues.append(f"claim {claim.id} missing conclusion_clauses for proof-bearing claim")
         if not any(
-            acceptance_test_kind_by_id.get(test_id) in PROOF_ACCEPTANCE_TEST_KINDS
-            for test_id in claim.acceptance_tests
+            acceptance_test_kind_by_id.get(test_id) in PROOF_ACCEPTANCE_TEST_KINDS for test_id in claim.acceptance_tests
         ):
             issues.append(f"claim {claim.id} missing proof-specific acceptance_tests")
 
@@ -2500,8 +2461,7 @@ def contract_has_explicit_context_intake(
         if reference.id in contract.context_intake.must_read_refs
     )
     has_prior_output_guidance = any(
-        _looks_like_project_artifact_path(value)
-        for value in contract.context_intake.must_include_prior_outputs
+        _looks_like_project_artifact_path(value) for value in contract.context_intake.must_include_prior_outputs
     )
     has_anchor_guidance = any(
         _is_context_intake_locator_grounding(
@@ -2578,7 +2538,17 @@ def _is_exploratory_contract(
         "convergence",
         "other",
     }
-    exploratory_deliverable_kinds = {"code", "note", "report", "derivation", "figure", "table", "dataset", "data", "other"}
+    exploratory_deliverable_kinds = {
+        "code",
+        "note",
+        "report",
+        "derivation",
+        "figure",
+        "table",
+        "dataset",
+        "data",
+        "other",
+    }
 
     return (
         not _is_scoping_contract(
@@ -2662,14 +2632,18 @@ def collect_plan_contract_integrity_errors(
     known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
     link_endpoint_ids = known_ids | observable_ids | forbidden_proxy_ids | link_ids
 
-    if contract.references and not _has_concrete_must_surface_reference(
-        contract,
-        project_root=project_root,
-        require_existing_project_artifacts=True,
-    ) and not _has_contract_grounding_context(
-        contract,
-        project_root=project_root,
-        require_existing_project_artifacts=True,
+    if (
+        contract.references
+        and not _has_concrete_must_surface_reference(
+            contract,
+            project_root=project_root,
+            require_existing_project_artifacts=True,
+        )
+        and not _has_contract_grounding_context(
+            contract,
+            project_root=project_root,
+            require_existing_project_artifacts=True,
+        )
     ):
         issues.append("references must include at least one must_surface=true anchor")
     for must_read_ref in contract.context_intake.must_read_refs:
@@ -2719,9 +2693,7 @@ def collect_plan_contract_integrity_errors(
 
     for forbidden_proxy in contract.forbidden_proxies:
         if forbidden_proxy.subject not in claim_ids and forbidden_proxy.subject not in deliverable_ids:
-            issues.append(
-                f"forbidden proxy {forbidden_proxy.id} targets unknown subject {forbidden_proxy.subject}"
-            )
+            issues.append(f"forbidden proxy {forbidden_proxy.id} targets unknown subject {forbidden_proxy.subject}")
 
     for link in contract.links:
         if link.source not in link_endpoint_ids:
@@ -2820,7 +2792,11 @@ def _parse_project_contract_data(
         schema_findings,
         allow_case_drift_recovery=True,
     )
-    recoverable_errors = [*schema_warnings, *list_shape_drift_errors, *_collect_project_contract_list_member_errors(data)]
+    recoverable_errors = [
+        *schema_warnings,
+        *list_shape_drift_errors,
+        *_collect_project_contract_list_member_errors(data),
+    ]
     blocking_errors = [*schema_errors]
     if contract is None:
         if not blocking_errors and schema_findings:

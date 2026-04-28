@@ -17,7 +17,6 @@ from gpd.version import resolve_active_version
 logger = logging.getLogger(__name__)
 
 ARXIV_SOURCE_URL_TEMPLATE = "https://arxiv.org/e-print/{arxiv_id}"
-ARXIV_DEFAULT_STORAGE_PATH = Path("~/.arxiv-mcp-server/papers")
 ARXIV_SOURCE_STORAGE_DIRNAME = "sources"
 ARXIV_SOURCE_USER_AGENT_TEMPLATE = "get-physics-done/{version} (https://github.com/psi-oss/get-physics-done)"
 ARXIV_SOURCE_TIMEOUT_SECONDS = 60
@@ -25,9 +24,7 @@ ARXIV_SOURCE_CHUNK_BYTES = 64 * 1024
 ARXIV_SOURCE_SNIFF_BYTES = 1024
 ARXIV_SOURCE_MAX_BYTES = 250 * 1024 * 1024
 
-_ARXIV_ID_RE = re.compile(
-    r"^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?/\d{7}(?:v\d+)?)$"
-)
+_ARXIV_ID_RE = re.compile(r"^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?/\d{7}(?:v\d+)?)$")
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _CONTENT_TYPE_TO_SUFFIX = {
     "application/gzip": ".gz",
@@ -94,12 +91,10 @@ def normalize_arxiv_id(arxiv_id: str) -> str:
             cleaned = cleaned.removesuffix(".pdf")
     for prefix in ("arXiv:", "arxiv:", "http://arxiv.org/abs/", "https://arxiv.org/abs/"):
         if cleaned.startswith(prefix):
-            cleaned = cleaned[len(prefix):]
+            cleaned = cleaned[len(prefix) :]
     cleaned = cleaned.strip("/")
     if not _ARXIV_ID_RE.fullmatch(cleaned):
-        raise ValueError(
-            f"Invalid arXiv ID format: {arxiv_id!r}. Expected YYMM.NNNNN or archive/NNNNNNN."
-        )
+        raise ValueError(f"Invalid arXiv ID format: {arxiv_id!r}. Expected YYMM.NNNNN or archive/NNNNNNN.")
     return cleaned
 
 
@@ -235,8 +230,7 @@ def download_arxiv_source_archive(
             expected_size = _content_length(headers)
             if expected_size is not None and expected_size > max_bytes:
                 raise ConnectionError(
-                    f"arXiv source for {normalized_id} exceeds size limit "
-                    f"({expected_size} bytes > {max_bytes} bytes)"
+                    f"arXiv source for {normalized_id} exceeds size limit ({expected_size} bytes > {max_bytes} bytes)"
                 )
 
             with tempfile.NamedTemporaryFile(
@@ -308,7 +302,6 @@ def download_arxiv_source_archive(
 
 
 __all__ = [
-    "ARXIV_DEFAULT_STORAGE_PATH",
     "ARXIV_SOURCE_MAX_BYTES",
     "ARXIV_SOURCE_STORAGE_DIRNAME",
     "ArxivSourceDownload",

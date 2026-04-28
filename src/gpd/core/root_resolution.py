@@ -106,6 +106,7 @@ def _walk_project_root(
     if candidate is None:
         return None, 0, False
 
+    best_partial: tuple[int, Path] | None = None
     best_bare: tuple[int, Path] | None = None
 
     def _has_directory_content(path: Path) -> bool:
@@ -126,11 +127,7 @@ def _walk_project_root(
                 break
             continue
 
-        strong_marker_count = sum(
-            1
-            for name in REQUIRED_PLANNING_FILES
-            if (layout.gpd / name).exists()
-        )
+        strong_marker_count = sum(1 for name in REQUIRED_PLANNING_FILES if (layout.gpd / name).exists())
         strong_marker_count += 1 if layout.agent_id_file.exists() else 0
         strong_marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if _has_directory_content(layout.gpd / name))
         strong_marker_count += sum(
@@ -146,14 +143,29 @@ def _walk_project_root(
             )
             if _has_directory_content(path)
         )
-        if strong_marker_count > 0:
+        has_state_marker = layout.state_json.exists() or layout.state_md.exists()
+        has_identity_marker = (
+            layout.project_md.exists()
+            or layout.roadmap.exists()
+            or (path / "PROJECT.md").exists()
+            or (path / "ROADMAP.md").exists()
+        )
+        if (has_state_marker and has_identity_marker) or strong_marker_count >= 2:
             return path, steps, True
+        if (
+            strong_marker_count > 0
+            and (steps > 0 or layout.agent_id_file.exists())
+            and (best_partial is None or steps < best_partial[0])
+        ):
+            best_partial = (steps, path)
 
         if best_bare is None or steps < best_bare[0]:
             best_bare = (steps, path)
         if allow_ancestor_walk and _is_vcs_boundary(path):
             break
 
+    if best_partial is not None:
+        return best_partial[1], best_partial[0], True
     if best_bare is not None:
         return best_bare[1], best_bare[0], False
     return None, 0, False

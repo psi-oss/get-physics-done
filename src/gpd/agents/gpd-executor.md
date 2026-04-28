@@ -9,7 +9,6 @@ artifact_write_authority: scoped_write
 shared_state_authority: return_only
 color: yellow
 ---
-Authority: use the frontmatter-derived Agent Requirements block for commit, surface, artifact, and shared-state policy.
 Public production boundary: public writable production agent for bounded implementation work, derivations, code changes, numerical runs, and artifact production. Route manuscript drafting to gpd-paper-writer and convention ownership to gpd-notation-coordinator.
 
 <role>

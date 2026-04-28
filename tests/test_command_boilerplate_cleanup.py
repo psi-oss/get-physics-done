@@ -38,6 +38,32 @@ STALE_MODEL_FACING_WORDING = (
     "regression guardrail",
 )
 
+WORKFLOW_DELEGATING_COMMANDS = (
+    "compare-experiment.md",
+    "dimensional-analysis.md",
+    "export.md",
+    "new-milestone.md",
+    "undo.md",
+    "explain.md",
+    "parameter-sweep.md",
+    "error-propagation.md",
+)
+
+
+def _success_criteria_items(text: str) -> list[str]:
+    match = re.search(r"<success_criteria>(.*?)</success_criteria>", text, re.DOTALL)
+    if not match:
+        return []
+
+    items: list[str] = []
+    for line in match.group(1).splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- [ ] "):
+            items.append(stripped.removeprefix("- [ ] ").strip())
+        elif stripped.startswith("- "):
+            items.append(stripped.removeprefix("- ").strip())
+    return items
+
 
 def test_command_sources_do_not_keep_runtime_boilerplate_html_comments() -> None:
     for path in sorted(COMMANDS_DIR.glob("*.md")):
@@ -107,6 +133,43 @@ def test_learned_pattern_template_uses_install_dir_reference_not_legacy_alias() 
     legacy_alias = "@" + "get-physics-done"
     assert legacy_alias not in text
     assert "{GPD_INSTALL_DIR}/references/verification/core/verification-core.md" in text
+
+
+def test_workflow_delegating_command_wrappers_do_not_copy_workflow_checklists() -> None:
+    for filename in WORKFLOW_DELEGATING_COMMANDS:
+        command_text = (COMMANDS_DIR / filename).read_text(encoding="utf-8")
+        workflow_text = (WORKFLOWS_DIR / filename).read_text(encoding="utf-8")
+
+        command_items = set(_success_criteria_items(command_text))
+        workflow_items = set(_success_criteria_items(workflow_text))
+
+        assert command_items, f"{filename} must keep wrapper-level success criteria"
+        assert not command_items & workflow_items, (
+            f"{filename} wrapper duplicates workflow-owned checklist items: {sorted(command_items & workflow_items)}"
+        )
+        assert "workflow executed as the authority" in command_text.lower(), (
+            f"{filename} must delegate implementation mechanics to the workflow contract"
+        )
+
+
+def test_command_child_invocations_do_not_use_raw_skill_or_shell_shaped_args() -> None:
+    shell_shaped_child_invocation = re.compile(
+        r"invok(?:e|es|ing)\s+`gpd:[^`]+`[^\n.]*--[a-z][a-z0-9-]*",
+        re.IGNORECASE,
+    )
+
+    for path in sorted(COMMANDS_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        assert "via Skill" not in text, f"{path.relative_to(REPO_ROOT)} still describes a raw Skill child call"
+        assert not shell_shaped_child_invocation.search(text), (
+            f"{path.relative_to(REPO_ROOT)} describes a child command with shell-shaped flags"
+        )
+
+    undo_text = (COMMANDS_DIR / "undo.md").read_text(encoding="utf-8")
+    assert "structured runtime arguments" in undo_text
+    assert "--reverted-commit" not in undo_text
+    assert "--trigger" not in undo_text
+    assert "--phase" not in undo_text
 
 
 def test_parameter_sweep_command_wrapper_delegates_mechanics_to_workflow() -> None:

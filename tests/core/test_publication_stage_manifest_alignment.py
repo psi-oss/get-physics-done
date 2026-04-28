@@ -150,6 +150,7 @@ def test_arxiv_submission_stage_manifest_surfaces_publication_routing() -> None:
     bootstrap = manifest.stage("bootstrap")
     package = manifest.stage("package")
 
+    assert manifest.prompt_usage == "staged_init"
     assert "publication_subject_slug" in bootstrap.required_init_fields
     assert "publication_lane_kind" in bootstrap.required_init_fields
     assert "publication_lane_owner" in bootstrap.required_init_fields
@@ -157,6 +158,55 @@ def test_arxiv_submission_stage_manifest_surfaces_publication_routing() -> None:
     assert "selected_publication_root" in bootstrap.required_init_fields
     assert "selected_review_root" in bootstrap.required_init_fields
     assert package.writes_allowed == ("GPD/publication/{subject_slug}/arxiv",)
+
+
+def test_respond_to_referees_stage_manifest_uses_publication_response_contracts() -> None:
+    manifest = _load_manifest("respond-to-referees")
+
+    assert manifest.stage_ids() == (
+        "bootstrap",
+        "report_triage",
+        "revision_planning",
+        "response_authoring",
+        "finalize",
+    )
+
+    bootstrap = manifest.stage("bootstrap")
+    report_triage = manifest.stage("report_triage")
+    revision_planning = manifest.stage("revision_planning")
+    response_authoring = manifest.stage("response_authoring")
+    finalize = manifest.stage("finalize")
+
+    assert "references/publication/publication-bootstrap-preflight.md" in bootstrap.loaded_authorities
+    assert "references/publication/publication-response-writer-handoff.md" in bootstrap.must_not_eager_load
+    assert "publication_subject_slug" in bootstrap.required_init_fields
+    assert "publication_lane_kind" in bootstrap.required_init_fields
+    assert "selected_publication_root" in bootstrap.required_init_fields
+    assert "selected_review_root" in bootstrap.required_init_fields
+    assert "latest_response_artifacts" in bootstrap.required_init_fields
+
+    assert report_triage.loaded_authorities == (
+        "workflows/respond-to-referees.md",
+        "references/publication/peer-review-reliability.md",
+        "references/publication/publication-response-writer-handoff.md",
+    )
+    assert "reference_artifacts_content" in revision_planning.required_init_fields
+    assert "templates/paper/referee-response.md" in response_authoring.loaded_authorities
+    assert "templates/paper/author-response.md" in response_authoring.loaded_authorities
+    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in response_authoring.writes_allowed
+    assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in response_authoring.writes_allowed
+    assert "GPD/publication/{subject_slug}/AUTHOR-RESPONSE{round_suffix}.md" in response_authoring.writes_allowed
+    assert "GPD/publication/{subject_slug}/review/REFEREE_RESPONSE{round_suffix}.md" in finalize.writes_allowed
+
+
+def test_respond_to_referees_workflow_uses_staged_init_without_inline_field_list() -> None:
+    workflow = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+
+    assert "gpd --raw init respond-to-referees --stage bootstrap" in workflow
+    assert "gpd --raw init phase-op --include config" not in workflow
+    assert "respond-to-referees-stage-manifest.json" in workflow
+    assert "INIT.staged_loading.required_init_fields" in workflow
+    assert "Parse JSON for: `commit_docs`, `state_exists`, `project_exists`" not in workflow
 
 
 def test_publication_bootstrap_preflight_uses_canonical_publication_contracts() -> None:

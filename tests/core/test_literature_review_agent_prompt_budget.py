@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.model_visible_text import AGENT_FRONTMATTER_AUTHORITY_POINTER
+from gpd import registry
 from tests.prompt_metrics_support import expanded_prompt_text, measure_prompt_surface
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -23,7 +23,8 @@ def test_gpd_literature_reviewer_prompt_stays_within_expected_budget_and_keeps_t
     assert metrics.expanded_line_count < 2_100
     assert metrics.expanded_char_count < 100_000
 
-    assert AGENT_FRONTMATTER_AUTHORITY_POINTER in source
+    assert "Authority: use the frontmatter-derived Agent Requirements block" not in source
+    assert registry.get_agent("gpd-literature-reviewer").system_prompt.count("## Agent Requirements") == 1
     assert "This is a one-shot checkpoint handoff." in source
     assert "gpd_return.status: checkpoint" in source
     assert "GPD/literature/{slug}-REVIEW.md" in source

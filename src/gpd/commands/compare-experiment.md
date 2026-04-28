@@ -82,16 +82,7 @@ Follow the included compare-experiment workflow.
 
 <success_criteria>
 
-- [ ] Theoretical predictions identified with uncertainties
-- [ ] Experimental data loaded with uncertainties (stat + syst)
-- [ ] Unit conversions documented and applied
-- [ ] Convention matching verified
-- [ ] Point-by-point comparison performed with pulls
-- [ ] Global chi-squared computed with p-value
-- [ ] Residual analysis performed for systematic patterns
-- [ ] Discrepancies classified and quantified (in sigma)
-- [ ] Root cause analysis for any significant discrepancy
-- [ ] Comparison report generated
-- [ ] Comparison figures generated (or scripts provided)
-- [ ] Results routed appropriately (paper writing or debugging)
-      </success_criteria>
+- [ ] Command context validated
+- [ ] Compare-experiment workflow executed as the authority for comparison mechanics
+- [ ] Current-workspace input discovery and `GPD/comparisons/` output boundaries preserved
+</success_criteria>

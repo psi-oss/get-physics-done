@@ -115,9 +115,7 @@ def test_project_layout_strip_summary_suffix(filename: str, expected: str, tmp_p
         ("verification_file", "01-VERIFICATION.md"),
     ],
 )
-def test_project_layout_phase_artifact_paths(
-    method_name: str, expected_name: str, tmp_path: Path
-) -> None:
+def test_project_layout_phase_artifact_paths(method_name: str, expected_name: str, tmp_path: Path) -> None:
     layout = ProjectLayout(tmp_path)
     path = getattr(layout, method_name)("01-setup", "01")
 
@@ -142,6 +140,24 @@ def test_project_layout_ignores_non_project_hidden_gpd_dirs(tmp_path: Path) -> N
 
 def test_bare_gpd_phases_stub_is_not_high_confidence_project_root(tmp_path: Path) -> None:
     (tmp_path / PLANNING_DIR_NAME / "phases").mkdir(parents=True)
+
+    resolution = resolve_project_roots(tmp_path)
+
+    assert resolution is not None
+    assert resolution.project_root == tmp_path.resolve(strict=False)
+    assert resolution.confidence == RootResolutionConfidence.LOW
+    assert resolution.has_project_layout is False
+    assert resolve_project_root(tmp_path, require_layout=True) is None
+
+
+@pytest.mark.parametrize("filename", ["state.json", "STATE.md", "PROJECT.md", "ROADMAP.md"])
+def test_one_file_generated_gpd_stub_is_not_high_confidence_project_root(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    gpd_dir = tmp_path / PLANNING_DIR_NAME
+    gpd_dir.mkdir()
+    (gpd_dir / filename).write_text("{}\n" if filename == "state.json" else f"# {filename}\n", encoding="utf-8")
 
     resolution = resolve_project_roots(tmp_path)
 

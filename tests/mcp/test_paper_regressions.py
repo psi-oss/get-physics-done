@@ -274,21 +274,22 @@ def test_artifact_manifest_models_reject_blank_titles_and_invalid_timestamps() -
         )
 
 
-def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> None:
+def test_build_artifact_manifest_makes_output_local_absolute_source_paths_portable(tmp_path) -> None:
     from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
     from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
 
-    source_dir = tmp_path / "sources"
-    source_dir.mkdir()
+    output_dir = tmp_path / "paper"
+    source_dir = output_dir / "sources"
+    source_dir.mkdir(parents=True)
     original_path = source_dir / "input-figure.pdf"
     original_path.write_text("source figure", encoding="utf-8")
 
-    prepared_dir = tmp_path / "figures"
+    prepared_dir = output_dir / "figures"
     prepared_dir.mkdir()
     prepared_path = prepared_dir / "prepared-figure.pdf"
     prepared_path.write_text("prepared figure", encoding="utf-8")
 
-    tex_path = tmp_path / "paper.tex"
+    tex_path = output_dir / "paper.tex"
     tex_path.write_text("\\documentclass{article}\\begin{document}\\end{document}", encoding="utf-8")
 
     config = PaperConfig(
@@ -301,7 +302,7 @@ def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> No
 
     manifest = build_artifact_manifest(
         config,
-        tmp_path,
+        output_dir,
         tex_path=tex_path,
         figure_source_pairs=[
             (
@@ -312,7 +313,93 @@ def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> No
     )
 
     figure_artifact = next(artifact for artifact in manifest.artifacts if artifact.category == "figure")
-    assert figure_artifact.sources[0].path == str(original_path)
+    assert figure_artifact.sources[0].path == "sources/input-figure.pdf"
+    assert figure_artifact.sources[0].role == "source-figure"
+
+
+def test_build_artifact_manifest_classifies_external_absolute_source_paths(tmp_path) -> None:
+    from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
+    from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+
+    output_dir = tmp_path / "paper"
+    output_dir.mkdir()
+    external_dir = tmp_path / "external-sources"
+    external_dir.mkdir()
+    original_path = external_dir / "input-figure.pdf"
+    original_path.write_text("source figure", encoding="utf-8")
+    prepared_dir = output_dir / "figures"
+    prepared_dir.mkdir()
+    (prepared_dir / "prepared-figure.pdf").write_text("prepared figure", encoding="utf-8")
+    tex_path = output_dir / "paper.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}\\end{document}", encoding="utf-8")
+    config = PaperConfig(
+        title="External Source Manifest",
+        authors=[Author(name="Test Author", affiliation="Test Univ")],
+        abstract="Abstract text.",
+        sections=[Section(title="Intro", content="Content")],
+        journal="jhep",
+    )
+
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        figure_source_pairs=[
+            (
+                FigureRef(path=original_path, caption="Source", label="source"),
+                FigureRef(path=Path("figures/prepared-figure.pdf"), caption="Prepared", label="prepared"),
+            )
+        ],
+    )
+
+    source = next(artifact for artifact in manifest.artifacts if artifact.category == "figure").sources[0]
+    assert source.path == "external:input-figure.pdf"
+    assert source.role == "external-source-figure"
+    assert tmp_path.as_posix() not in source.path
+
+
+def test_build_artifact_manifest_makes_cwd_local_absolute_source_paths_portable(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
+    from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+
+    project_root = tmp_path / "project"
+    output_dir = project_root / "GPD" / "publication" / "paper"
+    source_dir = project_root / "assets"
+    prepared_dir = output_dir / "figures"
+    source_dir.mkdir(parents=True)
+    prepared_dir.mkdir(parents=True)
+    original_path = source_dir / "input-figure.pdf"
+    original_path.write_text("source figure", encoding="utf-8")
+    (prepared_dir / "prepared-figure.pdf").write_text("prepared figure", encoding="utf-8")
+    tex_path = output_dir / "paper.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}\\end{document}", encoding="utf-8")
+    monkeypatch.chdir(project_root)
+    config = PaperConfig(
+        title="Project Source Manifest",
+        authors=[Author(name="Test Author", affiliation="Test Univ")],
+        abstract="Abstract text.",
+        sections=[Section(title="Intro", content="Content")],
+        journal="jhep",
+    )
+
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        figure_source_pairs=[
+            (
+                FigureRef(path=original_path, caption="Source", label="source"),
+                FigureRef(path=Path("figures/prepared-figure.pdf"), caption="Prepared", label="prepared"),
+            )
+        ],
+    )
+
+    source = next(artifact for artifact in manifest.artifacts if artifact.category == "figure").sources[0]
+    assert source.path == "assets/input-figure.pdf"
+    assert source.role == "source-figure"
 
 
 def test_build_artifact_manifest_skips_prepared_figures_outside_output_dir(tmp_path) -> None:

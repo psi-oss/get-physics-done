@@ -3900,7 +3900,8 @@ def test_validate_command_context_sync_state_does_not_auto_select_recent_project
     assert payload["passed"] is False
     assert not any("auto-selected recoverable recent project" in check["detail"] for check in payload["checks"])
     assert any(
-        check["name"] == "project_reentry" and check["detail"] == "no recoverable current-workspace project target found"
+        check["name"] == "project_reentry"
+        and check["detail"] == "no recoverable current-workspace project target found"
         for check in payload["checks"]
     )
 
@@ -6563,12 +6564,40 @@ def test_init_resume(mock_init):
     mock_init.assert_called_once()
 
 
-def test_init_resume_work_alias_is_not_available() -> None:
+@patch("gpd.core.context.init_resume")
+def test_init_resume_work_alias_delegates_to_resume(mock_init) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"segment_candidates": []}
+    mock_init.return_value = mock_result
+
     result = runner.invoke(app, ["init", "resume-work"])
 
-    assert result.exit_code != 0
-    assert "resume-work" in result.output
-    assert "No such command" in result.output
+    assert result.exit_code == 0
+    mock_init.assert_called_once()
+
+
+@patch("gpd.core.context.init_arxiv_submission")
+def test_init_arxiv_submission_stage_route_is_reachable(mock_init) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"staged_loading": {"stage_id": "bootstrap"}}
+    mock_init.return_value = mock_result
+
+    result = runner.invoke(app, ["init", "arxiv-submission", "--stage", "bootstrap"])
+
+    assert result.exit_code == 0
+    assert mock_init.call_args.kwargs == {"stage": "bootstrap"}
+
+
+@patch("gpd.core.context.init_respond_to_referees")
+def test_init_respond_to_referees_stage_route_is_reachable(mock_init) -> None:
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"staged_loading": {"stage_id": "bootstrap"}}
+    mock_init.return_value = mock_result
+
+    result = runner.invoke(app, ["init", "respond-to-referees", "--stage", "bootstrap"])
+
+    assert result.exit_code == 0
+    assert mock_init.call_args.kwargs == {"subject": None, "stage": "bootstrap"}
 
 
 def test_paper_build_uses_default_config_surface(tmp_path: Path):
@@ -7780,8 +7809,7 @@ def test_resolve_review_preflight_manuscript_rejects_missing_out_of_root_target_
 
     assert resolved is None
     assert (
-        detail
-        == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
+        detail == "explicit manuscript target must stay under `paper/`, `manuscript/`, `draft/`, "
         "or `GPD/publication/<subject_slug>[/manuscript/]` inside the current project"
     )
 
@@ -7859,8 +7887,7 @@ def test_resolve_review_preflight_manuscript_rejects_unsupported_explicit_target
 
     assert resolved is None
     assert (
-        "must stay under `paper/`, `manuscript/`, `draft/`, "
-        "or `GPD/publication/<subject_slug>[/manuscript/]`"
+        "must stay under `paper/`, `manuscript/`, `draft/`, or `GPD/publication/<subject_slug>[/manuscript/]`"
     ) in detail
 
 

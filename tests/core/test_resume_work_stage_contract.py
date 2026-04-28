@@ -142,8 +142,10 @@ def test_init_resume_invokes_resume_context(monkeypatch: pytest.MonkeyPatch) -> 
     assert json.loads(result.output)["stage"] == "resume_bootstrap"
 
 
-def test_init_resume_work_hidden_compatibility_alias_is_removed() -> None:
+def test_init_resume_work_alias_delegates_to_resume() -> None:
+    expected = RUNNER.invoke(app, ["--raw", "init", "resume", "--stage", "resume_bootstrap"])
     result = RUNNER.invoke(app, ["--raw", "init", "resume-work", "--stage", "resume_bootstrap"])
 
-    assert result.exit_code != 0
-    assert "No such command" in result.output
+    assert expected.exit_code == 0
+    assert result.exit_code == 0
+    assert json.loads(result.output) == json.loads(expected.output)

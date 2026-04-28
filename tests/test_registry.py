@@ -888,7 +888,9 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_publication_command_policy_can_override_companion_supporting_context_metadata(self, tmp_path: Path) -> None:
+    def test_publication_command_policy_can_override_companion_supporting_context_metadata(
+        self, tmp_path: Path
+    ) -> None:
         f = tmp_path / "arxiv-submission.md"
         f.write_text(
             "---\n"
@@ -2070,9 +2072,13 @@ class TestRegistryPromptIncludeInlining:
         assert agent.path.endswith("gpd-project-researcher.md")
         assert "Checkpoint after the initial survey with scope confirmation." in agent.content
         assert "gpd_return:" in agent.content
-        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.content
+        assert (
+            "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+            in agent.content
+        )
         assert "commit_authority: orchestrator" in agent.content
-        assert "Authority: use the frontmatter-derived Agent Requirements block" in agent.content
+        assert "Authority: use the frontmatter-derived Agent Requirements block" not in agent.content
+        assert "## Agent Requirements" in agent.content
         assert "wait for confirmation" not in agent.content
         assert "pause here for approval" not in agent.content
         assert "ask the user then continue" not in agent.content
@@ -2202,12 +2208,14 @@ class TestRegistryPromptIncludeInlining:
         assert command.command_policy is not None
         assert command.command_policy.subject_policy is not None
         assert command.command_policy.subject_policy.explicit_input_kinds == subject_policy_meta["explicit_input_kinds"]
-        assert command.command_policy.subject_policy.allow_external_subjects == subject_policy_meta[
-            "allow_external_subjects"
-        ]
-        assert command.command_policy.subject_policy.allow_interactive_without_subject == subject_policy_meta[
-            "allow_interactive_without_subject"
-        ]
+        assert (
+            command.command_policy.subject_policy.allow_external_subjects
+            == subject_policy_meta["allow_external_subjects"]
+        )
+        assert (
+            command.command_policy.subject_policy.allow_interactive_without_subject
+            == subject_policy_meta["allow_interactive_without_subject"]
+        )
         assert command.command_policy.subject_policy.bootstrap_allowed == subject_policy_meta["bootstrap_allowed"]
         assert command.command_policy.supporting_context_policy is not None
         assert (
@@ -2220,9 +2228,7 @@ class TestRegistryPromptIncludeInlining:
         )
 
         assert command.review_contract is not None
-        scope_variants = {
-            str(variant.scope): variant for variant in command.review_contract.scope_variants
-        }
+        scope_variants = {str(variant.scope): variant for variant in command.review_contract.scope_variants}
         scope_variant = scope_variants["explicit_intake_manifest"]
         assert scope_variant.relaxed_preflight_checks == scope_variant_meta["relaxed_preflight_checks"]
         assert scope_variant.optional_preflight_checks == scope_variant_meta["optional_preflight_checks"]
@@ -3176,7 +3182,10 @@ class TestPublicAPI:
         assert "## RESEARCH COMPLETE" in agent.system_prompt
         assert "## RESEARCH BLOCKED" in agent.system_prompt
         assert "gpd_return:" in agent.system_prompt
-        assert "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md." in agent.system_prompt
+        assert (
+            "# Base fields (`status`, `files_written`, `issues`, `next_actions`) follow agent-infrastructure.md."
+            in agent.system_prompt
+        )
         assert "RESEARCH.md" in agent.system_prompt
 
     def test_registry_cache_invalidation_clears_new_project_stage_manifest(self) -> None:

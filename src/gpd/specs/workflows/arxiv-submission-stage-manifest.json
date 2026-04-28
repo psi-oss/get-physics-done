@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "workflow_id": "arxiv-submission",
-  "prompt_usage": "metadata_only",
+  "prompt_usage": "staged_init",
   "stages": [
     {
       "id": "bootstrap",

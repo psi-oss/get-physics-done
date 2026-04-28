@@ -31,13 +31,13 @@ GRAPH_SCOPE_LABELS = (
     "`src/gpd/adapters/*.py`",
     "`src/gpd/hooks/*.py`",
     "`src/gpd/mcp/*.py`",
+    "`src/gpd/mcp/integrations/*.py`",
     "`src/gpd/mcp/servers/*.py`",
     "`infra/gpd-*.json`",
 )
 
 _NORMALIZED_SCOPE_LABELS = {
-    label[1:-1] if label.startswith("`") and label.endswith("`") else label: label
-    for label in GRAPH_SCOPE_LABELS
+    label[1:-1] if label.startswith("`") and label.endswith("`") else label: label for label in GRAPH_SCOPE_LABELS
 }
 
 
@@ -168,11 +168,7 @@ def _untracked_repo_files(repo_root: Path) -> list[Path] | None:
 def _repo_files_in_scope(repo_root: Path) -> list[Path]:
     tracked_files = _tracked_repo_files(repo_root)
     if tracked_files is not None:
-        return [
-            path
-            for path in tracked_files
-            if not _is_excluded_path(path) and (repo_root / path).is_file()
-        ]
+        return [path for path in tracked_files if not _is_excluded_path(path) and (repo_root / path).is_file()]
 
     return [
         path.relative_to(repo_root)
@@ -191,6 +187,7 @@ def _is_graph_scope_path(path: Path) -> bool:
         or (_has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py")
         or (_has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py")
         or (_has_parent(path, "src", "gpd", "mcp") and path.suffix == ".py")
+        or (_has_parent(path, "src", "gpd", "mcp", "integrations") and path.suffix == ".py")
         or (_has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py")
         or (_has_parent(path, "infra") and path.suffix == ".json" and path.name.startswith("gpd-"))
     )
@@ -205,9 +202,7 @@ def untracked_graph_scope_files(repo_root: Path = REPO_ROOT) -> tuple[Path, ...]
             (
                 path
                 for path in untracked_files
-                if not _is_excluded_path(path)
-                and _is_graph_scope_path(path)
-                and (repo_root / path).is_file()
+                if not _is_excluded_path(path) and _is_graph_scope_path(path) and (repo_root / path).is_file()
             ),
             key=lambda path: path.as_posix(),
         )
@@ -253,19 +248,13 @@ def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
             1 for path in repo_files if _has_parent(path, "src", "gpd", "agents") and path.suffix == ".md"
         ),
         "`src/gpd/specs/workflows/*.md`": sum(
-            1
-            for path in repo_files
-            if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
         ),
         "`src/gpd/specs/templates/**/*.md`": sum(
-            1
-            for path in repo_files
-            if _is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md"
+            1 for path in repo_files if _is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md"
         ),
         "`src/gpd/specs/references/**/*.md`": sum(
-            1
-            for path in repo_files
-            if _is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md"
+            1 for path in repo_files if _is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md"
         ),
         "`src/gpd/adapters/*.py`": sum(
             1 for path in repo_files if _has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py"
@@ -276,10 +265,11 @@ def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
         "`src/gpd/mcp/*.py`": sum(
             1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp") and path.suffix == ".py"
         ),
+        "`src/gpd/mcp/integrations/*.py`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp", "integrations") and path.suffix == ".py"
+        ),
         "`src/gpd/mcp/servers/*.py`": sum(
-            1
-            for path in repo_files
-            if _has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py"
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py"
         ),
         "`infra/gpd-*.json`": sum(
             1
@@ -347,18 +337,14 @@ def render_scope_block(contract: dict[str, object]) -> str:
 def render_same_stem_command_workflow_block(repo_root: Path = REPO_ROOT) -> str:
     repo_files = _repo_files_in_scope(repo_root)
     command_stems = {
-        path.stem
-        for path in repo_files
-        if _has_parent(path, "src", "gpd", "commands") and path.suffix == ".md"
+        path.stem for path in repo_files if _has_parent(path, "src", "gpd", "commands") and path.suffix == ".md"
     }
     workflow_stems = {
         path.stem
         for path in repo_files
         if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
     }
-    same_stems = ",".join(
-        sorted(command_stems & workflow_stems)
-    )
+    same_stems = ",".join(sorted(command_stems & workflow_stems))
 
     return "\n".join(
         (
